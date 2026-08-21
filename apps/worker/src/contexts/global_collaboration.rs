@@ -79,12 +79,23 @@ impl GlobalCollaborationProjectionRuntime {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use erpx_collaboration_sqlx::GLOBAL_COLLABORATION_PROJECTION;
+    use erpx_collaboration_sqlx::{
+        GLOBAL_COLLABORATION_PROJECTION, GLOBAL_RELATION_DRAFT_EVENT_TYPE,
+        GLOBAL_THREAD_SNAPSHOT_EVENT_TYPE,
+    };
+    use erpx_integration_contracts::ITEM_DIRECTORY_OWNER_EVENT_TYPE;
 
     #[test]
     fn registration_is_stable_and_typed() {
         let registration = GlobalCollaborationProjectionFactory.registration();
         assert_eq!(registration.name, GLOBAL_COLLABORATION_PROJECTION);
-        assert_eq!(registration.event_types.len(), 1);
+        assert_eq!(
+            registration.event_types,
+            [
+                ITEM_DIRECTORY_OWNER_EVENT_TYPE,
+                GLOBAL_RELATION_DRAFT_EVENT_TYPE,
+                GLOBAL_THREAD_SNAPSHOT_EVENT_TYPE,
+            ]
+        );
     }
 }

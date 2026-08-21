@@ -49,7 +49,7 @@ pub use editable_fields::{
     EditableFieldValueKind, FieldPatchConflict, FieldPatchConflictReason, FieldSuggestionEvidence,
     HumanFieldPatchReview, MAX_FIELD_EVIDENCE_REFS, MAX_FIELD_PATCH_OPERATIONS,
     RecordEditableFieldSchema, RecordFieldPatch, SuggestedFieldChange, SuggestedFieldValue,
-    record_editable_field_schema, record_editable_field_schemas,
+    owner_field_value_digest, record_editable_field_schema, record_editable_field_schemas,
 };
 pub use envelope::{
     AggregateKind, BoundedContext, EventType, IntegrationEvent, IntegrationEventEnvelope,

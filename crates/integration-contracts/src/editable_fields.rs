@@ -10,6 +10,7 @@ use std::collections::BTreeSet;
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_kernel::{DataClassification, SessionId};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 use crate::{
@@ -271,6 +272,14 @@ pub enum SuggestedFieldValue {
     Money { amount_minor: i64, currency: String },
 }
 
+/// Canonical digest used by owner adapters for optimistic field-level
+/// conflict detection. `Unset` is a real typed state, never an empty-string
+/// sentinel.
+pub fn owner_field_value_digest(value: &SuggestedFieldValue) -> Result<String, EditableFieldError> {
+    let bytes = serde_json::to_vec(value).map_err(|_| EditableFieldError::InvalidValue)?;
+    Ok(format!("{:x}", Sha256::digest(bytes)))
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum FieldSuggestionEvidence {
@@ -515,7 +524,8 @@ mod tests {
             schema_version: 1,
             changes: vec![SuggestedFieldChange {
                 field: StableFieldRef::try_new(record, "quote.payment_terms_days", 1).unwrap(),
-                previous_value_digest: "a".repeat(64),
+                previous_value_digest: owner_field_value_digest(&SuggestedFieldValue::Unset)
+                    .unwrap(),
                 proposed_value: SuggestedFieldValue::Integer(30),
                 confidence_basis_points: 9_000,
                 evidence: Vec::new(),

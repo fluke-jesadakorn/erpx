@@ -1,9 +1,14 @@
+use std::collections::BTreeMap;
+
 use async_trait::async_trait;
 use chrono::Utc;
 use erpx_agent_orchestration::{
     SuggestionApplicationError, SuggestionCommit, SuggestionEnvelope, SuggestionId,
     SuggestionOwner, SuggestionProviderKind, SuggestionReceipt, SuggestionRepository,
     SuggestionStatus,
+};
+use erpx_integration_contracts::{
+    SuggestedFieldValue, owner_field_value_digest, record_editable_field_schema,
 };
 use erpx_kernel::{ActorKind, AuthorityScope};
 use sha2::{Digest, Sha256};
@@ -258,6 +263,10 @@ impl SuggestionRepository for SqlxSuggestionRepository {
             return Err(SuggestionApplicationError::VersionConflict);
         }
 
+        if commit.envelope.status() == SuggestionStatus::Applied {
+            apply_owner_field_patch(&mut tx, self.pool.holding_id(), &commit).await?;
+        }
+
         let field_patch_document = commit
             .envelope
             .field_patch()
@@ -432,6 +441,326 @@ impl SuggestionRepository for SqlxSuggestionRepository {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct OwnerFieldPatchRoute {
+    context_name: &'static str,
+    application_table: &'static str,
+    base_record_query: &'static str,
+}
+
+fn owner_field_patch_route(record_type: &str) -> Option<OwnerFieldPatchRoute> {
+    match record_type {
+        "sales.quote" => Some(OwnerFieldPatchRoute {
+            context_name: "sales",
+            application_table: "erpx_sales_write.record_field_patch_applications",
+            base_record_query: "SELECT aggregate_version AS record_version,
+                jsonb_build_object(
+                  'quote.valid_until',jsonb_build_object('kind','date_time','value',valid_until)
+                ) AS base_values
+                FROM erpx_sales_write.quote_guards
+                WHERE holding_id=$1 AND quote_id=$2 FOR UPDATE",
+        }),
+        "customer-360.note" => Some(OwnerFieldPatchRoute {
+            context_name: "customer_360",
+            application_table: "erpx_customer_360_write.record_field_patch_applications",
+            base_record_query: "SELECT record_version,
+                jsonb_build_object() AS base_values
+                FROM erpx_customer_360_write.owned_records
+                WHERE holding_id=$1 AND record_id=$2 AND record_kind='note' FOR UPDATE",
+        }),
+        "procurement.requisition" => Some(OwnerFieldPatchRoute {
+            context_name: "procurement",
+            application_table: "erpx_procurement_write.record_field_patch_applications",
+            base_record_query: "SELECT record_version,
+                jsonb_build_object() AS base_values
+                FROM erpx_procurement_write.business_records
+                WHERE holding_id=$1 AND record_id=$2 AND record_kind='requisition' FOR UPDATE",
+        }),
+        "maintenance.request" => Some(OwnerFieldPatchRoute {
+            context_name: "maintenance",
+            application_table: "erpx_maintenance_write.record_field_patch_applications",
+            base_record_query: "SELECT record_version,
+                jsonb_build_object() AS base_values
+                FROM erpx_maintenance_write.business_records
+                WHERE holding_id=$1 AND record_id=$2 AND record_kind='request' FOR UPDATE",
+        }),
+        "marketing.content" => Some(OwnerFieldPatchRoute {
+            context_name: "marketing",
+            application_table: "erpx_marketing_write.record_field_patch_applications",
+            base_record_query: "SELECT record_version,
+                jsonb_build_object(
+                  'content.title',jsonb_build_object('kind','text','value',record_title)
+                ) AS base_values
+                FROM erpx_marketing_write.business_records
+                WHERE holding_id=$1 AND record_id=$2 AND record_kind='content' FOR UPDATE",
+        }),
+        _ => None,
+    }
+}
+
+async fn apply_owner_field_patch(
+    transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    holding_id: Uuid,
+    commit: &SuggestionCommit,
+) -> Result<(), SuggestionApplicationError> {
+    if commit.actor.kind != ActorKind::HoldingUser
+        || commit.actor.represented_principal_ref.is_some()
+        || commit.actor.support_capability_id.is_some()
+    {
+        return Err(SuggestionApplicationError::HumanDecisionRequired);
+    }
+    let session_id = commit
+        .actor
+        .session_id
+        .ok_or(SuggestionApplicationError::HumanDecisionRequired)?;
+    let patch = commit
+        .envelope
+        .field_patch()
+        .ok_or(SuggestionApplicationError::InvalidRequest)?;
+    patch
+        .validate()
+        .map_err(|_| SuggestionApplicationError::InvalidRequest)?;
+    let review = commit
+        .envelope
+        .human_field_patch_review()
+        .ok_or(SuggestionApplicationError::HumanDecisionRequired)?;
+    let decision_ref = commit
+        .envelope
+        .applied_decision_ref()
+        .ok_or(SuggestionApplicationError::HumanDecisionRequired)?;
+    if review.reviewer_principal_ref != commit.actor.principal_ref
+        || review.reviewer_session_id != session_id
+        || commit.envelope.applied_session_id() != Some(session_id)
+        || commit.envelope.applied_actor_kind() != Some(ActorKind::HoldingUser)
+    {
+        return Err(SuggestionApplicationError::HumanDecisionRequired);
+    }
+    let record_type = patch.source.record().record_type().as_str();
+    let route =
+        owner_field_patch_route(record_type).ok_or(SuggestionApplicationError::InvalidRequest)?;
+    let schema = record_editable_field_schema(record_type)
+        .filter(|schema| {
+            schema.supports_agent_patches()
+                && schema.version == patch.schema_version
+                && schema.owner == patch.source.record().owner_context()
+        })
+        .ok_or(SuggestionApplicationError::InvalidRequest)?;
+    let permission = patch
+        .changes
+        .iter()
+        .filter_map(|change| schema.field(change.field.field_id()))
+        .map(|field| field.human_apply_permission)
+        .collect::<std::collections::BTreeSet<_>>();
+    if permission.len() != 1 {
+        return Err(SuggestionApplicationError::Denied);
+    }
+    let permission = permission
+        .into_iter()
+        .next()
+        .ok_or(SuggestionApplicationError::Denied)?;
+
+    let base = sqlx::query(route.base_record_query)
+        .bind(holding_id)
+        .bind(patch.source.record().id().as_uuid())
+        .fetch_optional(&mut **transaction)
+        .await
+        .map_err(|_| SuggestionApplicationError::Unavailable)?
+        .ok_or(SuggestionApplicationError::NotFound)?;
+    let current_record_version = u64::try_from(
+        base.try_get::<i64, _>("record_version")
+            .map_err(|_| SuggestionApplicationError::Unavailable)?,
+    )
+    .map_err(|_| SuggestionApplicationError::Unavailable)?;
+    if current_record_version != patch.source.version() {
+        return Err(SuggestionApplicationError::VersionConflict);
+    }
+    let base_values: BTreeMap<String, SuggestedFieldValue> = serde_json::from_value(
+        base.try_get("base_values")
+            .map_err(|_| SuggestionApplicationError::Unavailable)?,
+    )
+    .map_err(|_| SuggestionApplicationError::Unavailable)?;
+
+    let state_query = format!(
+        "SELECT application_id,owner_revision,field_values
+         FROM {} WHERE holding_id=$1 AND record_id=$2
+         ORDER BY owner_revision DESC LIMIT 1 FOR UPDATE",
+        route.application_table
+    );
+    let previous = sqlx::query(&state_query)
+        .bind(holding_id)
+        .bind(patch.source.record().id().as_uuid())
+        .fetch_optional(&mut **transaction)
+        .await
+        .map_err(|_| SuggestionApplicationError::Unavailable)?;
+    let (previous_application_id, previous_revision, mut values) = if let Some(row) = previous {
+        (
+            Some(
+                row.try_get::<Uuid, _>("application_id")
+                    .map_err(|_| SuggestionApplicationError::Unavailable)?,
+            ),
+            u64::try_from(
+                row.try_get::<i64, _>("owner_revision")
+                    .map_err(|_| SuggestionApplicationError::Unavailable)?,
+            )
+            .map_err(|_| SuggestionApplicationError::Unavailable)?,
+            serde_json::from_value::<BTreeMap<String, SuggestedFieldValue>>(
+                row.try_get("field_values")
+                    .map_err(|_| SuggestionApplicationError::Unavailable)?,
+            )
+            .map_err(|_| SuggestionApplicationError::Unavailable)?,
+        )
+    } else {
+        (None, 0, BTreeMap::new())
+    };
+    for change in &patch.changes {
+        let current = values
+            .get(change.field.field_id())
+            .or_else(|| base_values.get(change.field.field_id()))
+            .cloned()
+            .unwrap_or(SuggestedFieldValue::Unset);
+        let current_digest = owner_field_value_digest(&current)
+            .map_err(|_| SuggestionApplicationError::Unavailable)?;
+        if !current_digest.eq_ignore_ascii_case(&change.previous_value_digest) {
+            return Err(SuggestionApplicationError::VersionConflict);
+        }
+        values.insert(
+            change.field.field_id().to_owned(),
+            change.proposed_value.clone(),
+        );
+    }
+    let owner_revision = previous_revision
+        .checked_add(1)
+        .ok_or(SuggestionApplicationError::VersionConflict)?;
+    let application_id = stable_id(commit.command_id, b"owner-field-patch-application");
+    let field_values =
+        serde_json::to_value(&values).map_err(|_| SuggestionApplicationError::Unavailable)?;
+    let patch_document =
+        serde_json::to_value(patch).map_err(|_| SuggestionApplicationError::Unavailable)?;
+    let review_document =
+        serde_json::to_value(review).map_err(|_| SuggestionApplicationError::Unavailable)?;
+    let request_digest = digest(&serde_json::json!({
+        "command_id": commit.command_id,
+        "suggestion_id": commit.envelope.id(),
+        "patch": patch_document,
+        "review": review_document,
+        "permission": permission,
+    }))?;
+    let insert = format!(
+        "INSERT INTO {}(
+           holding_id,application_id,command_id,suggestion_id,record_id,record_type,
+           source_record_version,schema_version,owner_revision,previous_application_id,
+           field_values,patch_document,human_review_document,request_digest,
+           human_apply_permission,actor_principal_ref,actor_session_id,decision_ref,applied_at)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)",
+        route.application_table
+    );
+    sqlx::query(&insert)
+        .bind(holding_id)
+        .bind(application_id)
+        .bind(commit.command_id)
+        .bind(commit.envelope.id().as_uuid())
+        .bind(patch.source.record().id().as_uuid())
+        .bind(record_type)
+        .bind(
+            i64::try_from(patch.source.version())
+                .map_err(|_| SuggestionApplicationError::InvalidRequest)?,
+        )
+        .bind(
+            i64::try_from(patch.schema_version)
+                .map_err(|_| SuggestionApplicationError::InvalidRequest)?,
+        )
+        .bind(
+            i64::try_from(owner_revision)
+                .map_err(|_| SuggestionApplicationError::VersionConflict)?,
+        )
+        .bind(previous_application_id)
+        .bind(&field_values)
+        .bind(&patch_document)
+        .bind(&review_document)
+        .bind(&request_digest)
+        .bind(permission)
+        .bind(&commit.actor.principal_ref)
+        .bind(session_id.as_uuid())
+        .bind(decision_ref)
+        .bind(review.reviewed_at)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|error| {
+            if error
+                .as_database_error()
+                .is_some_and(|database| database.is_unique_violation())
+            {
+                SuggestionApplicationError::VersionConflict
+            } else {
+                SuggestionApplicationError::Unavailable
+            }
+        })?;
+
+    let actor =
+        serde_json::to_value(&commit.actor).map_err(|_| SuggestionApplicationError::Unavailable)?;
+    let active_scope = serde_json::to_value(commit.envelope.scope())
+        .map_err(|_| SuggestionApplicationError::Unavailable)?;
+    let partition = format!(
+        "{}:{}",
+        route.context_name,
+        patch.source.record().id().as_uuid().simple()
+    );
+    sqlx::query(
+        "INSERT INTO erpx_cqrs_write.audit_log(
+           holding_id,audit_id,context_name,partition_key,command_id,correlation_id,
+           active_scope,actor,audit_context,action,aggregate_type,aggregate_id,
+           aggregate_version,details,occurred_at)
+         VALUES($1,$2,$3,$4,$5,$5,$6,$7,$8,'owner.field_patch.applied',
+                'record_field_state',$9,$10,$11,$12)",
+    )
+    .bind(holding_id)
+    .bind(stable_id(commit.command_id, b"owner-field-patch-audit"))
+    .bind(route.context_name)
+    .bind(&partition)
+    .bind(commit.command_id)
+    .bind(&active_scope)
+    .bind(&actor)
+    .bind(serde_json::json!({"purpose":"human-applied-field-suggestion","customer_visible":false}))
+    .bind(patch.source.record().id().as_uuid())
+    .bind(i64::try_from(owner_revision).map_err(|_| SuggestionApplicationError::Unavailable)?)
+    .bind(serde_json::json!({"suggestion_id":commit.envelope.id(),"permission":permission,"typed":true}))
+    .bind(review.reviewed_at)
+    .execute(&mut **transaction)
+    .await
+    .map_err(|_| SuggestionApplicationError::Unavailable)?;
+    sqlx::query(
+        "INSERT INTO erpx_cqrs_write.outbox_events(
+           holding_id,event_id,context_name,partition_key,command_id,event_type,event_version,
+           aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,
+           causation_id,payload,occurred_at,available_at)
+         VALUES($1,$2,$3,$4,$5,'owner.record_field_patch.applied',1,
+                'record_field_state',$6,$7,$8,$9,$5,NULL,$10,$11,$11)",
+    )
+    .bind(holding_id)
+    .bind(stable_id(commit.command_id, b"owner-field-patch-event"))
+    .bind(route.context_name)
+    .bind(partition)
+    .bind(commit.command_id)
+    .bind(patch.source.record().id().as_uuid())
+    .bind(i64::try_from(owner_revision).map_err(|_| SuggestionApplicationError::Unavailable)?)
+    .bind(active_scope)
+    .bind(actor)
+    .bind(serde_json::json!({
+        "record": patch.source.record(),
+        "source_record_version": patch.source.version(),
+        "schema_version": patch.schema_version,
+        "owner_revision": owner_revision,
+        "field_values": field_values,
+        "suggestion_id": commit.envelope.id(),
+        "human_apply_permission": permission,
+    }))
+    .bind(review.reviewed_at)
+    .execute(&mut **transaction)
+    .await
+    .map_err(|_| SuggestionApplicationError::Unavailable)?;
+    Ok(())
+}
+
 fn owner_token(owner: SuggestionOwner) -> &'static str {
     match owner {
         SuggestionOwner::Sales => "sales",
@@ -485,4 +814,82 @@ fn stable_id(command_id: Uuid, suffix: &[u8]) -> Uuid {
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     Uuid::from_bytes(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::owner_field_patch_route;
+
+    #[test]
+    fn owner_patch_routes_are_closed_to_the_five_published_editable_families() {
+        let expected = [
+            (
+                "sales.quote",
+                "sales",
+                "erpx_sales_write.record_field_patch_applications",
+            ),
+            (
+                "customer-360.note",
+                "customer_360",
+                "erpx_customer_360_write.record_field_patch_applications",
+            ),
+            (
+                "procurement.requisition",
+                "procurement",
+                "erpx_procurement_write.record_field_patch_applications",
+            ),
+            (
+                "maintenance.request",
+                "maintenance",
+                "erpx_maintenance_write.record_field_patch_applications",
+            ),
+            (
+                "marketing.content",
+                "marketing",
+                "erpx_marketing_write.record_field_patch_applications",
+            ),
+        ];
+        for (record_type, context, table) in expected {
+            let route = owner_field_patch_route(record_type).expect("published owner route");
+            assert_eq!(route.context_name, context);
+            assert_eq!(route.application_table, table);
+            assert!(route.base_record_query.contains("record_version"));
+            assert!(route.base_record_query.contains("holding_id=$1"));
+            assert!(route.base_record_query.contains("FOR UPDATE"));
+        }
+        for unsupported in [
+            "finance.payment",
+            "procurement.purchase-order",
+            "planning.plan",
+            "custom.record",
+            "",
+        ] {
+            assert!(
+                owner_field_patch_route(unsupported).is_none(),
+                "unsupported owner route opened for {unsupported}"
+            );
+        }
+    }
+
+    #[test]
+    fn owner_patch_is_committed_before_the_suggestion_and_in_the_same_transaction() {
+        let source = include_str!("suggestion.rs");
+        let version_guard = source
+            .find("if !version_matches")
+            .expect("suggestion version guard");
+        let owner_apply = source
+            .find("apply_owner_field_patch(&mut tx")
+            .expect("owner application");
+        let suggestion_write = source
+            .find("INSERT INTO erpx_agent_write.suggestion_envelopes")
+            .expect("suggestion write");
+        let commit = source.rfind("tx.commit()").expect("transaction commit");
+        assert!(version_guard < owner_apply);
+        assert!(owner_apply < suggestion_write);
+        assert!(suggestion_write < commit);
+        assert!(source.contains("owner.record_field_patch.applied"));
+        assert!(source.contains("ActorKind::HoldingUser"));
+        assert!(source.contains("represented_principal_ref.is_some()"));
+        assert!(source.contains("support_capability_id.is_some()"));
+    }
 }
