@@ -10,6 +10,8 @@ owned_uuid_reference!(JournalRef);
 owned_uuid_reference!(ReceivableRef);
 owned_uuid_reference!(PayableRef);
 owned_uuid_reference!(CustomerInvoiceRef);
+owned_uuid_reference!(VendorInvoiceRef);
+owned_uuid_reference!(PaymentRef);
 owned_uuid_reference!(RevenueScheduleRef);
 owned_uuid_reference!(CashReceiptRef);
 owned_uuid_reference!(MarketingSpendRef);
@@ -46,6 +48,25 @@ pub struct CustomerInvoicePostedFact {
     pub receivable_amount: MoneyAmount,
     pub dimensions: DimensionSet,
     pub posted_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VendorPayablePostedFact {
+    pub vendor_invoice: VendorInvoiceRef,
+    pub payable: PayableRef,
+    pub supplier: crate::procurement::SupplierRef,
+    pub purchase_order: crate::RecordVersionRef,
+    pub goods_receipt: crate::RecordVersionRef,
+    pub payable_amount: MoneyAmount,
+    pub posted_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaymentReleasedFact {
+    pub payment: PaymentRef,
+    pub payable: PayableRef,
+    pub released_amount: MoneyAmount,
+    pub released_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -113,6 +134,8 @@ pub enum Event {
     JournalPosted(JournalPostingFact),
     ReceivableChanged(ReceivableFact),
     CustomerInvoicePosted(CustomerInvoicePostedFact),
+    VendorPayablePosted(VendorPayablePostedFact),
+    PaymentReleased(PaymentReleasedFact),
     RevenueRecognized(RecognizedRevenueFact),
     CashApplied(CashCollectionFact),
     MarketingSpendPosted(MarketingSpendFact),
@@ -132,6 +155,8 @@ impl crate::IntegrationEvent for Event {
             Self::JournalPosted(_) => "finance.journal_posted",
             Self::ReceivableChanged(_) => "finance.receivable_changed",
             Self::CustomerInvoicePosted(_) => "finance.customer_invoice_posted",
+            Self::VendorPayablePosted(_) => "finance.vendor_payable_posted",
+            Self::PaymentReleased(_) => "finance.payment_released",
             Self::RevenueRecognized(_) => "finance.revenue_recognized",
             Self::CashApplied(_) => "finance.cash_applied",
             Self::MarketingSpendPosted(_) => "finance.marketing_spend_posted",
@@ -169,6 +194,26 @@ impl crate::IntegrationEvent for Event {
                         "finance.posting_approval_request",
                     ));
                 }
+            }
+            Self::VendorPayablePosted(fact) => {
+                fact.purchase_order.validate().map_err(|_| {
+                    crate::ContractValidationError::OutOfRange("vendor_payable.purchase_order")
+                })?;
+                fact.goods_receipt.validate().map_err(|_| {
+                    crate::ContractValidationError::OutOfRange("vendor_payable.goods_receipt")
+                })?;
+                if fact.purchase_order.record().record_type().as_str()
+                    != "procurement.purchase-order"
+                    || fact.goods_receipt.record().record_type().as_str() != "procurement.receipt"
+                    || fact.payable_amount.minor_units() <= 0
+                {
+                    return Err(crate::ContractValidationError::OutOfRange("vendor_payable"));
+                }
+            }
+            Self::PaymentReleased(fact) if fact.released_amount.minor_units() <= 0 => {
+                return Err(crate::ContractValidationError::OutOfRange(
+                    "payment.released_amount",
+                ));
             }
             _ => {}
         }
