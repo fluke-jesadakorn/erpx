@@ -18,22 +18,32 @@ use erpx_agent_orchestration::{
     PayloadManifest, PoolRoutingDecisionId, PoolRoutingSummary, PortError as AgentPortError,
     PrincipalKind as AgentPrincipalKind, ProviderInvocationId, PublishPrivateSessionMessage,
     RootAssignmentReceipt, RootInvocation, SessionContext, SessionMessageId,
-    SessionMutationReceipt, StartAgentWork, StartPrivateSession, agent_assignment_decision_ref,
+    SessionMutationReceipt, StartAgentWork, StartPrivateSession, SuggestionApplicationError,
+    SuggestionAuthorizationPort, SuggestionCapability, SuggestionCommand, SuggestionCommandRequest,
+    SuggestionEnvelope, SuggestionId, SuggestionOwner, SuggestionProvenance,
+    SuggestionProviderKind, SuggestionReceipt, SuggestionRepository, SuggestionService,
+    SuggestionStatus, agent_assignment_decision_ref,
 };
 use erpx_agent_orchestration_sqlx::{
     SqlxAgentExperienceQuery, SqlxAgentExperienceStore, SqlxAgentRegistry, SqlxAgentRuntime,
+    SqlxSuggestionRepository,
 };
+use erpx_collaboration_sqlx::{DirectoryAccess, DirectoryLookup, SqlxItemDirectory};
 use erpx_cqrs::{
     CommandReceipt, FreshnessState, IdempotencyKey, ProjectionMetadata, QueryConsistency,
     ReadYourWrites,
 };
 use erpx_cqrs_sqlx::{ReadPool, WritePool};
 use erpx_infrastructure::RoutedDatabaseSide;
-use erpx_integration_contracts::{StableRecordRef, catalog::ContextId, reference::RecordTypeId};
+use erpx_integration_contracts::{
+    FieldPatchConflict, FieldPatchConflictReason, FieldSuggestionEvidence, RecordFieldPatch,
+    RecordVersionRef, StableFieldRef, StableRecordRef, SuggestedFieldChange, SuggestedFieldValue,
+    catalog::ContextId, reference::RecordTypeId,
+};
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
-    DataClassification, EventId, HoldingId, HumanDecisionProof, QueryId, RecordId, SessionId,
-    SystemClock,
+    DataClassification, EventId, HoldingId, HumanDecisionProof, PrincipalId, QueryId, RecordId,
+    SessionId, SystemClock,
 };
 use erpx_projects::{
     AddProjectNodeInput, AttachmentRef, ChangeHandoff, ChangeProjectNode,
@@ -49,7 +59,7 @@ use erpx_projects::{AuthorizationPort as _, ReadRepository as _};
 use erpx_projects_sqlx::{ProjectsCommandAdapter, ProjectsReadRepository, ProjectsWriteRepository};
 use erpx_proto::{
     common,
-    erpx::{agent, projects},
+    erpx::{agent, interface, projects},
 };
 use tonic::{Request, Response, Status, metadata::MetadataMap};
 use uuid::Uuid;
@@ -301,6 +311,23 @@ pub trait AgentQueryApplication: Send + Sync + 'static {
         authority_scope: AuthorityScope,
         id: ProviderInvocationId,
     ) -> Result<Option<InvocationEvidenceSummary>, AgentPortError>;
+
+    async fn get_field_suggestion(
+        &self,
+        route: FutureHoldingRoute,
+        actor: ActorAttribution,
+        authority_scope: AuthorityScope,
+        id: SuggestionId,
+    ) -> Result<Option<SuggestionEnvelope>, SuggestionApplicationError>;
+
+    async fn list_field_suggestions_by_record(
+        &self,
+        route: FutureHoldingRoute,
+        actor: ActorAttribution,
+        authority_scope: AuthorityScope,
+        source: StableRecordRef,
+        page_size: u16,
+    ) -> Result<Vec<SuggestionEnvelope>, SuggestionApplicationError>;
 }
 
 #[derive(Debug, Clone)]
@@ -343,6 +370,14 @@ pub trait AgentCommandApplication: Send + Sync + 'static {
         context: AgentApplicationCommandContext,
         command: PublishPrivateSessionMessage,
     ) -> Result<SessionMutationReceipt, AgentOrchestrationError>;
+
+    async fn execute_field_suggestion(
+        &self,
+        route: FutureHoldingRoute,
+        context: AgentApplicationCommandContext,
+        expected_version: u64,
+        command: SuggestionCommand,
+    ) -> Result<SuggestionReceipt, SuggestionApplicationError>;
 }
 
 #[derive(Debug, Clone)]
@@ -978,6 +1013,13 @@ impl AppStateAgentQueryApplication {
             .clone();
         SqlxAgentExperienceQuery::try_new(pool, holding_id)
     }
+
+    async fn suggestion_repository(
+        &self,
+        route: &FutureHoldingRoute,
+    ) -> Result<SqlxSuggestionRepository, SuggestionApplicationError> {
+        suggestion_repository(&self.state, route).await
+    }
 }
 
 #[async_trait]
@@ -1009,6 +1051,136 @@ impl AgentQueryApplication for AppStateAgentQueryApplication {
             .invocation_summary(&authority_scope, id)
             .await
     }
+
+    async fn get_field_suggestion(
+        &self,
+        route: FutureHoldingRoute,
+        actor: ActorAttribution,
+        authority_scope: AuthorityScope,
+        id: SuggestionId,
+    ) -> Result<Option<SuggestionEnvelope>, SuggestionApplicationError> {
+        actor
+            .validate()
+            .map_err(|_| SuggestionApplicationError::Denied)?;
+        let repository = self.suggestion_repository(&route).await?;
+        let envelope = repository.load(&authority_scope, id).await?;
+        if let Some(envelope) = envelope.as_ref() {
+            authorize_suggestion_record(
+                &self.state,
+                &route,
+                &actor,
+                &authority_scope,
+                &suggestion_source_record(envelope)?,
+            )
+            .await?;
+        }
+        Ok(envelope)
+    }
+
+    async fn list_field_suggestions_by_record(
+        &self,
+        route: FutureHoldingRoute,
+        actor: ActorAttribution,
+        authority_scope: AuthorityScope,
+        source: StableRecordRef,
+        page_size: u16,
+    ) -> Result<Vec<SuggestionEnvelope>, SuggestionApplicationError> {
+        actor
+            .validate()
+            .map_err(|_| SuggestionApplicationError::Denied)?;
+        authorize_suggestion_record(&self.state, &route, &actor, &authority_scope, &source).await?;
+        self.suggestion_repository(&route)
+            .await?
+            .list_by_record(
+                &authority_scope,
+                source.record_type().as_str(),
+                source.id().as_uuid(),
+                page_size,
+            )
+            .await
+    }
+}
+
+async fn suggestion_repository(
+    state: &AppState,
+    route: &FutureHoldingRoute,
+) -> Result<SqlxSuggestionRepository, SuggestionApplicationError> {
+    let holding_id =
+        Uuid::parse_str(route.holding_id()).map_err(|_| SuggestionApplicationError::Unavailable)?;
+    let pool = state
+        .holding_router
+        .as_ref()
+        .ok_or(SuggestionApplicationError::Unavailable)?
+        .route(
+            route.holding_id(),
+            route.data_profile_key(),
+            RoutedDatabaseSide::Write,
+        )
+        .await
+        .map_err(|_| SuggestionApplicationError::Unavailable)?
+        .database_pool()
+        .clone();
+    SqlxSuggestionRepository::try_new(pool, holding_id)
+}
+
+fn suggestion_source_record(
+    envelope: &SuggestionEnvelope,
+) -> Result<StableRecordRef, SuggestionApplicationError> {
+    let source = envelope.source();
+    let record_type = RecordTypeId::try_new(source.record_kind.clone())
+        .map_err(|_| SuggestionApplicationError::Unavailable)?;
+    StableRecordRef::try_new(
+        RecordId::try_from_uuid(source.record_id)
+            .map_err(|_| SuggestionApplicationError::Unavailable)?,
+        record_type.descriptor().owner,
+        record_type,
+    )
+    .map_err(|_| SuggestionApplicationError::Unavailable)
+}
+
+async fn authorize_suggestion_record(
+    state: &AppState,
+    route: &FutureHoldingRoute,
+    actor: &ActorAttribution,
+    authority_scope: &AuthorityScope,
+    source: &StableRecordRef,
+) -> Result<(), SuggestionApplicationError> {
+    let holding_uuid =
+        Uuid::parse_str(route.holding_id()).map_err(|_| SuggestionApplicationError::Unavailable)?;
+    let holding_id = HoldingId::try_from_uuid(holding_uuid)
+        .map_err(|_| SuggestionApplicationError::Unavailable)?;
+    let principal_id = Uuid::parse_str(&actor.principal_ref)
+        .ok()
+        .and_then(|value| PrincipalId::try_from_uuid(value).ok())
+        .ok_or(SuggestionApplicationError::Denied)?;
+    let pool = state
+        .holding_router
+        .as_ref()
+        .ok_or(SuggestionApplicationError::Unavailable)?
+        .route(
+            route.holding_id(),
+            route.data_profile_key(),
+            RoutedDatabaseSide::Read,
+        )
+        .await
+        .map_err(|_| SuggestionApplicationError::Unavailable)?
+        .database_pool()
+        .clone();
+    let access =
+        DirectoryAccess::try_from_authorization(holding_id, principal_id, authority_scope.clone())
+            .map_err(|_| SuggestionApplicationError::Denied)?;
+    match SqlxItemDirectory::new(pool)
+        .resolve(&access, source.id(), Utc::now())
+        .await
+        .map_err(|_| SuggestionApplicationError::Unavailable)?
+    {
+        DirectoryLookup::Visible { value, .. } if value.record() == source => Ok(()),
+        DirectoryLookup::Neutral => Err(SuggestionApplicationError::Denied),
+        DirectoryLookup::Visible { .. } => Err(SuggestionApplicationError::Denied),
+        DirectoryLookup::Degraded(_) | DirectoryLookup::Unavailable => {
+            Err(SuggestionApplicationError::Unavailable)
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1037,6 +1209,46 @@ impl AgentAuthorizationPort for AgentBoundaryAccess {
             return Err(AgentPortError::Denied);
         }
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+struct SuggestionBoundaryAccess {
+    actor: ActorAttribution,
+    authority_scope: AuthorityScope,
+}
+
+#[async_trait]
+impl SuggestionAuthorizationPort for SuggestionBoundaryAccess {
+    async fn authorize(
+        &self,
+        scope: &AuthorityScope,
+        actor: &ActorAttribution,
+        command: &SuggestionCommand,
+    ) -> Result<bool, SuggestionApplicationError> {
+        if actor != &self.actor
+            || scope != &self.authority_scope
+            || !self.authority_scope.contains(scope)
+        {
+            return Ok(false);
+        }
+        let authenticated_human =
+            matches!(actor.kind, ActorKind::PlatformUser | ActorKind::HoldingUser)
+                && actor.session_id.is_some()
+                && actor.represented_principal_ref.is_none();
+        let trusted_producer = matches!(actor.kind, ActorKind::Agent | ActorKind::SystemWorker);
+        Ok(match command {
+            SuggestionCommand::Request { .. }
+            | SuggestionCommand::ApplyFieldPatch { .. }
+            | SuggestionCommand::Reject { .. } => authenticated_human,
+            SuggestionCommand::Start { .. } | SuggestionCommand::CompleteFieldPatch { .. } => {
+                trusted_producer
+            }
+            SuggestionCommand::Complete { .. }
+            | SuggestionCommand::Apply { .. }
+            | SuggestionCommand::Supersede { .. }
+            | SuggestionCommand::Fail { .. } => false,
+        })
     }
 }
 
@@ -1213,6 +1425,68 @@ impl AgentCommandApplication for AppStateAgentCommandApplication {
                 command,
             )
             .await
+    }
+
+    async fn execute_field_suggestion(
+        &self,
+        route: FutureHoldingRoute,
+        context: AgentApplicationCommandContext,
+        expected_version: u64,
+        command: SuggestionCommand,
+    ) -> Result<SuggestionReceipt, SuggestionApplicationError> {
+        if context
+            .expected_version
+            .is_some_and(|value| value != expected_version)
+            || (expected_version == 0 && context.expected_version.is_some())
+        {
+            return Err(SuggestionApplicationError::VersionConflict);
+        }
+        let repository = suggestion_repository(&self.state, &route).await?;
+        let source = match &command {
+            SuggestionCommand::Request { source, .. } => {
+                let record_type = RecordTypeId::try_new(source.record_kind.clone())
+                    .map_err(|_| SuggestionApplicationError::InvalidRequest)?;
+                StableRecordRef::try_new(
+                    RecordId::try_from_uuid(source.record_id)
+                        .map_err(|_| SuggestionApplicationError::InvalidRequest)?,
+                    record_type.descriptor().owner,
+                    record_type,
+                )
+                .map_err(|_| SuggestionApplicationError::InvalidRequest)?
+            }
+            _ => {
+                let envelope = repository
+                    .load(&context.authority_scope, command.suggestion_id())
+                    .await?
+                    .ok_or(SuggestionApplicationError::NotFound)?;
+                suggestion_source_record(&envelope)?
+            }
+        };
+        authorize_suggestion_record(
+            &self.state,
+            &route,
+            &context.actor,
+            &context.authority_scope,
+            &source,
+        )
+        .await?;
+        SuggestionService::new(
+            repository,
+            SuggestionBoundaryAccess {
+                actor: context.actor.clone(),
+                authority_scope: context.authority_scope.clone(),
+            },
+        )
+        .execute(SuggestionCommandRequest {
+            command_id: context.command_id.as_uuid(),
+            idempotency_key: context.idempotency_key,
+            scope: context.authority_scope,
+            actor: context.actor,
+            expected_version,
+            command,
+            at: Utc::now(),
+        })
+        .await
     }
 }
 
@@ -1482,6 +1756,192 @@ where
             .map_err(status_from_agent_application)?;
         Ok(Response::new(encode_agent_session_mutation(receipt)))
     }
+
+    async fn request_field_suggestion(
+        &self,
+        request: Request<agent::RequestFieldSuggestionRequest>,
+    ) -> Result<Response<agent::FieldSuggestionMutationResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let authenticated = authenticate_command(
+            self.authenticator.as_ref(),
+            transport,
+            input.context.clone(),
+            FutureOwnerContext::AgentOrchestration,
+        )
+        .await?;
+        let source = decode_suggestion_record_ref(input.source)?;
+        let suggestion_id = decode_suggestion_id(&input.suggestion_id)?;
+        let provenance = input
+            .provenance
+            .ok_or_else(|| invalid("provenance is required"))?;
+        let local_development = provenance.local_development;
+        let command = SuggestionCommand::Request {
+            suggestion_id,
+            capability: SuggestionCapability::RecordFieldPatch {
+                owner: source.owner_context(),
+            },
+            source: erpx_agent_orchestration::SuggestionSource {
+                record_kind: source.record_type().as_str().to_owned(),
+                record_id: source.id().as_uuid(),
+                record_version: input.source_version,
+            },
+            policy_version: input.policy_version,
+            payload_digest: decode_sha256(&input.payload_digest_sha256, "payload_digest_sha256")?,
+            provenance: decode_suggestion_provenance(provenance)?,
+            local_development,
+        };
+        let context = authenticated.agent_context;
+        let receipt = self
+            .application
+            .execute_field_suggestion(authenticated.holding_route, context.clone(), 0, command)
+            .await
+            .map_err(status_from_suggestion_application)?;
+        Ok(Response::new(encode_field_suggestion_mutation(
+            &context, receipt,
+        )))
+    }
+
+    async fn start_field_suggestion(
+        &self,
+        request: Request<agent::StartFieldSuggestionRequest>,
+    ) -> Result<Response<agent::FieldSuggestionMutationResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let authenticated = authenticate_command(
+            self.authenticator.as_ref(),
+            transport,
+            input.context.clone(),
+            FutureOwnerContext::AgentOrchestration,
+        )
+        .await?;
+        let command = SuggestionCommand::Start {
+            suggestion_id: decode_suggestion_id(&input.suggestion_id)?,
+        };
+        let context = authenticated.agent_context;
+        let receipt = self
+            .application
+            .execute_field_suggestion(
+                authenticated.holding_route,
+                context.clone(),
+                input.expected_version,
+                command,
+            )
+            .await
+            .map_err(status_from_suggestion_application)?;
+        Ok(Response::new(encode_field_suggestion_mutation(
+            &context, receipt,
+        )))
+    }
+
+    async fn complete_field_suggestion(
+        &self,
+        request: Request<agent::CompleteFieldSuggestionRequest>,
+    ) -> Result<Response<agent::FieldSuggestionMutationResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let authenticated = authenticate_command(
+            self.authenticator.as_ref(),
+            transport,
+            input.context.clone(),
+            FutureOwnerContext::AgentOrchestration,
+        )
+        .await?;
+        let command = SuggestionCommand::CompleteFieldPatch {
+            suggestion_id: decode_suggestion_id(&input.suggestion_id)?,
+            patch: decode_record_field_patch(input.patch)?,
+            output_digest: decode_sha256(&input.output_digest_sha256, "output_digest_sha256")?,
+        };
+        let context = authenticated.agent_context;
+        let receipt = self
+            .application
+            .execute_field_suggestion(
+                authenticated.holding_route,
+                context.clone(),
+                input.expected_version,
+                command,
+            )
+            .await
+            .map_err(status_from_suggestion_application)?;
+        Ok(Response::new(encode_field_suggestion_mutation(
+            &context, receipt,
+        )))
+    }
+
+    async fn apply_field_suggestion(
+        &self,
+        request: Request<agent::ApplyFieldSuggestionRequest>,
+    ) -> Result<Response<agent::FieldSuggestionMutationResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let authenticated = authenticate_command(
+            self.authenticator.as_ref(),
+            transport,
+            input.context.clone(),
+            FutureOwnerContext::AgentOrchestration,
+        )
+        .await?;
+        let command = SuggestionCommand::ApplyFieldPatch {
+            suggestion_id: decode_suggestion_id(&input.suggestion_id)?,
+            edited_patch: decode_record_field_patch(input.edited_patch)?,
+            current_source_version: input.current_source_version,
+            current_payload_digest: decode_sha256(
+                &input.current_payload_digest_sha256,
+                "current_payload_digest_sha256",
+            )?,
+            conflicts: input
+                .conflicts
+                .into_iter()
+                .map(decode_field_patch_conflict)
+                .collect::<Result<_, _>>()?,
+        };
+        let context = authenticated.agent_context;
+        let receipt = self
+            .application
+            .execute_field_suggestion(
+                authenticated.holding_route,
+                context.clone(),
+                input.expected_version,
+                command,
+            )
+            .await
+            .map_err(status_from_suggestion_application)?;
+        Ok(Response::new(encode_field_suggestion_mutation(
+            &context, receipt,
+        )))
+    }
+
+    async fn reject_field_suggestion(
+        &self,
+        request: Request<agent::RejectFieldSuggestionRequest>,
+    ) -> Result<Response<agent::FieldSuggestionMutationResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let authenticated = authenticate_command(
+            self.authenticator.as_ref(),
+            transport,
+            input.context.clone(),
+            FutureOwnerContext::AgentOrchestration,
+        )
+        .await?;
+        let command = SuggestionCommand::Reject {
+            suggestion_id: decode_suggestion_id(&input.suggestion_id)?,
+        };
+        let context = authenticated.agent_context;
+        let receipt = self
+            .application
+            .execute_field_suggestion(
+                authenticated.holding_route,
+                context.clone(),
+                input.expected_version,
+                command,
+            )
+            .await
+            .map_err(status_from_suggestion_application)?;
+        Ok(Response::new(encode_field_suggestion_mutation(
+            &context, receipt,
+        )))
+    }
     unsupported_agent_command!(
         set_private_session_legal_hold,
         agent::SetPrivateAgentSessionLegalHoldRequest,
@@ -1619,6 +2079,72 @@ where
             .map_err(status_from_agent_port)?;
         Ok(Response::new(agent::GetAgentInvocationEvidenceResponse {
             evidence: summary.as_ref().map(encode_invocation_summary),
+            projection: None,
+        }))
+    }
+
+    async fn get_field_suggestion(
+        &self,
+        request: Request<agent::GetFieldSuggestionRequest>,
+    ) -> Result<Response<agent::GetFieldSuggestionResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let authenticated = authenticate_query(
+            self.authenticator.as_ref(),
+            transport,
+            input.context,
+            FutureOwnerContext::AgentOrchestration,
+        )
+        .await?;
+        let value = self
+            .application
+            .get_field_suggestion(
+                authenticated.holding_route,
+                authenticated.actor,
+                authenticated.active_scope,
+                decode_suggestion_id(&input.suggestion_id)?,
+            )
+            .await
+            .map_err(status_from_suggestion_application)?;
+        Ok(Response::new(agent::GetFieldSuggestionResponse {
+            suggestion: value.as_ref().map(encode_field_suggestion),
+            // This authority-side read has no rebuildable read checkpoint. It
+            // is therefore never advertised as a current projection.
+            projection: None,
+        }))
+    }
+
+    async fn list_field_suggestions_by_record(
+        &self,
+        request: Request<agent::ListFieldSuggestionsByRecordRequest>,
+    ) -> Result<Response<agent::ListFieldSuggestionsByRecordResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let authenticated = authenticate_query(
+            self.authenticator.as_ref(),
+            transport,
+            input.context,
+            FutureOwnerContext::AgentOrchestration,
+        )
+        .await?;
+        let source = decode_suggestion_record_ref(input.source)?;
+        let page_size = u16::try_from(input.page_size)
+            .ok()
+            .filter(|value| (1..=100).contains(value))
+            .ok_or_else(|| invalid("page_size must be between 1 and 100"))?;
+        let values = self
+            .application
+            .list_field_suggestions_by_record(
+                authenticated.holding_route,
+                authenticated.actor,
+                authenticated.active_scope,
+                source,
+                page_size,
+            )
+            .await
+            .map_err(status_from_suggestion_application)?;
+        Ok(Response::new(agent::ListFieldSuggestionsByRecordResponse {
+            suggestions: values.iter().map(encode_field_suggestion).collect(),
             projection: None,
         }))
     }
@@ -2539,6 +3065,357 @@ fn decode_target_scope(
         Err(Status::permission_denied(
             "target scope is outside authenticated authority",
         ))
+    }
+}
+
+fn decode_suggestion_id(value: &str) -> Result<SuggestionId, Status> {
+    SuggestionId::try_from_uuid(parse_uuid(value, "suggestion_id")?)
+        .map_err(|_| invalid("suggestion_id is invalid"))
+}
+
+fn decode_suggestion_record_ref(
+    value: Option<interface::RecordRef>,
+) -> Result<StableRecordRef, Status> {
+    let value = value.ok_or_else(|| invalid("record reference is required"))?;
+    let record_type =
+        RecordTypeId::try_new(value.record_type).map_err(|_| invalid("record_type is invalid"))?;
+    let owner = decode_context_id(&value.owner_context)?;
+    StableRecordRef::try_new(
+        RecordId::try_from_uuid(parse_uuid(&value.id, "record_id")?)
+            .map_err(|_| invalid("record_id is invalid"))?,
+        owner,
+        record_type,
+    )
+    .map_err(|_| invalid("record reference is invalid"))
+}
+
+fn encode_suggestion_record_ref(value: &StableRecordRef) -> interface::RecordRef {
+    interface::RecordRef {
+        id: value.id().to_string(),
+        owner_context: value.owner_context().slug().to_owned(),
+        record_type: value.record_type().as_str().to_owned(),
+    }
+}
+
+fn decode_sha256(value: &[u8], field: &'static str) -> Result<String, Status> {
+    if value.len() != 32 {
+        return Err(invalid(field));
+    }
+    Ok(hex::encode(value))
+}
+
+fn encode_sha256(value: &str) -> Vec<u8> {
+    hex::decode(value).unwrap_or_default()
+}
+
+fn decode_suggestion_provenance(
+    value: agent::FieldSuggestionProvenance,
+) -> Result<SuggestionProvenance, Status> {
+    let provider_kind = match value.provider_kind.trim() {
+        "fixture" => SuggestionProviderKind::Fixture,
+        "ollama" => SuggestionProviderKind::Ollama,
+        "open_ai_compatible" => SuggestionProviderKind::OpenAiCompatible,
+        _ => return Err(invalid("provider_kind is invalid")),
+    };
+    Ok(SuggestionProvenance {
+        provider_kind,
+        provider_ref: value.provider_ref,
+        model_ref: value.model_ref,
+        prompt_digest: decode_sha256(&value.prompt_digest_sha256, "prompt_digest_sha256")?,
+        invocation_evidence_ref: value.invocation_evidence_ref,
+    })
+}
+
+fn decode_record_field_patch(
+    value: Option<agent::RecordFieldPatch>,
+) -> Result<RecordFieldPatch, Status> {
+    let value = value.ok_or_else(|| invalid("record field patch is required"))?;
+    let source_record = decode_suggestion_record_ref(value.source)?;
+    let source = RecordVersionRef::try_new(source_record, value.source_version)
+        .map_err(|_| invalid("source_version is invalid"))?;
+    let changes = value
+        .changes
+        .into_iter()
+        .map(decode_suggested_field_change)
+        .collect::<Result<Vec<_>, _>>()?;
+    let patch = RecordFieldPatch {
+        source,
+        schema_version: value.schema_version,
+        changes,
+    };
+    patch
+        .validate()
+        .map_err(|_| invalid("record field patch is invalid"))?;
+    Ok(patch)
+}
+
+fn decode_suggested_field_change(
+    value: agent::SuggestedFieldChange,
+) -> Result<SuggestedFieldChange, Status> {
+    let record = decode_suggestion_record_ref(value.record)?;
+    let field = StableFieldRef::try_new(record, value.field_id, value.field_schema_version)
+        .map_err(|_| invalid("field reference is invalid"))?;
+    let proposed_value = value
+        .proposed_value
+        .and_then(|value| value.value)
+        .ok_or_else(|| invalid("proposed_value is required"))?;
+    let proposed_value = match proposed_value {
+        agent::suggested_field_value::Value::Unset(_) => SuggestedFieldValue::Unset,
+        agent::suggested_field_value::Value::Text(value) => SuggestedFieldValue::Text(value),
+        agent::suggested_field_value::Value::Integer(value) => SuggestedFieldValue::Integer(value),
+        agent::suggested_field_value::Value::Boolean(value) => SuggestedFieldValue::Boolean(value),
+        agent::suggested_field_value::Value::Date(value) => SuggestedFieldValue::Date(
+            NaiveDate::parse_from_str(value.trim(), "%Y-%m-%d")
+                .map_err(|_| invalid("suggested date is invalid"))?,
+        ),
+        agent::suggested_field_value::Value::DateTime(value) => SuggestedFieldValue::DateTime(
+            DateTime::parse_from_rfc3339(value.trim())
+                .map_err(|_| invalid("suggested date_time is invalid"))?
+                .with_timezone(&Utc),
+        ),
+        agent::suggested_field_value::Value::Choice(value) => SuggestedFieldValue::Choice(value),
+        agent::suggested_field_value::Value::Money(value) => SuggestedFieldValue::Money {
+            amount_minor: value.amount_minor,
+            currency: value.currency,
+        },
+    };
+    let confidence_basis_points = u16::try_from(value.confidence_basis_points)
+        .map_err(|_| invalid("confidence_basis_points is invalid"))?;
+    let evidence = value
+        .evidence
+        .into_iter()
+        .map(decode_field_suggestion_evidence)
+        .collect::<Result<_, _>>()?;
+    Ok(SuggestedFieldChange {
+        field,
+        previous_value_digest: decode_sha256(
+            &value.previous_value_digest_sha256,
+            "previous_value_digest_sha256",
+        )?,
+        proposed_value,
+        confidence_basis_points,
+        evidence,
+    })
+}
+
+fn decode_field_suggestion_evidence(
+    value: agent::FieldSuggestionEvidence,
+) -> Result<FieldSuggestionEvidence, Status> {
+    match value
+        .evidence
+        .ok_or_else(|| invalid("field suggestion evidence is required"))?
+    {
+        agent::field_suggestion_evidence::Evidence::Record(value) => {
+            Ok(FieldSuggestionEvidence::Record {
+                record: RecordVersionRef::try_new(
+                    decode_suggestion_record_ref(value.record)?,
+                    value.version,
+                )
+                .map_err(|_| invalid("evidence record version is invalid"))?,
+            })
+        }
+        agent::field_suggestion_evidence::Evidence::ProtectedMaterial(value) => {
+            Ok(FieldSuggestionEvidence::ProtectedMaterial {
+                evidence_ref: value.evidence_ref,
+                digest: decode_sha256(&value.digest_sha256, "evidence digest is invalid")?,
+            })
+        }
+    }
+}
+
+fn decode_field_patch_conflict(
+    value: agent::FieldPatchConflict,
+) -> Result<FieldPatchConflict, Status> {
+    let field = StableFieldRef::try_new(
+        decode_suggestion_record_ref(value.record)?,
+        value.field_id,
+        value.field_schema_version,
+    )
+    .map_err(|_| invalid("conflict field is invalid"))?;
+    let reason = match agent::field_patch_conflict::Reason::try_from(value.reason).ok() {
+        Some(agent::field_patch_conflict::Reason::RecordVersionChanged) => {
+            FieldPatchConflictReason::RecordVersionChanged
+        }
+        Some(agent::field_patch_conflict::Reason::FieldValueChanged) => {
+            FieldPatchConflictReason::FieldValueChanged
+        }
+        Some(agent::field_patch_conflict::Reason::SchemaChanged) => {
+            FieldPatchConflictReason::SchemaChanged
+        }
+        Some(agent::field_patch_conflict::Reason::AuthorizationChanged) => {
+            FieldPatchConflictReason::AuthorizationChanged
+        }
+        _ => return Err(invalid("conflict reason is invalid")),
+    };
+    Ok(FieldPatchConflict {
+        field,
+        reason,
+        current_record_version: value.current_record_version,
+    })
+}
+
+fn encode_field_suggestion_mutation(
+    context: &AgentApplicationCommandContext,
+    receipt: SuggestionReceipt,
+) -> agent::FieldSuggestionMutationResponse {
+    agent::FieldSuggestionMutationResponse {
+        receipt: Some(common::CommandReceipt {
+            command_id: context.command_id.to_string(),
+            correlation_id: context.correlation_id.to_string(),
+            aggregate: Some(common::AggregateVersion {
+                context: "agent_orchestration".into(),
+                aggregate_type: "suggestion".into(),
+                aggregate_id: receipt.envelope.id().as_uuid().to_string(),
+                version: receipt.envelope.version(),
+            }),
+            committed_events: vec![common::EventPosition {
+                event_id: receipt.event_id.to_string(),
+                global_sequence: receipt.global_sequence,
+            }],
+            committed_at: receipt.committed_at.to_rfc3339(),
+            replayed: receipt.replayed,
+        }),
+        suggestion: Some(encode_field_suggestion(&receipt.envelope)),
+    }
+}
+
+fn encode_field_suggestion(value: &SuggestionEnvelope) -> agent::FieldSuggestionProjection {
+    agent::FieldSuggestionProjection {
+        suggestion_id: value.id().as_uuid().to_string(),
+        aggregate_version: value.version(),
+        status: match value.status() {
+            SuggestionStatus::Queued => agent::FieldSuggestionStatus::Queued,
+            SuggestionStatus::Running => agent::FieldSuggestionStatus::Running,
+            SuggestionStatus::Ready => agent::FieldSuggestionStatus::Ready,
+            SuggestionStatus::Conflicted => agent::FieldSuggestionStatus::Conflicted,
+            SuggestionStatus::Applied => agent::FieldSuggestionStatus::Applied,
+            SuggestionStatus::Rejected => agent::FieldSuggestionStatus::Rejected,
+            SuggestionStatus::Superseded => agent::FieldSuggestionStatus::Superseded,
+            SuggestionStatus::Failed => agent::FieldSuggestionStatus::Failed,
+        } as i32,
+        owner_context: match value.owner() {
+            SuggestionOwner::Sales => "sales".into(),
+            SuggestionOwner::Finance => "finance".into(),
+            SuggestionOwner::RecordOwner(owner) => owner.slug().into(),
+        },
+        patch: value.field_patch().map(encode_record_field_patch),
+        conflicts: value
+            .field_patch_conflicts()
+            .iter()
+            .map(encode_field_patch_conflict)
+            .collect(),
+        policy_version: value.policy_version(),
+        source_payload_digest_sha256: encode_sha256(value.payload_digest()),
+        output_digest_sha256: value.output_digest().map(encode_sha256),
+        provider_label: value.provenance().display_label().into(),
+        human_review: value
+            .human_field_patch_review()
+            .map(|review| agent::HumanFieldPatchReview {
+                reviewer_principal_ref: review.reviewer_principal_ref.clone(),
+                reviewer_session_id: review.reviewer_session_id.to_string(),
+                reviewed_at: review.reviewed_at.to_rfc3339(),
+                edited_patch_digest_sha256: encode_sha256(&review.edited_patch_digest),
+            }),
+        requested_by: value.requested_by().into(),
+        created_at: value.created_at().to_rfc3339(),
+        updated_at: value.updated_at().to_rfc3339(),
+    }
+}
+
+fn encode_record_field_patch(value: &RecordFieldPatch) -> agent::RecordFieldPatch {
+    agent::RecordFieldPatch {
+        source: Some(encode_suggestion_record_ref(value.source.record())),
+        source_version: value.source.version(),
+        schema_version: value.schema_version,
+        changes: value
+            .changes
+            .iter()
+            .map(encode_suggested_field_change)
+            .collect(),
+    }
+}
+
+fn encode_suggested_field_change(value: &SuggestedFieldChange) -> agent::SuggestedFieldChange {
+    use agent::suggested_field_value::Value;
+    let proposed_value = match &value.proposed_value {
+        SuggestedFieldValue::Unset => Value::Unset(agent::suggested_field_value::Unset {}),
+        SuggestedFieldValue::Text(value) => Value::Text(value.clone()),
+        SuggestedFieldValue::Integer(value) => Value::Integer(*value),
+        SuggestedFieldValue::Boolean(value) => Value::Boolean(*value),
+        SuggestedFieldValue::Date(value) => Value::Date(value.format("%Y-%m-%d").to_string()),
+        SuggestedFieldValue::DateTime(value) => Value::DateTime(value.to_rfc3339()),
+        SuggestedFieldValue::Choice(value) => Value::Choice(value.clone()),
+        SuggestedFieldValue::Money {
+            amount_minor,
+            currency,
+        } => Value::Money(agent::MoneyFieldValue {
+            amount_minor: *amount_minor,
+            currency: currency.clone(),
+        }),
+    };
+    agent::SuggestedFieldChange {
+        record: Some(encode_suggestion_record_ref(value.field.record())),
+        field_id: value.field.field_id().into(),
+        field_schema_version: value.field.schema_version(),
+        previous_value_digest_sha256: encode_sha256(&value.previous_value_digest),
+        proposed_value: Some(agent::SuggestedFieldValue {
+            value: Some(proposed_value),
+        }),
+        confidence_basis_points: u32::from(value.confidence_basis_points),
+        evidence: value
+            .evidence
+            .iter()
+            .map(encode_field_suggestion_evidence)
+            .collect(),
+    }
+}
+
+fn encode_field_suggestion_evidence(
+    value: &FieldSuggestionEvidence,
+) -> agent::FieldSuggestionEvidence {
+    use agent::field_suggestion_evidence::Evidence;
+    let evidence = match value {
+        FieldSuggestionEvidence::Record { record } => {
+            Evidence::Record(agent::field_suggestion_evidence::RecordEvidence {
+                record: Some(encode_suggestion_record_ref(record.record())),
+                version: record.version(),
+            })
+        }
+        FieldSuggestionEvidence::ProtectedMaterial {
+            evidence_ref,
+            digest,
+        } => Evidence::ProtectedMaterial(
+            agent::field_suggestion_evidence::ProtectedMaterialEvidence {
+                evidence_ref: evidence_ref.clone(),
+                digest_sha256: encode_sha256(digest),
+            },
+        ),
+    };
+    agent::FieldSuggestionEvidence {
+        evidence: Some(evidence),
+    }
+}
+
+fn encode_field_patch_conflict(value: &FieldPatchConflict) -> agent::FieldPatchConflict {
+    agent::FieldPatchConflict {
+        record: Some(encode_suggestion_record_ref(value.field.record())),
+        field_id: value.field.field_id().into(),
+        field_schema_version: value.field.schema_version(),
+        reason: match value.reason {
+            FieldPatchConflictReason::RecordVersionChanged => {
+                agent::field_patch_conflict::Reason::RecordVersionChanged
+            }
+            FieldPatchConflictReason::FieldValueChanged => {
+                agent::field_patch_conflict::Reason::FieldValueChanged
+            }
+            FieldPatchConflictReason::SchemaChanged => {
+                agent::field_patch_conflict::Reason::SchemaChanged
+            }
+            FieldPatchConflictReason::AuthorizationChanged => {
+                agent::field_patch_conflict::Reason::AuthorizationChanged
+            }
+        } as i32,
+        current_record_version: value.current_record_version,
     }
 }
 
@@ -3528,6 +4405,30 @@ fn status_from_agent_application(error: AgentOrchestrationError) -> Status {
         }
         AgentOrchestrationError::Domain(_) => {
             Status::failed_precondition("Agent assignment is invalid")
+        }
+    }
+}
+
+fn status_from_suggestion_application(error: SuggestionApplicationError) -> Status {
+    match error {
+        SuggestionApplicationError::InvalidRequest => {
+            Status::invalid_argument("Field suggestion request is invalid")
+        }
+        SuggestionApplicationError::Denied => {
+            Status::permission_denied("Field suggestion authority is denied")
+        }
+        SuggestionApplicationError::NotFound => Status::not_found("Field suggestion was not found"),
+        SuggestionApplicationError::VersionConflict => {
+            Status::aborted("Field suggestion has changed")
+        }
+        SuggestionApplicationError::Unavailable => {
+            Status::unavailable("Field suggestion service is unavailable")
+        }
+        SuggestionApplicationError::HumanDecisionRequired => Status::permission_denied(
+            "Applying a field suggestion requires a direct authenticated human decision",
+        ),
+        SuggestionApplicationError::Domain(_) => {
+            Status::failed_precondition("Field suggestion transition is invalid")
         }
     }
 }

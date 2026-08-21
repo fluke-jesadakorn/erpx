@@ -97,6 +97,9 @@ pub struct SuggestionCommit {
 pub struct SuggestionReceipt {
     pub envelope: SuggestionEnvelope,
     pub replayed: bool,
+    pub event_id: Uuid,
+    pub global_sequence: u64,
+    pub committed_at: DateTime<Utc>,
 }
 
 #[async_trait]

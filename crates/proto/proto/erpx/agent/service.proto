@@ -3,6 +3,7 @@ syntax = "proto3";
 package erpx.agent;
 
 import "erpx/common/context.proto";
+import "erpx/interface/reference.proto";
 
 enum DataClassification {
   DATA_CLASSIFICATION_UNSPECIFIED = 0;
@@ -362,6 +363,183 @@ message GetAgentInvocationEvidenceResponse {
   erpx.common.ProjectionMetadata projection = 2;
 }
 
+enum FieldSuggestionStatus {
+  FIELD_SUGGESTION_STATUS_UNSPECIFIED = 0;
+  FIELD_SUGGESTION_STATUS_QUEUED = 1;
+  FIELD_SUGGESTION_STATUS_RUNNING = 2;
+  FIELD_SUGGESTION_STATUS_READY = 3;
+  FIELD_SUGGESTION_STATUS_CONFLICTED = 4;
+  FIELD_SUGGESTION_STATUS_APPLIED = 5;
+  FIELD_SUGGESTION_STATUS_REJECTED = 6;
+  FIELD_SUGGESTION_STATUS_SUPERSEDED = 7;
+  FIELD_SUGGESTION_STATUS_FAILED = 8;
+}
+
+message MoneyFieldValue {
+  int64 amount_minor = 1;
+  string currency = 2;
+}
+
+message SuggestedFieldValue {
+  message Unset {}
+  oneof value {
+    Unset unset = 1;
+    string text = 2;
+    sint64 integer = 3;
+    bool boolean = 4;
+    string date = 5;
+    string date_time = 6;
+    string choice = 7;
+    MoneyFieldValue money = 8;
+  }
+}
+
+message FieldSuggestionEvidence {
+  message RecordEvidence {
+    erpx.interface.RecordRef record = 1;
+    uint64 version = 2;
+  }
+  message ProtectedMaterialEvidence {
+    string evidence_ref = 1;
+    bytes digest_sha256 = 2;
+  }
+  oneof evidence {
+    RecordEvidence record = 1;
+    ProtectedMaterialEvidence protected_material = 2;
+  }
+}
+
+message SuggestedFieldChange {
+  erpx.interface.RecordRef record = 1;
+  string field_id = 2;
+  uint64 field_schema_version = 3;
+  bytes previous_value_digest_sha256 = 4;
+  SuggestedFieldValue proposed_value = 5;
+  uint32 confidence_basis_points = 6;
+  repeated FieldSuggestionEvidence evidence = 7;
+}
+
+message RecordFieldPatch {
+  erpx.interface.RecordRef source = 1;
+  uint64 source_version = 2;
+  uint64 schema_version = 3;
+  repeated SuggestedFieldChange changes = 4;
+}
+
+message FieldPatchConflict {
+  enum Reason {
+    REASON_UNSPECIFIED = 0;
+    REASON_RECORD_VERSION_CHANGED = 1;
+    REASON_FIELD_VALUE_CHANGED = 2;
+    REASON_SCHEMA_CHANGED = 3;
+    REASON_AUTHORIZATION_CHANGED = 4;
+  }
+  erpx.interface.RecordRef record = 1;
+  string field_id = 2;
+  uint64 field_schema_version = 3;
+  Reason reason = 4;
+  uint64 current_record_version = 5;
+}
+
+message FieldSuggestionProvenance {
+  string provider_kind = 1;
+  string provider_ref = 2;
+  string model_ref = 3;
+  bytes prompt_digest_sha256 = 4;
+  string invocation_evidence_ref = 5;
+  bool local_development = 6;
+}
+
+message RequestFieldSuggestionRequest {
+  erpx.common.CommandContext context = 1;
+  string suggestion_id = 2;
+  erpx.interface.RecordRef source = 3;
+  uint64 source_version = 4;
+  uint32 policy_version = 5;
+  bytes payload_digest_sha256 = 6;
+  FieldSuggestionProvenance provenance = 7;
+}
+
+message StartFieldSuggestionRequest {
+  erpx.common.CommandContext context = 1;
+  string suggestion_id = 2;
+  uint64 expected_version = 3;
+}
+
+message CompleteFieldSuggestionRequest {
+  erpx.common.CommandContext context = 1;
+  string suggestion_id = 2;
+  uint64 expected_version = 3;
+  RecordFieldPatch patch = 4;
+  bytes output_digest_sha256 = 5;
+}
+
+message ApplyFieldSuggestionRequest {
+  erpx.common.CommandContext context = 1;
+  string suggestion_id = 2;
+  uint64 expected_version = 3;
+  RecordFieldPatch edited_patch = 4;
+  uint64 current_source_version = 5;
+  bytes current_payload_digest_sha256 = 6;
+  repeated FieldPatchConflict conflicts = 7;
+}
+
+message RejectFieldSuggestionRequest {
+  erpx.common.CommandContext context = 1;
+  string suggestion_id = 2;
+  uint64 expected_version = 3;
+}
+
+message FieldSuggestionMutationResponse {
+  erpx.common.CommandReceipt receipt = 1;
+  FieldSuggestionProjection suggestion = 2;
+}
+
+message HumanFieldPatchReview {
+  string reviewer_principal_ref = 1;
+  string reviewer_session_id = 2;
+  string reviewed_at = 3;
+  bytes edited_patch_digest_sha256 = 4;
+}
+
+message FieldSuggestionProjection {
+  string suggestion_id = 1;
+  uint64 aggregate_version = 2;
+  FieldSuggestionStatus status = 3;
+  string owner_context = 4;
+  RecordFieldPatch patch = 5;
+  repeated FieldPatchConflict conflicts = 6;
+  uint32 policy_version = 7;
+  bytes source_payload_digest_sha256 = 8;
+  optional bytes output_digest_sha256 = 9;
+  string provider_label = 10;
+  optional HumanFieldPatchReview human_review = 11;
+  string requested_by = 12;
+  string created_at = 13;
+  string updated_at = 14;
+}
+
+message GetFieldSuggestionRequest {
+  erpx.common.QueryContext context = 1;
+  string suggestion_id = 2;
+}
+
+message GetFieldSuggestionResponse {
+  optional FieldSuggestionProjection suggestion = 1;
+  erpx.common.ProjectionMetadata projection = 2;
+}
+
+message ListFieldSuggestionsByRecordRequest {
+  erpx.common.QueryContext context = 1;
+  erpx.interface.RecordRef source = 2;
+  uint32 page_size = 3;
+}
+
+message ListFieldSuggestionsByRecordResponse {
+  repeated FieldSuggestionProjection suggestions = 1;
+  erpx.common.ProjectionMetadata projection = 2;
+}
+
 service AgentOrchestrationCommandService {
   rpc RegisterAgent(RegisterAgentRequest) returns (AgentMutationResponse);
   rpc AddAgentVersion(AddAgentVersionRequest) returns (AgentMutationResponse);
@@ -380,6 +558,11 @@ service AgentOrchestrationCommandService {
   rpc PublishPrivateSessionMessage(PublishPrivateAgentSessionMessageRequest) returns (AgentMutationResponse);
   rpc SetPrivateSessionLegalHold(SetPrivateAgentSessionLegalHoldRequest) returns (AgentMutationResponse);
   rpc ExpirePrivateSession(PrivateAgentSessionIdentityRequest) returns (AgentMutationResponse);
+  rpc RequestFieldSuggestion(RequestFieldSuggestionRequest) returns (FieldSuggestionMutationResponse);
+  rpc StartFieldSuggestion(StartFieldSuggestionRequest) returns (FieldSuggestionMutationResponse);
+  rpc CompleteFieldSuggestion(CompleteFieldSuggestionRequest) returns (FieldSuggestionMutationResponse);
+  rpc ApplyFieldSuggestion(ApplyFieldSuggestionRequest) returns (FieldSuggestionMutationResponse);
+  rpc RejectFieldSuggestion(RejectFieldSuggestionRequest) returns (FieldSuggestionMutationResponse);
 }
 
 service AgentOrchestrationQueryService {
@@ -389,4 +572,6 @@ service AgentOrchestrationQueryService {
   rpc GetPrivateSession(GetAgentRecordRequest) returns (GetPrivateAgentSessionResponse);
   rpc GetRoutingDecision(GetAgentRecordRequest) returns (GetAgentRoutingDecisionResponse);
   rpc GetInvocationEvidence(GetAgentRecordRequest) returns (GetAgentInvocationEvidenceResponse);
+  rpc GetFieldSuggestion(GetFieldSuggestionRequest) returns (GetFieldSuggestionResponse);
+  rpc ListFieldSuggestionsByRecord(ListFieldSuggestionsByRecordRequest) returns (ListFieldSuggestionsByRecordResponse);
 }

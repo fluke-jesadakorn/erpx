@@ -27,6 +27,69 @@ impl SqlxSuggestionRepository {
                 .map_err(|_| SuggestionApplicationError::Unavailable)?,
         })
     }
+
+    /// Returns typed envelopes for one already-authorized record. Callers must
+    /// authorize the full record reference through the Item Directory before
+    /// invoking this method; the repository additionally enforces the
+    /// canonical authority scope on every returned envelope.
+    pub async fn list_by_record(
+        &self,
+        scope: &AuthorityScope,
+        source_record_kind: &str,
+        source_record_id: Uuid,
+        page_size: u16,
+    ) -> Result<Vec<SuggestionEnvelope>, SuggestionApplicationError> {
+        scope
+            .validate()
+            .map_err(|_| SuggestionApplicationError::Denied)?;
+        if source_record_kind.trim().is_empty()
+            || source_record_kind.len() > 128
+            || source_record_id.is_nil()
+            || page_size == 0
+            || page_size > 100
+        {
+            return Err(SuggestionApplicationError::InvalidRequest);
+        }
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|_| SuggestionApplicationError::Unavailable)?;
+        let rows = sqlx::query(
+            "SELECT envelope_document
+               FROM erpx_agent_write.suggestion_envelopes
+              WHERE holding_id=$1 AND source_record_kind=$2 AND source_record_id=$3
+              ORDER BY updated_at DESC,suggestion_id DESC
+              LIMIT $4",
+        )
+        .bind(self.pool.holding_id())
+        .bind(source_record_kind)
+        .bind(source_record_id)
+        .bind(i64::from(page_size))
+        .fetch_all(&mut *tx)
+        .await
+        .map_err(|_| SuggestionApplicationError::Unavailable)?;
+        tx.commit()
+            .await
+            .map_err(|_| SuggestionApplicationError::Unavailable)?;
+        rows.into_iter()
+            .map(|row| {
+                let document = row
+                    .try_get::<Option<serde_json::Value>, _>("envelope_document")
+                    .map_err(|_| SuggestionApplicationError::Unavailable)?
+                    .ok_or(SuggestionApplicationError::Unavailable)?;
+                let envelope: SuggestionEnvelope = serde_json::from_value(document)
+                    .map_err(|_| SuggestionApplicationError::Unavailable)?;
+                envelope
+                    .validate()
+                    .map_err(SuggestionApplicationError::Domain)?;
+                if !scope.contains(envelope.scope()) {
+                    return Err(SuggestionApplicationError::Denied);
+                }
+                Ok(envelope)
+            })
+            .collect()
+    }
 }
 
 #[async_trait]
@@ -114,7 +177,7 @@ impl SuggestionRepository for SqlxSuggestionRepository {
 
         if let Some(row) = sqlx::query(
             "SELECT request_digest,suggestion_id,aggregate_version,
-                    result_envelope_document
+                    result_envelope_document,committed_at
                FROM erpx_agent_write.suggestion_command_receipts
               WHERE holding_id=$1 AND scope_key=$2 AND idempotency_key=$3
               FOR UPDATE",
@@ -146,12 +209,30 @@ impl SuggestionRepository for SqlxSuggestionRepository {
             result
                 .validate()
                 .map_err(SuggestionApplicationError::Domain)?;
+            let event_id = stable_id(commit.command_id, b"suggestion-event");
+            let global_sequence = sqlx::query_scalar::<_, i64>(
+                "SELECT global_sequence FROM erpx_cqrs_write.outbox_events
+                  WHERE holding_id=$1 AND event_id=$2",
+            )
+            .bind(self.pool.holding_id())
+            .bind(event_id)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|_| SuggestionApplicationError::Unavailable)?
+            .and_then(|value| u64::try_from(value).ok())
+            .ok_or(SuggestionApplicationError::Unavailable)?;
+            let committed_at = row
+                .try_get::<chrono::DateTime<Utc>, _>("committed_at")
+                .map_err(|_| SuggestionApplicationError::Unavailable)?;
             tx.commit()
                 .await
                 .map_err(|_| SuggestionApplicationError::Unavailable)?;
             return Ok(SuggestionReceipt {
                 envelope: result,
                 replayed: true,
+                event_id,
+                global_sequence,
+                committed_at,
             });
         }
 
@@ -310,13 +391,14 @@ impl SuggestionRepository for SqlxSuggestionRepository {
         .execute(&mut *tx)
         .await
         .map_err(|_| SuggestionApplicationError::Unavailable)?;
-        sqlx::query(
+        let global_sequence = sqlx::query_scalar::<_, i64>(
             "INSERT INTO erpx_cqrs_write.outbox_events(
                 holding_id,event_id,context_name,partition_key,command_id,event_type,
                 event_version,aggregate_type,aggregate_id,aggregate_version,active_scope,
                 actor,correlation_id,causation_id,payload,occurred_at,available_at)
              VALUES($1,$2,'agent_orchestration',$3,$4,'agent.suggestion.changed',2,
-                    'suggestion',$5,$6,$7,$8,$4,NULL,$9,$10,$10)",
+                    'suggestion',$5,$6,$7,$8,$4,NULL,$9,$10,$10)
+             RETURNING global_sequence",
         )
         .bind(self.pool.holding_id())
         .bind(event_id)
@@ -331,9 +413,11 @@ impl SuggestionRepository for SqlxSuggestionRepository {
         .bind(actor)
         .bind(serde_json::json!({"suggestion":envelope_document,"typed":true}))
         .bind(commit.envelope.updated_at())
-        .execute(&mut *tx)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|_| SuggestionApplicationError::Unavailable)?;
+        let global_sequence =
+            u64::try_from(global_sequence).map_err(|_| SuggestionApplicationError::Unavailable)?;
 
         tx.commit()
             .await
@@ -341,6 +425,9 @@ impl SuggestionRepository for SqlxSuggestionRepository {
         Ok(SuggestionReceipt {
             envelope: commit.envelope,
             replayed: false,
+            event_id,
+            global_sequence,
+            committed_at,
         })
     }
 }
