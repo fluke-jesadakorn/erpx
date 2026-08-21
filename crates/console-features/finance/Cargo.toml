@@ -9,8 +9,10 @@ dioxus = { workspace = true, features = ["hooks", "html", "macro", "signals"] }
 async-trait.workspace = true
 erpx-cqrs.workspace = true
 erpx-finance.workspace = true
+erpx-integration-contracts.workspace = true
 erpx-ui-core.workspace = true
 erpx-ui-kit.workspace = true
 erpx-ui-foundation.workspace = true
+serde.workspace = true
 [lints]
 workspace = true

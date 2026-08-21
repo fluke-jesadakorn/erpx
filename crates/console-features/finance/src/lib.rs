@@ -1,11 +1,13 @@
 //! Finance Console vertical slice.
 pub mod gateway;
 pub mod models;
+pub mod owner_detail;
 pub mod presenter;
 pub mod sales_workspace;
 pub mod view;
 pub use gateway::{FinanceGateway, FinanceProtoTransport};
 pub use models::{FinanceItem, FinanceItems};
+pub use owner_detail::*;
 pub use presenter::{FinanceContent, FinancePresenter};
 pub use sales_workspace::{
     FinanceApprovalWorkItem, FinanceSalesApprovalWorkspace, FinanceSalesProjectionState,

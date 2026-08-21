@@ -2897,9 +2897,11 @@ dependencies = [
  "dioxus",
  "erpx-cqrs",
  "erpx-finance",
+ "erpx-integration-contracts",
  "erpx-ui-core",
  "erpx-ui-foundation",
  "erpx-ui-kit",
+ "serde",
 ]
 
 [[package]]
@@ -3074,10 +3076,12 @@ dependencies = [
  "async-trait",
  "dioxus",
  "erpx-cqrs",
+ "erpx-integration-contracts",
  "erpx-procurement",
  "erpx-ui-core",
  "erpx-ui-foundation",
  "erpx-ui-kit",
+ "serde",
 ]
 
 [[package]]

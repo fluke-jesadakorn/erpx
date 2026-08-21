@@ -1,5 +1,6 @@
 pub mod gateway;
 pub mod models;
+pub mod owner_detail;
 pub mod presenter;
 pub mod view;
 
@@ -8,6 +9,7 @@ pub use gateway::{
     present_procurement_orders,
 };
 pub use models::{ProcurementOrder, ProcurementOrderLine, ProcurementOrders};
+pub use owner_detail::*;
 pub use presenter::{ProcurementContent, ProcurementPresenter};
 pub use view::{ProcurementRenderedState, render_procurement_state};
 erpx_ui_kit::declare_current_workspace_feature!(

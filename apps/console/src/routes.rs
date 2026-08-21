@@ -2745,20 +2745,85 @@ fn WorkspaceRecord(workspace: Workspace, resource: ResourceName, id: RouteUuid) 
     let catalog_record =
         CatalogRecord::try_from_segments(workspace.slug(), resource.as_str(), &id.to_string());
     match catalog_record {
-        Ok(record) => rsx! {
-            RecordDetailHost {
-                record,
-                owner_content: rsx! {
-                    ProtectedRouteSurface { query: RouteQuery::Record { workspace, resource, id } }
-                },
-            }
-        },
+        Ok(record) => {
+            let owner_content = record_owner_content(&record, workspace, resource, id);
+            rsx! { RecordDetailHost { record, owner_content } }
+        }
         Err(_) => rsx! {
             CatalogRouteUnavailable {
                 title: format!("{workspace} · {resource}"),
                 reason: "The route is not a current or future catalog record family.".to_owned(),
             }
         },
+    }
+}
+
+fn record_owner_content(
+    record: &CatalogRecord,
+    workspace: Workspace,
+    resource: ResourceName,
+    id: RouteUuid,
+) -> Element {
+    match record.record().record_type().as_str() {
+        "procurement.requisition" | "procurement.purchase-order" | "procurement.receipt" => rsx! {
+            Phase5ProcurementOwnerDetail { record: record.clone() }
+        },
+        "finance.invoice" => rsx! {
+            Phase5CustomerInvoiceOwnerDetail { workspace, resource, id }
+        },
+        "finance.vendor-invoice" | "finance.payment" => rsx! {
+            Phase5FinanceOwnerDetail { record: record.clone() }
+        },
+        _ => rsx! {
+            ProtectedRouteSurface { query: RouteQuery::Record { workspace, resource, id } }
+        },
+    }
+}
+
+#[component]
+fn Phase5ProcurementOwnerDetail(record: CatalogRecord) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    rsx! {
+        erpx_console_feature_procurement::ProcurementOwnerDetailSurface {
+            expected_record: record.record().clone(),
+            state: erpx_console_feature_procurement::ProcurementOwnerDetailState::Unavailable {
+                retryable: true,
+            },
+            locale,
+        }
+    }
+}
+
+#[component]
+fn Phase5FinanceOwnerDetail(record: CatalogRecord) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    rsx! {
+        erpx_console_feature_finance::FinanceOwnerDetailSurface {
+            expected_record: record.record().clone(),
+            state: erpx_console_feature_finance::FinanceOwnerDetailState::Unavailable {
+                retryable: true,
+            },
+            locale,
+        }
+    }
+}
+
+#[component]
+fn Phase5CustomerInvoiceOwnerDetail(
+    workspace: Workspace,
+    resource: ResourceName,
+    id: RouteUuid,
+) -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    rsx! {
+        erpx_console_feature_finance::CustomerInvoiceArOwnerSlot {
+            locale,
+            owner_content: rsx! {
+                ProtectedRouteSurface {
+                    query: RouteQuery::Record { workspace, resource, id }
+                }
+            },
+        }
     }
 }
 
@@ -5951,7 +6016,7 @@ mod tests {
     }
 
     #[test]
-    fn all_92_current_catalog_families_route_through_the_shared_record_host() {
+    fn all_93_current_catalog_families_route_through_the_shared_record_host() {
         use erpx_integration_contracts::catalog::{ContextLifecycle, RECORD_TYPES};
 
         let id = uuid::Uuid::from_u128(0x92);
@@ -5960,7 +6025,7 @@ mod tests {
             .iter()
             .filter(|descriptor| descriptor.owner.lifecycle() == ContextLifecycle::Current)
             .collect::<Vec<_>>();
-        assert_eq!(current.len(), 92);
+        assert_eq!(current.len(), 93);
 
         for descriptor in current {
             owners.insert(descriptor.owner);
@@ -6012,6 +6077,7 @@ mod tests {
             "customer-360.profile",
             "support.customer-case",
             "finance.invoice",
+            "finance.vendor-invoice",
             "finance.payment",
             "sales.quote",
             "pos.sale",
@@ -6038,6 +6104,80 @@ mod tests {
                 "{path}"
             );
         }
+    }
+
+    #[test]
+    fn phase_five_procure_to_pay_routes_keep_the_shared_host_and_typed_owner_slots() {
+        let id = uuid::Uuid::from_u128(0xf5);
+        for record_type in [
+            "procurement.requisition",
+            "procurement.purchase-order",
+            "procurement.receipt",
+            "finance.vendor-invoice",
+            "finance.payment",
+        ] {
+            let descriptor = erpx_integration_contracts::catalog::record_type(record_type)
+                .expect("Phase 5 fixture stays current");
+            let path = format!("/{}/{}/{id}", descriptor.module, descriptor.record);
+            let route = AppRoute::from_str(&path).expect("canonical Phase 5 route parses");
+            assert!(matches!(route, AppRoute::WorkspaceRecord { .. }));
+            assert!(is_canonical_console_path(&path, ClientChannel::Web));
+            assert!(
+                CatalogRecord::try_from_path(&path)
+                    .expect("catalog record")
+                    .collaboration_available()
+            );
+        }
+
+        let source = include_str!("routes.rs");
+        let owner_router = source.find("fn record_owner_content").unwrap();
+        let procurement = source[owner_router..]
+            .find("Phase5ProcurementOwnerDetail")
+            .unwrap();
+        let customer_invoice = source[owner_router..]
+            .find("Phase5CustomerInvoiceOwnerDetail")
+            .unwrap();
+        let vendor_invoice = source[owner_router..]
+            .find("\"finance.vendor-invoice\"")
+            .unwrap();
+        let finance = source[owner_router..]
+            .find("Phase5FinanceOwnerDetail")
+            .unwrap();
+        let host = source.find("pub fn RecordDetailHost").unwrap();
+        let references = source[host..].find("RecordReferences {").unwrap();
+        let activity = source[host..]
+            .find("AuthorizedRecordActivityRail {")
+            .unwrap();
+        assert!(procurement < customer_invoice);
+        assert!(customer_invoice < vendor_invoice);
+        assert!(vendor_invoice < finance);
+        assert!(references < activity);
+        assert!(!source[owner_router..host].contains("RecordReferences {"));
+
+        let customer_invoice_path = format!("/finance/invoice/{id}");
+        assert!(is_canonical_console_path(
+            &customer_invoice_path,
+            ClientChannel::Web
+        ));
+        assert!(source.contains("CustomerInvoiceArOwnerSlot"));
+
+        let vendor_invoice_path = format!("/finance/vendor-invoice/{id}");
+        assert!(matches!(
+            AppRoute::from_str(&vendor_invoice_path).expect("singular vendor-invoice route parses"),
+            AppRoute::WorkspaceRecord { .. }
+        ));
+        assert!(is_canonical_console_path(
+            &vendor_invoice_path,
+            ClientChannel::Web
+        ));
+        let vendor_invoice = CatalogRecord::try_from_path(&vendor_invoice_path)
+            .expect("vendor invoice is a live catalog record");
+        assert_eq!(
+            vendor_invoice.canonical_path(),
+            vendor_invoice_path,
+            "vendor invoice canonical route stays singular"
+        );
+        assert!(vendor_invoice.collaboration_available());
     }
 
     #[test]
