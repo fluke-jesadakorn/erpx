@@ -902,21 +902,7 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
             talent::TalentRealm::Workforce,
         )
         .await?;
-        let identity = identity(context, body)?;
-        let offer_id = talent::OfferId::try_from_uuid(uuid(&body.offer_id, "offer_id")?)
-            .map_err(|error| Status::invalid_argument(error.to_string()))?;
         let expected = mutation_expected(context)?;
-        let decided_at = Utc::now();
-        let human_decision = future_auth::human_decision(
-            &invocation,
-            talent::offer_decide_decision_ref(
-                identity.command_id,
-                offer_id,
-                expected,
-                body.accepted,
-            ),
-            decided_at,
-        )?;
         let pool = future_auth::pool(&self.state, &invocation, RoutedDatabaseSide::Write).await?;
         let result = command_service(pool, &actor)
             .present_offer(
@@ -945,7 +931,21 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
             talent::TalentRealm::Candidate,
         )
         .await?;
+        let identity = identity(context, body)?;
+        let offer_id = talent::OfferId::try_from_uuid(uuid(&body.offer_id, "offer_id")?)
+            .map_err(|error| Status::invalid_argument(error.to_string()))?;
         let expected = mutation_expected(context)?;
+        let decided_at = Utc::now();
+        let human_decision = future_auth::human_decision(
+            &invocation,
+            talent::offer_decide_decision_ref(
+                identity.command_id,
+                offer_id,
+                expected,
+                body.accepted,
+            ),
+            decided_at,
+        )?;
         let candidate_principal_id = enforce_actor(
             &body.candidate_principal_id,
             "candidate_principal_id",
