@@ -12,6 +12,8 @@ tonic.workspace = true
 tonic-prost.workspace = true
 
 [build-dependencies]
+prost.workspace = true
+prost-types.workspace = true
 sha2.workspace = true
 tonic-prost-build.workspace = true
 
