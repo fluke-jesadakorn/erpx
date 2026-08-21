@@ -570,34 +570,54 @@ fn ProtectedRouteSurface(query: RouteQuery) -> Element {
     let data = use_route_data(query)?;
     let heading = route_heading(&query_for_display, &data.title, locale);
     let description = route_description(&query_for_display, &heading, locale);
-    let has_items = !data.page.items.is_empty();
-    let returned_count = format!(
-        "{} {}",
-        data.page.items.len(),
-        copy(locale, "records returned", "รายการที่ได้รับ")
-    );
+    let authoritative_unavailable = route_freshness_is_unavailable(&data.freshness_tag);
+    let has_items = !authoritative_unavailable && !data.page.items.is_empty();
+    let unavailable_copy = authoritative_unavailable
+        .then(|| route_unavailable_copy(&query_for_display, &heading, locale));
+    let empty_state_class = if authoritative_unavailable {
+        "empty-state empty-state--unavailable"
+    } else {
+        "empty-state"
+    };
+    let empty_state_role = if authoritative_unavailable {
+        "alert"
+    } else {
+        "status"
+    };
+    let returned_count = if authoritative_unavailable {
+        copy(locale, "Record count unavailable", "ยังไม่ทราบจำนวนรายการ").to_owned()
+    } else {
+        format!(
+            "{} {}",
+            data.page.items.len(),
+            copy(locale, "records returned", "รายการที่ได้รับ")
+        )
+    };
     let freshness_label = match data.freshness_tag.as_str() {
-        "not-connected" => copy(
+        "not-connected" | "unavailable" => copy(
             locale,
-            "Authoritative projection not connected",
-            "ยังไม่ได้เชื่อมต่อข้อมูล projection ที่เชื่อถือได้",
+            "Authoritative projection unavailable",
+            "ข้อมูล projection ที่เชื่อถือได้ยังไม่พร้อมใช้งาน",
         )
         .to_owned(),
         value => format!("{}: {value}", copy(locale, "Status", "สถานะ")),
     };
-    let visible_items = data
-        .page
-        .items
-        .iter()
-        .filter(|item| {
-            normalized_search.read().is_empty()
-                || item
-                    .title
-                    .to_ascii_lowercase()
-                    .contains(normalized_search.read().as_str())
-        })
-        .cloned()
-        .collect::<Vec<_>>();
+    let visible_items = if authoritative_unavailable {
+        Vec::new()
+    } else {
+        data.page
+            .items
+            .iter()
+            .filter(|item| {
+                normalized_search.read().is_empty()
+                    || item
+                        .title
+                        .to_ascii_lowercase()
+                        .contains(normalized_search.read().as_str())
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+    };
     let visible_count = format!(
         "{} {}",
         visible_items.len(),
@@ -667,10 +687,16 @@ fn ProtectedRouteSurface(query: RouteQuery) -> Element {
                     }
                 }
             } else if visible_items.is_empty() {
-                section { class: "empty-state", role: "status",
-                    span { class: "empty-state__icon", aria_hidden: "true", if has_items { "⌕" } else { "◇" } }
+                section {
+                    class: "{empty_state_class}",
+                    role: "{empty_state_role}",
+                    "data-state": if authoritative_unavailable { "unavailable" } else if has_items { "filtered-empty" } else { "empty" },
+                    span { class: "empty-state__icon", aria_hidden: "true", if authoritative_unavailable { "!" } else if has_items { "⌕" } else { "◇" } }
                     div { class: "empty-state__copy",
-                        if has_items {
+                        if let Some(unavailable) = &unavailable_copy {
+                            h2 { "{unavailable.title}" }
+                            p { "{unavailable.reason}" }
+                        } else if has_items {
                             h2 { {copy(locale, "No matching records", "ไม่พบรายการที่ตรงกัน")} }
                             p { {copy(locale,
                                 "Try a shorter title or clear the filter to show every available record.",
@@ -4897,6 +4923,83 @@ fn route_description(query: &RouteQuery, heading: &str, locale: Locale) -> Strin
     }
 }
 
+fn route_freshness_is_unavailable(freshness_tag: &str) -> bool {
+    matches!(freshness_tag, "not-connected" | "unavailable")
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RouteUnavailableCopy {
+    title: String,
+    reason: String,
+}
+
+fn route_unavailable_copy(
+    query: &RouteQuery,
+    heading: &str,
+    locale: Locale,
+) -> RouteUnavailableCopy {
+    let title = match locale {
+        Locale::En => format!("{heading} is unavailable"),
+        Locale::Th => format!("{heading} ยังไม่พร้อมใช้งาน"),
+    };
+    let reason = match query {
+        RouteQuery::Workspace {
+            workspace,
+            resource,
+        } => {
+            let owner = workspace_label(*workspace, locale);
+            let resource = localized_resource_label(
+                resource
+                    .as_ref()
+                    .map_or_else(|| default_workspace_resource(*workspace), ResourceName::as_str),
+                locale,
+            );
+            match locale {
+                Locale::En => format!(
+                    "The {} backend could not provide an authoritative {} list. No rows are being shown.",
+                    owner.to_ascii_lowercase(),
+                    resource.to_ascii_lowercase(),
+                ),
+                Locale::Th => format!(
+                    "บริการข้อมูล{owner}ไม่สามารถส่งรายการ{resource}จากแหล่งข้อมูลที่เชื่อถือได้ จึงไม่มีการแสดงข้อมูล"
+                ),
+            }
+        }
+        RouteQuery::Record {
+            workspace,
+            resource,
+            ..
+        } => {
+            let owner = workspace_label(*workspace, locale);
+            let resource = localized_resource_label(resource.as_str(), locale);
+            match locale {
+                Locale::En => format!(
+                    "The {} backend could not provide this authoritative {} record. No record is being shown.",
+                    owner.to_ascii_lowercase(),
+                    resource.to_ascii_lowercase(),
+                ),
+                Locale::Th => format!(
+                    "บริการข้อมูล{owner}ไม่สามารถส่งรายการ{resource}นี้จากแหล่งข้อมูลที่เชื่อถือได้ จึงไม่มีการแสดงรายการ"
+                ),
+            }
+        }
+        RouteQuery::Reference { .. } => match locale {
+            Locale::En => "The shared-reference backend could not provide this authoritative record. No record is being shown.".to_owned(),
+            Locale::Th => "บริการข้อมูลอ้างอิงร่วมไม่สามารถส่งรายการนี้จากแหล่งข้อมูลที่เชื่อถือได้ จึงไม่มีการแสดงรายการ".to_owned(),
+        },
+        _ => match locale {
+            Locale::En => format!(
+                "The backend could not provide authoritative {heading} data. No rows are being shown."
+            ),
+            Locale::Th => format!(
+                "บริการข้อมูลไม่สามารถส่งข้อมูล {heading} จากแหล่งข้อมูลที่เชื่อถือได้ จึงไม่มีการแสดงข้อมูล"
+            ),
+        },
+    };
+
+    RouteUnavailableCopy { title, reason }
+}
+
 #[cfg(feature = "native")]
 fn render_delivery_error(error: erpx_delivery_contract::DeliveryError) -> RenderError {
     RenderError::from(std::io::Error::other(error.to_string()))
@@ -5093,6 +5196,80 @@ mod tests {
             "/auth/accounts",
             ClientChannel::Web
         ));
+    }
+
+    #[test]
+    fn unconnected_workspace_copy_names_the_authoritative_owner_and_resource() {
+        assert!(route_freshness_is_unavailable("not-connected"));
+        assert!(route_freshness_is_unavailable("unavailable"));
+        assert!(!route_freshness_is_unavailable("partial"));
+        assert!(!route_freshness_is_unavailable("fresh"));
+
+        for workspace in Workspace::ALL {
+            let route = RouteQuery::Workspace {
+                workspace,
+                resource: None,
+            };
+            let heading = route_heading(&route, "unused", Locale::En);
+            let unavailable = route_unavailable_copy(&route, &heading, Locale::En);
+
+            assert_eq!(unavailable.title, format!("{heading} is unavailable"));
+            assert!(
+                unavailable
+                    .reason
+                    .starts_with(&format!("The {} backend", heading.to_ascii_lowercase())),
+                "{}",
+                unavailable.reason
+            );
+            assert!(
+                unavailable
+                    .reason
+                    .contains("could not provide an authoritative"),
+                "{}",
+                unavailable.reason
+            );
+            assert!(unavailable.reason.ends_with("No rows are being shown."));
+        }
+
+        let route = RouteQuery::Workspace {
+            workspace: Workspace::Inventory,
+            resource: Some("stock-items".parse().unwrap()),
+        };
+        let heading = route_heading(&route, "unused", Locale::En);
+        let unavailable = route_unavailable_copy(&route, &heading, Locale::En);
+        assert_eq!(unavailable.title, "Inventory · Stock Items is unavailable");
+        assert_eq!(
+            unavailable.reason,
+            "The inventory backend could not provide an authoritative stock items list. No rows are being shown."
+        );
+    }
+
+    #[test]
+    fn unconnected_route_copy_distinguishes_lists_records_and_thai() {
+        let id = RouteUuid::try_new(uuid::Uuid::from_u128(11)).unwrap();
+        let record = RouteQuery::Record {
+            workspace: Workspace::People,
+            resource: "employees".parse().unwrap(),
+            id,
+        };
+        let english = route_unavailable_copy(&record, "Employee · 11", Locale::En);
+        assert_eq!(english.title, "Employee · 11 is unavailable");
+        assert!(
+            english
+                .reason
+                .contains("this authoritative employees record")
+        );
+        assert!(english.reason.ends_with("No record is being shown."));
+
+        let thai_route = RouteQuery::Workspace {
+            workspace: Workspace::Inventory,
+            resource: Some("stock-items".parse().unwrap()),
+        };
+        let thai_heading = route_heading(&thai_route, "unused", Locale::Th);
+        let thai = route_unavailable_copy(&thai_route, &thai_heading, Locale::Th);
+        assert_eq!(thai.title, "สินค้าคงคลัง · รายการสินค้าคงคลัง ยังไม่พร้อมใช้งาน");
+        assert!(thai.reason.contains("แหล่งข้อมูลที่เชื่อถือได้"));
+        assert!(thai.reason.contains("ไม่มีการแสดงข้อมูล"));
     }
 
     #[test]
