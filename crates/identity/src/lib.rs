@@ -249,6 +249,10 @@ mod tests {
         assert!(sql.contains("decision_ref TEXT"));
         assert!(sql.contains("decision_session_id IS NULL"));
         assert!(sql.contains("decision_session_id IS NOT NULL"));
+        assert!(sql.contains("FROM pg_constraint"));
+        assert!(
+            sql.contains("conrelid = 'erpx_identity.directory_administration_audit'::regclass")
+        );
         assert!(sql.contains("VALIDATE CONSTRAINT"));
     }
 
