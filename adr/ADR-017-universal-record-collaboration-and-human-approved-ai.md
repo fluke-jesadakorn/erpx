@@ -1,17 +1,17 @@
 # ADR-017: Universal record collaboration and human-approved AI
 
-- Status: Proposed; Phase 0 safety foundation and Phase 1 hierarchy pilot partially implemented
+- Status: Accepted; Phases 0-6 code-complete and locally verified; staged production rollout and external certification pending
 - Date: 2026-08-21
+- Last verified: 2026-08-22
 
 ## Context
 
-ERPX already has stable record identities, an Item Directory, holding-local
-authorization, collaboration aggregates, version-pinned agent definitions,
-and suggestion envelopes. Those capabilities are not yet presented as one
-consistent product surface. Module detail pages do not all expose references
-and comments, the Console collaboration editor is not connected, record
-relations are not fully available over transport, and AI suggestions cover
-only a small set of Sales and Finance operations.
+ERPX began this decision with stable record identities, an Item Directory,
+holding-local authorization, collaboration aggregates, version-pinned agent
+definitions, and suggestion envelopes, but without one consistent product
+surface. This ADR records the architecture used to close those gaps across the
+current catalog while preserving owner-context authority and fail-closed
+behavior for future records.
 
 The desired product behavior is:
 
@@ -28,9 +28,11 @@ The desired product behavior is:
 
 ## Decision
 
-The sections below define the target architecture. They describe current
-behavior only where the delivery plan explicitly marks a Phase 0 item as
-implemented and verified.
+The sections below define the accepted architecture. Phases 0-6 are implemented
+in the current tree and passed the local repository verifier on 2026-08-22.
+Production rollout, canary activation, malware-scanner readiness, and external
+provider/directory certification remain operational gates rather than claims
+made by this ADR.
 
 ### 1. One record identity and one shared collaboration capability
 
@@ -208,12 +210,16 @@ a vendor invoice.
   capability-gated v2 producer, mixed-version verification, projection rebuild,
   and atomic generation activation must precede default v2 emission.
 
-This phase is not complete until every currently reachable decision ingress has
-a human-only invariant, registration fails closed for a new unclassified
-ingress, and identity token issuance preserves the authoritative principal
-kind. A UI-only check is never sufficient.
+Phase 0 is code-complete in the current tree. Every registered
+decision-shaped ingress is classified and is backed by owner-domain proof or
+an explicit owner policy; the registry fails closed for a new unclassified
+ingress. Proof construction precedes receipt lookup and mutation, binds the
+authenticated human session, action, command/target, expected version, scope,
+and trusted time, and is validated again by the owner domain. Identity token
+issuance preserves the authoritative principal kind. A UI-only check is never
+sufficient.
 
-The code-complete Phase 0 safety slice currently includes:
+The implemented Phase 0 safety foundation includes:
 
 - persisted authenticated realm/principal kind on principals and sessions;
   password, passkey, directory, recovery, refresh, active-role selection, and
@@ -240,48 +246,17 @@ The code-complete Phase 0 safety slice currently includes:
   bounded legacy upcasting, and a disposable-PostgreSQL acceptance harness;
   and
 - a closed RPC registry that discovers decision-shaped and `Transition...`
-  ingresses and requires each one to declare owner policy, transport guard,
-  domain proof, or an explicit migration requirement.
+  ingresses and requires each one to declare owner policy, transport guard, or
+  domain proof; the former migration placeholders have been closed; and
+- a mandatory approved-old protobuf descriptor comparison against the retained,
+  explicitly hashed baseline, so compatibility cannot be silently skipped.
 
-Current blockers before Phase 0 can be called production-ready are:
-
-- migrations `0014_authenticated_authority.sql` and
-  `0015_directory_replacement_human_decision.sql` now execute in the local SQLx
-  gate against disposable PostgreSQL. That gate covers login -> role selection
-  -> refresh, the two-session replacement path, and the migration fence that
-  forces changed-authority legacy sessions to reauthenticate. Production
-  rollout must still drain old writers because the new authority columns
-  deliberately have no database defaults, and drain old authority-unaware
-  readers because they can normalize non-human sessions;
-- every entry still classified `MigrationRequired`, and transport-only guards
-  that lack an owner-domain invariant, must be migrated or explicitly
-  reclassified by the owning context; prominent remaining groups include
-  Benefits, Brand, Commercial, Field Service, Learning, Manufacturing,
-  Marketing, Organization activation, Platform/Holding provisioning, Quality,
-  and several future-context publication/release paths;
-- the approved-old protobuf descriptor comparison must be mandatory in the
-  production compatibility gate rather than silently skipped without its
-  explicitly hashed baseline;
-- exact-node sharing must remain disabled until Department/Team containment is
-  enforced through the sharing application and adapters;
-- the Organization reader-before-writer rollout, mixed-version proof,
-  projection rebuild, atomic generation activation, and concurrency acceptance
-  must be exercised operationally; and
-- universal references, typed `@`, comments, agent assignment, suggestions,
-  and the PR-to-payment UI/process remain later phases and are not implied by
-  this safety work.
-
-Current implementation status is intentionally mixed:
-
-| Phase 0 capability | Status |
-| --- | --- |
-| Trusted claim-to-actor kind and token propagation | Implemented; disposable-PostgreSQL login/refresh and legacy-session-fence evidence passes; drained hard-cutover evidence pending |
-| `HumanDecisionProof` domain primitive | Implemented; reachable decision-path migration remains partial and is inventoried |
-| Collaboration `ConfirmAction` authenticated binding/evidence | Implemented and covered in context, SQLx, and server tests |
-| Decision-ingress registry including `Transition...` RPCs | Implemented; explicit migration entries remain |
-| Exact Organization Department/Team scope and safe reparent | Implemented in owner core/adapter and disposable-PostgreSQL acceptance; operational rollout evidence pending |
-| Additive reference-wire `Subtree` | Implemented; mandatory old-baseline and mixed-version deployment gate pending |
-| Legacy Organization snapshot/receipt/read normalization | Implemented with bounded witnesses and disposable-PostgreSQL replay evidence; mixed-version cutover evidence pending |
+Production activation still requires draining authority-unaware old readers
+and writers, executing the reader-before-writer Organization rollout,
+rebuilding and atomically activating the projection generation, and retaining
+exact-node sharing as disabled wherever the owner does not consume authoritative
+Department/Team containment. Those are deployment controls; they are not open
+Phase 0 implementation gaps.
 
 ### Phase 1 — hierarchy rollout and per-context access gates
 
@@ -295,7 +270,8 @@ Current implementation status is intentionally mixed:
 - Keep references, comments, autocomplete, notifications, and agent context
   feature-gated for a context until its complete access matrix passes.
 
-The code-complete Phase 1 pilot currently includes:
+Phase 1 is code-complete for the accepted policy boundary. Its implementation
+includes:
 
 - a bounded, transport-neutral `OrganizationLineageWitness` whose distinct
   `organization.lineage_changed` fact carries the current node kind, status,
@@ -343,21 +319,21 @@ The code-complete Phase 1 pilot currently includes:
   while repositories compare that capability to persisted policy rather than
   reinterpreting a node UUID.
 
-This pilot deliberately keeps reverse `published_to_descendants` access from a
-Department/Team session fail-closed. Effective grants do not yet retain the
-exact deciding assignment scope and relation, so accepting containment in both
-directions would make an unrelated wider assignment indistinguishable from the
-decision that produced the grant. Exact-node sharing also remains disabled;
-the existing bilaterally approved sharing contract is Branch-to-Branch only.
-Other bounded contexts remain feature-gated until their write/read models and
-full access matrices consume the same resolver rather than kernel UUID
+The implementation deliberately keeps reverse `published_to_descendants`
+access from a Department/Team session fail-closed. Effective grants do not yet
+retain the exact deciding assignment scope and relation, so accepting
+containment in both directions would make an unrelated wider assignment
+indistinguishable from the decision that produced the grant. Exact-node sharing
+also remains disabled; the existing bilaterally approved sharing contract is
+Branch-to-Branch only.
+Every current record family declares an explicit access policy and unsupported
+exact-subtree paths remain denied rather than falling back to kernel UUID
 comparison. The production gate is a deny-by-default server capability, not
-only this document: exact `Subtree` requests are enabled for the Organization
-owner and the Collaboration/Item Directory pilot paths, and must be rejected
-at ingress for every unmigrated owner. Rollout requires a completed Item
-Directory rebuild generation from the snapshot-plus-lineage source fence
-before enabling the pilot; missing cache rows remain a safe denial, not a
-legacy Company/Branch fallback.
+only this document: exact `Subtree` requests are enabled only for owners that
+consume the authoritative resolver and are rejected elsewhere. Rollout
+requires a completed Item Directory rebuild generation from the
+snapshot-plus-lineage source fence before enabling exact-subtree paths; missing
+cache rows remain a safe denial, not a legacy Company/Branch fallback.
 
 ### Phase 2 — universal references and activity surfaces
 
@@ -369,6 +345,16 @@ legacy Company/Branch fallback.
   route generated from the live Item Directory catalog.
 - Add contract tests proving authorization-before-resolution and redaction.
 
+Status: implemented for all 93 current catalog record families. The shared
+`RecordDetailHost` keeps owner content, `RecordReferences`, and the authorized
+activity rail independently available; owner-detail absence affects only the
+owner slot. Holding-local paths use RLS and the Platform path uses the audited
+global gateway. Relations, typed thread V2, comments, reactions, following,
+and attachment lifecycle/download reauthorization are wired through Web and
+Native collaboration gateways. Future catalog records remain unavailable and
+do not mount collaboration. Attachments stay feature-disabled in production
+until a malware scanner passes readiness.
+
 ### Phase 3 — typed `@` composer and agent assignment bridge
 
 - Implement typed token parsing, rendering, editing, copy/paste, and stale
@@ -379,6 +365,12 @@ legacy Company/Branch fallback.
   comment provenance.
 - Require a human review state before publication or owner-command handoff.
 
+Status: implemented. Typed collaboration tokens round-trip separately from
+rendered text, authorized autocomplete fails closed, assignment requires an
+explicit confirmed human action, and invocation/output/comment provenance is
+pinned. Agent output remains proposed until human review; token parsing or
+comment replay cannot trigger assignment.
+
 ### Phase 4 — universal autofill and suggestions
 
 - Publish owner-defined editable field schemas and patch validation contracts.
@@ -388,6 +380,12 @@ legacy Company/Branch fallback.
   final human editor/approver in the activity rail.
 - Keep high-risk or unsupported fields unavailable instead of falling back to
   untyped JSON mutation.
+
+Status: implemented. Every current family has an explicit editable-field
+schema outcome; supported fields use owner-typed validation, version/source
+digest checks, durable suggestion projections, human review, and owner command
+application. Unsupported fields remain unavailable rather than accepting
+opaque JSON.
 
 ### Phase 5 — PR to payment vertical slice
 
@@ -400,6 +398,15 @@ legacy Company/Branch fallback.
 - Prove end-to-end backlinks, comments, `@` mentions, agent suggestion review,
   audit, idempotency, and read-your-writes behavior.
 
+Status: implemented as a durable owner-separated workflow:
+`procurement.requisition` -> `procurement.purchase-order` ->
+`procurement.receipt` -> `finance.vendor-invoice` -> `finance.payment`.
+Procurement and Finance own their aggregates, evidence, outbox facts,
+projections, query freshness, and human-only commands. The Console owner slots
+are capability-gated from current, exact-version server responses and remain
+inside the shared collaboration host. `finance.invoice` remains the distinct
+customer-invoice/Accounts Receivable family.
+
 ### Phase 6 — catalog completion and enforcement
 
 - Gate every live catalog record family on descriptor publication, references,
@@ -409,6 +416,24 @@ legacy Company/Branch fallback.
 - Make CI fail when a new record detail route omits the shared surfaces or a
   new record family lacks its declared access matrix. Human-only decision
   classification is already enforced from Phase 0.
+
+Status: implemented with exact-set registration for all 93 current families.
+Completion composes the actual V2 publisher, owner command/query transport,
+access matrix, collaboration policy, editable-field policy, token eligibility,
+explicit Agent eligibility, decision classification, canonical route, and
+shared-shell markers. CI architecture checks fail closed for omissions and
+future-family lookup returns unavailable until the full registration exists.
+
+## Operational rollout status
+
+Local implementation and verification are complete. This decision does not
+claim a production rollout, customer activation, production data migration,
+external directory/provider certification, malware-scanner readiness, or a
+completed canary. Deployment must still follow reader-first protobuf and
+schema rollout, publisher/worker activation, atomic Item Directory generation
+switching, context canaries, attachment-scanner readiness, and monitored
+batch activation. The retained evidence is recorded in
+`audits/ADR-017-PHASES-0-6-2026-08-22/README.md`.
 
 ## Acceptance criteria
 
