@@ -1193,7 +1193,7 @@ mod tests {
 
     #[test]
     fn holding_write_and_read_migrations_are_separate_and_rls_backed() {
-        assert_eq!(HOLDING_WRITE_MIGRATOR.iter().count(), 4);
+        assert_eq!(HOLDING_WRITE_MIGRATOR.iter().count(), 5);
         assert_eq!(HOLDING_READ_MIGRATOR.iter().count(), 3);
         let write = HOLDING_WRITE_MIGRATOR
             .iter()
@@ -2312,5 +2312,27 @@ mod tests {
                     .contains("OLD.lifecycle='pending_upload' AND NEW.lifecycle='pending_scan'")
             );
         }
+    }
+
+    #[test]
+    fn phase4_suggestions_are_typed_human_reviewed_and_forward_only() {
+        let migration = HOLDING_WRITE_MIGRATOR
+            .iter()
+            .find(|migration| migration.sql.contains("record.field-patch.v2"))
+            .expect("holding universal field-suggestion migration");
+        for contract in [
+            "field_patch_document JSONB",
+            "field_patch_conflicts JSONB NOT NULL",
+            "human_review_document JSONB",
+            "applied_actor_kind = 'holding_user'",
+            "applied_session_id IS NOT NULL",
+            "suggestion_command_receipts",
+            "result_envelope_document JSONB NOT NULL",
+            "FORCE ROW LEVEL SECURITY",
+        ] {
+            assert!(migration.sql.contains(contract), "missing {contract}");
+        }
+        let baseline = HOLDING_WRITE_MIGRATOR.iter().next().unwrap();
+        assert!(!baseline.sql.contains("record.field-patch.v2"));
     }
 }

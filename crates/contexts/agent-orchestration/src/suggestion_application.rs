@@ -89,6 +89,7 @@ pub struct SuggestionCommit {
     pub command_id: Uuid,
     pub idempotency_key: String,
     pub expected_version: u64,
+    pub actor: ActorAttribution,
     pub envelope: SuggestionEnvelope,
 }
 
@@ -256,6 +257,7 @@ where
                     command_id: request.command_id,
                     idempotency_key: request.idempotency_key,
                     expected_version: request.expected_version,
+                    actor: request.actor,
                     envelope,
                 },
             )

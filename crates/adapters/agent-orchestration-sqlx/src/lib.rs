@@ -13,6 +13,7 @@ mod publication;
 mod registry;
 mod retention;
 mod runtime;
+mod suggestion;
 
 pub use experience::{SqlxAgentExperienceQuery, SqlxAgentExperienceStore};
 pub use governance::{SqlxAgentGovernanceQuery, SqlxAgentGovernanceRepository};
@@ -22,6 +23,7 @@ pub use projection::AgentProjectionSet;
 pub use registry::SqlxAgentRegistry;
 pub use retention::SqlxAgentMaterialRetentionRepository;
 pub use runtime::{ClaimedAgentNotificationFact, SqlxAgentRuntime, SqlxWorkerQueue};
+pub use suggestion::SqlxSuggestionRepository;
 
 pub const CONTEXT_NAME: &str = "agent_orchestration";
 pub const ASSIGNMENT_PROJECTION: &str = "agent_orchestration.assignments";

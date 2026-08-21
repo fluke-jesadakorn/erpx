@@ -245,6 +245,98 @@ impl SuggestionEnvelope {
         })
     }
 
+    /// Revalidates a deserialized durable envelope before it crosses an
+    /// application or projection boundary.
+    pub fn validate(&self) -> Result<(), SuggestionError> {
+        self.scope
+            .validate()
+            .map_err(|_| SuggestionError::InvalidScope)?;
+        self.source.validate()?;
+        self.provenance.validate(true)?;
+        if self.version == 0
+            || self.schema_version != SUGGESTION_SCHEMA_VERSION
+            || self.policy_version == 0
+            || self.owner != self.capability.owner()
+            || !valid_digest(&self.payload_digest)
+            || !valid_text(&self.requested_by, 256)
+            || self.updated_at < self.created_at
+        {
+            return Err(SuggestionError::InvalidEnvelope);
+        }
+        let requires_output = matches!(
+            self.status,
+            SuggestionStatus::Ready
+                | SuggestionStatus::Conflicted
+                | SuggestionStatus::Applied
+                | SuggestionStatus::Rejected
+        );
+        if (requires_output
+            && self
+                .output_digest
+                .as_deref()
+                .is_none_or(|value| !valid_digest(value)))
+            || self
+                .output_digest
+                .as_deref()
+                .is_some_and(|value| !valid_digest(value))
+        {
+            return Err(SuggestionError::InvalidEnvelope);
+        }
+        match self.capability {
+            SuggestionCapability::RecordFieldPatch { owner } => {
+                let schema = record_editable_field_schema(&self.source.record_kind)
+                    .filter(|schema| schema.owner == owner && schema.supports_agent_patches())
+                    .ok_or(SuggestionError::FieldSchemaUnavailable)?;
+                if schema.version != u64::from(self.schema_version) {
+                    return Err(SuggestionError::FieldSchemaUnavailable);
+                }
+                if self.output_digest.is_some() {
+                    self.field_patch
+                        .as_ref()
+                        .ok_or(SuggestionError::TypedFieldPatchRequired)?
+                        .validate()
+                        .map_err(|_| SuggestionError::InvalidFieldPatch)?;
+                }
+            }
+            _ if self.field_patch.is_some()
+                || !self.field_patch_conflicts.is_empty()
+                || self.human_field_patch_review.is_some() =>
+            {
+                return Err(SuggestionError::InvalidFieldPatch);
+            }
+            _ => {}
+        }
+        if self.status == SuggestionStatus::Conflicted && self.field_patch_conflicts.is_empty() {
+            return Err(SuggestionError::InvalidFieldPatch);
+        }
+        if self.status == SuggestionStatus::Applied {
+            if self.applied_actor_kind != Some(ActorKind::HoldingUser)
+                || self
+                    .applied_by
+                    .as_deref()
+                    .is_none_or(|value| !valid_text(value, 256))
+                || self
+                    .applied_decision_ref
+                    .as_deref()
+                    .is_none_or(|value| !valid_text(value, 256))
+                || self.applied_session_id.is_none()
+            {
+                return Err(SuggestionError::HumanCommandRequired);
+            }
+            if matches!(
+                self.capability,
+                SuggestionCapability::RecordFieldPatch { .. }
+            ) {
+                self.human_field_patch_review
+                    .as_ref()
+                    .ok_or(SuggestionError::HumanSessionRequired)?
+                    .validate()
+                    .map_err(|_| SuggestionError::InvalidFieldPatch)?;
+            }
+        }
+        Ok(())
+    }
+
     pub fn start(&mut self, at: DateTime<Utc>) -> Result<(), SuggestionError> {
         self.transition(SuggestionStatus::Queued, SuggestionStatus::Running, at)
     }
