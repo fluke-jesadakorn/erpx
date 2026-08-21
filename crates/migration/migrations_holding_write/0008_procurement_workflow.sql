@@ -111,3 +111,20 @@ CREATE POLICY goods_receipt_line_holding_isolation
     ON erpx_procurement_write.goods_receipt_line_authority
     USING (holding_id=erpx_cqrs_write.current_holding_id())
     WITH CHECK (holding_id=erpx_cqrs_write.current_holding_id());
+
+UPDATE erpx_meta.schema_manifest
+SET installed_at=now()
+WHERE singleton=TRUE AND schema_revision=2 AND manifest_version=1
+  AND database_role='holding_write' AND migration_set='holding-write';
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM erpx_meta.schema_manifest
+        WHERE singleton=TRUE AND schema_revision=2 AND manifest_version=1
+          AND database_role='holding_write' AND migration_set='holding-write'
+    ) THEN
+        RAISE EXCEPTION 'holding-write current manifest is not current';
+    END IF;
+END;
+$$;

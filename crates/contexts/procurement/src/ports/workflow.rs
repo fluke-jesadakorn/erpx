@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_cqrs::{IdempotencyKey, QueryConsistency};
+use erpx_cqrs::{EventPosition, IdempotencyKey, QueryConsistency};
 use erpx_integration_contracts::RecordVersionRef;
 use erpx_kernel::{ActorAttribution, AuditContext, AuthorityScope, CommandId, CorrelationId};
 use serde::{Deserialize, Serialize};
@@ -234,6 +234,7 @@ pub struct StoredProcurementWorkflowCommit {
     pub command_id: CommandId,
     pub correlation_id: CorrelationId,
     pub aggregate: ProcurementWorkflowAggregate,
+    pub committed_events: Vec<EventPosition>,
     pub committed_at: DateTime<Utc>,
     pub replayed: bool,
 }

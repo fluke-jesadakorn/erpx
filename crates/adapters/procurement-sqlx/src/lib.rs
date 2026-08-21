@@ -4,6 +4,9 @@ mod command;
 mod projection;
 mod read;
 mod records;
+mod workflow;
+mod workflow_projection;
+mod workflow_read;
 
 pub use command::{ProcurementCommandAdapter, ProcurementWriteRepository};
 pub use projection::{ProcurementOutboxPayload, ProcurementProjector, ProcurementSnapshot};
@@ -12,6 +15,14 @@ pub use records::{
     ProcurementRecordProjector, ProcurementRecordReadAdapter, ProcurementRecordSqlxAdapter,
     RECORD_PROJECTION_NAME, RECORD_SNAPSHOT_EVENT_TYPE,
 };
+pub use workflow::ProcurementWorkflowSqlxAdapter;
+pub use workflow_projection::{
+    GOODS_RECEIPT_AGGREGATE_TYPE, GOODS_RECEIPT_SNAPSHOT_EVENT_TYPE,
+    ProcurementWorkflowOutboxPayload, ProcurementWorkflowProjector, ProcurementWorkflowSnapshot,
+    REQUISITION_AGGREGATE_TYPE, REQUISITION_SNAPSHOT_EVENT_TYPE, WORKFLOW_PROJECTION_NAME,
+    goods_receipt_partition, requisition_partition,
+};
+pub use workflow_read::ProcurementWorkflowReadAdapter;
 
 pub const CONTEXT_NAME: &str = "procurement";
 pub const AGGREGATE_TYPE: &str = "purchase_order";
@@ -39,6 +50,10 @@ pub const READ_DDL: &str = concat!(
 );
 pub const NORMALIZED_AUTHORITY_DDL: &str =
     include_str!("../../../migration/migrations_holding_write/0001_baseline.sql");
+pub const WORKFLOW_WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0008_procurement_workflow.sql");
+pub const WORKFLOW_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0005_procurement_workflow.sql");
 
 pub fn purchase_order_partition(id: erpx_procurement::PurchaseOrderId) -> String {
     format!("procurement.purchase_order:{}", id.as_uuid().simple())
@@ -75,5 +90,25 @@ mod tests {
         assert!(source.contains("commit_normalized"));
         assert!(!source.contains("load_snapshot"));
         assert!(NORMALIZED_AUTHORITY_DDL.contains("FOREIGN KEY (holding_id,purchase_order_id)"));
+    }
+
+    #[test]
+    fn workflow_ddl_is_forward_only_typed_and_holding_isolated() {
+        for relation in [
+            "purchase_requisition_authority",
+            "purchase_requisition_line_authority",
+            "goods_receipt_authority",
+            "goods_receipt_line_authority",
+        ] {
+            assert!(WORKFLOW_WRITE_DDL.contains(relation));
+        }
+        for projection in [
+            "purchase_requisition_projection",
+            "goods_receipt_projection",
+        ] {
+            assert!(WORKFLOW_READ_DDL.contains(projection));
+        }
+        assert!(WORKFLOW_READ_DDL.contains("ENABLE ROW LEVEL SECURITY"));
+        assert!(WORKFLOW_READ_DDL.contains("UPDATE erpx_meta.schema_manifest"));
     }
 }

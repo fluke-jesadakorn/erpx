@@ -895,6 +895,7 @@ mod tests {
                 command_id: commit.identity.command_id,
                 correlation_id: commit.correlation_id,
                 aggregate: commit.aggregate,
+                committed_events: Vec::new(),
                 committed_at: at(),
                 replayed: false,
             };
