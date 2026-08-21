@@ -225,7 +225,11 @@ fn platform_directory_draft(
     let draft = ItemDescriptorDraft {
         authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
         record,
-        scope: aggregate.scope(),
+        // Platform Administration records are owned by the control plane even
+        // when the governed resource is bound to a holding. Collaboration for
+        // these canonical records must therefore enter the audited global
+        // gateway and never a synthetic holding data plane.
+        scope: AuthorityScope::Platform,
         lifecycle_state: lifecycle_state.into(),
         classification,
         descriptor_version: aggregate.version(),

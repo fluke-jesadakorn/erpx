@@ -5,6 +5,7 @@ mod attachment;
 mod authorization;
 mod directory;
 mod global;
+mod global_projection;
 mod projection;
 mod publication;
 mod read;
@@ -17,6 +18,7 @@ pub use directory::*;
 pub use global::{
     GlobalCollaborationAccess, GlobalCollaborationOutcome, SqlxGlobalCollaborationGateway,
 };
+pub use global_projection::{GLOBAL_COLLABORATION_PROJECTION, GlobalCollaborationProjector};
 pub use projection::{
     CollaborationInboxProjectionFact, CollaborationInboxProjector,
     CollaborationStreamProjectionFact, CollaborationStreamProjector,

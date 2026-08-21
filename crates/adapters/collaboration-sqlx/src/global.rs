@@ -7,6 +7,7 @@
 use erpx_kernel::{ActorAttribution, ActorKind, AuthorityScope, CorrelationId, PrincipalId};
 use sqlx::PgPool;
 use sqlx::Row;
+use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 use crate::{
@@ -111,6 +112,118 @@ impl SqlxGlobalCollaborationGateway {
         &self.control_read
     }
 
+    /// Materialize only the short-lived grant proven by the gateway admission
+    /// that the server completed for this exact request. Every subsequent
+    /// request must pass current Platform RBAC again before it can construct a
+    /// `GlobalCollaborationAccess`; this row is never sufficient on its own.
+    async fn attest_record(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        access: &GlobalCollaborationAccess,
+        record_id: Uuid,
+        exact_ref: Option<&serde_json::Value>,
+        can_relate: bool,
+    ) -> Result<(), PortError> {
+        let fresh = sqlx::query_scalar::<_, bool>(
+            "SELECT COALESCE(state='ready' AND applied_position=source_high_watermark
+                    AND last_success_at BETWEEN statement_timestamp()-INTERVAL '60 seconds'
+                                            AND statement_timestamp(),FALSE)
+             FROM erpx_global_collaboration_read.projection_state WHERE singleton=TRUE",
+        )
+        .fetch_optional(&mut **transaction)
+        .await
+        .map_err(|_| PortError::Unavailable)?
+        .unwrap_or(false);
+        if !fresh {
+            return Err(PortError::Stale);
+        }
+        let changed = sqlx::query(
+            "WITH checkpoint AS MATERIALIZED (
+               SELECT applied_position FROM erpx_global_collaboration_read.projection_state
+               WHERE singleton=TRUE AND state='ready'
+                 AND applied_position=source_high_watermark
+                 AND last_success_at BETWEEN statement_timestamp()-INTERVAL '60 seconds'
+                                         AND statement_timestamp()
+             ), candidate AS MATERIALIZED (
+               SELECT descriptor.record_id,descriptor.authorization_policy_id,
+                      descriptor.authorization_policy_version,
+                      descriptor.source_event_position
+               FROM checkpoint
+               JOIN erpx_global_collaboration_read.descriptors descriptor
+                 ON descriptor.record_id=$1
+                AND ($2::JSONB IS NULL OR descriptor.record_ref=$2::JSONB)
+                AND descriptor.record_scope=to_jsonb('Platform'::TEXT)
+                AND descriptor.tombstoned_at IS NULL
+                AND descriptor.source_event_position<=checkpoint.applied_position
+             )
+             INSERT INTO erpx_global_collaboration_read.effective_grants
+               (record_id,principal_id,authorization_policy_id,policy_version,can_view,
+                can_relate,effective_at,expires_at,source_event_position,projected_at)
+             SELECT record_id,$3,authorization_policy_id,authorization_policy_version,
+                    TRUE,$4,statement_timestamp(),statement_timestamp()+INTERVAL '30 seconds',
+                    source_event_position,statement_timestamp()
+             FROM candidate
+             ON CONFLICT (record_id,principal_id) DO UPDATE SET
+               authorization_policy_id=EXCLUDED.authorization_policy_id,
+               policy_version=EXCLUDED.policy_version,can_view=TRUE,
+               can_relate=EXCLUDED.can_relate,effective_at=EXCLUDED.effective_at,
+               expires_at=EXCLUDED.expires_at,
+               source_event_position=EXCLUDED.source_event_position,
+               projected_at=EXCLUDED.projected_at",
+        )
+        .bind(record_id)
+        .bind(exact_ref)
+        .bind(access.principal_id().as_uuid())
+        .bind(can_relate)
+        .execute(&mut **transaction)
+        .await
+        .map_err(|_| PortError::Unavailable)?
+        .rows_affected();
+        if changed != 1 {
+            return Err(PortError::Denied);
+        }
+        Ok(())
+    }
+
+    async fn attest_picker_records(
+        &self,
+        transaction: &mut Transaction<'_, Postgres>,
+        access: &GlobalCollaborationAccess,
+    ) -> Result<(), PortError> {
+        sqlx::query(
+            "WITH checkpoint AS MATERIALIZED (
+               SELECT applied_position FROM erpx_global_collaboration_read.projection_state
+               WHERE singleton=TRUE AND state='ready'
+                 AND applied_position=source_high_watermark
+                 AND last_success_at BETWEEN statement_timestamp()-INTERVAL '60 seconds'
+                                         AND statement_timestamp()
+             )
+             INSERT INTO erpx_global_collaboration_read.effective_grants
+               (record_id,principal_id,authorization_policy_id,policy_version,can_view,
+                can_relate,effective_at,expires_at,source_event_position,projected_at)
+             SELECT descriptor.record_id,$1,descriptor.authorization_policy_id,
+                    descriptor.authorization_policy_version,TRUE,FALSE,statement_timestamp(),
+                    statement_timestamp()+INTERVAL '30 seconds',
+                    descriptor.source_event_position,statement_timestamp()
+             FROM checkpoint
+             JOIN erpx_global_collaboration_read.descriptors descriptor
+               ON descriptor.record_scope=to_jsonb('Platform'::TEXT)
+              AND descriptor.tombstoned_at IS NULL
+              AND descriptor.source_event_position<=checkpoint.applied_position
+             ON CONFLICT (record_id,principal_id) DO UPDATE SET
+               authorization_policy_id=EXCLUDED.authorization_policy_id,
+               policy_version=EXCLUDED.policy_version,can_view=TRUE,can_relate=FALSE,
+               effective_at=EXCLUDED.effective_at,expires_at=EXCLUDED.expires_at,
+               source_event_position=EXCLUDED.source_event_position,
+               projected_at=EXCLUDED.projected_at",
+        )
+        .bind(access.principal_id().as_uuid())
+        .execute(&mut **transaction)
+        .await
+        .map_err(|_| PortError::Unavailable)?;
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub async fn audit(
         &self,
@@ -171,6 +284,19 @@ impl SqlxGlobalCollaborationGateway {
     ) -> Result<(), PortError> {
         record.validate().map_err(|_| PortError::Denied)?;
         let exact_ref = serde_json::to_value(record).map_err(|_| PortError::Denied)?;
+        let mut transaction = self
+            .control_read
+            .begin()
+            .await
+            .map_err(|_| PortError::Unavailable)?;
+        self.attest_record(
+            &mut transaction,
+            access,
+            record.id().as_uuid(),
+            Some(&exact_ref),
+            require_relate,
+        )
+        .await?;
         let authorized = sqlx::query_scalar::<_, bool>(
             "WITH checkpoint AS MATERIALIZED (
                SELECT applied_position
@@ -204,10 +330,14 @@ impl SqlxGlobalCollaborationGateway {
         .bind(exact_ref)
         .bind(access.principal_id().as_uuid())
         .bind(require_relate)
-        .fetch_one(&self.control_read)
+        .fetch_one(&mut *transaction)
         .await
         .map_err(|_| PortError::Unavailable)?;
-        authorized.then_some(()).ok_or(PortError::Denied)
+        authorized.then_some(()).ok_or(PortError::Denied)?;
+        transaction
+            .commit()
+            .await
+            .map_err(|_| PortError::Unavailable)
     }
 
     /// Resolve remains available to legacy NULL-label descriptors. Current
@@ -218,6 +348,22 @@ impl SqlxGlobalCollaborationGateway {
         access: &GlobalCollaborationAccess,
         record_id: RecordId,
     ) -> Result<DirectoryLookup<ItemDescriptor>, DirectoryAdapterError> {
+        let mut transaction = self
+            .control_read
+            .begin()
+            .await
+            .map_err(|_| DirectoryAdapterError::Unavailable)?;
+        match self
+            .attest_record(&mut transaction, access, record_id.as_uuid(), None, false)
+            .await
+        {
+            Ok(()) => {}
+            Err(PortError::Denied) => return Ok(DirectoryLookup::Neutral),
+            Err(PortError::Stale) => {
+                return Ok(DirectoryLookup::Degraded(ProjectionFreshness::Stale));
+            }
+            Err(_) => return Err(DirectoryAdapterError::Unavailable),
+        }
         let row = sqlx::query(
             "WITH checkpoint AS MATERIALIZED (
                SELECT state,source_high_watermark,applied_position,last_success_at,
@@ -248,7 +394,7 @@ impl SqlxGlobalCollaborationGateway {
         )
         .bind(record_id.as_uuid())
         .bind(access.principal_id().as_uuid())
-        .fetch_optional(&self.control_read)
+        .fetch_optional(&mut *transaction)
         .await
         .map_err(|_| DirectoryAdapterError::Unavailable)?;
         let Some(row) = row else {
@@ -273,6 +419,10 @@ impl SqlxGlobalCollaborationGateway {
         {
             return Ok(DirectoryLookup::Unavailable);
         }
+        transaction
+            .commit()
+            .await
+            .map_err(|_| DirectoryAdapterError::Unavailable)?;
         Ok(DirectoryLookup::Visible {
             value: descriptor,
             freshness: ProjectionFreshness::Fresh,
@@ -294,6 +444,14 @@ impl SqlxGlobalCollaborationGateway {
             .transpose()
             .map_err(|_| DirectoryAdapterError::Invalid("cursor"))?
             .unwrap_or(0);
+        let mut transaction = self
+            .control_read
+            .begin()
+            .await
+            .map_err(|_| DirectoryAdapterError::Unavailable)?;
+        self.attest_picker_records(&mut transaction, access)
+            .await
+            .map_err(|_| DirectoryAdapterError::Unavailable)?;
         let rows = sqlx::query(
             "WITH checkpoint AS MATERIALIZED (
                SELECT state,source_high_watermark,applied_position,last_success_at,
@@ -335,7 +493,7 @@ impl SqlxGlobalCollaborationGateway {
         .bind(&request.query)
         .bind(i64::from(request.page_size))
         .bind(offset)
-        .fetch_all(&self.control_read)
+        .fetch_all(&mut *transaction)
         .await
         .map_err(|_| DirectoryAdapterError::Unavailable)?;
         let Some(first) = rows.first() else {
@@ -373,6 +531,10 @@ impl SqlxGlobalCollaborationGateway {
                 i64::try_from(items.len()).map_err(|_| DirectoryAdapterError::Unavailable)?,
             )
             .ok_or(DirectoryAdapterError::Unavailable)?;
+        transaction
+            .commit()
+            .await
+            .map_err(|_| DirectoryAdapterError::Unavailable)?;
         Ok(DirectoryLookup::Visible {
             value: DirectorySearchPage {
                 items,
@@ -407,6 +569,20 @@ impl SqlxGlobalCollaborationGateway {
             .map_err(|_| PortError::InvalidState)?
             .unwrap_or(0);
         let anchor_json = serde_json::to_value(anchor).map_err(|_| PortError::InvalidState)?;
+        let mut transaction = self
+            .control_read
+            .begin()
+            .await
+            .map_err(|_| PortError::Unavailable)?;
+        self.attest_record(
+            &mut transaction,
+            access,
+            anchor.id().as_uuid(),
+            Some(&anchor_json),
+            false,
+        )
+        .await?;
+        self.attest_picker_records(&mut transaction, access).await?;
         let rows = sqlx::query(
             "WITH checkpoint AS MATERIALIZED (
                SELECT applied_position,
@@ -424,7 +600,7 @@ impl SqlxGlobalCollaborationGateway {
                 AND descriptor.source_event_position<=checkpoint.applied_position
                JOIN erpx_global_collaboration_read.effective_grants grant_fact
                  ON grant_fact.record_id=descriptor.record_id AND grant_fact.principal_id=$3
-                AND grant_fact.can_view AND grant_fact.can_relate
+                AND grant_fact.can_view
                 AND grant_fact.authorization_policy_id=descriptor.authorization_policy_id
                 AND grant_fact.policy_version=descriptor.authorization_policy_version
                 AND grant_fact.source_event_position>=descriptor.source_event_position
@@ -452,7 +628,7 @@ impl SqlxGlobalCollaborationGateway {
                 AND descriptor.source_event_position<=anchor_authorized.applied_position
                JOIN erpx_global_collaboration_read.effective_grants grant_fact
                  ON grant_fact.record_id=descriptor.record_id AND grant_fact.principal_id=$3
-                AND grant_fact.can_view AND grant_fact.can_relate
+                AND grant_fact.can_view
                 AND grant_fact.authorization_policy_id=descriptor.authorization_policy_id
                 AND grant_fact.policy_version=descriptor.authorization_policy_version
                 AND grant_fact.source_event_position>=descriptor.source_event_position
@@ -475,7 +651,7 @@ impl SqlxGlobalCollaborationGateway {
         .bind(include_revoked)
         .bind(i64::from(page_size))
         .bind(offset)
-        .fetch_all(&self.control_read)
+        .fetch_all(&mut *transaction)
         .await
         .map_err(|_| PortError::Unavailable)?;
         let Some(first) = rows.first() else {
@@ -517,6 +693,10 @@ impl SqlxGlobalCollaborationGateway {
         let consumed = offset
             .checked_add(i64::try_from(items.len()).map_err(|_| PortError::Internal)?)
             .ok_or(PortError::Internal)?;
+        transaction
+            .commit()
+            .await
+            .map_err(|_| PortError::Unavailable)?;
         Ok(RelationPage {
             items,
             next_cursor: (u64::try_from(consumed).map_err(|_| PortError::Internal)?

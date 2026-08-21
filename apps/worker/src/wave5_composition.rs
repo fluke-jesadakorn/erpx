@@ -15,11 +15,16 @@ use std::{
 use async_trait::async_trait;
 use erpx_cqrs_sqlx::{ProjectionPool, ProjectionRun, ProjectionRunnerConfig, WritePool};
 use erpx_infrastructure::SqlxControlPlane;
+use erpx_integration_contracts::ITEM_DIRECTORY_OWNER_EVENT_TYPE;
 use erpx_worker::{NamedWorkerHandler, WorkerHandlerReport, WorkerRuntimeError};
+use sqlx::{PgPool, Row};
 
 use crate::contexts::{
     brand::{BrandProjectionFactory, BrandProjectionKind, BrandProjectionRuntime},
     customer_authority::{CustomerAuthorityProjectionFactory, CustomerAuthorityProjectionRuntime},
+    global_collaboration::{
+        GlobalCollaborationProjectionFactory, GlobalCollaborationProjectionRuntime,
+    },
     platform_administration::{
         PlatformAdministrationProjectionFactory, PlatformAdministrationProjectionKind,
         PlatformAdministrationProjectionRuntime,
@@ -33,12 +38,17 @@ pub struct Wave5ControlProjectionHandler {
     platform: Vec<PlatformAdministrationProjectionRuntime>,
     brand: BrandProjectionRuntime,
     customer_authority: CustomerAuthorityProjectionRuntime,
+    global_collaboration: GlobalCollaborationProjectionRuntime,
+    global_write: PgPool,
+    global_read: PgPool,
     page_size: u32,
     rebuild_pending: AtomicBool,
 }
 
 impl Wave5ControlProjectionHandler {
     pub fn new(control: Arc<SqlxControlPlane>, page_size: u32) -> Result<Self, WorkerRuntimeError> {
+        let global_write = control.pools().write.clone();
+        let global_read = control.pools().read.clone();
         let write = WritePool::from_control_pg_pool(control.pools().write.clone());
         let read = ProjectionPool::from_control_pg_pool(control.pools().read.clone());
         let config = ProjectionRunnerConfig {
@@ -88,6 +98,17 @@ impl Wave5ControlProjectionHandler {
             "registered typed Customer Authority CQRS projector"
         );
         let customer_authority = customer_factory
+            .build(write.clone(), read.clone(), config)
+            .map_err(configuration_error)?;
+
+        let global_factory = GlobalCollaborationProjectionFactory;
+        let global_registration = global_factory.registration();
+        tracing::info!(
+            projection = %global_registration.name,
+            event_types = ?global_registration.event_types,
+            "registered typed global Collaboration projector"
+        );
+        let global_collaboration = global_factory
             .build(write, read, config)
             .map_err(configuration_error)?;
 
@@ -108,6 +129,9 @@ impl Wave5ControlProjectionHandler {
             platform,
             brand,
             customer_authority,
+            global_collaboration,
+            global_write,
+            global_read,
             page_size,
             rebuild_pending: AtomicBool::new(rebuild_pending),
         })
@@ -182,6 +206,23 @@ impl Wave5ControlProjectionHandler {
             .activate_rebuild(&customer_handle)
             .await
             .map_err(configuration_error)?;
+
+        let global_handle = self
+            .global_collaboration
+            .begin_rebuild()
+            .await
+            .map_err(configuration_error)?;
+        reports.extend(
+            run_rebuild_pages(self.page_size, |after| {
+                self.global_collaboration
+                    .run_rebuild_page(&global_handle, after)
+            })
+            .await?,
+        );
+        self.global_collaboration
+            .activate_rebuild(&global_handle)
+            .await
+            .map_err(configuration_error)?;
         Ok(reports)
     }
 }
@@ -226,8 +267,20 @@ impl NamedWorkerHandler for Wave5ControlProjectionHandler {
                     .await
                     .map_err(configuration_error)?,
             );
+            debug_assert_eq!(
+                self.global_collaboration.registration(),
+                GlobalCollaborationProjectionFactory.registration()
+            );
+            reports.push(
+                self.global_collaboration
+                    .run_once()
+                    .await
+                    .map_err(configuration_error)?,
+            );
             reports
         };
+
+        refresh_global_projection_state(&self.global_write, &self.global_read).await?;
 
         Ok(reports
             .into_iter()
@@ -244,6 +297,59 @@ impl NamedWorkerHandler for Wave5ControlProjectionHandler {
                 total
             }))
     }
+}
+
+async fn refresh_global_projection_state(
+    write: &PgPool,
+    read: &PgPool,
+) -> Result<(), WorkerRuntimeError> {
+    let source_high_watermark = sqlx::query_scalar::<_, i64>(
+        "SELECT COALESCE(MAX(global_sequence),0)::BIGINT
+         FROM erpx_cqrs_write.outbox_events
+         WHERE event_type=$1 AND context_name='platform_administration'",
+    )
+    .bind(ITEM_DIRECTORY_OWNER_EVENT_TYPE)
+    .fetch_one(write)
+    .await
+    .map_err(database_configuration_error)?;
+    let applied_position = sqlx::query(
+        "SELECT COALESCE(MAX(source_event_position),0)::BIGINT AS applied_position
+         FROM erpx_global_collaboration_read.descriptors",
+    )
+    .fetch_one(read)
+    .await
+    .map_err(database_configuration_error)?
+    .try_get::<i64, _>("applied_position")
+    .map_err(database_configuration_error)?;
+    let state = if applied_position == source_high_watermark {
+        "ready"
+    } else {
+        "rebuilding"
+    };
+    sqlx::query(
+        "INSERT INTO erpx_global_collaboration_read.projection_state
+         (singleton,rebuild_generation,source_high_watermark,applied_position,state,
+          last_success_at,updated_at)
+         VALUES (TRUE,1,$1,$2,$3,
+                 CASE WHEN $3='ready' THEN now() ELSE NULL END,now())
+         ON CONFLICT (singleton) DO UPDATE SET
+           source_high_watermark=EXCLUDED.source_high_watermark,
+           applied_position=EXCLUDED.applied_position,state=EXCLUDED.state,
+           last_success_at=CASE WHEN EXCLUDED.state='ready' THEN now()
+                                ELSE erpx_global_collaboration_read.projection_state.last_success_at END,
+           updated_at=now()",
+    )
+    .bind(source_high_watermark)
+    .bind(applied_position)
+    .bind(state)
+    .execute(read)
+    .await
+    .map_err(database_configuration_error)?;
+    Ok(())
+}
+
+fn database_configuration_error(error: sqlx::Error) -> WorkerRuntimeError {
+    WorkerRuntimeError::Configuration(error.to_string())
 }
 
 async fn run_rebuild_pages<'a, F, Fut>(

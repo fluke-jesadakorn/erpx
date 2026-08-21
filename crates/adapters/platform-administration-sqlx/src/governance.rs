@@ -412,7 +412,10 @@ async fn append_directory(
     let draft = ItemDescriptorDraft {
         authorization_policy: record_policy_id(&record).map_err(|_| PortError::Internal)?,
         record,
-        scope: request.record.scope().clone(),
+        // Governance records remain control-plane records. Their business
+        // scope is retained by the aggregate, while shared Collaboration uses
+        // the explicit Platform record scope published here.
+        scope: AuthorityScope::Platform,
         lifecycle_state: request.record.status().as_str().into(),
         classification: DataClassification::Restricted,
         descriptor_version: request.record.version(),

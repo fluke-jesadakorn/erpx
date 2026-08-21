@@ -6,6 +6,7 @@ pub(crate) mod contexts {
     pub mod customer_360;
     pub mod customer_authority;
     pub mod finance;
+    pub mod global_collaboration;
     pub mod identity_access;
     pub mod inventory;
     pub mod legal;
