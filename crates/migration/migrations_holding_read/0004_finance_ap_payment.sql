@@ -1,7 +1,7 @@
 -- Disposable Finance AP projections. Authority remains in holding-write.
 
 CREATE TABLE erpx_finance_read.vendor_invoice_projection (
-    holding_id UUID NOT NULL DEFAULT erpx_finance_read.current_holding_id(),
+    holding_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_holding_id(),
     projection_name TEXT NOT NULL,
     generation UUID NOT NULL,
     partition_key TEXT NOT NULL,
@@ -31,7 +31,7 @@ CREATE INDEX finance_vendor_invoice_projection_scope
        (holding_id,projection_name,generation,scope_key,status,aggregate_updated_at DESC,vendor_invoice_id);
 
 CREATE TABLE erpx_finance_read.payable_projection (
-    holding_id UUID NOT NULL DEFAULT erpx_finance_read.current_holding_id(),
+    holding_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_holding_id(),
     projection_name TEXT NOT NULL,
     generation UUID NOT NULL,
     partition_key TEXT NOT NULL,
@@ -52,7 +52,7 @@ CREATE TABLE erpx_finance_read.payable_projection (
 );
 
 CREATE TABLE erpx_finance_read.payment_projection (
-    holding_id UUID NOT NULL DEFAULT erpx_finance_read.current_holding_id(),
+    holding_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_holding_id(),
     projection_name TEXT NOT NULL,
     generation UUID NOT NULL,
     partition_key TEXT NOT NULL,
@@ -94,7 +94,7 @@ BEGIN
         EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY',projected);
         policy_name := replace(projected::TEXT,'.','_')||'_holding_isolation';
         EXECUTE format(
-            'CREATE POLICY %I ON %s USING (holding_id=erpx_finance_read.current_holding_id()) WITH CHECK (holding_id=erpx_finance_read.current_holding_id())',
+            'CREATE POLICY %I ON %s USING (holding_id=erpx_cqrs_read.current_holding_id()) WITH CHECK (holding_id=erpx_cqrs_read.current_holding_id())',
             policy_name,projected
         );
     END LOOP;

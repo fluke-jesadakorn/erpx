@@ -156,7 +156,7 @@ fn g13_authoritative_migration_and_protobuf_compatibility_surfaces_are_present()
         "crates/proto/src/lib.rs",
         &[
             "tonic::include_proto!(\"erpx.common\")",
-            "pub const ACTIVE_SERVICE_COUNT: usize = 65",
+            "pub const ACTIVE_SERVICE_COUNT: usize = 67",
         ],
     );
     require_markers(

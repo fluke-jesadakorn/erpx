@@ -1270,6 +1270,7 @@ struct CommittedSessionFact {
     committed_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[allow(clippy::type_complexity)] // SQL row mirrors the immutable receipt and optional outbox proof.
 async fn replay_session_receipt(
     tx: &mut Transaction<'_, Postgres>,
     holding_id: Uuid,
@@ -1447,6 +1448,7 @@ async fn finish_session_commit(
     })
 }
 
+#[allow(clippy::too_many_arguments)] // Atomic SQL boundary keeps every receipt/audit field explicit.
 async fn finish_commit(
     tx: &mut Transaction<'_, Postgres>,
     holding_id: Uuid,

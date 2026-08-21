@@ -2,7 +2,7 @@
 -- Holding-write remains the sole command authority.
 
 CREATE TABLE erpx_procurement_read.purchase_requisition_projection (
-    holding_id UUID NOT NULL DEFAULT erpx_procurement_read.current_holding_id(),
+    holding_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_holding_id(),
     projection_name TEXT NOT NULL,
     generation UUID NOT NULL,
     partition_key TEXT NOT NULL,
@@ -33,7 +33,7 @@ CREATE INDEX procurement_requisition_projection_scope_status
         aggregate_updated_at DESC,requisition_id DESC);
 
 CREATE TABLE erpx_procurement_read.goods_receipt_projection (
-    holding_id UUID NOT NULL DEFAULT erpx_procurement_read.current_holding_id(),
+    holding_id UUID NOT NULL DEFAULT erpx_cqrs_read.current_holding_id(),
     projection_name TEXT NOT NULL,
     generation UUID NOT NULL,
     partition_key TEXT NOT NULL,
@@ -74,7 +74,7 @@ BEGIN
         EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY',projected);
         policy_name := replace(projected::TEXT,'.','_')||'_holding_isolation';
         EXECUTE format(
-            'CREATE POLICY %I ON %s USING (holding_id=erpx_procurement_read.current_holding_id()) WITH CHECK (holding_id=erpx_procurement_read.current_holding_id())',
+            'CREATE POLICY %I ON %s USING (holding_id=erpx_cqrs_read.current_holding_id()) WITH CHECK (holding_id=erpx_cqrs_read.current_holding_id())',
             policy_name,projected
         );
     END LOOP;

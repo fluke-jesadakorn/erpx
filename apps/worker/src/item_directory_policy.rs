@@ -1060,9 +1060,9 @@ mod tests {
 
     #[test]
     fn no_policy_uses_wildcards_named_users_or_generic_admin_bypass() {
-        assert_eq!(CURRENT_RECORD_POLICIES.len(), 92);
+        assert_eq!(CURRENT_RECORD_POLICIES.len(), 93);
         assert_eq!(FUTURE_RECORD_POLICIES.len(), 49);
-        assert_eq!(record_policies().count(), 141);
+        assert_eq!(record_policies().count(), 142);
         for definition in record_policies() {
             for permission in std::iter::once(definition.permission).chain(
                 definition

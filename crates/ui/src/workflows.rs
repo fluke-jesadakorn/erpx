@@ -133,7 +133,7 @@ macro_rules! human_service {
     };
 }
 
-/// Presentation metadata for exactly the 65 active target services.
+/// Presentation metadata for exactly the 67 active target services.
 ///
 /// Method names remain descriptor-owned. `rpc_workflow` first proves service
 /// membership against `ACTIVE_SERVICES`; descriptor tests then exercise every
@@ -157,6 +157,8 @@ pub const RPC_WORKFLOW_SERVICES: &[RpcServiceWorkflow] = &[
     human_service!("SupportQueryService", SUPPORT_ROUTES),
     human_service!("FinanceCommandService", FINANCE_ROUTES),
     human_service!("FinanceQueryService", FINANCE_ROUTES),
+    human_service!("FinancePayablesCommandService", FINANCE_ROUTES),
+    human_service!("FinancePayablesQueryService", FINANCE_ROUTES),
     human_service!("SalesCommandService", SALES_ROUTES),
     human_service!("SalesQueryService", SALES_ROUTES),
     human_service!("PointOfSaleCommandService", POS_ROUTES),
@@ -330,7 +332,7 @@ mod tests {
 
     #[test]
     fn active_catalog_and_workflow_registry_match_exactly() {
-        assert_eq!(RPC_WORKFLOW_SERVICES.len(), 65);
+        assert_eq!(RPC_WORKFLOW_SERVICES.len(), 67);
         let catalog = ACTIVE_SERVICES
             .iter()
             .map(|service| service.name)
@@ -339,8 +341,8 @@ mod tests {
             .iter()
             .map(|service| service.service)
             .collect::<BTreeSet<_>>();
-        assert_eq!(catalog.len(), 65);
-        assert_eq!(workflow.len(), 65);
+        assert_eq!(catalog.len(), 67);
+        assert_eq!(workflow.len(), 67);
         assert_eq!(catalog, workflow);
     }
 

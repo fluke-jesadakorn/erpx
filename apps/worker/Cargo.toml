@@ -50,6 +50,7 @@ erpx-crm-sqlx.workspace = true
 erpx-identity.workspace = true
 erpx-identity-access-sqlx.workspace = true
 erpx-integration-contracts.workspace = true
+erpx-inventory.workspace = true
 erpx-kernel.workspace = true
 erpx-inventory-sqlx.workspace = true
 erpx-infrastructure.workspace = true

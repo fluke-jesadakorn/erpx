@@ -54,6 +54,7 @@ pub struct CustomerInvoicePostedFact {
 pub struct VendorPayablePostedFact {
     pub vendor_invoice: VendorInvoiceRef,
     pub payable: PayableRef,
+    pub payable_version: u64,
     pub supplier: crate::procurement::SupplierRef,
     pub purchase_order: crate::RecordVersionRef,
     pub goods_receipt: crate::RecordVersionRef,
@@ -205,6 +206,7 @@ impl crate::IntegrationEvent for Event {
                 if fact.purchase_order.record().record_type().as_str()
                     != "procurement.purchase-order"
                     || fact.goods_receipt.record().record_type().as_str() != "procurement.receipt"
+                    || fact.payable_version == 0
                     || fact.payable_amount.minor_units() <= 0
                 {
                     return Err(crate::ContractValidationError::OutOfRange("vendor_payable"));

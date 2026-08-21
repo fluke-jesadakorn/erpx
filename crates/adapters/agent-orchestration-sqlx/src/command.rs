@@ -761,6 +761,7 @@ async fn replay_assignment(
     normalized::load_assignment(tx, holding_id, expected_id).await
 }
 
+#[allow(clippy::type_complexity)] // SQL row mirrors the immutable receipt and optional outbox proof.
 async fn replay_root_assignment(
     tx: &mut Transaction<'_, Postgres>,
     holding_id: uuid::Uuid,

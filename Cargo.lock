@@ -4550,6 +4550,7 @@ dependencies = [
  "erpx-identity-access-sqlx",
  "erpx-infrastructure",
  "erpx-integration-contracts",
+ "erpx-inventory",
  "erpx-inventory-sqlx",
  "erpx-kernel",
  "erpx-learning-sqlx",

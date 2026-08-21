@@ -505,6 +505,14 @@ pub const FINANCE_FAMILIES: &[CurrentRecordFamilySpec] = &[
         TRANSACTION
     ),
     live_family!(
+        "finance.vendor-invoice",
+        "/finance",
+        "vendor-invoice",
+        "Vendor invoices",
+        "ใบแจ้งหนี้ผู้ขาย",
+        TRANSACTION
+    ),
+    live_family!(
         "finance.close-cycle",
         "/finance",
         "close-cycle",
@@ -988,7 +996,7 @@ pub const CRM_FAMILIES: &[CurrentRecordFamilySpec] = &[
     ),
 ];
 
-pub const LIVE_CURRENT_RECORD_TYPES: [&str; 92] = [
+pub const LIVE_CURRENT_RECORD_TYPES: [&str; 93] = [
     "identity.principal",
     "identity.role",
     "identity.grant",
@@ -1022,6 +1030,7 @@ pub const LIVE_CURRENT_RECORD_TYPES: [&str; 92] = [
     "support.platform-case",
     "finance.journal",
     "finance.invoice",
+    "finance.vendor-invoice",
     "finance.close-cycle",
     "finance.credit-note",
     "finance.debit-note",

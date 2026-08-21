@@ -84,13 +84,15 @@ use erpx_worker::{
     MarketingDeliverySchedulerHandler, MarketingDeliverySecretManagerResolver,
     MarketingHoldingProjectionExecutor, MarketingJourneyExecutionHandler,
     MarketingJourneyIntegrationMultiHoldingRuntimeHandler, MarketingPublicAbuseCleanupRunner,
-    NamedWorkerHandler, PosProjectionRequest, PosProjectionRunner, PosProjectionWorkerError,
-    SUPPORT_WORKFLOW_HANDLER_NAME, SalesProjectionRequest, SalesProjectionRunner,
-    ScmProjectionPageRequest, ScmProjectionRebuildRequest, ScmProjectionRunner,
-    ScmProjectionWorkerError, SqlxMarketingContentPreviewExpiryExecutor,
-    SqlxMarketingJourneyExecutionDecisionSource, SqlxMarketingProjectionFactory,
-    TrustedAgentHoldingOperationsConfig, WorkerHandlerReport, WorkerRuntime, WorkerRuntimeConfig,
-    WorkerRuntimeError, compose_trusted_holding_agent_operations,
+    NamedWorkerHandler, PROCURE_TO_PAY_HANDLER_NAME, PROCURE_TO_PAY_MAX_ACTIVE_HOLDINGS,
+    PROCURE_TO_PAY_MAX_PAGE_SIZE, PosProjectionRequest, PosProjectionRunner,
+    PosProjectionWorkerError, ProcureToPayRuntimeHandler, SUPPORT_WORKFLOW_HANDLER_NAME,
+    SalesProjectionRequest, SalesProjectionRunner, ScmProjectionPageRequest,
+    ScmProjectionRebuildRequest, ScmProjectionRunner, ScmProjectionWorkerError,
+    SqlxMarketingContentPreviewExpiryExecutor, SqlxMarketingJourneyExecutionDecisionSource,
+    SqlxMarketingProjectionFactory, TrustedAgentHoldingOperationsConfig, WorkerHandlerReport,
+    WorkerRuntime, WorkerRuntimeConfig, WorkerRuntimeError,
+    compose_trusted_holding_agent_operations,
 };
 use erpx_worker::{
     ROLE_REVIEW_NOTIFICATION_HANDLER_NAME, ROLE_REVIEW_SNAPSHOT_HANDLER_NAME,
@@ -1371,6 +1373,21 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                 )?;
                 let mut registry = runtime.handler_registry()?;
                 registry.register(handler)?;
+                registry
+            } else if handler_name == PROCURE_TO_PAY_HANDLER_NAME {
+                let routing = HoldingDatabaseProvisioningConfig::from_env()?;
+                let router = HoldingDatabaseRouter::new(Arc::clone(runtime.store()), routing)?;
+                let handler = ProcureToPayRuntimeHandler::new(
+                    SqlxHoldingStoreRegistry::new(Arc::clone(runtime.store())),
+                    router,
+                    runtime
+                        .config()
+                        .batch_size
+                        .min(PROCURE_TO_PAY_MAX_PAGE_SIZE),
+                    PROCURE_TO_PAY_MAX_ACTIVE_HOLDINGS,
+                )?;
+                let mut registry = runtime.handler_registry()?;
+                registry.register(Arc::new(handler))?;
                 registry
             } else if handler_name == MARKETING_APPROVAL_DECISIONS_HANDLER_NAME {
                 let routing = HoldingDatabaseProvisioningConfig::from_env()?;

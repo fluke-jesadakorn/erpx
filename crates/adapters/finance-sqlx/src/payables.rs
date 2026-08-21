@@ -13,8 +13,9 @@ use erpx_finance::{
     VendorInvoice, VendorInvoiceId, VendorInvoiceStatus, VendorInvoiceView,
 };
 use erpx_integration_contracts::{
-    ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraft,
-    ItemDescriptorDraftV2, RecordTypeId, StableRecordRef, catalog::ContextId, record_policy_id,
+    ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, IntegrationEvent,
+    ItemDescriptorDraft, ItemDescriptorDraftV2, RecordTypeId, RecordVersionRef, StableRecordRef,
+    catalog::ContextId, finance, record_policy_id,
 };
 use erpx_kernel::{AggregateId, AuthorityScope, CommandId, DataClassification, EventId, RecordId};
 use serde::{Deserialize, Serialize};
@@ -38,6 +39,7 @@ pub const PAYMENT_PROJECTION: &str = "finance.payments";
 pub enum PayablesOutboxPayload {
     Snapshot(PayablesAggregate),
     Domain(PayablesDomainEvent),
+    Integration(finance::Event),
     Directory(ItemDescriptorDraftV2),
 }
 
@@ -697,11 +699,10 @@ impl PayablesCommandUnitOfWork for SqlxPayablesAdapter {
         let kind = request.aggregate.aggregate_type();
         let command_id = request.identity.command_id;
         let occurred_at = aggregate_updated_at(&request.aggregate);
-        let mut outbox = request
-            .domain_events
-            .iter()
-            .enumerate()
-            .map(|(index, event)| OutboxEventWrite {
+        let mut outbox = Vec::new();
+        for event in &request.domain_events {
+            let index = outbox.len();
+            outbox.push(OutboxEventWrite {
                 event_id: deterministic_event_id(command_id, domain_event_name(event), index),
                 event_type: domain_event_name(event).into(),
                 event_version: PAYABLES_EVENT_VERSION,
@@ -709,8 +710,20 @@ impl PayablesCommandUnitOfWork for SqlxPayablesAdapter {
                 causation_id: request.causation_id,
                 occurred_at,
                 payload: PayablesOutboxPayload::Domain(event.clone()),
-            })
-            .collect::<Vec<_>>();
+            });
+            for integration in payables_integration_events(event)? {
+                let index = outbox.len();
+                outbox.push(OutboxEventWrite {
+                    event_id: deterministic_event_id(command_id, integration.event_type(), index),
+                    event_type: integration.event_type().into(),
+                    event_version: u32::from(integration.schema_version()),
+                    partition: partition.clone(),
+                    causation_id: request.causation_id,
+                    occurred_at,
+                    payload: PayablesOutboxPayload::Integration(integration),
+                });
+            }
+        }
         let snapshot_event = match &request.aggregate {
             PayablesAggregate::VendorInvoice(_) => VENDOR_INVOICE_SNAPSHOT_EVENT,
             PayablesAggregate::Payment(_) => PAYMENT_SNAPSHOT_EVENT,
@@ -1221,6 +1234,82 @@ fn request_hash(value: &PayablesCommandFingerprint) -> Result<RequestHash, PortE
     Ok(RequestHash::new(digest.finalize().into()))
 }
 
+fn payables_integration_events(
+    event: &PayablesDomainEvent,
+) -> Result<Vec<finance::Event>, PortError> {
+    let events = match event {
+        PayablesDomainEvent::VendorInvoicePosted(state) => {
+            vec![finance::Event::VendorPayablePosted(
+                finance::VendorPayablePostedFact {
+                    vendor_invoice: finance::VendorInvoiceRef::try_from_uuid(
+                        state.vendor_invoice_id.as_uuid(),
+                    )
+                    .map_err(|_| PortError::Internal)?,
+                    payable: finance::PayableRef::try_from_uuid(state.payable.id().as_uuid())
+                        .map_err(|_| PortError::Internal)?,
+                    payable_version: state.payable.version(),
+                    supplier: state.supplier,
+                    purchase_order: procurement_record_version(
+                        &state.purchase_order,
+                        "purchase_order",
+                        "procurement.purchase-order",
+                    )?,
+                    goods_receipt: procurement_record_version(
+                        &state.receipt,
+                        "receipt",
+                        "procurement.receipt",
+                    )?,
+                    payable_amount: state.payable_amount,
+                    posted_at: state.posted_at,
+                },
+            )]
+        }
+        PayablesDomainEvent::PaymentReleased(state) => state
+            .allocations
+            .iter()
+            .map(|allocation| {
+                Ok(finance::Event::PaymentReleased(
+                    finance::PaymentReleasedFact {
+                        payment: finance::PaymentRef::try_from_uuid(state.payment_id.as_uuid())
+                            .map_err(|_| PortError::Internal)?,
+                        payable: finance::PayableRef::try_from_uuid(
+                            allocation.payable_id.as_uuid(),
+                        )
+                        .map_err(|_| PortError::Internal)?,
+                        released_amount: allocation.amount,
+                        released_at: state.released_at,
+                    },
+                ))
+            })
+            .collect::<Result<Vec<_>, PortError>>()?,
+        PayablesDomainEvent::PayablePosted(_) => Vec::new(),
+    };
+    for event in &events {
+        event.validate().map_err(|_| PortError::Internal)?;
+    }
+    Ok(events)
+}
+
+fn procurement_record_version(
+    value: &erpx_integration_contracts::RecordRef,
+    expected_kind: &str,
+    record_type: &str,
+) -> Result<RecordVersionRef, PortError> {
+    if value.context != erpx_integration_contracts::BoundedContext::Procurement
+        || value.aggregate_kind.as_str() != expected_kind
+    {
+        return Err(PortError::Internal);
+    }
+    let record_type = RecordTypeId::try_new(record_type).map_err(|_| PortError::Internal)?;
+    let record = StableRecordRef::try_new(
+        RecordId::try_from_uuid(value.aggregate_id).map_err(|_| PortError::Internal)?,
+        ContextId::Procurement,
+        record_type,
+    )
+    .map_err(|_| PortError::Internal)?;
+    RecordVersionRef::try_new(record, value.aggregate_version).map_err(|_| PortError::Internal)
+}
+
 fn domain_event_name(event: &PayablesDomainEvent) -> &'static str {
     match event {
         PayablesDomainEvent::VendorInvoicePosted(_) => "finance.vendor_invoice_posted",
@@ -1328,5 +1417,14 @@ mod tests {
         assert!(source.contains("finance.vendor-invoice"));
         assert!(source.contains("ItemDescriptorDraftV2::try_new"));
         assert!(!source.contains(concat!("finance.vendor-", "invoices")));
+    }
+
+    #[test]
+    fn payables_publish_typed_integration_facts_without_changing_existing_payload_shape() {
+        let source = include_str!("payables.rs");
+        assert!(source.contains("payload_kind"));
+        assert!(source.contains("PayablesOutboxPayload::Integration"));
+        assert!(source.contains("finance.vendor_payable_posted"));
+        assert!(source.contains("payable_version: state.payable.version()"));
     }
 }

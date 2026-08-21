@@ -341,13 +341,10 @@ where
         validate_access(actor, &access, command.thread_id, action)?;
         bind_confirmation_decision_to_visibility(&access, &mut command)?;
 
-        match &command.mutation {
-            ThreadMutation::AddRelation { relation } => {
-                self.authorization
-                    .authorize_relation_target(actor, relation)
-                    .await?;
-            }
-            _ => {}
+        if let ThreadMutation::AddRelation { relation } = &command.mutation {
+            self.authorization
+                .authorize_relation_target(actor, relation)
+                .await?;
         }
 
         let mut thread = self

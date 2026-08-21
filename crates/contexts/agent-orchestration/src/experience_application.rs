@@ -526,6 +526,7 @@ where
             .await
             .map_err(Into::into)
     }
+    #[allow(clippy::too_many_arguments)] // Transaction metadata remains explicit at this boundary.
     async fn commit_session(
         &self,
         actor: ActorAttribution,

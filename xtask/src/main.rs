@@ -187,7 +187,7 @@ const PLATFORM_PERMISSIONS: &[&str] = &[
 
 type TaskResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
-const STANDARD_WORKERS: [&str; 95] = [
+const STANDARD_WORKERS: [&str; 96] = [
     "support-worker",
     "agent-holding-operations-worker",
     "commercial-catalog-projector",
@@ -275,6 +275,7 @@ const STANDARD_WORKERS: [&str; 95] = [
     "operations-source-signals-projector",
     "operations-work-queue-policies-projector",
     "operations-source-ingestion-worker",
+    "procure-to-pay-worker",
     "marketing-approval-decisions-worker",
     "customer360-control-customers-projector",
     "customer360-holding-activity-projector",
@@ -284,7 +285,7 @@ const STANDARD_WORKERS: [&str; 95] = [
     "marketing-delivery-worker",
     "marketing-journey-integration-worker",
 ];
-const DEDICATED_WORKERS: [&str; 98] = [
+const DEDICATED_WORKERS: [&str; 99] = [
     "support-worker",
     "agent-holding-operations-worker",
     "commercial-catalog-projector",
@@ -372,6 +373,7 @@ const DEDICATED_WORKERS: [&str; 98] = [
     "operations-source-signals-projector",
     "operations-work-queue-policies-projector",
     "operations-source-ingestion-worker",
+    "procure-to-pay-worker",
     "marketing-approval-decisions-worker",
     "customer360-control-customers-projector",
     "customer360-holding-activity-projector",
@@ -3163,6 +3165,12 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
             name: "operations-source-ingestion-worker",
             handler: "operations_source_ingestion",
             worker_id: "8cf8d67f-186e-4b12-9e1c-bc29f5f5b143",
+            projection_kind: None,
+        },
+        WorkerSpec {
+            name: "procure-to-pay-worker",
+            handler: "procure_to_pay",
+            worker_id: "8cf8d67f-186e-4b12-9e1c-bc29f5f5b18e",
             projection_kind: None,
         },
         WorkerSpec {
@@ -6487,8 +6495,8 @@ mod tests {
     #[test]
     fn development_starts_the_complete_generation_two_worker_catalog() {
         let standard = worker_specs(false);
-        assert_eq!(standard.len(), 95);
-        assert_eq!(worker_specs(true).len(), 98);
+        assert_eq!(standard.len(), 96);
+        assert_eq!(worker_specs(true).len(), 99);
         assert_eq!(
             standard.iter().map(|spec| spec.name).collect::<Vec<_>>(),
             STANDARD_WORKERS
@@ -6569,6 +6577,11 @@ mod tests {
         assert!(standard.iter().any(|spec| {
             spec.handler == "operations_source_ingestion" && spec.projection_kind.is_none()
         }));
+        assert!(
+            standard
+                .iter()
+                .any(|spec| { spec.handler == "procure_to_pay" && spec.projection_kind.is_none() })
+        );
         assert!(standard.iter().any(|spec| {
             spec.handler == "marketing_approval_decisions" && spec.projection_kind.is_none()
         }));

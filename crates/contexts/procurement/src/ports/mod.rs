@@ -55,6 +55,7 @@ pub trait EntitlementPort: Send + Sync {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "command", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)] // Fingerprints stay direct, typed, and hash-stable on the wire.
 pub enum CommandFingerprint {
     CreateOrder {
         purchase_order_id: PurchaseOrderId,

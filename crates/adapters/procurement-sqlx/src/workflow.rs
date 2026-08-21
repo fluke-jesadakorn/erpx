@@ -852,20 +852,18 @@ fn validate_commit(request: &ProcurementWorkflowCommit) -> Result<(), PortError>
         || !request.authority_scope.contains(request.aggregate.scope())
         || aggregate_partition(&request.aggregate) != partition
         || aggregate_type(&request.aggregate) != kind
-        || request
-            .domain_events
-            .iter()
-            .any(|event| match (event, &request.aggregate) {
+        || request.domain_events.iter().any(|event| {
+            !matches!(
+                (event, &request.aggregate),
                 (
                     ProcurementWorkflowDomainEvent::Requisition(_),
                     ProcurementWorkflowAggregate::Requisition(_),
-                )
-                | (
+                ) | (
                     ProcurementWorkflowDomainEvent::GoodsReceipt(_),
                     ProcurementWorkflowAggregate::GoodsReceipt(_),
-                ) => false,
-                _ => true,
-            })
+                )
+            )
+        })
     {
         return Err(PortError::Internal);
     }

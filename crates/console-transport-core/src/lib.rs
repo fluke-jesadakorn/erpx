@@ -59,7 +59,7 @@ impl CatalogRecord {
         self.record.canonical_detail_route()
     }
 
-    /// Only the 92 live current-context families may mount collaboration.
+    /// Only the 93 live current-context families may mount collaboration.
     /// Future catalog records remain routable so the Console can render an
     /// explicit unavailable owner slot, but they fail closed here.
     pub fn collaboration_available(&self) -> bool {
@@ -401,7 +401,7 @@ mod tests {
     }
 
     #[test]
-    fn catalog_record_enables_exactly_the_92_live_current_families() {
+    fn catalog_record_enables_exactly_the_93_live_current_families() {
         let id = Uuid::from_u128(1).hyphenated().to_string();
         let current = RECORD_TYPES
             .iter()
@@ -411,7 +411,7 @@ mod tests {
                     .filter(CatalogRecord::collaboration_available)
             })
             .count();
-        assert_eq!(current, 92);
+        assert_eq!(current, 93);
 
         let current = CatalogRecord::try_from_segments("finance", "invoice", &id).unwrap();
         assert!(current.collaboration_available());

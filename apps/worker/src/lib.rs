@@ -365,8 +365,10 @@ pub use pos_projection::{
     PosProjectionRequest, PosProjectionRunReport, PosProjectionRunner, PosProjectionWorkerError,
 };
 pub use procurement_payment_integration::{
+    PROCURE_TO_PAY_HANDLER_NAME, PROCURE_TO_PAY_MAX_ACTIVE_HOLDINGS, PROCURE_TO_PAY_MAX_PAGE_SIZE,
     ProcureToPayConsumeOutcome, ProcureToPayConsumerError, ProcureToPayConsumerState,
-    ProcureToPayHandoff, ProcureToPayHandoffKind, ProcureToPaySourceEvent,
+    ProcureToPayHandoff, ProcureToPayHandoffKind, ProcureToPayRuntimeHandler,
+    ProcureToPaySourceEvent,
 };
 pub const QUALITY_PROJECTION_HANDLER_NAME: &str = "quality_projection";
 pub const QUALITY_PROJECTION_MAX_PAGE_SIZE: u32 = MAX_QUALITY_SOURCE_PAGE_SIZE;
