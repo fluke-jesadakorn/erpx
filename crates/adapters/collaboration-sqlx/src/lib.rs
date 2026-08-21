@@ -18,7 +18,10 @@ pub use directory::*;
 pub use global::{
     GlobalCollaborationAccess, GlobalCollaborationOutcome, SqlxGlobalCollaborationGateway,
 };
-pub use global_projection::{GLOBAL_COLLABORATION_PROJECTION, GlobalCollaborationProjector};
+pub use global_projection::{
+    GLOBAL_COLLABORATION_PROJECTION, GLOBAL_RELATION_DRAFT_EVENT_TYPE,
+    GlobalCollaborationProjector, GlobalRelationDraft, GlobalRelationDraftKind,
+};
 pub use projection::{
     CollaborationInboxProjectionFact, CollaborationInboxProjector,
     CollaborationStreamProjectionFact, CollaborationStreamProjector,

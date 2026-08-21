@@ -765,34 +765,42 @@ impl CollaborationCommandService for CollaborationCommandRpc {
                 identity.correlation_id,
             )
             .await?;
-            let outcome = match (
-                gateway.authorize_record(&access, &source, true).await,
-                gateway.authorize_record(&access, &target, true).await,
-            ) {
-                (Ok(()), Ok(())) => GlobalCollaborationOutcome::Unavailable,
-                (Err(PortError::Denied), _) | (_, Err(PortError::Denied)) => {
-                    GlobalCollaborationOutcome::Denied
-                }
-                _ => GlobalCollaborationOutcome::Unavailable,
-            };
-            gateway
-                .audit(
+            let result = gateway
+                .add_relation(
                     &access,
-                    "relation.add",
-                    Some(source.id().as_uuid()),
-                    Some(target.id().as_uuid()),
-                    None,
-                    Some(identity.command_id.as_uuid()),
-                    outcome,
+                    identity.clone(),
+                    relation_id,
+                    source.clone(),
+                    target.clone(),
+                    kind,
+                    input.expected_source_version,
+                    Utc::now(),
                 )
-                .await
-                .map_err(map_collaboration_port_error)?;
-            return Err(match outcome {
-                GlobalCollaborationOutcome::Denied => {
-                    Status::permission_denied("record relation access denied")
-                }
-                _ => Status::unavailable("global relation mutation is unavailable"),
-            });
+                .await;
+            let outcome = match &result {
+                Ok(_) => GlobalCollaborationOutcome::Allowed,
+                Err(PortError::Denied | PortError::NotFound) => GlobalCollaborationOutcome::Denied,
+                Err(PortError::Conflict) => GlobalCollaborationOutcome::Conflict,
+                Err(_) => GlobalCollaborationOutcome::Unavailable,
+            };
+            if result.is_err() {
+                gateway
+                    .audit(
+                        &access,
+                        "relation.add",
+                        Some(source.id().as_uuid()),
+                        Some(target.id().as_uuid()),
+                        None,
+                        Some(identity.command_id.as_uuid()),
+                        outcome,
+                    )
+                    .await
+                    .map_err(map_collaboration_port_error)?;
+            }
+            return result
+                .map(relation_mutation_receipt)
+                .map(Response::new)
+                .map_err(map_collaboration_port_error);
         }
         let runtime = holding_relation_runtime(
             &self.state,
@@ -844,34 +852,41 @@ impl CollaborationCommandService for CollaborationCommandRpc {
                 identity.correlation_id,
             )
             .await?;
-            let outcome = match (
-                gateway.authorize_record(&access, &source, true).await,
-                gateway.authorize_record(&access, &target, true).await,
-            ) {
-                (Ok(()), Ok(())) => GlobalCollaborationOutcome::Unavailable,
-                (Err(PortError::Denied), _) | (_, Err(PortError::Denied)) => {
-                    GlobalCollaborationOutcome::Denied
-                }
-                _ => GlobalCollaborationOutcome::Unavailable,
-            };
-            gateway
-                .audit(
+            let result = gateway
+                .revoke_relation(
                     &access,
-                    "relation.revoke",
-                    Some(source.id().as_uuid()),
-                    Some(target.id().as_uuid()),
-                    None,
-                    Some(identity.command_id.as_uuid()),
-                    outcome,
+                    identity.clone(),
+                    relation_id,
+                    source.clone(),
+                    target.clone(),
+                    input.expected_relation_version,
+                    Utc::now(),
                 )
-                .await
-                .map_err(map_collaboration_port_error)?;
-            return Err(match outcome {
-                GlobalCollaborationOutcome::Denied => {
-                    Status::permission_denied("record relation access denied")
-                }
-                _ => Status::unavailable("global relation mutation is unavailable"),
-            });
+                .await;
+            let outcome = match &result {
+                Ok(_) => GlobalCollaborationOutcome::Allowed,
+                Err(PortError::Denied | PortError::NotFound) => GlobalCollaborationOutcome::Denied,
+                Err(PortError::Conflict) => GlobalCollaborationOutcome::Conflict,
+                Err(_) => GlobalCollaborationOutcome::Unavailable,
+            };
+            if result.is_err() {
+                gateway
+                    .audit(
+                        &access,
+                        "relation.revoke",
+                        Some(source.id().as_uuid()),
+                        Some(target.id().as_uuid()),
+                        None,
+                        Some(identity.command_id.as_uuid()),
+                        outcome,
+                    )
+                    .await
+                    .map_err(map_collaboration_port_error)?;
+            }
+            return result
+                .map(relation_mutation_receipt)
+                .map(Response::new)
+                .map_err(map_collaboration_port_error);
         }
         let runtime = holding_relation_runtime(
             &self.state,

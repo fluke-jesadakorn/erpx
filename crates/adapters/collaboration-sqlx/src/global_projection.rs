@@ -4,6 +4,7 @@
 //! Holding-local facts are deliberately handled by the routed holding projector.
 
 use async_trait::async_trait;
+use erpx_collaboration::{RelationView, record_relation_graph_thread_id};
 use erpx_cqrs_sqlx::{ProjectionEvent, ProjectionFailure, Projector, ProjectorContext};
 use erpx_integration_contracts::{
     ITEM_DIRECTORY_FACT_VERSION, ITEM_DIRECTORY_OWNER_EVENT_TYPE, ItemDescriptorDraftV2,
@@ -13,6 +14,35 @@ use erpx_kernel::AuthorityScope;
 use sqlx::{Postgres, Transaction};
 
 pub const GLOBAL_COLLABORATION_PROJECTION: &str = "global_collaboration.records";
+pub const GLOBAL_RELATION_DRAFT_EVENT_TYPE: &str = "collaboration.global_relation_draft.v1";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GlobalRelationDraftKind {
+    Added,
+    Revoked,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct GlobalRelationDraft {
+    pub relation: RelationView,
+    pub kind: GlobalRelationDraftKind,
+}
+
+impl GlobalRelationDraft {
+    pub fn validate(&self) -> Result<(), ProjectionFailure> {
+        self.relation
+            .validate()
+            .map_err(|_| failure("invalid global relation draft"))?;
+        if self.relation.committed_sequence != 0
+            || (self.kind == GlobalRelationDraftKind::Added && self.relation.is_revoked())
+            || (self.kind == GlobalRelationDraftKind::Revoked && !self.relation.is_revoked())
+        {
+            return Err(failure("invalid global relation draft state"));
+        }
+        Ok(())
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct GlobalCollaborationProjector {
@@ -22,7 +52,10 @@ pub struct GlobalCollaborationProjector {
 impl GlobalCollaborationProjector {
     pub fn new() -> Self {
         Self {
-            event_types: vec![ITEM_DIRECTORY_OWNER_EVENT_TYPE.into()],
+            event_types: vec![
+                ITEM_DIRECTORY_OWNER_EVENT_TYPE.into(),
+                GLOBAL_RELATION_DRAFT_EVENT_TYPE.into(),
+            ],
         }
     }
 }
@@ -49,6 +82,9 @@ impl Projector for GlobalCollaborationProjector {
         _context: &ProjectorContext<'_>,
         event: &ProjectionEvent,
     ) -> Result<(), ProjectionFailure> {
+        if event.event_type == GLOBAL_RELATION_DRAFT_EVENT_TYPE {
+            return apply_relation(transaction, event).await;
+        }
         if event.context != ContextId::PlatformAdministration.slug().replace('-', "_") {
             // The control outbox also carries holding-scoped owner drafts for
             // other contexts. Their routed data-plane projector remains the
@@ -166,6 +202,98 @@ impl Projector for GlobalCollaborationProjector {
     }
 }
 
+async fn apply_relation(
+    transaction: &mut Transaction<'_, Postgres>,
+    event: &ProjectionEvent,
+) -> Result<(), ProjectionFailure> {
+    if event.context != "collaboration"
+        || event.event_version != 1
+        || event.active_scope != AuthorityScope::Platform
+        || event.global_sequence == 0
+    {
+        return Err(failure("invalid global relation event envelope"));
+    }
+    let draft = serde_json::from_value::<GlobalRelationDraft>(event.payload.clone())
+        .map_err(|_| failure("malformed global relation draft"))?;
+    draft.validate()?;
+    if draft.relation.source.id().as_uuid() != event.aggregate_id.as_uuid()
+        || draft.relation.version != event.aggregate_version
+    {
+        return Err(failure("global relation event lineage mismatch"));
+    }
+    let mut relation = draft.relation;
+    relation.committed_sequence = event.global_sequence;
+    relation
+        .validate()
+        .map_err(|_| failure("invalid committed global relation"))?;
+    let graph_thread_id = record_relation_graph_thread_id(&relation.source)
+        .map_err(|_| failure("invalid global relation graph identity"))?;
+    let relation_document = serde_json::to_value(&relation).map_err(projection_failure)?;
+    let source_ref = serde_json::to_value(&relation.source).map_err(projection_failure)?;
+    let target_ref = serde_json::to_value(&relation.target).map_err(projection_failure)?;
+    let relation_kind = relation_kind_name(&relation.kind)?;
+    sqlx::query(
+        "INSERT INTO erpx_global_collaboration_read.relations
+         (relation_id,source_record_id,target_record_id,source_record_ref,target_record_ref,
+          graph_thread_id,relation_kind,relation_version,graph_version,relation_document,
+          created_by_principal_id,created_at,revoked_by_principal_id,revoked_at,
+          committed_sequence,projected_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$8,$9,$10,$11,$12,$13,$14,now())
+         ON CONFLICT (relation_id) DO UPDATE SET
+           relation_version=EXCLUDED.relation_version,graph_version=EXCLUDED.graph_version,
+           relation_document=EXCLUDED.relation_document,
+           revoked_by_principal_id=EXCLUDED.revoked_by_principal_id,
+           revoked_at=EXCLUDED.revoked_at,committed_sequence=EXCLUDED.committed_sequence,
+           projected_at=now()
+         WHERE erpx_global_collaboration_read.relations.source_record_ref=EXCLUDED.source_record_ref
+           AND erpx_global_collaboration_read.relations.target_record_ref=EXCLUDED.target_record_ref
+           AND erpx_global_collaboration_read.relations.relation_kind=EXCLUDED.relation_kind
+           AND erpx_global_collaboration_read.relations.relation_version
+                 < EXCLUDED.relation_version
+           AND erpx_global_collaboration_read.relations.committed_sequence
+                 < EXCLUDED.committed_sequence",
+    )
+    .bind(relation.id.as_uuid())
+    .bind(relation.source.id().as_uuid())
+    .bind(relation.target.id().as_uuid())
+    .bind(source_ref)
+    .bind(target_ref)
+    .bind(graph_thread_id.as_uuid())
+    .bind(relation_kind)
+    .bind(to_i64(relation.version)?)
+    .bind(relation_document)
+    .bind(relation.created_by.id().as_uuid())
+    .bind(relation.created_at)
+    .bind(
+        relation
+            .revoked_by
+            .map(|principal| principal.id().as_uuid()),
+    )
+    .bind(relation.revoked_at)
+    .bind(to_i64(event.global_sequence)?)
+    .execute(&mut **transaction)
+    .await
+    .map_err(projection_failure)?;
+    advance_checkpoint(transaction, event.global_sequence).await
+}
+
+fn relation_kind_name(
+    kind: &erpx_collaboration::RelationKind,
+) -> Result<&'static str, ProjectionFailure> {
+    Ok(match kind {
+        erpx_collaboration::RelationKind::RelatesTo => "relates_to",
+        erpx_collaboration::RelationKind::Blocks => "blocks",
+        erpx_collaboration::RelationKind::DependsOn => "depends_on",
+        erpx_collaboration::RelationKind::Implements => "implements",
+        erpx_collaboration::RelationKind::Supersedes => "supersedes",
+        erpx_collaboration::RelationKind::DerivedFrom => "derived_from",
+        erpx_collaboration::RelationKind::EvidenceFor => "evidence_for",
+        erpx_collaboration::RelationKind::Custom { .. } => {
+            return Err(failure("custom global relation is unavailable"));
+        }
+    })
+}
+
 async fn advance_checkpoint(
     transaction: &mut Transaction<'_, Postgres>,
     sequence: u64,
@@ -210,7 +338,13 @@ mod tests {
     fn projector_accepts_only_typed_owner_directory_facts() {
         let projector = GlobalCollaborationProjector::new();
         assert_eq!(projector.name(), GLOBAL_COLLABORATION_PROJECTION);
-        assert_eq!(projector.event_types(), &[ITEM_DIRECTORY_OWNER_EVENT_TYPE]);
+        assert_eq!(
+            projector.event_types(),
+            &[
+                ITEM_DIRECTORY_OWNER_EVENT_TYPE,
+                GLOBAL_RELATION_DRAFT_EVENT_TYPE
+            ]
+        );
         let source = include_str!("global_projection.rs");
         let production = source.split("#[cfg(test)]").next().unwrap();
         assert!(production.contains("ItemDescriptorDraftV2"));

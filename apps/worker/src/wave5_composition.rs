@@ -13,6 +13,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use erpx_collaboration_sqlx::GLOBAL_RELATION_DRAFT_EVENT_TYPE;
 use erpx_cqrs_sqlx::{ProjectionPool, ProjectionRun, ProjectionRunnerConfig, WritePool};
 use erpx_infrastructure::SqlxControlPlane;
 use erpx_integration_contracts::ITEM_DIRECTORY_OWNER_EVENT_TYPE;
@@ -305,16 +306,22 @@ async fn refresh_global_projection_state(
 ) -> Result<(), WorkerRuntimeError> {
     let source_high_watermark = sqlx::query_scalar::<_, i64>(
         "SELECT COALESCE(MAX(global_sequence),0)::BIGINT
-         FROM erpx_cqrs_write.outbox_events
-         WHERE event_type=$1 AND context_name='platform_administration'",
+         FROM erpx_cqrs_write.outbox_events WHERE
+           (event_type=$1 AND context_name='platform_administration')
+           OR (event_type=$2 AND context_name='collaboration')",
     )
     .bind(ITEM_DIRECTORY_OWNER_EVENT_TYPE)
+    .bind(GLOBAL_RELATION_DRAFT_EVENT_TYPE)
     .fetch_one(write)
     .await
     .map_err(database_configuration_error)?;
     let applied_position = sqlx::query(
-        "SELECT COALESCE(MAX(source_event_position),0)::BIGINT AS applied_position
-         FROM erpx_global_collaboration_read.descriptors",
+        "SELECT GREATEST(
+           COALESCE((SELECT MAX(source_event_position)
+                     FROM erpx_global_collaboration_read.descriptors),0),
+           COALESCE((SELECT MAX(committed_sequence)
+                     FROM erpx_global_collaboration_read.relations),0)
+         )::BIGINT AS applied_position",
     )
     .fetch_one(read)
     .await
@@ -343,6 +350,18 @@ async fn refresh_global_projection_state(
     .bind(applied_position)
     .bind(state)
     .execute(read)
+    .await
+    .map_err(database_configuration_error)?;
+    sqlx::query(
+        "UPDATE erpx_global_collaboration.relation_publication_drafts draft
+         SET committed_sequence=outbox.global_sequence,projected_at=now()
+         FROM erpx_cqrs_write.outbox_events outbox
+         WHERE draft.event_id=outbox.event_id
+           AND draft.committed_sequence IS NULL
+           AND outbox.event_type=$1",
+    )
+    .bind(GLOBAL_RELATION_DRAFT_EVENT_TYPE)
+    .execute(write)
     .await
     .map_err(database_configuration_error)?;
     Ok(())

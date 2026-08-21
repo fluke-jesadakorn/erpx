@@ -4,7 +4,11 @@
 //! A Platform request can never acquire a synthetic `HoldingId` and can never
 //! be passed to any holding-local RLS session setting.
 
-use erpx_kernel::{ActorAttribution, ActorKind, AuthorityScope, CorrelationId, PrincipalId};
+use chrono::{DateTime, Utc};
+use erpx_kernel::{
+    ActorAttribution, ActorKind, AuthorityScope, CorrelationId, PrincipalId, PrincipalKind,
+    SessionId,
+};
 use sqlx::PgPool;
 use sqlx::Row;
 use sqlx::{Postgres, Transaction};
@@ -12,10 +16,15 @@ use uuid::Uuid;
 
 use crate::{
     DirectoryAdapterError, DirectoryLookup, DirectorySearchPage, DirectorySearchRequest,
+    GLOBAL_RELATION_DRAFT_EVENT_TYPE, GlobalRelationDraft, GlobalRelationDraftKind,
     ProjectionFreshness,
 };
-use erpx_collaboration::{PortError, RelationPage, RelationView};
-use erpx_integration_contracts::{AuthorizedItemSummary, ItemDescriptor};
+use erpx_collaboration::{
+    CollaborationError, MutationIdentity, PortError, PrincipalRef, RecordRelationGraph, RelationId,
+    RelationKind, RelationMutationReceipt, RelationPage, RelationView,
+    record_relation_graph_thread_id,
+};
+use erpx_integration_contracts::{AuthorizedItemSummary, ItemDescriptor, StableRecordRef};
 use erpx_kernel::RecordId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -706,6 +715,499 @@ impl SqlxGlobalCollaborationGateway {
             projection_checkpoint,
             stale: false,
         })
+    }
+}
+
+impl SqlxGlobalCollaborationGateway {
+    #[allow(clippy::too_many_arguments)]
+    pub async fn add_relation(
+        &self,
+        access: &GlobalCollaborationAccess,
+        identity: MutationIdentity,
+        relation_id: RelationId,
+        source: StableRecordRef,
+        target: StableRecordRef,
+        kind: RelationKind,
+        expected_version: u64,
+        at: DateTime<Utc>,
+    ) -> Result<RelationMutationReceipt, PortError> {
+        identity.validate()?;
+        kind.validate_for_write().map_err(map_domain_error)?;
+        validate_global_mutation(access, &identity, &source, &target)?;
+        self.authorize_record(access, &source, true).await?;
+        self.authorize_record(access, &target, true).await?;
+        let actor = PrincipalRef::new(access.principal_id(), PrincipalKind::Human);
+        let mut transaction = self.control_write.begin().await.map_err(database_error)?;
+        if let Some(receipt) = load_relation_receipt(&mut transaction, &identity).await? {
+            if receipt.relation.id != relation_id
+                || receipt.relation.source != source
+                || receipt.relation.target != target
+                || receipt.relation.kind != kind
+            {
+                return Err(PortError::Conflict);
+            }
+            return Ok(receipt);
+        }
+        let mut graph = load_global_graph(&mut transaction, &source, true)
+            .await?
+            .unwrap_or(RecordRelationGraph::new(source.clone()).map_err(map_domain_error)?);
+        let (relation, replayed) = graph
+            .add(expected_version, relation_id, target, kind, actor, at)
+            .map_err(map_domain_error)?;
+        if replayed {
+            transaction.rollback().await.map_err(database_error)?;
+            return Ok(RelationMutationReceipt {
+                relation,
+                replayed: true,
+            });
+        }
+        self.commit_relation(
+            transaction,
+            access,
+            identity,
+            expected_version,
+            graph,
+            GlobalRelationDraft {
+                relation,
+                kind: GlobalRelationDraftKind::Added,
+            },
+            at,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn revoke_relation(
+        &self,
+        access: &GlobalCollaborationAccess,
+        identity: MutationIdentity,
+        relation_id: RelationId,
+        source: StableRecordRef,
+        target: StableRecordRef,
+        expected_version: u64,
+        at: DateTime<Utc>,
+    ) -> Result<RelationMutationReceipt, PortError> {
+        identity.validate()?;
+        validate_global_mutation(access, &identity, &source, &target)?;
+        self.authorize_record(access, &source, true).await?;
+        self.authorize_record(access, &target, true).await?;
+        let actor = PrincipalRef::new(access.principal_id(), PrincipalKind::Human);
+        let mut transaction = self.control_write.begin().await.map_err(database_error)?;
+        if let Some(receipt) = load_relation_receipt(&mut transaction, &identity).await? {
+            if receipt.relation.id != relation_id
+                || receipt.relation.source != source
+                || receipt.relation.target != target
+            {
+                return Err(PortError::Conflict);
+            }
+            return Ok(receipt);
+        }
+        let mut graph = load_global_graph(&mut transaction, &source, true)
+            .await?
+            .ok_or(PortError::NotFound)?;
+        let loaded = graph
+            .relations()
+            .iter()
+            .find(|relation| relation.id == relation_id)
+            .ok_or(PortError::NotFound)?;
+        if loaded.source != source || loaded.target != target {
+            return Err(PortError::NotFound);
+        }
+        let (relation, replayed) = graph
+            .revoke(expected_version, relation_id, actor, at)
+            .map_err(map_domain_error)?;
+        if replayed {
+            transaction.rollback().await.map_err(database_error)?;
+            return Ok(RelationMutationReceipt {
+                relation,
+                replayed: true,
+            });
+        }
+        self.commit_relation(
+            transaction,
+            access,
+            identity,
+            expected_version,
+            graph,
+            GlobalRelationDraft {
+                relation,
+                kind: GlobalRelationDraftKind::Revoked,
+            },
+            at,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn commit_relation(
+        &self,
+        mut transaction: Transaction<'_, Postgres>,
+        access: &GlobalCollaborationAccess,
+        identity: MutationIdentity,
+        expected_version: u64,
+        graph: RecordRelationGraph,
+        draft: GlobalRelationDraft,
+        at: DateTime<Utc>,
+    ) -> Result<RelationMutationReceipt, PortError> {
+        draft.validate().map_err(|_| PortError::InvalidState)?;
+        graph.validate_loaded().map_err(map_domain_error)?;
+        if graph.source() != &draft.relation.source
+            || graph.version() != expected_version.saturating_add(1)
+        {
+            return Err(PortError::InvalidState);
+        }
+        let source = &draft.relation.source;
+        let target = &draft.relation.target;
+        let source_json = serde_json::to_value(source).map_err(|_| PortError::InvalidState)?;
+        let target_json = serde_json::to_value(target).map_err(|_| PortError::InvalidState)?;
+        let graph_thread_id = record_relation_graph_thread_id(source).map_err(map_domain_error)?;
+        let graph_version = to_i64(graph.version())?;
+        if expected_version == 0 {
+            let changed = sqlx::query(
+                "INSERT INTO erpx_global_collaboration.relation_graphs
+                 (source_record_id,source_record_ref,graph_thread_id,aggregate_version,
+                  created_at,updated_at)
+                 VALUES ($1,$2,$3,$4,$5,$5) ON CONFLICT DO NOTHING",
+            )
+            .bind(source.id().as_uuid())
+            .bind(&source_json)
+            .bind(graph_thread_id.as_uuid())
+            .bind(graph_version)
+            .bind(at)
+            .execute(&mut *transaction)
+            .await
+            .map_err(database_error)?
+            .rows_affected();
+            if changed != 1 {
+                return Err(PortError::Conflict);
+            }
+        } else {
+            let changed = sqlx::query(
+                "UPDATE erpx_global_collaboration.relation_graphs
+                 SET aggregate_version=$4,updated_at=$5
+                 WHERE source_record_id=$1 AND source_record_ref=$2::JSONB
+                   AND graph_thread_id=$3 AND aggregate_version=$6",
+            )
+            .bind(source.id().as_uuid())
+            .bind(&source_json)
+            .bind(graph_thread_id.as_uuid())
+            .bind(graph_version)
+            .bind(at)
+            .bind(to_i64(expected_version)?)
+            .execute(&mut *transaction)
+            .await
+            .map_err(database_error)?
+            .rows_affected();
+            if changed != 1 {
+                return Err(PortError::Conflict);
+            }
+        }
+        let relation_document =
+            serde_json::to_value(&draft.relation).map_err(|_| PortError::InvalidState)?;
+        let relation_kind = global_relation_kind_name(&draft.relation.kind)?;
+        let changed = match draft.kind {
+            GlobalRelationDraftKind::Added => {
+                sqlx::query(
+                    "INSERT INTO erpx_global_collaboration.relations
+                 (relation_id,source_record_id,target_record_id,source_record_ref,target_record_ref,
+                  relation_kind,relation_version,graph_version,relation_document,relation_state,
+                  created_by_principal_id,created_by_session_id,created_at,
+                  revoked_by_principal_id,revoked_by_session_id,revoked_at,updated_at)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$7,$8,'active',$9,$10,$11,NULL,NULL,NULL,$11)",
+                )
+                .bind(draft.relation.id.as_uuid())
+                .bind(source.id().as_uuid())
+                .bind(target.id().as_uuid())
+                .bind(&source_json)
+                .bind(&target_json)
+                .bind(relation_kind)
+                .bind(to_i64(draft.relation.version)?)
+                .bind(&relation_document)
+                .bind(access.principal_id().as_uuid())
+                .bind(access.session_id())
+                .bind(draft.relation.created_at)
+                .execute(&mut *transaction)
+                .await
+            }
+            GlobalRelationDraftKind::Revoked => {
+                sqlx::query(
+                    "UPDATE erpx_global_collaboration.relations
+                 SET relation_version=$7,graph_version=$7,relation_document=$8,
+                     relation_state='revoked',revoked_by_principal_id=$9,
+                     revoked_by_session_id=$10,revoked_at=$11,updated_at=$11
+                 WHERE relation_id=$1 AND source_record_id=$2 AND target_record_id=$3
+                   AND source_record_ref=$4::JSONB AND target_record_ref=$5::JSONB
+                   AND relation_kind=$6 AND relation_state='active'",
+                )
+                .bind(draft.relation.id.as_uuid())
+                .bind(source.id().as_uuid())
+                .bind(target.id().as_uuid())
+                .bind(&source_json)
+                .bind(&target_json)
+                .bind(relation_kind)
+                .bind(to_i64(draft.relation.version)?)
+                .bind(&relation_document)
+                .bind(access.principal_id().as_uuid())
+                .bind(access.session_id())
+                .bind(draft.relation.revoked_at.ok_or(PortError::InvalidState)?)
+                .execute(&mut *transaction)
+                .await
+            }
+        }
+        .map_err(database_error)?
+        .rows_affected();
+        if changed != 1 {
+            return Err(PortError::Conflict);
+        }
+
+        let event_id = Uuid::new_v4();
+        let event_kind = match draft.kind {
+            GlobalRelationDraftKind::Added => "added",
+            GlobalRelationDraftKind::Revoked => "revoked",
+        };
+        sqlx::query(
+            "INSERT INTO erpx_global_collaboration.relation_events
+             (event_id,relation_id,source_record_id,graph_version,event_kind,event_document,
+              actor_principal_id,actor_session_id,command_id,correlation_id,occurred_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
+        )
+        .bind(event_id)
+        .bind(draft.relation.id.as_uuid())
+        .bind(source.id().as_uuid())
+        .bind(graph_version)
+        .bind(event_kind)
+        .bind(&relation_document)
+        .bind(access.principal_id().as_uuid())
+        .bind(access.session_id())
+        .bind(identity.command_id.as_uuid())
+        .bind(identity.correlation_id.as_uuid())
+        .bind(at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+
+        let draft_document = serde_json::to_value(&draft).map_err(|_| PortError::InvalidState)?;
+        let actor = ActorAttribution {
+            principal_ref: access.principal_id().to_string(),
+            kind: ActorKind::PlatformUser,
+            session_id: Some(
+                SessionId::try_from_uuid(access.session_id()).map_err(|_| PortError::Denied)?,
+            ),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        };
+        let committed_sequence: i64 = sqlx::query_scalar(
+            "INSERT INTO erpx_cqrs_write.outbox_events
+             (event_id,context_name,partition_key,command_id,event_type,event_version,
+              aggregate_type,aggregate_id,aggregate_version,active_scope,actor,correlation_id,
+              causation_id,payload,occurred_at,available_at)
+             VALUES ($1,'collaboration',$2,$3,$4,1,'global_record_relation_graph',$5,$6,
+                     $7,$8,$9,NULL,$10,$11,$11) RETURNING global_sequence",
+        )
+        .bind(event_id)
+        .bind(source.id().to_string())
+        .bind(identity.command_id.as_uuid())
+        .bind(GLOBAL_RELATION_DRAFT_EVENT_TYPE)
+        .bind(source.id().as_uuid())
+        .bind(graph_version)
+        .bind(serde_json::to_value(AuthorityScope::Platform).map_err(|_| PortError::Internal)?)
+        .bind(serde_json::to_value(actor).map_err(|_| PortError::Internal)?)
+        .bind(identity.correlation_id.as_uuid())
+        .bind(&draft_document)
+        .bind(at)
+        .fetch_one(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        sqlx::query(
+            "INSERT INTO erpx_global_collaboration.relation_publication_drafts
+             (event_id,relation_id,fact_document,committed_sequence,projected_at,created_at)
+             VALUES ($1,$2,$3,NULL,NULL,$4)",
+        )
+        .bind(event_id)
+        .bind(draft.relation.id.as_uuid())
+        .bind(&draft_document)
+        .bind(at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        let mut receipt_relation = draft.relation.clone();
+        receipt_relation.committed_sequence = to_u64(committed_sequence)?;
+        let receipt_document =
+            serde_json::to_value(&receipt_relation).map_err(|_| PortError::InvalidState)?;
+        sqlx::query(
+            "INSERT INTO erpx_global_collaboration.command_receipts
+             (idempotency_key,command_id,request_digest,relation_id,graph_version,event_id,
+              result_relation_document,created_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8)",
+        )
+        .bind(&identity.idempotency_key)
+        .bind(identity.command_id.as_uuid())
+        .bind(identity.request_digest.to_vec())
+        .bind(receipt_relation.id.as_uuid())
+        .bind(graph_version)
+        .bind(event_id)
+        .bind(receipt_document)
+        .bind(at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        let operation = match draft.kind {
+            GlobalRelationDraftKind::Added => "relation.add",
+            GlobalRelationDraftKind::Revoked => "relation.revoke",
+        };
+        sqlx::query(
+            "INSERT INTO erpx_global_collaboration.gateway_audit
+             (audit_id,operation,actor_principal_id,actor_session_id,authority_scope,
+              source_record_id,target_record_id,attachment_id,command_id,correlation_id,
+              outcome,occurred_at)
+             VALUES ($1,$2,$3,$4,to_jsonb('Platform'::TEXT),$5,$6,NULL,$7,$8,'allowed',$9)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(operation)
+        .bind(access.principal_id().as_uuid())
+        .bind(access.session_id())
+        .bind(source.id().as_uuid())
+        .bind(target.id().as_uuid())
+        .bind(identity.command_id.as_uuid())
+        .bind(identity.correlation_id.as_uuid())
+        .bind(at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        transaction.commit().await.map_err(database_error)?;
+        Ok(RelationMutationReceipt {
+            relation: receipt_relation,
+            replayed: false,
+        })
+    }
+}
+
+fn validate_global_mutation(
+    access: &GlobalCollaborationAccess,
+    identity: &MutationIdentity,
+    source: &StableRecordRef,
+    target: &StableRecordRef,
+) -> Result<(), PortError> {
+    source.validate().map_err(|_| PortError::Denied)?;
+    target.validate().map_err(|_| PortError::Denied)?;
+    if source == target || identity.correlation_id != access.correlation_id() {
+        return Err(PortError::Denied);
+    }
+    Ok(())
+}
+
+async fn load_relation_receipt(
+    transaction: &mut Transaction<'_, Postgres>,
+    identity: &MutationIdentity,
+) -> Result<Option<RelationMutationReceipt>, PortError> {
+    let Some(row) = sqlx::query(
+        "SELECT request_digest,result_relation_document
+         FROM erpx_global_collaboration.command_receipts WHERE idempotency_key=$1",
+    )
+    .bind(&identity.idempotency_key)
+    .fetch_optional(&mut **transaction)
+    .await
+    .map_err(database_error)?
+    else {
+        return Ok(None);
+    };
+    let digest: Vec<u8> = row
+        .try_get("request_digest")
+        .map_err(|_| PortError::Internal)?;
+    if digest.as_slice() != identity.request_digest {
+        return Err(PortError::Conflict);
+    }
+    let relation = serde_json::from_value::<RelationView>(
+        row.try_get("result_relation_document")
+            .map_err(|_| PortError::Internal)?,
+    )
+    .map_err(|_| PortError::Internal)?;
+    relation.validate().map_err(|_| PortError::Internal)?;
+    Ok(Some(RelationMutationReceipt {
+        relation,
+        replayed: true,
+    }))
+}
+
+async fn load_global_graph(
+    transaction: &mut Transaction<'_, Postgres>,
+    source: &StableRecordRef,
+    lock: bool,
+) -> Result<Option<RecordRelationGraph>, PortError> {
+    let suffix = if lock { " FOR UPDATE" } else { "" };
+    let statement = format!(
+        "SELECT source_record_ref,aggregate_version
+         FROM erpx_global_collaboration.relation_graphs
+         WHERE source_record_id=$1 AND source_record_ref=$2::JSONB{suffix}"
+    );
+    let source_json = serde_json::to_value(source).map_err(|_| PortError::InvalidState)?;
+    let Some(row) = sqlx::query(&statement)
+        .bind(source.id().as_uuid())
+        .bind(&source_json)
+        .fetch_optional(&mut **transaction)
+        .await
+        .map_err(database_error)?
+    else {
+        return Ok(None);
+    };
+    let relations = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT relation_document FROM erpx_global_collaboration.relations
+         WHERE source_record_id=$1 ORDER BY graph_version,relation_id",
+    )
+    .bind(source.id().as_uuid())
+    .fetch_all(&mut **transaction)
+    .await
+    .map_err(database_error)?;
+    let graph = serde_json::from_value::<RecordRelationGraph>(serde_json::json!({
+        "source": row.try_get::<serde_json::Value, _>("source_record_ref")
+            .map_err(|_| PortError::Internal)?,
+        "version": to_u64(row.try_get::<i64, _>("aggregate_version")
+            .map_err(|_| PortError::Internal)?)?,
+        "relations": relations,
+    }))
+    .map_err(|_| PortError::Internal)?;
+    graph.validate_loaded().map_err(|_| PortError::Internal)?;
+    Ok(Some(graph))
+}
+
+fn global_relation_kind_name(kind: &RelationKind) -> Result<&'static str, PortError> {
+    Ok(match kind {
+        RelationKind::RelatesTo => "relates_to",
+        RelationKind::Blocks => "blocks",
+        RelationKind::DependsOn => "depends_on",
+        RelationKind::Implements => "implements",
+        RelationKind::Supersedes => "supersedes",
+        RelationKind::DerivedFrom => "derived_from",
+        RelationKind::EvidenceFor => "evidence_for",
+        RelationKind::Custom { .. } => return Err(PortError::InvalidState),
+    })
+}
+
+fn map_domain_error(error: CollaborationError) -> PortError {
+    match error {
+        CollaborationError::VersionConflict | CollaborationError::DuplicateIdentity => {
+            PortError::Conflict
+        }
+        _ => PortError::InvalidState,
+    }
+}
+
+fn to_i64(value: u64) -> Result<i64, PortError> {
+    i64::try_from(value).map_err(|_| PortError::InvalidState)
+}
+
+fn to_u64(value: i64) -> Result<u64, PortError> {
+    u64::try_from(value).map_err(|_| PortError::Internal)
+}
+
+fn database_error(error: sqlx::Error) -> PortError {
+    if error
+        .as_database_error()
+        .is_some_and(|database| database.is_unique_violation())
+    {
+        PortError::Conflict
+    } else {
+        PortError::Unavailable
     }
 }
 
