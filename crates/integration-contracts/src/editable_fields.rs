@@ -490,7 +490,7 @@ mod tests {
     #[test]
     fn every_current_family_declares_editability_and_future_families_fail_closed() {
         let schemas = record_editable_field_schemas().collect::<Vec<_>>();
-        assert_eq!(schemas.len(), 92);
+        assert_eq!(schemas.len(), 93);
         assert!(
             schemas
                 .iter()

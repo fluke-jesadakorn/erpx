@@ -924,7 +924,7 @@ pub fn record_publisher(record_type_id: &str) -> Option<&'static RecordPublisher
 /// Every current-context family enters this list only after its owning
 /// aggregate appends an `ItemDescriptorDraft` atomically with the authoritative
 /// commit and its read model is wired to the trusted projection runtime.
-pub const LIVE_CURRENT_RECORD_PUBLISHERS: [&str; 92] = [
+pub const LIVE_CURRENT_RECORD_PUBLISHERS: [&str; 93] = [
     "identity.principal",
     "identity.role",
     "identity.grant",
@@ -958,6 +958,7 @@ pub const LIVE_CURRENT_RECORD_PUBLISHERS: [&str; 92] = [
     "support.platform-case",
     "finance.journal",
     "finance.invoice",
+    "finance.vendor-invoice",
     "finance.close-cycle",
     "finance.credit-note",
     "finance.debit-note",
@@ -1127,7 +1128,7 @@ pub const RECORD_TYPES: &[RecordTypeDescriptor] = records! {
     CustomerAuthority, "customer" => ["account", "authority-grant", "support-access"];
     Customer360, "customer-360" => ["profile", "note", "merge"];
     Support, "support" => ["customer-case", "platform-case", "incident", "access-session"];
-    Finance, "finance" => ["journal", "invoice", "credit-note", "debit-note", "payment", "reconciliation", "close-cycle"];
+    Finance, "finance" => ["journal", "invoice", "vendor-invoice", "credit-note", "debit-note", "payment", "reconciliation", "close-cycle"];
     Sales, "sales" => ["quote", "order", "return", "fulfillment-handoff"];
     PointOfSale, "pos" => ["register-session", "sale", "refund", "cash-movement"];
     Procurement, "procurement" => ["requisition", "rfq", "purchase-order", "receipt", "supplier-return"];
@@ -1333,7 +1334,7 @@ mod tests {
             .iter()
             .filter(|record| record.owner.lifecycle() == ContextLifecycle::Current)
             .collect::<Vec<_>>();
-        assert_eq!(current_records.len(), 92);
+        assert_eq!(current_records.len(), 93);
         for record in current_records {
             let mapping = record_publisher(record.id)
                 .unwrap_or_else(|| panic!("missing publisher for {}", record.id));
@@ -1349,7 +1350,7 @@ mod tests {
 
     #[test]
     fn live_current_publishers_are_exact_and_gaps_are_explicit() {
-        assert_eq!(LIVE_CURRENT_RECORD_PUBLISHERS.len(), 92);
+        assert_eq!(LIVE_CURRENT_RECORD_PUBLISHERS.len(), 93);
         assert_eq!(
             LIVE_CURRENT_RECORD_PUBLISHERS
                 .iter()
@@ -1366,7 +1367,7 @@ mod tests {
         }));
         assert_eq!(
             current_record_family_gaps().len(),
-            92 - LIVE_CURRENT_RECORD_PUBLISHERS.len()
+            93 - LIVE_CURRENT_RECORD_PUBLISHERS.len()
         );
         assert!(current_record_family_gaps().is_empty());
         assert!(

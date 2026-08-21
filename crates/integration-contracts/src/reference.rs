@@ -294,7 +294,7 @@ const fn collaboration_policy(definition: RecordPolicyDefinition) -> RecordColla
     }
 }
 
-pub const CURRENT_RECORD_POLICIES: [RecordPolicyDefinition; 92] = [
+pub const CURRENT_RECORD_POLICIES: [RecordPolicyDefinition; 93] = [
     policy(
         "identity.principal",
         ContextId::IdentityAccess,
@@ -1031,6 +1031,14 @@ pub const CURRENT_RECORD_POLICIES: [RecordPolicyDefinition; 92] = [
         INTERNAL_REALMS,
         DataClassification::Confidential,
     ),
+    policy(
+        "finance.vendor-invoice",
+        ContextId::Finance,
+        93,
+        "finance.vendor_invoice.read",
+        INTERNAL_REALMS,
+        DataClassification::Restricted,
+    ),
 ];
 
 macro_rules! current_collaboration_policies {
@@ -1039,11 +1047,11 @@ macro_rules! current_collaboration_policies {
     };
 }
 
-pub const CURRENT_RECORD_COLLABORATION_POLICIES: [RecordCollaborationPolicy; 92] = current_collaboration_policies![
+pub const CURRENT_RECORD_COLLABORATION_POLICIES: [RecordCollaborationPolicy; 93] = current_collaboration_policies![
     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25,
     26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
     50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73,
-    74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91,
+    74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92,
 ];
 
 const COMMERCE_CATALOG_EXTERNAL: &[RecordPolicyAccessRule] = &[
@@ -2650,7 +2658,7 @@ mod tests {
     fn current_record_policy_registry_is_exact_unique_and_wildcard_free() {
         use std::collections::BTreeSet;
 
-        assert_eq!(CURRENT_RECORD_POLICIES.len(), 92);
+        assert_eq!(CURRENT_RECORD_POLICIES.len(), 93);
         let policy_records = CURRENT_RECORD_POLICIES
             .iter()
             .map(|definition| definition.record_type)
@@ -2667,7 +2675,7 @@ mod tests {
                 .map(|definition| definition.policy_id())
                 .collect::<BTreeSet<_>>()
                 .len(),
-            92
+            93
         );
         for definition in CURRENT_RECORD_POLICIES {
             assert_eq!(
@@ -2699,20 +2707,20 @@ mod tests {
         assert_eq!(future_policies, future_catalog);
 
         let all = record_policies().collect::<Vec<_>>();
-        assert_eq!(all.len(), 141);
+        assert_eq!(all.len(), 142);
         assert_eq!(
             all.iter()
                 .map(|definition| definition.record_type)
                 .collect::<BTreeSet<_>>()
                 .len(),
-            141
+            142
         );
         assert_eq!(
             all.iter()
                 .map(|definition| definition.policy_id())
                 .collect::<BTreeSet<_>>()
                 .len(),
-            141
+            142
         );
         for definition in all {
             assert_eq!(
@@ -2766,7 +2774,7 @@ mod tests {
     }
 
     #[test]
-    fn collaboration_policy_registry_covers_exactly_the_92_current_families() {
+    fn collaboration_policy_registry_covers_exactly_the_93_current_families() {
         use std::collections::BTreeSet;
 
         let current_catalog = crate::catalog::RECORD_TYPES
@@ -2777,7 +2785,7 @@ mod tests {
         let collaboration_records = record_collaboration_policies()
             .map(|policy| policy.record_type)
             .collect::<BTreeSet<_>>();
-        assert_eq!(CURRENT_RECORD_COLLABORATION_POLICIES.len(), 92);
+        assert_eq!(CURRENT_RECORD_COLLABORATION_POLICIES.len(), 93);
         assert_eq!(collaboration_records, current_catalog);
         for policy in CURRENT_RECORD_COLLABORATION_POLICIES {
             assert_eq!(record_type(policy.record_type).unwrap().owner, policy.owner);
@@ -2791,6 +2799,7 @@ mod tests {
             assert!(policy.retention.inherit_record_legal_holds);
         }
         assert!(record_collaboration_policy("finance.invoice").is_some());
+        assert!(record_collaboration_policy("finance.vendor-invoice").is_some());
         assert!(record_collaboration_policy("manufacturing.order").is_none());
     }
 
