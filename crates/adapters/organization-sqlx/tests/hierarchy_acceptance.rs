@@ -12,7 +12,7 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
-    ErrorCategory, FixedClock, QueryId,
+    ErrorCategory, FixedClock, QueryId, SessionId,
 };
 use erpx_organization::{
     ActivateOrganizationNode, ArchiveOrganizationNode, AuthorizationPort, CreateOrganizationNode,
@@ -1202,8 +1202,10 @@ fn sorted_node_ids<const N: usize>(nodes: [OrganizationNodeId; N]) -> Vec<Uuid> 
 fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "organization-hierarchy-acceptance".into(),
-        kind: ActorKind::SystemWorker,
-        session_id: None,
+        kind: ActorKind::HoldingUser,
+        session_id: Some(
+            SessionId::try_from_uuid(Uuid::new_v4()).expect("an authenticated session is set"),
+        ),
         represented_principal_ref: None,
         support_capability_id: None,
     }
