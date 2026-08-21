@@ -2585,7 +2585,7 @@ mod tests {
         )
         .unwrap();
         assert_ne!(typed.digest(), legacy.digest());
-        assert_eq!(typed.typed_tokens(), &[token.clone()]);
+        assert_eq!(typed.typed_tokens(), std::slice::from_ref(&token));
         assert!(
             CommentDocument::try_new_with_tokens(
                 1,
