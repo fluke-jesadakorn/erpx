@@ -154,6 +154,7 @@ fn manufacturing_actor(invocation: &FutureInvocation) -> manufacturing::ActorCon
         holding_id: invocation.holding_id,
         principal_id: invocation.principal_id,
         authority_scope: invocation.scope.clone(),
+        attribution: invocation.actor.clone(),
     }
 }
 
@@ -162,6 +163,7 @@ fn planning_actor(invocation: &FutureInvocation) -> planning::ActorContext {
         holding_id: invocation.holding_id,
         principal_id: invocation.principal_id,
         authority_scope: invocation.scope.clone(),
+        attribution: invocation.actor.clone(),
     }
 }
 
@@ -370,6 +372,9 @@ fn manufacturing_status(error: manufacturing::ManufacturingError) -> Status {
     match error {
         manufacturing::ManufacturingError::Neutral => Status::not_found("item unavailable"),
         manufacturing::ManufacturingError::Conflict => Status::aborted("version conflict"),
+        manufacturing::ManufacturingError::HumanDecisionRequired => {
+            Status::permission_denied("an authenticated direct human decision is required")
+        }
         manufacturing::ManufacturingError::Invalid(message) => Status::invalid_argument(message),
         manufacturing::ManufacturingError::Unavailable => {
             Status::unavailable("manufacturing dependency unavailable")
@@ -384,6 +389,9 @@ fn planning_status(error: planning::PlanningError) -> Status {
     match error {
         planning::PlanningError::Neutral => Status::not_found("item unavailable"),
         planning::PlanningError::Conflict => Status::aborted("version conflict"),
+        planning::PlanningError::HumanDecisionRequired => {
+            Status::permission_denied("an authenticated direct human decision is required")
+        }
         planning::PlanningError::Invalid(message) => Status::invalid_argument(message),
         planning::PlanningError::HandoffRejected(message) => Status::failed_precondition(message),
         planning::PlanningError::Unavailable => {
@@ -443,6 +451,70 @@ where
         )
         .await
         .map_err(manufacturing_status)?;
+    Ok(Response::new(manufacturing_receipt(receipt)))
+}
+
+async fn decide_manufacturing_order<M>(
+    state: &AppState,
+    request: &Request<M>,
+    context: &erpx_proto::common::CommandContext,
+    order_scope: Option<&erpx_proto::common::AuthorityScope>,
+    order_id: &str,
+    close: bool,
+) -> Result<Response<manufacturing_wire::MutationReceipt>, Status>
+where
+    M: Message,
+{
+    let invocation = future_auth::command(
+        state,
+        request,
+        Some(context),
+        "manufacturing",
+        MANUFACTURING_WRITE,
+    )
+    .await?;
+    ensure_scope(&invocation, order_scope)?;
+    let pool = future_auth::pool(state, &invocation, RoutedDatabaseSide::Write).await?;
+    let actor = manufacturing_actor(&invocation);
+    let access = ManufacturingAccess {
+        actor: actor.clone(),
+        write: true,
+    };
+    let service = manufacturing::ManufacturingCommandService::new(
+        access,
+        manufacturing_sqlx::SqlxManufacturingWriteRepository::new(pool),
+    );
+    let identity = manufacturing_identity(context, request.get_ref())?;
+    let order_id =
+        manufacturing::ProductionOrderId::try_from_uuid(command_uuid(order_id, "order_id")?)
+            .map_err(|error| Status::invalid_argument(error.to_string()))?;
+    let requested_version =
+        (context.expected_aggregate_version > 0).then_some(context.expected_aggregate_version);
+    let now = Utc::now();
+    let receipt = if close {
+        service
+            .close_order(
+                &actor,
+                identity,
+                order_id,
+                &invocation.scope,
+                requested_version,
+                now,
+            )
+            .await
+    } else {
+        service
+            .release_order(
+                &actor,
+                identity,
+                order_id,
+                &invocation.scope,
+                requested_version,
+                now,
+            )
+            .await
+    }
+    .map_err(manufacturing_status)?;
     Ok(Response::new(manufacturing_receipt(receipt)))
 }
 
@@ -613,15 +685,13 @@ impl manufacturing_wire::manufacturing_command_service_server::ManufacturingComm
     ) -> Result<Response<manufacturing_wire::MutationReceipt>, Status> {
         let body = request.get_ref();
         let context = required_command_context(body.context.as_ref())?;
-        mutate_manufacturing_order(
+        decide_manufacturing_order(
             &self.state,
             &request,
             context,
             body.order_scope.as_ref(),
             &body.order_id,
-            manufacturing::ManufacturingAction::ReleaseOrder,
-            "manufacturing.order_released",
-            |order| order.release(Utc::now()),
+            false,
         )
         .await
     }
@@ -860,15 +930,13 @@ impl manufacturing_wire::manufacturing_command_service_server::ManufacturingComm
     ) -> Result<Response<manufacturing_wire::MutationReceipt>, Status> {
         let body = request.get_ref();
         let context = required_command_context(body.context.as_ref())?;
-        mutate_manufacturing_order(
+        decide_manufacturing_order(
             &self.state,
             &request,
             context,
             body.order_scope.as_ref(),
             &body.order_id,
-            manufacturing::ManufacturingAction::CloseOrder,
-            "manufacturing.order_closed",
-            |order| order.close(Utc::now()),
+            true,
         )
         .await
     }
@@ -1097,7 +1165,6 @@ async fn mutate_planning_recommendation<M, F>(
     recommendation_id: &str,
     action: planning::PlanningAction,
     event_type: &'static str,
-    human_decision_ref: Option<&'static str>,
     change: F,
 ) -> Result<Response<planning_wire::MutationReceipt>, Status>
 where
@@ -1106,9 +1173,6 @@ where
 {
     let invocation =
         future_auth::command(state, request, Some(context), "planning", PLANNING_WRITE).await?;
-    if let Some(decision_ref) = human_decision_ref {
-        let _human_decision = future_auth::human_decision(&invocation, decision_ref, Utc::now())?;
-    }
     ensure_scope(&invocation, scope)?;
     let pool = future_auth::pool(state, &invocation, RoutedDatabaseSide::Write).await?;
     let actor = planning_actor(&invocation);
@@ -1139,6 +1203,70 @@ where
         )
         .await
         .map_err(planning_status)?;
+    Ok(Response::new(planning_receipt(receipt)))
+}
+
+async fn decide_planning_recommendation<M>(
+    state: &AppState,
+    request: &Request<M>,
+    context: &erpx_proto::common::CommandContext,
+    scope: Option<&erpx_proto::common::AuthorityScope>,
+    recommendation_id: &str,
+    approve: bool,
+) -> Result<Response<planning_wire::MutationReceipt>, Status>
+where
+    M: Message,
+{
+    let invocation =
+        future_auth::command(state, request, Some(context), "planning", PLANNING_WRITE).await?;
+    ensure_scope(&invocation, scope)?;
+    let pool = future_auth::pool(state, &invocation, RoutedDatabaseSide::Write).await?;
+    let actor = planning_actor(&invocation);
+    let access = PlanningAccess {
+        actor: actor.clone(),
+        write: true,
+    };
+    let service = planning::PlanningCommandService::new(
+        access,
+        planning_sqlx::SqlxPlanningWriteRepository::new(pool),
+        RecommendationHandoffUnavailable,
+    );
+    let identity = planning_identity(context, request.get_ref())?;
+    let recommendation_id = planning::RecommendationId::try_from_uuid(command_uuid(
+        recommendation_id,
+        "recommendation_id",
+    )?)
+    .map_err(|error| Status::invalid_argument(error.to_string()))?;
+    let requested_version =
+        (context.expected_aggregate_version > 0).then_some(context.expected_aggregate_version);
+    let correlation_id = correlation(&context.correlation_id)?;
+    let now = Utc::now();
+    let receipt = if approve {
+        service
+            .approve_recommendation(
+                &actor,
+                identity,
+                recommendation_id,
+                &invocation.scope,
+                requested_version,
+                correlation_id,
+                now,
+            )
+            .await
+    } else {
+        service
+            .reject_recommendation(
+                &actor,
+                identity,
+                recommendation_id,
+                &invocation.scope,
+                requested_version,
+                correlation_id,
+                now,
+            )
+            .await
+    }
+    .map_err(planning_status)?;
     Ok(Response::new(planning_receipt(receipt)))
 }
 
@@ -1444,7 +1572,6 @@ impl planning_wire::planning_command_service_server::PlanningCommandService for 
             &body.recommendation_id,
             planning::PlanningAction::OverrideRecommendation,
             "planning.recommendation_overridden",
-            None,
             move |recommendation| recommendation.override_quantity(value).map(|_| ()),
         )
         .await
@@ -1456,16 +1583,13 @@ impl planning_wire::planning_command_service_server::PlanningCommandService for 
     ) -> Result<Response<planning_wire::MutationReceipt>, Status> {
         let body = request.get_ref();
         let context = required_command_context(body.context.as_ref())?;
-        mutate_planning_recommendation(
+        decide_planning_recommendation(
             &self.state,
             &request,
             context,
             body.recommendation_scope.as_ref(),
             &body.recommendation_id,
-            planning::PlanningAction::ApproveRecommendation,
-            "planning.recommendation_approved",
-            Some("planning.recommendation.approve"),
-            planning::PlanningRecommendation::approve,
+            true,
         )
         .await
     }
@@ -1476,16 +1600,13 @@ impl planning_wire::planning_command_service_server::PlanningCommandService for 
     ) -> Result<Response<planning_wire::MutationReceipt>, Status> {
         let body = request.get_ref();
         let context = required_command_context(body.context.as_ref())?;
-        mutate_planning_recommendation(
+        decide_planning_recommendation(
             &self.state,
             &request,
             context,
             body.recommendation_scope.as_ref(),
             &body.recommendation_id,
-            planning::PlanningAction::RejectRecommendation,
-            "planning.recommendation_rejected",
-            Some("planning.recommendation.reject"),
-            planning::PlanningRecommendation::reject,
+            false,
         )
         .await
     }

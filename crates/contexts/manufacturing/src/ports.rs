@@ -1,6 +1,9 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, HoldingId, PrincipalId};
+use erpx_kernel::{
+    ActorAttribution, AuthorityScope, CommandId, CorrelationId, HoldingId, HumanDecisionProof,
+    PrincipalId,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -14,6 +17,7 @@ pub struct ActorContext {
     pub holding_id: HoldingId,
     pub principal_id: PrincipalId,
     pub authority_scope: AuthorityScope,
+    pub attribution: ActorAttribution,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,6 +116,7 @@ pub struct ManufacturingCommit {
     pub identity: MutationIdentity,
     pub correlation_id: CorrelationId,
     pub authority: AuthorizedManufacturingAccess,
+    pub human_decision: Option<HumanDecisionProof>,
     pub expected_version: Option<u64>,
     pub aggregate: ManufacturingAggregate,
     pub event_type: String,

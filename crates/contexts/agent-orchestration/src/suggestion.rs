@@ -37,6 +37,19 @@ pub fn suggestion_apply_decision_ref(suggestion_id: SuggestionId) -> String {
     format!("agent.suggestion:{}:apply", suggestion_id.as_uuid())
 }
 
+pub fn suggestion_rejection_decision_ref(
+    suggestion_id: SuggestionId,
+    expected_version: u64,
+    command_id: Uuid,
+) -> String {
+    format!(
+        "agent.suggestion:{}:reject:v{}:command:{}",
+        suggestion_id.as_uuid(),
+        expected_version,
+        command_id
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SuggestionOwner {
@@ -182,6 +195,14 @@ pub struct SuggestionEnvelope {
     applied_decision_ref: Option<String>,
     #[serde(default)]
     applied_session_id: Option<SessionId>,
+    #[serde(default)]
+    rejected_by: Option<String>,
+    #[serde(default)]
+    rejected_actor_kind: Option<ActorKind>,
+    #[serde(default)]
+    rejected_decision_ref: Option<String>,
+    #[serde(default)]
+    rejected_session_id: Option<SessionId>,
     failure_code: Option<String>,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -239,6 +260,10 @@ impl SuggestionEnvelope {
             applied_actor_kind: None,
             applied_decision_ref: None,
             applied_session_id: None,
+            rejected_by: None,
+            rejected_actor_kind: None,
+            rejected_decision_ref: None,
+            rejected_session_id: None,
             failure_code: None,
             created_at: at,
             updated_at: at,
@@ -333,6 +358,20 @@ impl SuggestionEnvelope {
                     .validate()
                     .map_err(|_| SuggestionError::InvalidFieldPatch)?;
             }
+        }
+        if self.status == SuggestionStatus::Rejected
+            && (self.rejected_actor_kind != Some(ActorKind::HoldingUser)
+                || self
+                    .rejected_by
+                    .as_deref()
+                    .is_none_or(|value| !valid_text(value, 256))
+                || self
+                    .rejected_decision_ref
+                    .as_deref()
+                    .is_none_or(|value| !valid_text(value, 256))
+                || self.rejected_session_id.is_none())
+        {
+            return Err(SuggestionError::HumanCommandRequired);
         }
         Ok(())
     }
@@ -495,8 +534,33 @@ impl SuggestionEnvelope {
         Ok(())
     }
 
-    pub fn reject(&mut self, at: DateTime<Utc>) -> Result<(), SuggestionError> {
-        self.transition(SuggestionStatus::Ready, SuggestionStatus::Rejected, at)
+    pub fn reject(
+        &mut self,
+        expected_version: u64,
+        command_id: Uuid,
+        decision: HumanDecisionProof,
+    ) -> Result<(), SuggestionError> {
+        if decision.authority_scope() != &self.scope
+            || expected_version != self.version
+            || decision.decision_ref()
+                != suggestion_rejection_decision_ref(self.id, expected_version, command_id)
+        {
+            return Err(SuggestionError::HumanCommandRequired);
+        }
+        let session_id = decision
+            .actor()
+            .session_id
+            .ok_or(SuggestionError::HumanSessionRequired)?;
+        self.transition(
+            SuggestionStatus::Ready,
+            SuggestionStatus::Rejected,
+            decision.decided_at(),
+        )?;
+        self.rejected_by = Some(decision.principal_ref().to_owned());
+        self.rejected_actor_kind = Some(decision.actor().kind);
+        self.rejected_decision_ref = Some(decision.decision_ref().to_owned());
+        self.rejected_session_id = Some(session_id);
+        Ok(())
     }
 
     pub fn supersede(&mut self, at: DateTime<Utc>) -> Result<(), SuggestionError> {
@@ -610,6 +674,18 @@ impl SuggestionEnvelope {
     }
     pub const fn applied_session_id(&self) -> Option<SessionId> {
         self.applied_session_id
+    }
+    pub fn rejected_by(&self) -> Option<&str> {
+        self.rejected_by.as_deref()
+    }
+    pub const fn rejected_actor_kind(&self) -> Option<ActorKind> {
+        self.rejected_actor_kind
+    }
+    pub fn rejected_decision_ref(&self) -> Option<&str> {
+        self.rejected_decision_ref.as_deref()
+    }
+    pub const fn rejected_session_id(&self) -> Option<SessionId> {
+        self.rejected_session_id
     }
     pub fn failure_code(&self) -> Option<&str> {
         self.failure_code.as_deref()
@@ -732,6 +808,25 @@ mod tests {
             DateTime::from_timestamp(1_800_000_000, 0).unwrap(),
         )
         .unwrap()
+    }
+
+    #[test]
+    fn rejection_retains_exact_human_session_and_command_version_reference() {
+        let mut value = envelope();
+        let at = DateTime::from_timestamp(1_800_000_010, 0).unwrap();
+        value.start(at).unwrap();
+        value.complete("c".repeat(64), at).unwrap();
+        let command_id = Uuid::from_u128(77);
+        let decision_ref =
+            suggestion_rejection_decision_ref(value.id(), value.version(), command_id);
+        let decision = human_decision(&decision_ref, at);
+        value.reject(value.version(), command_id, decision).unwrap();
+        assert_eq!(value.status(), SuggestionStatus::Rejected);
+        assert_eq!(value.rejected_by(), Some("human:maker"));
+        assert_eq!(value.rejected_actor_kind(), Some(ActorKind::HoldingUser));
+        assert_eq!(value.rejected_decision_ref(), Some(decision_ref.as_str()));
+        assert!(value.rejected_session_id().is_some());
+        value.validate().unwrap();
     }
 
     fn field_patch() -> RecordFieldPatch {

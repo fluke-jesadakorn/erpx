@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use chrono::{DateTime, Utc};
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, AuthorityScope, Clock, CommandId, CorrelationId,
+    HumanDecisionProof,
 };
 use uuid::Uuid;
 
@@ -11,7 +12,7 @@ use crate::{
     domain::{
         AgentPool, AgentPoolId, AgentSession, AgentSessionId, AgentVersionId, CompareRequest,
         PoolRouteRequest, PoolRoutingDecision, PrincipalKind, SessionContext, SessionMessage,
-        SessionMessageId,
+        SessionMessageId, session_message_publication_decision_ref,
     },
     ports::{
         AgentAuthorizationPort, AgentExperienceRepository, AgentExperienceUnitOfWork,
@@ -321,6 +322,7 @@ where
             None,
             command.idempotency_key,
             session,
+            None,
         )
         .await
     }
@@ -376,6 +378,7 @@ where
             Some(command.expected_version),
             command.idempotency_key,
             session,
+            None,
         )
         .await
     }
@@ -387,6 +390,24 @@ where
         audit: AuditContext,
         command: PublishPrivateSessionMessage,
     ) -> Result<SessionMutationReceipt, AgentOrchestrationError> {
+        let at = self.clock.now();
+        let human_decision = HumanDecisionProof::try_new(
+            actor.clone(),
+            authority_scope.clone(),
+            session_message_publication_decision_ref(
+                command.session_id,
+                command.message_id,
+                command.expected_version,
+                command.command_id,
+            ),
+            at,
+        )
+        .map_err(|_| AgentOrchestrationError::Port(crate::ports::PortError::Denied))?;
+        if human_decision.principal_ref() != command.approving_human_ref {
+            return Err(AgentOrchestrationError::Port(
+                crate::ports::PortError::Denied,
+            ));
+        }
         let mut session = self
             .load_session(&authority_scope, command.session_id)
             .await?;
@@ -398,17 +419,12 @@ where
             OrchestrationAction::PublishSession,
         )
         .await?;
-        if !is_human(&actor) || actor.principal_ref != command.approving_human_ref {
-            return Err(AgentOrchestrationError::Port(
-                crate::ports::PortError::Denied,
-            ));
-        }
         session.publish_agent_message(
             command.message_id,
-            &command.approving_human_ref,
             command.audience_reauthorized,
             command.publication_anchor_ref,
-            self.clock.now(),
+            command.command_id,
+            &human_decision,
         )?;
         self.commit_session(
             actor,
@@ -419,6 +435,7 @@ where
             Some(command.expected_version),
             command.idempotency_key,
             session,
+            Some(human_decision),
         )
         .await
     }
@@ -451,6 +468,7 @@ where
             Some(command.expected_version),
             command.idempotency_key,
             session,
+            None,
         )
         .await
     }
@@ -483,6 +501,7 @@ where
             Some(command.expected_version),
             command.idempotency_key,
             session,
+            None,
         )
         .await
     }
@@ -537,6 +556,7 @@ where
         expected_version: Option<u64>,
         idempotency_key: String,
         session: AgentSession,
+        human_decision: Option<HumanDecisionProof>,
     ) -> Result<SessionMutationReceipt, AgentOrchestrationError> {
         self.unit_of_work
             .commit_session(SessionCommit {
@@ -545,6 +565,7 @@ where
                 actor,
                 authority_scope,
                 audit,
+                human_decision,
                 expected_version,
                 idempotency_key,
                 session,
@@ -564,4 +585,171 @@ fn ensure_version(actual: u64, expected: u64) -> Result<(), AgentOrchestrationEr
 
 const fn is_human(actor: &ActorAttribution) -> bool {
     matches!(actor.kind, ActorKind::PlatformUser | ActorKind::HoldingUser)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    use async_trait::async_trait;
+    use erpx_kernel::{FixedClock, SessionId};
+
+    use super::*;
+    use crate::{
+        domain::{PoolCandidate, ProviderInvocationEvidence},
+        ports::{InvocationEvidenceCommit, PortError},
+    };
+
+    #[derive(Clone, Default)]
+    struct NeverPorts {
+        loads: Arc<AtomicUsize>,
+        authorizations: Arc<AtomicUsize>,
+        commits: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl AgentExperienceRepository for NeverPorts {
+        async fn load_pool(
+            &self,
+            _: &AuthorityScope,
+            _: AgentPoolId,
+        ) -> Result<Option<AgentPool>, PortError> {
+            self.loads.fetch_add(1, Ordering::SeqCst);
+            Ok(None)
+        }
+
+        async fn load_session(
+            &self,
+            _: &AuthorityScope,
+            _: AgentSessionId,
+        ) -> Result<Option<AgentSession>, PortError> {
+            self.loads.fetch_add(1, Ordering::SeqCst);
+            Ok(None)
+        }
+    }
+
+    #[async_trait]
+    impl AgentAuthorizationPort for NeverPorts {
+        async fn authorize(&self, _: AuthorizationRequest<'_>) -> Result<(), PortError> {
+            self.authorizations.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl PoolCandidatePort for NeverPorts {
+        async fn eligible_candidates(
+            &self,
+            _: &AuthorityScope,
+            _: &AgentPool,
+            _: &str,
+            _: &AuthorityScope,
+        ) -> Result<Vec<PoolCandidate>, PortError> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[async_trait]
+    impl AgentExperienceUnitOfWork for NeverPorts {
+        async fn commit_pool(&self, _: PoolCommit) -> Result<AgentPool, PortError> {
+            self.commits.fetch_add(1, Ordering::SeqCst);
+            Err(PortError::Persistence)
+        }
+
+        async fn commit_pool_routing(
+            &self,
+            _: PoolRoutingCommit,
+        ) -> Result<PoolRoutingDecision, PortError> {
+            self.commits.fetch_add(1, Ordering::SeqCst);
+            Err(PortError::Persistence)
+        }
+
+        async fn commit_session(
+            &self,
+            _: SessionCommit,
+        ) -> Result<SessionMutationReceipt, PortError> {
+            self.commits.fetch_add(1, Ordering::SeqCst);
+            Err(PortError::Persistence)
+        }
+
+        async fn commit_invocation_evidence(
+            &self,
+            _: InvocationEvidenceCommit,
+        ) -> Result<ProviderInvocationEvidence, PortError> {
+            self.commits.fetch_add(1, Ordering::SeqCst);
+            Err(PortError::Persistence)
+        }
+    }
+
+    fn actor(kind: ActorKind) -> ActorAttribution {
+        ActorAttribution {
+            principal_ref: "human:owner".into(),
+            kind,
+            session_id: Some(SessionId::try_from_uuid(Uuid::from_u128(90)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn publication_denies_non_direct_humans_before_load_authorization_or_commit() {
+        let mut actors = vec![
+            actor(ActorKind::Agent),
+            actor(ActorKind::Service),
+            actor(ActorKind::SystemWorker),
+        ];
+        let mut sessionless = actor(ActorKind::HoldingUser);
+        sessionless.session_id = None;
+        actors.push(sessionless);
+        let mut represented = actor(ActorKind::HoldingUser);
+        represented.represented_principal_ref = Some("human:represented".into());
+        actors.push(represented);
+        let at = DateTime::from_timestamp(1_800_000_000, 0).unwrap();
+
+        for actor in actors {
+            let ports = NeverPorts::default();
+            let service = AgentExperienceService::new(
+                ports.clone(),
+                ports.clone(),
+                ports.clone(),
+                ports.clone(),
+                FixedClock::new(at),
+            );
+            let error = service
+                .publish_session_message(
+                    actor,
+                    AuthorityScope::Holding {
+                        holding_id: Uuid::from_u128(1),
+                    },
+                    AuditContext {
+                        purpose: "publish private session message".into(),
+                        customer_visible: false,
+                        module: Some("agent-orchestration".into()),
+                    },
+                    PublishPrivateSessionMessage {
+                        command_id: CommandId::try_from_uuid(Uuid::from_u128(2)).unwrap(),
+                        correlation_id: CorrelationId::try_from_uuid(Uuid::from_u128(3)).unwrap(),
+                        session_id: AgentSessionId::try_from_uuid(Uuid::from_u128(4)).unwrap(),
+                        expected_version: 2,
+                        message_id: SessionMessageId::try_from_uuid(Uuid::from_u128(5)).unwrap(),
+                        approving_human_ref: "human:owner".into(),
+                        audience_reauthorized: true,
+                        publication_anchor_ref: Uuid::from_u128(6),
+                        idempotency_key: "publish-agent-message".into(),
+                    },
+                )
+                .await
+                .unwrap_err();
+            assert!(matches!(
+                error,
+                AgentOrchestrationError::Port(PortError::Denied)
+            ));
+            assert_eq!(ports.loads.load(Ordering::SeqCst), 0);
+            assert_eq!(ports.authorizations.load(Ordering::SeqCst), 0);
+            assert_eq!(ports.commits.load(Ordering::SeqCst), 0);
+        }
+    }
 }

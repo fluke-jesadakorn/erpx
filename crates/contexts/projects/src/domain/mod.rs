@@ -6,7 +6,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{AuthorityScope, CorrelationId, HumanDecisionProof, RecordId};
+use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, HumanDecisionProof, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -77,6 +77,53 @@ impl ProjectStatus {
                 | (Self::Closed | Self::Cancelled, Self::Archived)
         )
     }
+
+    const fn token(self) -> &'static str {
+        match self {
+            Self::Proposed => "proposed",
+            Self::Approved => "approved",
+            Self::Active => "active",
+            Self::Paused => "paused",
+            Self::Completed => "completed",
+            Self::Closed => "closed",
+            Self::Cancelled => "cancelled",
+            Self::Archived => "archived",
+        }
+    }
+}
+
+pub fn project_transition_decision_ref(
+    project_id: ProjectId,
+    expected_version: u64,
+    next: ProjectStatus,
+    command_id: CommandId,
+) -> String {
+    format!(
+        "projects.project:{}:transition:{}:v{}:command:{}",
+        project_id.as_uuid(),
+        next.token(),
+        expected_version,
+        command_id.as_uuid()
+    )
+}
+
+pub fn project_node_transition_decision_ref(
+    project_id: ProjectId,
+    node_id: ProjectNodeId,
+    expected_project_version: u64,
+    expected_node_version: u64,
+    next_state: &str,
+    command_id: CommandId,
+) -> String {
+    format!(
+        "projects.project:{}:node:{}:transition:{}:project-v{}:node-v{}:command:{}",
+        project_id.as_uuid(),
+        node_id.as_uuid(),
+        next_state,
+        expected_project_version,
+        expected_node_version,
+        command_id.as_uuid()
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -600,8 +647,15 @@ impl Project {
         &mut self,
         next: ProjectStatus,
         close: Option<ProjectCloseEvidence>,
-        at: DateTime<Utc>,
+        command_id: CommandId,
+        decision: &HumanDecisionProof,
     ) -> Result<(), ProjectDomainError> {
+        let at = decision.decided_at();
+        exact_human_decision(
+            decision,
+            &self.scope,
+            &project_transition_decision_ref(self.id, self.version, next, command_id),
+        )?;
         if !self.status.permits(next) || at < self.updated_at {
             return Err(ProjectDomainError::InvalidTransition);
         }
@@ -697,9 +751,9 @@ impl Project {
         expected_node_version: u64,
         next_state: impl Into<String>,
         workflow: &WorkflowTemplate,
-        at: DateTime<Utc>,
+        command_id: CommandId,
+        decision: &HumanDecisionProof,
     ) -> Result<(), ProjectDomainError> {
-        self.ensure_editable(at)?;
         let next_state = next_state.into();
         let node = self
             .nodes
@@ -708,6 +762,20 @@ impl Project {
         if node.version != expected_node_version {
             return Err(ProjectDomainError::VersionConflict);
         }
+        exact_human_decision(
+            decision,
+            &self.scope,
+            &project_node_transition_decision_ref(
+                self.id,
+                node_id,
+                self.version,
+                expected_node_version,
+                &next_state,
+                command_id,
+            ),
+        )?;
+        let at = decision.decided_at();
+        self.ensure_editable(at)?;
         if !workflow.permits(self.workflow, &node.workflow_state, &next_state) {
             return Err(ProjectDomainError::InvalidTransition);
         }
@@ -1694,6 +1762,24 @@ fn exact_human_decision_principal(
         return Err(ProjectDomainError::HumanDecisionRequired);
     }
     decision_principal_uuid(decision)
+}
+
+fn exact_human_decision(
+    decision: &HumanDecisionProof,
+    scope: &AuthorityScope,
+    decision_ref: &str,
+) -> Result<(), ProjectDomainError> {
+    if decision.authority_scope() != scope
+        || decision.decision_ref() != decision_ref
+        || !decision.actor().is_human()
+        || decision.actor().session_id.is_none()
+        || decision.actor().represented_principal_ref.is_some()
+        || decision.actor().support_capability_id.is_some()
+    {
+        Err(ProjectDomainError::HumanDecisionRequired)
+    } else {
+        Ok(())
+    }
 }
 
 fn validate_scope(scope: &AuthorityScope) -> Result<(), ProjectDomainError> {

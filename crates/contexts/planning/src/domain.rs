@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_integration_contracts::{Quantity, RecordVersionRef, StableRecordRef};
-use erpx_kernel::{AuthorityScope, CorrelationId};
+use erpx_kernel::{ActorAttribution, AuthorityScope, CommandId, CorrelationId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -35,6 +35,47 @@ planning_id!(SupplyId, "supply_id");
 planning_id!(RecommendationId, "recommendation_id");
 planning_id!(OverrideId, "override_id");
 planning_id!(ReleaseId, "release_id");
+
+pub fn recommendation_approval_decision_ref(
+    id: RecommendationId,
+    expected_version: u64,
+    command_id: CommandId,
+) -> String {
+    format!(
+        "planning.recommendation:{}:approve:v{}:command:{}",
+        id.as_uuid(),
+        expected_version,
+        command_id.as_uuid()
+    )
+}
+
+pub fn recommendation_rejection_decision_ref(
+    id: RecommendationId,
+    expected_version: u64,
+    command_id: CommandId,
+) -> String {
+    format!(
+        "planning.recommendation:{}:reject:v{}:command:{}",
+        id.as_uuid(),
+        expected_version,
+        command_id.as_uuid()
+    )
+}
+
+pub fn recommendation_release_decision_ref(
+    id: RecommendationId,
+    release_id: ReleaseId,
+    expected_version: u64,
+    command_id: CommandId,
+) -> String {
+    format!(
+        "planning.recommendation:{}:release:{}:v{}:command:{}",
+        id.as_uuid(),
+        release_id.as_uuid(),
+        expected_version,
+        command_id.as_uuid()
+    )
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -341,9 +382,32 @@ pub struct RecommendationOverride {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlanningHumanDecisionEvidence {
+    pub actor: ActorAttribution,
+    pub authority_scope: AuthorityScope,
+    pub decision_ref: String,
+    pub decided_at: DateTime<Utc>,
+}
+
+impl PlanningHumanDecisionEvidence {
+    fn retain(decision: &HumanDecisionProof) -> Self {
+        Self {
+            actor: decision.actor().clone(),
+            authority_scope: decision.authority_scope().clone(),
+            decision_ref: decision.decision_ref().to_owned(),
+            decided_at: decision.decided_at(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlanningRecommendation {
     pub id: RecommendationId,
     pub version: u64,
+    /// Legacy snapshots without an owner scope remain readable but cannot be
+    /// approved, rejected, or released until republished.
+    #[serde(default)]
+    pub scope: Option<AuthorityScope>,
     pub kind: RecommendationKind,
     pub item: StableRecordRef,
     pub destination: StableRecordRef,
@@ -354,6 +418,12 @@ pub struct PlanningRecommendation {
     pub status: RecommendationStatus,
     pub overrides: Vec<RecommendationOverride>,
     pub release_id: Option<ReleaseId>,
+    #[serde(default)]
+    pub approval_decision: Option<Box<PlanningHumanDecisionEvidence>>,
+    #[serde(default)]
+    pub rejection_decision: Option<Box<PlanningHumanDecisionEvidence>>,
+    #[serde(default)]
+    pub release_decision: Option<Box<PlanningHumanDecisionEvidence>>,
 }
 
 impl PlanningRecommendation {
@@ -385,27 +455,76 @@ impl PlanningRecommendation {
         self.advance()?;
         Ok(true)
     }
-    pub fn approve(&mut self) -> Result<(), PlanningDomainError> {
+    pub fn approve(
+        &mut self,
+        command_id: CommandId,
+        decision: &HumanDecisionProof,
+    ) -> Result<(), PlanningDomainError> {
+        self.require_decision(
+            decision,
+            &recommendation_approval_decision_ref(self.id, self.version, command_id),
+        )?;
         if self.status != RecommendationStatus::Proposed {
             return Err(PlanningDomainError::InvalidTransition);
         }
         self.status = RecommendationStatus::Approved;
+        self.approval_decision = Some(Box::new(PlanningHumanDecisionEvidence::retain(decision)));
         self.advance()
     }
-    pub fn reject(&mut self) -> Result<(), PlanningDomainError> {
+    pub fn reject(
+        &mut self,
+        command_id: CommandId,
+        decision: &HumanDecisionProof,
+    ) -> Result<(), PlanningDomainError> {
+        self.require_decision(
+            decision,
+            &recommendation_rejection_decision_ref(self.id, self.version, command_id),
+        )?;
         if self.status != RecommendationStatus::Proposed {
             return Err(PlanningDomainError::InvalidTransition);
         }
         self.status = RecommendationStatus::Rejected;
+        self.rejection_decision = Some(Box::new(PlanningHumanDecisionEvidence::retain(decision)));
         self.advance()
     }
-    pub fn mark_released(&mut self, release_id: ReleaseId) -> Result<(), PlanningDomainError> {
+    pub fn mark_released(
+        &mut self,
+        release_id: ReleaseId,
+        command_id: CommandId,
+        decision: &HumanDecisionProof,
+    ) -> Result<(), PlanningDomainError> {
+        self.require_decision(
+            decision,
+            &recommendation_release_decision_ref(self.id, release_id, self.version, command_id),
+        )?;
         if self.status != RecommendationStatus::Approved || self.release_id.is_some() {
             return Err(PlanningDomainError::InvalidTransition);
         }
         self.status = RecommendationStatus::Released;
         self.release_id = Some(release_id);
+        self.release_decision = Some(Box::new(PlanningHumanDecisionEvidence::retain(decision)));
         self.advance()
+    }
+    fn require_decision(
+        &self,
+        decision: &HumanDecisionProof,
+        expected_ref: &str,
+    ) -> Result<(), PlanningDomainError> {
+        let scope = self
+            .scope
+            .as_ref()
+            .ok_or(PlanningDomainError::HumanDecisionRequired)?;
+        if decision.authority_scope() != scope
+            || decision.decision_ref() != expected_ref
+            || !decision.actor().is_human()
+            || decision.actor().session_id.is_none()
+            || decision.actor().represented_principal_ref.is_some()
+            || decision.actor().support_capability_id.is_some()
+        {
+            Err(PlanningDomainError::HumanDecisionRequired)
+        } else {
+            Ok(())
+        }
     }
     fn advance(&mut self) -> Result<(), PlanningDomainError> {
         self.version = self
@@ -509,6 +628,7 @@ impl PlanningRun {
                 recommendations.push(PlanningRecommendation {
                     id: deterministic_recommendation_id(scenario.id, demand.id)?,
                     version: 1,
+                    scope: Some(scenario.scope.clone()),
                     kind: rule.kind,
                     item: demand.item.clone(),
                     destination: demand.location.clone(),
@@ -519,6 +639,9 @@ impl PlanningRun {
                     status: RecommendationStatus::Proposed,
                     overrides: Vec::new(),
                     release_id: None,
+                    approval_decision: None,
+                    rejection_decision: None,
+                    release_decision: None,
                 });
             }
         }
@@ -675,6 +798,8 @@ pub enum PlanningDomainError {
     InvalidOverride,
     #[error("recommendation is not approved")]
     RecommendationNotApproved,
+    #[error("an authenticated direct human decision is required")]
+    HumanDecisionRequired,
     #[error("failure or retry reason is invalid")]
     InvalidFailureReason,
     #[error("numeric overflow")]

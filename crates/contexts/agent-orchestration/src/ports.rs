@@ -262,6 +262,7 @@ pub struct SessionCommit {
     pub actor: ActorAttribution,
     pub authority_scope: AuthorityScope,
     pub audit: AuditContext,
+    pub human_decision: Option<HumanDecisionProof>,
     pub expected_version: Option<u64>,
     pub idempotency_key: String,
     pub session: AgentSession,

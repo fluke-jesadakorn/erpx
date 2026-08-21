@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     SuggestionCapability, SuggestionEnvelope, SuggestionError, SuggestionId, SuggestionProvenance,
-    SuggestionSource, suggestion_apply_decision_ref,
+    SuggestionSource, suggestion_apply_decision_ref, suggestion_rejection_decision_ref,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -161,6 +161,19 @@ where
                 )
                 .map_err(|_| SuggestionApplicationError::HumanDecisionRequired)?,
             ),
+            SuggestionCommand::Reject { suggestion_id } => Some(
+                HumanDecisionProof::try_new(
+                    request.actor.clone(),
+                    request.scope.clone(),
+                    suggestion_rejection_decision_ref(
+                        *suggestion_id,
+                        request.expected_version,
+                        request.command_id,
+                    ),
+                    request.at,
+                )
+                .map_err(|_| SuggestionApplicationError::HumanDecisionRequired)?,
+            ),
             _ => None,
         };
         if !self
@@ -247,7 +260,12 @@ where
                     decision,
                 )?;
             }
-            SuggestionCommand::Reject { .. } => envelope.reject(request.at)?,
+            SuggestionCommand::Reject { .. } => {
+                let decision = human_decision
+                    .take()
+                    .ok_or(SuggestionApplicationError::HumanDecisionRequired)?;
+                envelope.reject(request.expected_version, request.command_id, decision)?;
+            }
             SuggestionCommand::Supersede { .. } => envelope.supersede(request.at)?,
             SuggestionCommand::Fail { failure_code, .. } => {
                 envelope.fail(failure_code, request.at)?
@@ -307,4 +325,111 @@ fn validate_request(request: &SuggestionCommandRequest) -> Result<(), Suggestion
         return Err(SuggestionApplicationError::InvalidRequest);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    use async_trait::async_trait;
+    use erpx_kernel::{ActorKind, SessionId};
+
+    use super::*;
+
+    #[derive(Clone, Default)]
+    struct NeverRepository {
+        loads: Arc<AtomicUsize>,
+        commits: Arc<AtomicUsize>,
+    }
+
+    #[async_trait]
+    impl SuggestionRepository for NeverRepository {
+        async fn load(
+            &self,
+            _: &AuthorityScope,
+            _: SuggestionId,
+        ) -> Result<Option<SuggestionEnvelope>, SuggestionApplicationError> {
+            self.loads.fetch_add(1, Ordering::SeqCst);
+            Ok(None)
+        }
+
+        async fn commit(
+            &self,
+            _: &AuthorityScope,
+            _: SuggestionCommit,
+        ) -> Result<SuggestionReceipt, SuggestionApplicationError> {
+            self.commits.fetch_add(1, Ordering::SeqCst);
+            Err(SuggestionApplicationError::Unavailable)
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct NeverAuthorization(Arc<AtomicUsize>);
+
+    #[async_trait]
+    impl SuggestionAuthorizationPort for NeverAuthorization {
+        async fn authorize(
+            &self,
+            _: &AuthorityScope,
+            _: &ActorAttribution,
+            _: &SuggestionCommand,
+        ) -> Result<bool, SuggestionApplicationError> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            Ok(true)
+        }
+    }
+
+    fn actor(kind: ActorKind) -> ActorAttribution {
+        ActorAttribution {
+            principal_ref: "principal:reject-test".into(),
+            kind,
+            session_id: Some(SessionId::try_from_uuid(Uuid::from_u128(9)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn rejection_denies_non_direct_humans_before_authorization_load_or_commit() {
+        let mut actors = vec![
+            actor(ActorKind::Agent),
+            actor(ActorKind::Service),
+            actor(ActorKind::SystemWorker),
+        ];
+        let mut sessionless = actor(ActorKind::HoldingUser);
+        sessionless.session_id = None;
+        actors.push(sessionless);
+        let mut represented = actor(ActorKind::HoldingUser);
+        represented.represented_principal_ref = Some("principal:represented".into());
+        actors.push(represented);
+
+        for actor in actors {
+            let repository = NeverRepository::default();
+            let authorization = NeverAuthorization::default();
+            let service = SuggestionService::new(repository.clone(), authorization.clone());
+            let error = service
+                .execute(SuggestionCommandRequest {
+                    command_id: Uuid::from_u128(10),
+                    idempotency_key: "reject-suggestion".into(),
+                    scope: AuthorityScope::Holding {
+                        holding_id: Uuid::from_u128(1),
+                    },
+                    actor,
+                    expected_version: 3,
+                    command: SuggestionCommand::Reject {
+                        suggestion_id: SuggestionId::try_from_uuid(Uuid::from_u128(2)).unwrap(),
+                    },
+                    at: DateTime::from_timestamp(1_800_000_000, 0).unwrap(),
+                })
+                .await
+                .unwrap_err();
+            assert_eq!(error, SuggestionApplicationError::HumanDecisionRequired);
+            assert_eq!(authorization.0.load(Ordering::SeqCst), 0);
+            assert_eq!(repository.loads.load(Ordering::SeqCst), 0);
+            assert_eq!(repository.commits.load(Ordering::SeqCst), 0);
+        }
+    }
 }

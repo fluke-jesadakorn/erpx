@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::{AuthorityScope, DataClassification, HumanDecisionProof, RecordId};
+use erpx_kernel::{AuthorityScope, CommandId, DataClassification, HumanDecisionProof, RecordId};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use thiserror::Error;
@@ -38,6 +38,21 @@ uuid_id!(CheckpointId);
 uuid_id!(AgentPoolId);
 uuid_id!(AgentSessionId);
 uuid_id!(SessionMessageId);
+
+pub fn session_message_publication_decision_ref(
+    session_id: AgentSessionId,
+    message_id: SessionMessageId,
+    expected_version: u64,
+    command_id: CommandId,
+) -> String {
+    format!(
+        "agent.session:{}:message:{}:publish:v{}:command:{}",
+        session_id.as_uuid(),
+        message_id.as_uuid(),
+        expected_version,
+        command_id.as_uuid()
+    )
+}
 uuid_id!(ActionCardId);
 uuid_id!(BudgetReservationId);
 uuid_id!(ProviderPolicyId);
@@ -2062,15 +2077,24 @@ impl AgentSession {
     pub fn publish_agent_message(
         &mut self,
         message_id: SessionMessageId,
-        approving_human_ref: &str,
         audience_reauthorized: bool,
         publication_anchor_ref: Uuid,
-        at: DateTime<Utc>,
+        command_id: CommandId,
+        decision: &HumanDecisionProof,
     ) -> Result<(), AgentDomainError> {
+        let at = decision.decided_at();
         if self.expires_at <= at || self.expired_at.is_some() {
             return Err(AgentDomainError::SessionExpired);
         }
-        if self.owner_human_ref != approving_human_ref
+        if decision.authority_scope() != &self.scope
+            || decision.principal_ref() != self.owner_human_ref
+            || decision.decision_ref()
+                != session_message_publication_decision_ref(
+                    self.id,
+                    message_id,
+                    self.version,
+                    command_id,
+                )
             || !audience_reauthorized
             || publication_anchor_ref.is_nil()
         {
@@ -2089,7 +2113,7 @@ impl AgentSession {
             .checked_add(1)
             .ok_or(AgentDomainError::ArithmeticOverflow)?;
         message.published_at = Some(at);
-        message.publishing_approver_human_ref = Some(approving_human_ref.to_owned());
+        message.publishing_approver_human_ref = Some(decision.principal_ref().to_owned());
         message.publication_anchor_ref = Some(publication_anchor_ref);
         self.advance(at)
     }
@@ -2262,6 +2286,22 @@ mod tests {
                 support_capability_id: None,
             },
             scope,
+            reference,
+            at(),
+        )
+        .unwrap()
+    }
+
+    fn session_human_decision(reference: &str) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "human:1".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(SessionId::try_from_uuid(id(98)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope(),
             reference,
             at(),
         )
@@ -2811,10 +2851,15 @@ mod tests {
         assert_eq!(
             session.publish_agent_message(
                 SessionMessageId::try_from_uuid(id(81)).unwrap(),
-                "human:1",
                 true,
                 id(180),
-                at(),
+                CommandId::try_from_uuid(id(580)).unwrap(),
+                &session_human_decision(&session_message_publication_decision_ref(
+                    session.id(),
+                    SessionMessageId::try_from_uuid(id(81)).unwrap(),
+                    session.version(),
+                    CommandId::try_from_uuid(id(580)).unwrap(),
+                )),
             ),
             Err(AgentDomainError::ImpersonationDenied)
         );
@@ -2838,10 +2883,15 @@ mod tests {
         session
             .publish_agent_message(
                 SessionMessageId::try_from_uuid(id(82)).unwrap(),
-                "human:1",
                 true,
                 id(181),
-                at(),
+                CommandId::try_from_uuid(id(581)).unwrap(),
+                &session_human_decision(&session_message_publication_decision_ref(
+                    session.id(),
+                    SessionMessageId::try_from_uuid(id(82)).unwrap(),
+                    session.version(),
+                    CommandId::try_from_uuid(id(581)).unwrap(),
+                )),
             )
             .unwrap();
         session.expire(at() + Duration::hours(1)).unwrap();

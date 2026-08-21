@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::{MoneyAmount, Quantity, StableRecordRef};
-use erpx_kernel::{AuthorityScope, CorrelationId};
+use erpx_kernel::{ActorAttribution, AuthorityScope, CommandId, CorrelationId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -38,6 +38,64 @@ manufacturing_id!(ResultFactId, "result_fact_id");
 manufacturing_id!(LaborFactId, "labor_fact_id");
 manufacturing_id!(CostFactId, "cost_fact_id");
 manufacturing_id!(DispositionId, "disposition_id");
+
+pub fn specification_publish_decision_ref(
+    id: SpecificationId,
+    expected_version: u64,
+    command_id: CommandId,
+) -> String {
+    format!(
+        "manufacturing.specification:{}:publish:v{}:command:{}",
+        id.as_uuid(),
+        expected_version,
+        command_id.as_uuid()
+    )
+}
+
+pub fn production_order_release_decision_ref(
+    id: ProductionOrderId,
+    expected_version: u64,
+    command_id: CommandId,
+) -> String {
+    format!(
+        "manufacturing.order:{}:release:v{}:command:{}",
+        id.as_uuid(),
+        expected_version,
+        command_id.as_uuid()
+    )
+}
+
+pub fn production_order_close_decision_ref(
+    id: ProductionOrderId,
+    expected_version: u64,
+    command_id: CommandId,
+) -> String {
+    format!(
+        "manufacturing.order:{}:close:v{}:command:{}",
+        id.as_uuid(),
+        expected_version,
+        command_id.as_uuid()
+    )
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ManufacturingHumanDecisionEvidence {
+    pub actor: ActorAttribution,
+    pub authority_scope: AuthorityScope,
+    pub decision_ref: String,
+    pub decided_at: DateTime<Utc>,
+}
+
+impl ManufacturingHumanDecisionEvidence {
+    fn retain(decision: &HumanDecisionProof) -> Self {
+        Self {
+            actor: decision.actor().clone(),
+            authority_scope: decision.authority_scope().clone(),
+            decision_ref: decision.decision_ref().to_owned(),
+            decided_at: decision.decided_at(),
+        }
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -131,6 +189,8 @@ pub struct ManufacturingSpecification {
     routing: Vec<RoutingStep>,
     status: SpecificationStatus,
     updated_at: DateTime<Utc>,
+    #[serde(default)]
+    publish_decision: Option<Box<ManufacturingHumanDecisionEvidence>>,
 }
 
 impl ManufacturingSpecification {
@@ -158,17 +218,31 @@ impl ManufacturingSpecification {
             routing,
             status: SpecificationStatus::Draft,
             updated_at: at,
+            publish_decision: None,
         };
         value.validate()?;
         Ok(value)
     }
 
-    pub fn release(&mut self, at: DateTime<Utc>) -> Result<(), ManufacturingDomainError> {
+    pub fn release(
+        &mut self,
+        command_id: CommandId,
+        decision: &HumanDecisionProof,
+    ) -> Result<(), ManufacturingDomainError> {
+        require_exact_human_decision(
+            decision,
+            &self.scope,
+            &specification_publish_decision_ref(self.id, self.version, command_id),
+        )?;
+        let at = decision.decided_at();
         if self.status != SpecificationStatus::Draft || at < self.updated_at {
             return Err(ManufacturingDomainError::InvalidTransition);
         }
         self.validate()?;
         self.status = SpecificationStatus::Released;
+        self.publish_decision = Some(Box::new(ManufacturingHumanDecisionEvidence::retain(
+            decision,
+        )));
         self.advance(at)
     }
 
@@ -329,6 +403,10 @@ pub struct ProductionOrder {
     costs: BTreeMap<CostFactId, ManufacturingCostFact>,
     correlation_id: CorrelationId,
     updated_at: DateTime<Utc>,
+    #[serde(default)]
+    release_decision: Option<Box<ManufacturingHumanDecisionEvidence>>,
+    #[serde(default)]
+    close_decision: Option<Box<ManufacturingHumanDecisionEvidence>>,
 }
 
 impl ProductionOrder {
@@ -391,11 +469,30 @@ impl ProductionOrder {
             costs: BTreeMap::new(),
             correlation_id,
             updated_at: at,
+            release_decision: None,
+            close_decision: None,
         })
     }
 
-    pub fn release(&mut self, at: DateTime<Utc>) -> Result<(), ManufacturingDomainError> {
-        self.transition(ProductionStatus::Draft, ProductionStatus::Released, at)
+    pub fn release(
+        &mut self,
+        command_id: CommandId,
+        decision: &HumanDecisionProof,
+    ) -> Result<(), ManufacturingDomainError> {
+        require_exact_human_decision(
+            decision,
+            &self.scope,
+            &production_order_release_decision_ref(self.id, self.version, command_id),
+        )?;
+        self.transition(
+            ProductionStatus::Draft,
+            ProductionStatus::Released,
+            decision.decided_at(),
+        )?;
+        self.release_decision = Some(Box::new(ManufacturingHumanDecisionEvidence::retain(
+            decision,
+        )));
+        Ok(())
     }
 
     pub fn reserve_material(
@@ -556,7 +653,16 @@ impl ProductionOrder {
         )
     }
 
-    pub fn close(&mut self, at: DateTime<Utc>) -> Result<(), ManufacturingDomainError> {
+    pub fn close(
+        &mut self,
+        command_id: CommandId,
+        decision: &HumanDecisionProof,
+    ) -> Result<(), ManufacturingDomainError> {
+        require_exact_human_decision(
+            decision,
+            &self.scope,
+            &production_order_close_decision_ref(self.id, self.version, command_id),
+        )?;
         if self
             .dispositions
             .values()
@@ -566,7 +672,15 @@ impl ProductionOrder {
         {
             return Err(ManufacturingDomainError::IncompleteReconciliation);
         }
-        self.transition(ProductionStatus::Completed, ProductionStatus::Closed, at)
+        self.transition(
+            ProductionStatus::Completed,
+            ProductionStatus::Closed,
+            decision.decided_at(),
+        )?;
+        self.close_decision = Some(Box::new(ManufacturingHumanDecisionEvidence::retain(
+            decision,
+        )));
+        Ok(())
     }
 
     fn transition(
@@ -670,6 +784,24 @@ fn same_scale(left: Quantity, right: Quantity) -> Result<(), ManufacturingDomain
     }
 }
 
+fn require_exact_human_decision(
+    decision: &HumanDecisionProof,
+    scope: &AuthorityScope,
+    expected_ref: &str,
+) -> Result<(), ManufacturingDomainError> {
+    if decision.authority_scope() != scope
+        || decision.decision_ref() != expected_ref
+        || !decision.actor().is_human()
+        || decision.actor().session_id.is_none()
+        || decision.actor().represented_principal_ref.is_some()
+        || decision.actor().support_capability_id.is_some()
+    {
+        Err(ManufacturingDomainError::HumanDecisionRequired)
+    } else {
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum ManufacturingDomainError {
     #[error("invalid manufacturing identifier: {0}")]
@@ -692,6 +824,8 @@ pub enum ManufacturingDomainError {
     SpecificationNotReleased,
     #[error("invalid lifecycle transition")]
     InvalidTransition,
+    #[error("an authenticated direct human decision is required")]
+    HumanDecisionRequired,
     #[error("invalid event timestamp")]
     InvalidTimestamp,
     #[error("unknown material line")]

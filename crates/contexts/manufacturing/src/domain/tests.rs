@@ -3,7 +3,10 @@ use erpx_integration_contracts::{
     CurrencyCode, MoneyAmount, Quantity, StableRecordRef, catalog::ContextId,
     reference::RecordTypeId,
 };
-use erpx_kernel::{AuthorityScope, CorrelationId, RecordId};
+use erpx_kernel::{
+    ActorAttribution, ActorKind, AuthorityScope, CommandId, CorrelationId, HumanDecisionProof,
+    RecordId, SessionId,
+};
 use uuid::Uuid;
 
 use super::*;
@@ -37,6 +40,21 @@ fn record(id: u128, owner: ContextId, kind: &str) -> StableRecordRef {
 fn quantity(units: i64) -> Quantity {
     Quantity::try_new(units, 3).unwrap()
 }
+fn human_decision(reference: String, decided_at: chrono::DateTime<Utc>) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: uuid(90).to_string(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(uuid(91)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        scope(),
+        reference,
+        decided_at,
+    )
+    .unwrap()
+}
 fn specification(mode: ManufacturingMode) -> ManufacturingSpecification {
     let role = if mode == ManufacturingMode::Discrete {
         MaterialRole::Component
@@ -67,7 +85,16 @@ fn specification(mode: ManufacturingMode) -> ManufacturingSpecification {
         at(1),
     )
     .unwrap();
-    value.release(at(2)).unwrap();
+    let command_id = CommandId::try_from_uuid(uuid(101)).unwrap();
+    let decision = human_decision(
+        specification_publish_decision_ref(
+            value.reference().specification_id,
+            value.reference().version,
+            command_id,
+        ),
+        at(2),
+    );
+    value.release(command_id, &decision).unwrap();
     value
 }
 
@@ -83,7 +110,12 @@ fn discrete_order_enforces_reserve_issue_and_idempotent_facts() {
         at(3),
     )
     .unwrap();
-    order.release(at(4)).unwrap();
+    let command_id = CommandId::try_from_uuid(uuid(102)).unwrap();
+    let decision = human_decision(
+        production_order_release_decision_ref(order.id(), order.version(), command_id),
+        at(4),
+    );
+    order.release(command_id, &decision).unwrap();
     assert_eq!(
         order.start(at(5)),
         Err(ManufacturingDomainError::MaterialNotReserved)
@@ -115,7 +147,12 @@ fn process_order_tracks_genealogy_quality_and_close_reconciliation() {
         at(3),
     )
     .unwrap();
-    order.release(at(4)).unwrap();
+    let command_id = CommandId::try_from_uuid(uuid(103)).unwrap();
+    let decision = human_decision(
+        production_order_release_decision_ref(order.id(), order.version(), command_id),
+        at(4),
+    );
+    order.release(command_id, &decision).unwrap();
     order.reserve_material(10, quantity(2_000), at(5)).unwrap();
     order.start(at(6)).unwrap();
     order
@@ -175,8 +212,13 @@ fn process_order_tracks_genealogy_quality_and_close_reconciliation() {
         )
         .unwrap();
     order.complete(at(10)).unwrap();
+    let close_command = CommandId::try_from_uuid(uuid(104)).unwrap();
+    let close_decision = human_decision(
+        production_order_close_decision_ref(order.id(), order.version(), close_command),
+        at(11),
+    );
     assert_eq!(
-        order.close(at(11)),
+        order.close(close_command, &close_decision),
         Err(ManufacturingDomainError::IncompleteReconciliation)
     );
 }
@@ -184,8 +226,17 @@ fn process_order_tracks_genealogy_quality_and_close_reconciliation() {
 #[test]
 fn fixed_precision_and_mode_specific_roles_are_enforced() {
     let mut spec = specification(ManufacturingMode::Discrete);
+    let command_id = CommandId::try_from_uuid(uuid(105)).unwrap();
+    let decision = human_decision(
+        specification_publish_decision_ref(
+            spec.reference().specification_id,
+            spec.reference().version,
+            command_id,
+        ),
+        at(3),
+    );
     assert_eq!(
-        spec.release(at(3)),
+        spec.release(command_id, &decision),
         Err(ManufacturingDomainError::InvalidTransition)
     );
     let bad = ManufacturingSpecification::draft(

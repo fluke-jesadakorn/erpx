@@ -4,7 +4,10 @@ use chrono::{NaiveDate, TimeZone, Utc};
 use erpx_integration_contracts::{
     Quantity, RecordVersionRef, StableRecordRef, catalog::ContextId, reference::RecordTypeId,
 };
-use erpx_kernel::{AuthorityScope, CorrelationId, RecordId};
+use erpx_kernel::{
+    ActorAttribution, ActorKind, AuthorityScope, CommandId, CorrelationId, HumanDecisionProof,
+    RecordId, SessionId,
+};
 use uuid::Uuid;
 
 use super::*;
@@ -43,6 +46,21 @@ fn version(record: StableRecordRef, version: u64) -> RecordVersionRef {
 }
 fn qty(units: i64) -> Quantity {
     Quantity::try_new(units, 3).unwrap()
+}
+fn human_decision(reference: String, decided_at: chrono::DateTime<Utc>) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: uuid(90).to_string(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(uuid(91)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        scope(),
+        reference,
+        decided_at,
+    )
+    .unwrap()
 }
 
 fn frozen_scenario() -> PlanningScenario {
@@ -187,7 +205,12 @@ fn override_requires_reason_and_release_requires_approval() {
         ),
         Err(PlanningDomainError::RecommendationNotApproved)
     );
-    recommendation.approve().unwrap();
+    let command_id = CommandId::try_from_uuid(uuid(92)).unwrap();
+    let decision = human_decision(
+        recommendation_approval_decision_ref(recommendation.id, recommendation.version, command_id),
+        at(6),
+    );
+    recommendation.approve(command_id, &decision).unwrap();
     let release = RecommendationRelease::from_approved(
         ReleaseId::try_from_uuid(uuid(47)).unwrap(),
         &recommendation,

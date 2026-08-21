@@ -1,5 +1,5 @@
 use chrono::{Duration, TimeZone, Utc};
-use erpx_kernel::{ActorAttribution, ActorKind, HumanDecisionProof, SessionId};
+use erpx_kernel::{ActorAttribution, ActorKind, CommandId, HumanDecisionProof, SessionId};
 
 use super::*;
 
@@ -138,7 +138,26 @@ fn workflow_mapping_is_versioned_and_withdrawal_blocks_new_transition() {
         .add_node(node(40, None, NodeKind::Epic), &flow, at(1))
         .unwrap();
     value
-        .transition_node(phase, 1, "working", &flow, at(2))
+        .transition_node(
+            phase,
+            1,
+            "working",
+            &flow,
+            CommandId::try_from_uuid(id(501)).unwrap(),
+            &human_decision(
+                901,
+                scope(3),
+                project_node_transition_decision_ref(
+                    value.id(),
+                    phase,
+                    value.version(),
+                    1,
+                    "working",
+                    CommandId::try_from_uuid(id(501)).unwrap(),
+                ),
+                at(2),
+            ),
+        )
         .unwrap();
     assert_eq!(
         value.nodes().get(&phase).unwrap().core_state(),
@@ -146,7 +165,26 @@ fn workflow_mapping_is_versioned_and_withdrawal_blocks_new_transition() {
     );
     flow.withdraw(at(3)).unwrap();
     assert_eq!(
-        value.transition_node(phase, 2, "closed", &flow, at(3)),
+        value.transition_node(
+            phase,
+            2,
+            "closed",
+            &flow,
+            CommandId::try_from_uuid(id(502)).unwrap(),
+            &human_decision(
+                901,
+                scope(3),
+                project_node_transition_decision_ref(
+                    value.id(),
+                    phase,
+                    value.version(),
+                    2,
+                    "closed",
+                    CommandId::try_from_uuid(id(502)).unwrap(),
+                ),
+                at(3),
+            ),
+        ),
         Err(ProjectDomainError::InvalidTransition)
     );
 }

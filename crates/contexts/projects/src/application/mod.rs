@@ -16,7 +16,8 @@ use crate::{
         ProjectClass, ProjectCloseEvidence, ProjectDomainError, ProjectHandoff, ProjectId,
         ProjectNode, ProjectNodeId, ProjectStatus, ProjectsAggregate, TimeFact, WorkflowTemplateId,
         dependency_acceptance_decision_ref, dependency_rejection_decision_ref,
-        handoff_approval_decision_ref,
+        handoff_approval_decision_ref, project_node_transition_decision_ref,
+        project_transition_decision_ref,
     },
     ports::{
         AuthorizationPort, AuthorizationRequest, CommandFingerprint, CommandIdentity,
@@ -460,6 +461,7 @@ where
         context: CommandContext,
         command: TransitionProject,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError> {
+        require_authenticated_human_decision(&context.actor)?;
         let identity = CommandIdentity {
             command_id: context.command_id,
             idempotency_key: context.idempotency_key.clone(),
@@ -482,18 +484,31 @@ where
         self.preflight(&context, project.scope(), ProjectAction::ChangeProject)
             .await?;
         let expected = required_version(context.expected_version, project.version())?;
+        let human_decision = bind_human_decision(
+            &context.actor,
+            project.scope().clone(),
+            project_transition_decision_ref(
+                project.id(),
+                expected,
+                command.target_status,
+                context.command_id,
+            ),
+            self.clock.now(),
+        )?;
         project.transition(
             command.target_status,
             command.close_evidence,
-            self.clock.now(),
+            context.command_id,
+            &human_decision,
         )?;
         let events = project.take_events();
-        self.persist(
+        self.persist_with_human_decision(
             context,
             identity,
             Some(expected),
             ProjectsAggregate::Project(project),
             events,
+            Some(human_decision),
         )
         .await
     }
@@ -503,6 +518,9 @@ where
         context: CommandContext,
         command: ChangeProjectNode,
     ) -> Result<CommandReceipt<ProjectsAggregate>, ProjectApplicationError> {
+        if matches!(command.change, ProjectNodeChange::Transition { .. }) {
+            require_authenticated_human_decision(&context.actor)?;
+        }
         let identity = CommandIdentity {
             command_id: context.command_id,
             idempotency_key: context.idempotency_key.clone(),
@@ -526,6 +544,7 @@ where
             .await?;
         let expected = required_version(context.expected_version, project.version())?;
         let at = self.clock.now();
+        let mut human_decision = None;
         match command.change {
             ProjectNodeChange::Move { parent_id } => {
                 let node_version = project
@@ -548,13 +567,28 @@ where
                     .load_workflow(&context.authority_scope, project.workflow().template_id)
                     .await?
                     .ok_or(PortError::NotFound)?;
+                let decision = bind_human_decision(
+                    &context.actor,
+                    project.scope().clone(),
+                    project_node_transition_decision_ref(
+                        project.id(),
+                        command.node_id,
+                        expected,
+                        node_version,
+                        &target_workflow_state,
+                        context.command_id,
+                    ),
+                    at,
+                )?;
                 project.transition_node(
                     command.node_id,
                     node_version,
                     target_workflow_state,
                     &workflow,
-                    at,
+                    context.command_id,
+                    &decision,
                 )?;
+                human_decision = Some(decision);
             }
             ProjectNodeChange::AttachReference { reference } => {
                 project.attach_reference(command.node_id, reference, at)?;
@@ -570,12 +604,13 @@ where
             }
         }
         let events = project.take_events();
-        self.persist(
+        self.persist_with_human_decision(
             context,
             identity,
             Some(expected),
             ProjectsAggregate::Project(project),
             events,
+            human_decision,
         )
         .await
     }
@@ -1230,6 +1265,70 @@ mod tests {
                     ChangeHandoff {
                         handoff_id: HandoffId::try_from_uuid(id(530)).unwrap(),
                         change: HandoffChange::Approve,
+                    },
+                )
+                .await
+                .unwrap_err();
+            assert!(matches!(
+                error,
+                ProjectApplicationError::HumanDecisionRequired
+            ));
+            assert_eq!(loads.load(Ordering::SeqCst), 0);
+            assert_eq!(uow.receipt_reads.load(Ordering::SeqCst), 0);
+            assert!(uow.commits.lock().unwrap().is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn project_and_node_transitions_reject_invalid_humans_before_replay_or_load() {
+        let mut actors = vec![
+            command_context(ActorKind::Agent, 140, 1),
+            command_context(ActorKind::Service, 141, 1),
+            command_context(ActorKind::SystemWorker, 142, 1),
+        ];
+        let mut sessionless = command_context(ActorKind::HoldingUser, 143, 1);
+        sessionless.actor.session_id = None;
+        actors.push(sessionless);
+        let mut represented = command_context(ActorKind::HoldingUser, 144, 1);
+        represented.actor.represented_principal_ref = Some(id(145).to_string());
+        actors.push(represented);
+
+        for context in actors {
+            let write = TestWrite::default();
+            let loads = write.loads.clone();
+            let uow = TestUnitOfWork::default();
+            let application = service(write, uow.clone(), 1);
+            let error = application
+                .transition_project(
+                    context.clone(),
+                    TransitionProject {
+                        project_id: ProjectId::try_from_uuid(id(100)).unwrap(),
+                        target_status: ProjectStatus::Approved,
+                        close_evidence: None,
+                    },
+                )
+                .await
+                .unwrap_err();
+            assert!(matches!(
+                error,
+                ProjectApplicationError::HumanDecisionRequired
+            ));
+            assert_eq!(loads.load(Ordering::SeqCst), 0);
+            assert_eq!(uow.receipt_reads.load(Ordering::SeqCst), 0);
+            assert!(uow.commits.lock().unwrap().is_empty());
+
+            let write = TestWrite::default();
+            let loads = write.loads.clone();
+            let uow = TestUnitOfWork::default();
+            let error = service(write, uow.clone(), 1)
+                .change_node(
+                    context,
+                    ChangeProjectNode {
+                        project_id: ProjectId::try_from_uuid(id(100)).unwrap(),
+                        node_id: ProjectNodeId::try_from_uuid(id(101)).unwrap(),
+                        change: ProjectNodeChange::Transition {
+                            target_workflow_state: "working".into(),
+                        },
                     },
                 )
                 .await
