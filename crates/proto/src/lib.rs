@@ -8,7 +8,7 @@ pub const FILE_DESCRIPTOR_SET: &[u8] =
 pub const APPROVED_DESCRIPTOR_SHA256: &str =
     include_str!("../descriptor/erpx_descriptor_set.sha256");
 
-pub const ACTIVE_SERVICE_COUNT: usize = 65;
+pub const ACTIVE_SERVICE_COUNT: usize = 67;
 pub mod erpx {
     pub mod common {
         tonic::include_proto!("erpx.common");
@@ -253,6 +253,156 @@ mod tests {
                 .iter()
                 .all(|field| field.name.as_deref() != Some("authorized_projection_json_utf8"))
         );
+    }
+
+    #[test]
+    fn procurement_phase_five_contracts_are_additive_typed_and_source_pinned() {
+        let descriptor = FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)
+            .expect("approved descriptor must decode");
+        let procurement = descriptor
+            .file
+            .iter()
+            .find(|file| file.package.as_deref() == Some("erpx.procurement"))
+            .expect("procurement descriptor");
+        let methods = procurement
+            .service
+            .iter()
+            .flat_map(|service| service.method.iter())
+            .filter_map(|method| method.name.as_deref())
+            .collect::<BTreeSet<_>>();
+        for method in [
+            "Create",
+            "Release",
+            "Cancel",
+            "Get",
+            "List",
+            "CreateRequisition",
+            "SubmitRequisition",
+            "ApproveRequisition",
+            "RejectRequisition",
+            "CancelRequisition",
+            "CreateGoodsReceipt",
+            "AcceptGoodsReceipt",
+            "RejectGoodsReceipt",
+            "CancelGoodsReceipt",
+            "GetRequisition",
+            "GetGoodsReceipt",
+        ] {
+            assert!(methods.contains(method), "missing additive RPC {method}");
+        }
+
+        let messages = procurement
+            .message_type
+            .iter()
+            .filter_map(|message| message.name.as_deref().map(|name| (name, message)))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let create_order = messages
+            .get("CreatePurchaseOrderRequest")
+            .expect("purchase-order create request");
+        assert!(create_order.field.iter().any(|field| {
+            field.name.as_deref() == Some("source_requisition")
+                && field.type_name.as_deref() == Some(".erpx.procurement.RecordVersionRef")
+        }));
+        assert!(create_order.field.iter().any(|field| {
+            field.name.as_deref() == Some("contract") && field.proto3_optional.unwrap_or(false)
+        }));
+
+        let receipt_line = messages
+            .get("GoodsReceiptLineRecord")
+            .expect("typed goods-receipt line");
+        for field in [
+            "line_id",
+            "purchase_order_line_id",
+            "inventory_stock_item_id",
+            "received_quantity",
+        ] {
+            assert!(
+                receipt_line
+                    .field
+                    .iter()
+                    .any(|candidate| candidate.name.as_deref() == Some(field)),
+                "goods receipt line is missing {field}"
+            );
+        }
+    }
+
+    #[test]
+    fn finance_payables_contracts_are_typed_exact_versioned_and_distinct_from_ar() {
+        let descriptor = FileDescriptorSet::decode(FILE_DESCRIPTOR_SET)
+            .expect("approved descriptor must decode");
+        let finance = descriptor
+            .file
+            .iter()
+            .find(|file| file.package.as_deref() == Some("erpx.finance"))
+            .expect("finance descriptor");
+        let methods = finance
+            .service
+            .iter()
+            .flat_map(|service| service.method.iter())
+            .filter_map(|method| method.name.as_deref())
+            .collect::<BTreeSet<_>>();
+        for method in [
+            "CreateVendorInvoice",
+            "PostVendorInvoice",
+            "CreatePayment",
+            "ReleasePayment",
+            "GetVendorInvoice",
+            "GetPayment",
+        ] {
+            assert!(methods.contains(method), "missing Finance AP RPC {method}");
+        }
+
+        let messages = finance
+            .message_type
+            .iter()
+            .filter_map(|message| message.name.as_deref().map(|name| (name, message)))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        assert!(messages.contains_key("FinanceVendorInvoiceRecord"));
+        assert!(!messages.contains_key("FinanceInvoiceRecord"));
+
+        let versioned = messages
+            .get("FinanceVersionedRecordRef")
+            .expect("exact-version Finance reference");
+        for field in [
+            "context",
+            "aggregate_kind",
+            "aggregate_id",
+            "aggregate_version",
+        ] {
+            assert!(
+                versioned
+                    .field
+                    .iter()
+                    .any(|candidate| candidate.name.as_deref() == Some(field)),
+                "Finance exact-version reference is missing {field}"
+            );
+        }
+
+        let vendor_invoice = messages
+            .get("FinanceVendorInvoiceRecord")
+            .expect("typed vendor invoice record");
+        for (field_name, field_type) in [
+            ("purchase_order", ".erpx.finance.FinanceVersionedRecordRef"),
+            ("receipt", ".erpx.finance.FinanceVersionedRecordRef"),
+            ("tolerance", ".erpx.finance.FinanceThreeWayMatchTolerance"),
+            ("total_amount", ".erpx.finance.FinanceMoneyAmount"),
+        ] {
+            assert!(vendor_invoice.field.iter().any(|field| {
+                field.name.as_deref() == Some(field_name)
+                    && field.type_name.as_deref() == Some(field_type)
+            }));
+        }
+        assert!(vendor_invoice.field.iter().any(|field| {
+            field.name.as_deref() == Some("payable_id") && field.proto3_optional.unwrap_or(false)
+        }));
+
+        let payment = messages
+            .get("FinancePaymentRecord")
+            .expect("typed payment record");
+        assert!(payment.field.iter().any(|field| {
+            field.name.as_deref() == Some("allocations")
+                && field.type_name.as_deref() == Some(".erpx.finance.FinancePaymentAllocation")
+        }));
     }
 
     #[test]

@@ -1,5 +1,14 @@
+mod payables;
 mod records;
 mod sales_posting;
+pub use payables::{
+    MAX_PAYMENT_ALLOCATIONS, MAX_VENDOR_INVOICE_LINES, Payable, PayableId, PayablesAggregate,
+    PayablesDomainError, PayablesDomainEvent, Payment, PaymentAllocation, PaymentId,
+    PaymentReleasedAllocationState, PaymentReleasedState, PaymentStatus, ThreeWayMatchEvidence,
+    ThreeWayMatchLineEvidence, ThreeWayMatchTolerance, VendorInvoice, VendorInvoiceId,
+    VendorInvoiceLine, VendorInvoiceLineId, VendorInvoicePostedState, VendorInvoiceStatus,
+    payment_release_decision_ref, vendor_invoice_post_decision_ref,
+};
 pub use records::{FinanceRecord, FinanceRecordError, FinanceRecordKind, FinanceRecordStatus};
 pub use sales_posting::{
     AccountingObligation, AccountingPlan, AccountingPlanId, AccountingPlanStatus,

@@ -78,7 +78,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // The outbound customer-hosted agent protocol is an infrastructure host
     // contract, not an additional business service ID. Generate it separately
-    // so it cannot enter the approved 65-service reflection descriptor.
+    // so it cannot enter the approved 67-service reflection descriptor.
     tonic_prost_build::configure()
         .build_client(true)
         .build_server(true)

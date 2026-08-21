@@ -1385,7 +1385,13 @@ fn to_cqrs(error: FinanceApplicationError, correlation_id: CorrelationId) -> Cqr
     })
 }
 
+mod payables;
 mod records;
 #[cfg(test)]
 mod tests;
+pub use payables::{
+    CreatePayment, CreateVendorInvoice, GetPayment, GetVendorInvoice, PayablesApplicationError,
+    PayablesCommand, PayablesCommandHandler, PayablesMutationResult, PayablesQuery,
+    PayablesQueryHandler, PayablesQueryResponse, PostVendorInvoice, ReleasePayment,
+};
 pub use records::{FinanceRecordApplicationError, FinanceRecordCommandHandler};

@@ -1193,8 +1193,8 @@ mod tests {
 
     #[test]
     fn holding_write_and_read_migrations_are_separate_and_rls_backed() {
-        assert_eq!(HOLDING_WRITE_MIGRATOR.iter().count(), 6);
-        assert_eq!(HOLDING_READ_MIGRATOR.iter().count(), 3);
+        assert_eq!(HOLDING_WRITE_MIGRATOR.iter().count(), 8);
+        assert_eq!(HOLDING_READ_MIGRATOR.iter().count(), 5);
         let write = HOLDING_WRITE_MIGRATOR
             .iter()
             .next()

@@ -1081,6 +1081,200 @@ message GetTypedFinanceStatutoryTaxReportResponse {
   erpx.common.QueryMetadata metadata = 2;
 }
 
+// Finance-owned AP contracts. VendorInvoice is intentionally distinct from
+// the Sales-derived customer invoice/AR aggregate.
+message FinanceVersionedRecordRef {
+  string context = 1;
+  string aggregate_kind = 2;
+  string aggregate_id = 3;
+  uint64 aggregate_version = 4;
+}
+
+message FinanceMoneyAmount {
+  int64 minor_units = 1;
+  string currency = 2;
+}
+
+message FinanceQuantity {
+  int64 units = 1;
+  uint32 scale = 2;
+}
+
+message FinanceThreeWayMatchTolerance {
+  uint32 quantity_basis_points = 1;
+  uint32 amount_basis_points = 2;
+  int64 absolute_amount_minor = 3;
+}
+
+message FinanceThreeWayMatchLineEvidence {
+  string purchase_order_line_id = 1;
+  string receipt_line_id = 2;
+  string item_code = 3;
+  FinanceQuantity ordered_quantity = 4;
+  FinanceQuantity received_quantity = 5;
+  FinanceMoneyAmount ordered_amount = 6;
+  FinanceMoneyAmount received_amount = 7;
+}
+
+message FinanceVendorInvoiceLine {
+  string line_id = 1;
+  string purchase_order_line_id = 2;
+  string receipt_line_id = 3;
+  FinanceQuantity invoiced_quantity = 4;
+  FinanceMoneyAmount invoiced_amount = 5;
+}
+
+enum FinanceVendorInvoiceStatus {
+  FINANCE_VENDOR_INVOICE_STATUS_UNSPECIFIED = 0;
+  FINANCE_VENDOR_INVOICE_STATUS_DRAFT = 1;
+  FINANCE_VENDOR_INVOICE_STATUS_POSTED = 2;
+}
+
+message FinanceVendorInvoiceRecord {
+  string vendor_invoice_id = 1;
+  uint64 source_version = 2;
+  erpx.common.AuthorityScope scope = 3;
+  string invoice_number = 4;
+  string supplier_id = 5;
+  FinanceVersionedRecordRef purchase_order = 6;
+  FinanceVersionedRecordRef receipt = 7;
+  FinanceThreeWayMatchTolerance tolerance = 8;
+  repeated FinanceVendorInvoiceLine lines = 9;
+  FinanceMoneyAmount net_amount = 10;
+  FinanceMoneyAmount tax_amount = 11;
+  FinanceMoneyAmount total_amount = 12;
+  optional string payable_id = 13;
+  string due_on = 14;
+  FinanceVendorInvoiceStatus status = 15;
+  optional string posted_at = 16;
+  string created_at = 17;
+  string updated_at = 18;
+  optional string projected_at = 19;
+}
+
+message FinancePayableRecord {
+  string payable_id = 1;
+  uint64 source_version = 2;
+  erpx.common.AuthorityScope scope = 3;
+  string vendor_invoice_id = 4;
+  uint64 vendor_invoice_version = 5;
+  string supplier_id = 6;
+  FinanceMoneyAmount amount = 7;
+  string posted_at = 8;
+}
+
+message FinancePaymentAllocation {
+  string payable_id = 1;
+  uint64 payable_version = 2;
+  FinanceMoneyAmount amount = 3;
+}
+
+enum FinancePaymentStatus {
+  FINANCE_PAYMENT_STATUS_UNSPECIFIED = 0;
+  FINANCE_PAYMENT_STATUS_DRAFT = 1;
+  FINANCE_PAYMENT_STATUS_RELEASED = 2;
+}
+
+message FinancePaymentRecord {
+  string payment_id = 1;
+  uint64 source_version = 2;
+  erpx.common.AuthorityScope scope = 3;
+  string payment_code = 4;
+  string supplier_id = 5;
+  FinanceMoneyAmount amount = 6;
+  repeated FinancePaymentAllocation allocations = 7;
+  FinancePaymentStatus status = 8;
+  optional string released_at = 9;
+  string created_at = 10;
+  string updated_at = 11;
+  optional string projected_at = 12;
+}
+
+message CreateFinanceVendorInvoiceRequest {
+  erpx.common.CommandRequestMetadata metadata = 1;
+  string vendor_invoice_id = 2;
+  erpx.common.AuthorityScope target_scope = 3;
+  string invoice_number = 4;
+  string supplier_id = 5;
+  FinanceVersionedRecordRef purchase_order = 6;
+  FinanceVersionedRecordRef receipt = 7;
+  FinanceThreeWayMatchTolerance tolerance = 8;
+  repeated FinanceVendorInvoiceLine lines = 9;
+  FinanceMoneyAmount tax_amount = 10;
+  string due_on = 11;
+}
+
+message PostFinanceVendorInvoiceRequest {
+  erpx.common.CommandRequestMetadata metadata = 1;
+  string vendor_invoice_id = 2;
+  FinanceVersionedRecordRef purchase_order = 3;
+  FinanceVersionedRecordRef receipt = 4;
+}
+
+message FinanceVendorInvoiceMutationResponse {
+  erpx.common.CommandReceipt receipt = 1;
+  FinanceVendorInvoiceRecord vendor_invoice = 2;
+  optional FinancePayableRecord payable = 3;
+}
+
+message CreateFinancePaymentRequest {
+  erpx.common.CommandRequestMetadata metadata = 1;
+  string payment_id = 2;
+  erpx.common.AuthorityScope target_scope = 3;
+  string payment_code = 4;
+  string supplier_id = 5;
+  FinanceMoneyAmount amount = 6;
+  repeated FinancePaymentAllocation allocations = 7;
+}
+
+message ReleaseFinancePaymentRequest {
+  erpx.common.CommandRequestMetadata metadata = 1;
+  string payment_id = 2;
+}
+
+message FinancePaymentMutationResponse {
+  erpx.common.CommandReceipt receipt = 1;
+  FinancePaymentRecord payment = 2;
+}
+
+message GetFinanceVendorInvoiceRequest {
+  erpx.common.QueryRequestMetadata metadata = 1;
+  string vendor_invoice_id = 2;
+}
+
+message GetFinanceVendorInvoiceResponse {
+  optional FinanceVendorInvoiceRecord vendor_invoice = 1;
+  optional FinancePayableRecord payable = 2;
+  erpx.common.QueryMetadata metadata = 3;
+}
+
+message GetFinancePaymentRequest {
+  erpx.common.QueryRequestMetadata metadata = 1;
+  string payment_id = 2;
+}
+
+message GetFinancePaymentResponse {
+  optional FinancePaymentRecord payment = 1;
+  erpx.common.QueryMetadata metadata = 2;
+}
+
+service FinancePayablesCommandService {
+  rpc CreateVendorInvoice(CreateFinanceVendorInvoiceRequest)
+      returns (FinanceVendorInvoiceMutationResponse);
+  rpc PostVendorInvoice(PostFinanceVendorInvoiceRequest)
+      returns (FinanceVendorInvoiceMutationResponse);
+  rpc CreatePayment(CreateFinancePaymentRequest)
+      returns (FinancePaymentMutationResponse);
+  rpc ReleasePayment(ReleaseFinancePaymentRequest)
+      returns (FinancePaymentMutationResponse);
+}
+
+service FinancePayablesQueryService {
+  rpc GetVendorInvoice(GetFinanceVendorInvoiceRequest)
+      returns (GetFinanceVendorInvoiceResponse);
+  rpc GetPayment(GetFinancePaymentRequest) returns (GetFinancePaymentResponse);
+}
+
 service FinanceCommandService {
   rpc CreateChart(CreateFinanceChartRequest) returns (FinanceChartMutationResponse);
   rpc AddAccount(AddFinanceAccountRequest) returns (FinanceChartMutationResponse);

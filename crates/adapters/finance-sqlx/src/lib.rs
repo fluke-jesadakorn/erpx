@@ -1,11 +1,18 @@
 #![doc = "PostgreSQL command, read, and projection adapters for Finance."]
 
 mod command;
+mod payables;
 mod projection;
 mod read;
 mod records;
 
 pub use command::{FinanceCommandAdapter, FinanceWriteRepository};
+pub use payables::{
+    FinancePaymentProjector, FinanceVendorInvoiceProjector, PAYABLES_EVENT_VERSION,
+    PAYMENT_AGGREGATE_TYPE, PAYMENT_PROJECTION, PAYMENT_SNAPSHOT_EVENT, PayablesOutboxPayload,
+    PayablesReadAdapter, SqlxPayablesAdapter, VENDOR_INVOICE_AGGREGATE_TYPE,
+    VENDOR_INVOICE_PROJECTION, VENDOR_INVOICE_SNAPSHOT_EVENT,
+};
 pub use projection::{
     FinanceBankTransactionProjector, FinanceChartProjector, FinanceCustomerInvoiceProjector,
     FinanceJournalProjector, FinanceOutboxPayload, FinancePeriodProjector,
@@ -41,6 +48,13 @@ pub const SUBLEDGER_SNAPSHOT_EVENT: &str = "finance.subledger_snapshot";
 pub const CUSTOMER_INVOICE_SNAPSHOT_EVENT: &str = "finance.customer_invoice_snapshot";
 pub const REVENUE_SCHEDULE_SNAPSHOT_EVENT: &str = "finance.revenue_schedule_snapshot";
 pub const EVENT_VERSION: u32 = 1;
+
+#[cfg(test)]
+pub const PAYABLES_WRITE_DDL: &str =
+    include_str!("../../../migration/migrations_holding_write/0007_finance_ap_payment.sql");
+#[cfg(test)]
+pub const PAYABLES_READ_DDL: &str =
+    include_str!("../../../migration/migrations_holding_read/0004_finance_ap_payment.sql");
 
 #[cfg(test)]
 pub const WRITE_DDL: &str =
@@ -124,5 +138,32 @@ mod tests {
         assert!(source.contains("compare_tax_fact"));
         assert!(!source.contains("DELETE FROM erpx_finance_write.bank_transaction_facts"));
         assert!(!source.contains("DELETE FROM erpx_finance_write.statutory_tax_facts"));
+    }
+
+    #[test]
+    fn payables_schema_fences_exact_evidence_atomic_payable_and_rls() {
+        for field in [
+            "purchase_order_version BIGINT NOT NULL",
+            "receipt_version BIGINT NOT NULL",
+            "payable_version BIGINT NOT NULL",
+            "DEFERRABLE INITIALLY DEFERRED",
+            "finance_match_evidence_append_only",
+            "ENABLE ROW LEVEL SECURITY",
+            "FORCE ROW LEVEL SECURITY",
+        ] {
+            assert!(
+                PAYABLES_WRITE_DDL.contains(field),
+                "missing AP fence {field}"
+            );
+        }
+        for projection in [
+            "vendor_invoice_projection",
+            "payable_projection",
+            "payment_projection",
+        ] {
+            assert!(PAYABLES_READ_DDL.contains(projection));
+        }
+        assert!(PAYABLES_READ_DDL.contains("projection_generations"));
+        assert!(PAYABLES_READ_DDL.contains("FORCE ROW LEVEL SECURITY"));
     }
 }
