@@ -1,7 +1,9 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
-use erpx_integration_contracts::{StableRecordRef, catalog::ContextId};
+use erpx_integration_contracts::{
+    RecordVersionRef, StableFieldRef, StableRecordRef, catalog::ContextId,
+};
 use erpx_kernel::{
     ActorAttribution, AuthorityScope, CommandId, DataClassification, HoldingId, HumanDecisionProof,
     PolicyId, PrincipalId, PrincipalKind,
@@ -24,6 +26,7 @@ pub const MAX_REACTION_BYTES: usize = 64;
 pub const MAX_ATTACHMENT_FILE_NAME_BYTES: usize = 512;
 pub const MAX_ATTACHMENT_MEDIA_TYPE_BYTES: usize = 128;
 pub const MAX_ATTACHMENT_BYTES: u64 = 100 * 1024 * 1024;
+pub const MAX_TYPED_TOKEN_LABEL_BYTES: usize = 512;
 
 macro_rules! collaboration_id {
     ($name:ident, $field:literal) => {
@@ -402,11 +405,124 @@ impl ThreadAnchor {
     }
 }
 
+/// Immutable typed identity embedded in a comment document. Labels are
+/// snapshots only and never participate in targeting, authorization, mention
+/// delivery, or Agent assignment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CommentTokenKind {
+    User,
+    Group,
+    Agent,
+    AgentPool,
+    Record,
+    RecordVersion,
+    Field,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum CommentTokenIdentity {
+    User {
+        principal: PrincipalRef,
+    },
+    Group {
+        group_id: Uuid,
+        version: u64,
+    },
+    Agent {
+        principal: PrincipalRef,
+        definition_id: Uuid,
+        version_id: Uuid,
+    },
+    AgentPool {
+        pool_id: Uuid,
+        version: u64,
+    },
+    Record {
+        record: StableRecordRef,
+    },
+    RecordVersion {
+        version: RecordVersionRef,
+    },
+    Field {
+        field: StableFieldRef,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TypedCommentToken {
+    pub token_id: Uuid,
+    pub kind: CommentTokenKind,
+    pub identity: CommentTokenIdentity,
+    pub display_label_snapshot: String,
+}
+
+impl TypedCommentToken {
+    pub fn validate(&self) -> Result<(), CollaborationError> {
+        if self.token_id.is_nil()
+            || self.token_id.get_version_num() != 4
+            || !valid_text(&self.display_label_snapshot, MAX_TYPED_TOKEN_LABEL_BYTES)
+        {
+            return Err(CollaborationError::InvalidContent("typed_token"));
+        }
+        let valid = match (&self.kind, &self.identity) {
+            (CommentTokenKind::User, CommentTokenIdentity::User { principal }) => {
+                principal.kind() == PrincipalKind::Human
+            }
+            (CommentTokenKind::Group, CommentTokenIdentity::Group { group_id, version }) => {
+                !group_id.is_nil() && *version > 0
+            }
+            (
+                CommentTokenKind::Agent,
+                CommentTokenIdentity::Agent {
+                    principal,
+                    definition_id,
+                    version_id,
+                },
+            ) => {
+                principal.kind() == PrincipalKind::Agent
+                    && !definition_id.is_nil()
+                    && !version_id.is_nil()
+            }
+            (CommentTokenKind::AgentPool, CommentTokenIdentity::AgentPool { pool_id, version }) => {
+                !pool_id.is_nil() && *version > 0
+            }
+            (CommentTokenKind::Record, CommentTokenIdentity::Record { record }) => {
+                record.validate().is_ok()
+            }
+            (CommentTokenKind::RecordVersion, CommentTokenIdentity::RecordVersion { version }) => {
+                version.validate().is_ok()
+            }
+            (CommentTokenKind::Field, CommentTokenIdentity::Field { field }) => {
+                field.validate().is_ok()
+            }
+            _ => false,
+        };
+        valid
+            .then_some(())
+            .ok_or(CollaborationError::InvalidContent("typed_token"))
+    }
+
+    pub const fn assignment_target(&self) -> Option<(Uuid, Uuid)> {
+        match &self.identity {
+            CommentTokenIdentity::Agent {
+                definition_id,
+                version_id,
+                ..
+            } => Some((*definition_id, *version_id)),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CommentDocument {
     schema_version: u16,
     blocks: Value,
     plain_text: String,
+    #[serde(default)]
+    typed_tokens: Vec<TypedCommentToken>,
     digest: [u8; 32],
 }
 
@@ -417,6 +533,15 @@ impl CommentDocument {
         schema_version: u16,
         blocks: Value,
         plain_text: String,
+    ) -> Result<Self, CollaborationError> {
+        Self::try_new_with_tokens(schema_version, blocks, plain_text, Vec::new())
+    }
+
+    pub fn try_new_with_tokens(
+        schema_version: u16,
+        blocks: Value,
+        plain_text: String,
+        typed_tokens: Vec<TypedCommentToken>,
     ) -> Result<Self, CollaborationError> {
         if schema_version == 0 {
             return Err(CollaborationError::InvalidContent("schema_version"));
@@ -431,16 +556,37 @@ impl CommentDocument {
         {
             return Err(CollaborationError::InvalidContent("comment_document"));
         }
+        if typed_tokens.len() > MAX_MENTIONS_PER_REVISION
+            || typed_tokens.iter().any(|token| token.validate().is_err())
+            || typed_tokens
+                .iter()
+                .map(|token| token.token_id)
+                .collect::<BTreeSet<_>>()
+                .len()
+                != typed_tokens.len()
+        {
+            return Err(CollaborationError::InvalidContent("typed_tokens"));
+        }
         let mut hasher = Sha256::new();
         hasher.update(schema_version.to_be_bytes());
         hasher.update(&serialized);
         hasher.update([0]);
         hasher.update(plain_text.as_bytes());
+        // Preserve the exact Phase 1/2 digest for documents without typed
+        // tokens. This permits rolling readers and already persisted comments.
+        if !typed_tokens.is_empty() {
+            hasher.update([0]);
+            hasher.update(
+                serde_json::to_vec(&typed_tokens)
+                    .map_err(|_| CollaborationError::InvalidContent("typed_tokens"))?,
+            );
+        }
         let digest: [u8; 32] = hasher.finalize().into();
         Ok(Self {
             schema_version,
             blocks,
             plain_text,
+            typed_tokens,
             digest,
         })
     }
@@ -453,6 +599,9 @@ impl CommentDocument {
     }
     pub fn plain_text(&self) -> &str {
         &self.plain_text
+    }
+    pub fn typed_tokens(&self) -> &[TypedCommentToken] {
+        &self.typed_tokens
     }
     pub const fn digest(&self) -> [u8; 32] {
         self.digest
@@ -2308,6 +2457,7 @@ mod tests {
     use erpx_integration_contracts::{RecordTypeId, catalog::ContextId};
     use erpx_kernel::{PolicyId, RecordId};
     use serde_json::json;
+    use sha2::{Digest, Sha256};
 
     use super::*;
 
@@ -2401,6 +2551,47 @@ mod tests {
                 1,
                 json!({"type":"doc","blocks":[{"raw_html":"<script/>"}]}),
                 "unsafe".into()
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn typed_documents_preserve_legacy_digests_and_bind_immutable_identity() {
+        let blocks = json!({"type":"doc","blocks":[{"type":"paragraph","text":"@sam"}]});
+        let legacy = CommentDocument::try_new(1, blocks.clone(), "@sam".into()).unwrap();
+        let serialized = serde_json::to_vec(&blocks).unwrap();
+        let mut legacy_hasher = Sha256::new();
+        legacy_hasher.update(1_u16.to_be_bytes());
+        legacy_hasher.update(serialized);
+        legacy_hasher.update([0]);
+        legacy_hasher.update(b"@sam");
+        assert_eq!(legacy.digest(), <[u8; 32]>::from(legacy_hasher.finalize()));
+
+        let identity = principal(PrincipalKind::Human);
+        let token = TypedCommentToken {
+            token_id: Uuid::new_v4(),
+            kind: CommentTokenKind::User,
+            identity: CommentTokenIdentity::User {
+                principal: identity,
+            },
+            display_label_snapshot: "Sam".into(),
+        };
+        let typed = CommentDocument::try_new_with_tokens(
+            1,
+            blocks.clone(),
+            "@sam".into(),
+            vec![token.clone()],
+        )
+        .unwrap();
+        assert_ne!(typed.digest(), legacy.digest());
+        assert_eq!(typed.typed_tokens(), &[token.clone()]);
+        assert!(
+            CommentDocument::try_new_with_tokens(
+                1,
+                blocks,
+                "@sam".into(),
+                vec![token.clone(), token]
             )
             .is_err()
         );

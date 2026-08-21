@@ -17,10 +17,10 @@ use erpx_collaboration::{
     CollaborationAction, CollaborationApplicationError,
     CollaborationCommandService as CollaborationApplicationCommandService, CollaborationEventKind,
     CollaborationQueryService as CollaborationApplicationQueryService, CommentDocument, CommentId,
-    CreateThreadCommand, EditComment, ExternalPortal, FinalizeAttachmentUploadCommand,
-    GetAttachmentDownloadQuery, MentionEventId, MentionTarget, ModerationCase, ModerationCaseId,
-    ModerationState, MutateThreadCommand, MutationIdentity, PortError,
-    PrepareAttachmentUploadCommand, PrincipalDirectoryPort,
+    CommentTokenIdentity, CommentTokenKind, CreateThreadCommand, EditComment, ExternalPortal,
+    FinalizeAttachmentUploadCommand, GetAttachmentDownloadQuery, MentionEventId, MentionTarget,
+    ModerationCase, ModerationCaseId, ModerationState, MutateThreadCommand, MutationIdentity,
+    PortError, PrepareAttachmentUploadCommand, PrincipalDirectoryPort,
     PrincipalRef as CollaborationPrincipalRef,
     RecordRelationCommandService as RecordRelationApplicationCommandService,
     RecordRelationQueryService as RecordRelationApplicationQueryService,
@@ -28,7 +28,7 @@ use erpx_collaboration::{
     RetentionPolicy, RevokeRecordRelationCommand, SealedModerationEvidence,
     StartRecordThreadWithCommentCommand, StreamRequest as ApplicationStreamRequest, ThreadAnchor,
     ThreadId, ThreadMutation, ThreadProjectionV2 as DomainThreadProjectionCurrent,
-    ThreadWriteRepository,
+    ThreadWriteRepository, TypedCommentToken,
 };
 use erpx_collaboration_sqlx::{
     DirectoryAccess, DirectoryLookup, DirectorySearchRequest, GlobalCollaborationAccess,
@@ -944,15 +944,34 @@ impl CollaborationCommandService for CollaborationCommandRpc {
             ));
         }
         let runtime = holding_record_thread_runtime(&self.state, &claims, metadata).await?;
-        let document = CommentDocument::try_new(
-            1,
-            serde_json::json!({
-                "type": "doc",
-                "blocks": [{"type": "paragraph", "text": input.plain_text}],
-            }),
-            input.plain_text,
-        )
-        .map_err(|_| Status::invalid_argument("plain_text is invalid"))?;
+        let (document, mentions) = if let Some(document) = input.document.as_ref() {
+            (
+                comment_document(document)?,
+                input
+                    .mentions
+                    .iter()
+                    .map(mention)
+                    .collect::<Result<Vec<_>, _>>()?,
+            )
+        } else {
+            if !input.mentions.is_empty() {
+                return Err(Status::invalid_argument(
+                    "legacy plain-text comments cannot carry typed mentions",
+                ));
+            }
+            (
+                CommentDocument::try_new(
+                    1,
+                    serde_json::json!({
+                        "type": "doc",
+                        "blocks": [{"type": "paragraph", "text": input.plain_text}],
+                    }),
+                    input.plain_text,
+                )
+                .map_err(|_| Status::invalid_argument("plain_text is invalid"))?,
+                Vec::new(),
+            )
+        };
         let receipt = runtime
             .command
             .start_record_thread_with_comment(
@@ -966,7 +985,7 @@ impl CollaborationCommandService for CollaborationCommandRpc {
                         author: runtime.actor.principal,
                         document,
                         attachments: Vec::new(),
-                        mentions: Vec::new(),
+                        mentions,
                     },
                     at: Utc::now(),
                 },
@@ -2988,11 +3007,17 @@ fn comment_document(
 ) -> Result<CommentDocument, Status> {
     let blocks = serde_json::from_slice(&value.block_json_utf8)
         .map_err(|_| Status::invalid_argument("comment block JSON is invalid"))?;
-    let document = CommentDocument::try_new(
+    let typed_tokens = value
+        .typed_tokens
+        .iter()
+        .map(typed_comment_token)
+        .collect::<Result<Vec<_>, _>>()?;
+    let document = CommentDocument::try_new_with_tokens(
         u16::try_from(value.schema_version)
             .map_err(|_| Status::invalid_argument("comment schema version is invalid"))?,
         blocks,
         value.accessible_plain_text.clone(),
+        typed_tokens,
     )
     .map_err(|_| Status::invalid_argument("comment document is invalid"))?;
     if document.digest() != digest(&value.content_digest_sha256, "content_digest_sha256")? {
@@ -3001,6 +3026,210 @@ fn comment_document(
         ));
     }
     Ok(document)
+}
+
+fn typed_comment_token(
+    value: &erpx_proto::erpx::collaboration::TypedCommentToken,
+) -> Result<TypedCommentToken, Status> {
+    use erpx_proto::erpx::collaboration::TypedCommentTokenKind as WireKind;
+
+    let token_id = uuid(&value.token_id, "typed_token.token_id")?;
+    let kind = WireKind::try_from(value.kind)
+        .map_err(|_| Status::invalid_argument("typed token kind is invalid"))?;
+    let (kind, identity) = match kind {
+        WireKind::User => (
+            CommentTokenKind::User,
+            CommentTokenIdentity::User {
+                principal: principal_ref(required(
+                    value.principal.as_ref(),
+                    "typed_token.principal",
+                )?)?,
+            },
+        ),
+        WireKind::Group => (
+            CommentTokenKind::Group,
+            CommentTokenIdentity::Group {
+                group_id: uuid(
+                    value.stable_id.as_deref().unwrap_or_default(),
+                    "typed_token.group_id",
+                )?,
+                version: value
+                    .numeric_version
+                    .filter(|version| *version > 0)
+                    .ok_or_else(|| {
+                        Status::invalid_argument("typed token group version is invalid")
+                    })?,
+            },
+        ),
+        WireKind::Agent => (
+            CommentTokenKind::Agent,
+            CommentTokenIdentity::Agent {
+                principal: principal_ref(required(
+                    value.principal.as_ref(),
+                    "typed_token.principal",
+                )?)?,
+                definition_id: uuid(
+                    value.stable_id.as_deref().unwrap_or_default(),
+                    "typed_token.agent_definition_id",
+                )?,
+                version_id: uuid(
+                    value.version_id.as_deref().unwrap_or_default(),
+                    "typed_token.agent_version_id",
+                )?,
+            },
+        ),
+        WireKind::AgentPool => (
+            CommentTokenKind::AgentPool,
+            CommentTokenIdentity::AgentPool {
+                pool_id: uuid(
+                    value.stable_id.as_deref().unwrap_or_default(),
+                    "typed_token.agent_pool_id",
+                )?,
+                version: value
+                    .numeric_version
+                    .filter(|version| *version > 0)
+                    .ok_or_else(|| {
+                        Status::invalid_argument("typed token pool version is invalid")
+                    })?,
+            },
+        ),
+        WireKind::Record => (
+            CommentTokenKind::Record,
+            CommentTokenIdentity::Record {
+                record: stable_record_ref(required(value.record.as_ref(), "typed_token.record")?)?,
+            },
+        ),
+        WireKind::RecordVersion => {
+            let record = stable_record_ref(required(value.record.as_ref(), "typed_token.record")?)?;
+            let version = value
+                .numeric_version
+                .filter(|version| *version > 0)
+                .ok_or_else(|| Status::invalid_argument("typed token record version is invalid"))?;
+            (
+                CommentTokenKind::RecordVersion,
+                CommentTokenIdentity::RecordVersion {
+                    version: erpx_integration_contracts::RecordVersionRef::try_new(record, version)
+                        .map_err(|_| {
+                            Status::invalid_argument("typed token record version is invalid")
+                        })?,
+                },
+            )
+        }
+        WireKind::Field => {
+            let record = stable_record_ref(required(value.record.as_ref(), "typed_token.record")?)?;
+            let field_id = value
+                .field_id
+                .as_deref()
+                .ok_or_else(|| Status::invalid_argument("typed token field id is required"))?;
+            let schema_version = value
+                .field_schema_version
+                .filter(|version| *version > 0)
+                .ok_or_else(|| Status::invalid_argument("typed token field schema is invalid"))?;
+            (
+                CommentTokenKind::Field,
+                CommentTokenIdentity::Field {
+                    field: erpx_integration_contracts::StableFieldRef::try_new(
+                        record,
+                        field_id,
+                        schema_version,
+                    )
+                    .map_err(|_| Status::invalid_argument("typed token field is invalid"))?,
+                },
+            )
+        }
+        WireKind::Unspecified => {
+            return Err(Status::invalid_argument("typed token kind is required"));
+        }
+    };
+    let token = TypedCommentToken {
+        token_id,
+        kind,
+        identity,
+        display_label_snapshot: value.display_label_snapshot.clone(),
+    };
+    token
+        .validate()
+        .map_err(|_| Status::invalid_argument("typed token is invalid"))?;
+    Ok(token)
+}
+
+fn typed_comment_token_to_proto(
+    value: &TypedCommentToken,
+) -> erpx_proto::erpx::collaboration::TypedCommentToken {
+    use erpx_proto::erpx::collaboration::TypedCommentTokenKind as WireKind;
+
+    let mut token = erpx_proto::erpx::collaboration::TypedCommentToken {
+        token_id: value.token_id.to_string(),
+        kind: WireKind::Unspecified as i32,
+        principal: None,
+        stable_id: None,
+        version_id: None,
+        numeric_version: None,
+        record: None,
+        field_id: None,
+        field_schema_version: None,
+        display_label_snapshot: value.display_label_snapshot.clone(),
+        current_display_label: Some(value.display_label_snapshot.clone()),
+    };
+    match &value.identity {
+        CommentTokenIdentity::User { principal } => {
+            token.kind = WireKind::User as i32;
+            token.principal = Some(principal_ref_to_proto(*principal));
+        }
+        CommentTokenIdentity::Group { group_id, version } => {
+            token.kind = WireKind::Group as i32;
+            token.stable_id = Some(group_id.to_string());
+            token.numeric_version = Some(*version);
+        }
+        CommentTokenIdentity::Agent {
+            principal,
+            definition_id,
+            version_id,
+        } => {
+            token.kind = WireKind::Agent as i32;
+            token.principal = Some(principal_ref_to_proto(*principal));
+            token.stable_id = Some(definition_id.to_string());
+            token.version_id = Some(version_id.to_string());
+        }
+        CommentTokenIdentity::AgentPool { pool_id, version } => {
+            token.kind = WireKind::AgentPool as i32;
+            token.stable_id = Some(pool_id.to_string());
+            token.numeric_version = Some(*version);
+        }
+        CommentTokenIdentity::Record { record } => {
+            token.kind = WireKind::Record as i32;
+            token.record = Some(record_ref_to_proto(record));
+        }
+        CommentTokenIdentity::RecordVersion { version } => {
+            token.kind = WireKind::RecordVersion as i32;
+            token.record = Some(record_ref_to_proto(version.record()));
+            token.numeric_version = Some(version.version());
+        }
+        CommentTokenIdentity::Field { field } => {
+            token.kind = WireKind::Field as i32;
+            token.record = Some(record_ref_to_proto(field.record()));
+            token.field_id = Some(field.field_id().to_owned());
+            token.field_schema_version = Some(field.schema_version());
+        }
+    }
+    token
+}
+
+fn comment_document_to_proto(
+    value: &CommentDocument,
+) -> Result<erpx_proto::erpx::collaboration::CommentDocument, Status> {
+    Ok(erpx_proto::erpx::collaboration::CommentDocument {
+        schema_version: u32::from(value.schema_version()),
+        block_json_utf8: serde_json::to_vec(value.blocks())
+            .map_err(|_| Status::internal("comment document encoding failed"))?,
+        accessible_plain_text: value.plain_text().to_owned(),
+        content_digest_sha256: value.digest().to_vec(),
+        typed_tokens: value
+            .typed_tokens()
+            .iter()
+            .map(typed_comment_token_to_proto)
+            .collect(),
+    })
 }
 
 fn attachment(
@@ -3150,16 +3379,19 @@ fn thread_v2_to_proto(
     let comments = value
         .comments
         .iter()
-        .map(|comment| {
-            let (visibility, plain_text) = match &comment.content {
+        .map(|comment| -> Result<ProtoComment, Status> {
+            let (visibility, plain_text, document) = match &comment.content {
                 CommentProjectionContent::Visible(document) => (
                     CommentVisibilityV2::Visible,
                     Some(document.plain_text().to_owned()),
+                    Some(comment_document_to_proto(document)?),
                 ),
-                CommentProjectionContent::Tombstone => (CommentVisibilityV2::Tombstone, None),
-                CommentProjectionContent::Restricted => (CommentVisibilityV2::Restricted, None),
+                CommentProjectionContent::Tombstone => (CommentVisibilityV2::Tombstone, None, None),
+                CommentProjectionContent::Restricted => {
+                    (CommentVisibilityV2::Restricted, None, None)
+                }
             };
-            ProtoComment {
+            Ok(ProtoComment {
                 comment_id: comment.id.as_uuid().to_string(),
                 author: Some(principal_ref_to_proto(comment.author)),
                 revision: comment.revision,
@@ -3182,9 +3414,10 @@ fn thread_v2_to_proto(
                     .collect(),
                 created_at: comment.created_at.to_rfc3339(),
                 updated_at: comment.updated_at.to_rfc3339(),
-            }
+                document,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(erpx_proto::erpx::collaboration::ThreadProjectionV2 {
         thread_id: value.id.as_uuid().to_string(),
         anchor: Some(ProtoThreadAnchor {

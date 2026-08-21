@@ -955,10 +955,13 @@ async fn autocomplete_from_item_directory(
         if record == request.anchor {
             continue;
         }
+        let display_label = summary.display_label;
         candidates.push(TypedToken {
+            token_id: Uuid::new_v4(),
             kind: TokenKind::Record,
             identity: TokenIdentity::Record { record },
-            display_label: summary.display_label,
+            display_label_snapshot: display_label.clone(),
+            display_label,
             restricted: false,
         });
     }
@@ -999,32 +1002,194 @@ fn command_metadata(
 #[cfg(feature = "server")]
 fn wire_document(
     document: &erpx_ui_ai_collaboration::CommentEditorDocument,
-) -> Result<wire::CommentDocument, GatewayError> {
-    use sha2::{Digest, Sha256};
+) -> Result<(wire::CommentDocument, Vec<wire::MentionToken>), GatewayError> {
+    let prepared = erpx_console_feature_ai_collaboration::prepare_comment_document(document)?;
+    let typed_tokens = prepared
+        .typed_tokens
+        .iter()
+        .map(wire_typed_token)
+        .collect::<Result<Vec<_>, _>>()?;
+    let mentions = wire_mentions(&prepared.typed_tokens)?;
+    Ok((
+        wire::CommentDocument {
+            schema_version: u32::from(prepared.schema_version),
+            block_json_utf8: prepared.block_json_utf8,
+            accessible_plain_text: prepared.accessible_plain_text,
+            content_digest_sha256: prepared.content_digest_sha256.to_vec(),
+            typed_tokens,
+        },
+        mentions,
+    ))
+}
 
-    document
-        .validate()
-        .map_err(|_| GatewayError::Failed { retryable: false })?;
-    if document.blocks.iter().any(|block| {
-        matches!(
-            block,
-            erpx_ui_ai_collaboration::EditorBlock::Attachment { .. }
-        )
-    }) {
-        // Attachments enter comments only by registry-issued Ready IDs.
-        return Err(GatewayError::Failed { retryable: false });
+#[cfg(feature = "server")]
+fn wire_typed_token(
+    token: &erpx_ui_ai_collaboration::TypedToken,
+) -> Result<wire::TypedCommentToken, GatewayError> {
+    use erpx_ui_ai_collaboration::{TokenIdentity, TokenKind};
+
+    let mut value = wire::TypedCommentToken {
+        token_id: token.token_id.to_string(),
+        kind: wire::TypedCommentTokenKind::Unspecified as i32,
+        principal: None,
+        stable_id: None,
+        version_id: None,
+        numeric_version: None,
+        record: None,
+        field_id: None,
+        field_schema_version: None,
+        display_label_snapshot: token.display_label_snapshot.clone(),
+        current_display_label: None,
+    };
+    match (&token.kind, &token.identity) {
+        (TokenKind::Human, TokenIdentity::Principal { principal_id }) => {
+            value.kind = wire::TypedCommentTokenKind::User as i32;
+            value.principal = Some(wire::PrincipalRef {
+                principal_id: principal_id.to_string(),
+                kind: wire::PrincipalKind::Human as i32,
+            });
+        }
+        (
+            TokenKind::HumanGroup,
+            TokenIdentity::OpaqueGroup {
+                group_id, version, ..
+            },
+        ) => {
+            value.kind = wire::TypedCommentTokenKind::Group as i32;
+            value.stable_id = Some(group_id.to_string());
+            value.numeric_version = Some(*version);
+        }
+        (
+            TokenKind::Agent,
+            TokenIdentity::Agent {
+                principal_id,
+                definition_id,
+                version_id,
+            },
+        ) => {
+            value.kind = wire::TypedCommentTokenKind::Agent as i32;
+            value.principal = Some(wire::PrincipalRef {
+                principal_id: principal_id.to_string(),
+                kind: wire::PrincipalKind::Agent as i32,
+            });
+            value.stable_id = Some(definition_id.to_string());
+            value.version_id = Some(version_id.to_string());
+        }
+        (
+            TokenKind::AgentPool,
+            TokenIdentity::OpaqueAgentPool {
+                pool_id, version, ..
+            },
+        ) => {
+            value.kind = wire::TypedCommentTokenKind::AgentPool as i32;
+            value.stable_id = Some(pool_id.to_string());
+            value.numeric_version = Some(*version);
+        }
+        (TokenKind::Record, TokenIdentity::Record { record }) => {
+            value.kind = wire::TypedCommentTokenKind::Record as i32;
+            value.record = Some(wire_record(record));
+        }
+        (TokenKind::RecordVersion, TokenIdentity::RecordVersion { record, version }) => {
+            value.kind = wire::TypedCommentTokenKind::RecordVersion as i32;
+            value.record = Some(wire_record(record));
+            value.numeric_version = Some(*version);
+        }
+        (
+            TokenKind::Field,
+            TokenIdentity::Field {
+                record,
+                stable_field_id,
+                schema_version,
+            },
+        ) => {
+            value.kind = wire::TypedCommentTokenKind::Field as i32;
+            value.record = Some(wire_record(record));
+            value.field_id = Some(stable_field_id.clone());
+            value.field_schema_version = Some(*schema_version);
+        }
+        _ => return Err(GatewayError::Failed { retryable: false }),
     }
-    let block_json_utf8 = serde_json::to_vec(&document.blocks)
-        .map_err(|_| GatewayError::Failed { retryable: false })?;
-    let mut hasher = Sha256::new();
-    hasher.update(&block_json_utf8);
-    hasher.update(document.accessible_plain_text.as_bytes());
-    Ok(wire::CommentDocument {
-        schema_version: u32::from(document.schema_version),
-        block_json_utf8,
-        accessible_plain_text: document.accessible_plain_text.clone(),
-        content_digest_sha256: hasher.finalize().to_vec(),
-    })
+    Ok(value)
+}
+
+#[cfg(feature = "server")]
+fn wire_mentions(
+    tokens: &[erpx_ui_ai_collaboration::TypedToken],
+) -> Result<Vec<wire::MentionToken>, GatewayError> {
+    use erpx_ui_ai_collaboration::{TokenIdentity, TokenKind};
+
+    tokens
+        .iter()
+        .filter_map(|token| {
+            let target = match (&token.kind, &token.identity) {
+                (TokenKind::Human, TokenIdentity::Principal { principal_id }) => {
+                    wire::MentionTarget {
+                        principal: Some(wire::PrincipalRef {
+                            principal_id: principal_id.to_string(),
+                            kind: wire::PrincipalKind::Human as i32,
+                        }),
+                        group_version: None,
+                        recipient_snapshot_principal_ids: Vec::new(),
+                        selected_agent_principal_id: None,
+                    }
+                }
+                (TokenKind::Agent, TokenIdentity::Agent { principal_id, .. }) => {
+                    wire::MentionTarget {
+                        principal: Some(wire::PrincipalRef {
+                            principal_id: principal_id.to_string(),
+                            kind: wire::PrincipalKind::Agent as i32,
+                        }),
+                        group_version: None,
+                        recipient_snapshot_principal_ids: Vec::new(),
+                        selected_agent_principal_id: None,
+                    }
+                }
+                (
+                    TokenKind::HumanGroup,
+                    TokenIdentity::OpaqueGroup {
+                        group_id,
+                        version,
+                        recipient_snapshot,
+                    },
+                ) => wire::MentionTarget {
+                    principal: Some(wire::PrincipalRef {
+                        principal_id: group_id.to_string(),
+                        kind: wire::PrincipalKind::HumanGroup as i32,
+                    }),
+                    group_version: Some(*version),
+                    recipient_snapshot_principal_ids: recipient_snapshot
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect(),
+                    selected_agent_principal_id: None,
+                },
+                (
+                    TokenKind::AgentPool,
+                    TokenIdentity::OpaqueAgentPool {
+                        pool_id,
+                        version,
+                        selected_agent,
+                    },
+                ) => wire::MentionTarget {
+                    principal: Some(wire::PrincipalRef {
+                        principal_id: pool_id.to_string(),
+                        kind: wire::PrincipalKind::AgentPool as i32,
+                    }),
+                    group_version: Some(*version),
+                    recipient_snapshot_principal_ids: Vec::new(),
+                    selected_agent_principal_id: Some(selected_agent.to_string()),
+                },
+                (TokenKind::Record | TokenKind::RecordVersion | TokenKind::Field, _) => {
+                    return None;
+                }
+                _ => return Some(Err(GatewayError::Failed { retryable: false })),
+            };
+            Some(Ok(wire::MentionToken {
+                mention_event_id: token.token_id.to_string(),
+                target: Some(target),
+            }))
+        })
+        .collect()
 }
 
 #[cfg(feature = "server")]
@@ -1048,9 +1213,7 @@ async fn mutate_collaboration(
             document,
             attachment_ids,
         } => {
-            document
-                .validate()
-                .map_err(|_| GatewayError::Failed { retryable: false })?;
+            let (document, mentions) = wire_document(&document)?;
             let (metadata, _) = command_metadata(&authority, digest, None);
             let thread_id = Uuid::new_v4();
             let response = client
@@ -1061,11 +1224,13 @@ async fn mutate_collaboration(
                         thread_id: thread_id.hyphenated().to_string(),
                         record: Some(wire_record(&anchor)),
                         comment_id: Uuid::new_v4().hyphenated().to_string(),
-                        plain_text: document.accessible_plain_text,
+                        plain_text: document.accessible_plain_text.clone(),
                         attachment_ids: attachment_ids
                             .into_iter()
                             .map(|id| id.hyphenated().to_string())
                             .collect(),
+                        document: Some(document),
+                        mentions,
                     },
                 )?)
                 .await
@@ -1156,7 +1321,7 @@ async fn mutate_collaboration(
             expected_thread_version,
             document,
         } => {
-            let document = wire_document(&document)?;
+            let (document, mentions) = wire_document(&document)?;
             let (metadata, _) = command_metadata(&authority, digest, Some(expected_thread_version));
             let response = client
                 .add_comment(authenticated(
@@ -1167,7 +1332,7 @@ async fn mutate_collaboration(
                         comment_id: Uuid::new_v4().hyphenated().to_string(),
                         document: Some(document),
                         attachments: Vec::new(),
-                        mentions: Vec::new(),
+                        mentions,
                     },
                 )?)
                 .await
@@ -1185,7 +1350,7 @@ async fn mutate_collaboration(
             if revision == 0 {
                 return Err(GatewayError::Failed { retryable: false });
             }
-            let document = wire_document(&document)?;
+            let (document, new_mentions) = wire_document(&document)?;
             let (metadata, _) = command_metadata(&authority, digest, Some(expected_thread_version));
             let response = client
                 .edit_comment(authenticated(
@@ -1196,7 +1361,7 @@ async fn mutate_collaboration(
                         comment_id: comment_id.hyphenated().to_string(),
                         document: Some(document),
                         attachments: Vec::new(),
-                        new_mentions: Vec::new(),
+                        new_mentions,
                     },
                 )?)
                 .await

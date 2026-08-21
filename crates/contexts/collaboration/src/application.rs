@@ -1,5 +1,7 @@
+use std::collections::BTreeSet;
+
 use chrono::{DateTime, Utc};
-use erpx_kernel::HumanDecisionProof;
+use erpx_kernel::{HumanDecisionProof, PrincipalId, PrincipalKind};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -7,9 +9,9 @@ use crate::{
     domain::{
         ActionCard, AnchorPolicy, AttachmentId, AttachmentLifecycle, AttachmentRecord,
         AttachmentRef, AttachmentView, Audience, CollaborationError, CommentDocument, CommentId,
-        EncryptedDraft, MentionEventId, MentionTarget, ModerationCase, OpaqueInboxFact,
-        PrincipalRef, PromotionProposal, RecordRelationGraph, ReferenceRelation, RelationId,
-        RelationKind, RetentionPolicy, Thread, ThreadAnchor, ThreadId,
+        CommentTokenIdentity, EncryptedDraft, MentionEventId, MentionTarget, ModerationCase,
+        OpaqueInboxFact, PrincipalRef, PromotionProposal, RecordRelationGraph, ReferenceRelation,
+        RelationId, RelationKind, RetentionPolicy, Thread, ThreadAnchor, ThreadId,
         action_card_confirmation_decision_ref,
     },
     ports::{
@@ -340,6 +342,27 @@ where
         bind_confirmation_decision_to_visibility(&access, &mut command)?;
 
         match &command.mutation {
+            ThreadMutation::AddRelation { relation } => {
+                self.authorization
+                    .authorize_relation_target(actor, relation)
+                    .await?;
+            }
+            _ => {}
+        }
+
+        let mut thread = self
+            .write
+            .load(&access)
+            .await?
+            .ok_or(CollaborationApplicationError::Neutral)?;
+        if thread.id() != command.thread_id
+            || thread.policy().holding_id() != actor.holding_id
+            || thread.anchor().record().id() != access.anchor_record_id()
+        {
+            return Err(CollaborationApplicationError::Internal);
+        }
+        normalize_structured_mentions(&thread, &mut command.mutation)?;
+        match &command.mutation {
             ThreadMutation::AddComment(value) => {
                 let targets = value
                     .mentions
@@ -360,24 +383,7 @@ where
                     .validate_mention_targets(actor, &targets)
                     .await?;
             }
-            ThreadMutation::AddRelation { relation } => {
-                self.authorization
-                    .authorize_relation_target(actor, relation)
-                    .await?;
-            }
             _ => {}
-        }
-
-        let mut thread = self
-            .write
-            .load(&access)
-            .await?
-            .ok_or(CollaborationApplicationError::Neutral)?;
-        if thread.id() != command.thread_id
-            || thread.policy().holding_id() != actor.holding_id
-            || thread.anchor().record().id() != access.anchor_record_id()
-        {
-            return Err(CollaborationApplicationError::Internal);
         }
         let previous_mentions = thread.mentions().len();
         apply_mutation(
@@ -465,13 +471,17 @@ where
     pub async fn start_record_thread_with_comment(
         &self,
         actor: &ActorContext,
-        command: StartRecordThreadWithCommentCommand,
+        mut command: StartRecordThreadWithCommentCommand,
     ) -> Result<CommitReceipt, CollaborationApplicationError> {
         validate_phase2_human(actor)?;
         command.identity.validate()?;
-        if actor.principal != command.comment.author || !command.comment.mentions.is_empty() {
+        if actor.principal != command.comment.author {
             return Err(CollaborationApplicationError::HumanDecisionDenied);
         }
+        command.comment.mentions = structured_mentions(
+            &command.comment.document,
+            std::mem::take(&mut command.comment.mentions),
+        )?;
         let authorized = self
             .policy
             .authorize_new_record_thread(actor, command.thread_id, &command.record, command.at)
@@ -693,12 +703,8 @@ fn validate_phase2_mutation_actor(
     mutation: &ThreadMutation,
 ) -> Result<(), CollaborationApplicationError> {
     let matches_actor = match mutation {
-        ThreadMutation::AddComment(command) => {
-            command.author == actor.principal && command.mentions.is_empty()
-        }
-        ThreadMutation::EditComment(command) => {
-            command.editor == actor.principal && command.mentions.is_empty()
-        }
+        ThreadMutation::AddComment(command) => command.author == actor.principal,
+        ThreadMutation::EditComment(command) => command.editor == actor.principal,
         ThreadMutation::AddReaction { principal, .. }
         | ThreadMutation::RemoveReaction { principal, .. }
         | ThreadMutation::SetFollowing { principal, .. } => *principal == actor.principal,
@@ -720,6 +726,110 @@ fn validate_phase2_mutation_actor(
     } else {
         Err(CollaborationApplicationError::HumanDecisionDenied)
     }
+}
+
+fn normalize_structured_mentions(
+    thread: &Thread,
+    mutation: &mut ThreadMutation,
+) -> Result<(), CollaborationError> {
+    let existing = thread
+        .mentions()
+        .iter()
+        .map(|mention| mention.id())
+        .collect::<BTreeSet<_>>();
+    let (document, supplied) = match mutation {
+        ThreadMutation::AddComment(command) => {
+            (&command.document, std::mem::take(&mut command.mentions))
+        }
+        ThreadMutation::EditComment(command) => {
+            (&command.document, std::mem::take(&mut command.mentions))
+        }
+        _ => return Ok(()),
+    };
+    let mentions = structured_mentions(document, supplied)?
+        .into_iter()
+        .filter(|(id, _)| !existing.contains(id))
+        .collect();
+    match mutation {
+        ThreadMutation::AddComment(command) => command.mentions = mentions,
+        ThreadMutation::EditComment(command) => command.mentions = mentions,
+        _ => unreachable!("comment mutation matched above"),
+    }
+    Ok(())
+}
+
+/// Derives direct mention delivery only from immutable typed tokens. Plain
+/// text that looks like `@name` has no effect. Group and pool snapshots remain
+/// owner-resolved inputs and must match the token identity/version exactly.
+fn structured_mentions(
+    document: &CommentDocument,
+    supplied: Vec<(MentionEventId, MentionTarget)>,
+) -> Result<Vec<(MentionEventId, MentionTarget)>, CollaborationError> {
+    let supplied = supplied
+        .into_iter()
+        .collect::<std::collections::BTreeMap<_, _>>();
+    let mut mentions = Vec::new();
+    let mut expected_ids = BTreeSet::new();
+    for token in document.typed_tokens() {
+        let mention_id = MentionEventId::try_from_uuid(token.token_id)
+            .map_err(|_| CollaborationError::InvalidMention)?;
+        let target = match &token.identity {
+            CommentTokenIdentity::User { principal } => MentionTarget {
+                principal: *principal,
+                group_version: None,
+                recipients_snapshot: Vec::new(),
+                selected_agent: None,
+            },
+            CommentTokenIdentity::Agent { principal, .. } => MentionTarget {
+                principal: *principal,
+                group_version: None,
+                recipients_snapshot: Vec::new(),
+                selected_agent: None,
+            },
+            CommentTokenIdentity::Group { group_id, version } => {
+                let target = supplied
+                    .get(&mention_id)
+                    .ok_or(CollaborationError::InvalidMention)?;
+                let expected = PrincipalId::try_from_uuid(*group_id)
+                    .map_err(|_| CollaborationError::InvalidMention)?;
+                if target.principal != PrincipalRef::new(expected, PrincipalKind::HumanGroup)
+                    || target.group_version != Some(*version)
+                {
+                    return Err(CollaborationError::InvalidMention);
+                }
+                target.clone()
+            }
+            CommentTokenIdentity::AgentPool { pool_id, version } => {
+                let target = supplied
+                    .get(&mention_id)
+                    .ok_or(CollaborationError::InvalidMention)?;
+                let expected = PrincipalId::try_from_uuid(*pool_id)
+                    .map_err(|_| CollaborationError::InvalidMention)?;
+                if target.principal != PrincipalRef::new(expected, PrincipalKind::AgentPool)
+                    || target.group_version != Some(*version)
+                {
+                    return Err(CollaborationError::InvalidMention);
+                }
+                target.clone()
+            }
+            CommentTokenIdentity::Record { .. }
+            | CommentTokenIdentity::RecordVersion { .. }
+            | CommentTokenIdentity::Field { .. } => continue,
+        };
+        if !expected_ids.insert(mention_id) {
+            return Err(CollaborationError::InvalidMention);
+        }
+        if let Some(provided) = supplied.get(&mention_id)
+            && provided != &target
+        {
+            return Err(CollaborationError::InvalidMention);
+        }
+        mentions.push((mention_id, target));
+    }
+    if supplied.keys().any(|id| !expected_ids.contains(id)) {
+        return Err(CollaborationError::InvalidMention);
+    }
+    Ok(mentions)
 }
 
 fn validate_relation_access(
@@ -2259,5 +2369,102 @@ mod tests {
             )
             .is_ok()
         );
+    }
+
+    #[test]
+    fn only_typed_tokens_create_mentions_and_never_assign_agents() {
+        let plain = CommentDocument::try_new(
+            1,
+            json!({"type":"doc","blocks":[{"type":"paragraph","text":"@agent"}]}),
+            "@agent".into(),
+        )
+        .unwrap();
+        assert!(structured_mentions(&plain, vec![]).unwrap().is_empty());
+
+        let agent = PrincipalRef::new(
+            PrincipalId::try_from_uuid(Uuid::new_v4()).unwrap(),
+            PrincipalKind::Agent,
+        );
+        let token_id = Uuid::new_v4();
+        let document = CommentDocument::try_new_with_tokens(
+            1,
+            json!({"type":"doc","blocks":[{"block":"token_ref","token_id":token_id}]}),
+            "@agent".into(),
+            vec![crate::domain::TypedCommentToken {
+                token_id,
+                kind: crate::domain::CommentTokenKind::Agent,
+                identity: CommentTokenIdentity::Agent {
+                    principal: agent,
+                    definition_id: Uuid::new_v4(),
+                    version_id: Uuid::new_v4(),
+                },
+                display_label_snapshot: "Agent".into(),
+            }],
+        )
+        .unwrap();
+        let mentions = structured_mentions(&document, vec![]).unwrap();
+        assert_eq!(mentions.len(), 1);
+        assert_eq!(mentions[0].1.principal, agent);
+        assert!(mentions[0].1.selected_agent.is_none());
+
+        let unrelated = (
+            MentionEventId::try_from_uuid(Uuid::new_v4()).unwrap(),
+            MentionTarget {
+                principal: agent,
+                group_version: None,
+                recipients_snapshot: vec![],
+                selected_agent: None,
+            },
+        );
+        assert_eq!(
+            structured_mentions(&document, vec![unrelated]),
+            Err(CollaborationError::InvalidMention)
+        );
+    }
+
+    #[test]
+    fn edit_and_replay_do_not_duplicate_typed_mention_events() {
+        let (actor, mut thread, _, now) = fixture();
+        let token_id = Uuid::new_v4();
+        let document = CommentDocument::try_new_with_tokens(
+            1,
+            json!({"type":"doc","blocks":[{"block":"token_ref","token_id":token_id}]}),
+            "@sam".into(),
+            vec![crate::domain::TypedCommentToken {
+                token_id,
+                kind: crate::domain::CommentTokenKind::User,
+                identity: CommentTokenIdentity::User {
+                    principal: actor.principal,
+                },
+                display_label_snapshot: "Sam".into(),
+            }],
+        )
+        .unwrap();
+        let comment_id = CommentId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let mention_id = MentionEventId::try_from_uuid(token_id).unwrap();
+        thread
+            .add_comment(
+                thread.version(),
+                comment_id,
+                actor.principal,
+                document.clone(),
+                vec![],
+                structured_mentions(&document, vec![]).unwrap(),
+                now + Duration::seconds(1),
+            )
+            .unwrap();
+        let mut mutation = ThreadMutation::EditComment(EditComment {
+            comment_id,
+            editor: actor.principal,
+            document,
+            attachments: vec![],
+            mentions: vec![],
+        });
+        normalize_structured_mentions(&thread, &mut mutation).unwrap();
+        let ThreadMutation::EditComment(edit) = mutation else {
+            unreachable!();
+        };
+        assert!(edit.mentions.is_empty());
+        assert_eq!(thread.mentions()[0].id(), mention_id);
     }
 }

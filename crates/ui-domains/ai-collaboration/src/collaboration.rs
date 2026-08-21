@@ -68,21 +68,53 @@ pub enum TokenKind {
     Agent,
     AgentPool,
     Record,
+    RecordVersion,
+    Field,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum TokenIdentity {
-    Principal { principal_id: PrincipalId },
-    OpaqueGroup { group_id: Uuid, version: u64 },
-    OpaqueAgentPool { pool_id: Uuid, version: u64 },
-    Record { record: StableRecordRef },
-    Restricted { opaque_id: Uuid },
+    Principal {
+        principal_id: PrincipalId,
+    },
+    OpaqueGroup {
+        group_id: Uuid,
+        version: u64,
+        recipient_snapshot: Vec<PrincipalId>,
+    },
+    Agent {
+        principal_id: PrincipalId,
+        definition_id: Uuid,
+        version_id: Uuid,
+    },
+    OpaqueAgentPool {
+        pool_id: Uuid,
+        version: u64,
+        selected_agent: PrincipalId,
+    },
+    Record {
+        record: StableRecordRef,
+    },
+    RecordVersion {
+        record: StableRecordRef,
+        version: u64,
+    },
+    Field {
+        record: StableRecordRef,
+        stable_field_id: String,
+        schema_version: u64,
+    },
+    Restricted {
+        opaque_id: Uuid,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TypedToken {
+    pub token_id: Uuid,
     pub kind: TokenKind,
     pub identity: TokenIdentity,
+    pub display_label_snapshot: String,
     pub display_label: String,
     pub restricted: bool,
 }
@@ -90,18 +122,141 @@ pub struct TypedToken {
 impl TypedToken {
     pub fn restricted_record(opaque_id: Uuid) -> Self {
         Self {
+            token_id: Uuid::new_v4(),
             kind: TokenKind::Record,
             identity: TokenIdentity::Restricted { opaque_id },
+            display_label_snapshot: "Restricted item".into(),
             display_label: "Restricted item".into(),
             restricted: true,
         }
     }
 
     pub fn validate_redaction(&self) -> bool {
-        !self.restricted
-            || (self.display_label == "Restricted item"
-                && matches!(self.identity, TokenIdentity::Restricted { .. }))
+        !self.token_id.is_nil()
+            && self.token_id.get_version_num() == 4
+            && (!self.restricted
+                || (self.display_label == "Restricted item"
+                    && self.display_label_snapshot == "Restricted item"
+                    && matches!(self.identity, TokenIdentity::Restricted { .. })))
     }
+
+    /// Refreshes presentation after an authorized lookup without changing the
+    /// immutable token identity or the persisted label snapshot.
+    pub fn refresh_display_label(&mut self, value: impl Into<String>) -> bool {
+        let value = value.into();
+        if self.restricted
+            || value.trim().is_empty()
+            || value.len() > 512
+            || value.chars().any(char::is_control)
+        {
+            return false;
+        }
+        self.display_label = value;
+        true
+    }
+
+    pub fn clipboard_token(&self) -> Option<String> {
+        let (kind, stable_id, qualifier) = match &self.identity {
+            TokenIdentity::Principal { principal_id } => ("user", principal_id.to_string(), None),
+            TokenIdentity::OpaqueGroup {
+                group_id, version, ..
+            } => ("group", group_id.to_string(), Some(format!("v{version}"))),
+            TokenIdentity::Agent {
+                definition_id,
+                version_id,
+                ..
+            } => (
+                "agent",
+                definition_id.to_string(),
+                Some(version_id.to_string()),
+            ),
+            TokenIdentity::OpaqueAgentPool {
+                pool_id, version, ..
+            } => (
+                "agent-pool",
+                pool_id.to_string(),
+                Some(format!("v{version}")),
+            ),
+            TokenIdentity::Record { record } => ("record", record.id().to_string(), None),
+            TokenIdentity::RecordVersion { record, version } => (
+                "record-version",
+                record.id().to_string(),
+                Some(format!("v{version}")),
+            ),
+            TokenIdentity::Field {
+                record,
+                stable_field_id,
+                schema_version,
+            } => (
+                "field",
+                record.id().to_string(),
+                Some(format!("{stable_field_id}@v{schema_version}")),
+            ),
+            TokenIdentity::Restricted { .. } => return None,
+        };
+        Some(match qualifier {
+            Some(qualifier) => format!("@{kind}:{stable_id}:{qualifier}"),
+            None => format!("@{kind}:{stable_id}"),
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PastedTypedToken {
+    pub kind: TokenKind,
+    pub stable_id: Uuid,
+    pub qualifier: Option<String>,
+}
+
+/// Parses only canonical token syntax. The result is intentionally unresolved:
+/// callers must reauthorize and resolve it before inserting a `TypedToken`.
+pub fn parse_pasted_typed_token(value: &str) -> Option<PastedTypedToken> {
+    let value = value.strip_prefix('@')?;
+    let mut parts = value.splitn(3, ':');
+    let kind = match parts.next()? {
+        "user" => TokenKind::Human,
+        "group" => TokenKind::HumanGroup,
+        "agent" => TokenKind::Agent,
+        "agent-pool" => TokenKind::AgentPool,
+        "record" => TokenKind::Record,
+        "record-version" => TokenKind::RecordVersion,
+        "field" => TokenKind::Field,
+        _ => return None,
+    };
+    let stable_id = Uuid::parse_str(parts.next()?)
+        .ok()
+        .filter(|id| !id.is_nil())?;
+    let qualifier = parts.next().map(str::to_owned);
+    let qualifier_valid = match kind {
+        TokenKind::Human | TokenKind::Record => qualifier.is_none(),
+        TokenKind::HumanGroup | TokenKind::AgentPool | TokenKind::RecordVersion => qualifier
+            .as_deref()
+            .and_then(|value| value.strip_prefix('v'))
+            .and_then(|value| value.parse::<u64>().ok())
+            .is_some_and(|version| version > 0),
+        TokenKind::Agent => qualifier
+            .as_deref()
+            .and_then(|value| Uuid::parse_str(value).ok())
+            .is_some_and(|id| !id.is_nil()),
+        TokenKind::Field => qualifier.as_deref().is_some_and(|value| {
+            let Some((field_id, version)) = value.rsplit_once("@v") else {
+                return false;
+            };
+            !field_id.is_empty()
+                && field_id.len() <= 128
+                && field_id.bytes().all(|byte| {
+                    byte.is_ascii_lowercase()
+                        || byte.is_ascii_digit()
+                        || matches!(byte, b'.' | b'_' | b'-')
+                })
+                && version.parse::<u64>().is_ok_and(|version| version > 0)
+        }),
+    };
+    qualifier_valid.then_some(PastedTypedToken {
+        kind,
+        stable_id,
+        qualifier,
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -506,6 +661,44 @@ mod tests {
             accessible_plain_text: "Evidence".into(),
         };
         assert_eq!(document.validate(), Err(EditorValidationError::UnsafeEmbed));
+    }
+
+    #[test]
+    fn typed_token_clipboard_is_unresolved_and_label_refresh_preserves_identity() {
+        let principal_id = PrincipalId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let mut token = TypedToken {
+            token_id: Uuid::new_v4(),
+            kind: TokenKind::Human,
+            identity: TokenIdentity::Principal { principal_id },
+            display_label_snapshot: "Old label".into(),
+            display_label: "Old label".into(),
+            restricted: false,
+        };
+        let copied = token.clipboard_token().unwrap();
+        let pasted = parse_pasted_typed_token(&copied).unwrap();
+        assert_eq!(pasted.kind, TokenKind::Human);
+        assert_eq!(pasted.stable_id, principal_id.as_uuid());
+        assert!(pasted.qualifier.is_none());
+
+        let identity = token.identity.clone();
+        assert!(token.refresh_display_label("Current label"));
+        assert_eq!(token.identity, identity);
+        assert_eq!(token.display_label_snapshot, "Old label");
+        assert_eq!(token.display_label, "Current label");
+        assert!(!token.refresh_display_label("\u{7}"));
+    }
+
+    #[test]
+    fn paste_parser_rejects_ambiguous_or_unversioned_typed_targets() {
+        let id = Uuid::new_v4();
+        assert!(parse_pasted_typed_token(&format!("@record:{id}")).is_some());
+        assert!(parse_pasted_typed_token(&format!("@record:{id}:v2")).is_none());
+        assert!(parse_pasted_typed_token(&format!("@group:{id}")).is_none());
+        assert!(parse_pasted_typed_token(&format!("@group:{id}:v2")).is_some());
+        assert!(parse_pasted_typed_token("@user:not-a-uuid").is_none());
+        assert!(
+            parse_pasted_typed_token("@unknown:00000000-0000-4000-8000-000000000000").is_none()
+        );
     }
     #[test]
     fn action_cards_are_typed_confirmed_owner_commands_only() {

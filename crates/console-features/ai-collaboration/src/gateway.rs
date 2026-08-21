@@ -5,16 +5,20 @@ use erpx_agent_orchestration::{
     AgentDefinition, AgentDefinitionStatus, Assignment, AssignmentState,
 };
 use erpx_collaboration::{
-    Audience, CommentProjectionContent, CommentVisibility as DomainCommentVisibility,
-    ExternalPortal, RelationKind, RelationView, Thread, ThreadProjection, ThreadState,
+    Audience, CommentDocument as DomainCommentDocument, CommentProjectionContent,
+    CommentTokenIdentity as DomainTokenIdentity, CommentTokenKind as DomainTokenKind,
+    CommentVisibility as DomainCommentVisibility, ExternalPortal,
+    PrincipalRef as DomainPrincipalRef, RelationKind, RelationView, Thread, ThreadProjection,
+    ThreadState, TypedCommentToken as DomainTypedCommentToken,
 };
-use erpx_integration_contracts::StableRecordRef;
+use erpx_integration_contracts::{RecordVersionRef, StableFieldRef, StableRecordRef};
 use erpx_kernel::{HoldingId, PrincipalId, PrincipalKind};
 use erpx_ui_ai_collaboration::{
     ActivityRailState, AgentRegistryRow, AgentSessionCard, AnchorDisplay, AnchorFreshness,
     AssignmentDisplayState, AutocompleteState, CommentCard, CommentEditorDocument,
     CommentVisibility, EditorBlock, PrivacyState, ReactionSummary, RealtimeState, RevisionSummary,
-    ThreadCapabilities, ThreadCard, ThreadLifecycle, ThreadRealm, TypedActionProposal,
+    ThreadCapabilities, ThreadCard, ThreadLifecycle, ThreadRealm, TokenIdentity, TokenKind,
+    TypedActionProposal, TypedToken,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -268,6 +272,163 @@ pub enum GatewayError {
     Stale,
     Unavailable,
     Failed { retryable: bool },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreparedCommentDocument {
+    pub schema_version: u16,
+    pub block_json_utf8: Vec<u8>,
+    pub accessible_plain_text: String,
+    pub content_digest_sha256: [u8; 32],
+    pub typed_tokens: Vec<TypedToken>,
+}
+
+/// Produces the canonical domain document used by both Web and Native
+/// gateways. Token identities are removed from rendered block JSON and kept
+/// in the typed-token vector; the domain digest therefore cannot diverge
+/// between clients and the command boundary.
+pub fn prepare_comment_document(
+    document: &CommentEditorDocument,
+) -> Result<PreparedCommentDocument, GatewayError> {
+    document
+        .validate()
+        .map_err(|_| GatewayError::Failed { retryable: false })?;
+    let mut blocks = Vec::with_capacity(document.blocks.len());
+    let mut typed_tokens = Vec::new();
+    let mut domain_tokens = Vec::new();
+    for block in &document.blocks {
+        match block {
+            EditorBlock::Attachment { .. } => {
+                // Attachment IDs enter commands through the attachment field,
+                // only after registry Ready validation.
+                return Err(GatewayError::Failed { retryable: false });
+            }
+            EditorBlock::Token(token) => {
+                let domain = domain_typed_token(token)?;
+                blocks.push(serde_json::json!({
+                    "block": "token_ref",
+                    "token_id": token.token_id,
+                }));
+                typed_tokens.push(token.clone());
+                domain_tokens.push(domain);
+            }
+            _ => blocks.push(
+                serde_json::to_value(block)
+                    .map_err(|_| GatewayError::Failed { retryable: false })?,
+            ),
+        }
+    }
+    let block_document = serde_json::json!({"type": "doc", "blocks": blocks});
+    let domain = DomainCommentDocument::try_new_with_tokens(
+        document.schema_version,
+        block_document,
+        document.accessible_plain_text.clone(),
+        domain_tokens,
+    )
+    .map_err(|_| GatewayError::Failed { retryable: false })?;
+    Ok(PreparedCommentDocument {
+        schema_version: domain.schema_version(),
+        block_json_utf8: serde_json::to_vec(domain.blocks())
+            .map_err(|_| GatewayError::Failed { retryable: false })?,
+        accessible_plain_text: domain.plain_text().to_owned(),
+        content_digest_sha256: domain.digest(),
+        typed_tokens,
+    })
+}
+
+fn domain_typed_token(token: &TypedToken) -> Result<DomainTypedCommentToken, GatewayError> {
+    if !token.validate_redaction() || token.restricted {
+        return Err(GatewayError::Restricted);
+    }
+    let (kind, identity) = match (&token.kind, &token.identity) {
+        (TokenKind::Human, TokenIdentity::Principal { principal_id }) => (
+            DomainTokenKind::User,
+            DomainTokenIdentity::User {
+                principal: DomainPrincipalRef::new(*principal_id, PrincipalKind::Human),
+            },
+        ),
+        (
+            TokenKind::HumanGroup,
+            TokenIdentity::OpaqueGroup {
+                group_id, version, ..
+            },
+        ) => (
+            DomainTokenKind::Group,
+            DomainTokenIdentity::Group {
+                group_id: *group_id,
+                version: *version,
+            },
+        ),
+        (
+            TokenKind::Agent,
+            TokenIdentity::Agent {
+                principal_id,
+                definition_id,
+                version_id,
+            },
+        ) => (
+            DomainTokenKind::Agent,
+            DomainTokenIdentity::Agent {
+                principal: DomainPrincipalRef::new(*principal_id, PrincipalKind::Agent),
+                definition_id: *definition_id,
+                version_id: *version_id,
+            },
+        ),
+        (
+            TokenKind::AgentPool,
+            TokenIdentity::OpaqueAgentPool {
+                pool_id, version, ..
+            },
+        ) => (
+            DomainTokenKind::AgentPool,
+            DomainTokenIdentity::AgentPool {
+                pool_id: *pool_id,
+                version: *version,
+            },
+        ),
+        (TokenKind::Record, TokenIdentity::Record { record }) => (
+            DomainTokenKind::Record,
+            DomainTokenIdentity::Record {
+                record: record.clone(),
+            },
+        ),
+        (TokenKind::RecordVersion, TokenIdentity::RecordVersion { record, version }) => (
+            DomainTokenKind::RecordVersion,
+            DomainTokenIdentity::RecordVersion {
+                version: RecordVersionRef::try_new(record.clone(), *version)
+                    .map_err(|_| GatewayError::Failed { retryable: false })?,
+            },
+        ),
+        (
+            TokenKind::Field,
+            TokenIdentity::Field {
+                record,
+                stable_field_id,
+                schema_version,
+            },
+        ) => (
+            DomainTokenKind::Field,
+            DomainTokenIdentity::Field {
+                field: StableFieldRef::try_new(
+                    record.clone(),
+                    stable_field_id.clone(),
+                    *schema_version,
+                )
+                .map_err(|_| GatewayError::Failed { retryable: false })?,
+            },
+        ),
+        _ => return Err(GatewayError::Failed { retryable: false }),
+    };
+    let value = DomainTypedCommentToken {
+        token_id: token.token_id,
+        kind,
+        identity,
+        display_label_snapshot: token.display_label_snapshot.clone(),
+    };
+    value
+        .validate()
+        .map_err(|_| GatewayError::Failed { retryable: false })?;
+    Ok(value)
 }
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
@@ -807,6 +968,31 @@ mod tests {
         assert!(!source.contains(concat!("Natural", "LanguageCommand")));
         assert!(!source.contains(concat!("Execute", "PromptMutation")));
         assert!(source.contains("ConfirmTypedProposal"));
+    }
+
+    #[test]
+    fn prepared_comment_uses_canonical_typed_document_and_digest() {
+        let principal_id = PrincipalId::try_from_uuid(Uuid::new_v4()).unwrap();
+        let token = TypedToken {
+            token_id: Uuid::new_v4(),
+            kind: TokenKind::Human,
+            identity: TokenIdentity::Principal { principal_id },
+            display_label_snapshot: "Sam".into(),
+            display_label: "Sam renamed".into(),
+            restricted: false,
+        };
+        let document = CommentEditorDocument {
+            schema_version: 1,
+            blocks: vec![EditorBlock::Token(token.clone())],
+            accessible_plain_text: "@Sam".into(),
+        };
+        let prepared = prepare_comment_document(&document).unwrap();
+        assert_eq!(prepared.typed_tokens, vec![token]);
+        let block_json: serde_json::Value =
+            serde_json::from_slice(&prepared.block_json_utf8).unwrap();
+        assert_eq!(block_json["blocks"][0]["block"], "token_ref");
+        assert!(block_json["blocks"][0].get("identity").is_none());
+        assert_ne!(prepared.content_digest_sha256, [0; 32]);
     }
 
     #[test]

@@ -59,8 +59,9 @@ pub use reference::{
     RecordPolicyPrincipalKind, RecordPolicyRealm, RecordPolicyScopeRule,
     RecordRef as StableRecordRef, RecordRelationPolicyKind, RecordThreadAudiencePolicy,
     RecordThreadRetentionPolicy, RecordTypeId, RecordVersionRef, ReferenceRelationChanged,
-    ReferenceRelationRevoked, ReferenceValidationError, record_collaboration_policies,
-    record_collaboration_policy, record_policies, record_policy, record_policy_id,
+    ReferenceRelationRevoked, ReferenceValidationError, StableFieldRef,
+    record_collaboration_policies, record_collaboration_policy, record_policies, record_policy,
+    record_policy_id,
 };
 
 #[cfg(test)]

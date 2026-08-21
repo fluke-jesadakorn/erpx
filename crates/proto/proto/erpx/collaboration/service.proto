@@ -51,11 +51,41 @@ message CommandMetadata {
   optional uint64 expected_thread_version = 8;
 }
 
+enum TypedCommentTokenKind {
+  TYPED_COMMENT_TOKEN_KIND_UNSPECIFIED = 0;
+  TYPED_COMMENT_TOKEN_KIND_USER = 1;
+  TYPED_COMMENT_TOKEN_KIND_GROUP = 2;
+  TYPED_COMMENT_TOKEN_KIND_AGENT = 3;
+  TYPED_COMMENT_TOKEN_KIND_AGENT_POOL = 4;
+  TYPED_COMMENT_TOKEN_KIND_RECORD = 5;
+  TYPED_COMMENT_TOKEN_KIND_RECORD_VERSION = 6;
+  TYPED_COMMENT_TOKEN_KIND_FIELD = 7;
+}
+
+// Identity is carried independently from both the block document and the
+// display-label snapshot. Fields unused by the selected kind must be empty.
+message TypedCommentToken {
+  string token_id = 1;
+  TypedCommentTokenKind kind = 2;
+  optional PrincipalRef principal = 3;
+  optional string stable_id = 4;
+  optional string version_id = 5;
+  optional uint64 numeric_version = 6;
+  optional erpx.interface.RecordRef record = 7;
+  optional string field_id = 8;
+  optional uint64 field_schema_version = 9;
+  string display_label_snapshot = 10;
+  // Query projections may refresh a label after reauthorization. Commands do
+  // not accept this field as identity or authority material.
+  optional string current_display_label = 11;
+}
+
 message CommentDocument {
   uint32 schema_version = 1;
   bytes block_json_utf8 = 2;
   string accessible_plain_text = 3;
   bytes content_digest_sha256 = 4;
+  repeated TypedCommentToken typed_tokens = 5;
 }
 
 message AttachmentRef {
@@ -154,6 +184,7 @@ message CommentProjectionV2 {
   repeated ReactionView reactions = 7;
   string created_at = 8;
   string updated_at = 9;
+  optional CommentDocument document = 10;
 }
 
 enum ThreadStateV2 {
@@ -334,6 +365,8 @@ message StartRecordThreadWithCommentRequest {
   string comment_id = 4;
   string plain_text = 5;
   repeated string attachment_ids = 6;
+  optional CommentDocument document = 7;
+  repeated MentionToken mentions = 8;
 }
 
 message PrepareAttachmentUploadRequest {

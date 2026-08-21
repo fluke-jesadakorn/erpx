@@ -1723,6 +1723,70 @@ pub struct RecordVersionRef {
     version: u64,
 }
 
+/// Immutable identity for a field exposed by an owner-published editable-field
+/// schema. Display paths and labels are deliberately absent: a rename may
+/// refresh presentation without retargeting an existing mention or patch.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct StableFieldRef {
+    record: RecordRef,
+    field_id: String,
+    schema_version: u64,
+}
+
+impl StableFieldRef {
+    pub fn try_new(
+        record: RecordRef,
+        field_id: impl Into<String>,
+        schema_version: u64,
+    ) -> Result<Self, ReferenceValidationError> {
+        record.validate()?;
+        let field_id = field_id.into();
+        if field_id.is_empty()
+            || field_id.len() > 128
+            || !field_id.bytes().all(|byte| {
+                byte.is_ascii_lowercase()
+                    || byte.is_ascii_digit()
+                    || matches!(byte, b'.' | b'_' | b'-')
+            })
+        {
+            return Err(ReferenceValidationError::InvalidText(
+                ValidationError::InvalidIdentifier("field_id"),
+            ));
+        }
+        if schema_version == 0 {
+            return Err(ReferenceValidationError::ZeroVersion(
+                "field_schema_version",
+            ));
+        }
+        Ok(Self {
+            record,
+            field_id,
+            schema_version,
+        })
+    }
+
+    pub fn validate(&self) -> Result<(), ReferenceValidationError> {
+        Self::try_new(
+            self.record.clone(),
+            self.field_id.clone(),
+            self.schema_version,
+        )
+        .map(|_| ())
+    }
+
+    pub const fn record(&self) -> &RecordRef {
+        &self.record
+    }
+
+    pub fn field_id(&self) -> &str {
+        &self.field_id
+    }
+
+    pub const fn schema_version(&self) -> u64 {
+        self.schema_version
+    }
+}
+
 impl RecordVersionRef {
     pub fn try_new(record: RecordRef, version: u64) -> Result<Self, ReferenceValidationError> {
         record.validate()?;
