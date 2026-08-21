@@ -2,7 +2,7 @@
 -- introduced by editing the holding-read baseline. The baseline is immutable;
 -- existing installations receive the same fail-closed behavior here.
 
-CREATE TABLE erpx_authority_read.organization_nodes (
+CREATE TABLE IF NOT EXISTS erpx_authority_read.organization_nodes (
     holding_id UUID NOT NULL DEFAULT erpx_authority_read.current_holding_id(),
     node_id UUID NOT NULL,
     node_kind TEXT NOT NULL CHECK (node_kind IN (
@@ -37,18 +37,30 @@ CREATE TABLE erpx_authority_read.organization_nodes (
     )
 );
 
-CREATE INDEX authority_read_organization_node_lineage
+CREATE INDEX IF NOT EXISTS authority_read_organization_node_lineage
     ON erpx_authority_read.organization_nodes USING GIN (lineage_node_ids);
-CREATE INDEX authority_read_organization_node_kind_status
+CREATE INDEX IF NOT EXISTS authority_read_organization_node_kind_status
     ON erpx_authority_read.organization_nodes
         (holding_id,node_kind,node_status,node_id);
 
 ALTER TABLE erpx_authority_read.organization_nodes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE erpx_authority_read.organization_nodes FORCE ROW LEVEL SECURITY;
-CREATE POLICY authority_read_holding_isolation
-    ON erpx_authority_read.organization_nodes
-    USING (holding_id::text=current_setting('app.holding_id', true))
-    WITH CHECK (holding_id::text=current_setting('app.holding_id', true));
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+          FROM pg_policies
+         WHERE schemaname = 'erpx_authority_read'
+           AND tablename = 'organization_nodes'
+           AND policyname = 'authority_read_holding_isolation'
+    ) THEN
+        CREATE POLICY authority_read_holding_isolation
+            ON erpx_authority_read.organization_nodes
+            USING (holding_id = erpx_authority_read.current_holding_id())
+            WITH CHECK (holding_id = erpx_authority_read.current_holding_id());
+    END IF;
+END;
+$$;
 
 CREATE OR REPLACE FUNCTION erpx_collaboration_read.audience_allows(
     audience JSONB,
