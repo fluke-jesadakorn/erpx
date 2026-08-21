@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use erpx_kernel::HumanDecisionProof;
 use thiserror::Error;
 
 use crate::{
@@ -37,8 +38,14 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         agreement: ServiceAgreement,
+        decision: HumanDecisionProof,
+        at: DateTime<Utc>,
     ) -> Result<CommitReceipt, FieldServiceError> {
         identity.validate()?;
+        if decision.principal_ref() != actor.principal_id.as_uuid().to_string() {
+            return Err(FieldServiceError::Neutral);
+        }
+        agreement.validate_activation_decision(&decision, identity.command_id, at)?;
         let authority = self
             .authorization
             .authorize(
@@ -167,9 +174,25 @@ where
         handoff_id: BillingHandoffId,
         amount: erpx_integration_contracts::MoneyAmount,
         requested_version: Option<u64>,
+        decision: HumanDecisionProof,
         at: DateTime<Utc>,
     ) -> Result<CommitReceipt, FieldServiceError> {
         identity.validate()?;
+        if decision.principal_ref() != actor.principal_id.as_uuid().to_string() {
+            return Err(FieldServiceError::Neutral);
+        }
+        let expected_version = requested_version.ok_or(FieldServiceError::Conflict)?;
+        crate::validate_field_service_human_decision(
+            &decision,
+            scope,
+            &crate::billing_release_decision_ref(
+                identity.command_id,
+                order_id,
+                expected_version,
+                handoff_id,
+            ),
+            at,
+        )?;
         let authority = self
             .authorization
             .authorize(actor, scope, FieldServiceAction::ReleaseBilling)
@@ -179,10 +202,17 @@ where
             .load_order(&authority, order_id)
             .await?
             .ok_or(FieldServiceError::Neutral)?;
-        if order.scope() != scope || requested_version != Some(order.version()) {
+        if order.scope() != scope || expected_version != order.version() {
             return Err(FieldServiceError::Conflict);
         }
         let expected = order.version();
+        order.validate_billing_release_decision(
+            handoff_id,
+            expected,
+            &decision,
+            identity.command_id,
+            at,
+        )?;
         let handoff = order.billing_handoff(handoff_id, amount, identity.correlation_id)?;
         let response = self.billing.release(&authority, &handoff).await?;
         if !response.accepted {
@@ -192,7 +222,7 @@ where
                     .unwrap_or_else(|| "Billing owner rejected handoff".into()),
             ));
         }
-        order.mark_billing_handed_off(handoff_id, at)?;
+        order.mark_billing_handed_off(handoff_id, expected, &decision, identity.command_id, at)?;
         self.write.commit(FieldServiceCommit { identity, authority, expected_version: Some(expected), event_type: "field_service.billing_handoff_accepted".into(), event_payload: serde_json::json!({"handoff_id": handoff_id.as_uuid(), "owner_correlation_id": response.owner_correlation_id}), aggregate: FieldServiceAggregate::Order(Box::new(order)) }).await.map_err(Into::into)
     }
 
@@ -316,5 +346,35 @@ impl From<PortError> for FieldServiceError {
             PortError::InvalidState => Self::Invalid("adapter rejected invalid state".into()),
             PortError::Internal => Self::Internal,
         }
+    }
+}
+
+#[cfg(test)]
+mod human_decision_order_tests {
+    #[test]
+    fn human_decisions_are_rejected_before_commit_or_external_billing() {
+        let source = include_str!("application.rs");
+        let activate_start = source.find("pub async fn activate_agreement").unwrap();
+        let activate_end = source[activate_start..]
+            .find("pub async fn create_order")
+            .map(|offset| activate_start + offset)
+            .unwrap();
+        let activate = &source[activate_start..activate_end];
+        assert!(
+            activate.find("validate_activation_decision").unwrap()
+                < activate.find(".load_agreement").unwrap()
+        );
+
+        let release_start = source.find("pub async fn release_billing").unwrap();
+        let release_end = source[release_start..]
+            .find("pub async fn govern_record")
+            .map(|offset| release_start + offset)
+            .unwrap();
+        let release = &source[release_start..release_end];
+        let proof = release
+            .find("validate_field_service_human_decision")
+            .unwrap();
+        assert!(proof < release.find(".load_order").unwrap());
+        assert!(proof < release.find("self.billing.release").unwrap());
     }
 }

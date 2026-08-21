@@ -455,10 +455,17 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
             talent::TalentRealm::Workforce,
         )
         .await?;
-        let decided_at = Utc::now();
-        let _human_decision =
-            future_auth::human_decision(&invocation, "talent.requisition.approve", decided_at)?;
+        let identity = identity(context, body)?;
+        let requisition_id =
+            talent::RequisitionId::try_from_uuid(uuid(&body.requisition_id, "requisition_id")?)
+                .map_err(|error| Status::invalid_argument(error.to_string()))?;
         let expected = mutation_expected(context)?;
+        let decided_at = Utc::now();
+        let human_decision = future_auth::human_decision(
+            &invocation,
+            talent::requisition_approve_decision_ref(identity.command_id, requisition_id, expected),
+            decided_at,
+        )?;
         let approver = enforce_actor(
             &body.approved_by_principal_id,
             "approved_by_principal_id",
@@ -468,11 +475,11 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
         let result = command_service(pool, &actor)
             .approve_requisition(
                 actor,
-                identity(context, body)?,
-                talent::RequisitionId::try_from_uuid(uuid(&body.requisition_id, "requisition_id")?)
-                    .map_err(|error| Status::invalid_argument(error.to_string()))?,
+                identity,
+                requisition_id,
                 expected,
                 approver,
+                human_decision,
                 decided_at,
             )
             .await
@@ -493,17 +500,33 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
             talent::TalentRealm::Workforce,
         )
         .await?;
+        let identity = identity(context, body)?;
+        let requisition_id =
+            talent::RequisitionId::try_from_uuid(uuid(&body.requisition_id, "requisition_id")?)
+                .map_err(|error| Status::invalid_argument(error.to_string()))?;
         let expected = mutation_expected(context)?;
+        let target = requisition_status(body.target_status)?;
+        let decided_at = Utc::now();
+        let human_decision = future_auth::human_decision(
+            &invocation,
+            talent::requisition_transition_decision_ref(
+                identity.command_id,
+                requisition_id,
+                expected,
+                target,
+            ),
+            decided_at,
+        )?;
         let pool = future_auth::pool(&self.state, &invocation, RoutedDatabaseSide::Write).await?;
         let result = command_service(pool, &actor)
             .transition_requisition(
                 actor,
-                identity(context, body)?,
-                talent::RequisitionId::try_from_uuid(uuid(&body.requisition_id, "requisition_id")?)
-                    .map_err(|error| Status::invalid_argument(error.to_string()))?,
+                identity,
+                requisition_id,
                 expected,
-                requisition_status(body.target_status)?,
-                Utc::now(),
+                target,
+                human_decision,
+                decided_at,
             )
             .await
             .map_err(status)?;
@@ -835,10 +858,16 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
             talent::TalentRealm::Workforce,
         )
         .await?;
-        let decided_at = Utc::now();
-        let _human_decision =
-            future_auth::human_decision(&invocation, "talent.offer.approve", decided_at)?;
+        let identity = identity(context, body)?;
+        let offer_id = talent::OfferId::try_from_uuid(uuid(&body.offer_id, "offer_id")?)
+            .map_err(|error| Status::invalid_argument(error.to_string()))?;
         let expected = mutation_expected(context)?;
+        let decided_at = Utc::now();
+        let human_decision = future_auth::human_decision(
+            &invocation,
+            talent::offer_approve_decision_ref(identity.command_id, offer_id, expected),
+            decided_at,
+        )?;
         let approver = enforce_actor(
             &body.approved_by_principal_id,
             "approved_by_principal_id",
@@ -848,11 +877,11 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
         let result = command_service(pool, &actor)
             .approve_offer(
                 actor,
-                identity(context, body)?,
-                talent::OfferId::try_from_uuid(uuid(&body.offer_id, "offer_id")?)
-                    .map_err(|error| Status::invalid_argument(error.to_string()))?,
+                identity,
+                offer_id,
                 expected,
                 approver,
+                human_decision,
                 decided_at,
             )
             .await
@@ -873,7 +902,21 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
             talent::TalentRealm::Workforce,
         )
         .await?;
+        let identity = identity(context, body)?;
+        let offer_id = talent::OfferId::try_from_uuid(uuid(&body.offer_id, "offer_id")?)
+            .map_err(|error| Status::invalid_argument(error.to_string()))?;
         let expected = mutation_expected(context)?;
+        let decided_at = Utc::now();
+        let human_decision = future_auth::human_decision(
+            &invocation,
+            talent::offer_decide_decision_ref(
+                identity.command_id,
+                offer_id,
+                expected,
+                body.accepted,
+            ),
+            decided_at,
+        )?;
         let pool = future_auth::pool(&self.state, &invocation, RoutedDatabaseSide::Write).await?;
         let result = command_service(pool, &actor)
             .present_offer(
@@ -912,14 +955,14 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
         let result = command_service(pool, &actor)
             .decide_offer(
                 actor,
-                identity(context, body)?,
-                talent::OfferId::try_from_uuid(uuid(&body.offer_id, "offer_id")?)
-                    .map_err(|error| Status::invalid_argument(error.to_string()))?,
+                identity,
+                offer_id,
                 expected,
                 candidate_principal_id,
                 body.accepted,
                 body.acceptance_receipt_id.clone(),
-                Utc::now(),
+                human_decision,
+                decided_at,
             )
             .await
             .map_err(status)?;
@@ -1084,10 +1127,17 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
             talent::TalentRealm::Workforce,
         )
         .await?;
-        let decided_at = Utc::now();
-        let _human_decision =
-            future_auth::human_decision(&invocation, "talent.proposal.approve", decided_at)?;
+        let identity = identity(context, body)?;
+        let proposal_id =
+            talent::ProposalId::try_from_uuid(uuid(&body.proposal_id, "proposal_id")?)
+                .map_err(|error| Status::invalid_argument(error.to_string()))?;
         let expected = mutation_expected(context)?;
+        let decided_at = Utc::now();
+        let human_decision = future_auth::human_decision(
+            &invocation,
+            talent::proposal_approve_decision_ref(identity.command_id, proposal_id, expected),
+            decided_at,
+        )?;
         let approver = enforce_actor(
             &body.approved_by_principal_id,
             "approved_by_principal_id",
@@ -1097,11 +1147,11 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
         let result = command_service(pool, &actor)
             .approve_proposal(
                 actor,
-                identity(context, body)?,
-                talent::ProposalId::try_from_uuid(uuid(&body.proposal_id, "proposal_id")?)
-                    .map_err(|error| Status::invalid_argument(error.to_string()))?,
+                identity,
+                proposal_id,
                 expected,
                 approver,
+                human_decision,
                 decided_at,
             )
             .await

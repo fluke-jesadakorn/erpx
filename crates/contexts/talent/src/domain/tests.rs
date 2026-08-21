@@ -1,6 +1,7 @@
 use super::*;
 use chrono::Duration;
 use erpx_integration_contracts::{CurrencyCode, reference::RecordTypeId};
+use erpx_kernel::{ActorAttribution, ActorKind, HumanDecisionProof, SessionId};
 
 fn id(n: u128) -> Uuid {
     Uuid::from_u128(n)
@@ -16,6 +17,24 @@ fn scope() -> AuthorityScope {
         holding_id: id(1),
         company_id: id(2),
     }
+}
+fn command_id(value: u128) -> CommandId {
+    CommandId::try_from_uuid(id(value)).unwrap()
+}
+fn human_decision(principal: Uuid, reference: String, at: DateTime<Utc>) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: principal.to_string(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(id(900)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        scope(),
+        reference,
+        at,
+    )
+    .unwrap()
 }
 fn record(n: u128, context: ContextId, kind: &str) -> StableRecordRef {
     StableRecordRef::try_new(
@@ -40,9 +59,38 @@ fn requisition(at: DateTime<Utc>) -> Requisition {
         at,
     )
     .unwrap();
-    value.approve(id(7), 1, at).unwrap();
+    let approve = command_id(101);
     value
-        .transition(RequisitionStatus::Published, 2, at)
+        .approve(
+            id(7),
+            1,
+            &human_decision(
+                id(7),
+                requisition_approve_decision_ref(approve, value.id(), 1),
+                at,
+            ),
+            approve,
+            at,
+        )
+        .unwrap();
+    let transition = command_id(102);
+    value
+        .transition(
+            RequisitionStatus::Published,
+            2,
+            &human_decision(
+                id(7),
+                requisition_transition_decision_ref(
+                    transition,
+                    value.id(),
+                    2,
+                    RequisitionStatus::Published,
+                ),
+                at,
+            ),
+            transition,
+            at,
+        )
         .unwrap();
     value
 }
@@ -176,14 +224,53 @@ fn candidate_accepts_only_exact_unexpired_offer() {
         at,
     )
     .unwrap();
-    offer.approve(id(14), 1, at).unwrap();
+    let approve = command_id(103);
+    offer
+        .approve(
+            id(14),
+            1,
+            &human_decision(
+                id(14),
+                offer_approve_decision_ref(approve, offer.id(), 1),
+                at,
+            ),
+            approve,
+            at,
+        )
+        .unwrap();
     offer.present(2, at).unwrap();
+    let stale_decision = command_id(104);
     assert_eq!(
-        offer.candidate_decide(candidate.principal(), true, 2, "receipt", at),
+        offer.candidate_decide(
+            candidate.principal(),
+            true,
+            2,
+            "receipt",
+            &human_decision(
+                candidate.principal().principal_id,
+                offer_decide_decision_ref(stale_decision, offer.id(), 2, true),
+                at,
+            ),
+            stale_decision,
+            at,
+        ),
         Err(TalentError::VersionConflict)
     );
+    let decide = command_id(105);
     offer
-        .candidate_decide(candidate.principal(), true, 3, "receipt", at)
+        .candidate_decide(
+            candidate.principal(),
+            true,
+            3,
+            "receipt",
+            &human_decision(
+                candidate.principal().principal_id,
+                offer_decide_decision_ref(decide, offer.id(), 3, true),
+                at,
+            ),
+            decide,
+            at,
+        )
         .unwrap();
     assert_eq!(offer.status(), OfferStatus::Accepted);
 }
@@ -234,10 +321,36 @@ fn hire_handoff_accepts_only_people_owned_record() {
         at,
     )
     .unwrap();
-    offer.approve(id(14), 1, at).unwrap();
-    offer.present(2, at).unwrap();
+    let approve = command_id(106);
     offer
-        .candidate_decide(candidate.principal(), true, 3, "receipt", at)
+        .approve(
+            id(14),
+            1,
+            &human_decision(
+                id(14),
+                offer_approve_decision_ref(approve, offer.id(), 1),
+                at,
+            ),
+            approve,
+            at,
+        )
+        .unwrap();
+    offer.present(2, at).unwrap();
+    let decide = command_id(107);
+    offer
+        .candidate_decide(
+            candidate.principal(),
+            true,
+            3,
+            "receipt",
+            &human_decision(
+                candidate.principal().principal_id,
+                offer_decide_decision_ref(decide, offer.id(), 3, true),
+                at,
+            ),
+            decide,
+            at,
+        )
         .unwrap();
     let mut handoff = HireHandoff::request(
         HireHandoffId::try_from_uuid(id(15)).unwrap(),
@@ -299,9 +412,54 @@ fn compensation_is_proposal_not_payroll_posting() {
     )
     .unwrap();
     proposal.submit(1, at).unwrap();
-    proposal.approve(id(33), 2, at).unwrap();
+    let approve = command_id(108);
+    proposal
+        .approve(
+            id(33),
+            2,
+            &human_decision(
+                id(33),
+                proposal_approve_decision_ref(approve, proposal.id(), 2),
+                at,
+            ),
+            approve,
+            at,
+        )
+        .unwrap();
     proposal
         .reconcile_owner(true, "payroll-receipt", at)
         .unwrap();
     assert_eq!(proposal.status(), ProposalStatus::Accepted);
+}
+
+#[test]
+fn requisition_rejects_unbound_human_evidence_before_mutation() {
+    let at = Utc::now();
+    let mut value = Requisition::draft(
+        RequisitionId::try_from_uuid(id(120)).unwrap(),
+        scope(),
+        "Engineer",
+        record(121, ContextId::Organization, "organization.company"),
+        1,
+        record(122, ContextId::Finance, "finance.close-cycle"),
+        1,
+        "a".repeat(64),
+        1,
+        id(123),
+        at,
+    )
+    .unwrap();
+    let command = command_id(124);
+    assert_eq!(
+        value.approve(
+            id(125),
+            1,
+            &human_decision(id(125), "talent.requisition.approve:wrong".into(), at),
+            command,
+            at,
+        ),
+        Err(TalentError::HumanDecisionRequired)
+    );
+    assert_eq!(value.version(), 1);
+    assert!(value.human_decisions().is_empty());
 }

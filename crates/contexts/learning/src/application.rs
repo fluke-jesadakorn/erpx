@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use erpx_kernel::HumanDecisionProof;
 use thiserror::Error;
 
 use crate::{
@@ -30,8 +31,14 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         course: Course,
+        decision: HumanDecisionProof,
+        at: DateTime<Utc>,
     ) -> Result<CommitReceipt, LearningError> {
         identity.validate()?;
+        if decision.principal_ref() != actor.principal_id.as_uuid().to_string() {
+            return Err(LearningError::Neutral);
+        }
+        course.validate_publish_decision(&decision, identity.command_id, 0, at)?;
         if course.status() != crate::CourseStatus::Published || course.version() != 1 {
             return Err(LearningError::Invalid(
                 "a newly published course must begin at version 1".into(),
@@ -375,5 +382,26 @@ impl From<PortError> for LearningError {
             PortError::InvalidState => Self::Invalid("adapter rejected invalid state".into()),
             PortError::Internal => Self::Internal,
         }
+    }
+}
+
+#[cfg(test)]
+mod human_decision_order_tests {
+    #[test]
+    fn course_publication_rejects_human_proof_before_repository_access() {
+        let source = include_str!("application.rs");
+        let start = source.find("pub async fn publish_course").unwrap();
+        let end = source[start..]
+            .find("pub async fn retire_course")
+            .map(|offset| start + offset)
+            .unwrap();
+        let publish = &source[start..end];
+        assert!(
+            publish.find("validate_publish_decision").unwrap()
+                < publish.find(".load_course").unwrap()
+        );
+        assert!(
+            publish.find("validate_publish_decision").unwrap() < publish.find(".commit").unwrap()
+        );
     }
 }

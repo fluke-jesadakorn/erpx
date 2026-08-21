@@ -1,6 +1,7 @@
 use super::*;
 use chrono::Duration;
 use erpx_integration_contracts::{CurrencyCode, reference::RecordTypeId};
+use erpx_kernel::{ActorAttribution, ActorKind, HumanDecisionProof, SessionId};
 
 fn id(n: u128) -> Uuid {
     Uuid::from_u128(n)
@@ -17,6 +18,24 @@ fn scope() -> AuthorityScope {
         company_id: id(2),
         branch_id: id(3),
     }
+}
+fn command_id(value: u128) -> CommandId {
+    CommandId::try_from_uuid(id(value)).unwrap()
+}
+fn human_decision(principal: Uuid, decision_ref: String, at: DateTime<Utc>) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: principal.to_string(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(id(900)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        scope(),
+        decision_ref,
+        at,
+    )
+    .unwrap()
 }
 fn money(n: i64) -> MoneyAmount {
     MoneyAmount::new(n, CurrencyCode::try_new("THB").unwrap())
@@ -40,8 +59,34 @@ fn channel(at: DateTime<Utc>) -> CommerceChannel {
         at,
     )
     .unwrap();
-    value.approve(id(6), 1, at).unwrap();
-    value.transition(ChannelStatus::Active, 2, at).unwrap();
+    let approve = command_id(101);
+    value
+        .approve(
+            id(6),
+            1,
+            &human_decision(
+                id(6),
+                channel_approve_decision_ref(approve, value.id(), 1),
+                at,
+            ),
+            approve,
+            at,
+        )
+        .unwrap();
+    let transition = command_id(102);
+    value
+        .transition(
+            ChannelStatus::Active,
+            2,
+            &human_decision(
+                id(6),
+                channel_transition_decision_ref(transition, value.id(), 2, ChannelStatus::Active),
+                at,
+            ),
+            transition,
+            at,
+        )
+        .unwrap();
     value
 }
 fn listing(at: DateTime<Utc>, channel: &CommerceChannel) -> Listing {
@@ -57,8 +102,40 @@ fn listing(at: DateTime<Utc>, channel: &CommerceChannel) -> Listing {
         at,
     )
     .unwrap();
-    value.approve(id(10), 1, at).unwrap();
-    value.publish(channel, 2, at).unwrap();
+    let approve = command_id(103);
+    value
+        .approve(
+            id(10),
+            1,
+            &human_decision(
+                id(10),
+                listing_approve_decision_ref(approve, value.id(), 1),
+                at,
+            ),
+            approve,
+            at,
+        )
+        .unwrap();
+    let publish = command_id(104);
+    value
+        .publish(
+            channel,
+            2,
+            &human_decision(
+                id(10),
+                listing_publish_decision_ref(
+                    publish,
+                    value.id(),
+                    2,
+                    channel.id(),
+                    channel.version(),
+                ),
+                at,
+            ),
+            publish,
+            at,
+        )
+        .unwrap();
     value
 }
 fn owner() -> CommerceIdentity {
@@ -104,10 +181,44 @@ fn listing_requires_maker_checker() {
         at,
     )
     .unwrap();
+    let approve = command_id(105);
     assert_eq!(
-        listing.approve(id(5), 1, at),
+        listing.approve(
+            id(5),
+            1,
+            &human_decision(
+                id(5),
+                listing_approve_decision_ref(approve, listing.id(), 1),
+                at,
+            ),
+            approve,
+            at,
+        ),
         Err(CommerceError::SegregationOfDuties)
     );
+}
+
+#[test]
+fn channel_rejects_mismatched_human_evidence_before_mutation() {
+    let at = Utc::now();
+    let mut channel = CommerceChannel::draft(
+        ChannelId::try_from_uuid(id(110)).unwrap(),
+        scope(),
+        "web",
+        vec!["th".into()],
+        vec!["THB".into()],
+        id(111),
+        at,
+    )
+    .unwrap();
+    let command = command_id(112);
+    let wrong = human_decision(id(113), "ecommerce.channel.approve:wrong".into(), at);
+    assert_eq!(
+        channel.approve(id(113), 1, &wrong, command, at),
+        Err(CommerceError::HumanDecisionRequired)
+    );
+    assert_eq!(channel.version(), 1);
+    assert!(channel.human_decisions().is_empty());
 }
 
 #[test]

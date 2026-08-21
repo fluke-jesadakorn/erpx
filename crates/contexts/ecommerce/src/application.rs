@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::StableRecordRef;
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{AuthorityScope, HumanDecisionProof};
 use uuid::Uuid;
 
 use crate::{
@@ -54,8 +54,20 @@ where
         id: ChannelId,
         expected: u64,
         approver: Uuid,
+        decision: HumanDecisionProof,
         at: DateTime<Utc>,
     ) -> Result<CommerceCommitReceipt, CommercePortError> {
+        if decision.principal_ref() != actor.principal_id.to_string() {
+            return Err(CommercePortError::Denied);
+        }
+        crate::validate_commerce_human_decision(
+            &decision,
+            &actor.authority_scope,
+            &crate::channel_approve_decision_ref(identity.command_id, id, expected),
+            at,
+        )
+        .map_err(domain_error)?;
+        let command_id = identity.command_id;
         self.mutate(
             actor,
             identity,
@@ -65,7 +77,9 @@ where
             expected,
             "ecommerce.channel.approved",
             move |aggregate| match aggregate {
-                CommerceAggregate::Channel(value) => value.approve(approver, expected, at),
+                CommerceAggregate::Channel(value) => {
+                    value.approve(approver, expected, &decision, command_id, at)
+                }
                 _ => unreachable!("repository aggregate type is fixed"),
             },
         )
@@ -80,8 +94,20 @@ where
         id: ChannelId,
         expected: u64,
         target: ChannelStatus,
+        decision: HumanDecisionProof,
         at: DateTime<Utc>,
     ) -> Result<CommerceCommitReceipt, CommercePortError> {
+        if decision.principal_ref() != actor.principal_id.to_string() {
+            return Err(CommercePortError::Denied);
+        }
+        crate::validate_commerce_human_decision(
+            &decision,
+            &actor.authority_scope,
+            &crate::channel_transition_decision_ref(identity.command_id, id, expected, target),
+            at,
+        )
+        .map_err(domain_error)?;
+        let command_id = identity.command_id;
         self.mutate(
             actor,
             identity,
@@ -91,7 +117,9 @@ where
             expected,
             "ecommerce.channel.transitioned",
             move |aggregate| match aggregate {
-                CommerceAggregate::Channel(value) => value.transition(target, expected, at),
+                CommerceAggregate::Channel(value) => {
+                    value.transition(target, expected, &decision, command_id, at)
+                }
                 _ => unreachable!("repository aggregate type is fixed"),
             },
         )
@@ -121,8 +149,20 @@ where
         id: ListingId,
         expected: u64,
         approver: Uuid,
+        decision: HumanDecisionProof,
         at: DateTime<Utc>,
     ) -> Result<CommerceCommitReceipt, CommercePortError> {
+        if decision.principal_ref() != actor.principal_id.to_string() {
+            return Err(CommercePortError::Denied);
+        }
+        crate::validate_commerce_human_decision(
+            &decision,
+            &actor.authority_scope,
+            &crate::listing_approve_decision_ref(identity.command_id, id, expected),
+            at,
+        )
+        .map_err(domain_error)?;
+        let command_id = identity.command_id;
         self.mutate(
             actor,
             identity,
@@ -132,7 +172,9 @@ where
             expected,
             "ecommerce.listing.approved",
             move |aggregate| match aggregate {
-                CommerceAggregate::Listing(value) => value.approve(approver, expected, at),
+                CommerceAggregate::Listing(value) => {
+                    value.approve(approver, expected, &decision, command_id, at)
+                }
                 _ => unreachable!("repository aggregate type is fixed"),
             },
         )
@@ -148,8 +190,26 @@ where
         channel_id: ChannelId,
         expected_listing_version: u64,
         exact_channel_version: u64,
+        decision: HumanDecisionProof,
         at: DateTime<Utc>,
     ) -> Result<CommerceCommitReceipt, CommercePortError> {
+        if decision.principal_ref() != actor.principal_id.to_string() {
+            return Err(CommercePortError::Denied);
+        }
+        crate::validate_commerce_human_decision(
+            &decision,
+            &actor.authority_scope,
+            &crate::listing_publish_decision_ref(
+                identity.command_id,
+                listing_id,
+                expected_listing_version,
+                channel_id,
+                exact_channel_version,
+            ),
+            at,
+        )
+        .map_err(domain_error)?;
+        let command_id = identity.command_id;
         let channel = self
             .repository
             .load(
@@ -175,9 +235,13 @@ where
             expected_listing_version,
             "ecommerce.listing.published",
             move |aggregate| match aggregate {
-                CommerceAggregate::Listing(value) => {
-                    value.publish(&channel, expected_listing_version, at)
-                }
+                CommerceAggregate::Listing(value) => value.publish(
+                    &channel,
+                    expected_listing_version,
+                    &decision,
+                    command_id,
+                    at,
+                ),
                 _ => unreachable!("repository aggregate type is fixed"),
             },
         )
@@ -876,5 +940,53 @@ impl<A: AuthorizationPort> CommercePolicyService<A> {
         self.authorization
             .authorize(principal_id, authority_scope, target_scope, action)
             .await
+    }
+}
+
+#[cfg(test)]
+mod human_decision_order_tests {
+    fn method<'a>(source: &'a str, name: &str, next: &str) -> &'a str {
+        let start = source.find(name).expect("decision method remains present");
+        let end = source[start..]
+            .find(next)
+            .map_or(source.len(), |offset| start + offset);
+        &source[start..end]
+    }
+
+    #[test]
+    fn human_decisions_are_rejected_before_owner_repository_access() {
+        let source = include_str!("application.rs");
+        for body in [
+            method(
+                source,
+                "pub async fn approve_channel",
+                "pub async fn transition_channel",
+            ),
+            method(
+                source,
+                "pub async fn transition_channel",
+                "pub async fn create_listing",
+            ),
+            method(
+                source,
+                "pub async fn approve_listing",
+                "pub async fn publish_listing",
+            ),
+            method(
+                source,
+                "pub async fn publish_listing",
+                "pub async fn withdraw_listing",
+            ),
+        ] {
+            let proof = body
+                .find("validate_commerce_human_decision")
+                .expect("exact proof is validated");
+            let repository = [body.find("self.mutate"), body.find(".repository")]
+                .into_iter()
+                .flatten()
+                .min()
+                .expect("owner repository path remains present");
+            assert!(proof < repository);
+        }
     }
 }

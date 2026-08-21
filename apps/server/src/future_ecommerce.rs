@@ -409,9 +409,16 @@ impl wire::ecommerce_command_service_server::EcommerceCommandService for Ecommer
             COMMERCE_WRITE,
         )
         .await?;
+        let identity = identity(context, body)?;
+        let channel_id = commerce::ChannelId::try_from_uuid(uuid(&body.channel_id, "channel_id")?)
+            .map_err(|error| Status::invalid_argument(error.to_string()))?;
+        let expected = expected(context)?;
         let decided_at = Utc::now();
-        let _human_decision =
-            future_auth::human_decision(&invocation, "ecommerce.channel.approve", decided_at)?;
+        let human_decision = future_auth::human_decision(
+            &invocation,
+            commerce::channel_approve_decision_ref(identity.command_id, channel_id, expected),
+            decided_at,
+        )?;
         let approver = uuid(&body.approved_by_principal_id, "approved_by_principal_id")?;
         if approver != invocation.principal_id.as_uuid() {
             return Err(Status::permission_denied(
@@ -422,11 +429,11 @@ impl wire::ecommerce_command_service_server::EcommerceCommandService for Ecommer
             .await?
             .approve_channel(
                 actor(&invocation)?,
-                identity(context, body)?,
-                commerce::ChannelId::try_from_uuid(uuid(&body.channel_id, "channel_id")?)
-                    .map_err(|error| Status::invalid_argument(error.to_string()))?,
-                expected(context)?,
+                identity,
+                channel_id,
+                expected,
                 approver,
+                human_decision,
                 decided_at,
             )
             .await
@@ -454,16 +461,31 @@ impl wire::ecommerce_command_service_server::EcommerceCommandService for Ecommer
         )
         .await?;
         let target = channel_status(body.target_status)?;
+        let identity = identity(context, body)?;
+        let channel_id = commerce::ChannelId::try_from_uuid(uuid(&body.channel_id, "channel_id")?)
+            .map_err(|error| Status::invalid_argument(error.to_string()))?;
+        let expected = expected(context)?;
+        let decided_at = Utc::now();
+        let human_decision = future_auth::human_decision(
+            &invocation,
+            commerce::channel_transition_decision_ref(
+                identity.command_id,
+                channel_id,
+                expected,
+                target,
+            ),
+            decided_at,
+        )?;
         let receipt = command_service(&self.state, &invocation)
             .await?
             .transition_channel(
                 actor(&invocation)?,
-                identity(context, body)?,
-                commerce::ChannelId::try_from_uuid(uuid(&body.channel_id, "channel_id")?)
-                    .map_err(|error| Status::invalid_argument(error.to_string()))?,
-                expected(context)?,
+                identity,
+                channel_id,
+                expected,
                 target,
-                Utc::now(),
+                human_decision,
+                decided_at,
             )
             .await
             .map_err(status)?;
@@ -553,9 +575,16 @@ impl wire::ecommerce_command_service_server::EcommerceCommandService for Ecommer
             COMMERCE_WRITE,
         )
         .await?;
+        let identity = identity(context, body)?;
+        let listing_id = commerce::ListingId::try_from_uuid(uuid(&body.listing_id, "listing_id")?)
+            .map_err(|error| Status::invalid_argument(error.to_string()))?;
+        let expected = expected(context)?;
         let decided_at = Utc::now();
-        let _human_decision =
-            future_auth::human_decision(&invocation, "ecommerce.listing.approve", decided_at)?;
+        let human_decision = future_auth::human_decision(
+            &invocation,
+            commerce::listing_approve_decision_ref(identity.command_id, listing_id, expected),
+            decided_at,
+        )?;
         let approver = uuid(&body.approved_by_principal_id, "approved_by_principal_id")?;
         if approver != invocation.principal_id.as_uuid() {
             return Err(Status::permission_denied(
@@ -566,11 +595,11 @@ impl wire::ecommerce_command_service_server::EcommerceCommandService for Ecommer
             .await?
             .approve_listing(
                 actor(&invocation)?,
-                identity(context, body)?,
-                commerce::ListingId::try_from_uuid(uuid(&body.listing_id, "listing_id")?)
-                    .map_err(|error| Status::invalid_argument(error.to_string()))?,
-                expected(context)?,
+                identity,
+                listing_id,
+                expected,
                 approver,
+                human_decision,
                 decided_at,
             )
             .await
@@ -597,18 +626,35 @@ impl wire::ecommerce_command_service_server::EcommerceCommandService for Ecommer
             COMMERCE_WRITE,
         )
         .await?;
+        let identity = identity(context, body)?;
+        let listing_id = commerce::ListingId::try_from_uuid(uuid(&body.listing_id, "listing_id")?)
+            .map_err(|error| Status::invalid_argument(error.to_string()))?;
+        let channel_id = commerce::ChannelId::try_from_uuid(uuid(&body.channel_id, "channel_id")?)
+            .map_err(|error| Status::invalid_argument(error.to_string()))?;
+        let expected = expected(context)?;
+        let decided_at = Utc::now();
+        let human_decision = future_auth::human_decision(
+            &invocation,
+            commerce::listing_publish_decision_ref(
+                identity.command_id,
+                listing_id,
+                expected,
+                channel_id,
+                body.channel_version,
+            ),
+            decided_at,
+        )?;
         let receipt = command_service(&self.state, &invocation)
             .await?
             .publish_listing(
                 actor(&invocation)?,
-                identity(context, body)?,
-                commerce::ListingId::try_from_uuid(uuid(&body.listing_id, "listing_id")?)
-                    .map_err(|error| Status::invalid_argument(error.to_string()))?,
-                commerce::ChannelId::try_from_uuid(uuid(&body.channel_id, "channel_id")?)
-                    .map_err(|error| Status::invalid_argument(error.to_string()))?,
-                expected(context)?,
+                identity,
+                listing_id,
+                channel_id,
+                expected,
                 body.channel_version,
-                Utc::now(),
+                human_decision,
+                decided_at,
             )
             .await
             .map_err(status)?;

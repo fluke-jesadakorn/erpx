@@ -296,12 +296,20 @@ impl wire::field_service_command_service_server::FieldServiceCommandService
                 "activate agreement cannot carry an expected version",
             ));
         }
+        let identity = identity(context, body)?;
+        let agreement_id = field::ServiceAgreementId::try_from_uuid(uuid(
+            &body.service_agreement_id,
+            "service_agreement_id",
+        )?)
+        .map_err(|error| Status::invalid_argument(error.to_string()))?;
+        let decided_at = Utc::now();
+        let human_decision = future_auth::human_decision(
+            &invocation,
+            field::agreement_activate_decision_ref(identity.command_id, agreement_id),
+            decided_at,
+        )?;
         let agreement = field::ServiceAgreement::activate(
-            field::ServiceAgreementId::try_from_uuid(uuid(
-                &body.service_agreement_id,
-                "service_agreement_id",
-            )?)
-            .map_err(|error| Status::invalid_argument(error.to_string()))?,
+            agreement_id,
             target,
             version_ref(body.customer.clone())?,
             body.covered_assets
@@ -317,6 +325,9 @@ impl wire::field_service_command_service_server::FieldServiceCommandService
             body.service_codes.iter().cloned().collect(),
             date(&body.valid_from, "valid_from")?,
             date(&body.valid_through, "valid_through")?,
+            &human_decision,
+            identity.command_id,
+            decided_at,
         )
         .map_err(|error| Status::invalid_argument(error.to_string()))?;
         let pool = future_auth::pool(&self.state, &invocation, RoutedDatabaseSide::Write).await?;
@@ -330,7 +341,7 @@ impl wire::field_service_command_service_server::FieldServiceCommandService
             BillingHandoffUnavailable,
         );
         let receipt = service
-            .activate_agreement(&actor, identity(context, body)?, agreement)
+            .activate_agreement(&actor, identity, agreement, human_decision, decided_at)
             .await
             .map_err(status)?;
         Ok(Response::new(response(
@@ -620,6 +631,24 @@ impl wire::field_service_command_service_server::FieldServiceCommandService
             body.order_scope.as_ref(),
         )
         .await?;
+        let identity = identity(context, body)?;
+        let order_id = service_order_id(&body.service_order_id)?;
+        let handoff_id =
+            field::BillingHandoffId::try_from_uuid(uuid(&body.handoff_id, "handoff_id")?)
+                .map_err(|error| Status::invalid_argument(error.to_string()))?;
+        let expected = expected(context)
+            .ok_or_else(|| Status::failed_precondition("expected aggregate version is required"))?;
+        let decided_at = Utc::now();
+        let human_decision = future_auth::human_decision(
+            &invocation,
+            field::billing_release_decision_ref(
+                identity.command_id,
+                order_id,
+                expected,
+                handoff_id,
+            ),
+            decided_at,
+        )?;
         let pool = future_auth::pool(&self.state, &invocation, RoutedDatabaseSide::Write).await?;
         let actor = actor(&invocation);
         let service = field::FieldServiceCommandService::new(
@@ -633,14 +662,14 @@ impl wire::field_service_command_service_server::FieldServiceCommandService
         let receipt = service
             .release_billing(
                 &actor,
-                identity(context, body)?,
-                service_order_id(&body.service_order_id)?,
+                identity,
+                order_id,
                 &target,
-                field::BillingHandoffId::try_from_uuid(uuid(&body.handoff_id, "handoff_id")?)
-                    .map_err(|error| Status::invalid_argument(error.to_string()))?,
+                handoff_id,
                 money(body.amount.clone())?,
-                expected(context),
-                Utc::now(),
+                Some(expected),
+                human_decision,
+                decided_at,
             )
             .await
             .map_err(status)?;

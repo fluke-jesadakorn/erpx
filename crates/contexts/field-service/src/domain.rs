@@ -2,7 +2,9 @@ use std::collections::BTreeSet;
 
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_integration_contracts::{MoneyAmount, Quantity, RecordVersionRef, StableRecordRef};
-use erpx_kernel::{AuthorityScope, CorrelationId, PrincipalId};
+use erpx_kernel::{
+    ActorKind, AuthorityScope, CommandId, CorrelationId, HumanDecisionProof, PrincipalId, SessionId,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -36,6 +38,45 @@ field_id!(PartFactId, "part_fact_id");
 field_id!(ExceptionId, "exception_id");
 field_id!(BillingHandoffId, "billing_handoff_id");
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldServiceHumanDecisionEvidence {
+    principal_ref: String,
+    actor_kind: ActorKind,
+    session_id: SessionId,
+    authority_scope: AuthorityScope,
+    decision_ref: String,
+    decided_at: DateTime<Utc>,
+}
+
+impl FieldServiceHumanDecisionEvidence {
+    fn from_proof(
+        decision: &HumanDecisionProof,
+        scope: &AuthorityScope,
+        expected_ref: &str,
+        at: DateTime<Utc>,
+    ) -> Result<Self, FieldServiceDomainError> {
+        validate_field_service_human_decision(decision, scope, expected_ref, at)?;
+        Ok(Self {
+            principal_ref: decision.principal_ref().to_owned(),
+            actor_kind: decision.actor().kind,
+            session_id: decision
+                .actor()
+                .session_id
+                .ok_or(FieldServiceDomainError::HumanDecisionRequired)?,
+            authority_scope: decision.authority_scope().clone(),
+            decision_ref: decision.decision_ref().to_owned(),
+            decided_at: decision.decided_at(),
+        })
+    }
+
+    pub fn decision_ref(&self) -> &str {
+        &self.decision_ref
+    }
+    pub const fn session_id(&self) -> SessionId {
+        self.session_id
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Connectivity {
@@ -62,6 +103,8 @@ pub struct ServiceAgreement {
     valid_from: NaiveDate,
     valid_through: NaiveDate,
     active: bool,
+    #[serde(default)]
+    activation_decision: Option<FieldServiceHumanDecisionEvidence>,
 }
 impl ServiceAgreement {
     #[allow(clippy::too_many_arguments)]
@@ -74,6 +117,9 @@ impl ServiceAgreement {
         service_codes: BTreeSet<String>,
         valid_from: NaiveDate,
         valid_through: NaiveDate,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
     ) -> Result<Self, FieldServiceDomainError> {
         customer.validate()?;
         scope.validate()?;
@@ -93,6 +139,12 @@ impl ServiceAgreement {
         {
             return Err(FieldServiceDomainError::InvalidAgreement);
         }
+        let activation_decision = FieldServiceHumanDecisionEvidence::from_proof(
+            decision,
+            &scope,
+            &agreement_activate_decision_ref(command_id, id),
+            at,
+        )?;
         Ok(Self {
             id,
             version: 1,
@@ -104,6 +156,7 @@ impl ServiceAgreement {
             valid_from,
             valid_through,
             active: true,
+            activation_decision: Some(activation_decision),
         })
     }
     pub fn covers(
@@ -130,6 +183,33 @@ impl ServiceAgreement {
     }
     pub fn scope(&self) -> &AuthorityScope {
         &self.scope
+    }
+    pub fn activation_decision(&self) -> Option<&FieldServiceHumanDecisionEvidence> {
+        self.activation_decision.as_ref()
+    }
+    pub fn validate_activation_decision(
+        &self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), FieldServiceDomainError> {
+        validate_field_service_human_decision(
+            decision,
+            &self.scope,
+            &agreement_activate_decision_ref(command_id, self.id),
+            at,
+        )?;
+        if self.activation_decision.as_ref()
+            != Some(&FieldServiceHumanDecisionEvidence::from_proof(
+                decision,
+                &self.scope,
+                &agreement_activate_decision_ref(command_id, self.id),
+                at,
+            )?)
+        {
+            return Err(FieldServiceDomainError::HumanDecisionRequired);
+        }
+        Ok(())
     }
 }
 
@@ -244,6 +324,8 @@ pub struct ServiceOrder {
     signature: Option<CustomerSignature>,
     exceptions: Vec<ServiceException>,
     billing_handoff_id: Option<BillingHandoffId>,
+    #[serde(default)]
+    billing_decision: Option<FieldServiceHumanDecisionEvidence>,
     status: ServiceOrderStatus,
     updated_at: DateTime<Utc>,
 }
@@ -292,6 +374,7 @@ impl ServiceOrder {
             signature: None,
             exceptions: Vec::new(),
             billing_handoff_id: None,
+            billing_decision: None,
             status: ServiceOrderStatus::Draft,
             updated_at: at,
         })
@@ -515,15 +598,40 @@ impl ServiceOrder {
             correlation_id,
         })
     }
+    pub fn validate_billing_release_decision(
+        &self,
+        id: BillingHandoffId,
+        expected_version: u64,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), FieldServiceDomainError> {
+        validate_field_service_human_decision(
+            decision,
+            &self.scope,
+            &billing_release_decision_ref(command_id, self.id, expected_version, id),
+            at,
+        )
+    }
     pub fn mark_billing_handed_off(
         &mut self,
         id: BillingHandoffId,
+        expected_version: u64,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), FieldServiceDomainError> {
+        let evidence = FieldServiceHumanDecisionEvidence::from_proof(
+            decision,
+            &self.scope,
+            &billing_release_decision_ref(command_id, self.id, expected_version, id),
+            at,
+        )?;
         if self.status != ServiceOrderStatus::Completed || self.billing_handoff_id.is_some() {
             return Err(FieldServiceDomainError::InvalidTransition);
         }
         self.billing_handoff_id = Some(id);
+        self.billing_decision = Some(evidence);
         self.status = ServiceOrderStatus::BillingHandedOff;
         self.advance(at)
     }
@@ -580,6 +688,9 @@ impl ServiceOrder {
     pub const fn billing_handoff_id(&self) -> Option<BillingHandoffId> {
         self.billing_handoff_id
     }
+    pub fn billing_decision(&self) -> Option<&FieldServiceHumanDecisionEvidence> {
+        self.billing_decision.as_ref()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -592,6 +703,48 @@ pub struct FieldServiceBillingHandoff {
     pub amount: MoneyAmount,
     pub completion_evidence: Vec<RecordVersionRef>,
     pub correlation_id: CorrelationId,
+}
+
+pub fn validate_field_service_human_decision(
+    decision: &HumanDecisionProof,
+    scope: &AuthorityScope,
+    expected_ref: &str,
+    at: DateTime<Utc>,
+) -> Result<(), FieldServiceDomainError> {
+    let actor = decision.actor();
+    if !actor.is_human()
+        || actor.session_id.is_none()
+        || actor.represented_principal_ref.is_some()
+        || actor.support_capability_id.is_some()
+        || decision.authority_scope() != scope
+        || decision.decision_ref() != expected_ref
+        || decision.decided_at() != at
+    {
+        return Err(FieldServiceDomainError::HumanDecisionRequired);
+    }
+    Ok(())
+}
+
+pub fn agreement_activate_decision_ref(command_id: CommandId, id: ServiceAgreementId) -> String {
+    format!(
+        "field-service.agreement.activate:{}:{}:0",
+        command_id.as_uuid(),
+        id.as_uuid()
+    )
+}
+
+pub fn billing_release_decision_ref(
+    command_id: CommandId,
+    order_id: ServiceOrderId,
+    expected_version: u64,
+    handoff_id: BillingHandoffId,
+) -> String {
+    format!(
+        "field-service.billing.release:{}:{}:{expected_version}:{}",
+        command_id.as_uuid(),
+        order_id.as_uuid(),
+        handoff_id.as_uuid()
+    )
 }
 
 fn positive(value: Quantity) -> Result<(), FieldServiceDomainError> {
@@ -643,6 +796,8 @@ pub enum FieldServiceDomainError {
     ExplicitRefusalRequired,
     #[error("billing gate denied")]
     BillingGateDenied,
+    #[error("an exact authenticated human decision is required")]
+    HumanDecisionRequired,
     #[error("invalid lifecycle transition")]
     InvalidTransition,
     #[error("invalid timestamp")]

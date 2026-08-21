@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_integration_contracts::{RecordVersionRef, StableRecordRef};
-use erpx_kernel::{AuthorityScope, PrincipalId};
+use erpx_kernel::{
+    ActorKind, AuthorityScope, CommandId, HumanDecisionProof, PrincipalId, SessionId,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -45,6 +47,45 @@ pub enum CourseStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LearningHumanDecisionEvidence {
+    principal_ref: String,
+    actor_kind: ActorKind,
+    session_id: SessionId,
+    authority_scope: AuthorityScope,
+    decision_ref: String,
+    decided_at: DateTime<Utc>,
+}
+
+impl LearningHumanDecisionEvidence {
+    fn from_proof(
+        decision: &HumanDecisionProof,
+        scope: &AuthorityScope,
+        expected_ref: &str,
+        at: DateTime<Utc>,
+    ) -> Result<Self, LearningDomainError> {
+        validate_learning_human_decision(decision, scope, expected_ref, at)?;
+        Ok(Self {
+            principal_ref: decision.principal_ref().to_owned(),
+            actor_kind: decision.actor().kind,
+            session_id: decision
+                .actor()
+                .session_id
+                .ok_or(LearningDomainError::HumanDecisionRequired)?,
+            authority_scope: decision.authority_scope().clone(),
+            decision_ref: decision.decision_ref().to_owned(),
+            decided_at: decision.decided_at(),
+        })
+    }
+
+    pub fn decision_ref(&self) -> &str {
+        &self.decision_ref
+    }
+    pub const fn session_id(&self) -> SessionId {
+        self.session_id
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Course {
     id: CourseId,
     version: u64,
@@ -54,6 +95,8 @@ pub struct Course {
     required_attendance_minutes: u32,
     provider: Option<StableRecordRef>,
     status: CourseStatus,
+    #[serde(default)]
+    publish_decision: Option<LearningHumanDecisionEvidence>,
     updated_at: DateTime<Utc>,
 }
 
@@ -76,6 +119,7 @@ impl Course {
             required_attendance_minutes,
             provider,
             status: CourseStatus::Draft,
+            publish_decision: None,
             updated_at: at,
         };
         value.validate()?;
@@ -88,8 +132,16 @@ impl Course {
         passing_basis_points: u16,
         required_attendance_minutes: u32,
         provider: Option<StableRecordRef>,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<Self, LearningDomainError> {
+        let publish_decision = LearningHumanDecisionEvidence::from_proof(
+            decision,
+            &scope,
+            &course_publish_decision_ref(command_id, id, 0),
+            at,
+        )?;
         let value = Self {
             id,
             version: 1,
@@ -99,13 +151,27 @@ impl Course {
             required_attendance_minutes,
             provider,
             status: CourseStatus::Published,
+            publish_decision: Some(publish_decision),
             updated_at: at,
         };
         value.validate()?;
         Ok(value)
     }
-    pub fn publish(&mut self, at: DateTime<Utc>) -> Result<(), LearningDomainError> {
-        self.transition(CourseStatus::Draft, CourseStatus::Published, at)
+    pub fn publish(
+        &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), LearningDomainError> {
+        let evidence = LearningHumanDecisionEvidence::from_proof(
+            decision,
+            &self.scope,
+            &course_publish_decision_ref(command_id, self.id, self.version),
+            at,
+        )?;
+        self.transition(CourseStatus::Draft, CourseStatus::Published, at)?;
+        self.publish_decision = Some(evidence);
+        Ok(())
     }
     pub fn retire(&mut self, at: DateTime<Utc>) -> Result<(), LearningDomainError> {
         self.transition(CourseStatus::Published, CourseStatus::Retired, at)
@@ -143,6 +209,9 @@ impl Course {
         if let Some(provider) = &self.provider {
             provider.validate()?;
         }
+        if self.status == CourseStatus::Published && self.publish_decision.is_none() {
+            return Err(LearningDomainError::HumanDecisionRequired);
+        }
         Ok(())
     }
     pub const fn id(&self) -> CourseId {
@@ -156,6 +225,27 @@ impl Course {
     }
     pub const fn status(&self) -> CourseStatus {
         self.status
+    }
+    pub fn publish_decision(&self) -> Option<&LearningHumanDecisionEvidence> {
+        self.publish_decision.as_ref()
+    }
+    pub fn validate_publish_decision(
+        &self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        expected_version: u64,
+        at: DateTime<Utc>,
+    ) -> Result<(), LearningDomainError> {
+        let expected = LearningHumanDecisionEvidence::from_proof(
+            decision,
+            &self.scope,
+            &course_publish_decision_ref(command_id, self.id, expected_version),
+            at,
+        )?;
+        if self.publish_decision.as_ref() != Some(&expected) {
+            return Err(LearningDomainError::HumanDecisionRequired);
+        }
+        Ok(())
     }
 }
 
@@ -455,6 +545,38 @@ pub struct LearningCompletionFact {
     pub completed_at: DateTime<Utc>,
 }
 
+pub fn validate_learning_human_decision(
+    decision: &HumanDecisionProof,
+    scope: &AuthorityScope,
+    expected_ref: &str,
+    at: DateTime<Utc>,
+) -> Result<(), LearningDomainError> {
+    let actor = decision.actor();
+    if !actor.is_human()
+        || actor.session_id.is_none()
+        || actor.represented_principal_ref.is_some()
+        || actor.support_capability_id.is_some()
+        || decision.authority_scope() != scope
+        || decision.decision_ref() != expected_ref
+        || decision.decided_at() != at
+    {
+        return Err(LearningDomainError::HumanDecisionRequired);
+    }
+    Ok(())
+}
+
+pub fn course_publish_decision_ref(
+    command_id: CommandId,
+    course_id: CourseId,
+    expected_version: u64,
+) -> String {
+    format!(
+        "learning.course.publish:{}:{}:{expected_version}",
+        command_id.as_uuid(),
+        course_id.as_uuid()
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum LearningDomainError {
     #[error("invalid learning identifier: {0}")]
@@ -469,6 +591,8 @@ pub enum LearningDomainError {
     InvalidAssignment,
     #[error("invalid course lifecycle transition")]
     InvalidTransition,
+    #[error("an exact authenticated human decision is required")]
+    HumanDecisionRequired,
     #[error("a learner cannot record or edit their own attendance")]
     SelfAttendanceEdit,
     #[error("attendance fact is invalid")]

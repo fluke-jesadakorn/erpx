@@ -5,7 +5,10 @@ use erpx_integration_contracts::{
     CurrencyCode, MoneyAmount, Quantity, RecordVersionRef, StableRecordRef, catalog::ContextId,
     reference::RecordTypeId,
 };
-use erpx_kernel::{AuthorityScope, CorrelationId, PrincipalId, RecordId};
+use erpx_kernel::{
+    ActorAttribution, ActorKind, AuthorityScope, CommandId, CorrelationId, HumanDecisionProof,
+    PrincipalId, RecordId, SessionId,
+};
 use uuid::Uuid;
 
 use super::*;
@@ -30,6 +33,24 @@ fn scope() -> AuthorityScope {
         branch_id: uuid(3),
     }
 }
+fn command_id(value: u128) -> CommandId {
+    CommandId::try_from_uuid(uuid(value)).unwrap()
+}
+fn human_decision(reference: String, at: chrono::DateTime<Utc>) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: uuid(8).to_string(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(uuid(9)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        scope(),
+        reference,
+        at,
+    )
+    .unwrap()
+}
 fn record(id: u128, owner: ContextId, kind: &str) -> StableRecordRef {
     StableRecordRef::try_new(
         RecordId::try_from_uuid(uuid(id)).unwrap(),
@@ -48,8 +69,10 @@ fn setup() -> (ServiceAgreement, ServiceRequest) {
     let customer = pin(10, ContextId::CustomerAuthority, "customer.account", 2);
     let asset = pin(11, ContextId::Assets, "asset.asset", 4);
     let location = record(12, ContextId::Organization, "organization.branch");
+    let agreement_id = ServiceAgreementId::try_from_uuid(uuid(13)).unwrap();
+    let command = command_id(100);
     let agreement = ServiceAgreement::activate(
-        ServiceAgreementId::try_from_uuid(uuid(13)).unwrap(),
+        agreement_id,
         scope(),
         customer.clone(),
         BTreeSet::from([asset.record().clone()]),
@@ -57,6 +80,12 @@ fn setup() -> (ServiceAgreement, ServiceRequest) {
         BTreeSet::from(["repair".into()]),
         day(1),
         day(31),
+        &human_decision(
+            agreement_activate_decision_ref(command, agreement_id),
+            at(1),
+        ),
+        command,
+        at(1),
     )
     .unwrap();
     let request = ServiceRequest {
@@ -70,6 +99,29 @@ fn setup() -> (ServiceAgreement, ServiceRequest) {
         requested_at: at(1),
     };
     (agreement, request)
+}
+
+#[test]
+fn agreement_activation_rejects_unbound_human_evidence() {
+    let customer = pin(110, ContextId::CustomerAuthority, "customer.account", 2);
+    let asset = pin(111, ContextId::Assets, "asset.asset", 4);
+    let location = record(112, ContextId::Organization, "organization.branch");
+    let agreement_id = ServiceAgreementId::try_from_uuid(uuid(113)).unwrap();
+    let command = command_id(114);
+    let result = ServiceAgreement::activate(
+        agreement_id,
+        scope(),
+        customer,
+        BTreeSet::from([asset.record().clone()]),
+        BTreeSet::from([location]),
+        BTreeSet::from(["repair".into()]),
+        day(1),
+        day(31),
+        &human_decision("field-service.agreement.activate:wrong".into(), at(1)),
+        command,
+        at(1),
+    );
+    assert_eq!(result, Err(FieldServiceDomainError::HumanDecisionRequired));
 }
 fn scheduled() -> (ServiceAgreement, ServiceOrder) {
     let (agreement, request) = setup();

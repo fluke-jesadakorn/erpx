@@ -345,6 +345,13 @@ impl wire::learning_command_service_server::LearningCommandService for LearningC
             invocation_for_command(&self.state, &request, context, body.scope.as_ref()).await?;
         let course_id = learning::CourseId::try_from_uuid(uuid(&body.course_id, "course_id")?)
             .map_err(|error| Status::invalid_argument(error.to_string()))?;
+        let identity = identity(context, request.get_ref())?;
+        let decided_at = Utc::now();
+        let human_decision = future_auth::human_decision(
+            &invocation,
+            learning::course_publish_decision_ref(identity.command_id, course_id, 0),
+            decided_at,
+        )?;
         let passing_basis_points = u16::try_from(body.passing_basis_points)
             .map_err(|_| invalid("passing_basis_points"))?;
         let course = learning::Course::published(
@@ -354,13 +361,15 @@ impl wire::learning_command_service_server::LearningCommandService for LearningC
             passing_basis_points,
             body.required_attendance_minutes,
             optional_reference(body.provider.clone())?,
-            Utc::now(),
+            &human_decision,
+            identity.command_id,
+            decided_at,
         )
         .map_err(|error| Status::invalid_argument(error.to_string()))?;
         let owner_actor = actor(&invocation);
         let result = command_service(&self.state, &invocation)
             .await?
-            .publish_course(&owner_actor, identity(context, request.get_ref())?, course)
+            .publish_course(&owner_actor, identity, course, human_decision, decided_at)
             .await
             .map_err(learning_status)?;
         Ok(Response::new(receipt(

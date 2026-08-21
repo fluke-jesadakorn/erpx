@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::StableRecordRef;
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{AuthorityScope, HumanDecisionProof};
 
 use uuid::Uuid;
 
@@ -119,8 +119,20 @@ where
         id: RequisitionId,
         expected_version: u64,
         approver: Uuid,
+        decision: HumanDecisionProof,
         at: DateTime<Utc>,
     ) -> Result<TalentMutationReceipt, TalentPortError> {
+        if decision.principal_ref() != actor.principal.principal_id.to_string() {
+            return Err(TalentPortError::Denied);
+        }
+        crate::validate_talent_human_decision(
+            &decision,
+            &actor.authority_scope,
+            &crate::requisition_approve_decision_ref(identity.command_id, id, expected_version),
+            at,
+        )
+        .map_err(port_error)?;
+        let command_id = identity.command_id;
         if let Some(receipt) = self
             .replay_result(
                 &actor,
@@ -136,7 +148,7 @@ where
         }
         let mut requisition = self.load_requisition(&actor, id).await?;
         requisition
-            .approve(approver, expected_version, at)
+            .approve(approver, expected_version, &decision, command_id, at)
             .map_err(port_error)?;
         self.commit_result(
             actor,
@@ -156,8 +168,25 @@ where
         id: RequisitionId,
         expected_version: u64,
         target: RequisitionStatus,
+        decision: HumanDecisionProof,
         at: DateTime<Utc>,
     ) -> Result<TalentMutationReceipt, TalentPortError> {
+        if decision.principal_ref() != actor.principal.principal_id.to_string() {
+            return Err(TalentPortError::Denied);
+        }
+        crate::validate_talent_human_decision(
+            &decision,
+            &actor.authority_scope,
+            &crate::requisition_transition_decision_ref(
+                identity.command_id,
+                id,
+                expected_version,
+                target,
+            ),
+            at,
+        )
+        .map_err(port_error)?;
+        let command_id = identity.command_id;
         if let Some(receipt) = self
             .replay_result(
                 &actor,
@@ -173,7 +202,7 @@ where
         }
         let mut requisition = self.load_requisition(&actor, id).await?;
         requisition
-            .transition(target, expected_version, at)
+            .transition(target, expected_version, &decision, command_id, at)
             .map_err(port_error)?;
         self.commit_result(
             actor,
@@ -548,8 +577,20 @@ where
         id: OfferId,
         expected_version: u64,
         approver: Uuid,
+        decision: HumanDecisionProof,
         at: DateTime<Utc>,
     ) -> Result<TalentMutationReceipt, TalentPortError> {
+        if decision.principal_ref() != actor.principal.principal_id.to_string() {
+            return Err(TalentPortError::Denied);
+        }
+        crate::validate_talent_human_decision(
+            &decision,
+            &actor.authority_scope,
+            &crate::offer_approve_decision_ref(identity.command_id, id, expected_version),
+            at,
+        )
+        .map_err(port_error)?;
+        let command_id = identity.command_id;
         if let Some(receipt) = self
             .replay_result(
                 &actor,
@@ -565,7 +606,7 @@ where
         }
         let mut offer = self.load_offer(&actor, id).await?;
         offer
-            .approve(approver, expected_version, at)
+            .approve(approver, expected_version, &decision, command_id, at)
             .map_err(port_error)?;
         self.commit_result(
             actor,
@@ -622,8 +663,20 @@ where
         candidate_principal_id: Uuid,
         accepted: bool,
         receipt: String,
+        decision: HumanDecisionProof,
         at: DateTime<Utc>,
     ) -> Result<TalentMutationReceipt, TalentPortError> {
+        if decision.principal_ref() != actor.principal.principal_id.to_string() {
+            return Err(TalentPortError::Denied);
+        }
+        crate::validate_talent_human_decision(
+            &decision,
+            &actor.authority_scope,
+            &crate::offer_decide_decision_ref(identity.command_id, id, expected_version, accepted),
+            at,
+        )
+        .map_err(port_error)?;
+        let command_id = identity.command_id;
         if let Some(receipt) = self
             .replay_result(
                 &actor,
@@ -642,7 +695,15 @@ where
         }
         let mut offer = self.load_offer(&actor, id).await?;
         offer
-            .candidate_decide(&actor.principal, accepted, expected_version, receipt, at)
+            .candidate_decide(
+                &actor.principal,
+                accepted,
+                expected_version,
+                receipt,
+                &decision,
+                command_id,
+                at,
+            )
             .map_err(port_error)?;
         self.commit_result(
             actor,
@@ -816,8 +877,20 @@ where
         id: ProposalId,
         expected_version: u64,
         approver: Uuid,
+        decision: HumanDecisionProof,
         at: DateTime<Utc>,
     ) -> Result<TalentMutationReceipt, TalentPortError> {
+        if decision.principal_ref() != actor.principal.principal_id.to_string() {
+            return Err(TalentPortError::Denied);
+        }
+        crate::validate_talent_human_decision(
+            &decision,
+            &actor.authority_scope,
+            &crate::proposal_approve_decision_ref(identity.command_id, id, expected_version),
+            at,
+        )
+        .map_err(port_error)?;
+        let command_id = identity.command_id;
         if let Some(receipt) = self
             .replay_result(
                 &actor,
@@ -833,7 +906,7 @@ where
         }
         let mut proposal = self.load_proposal(&actor, id).await?;
         proposal
-            .approve(approver, expected_version, at)
+            .approve(approver, expected_version, &decision, command_id, at)
             .map_err(port_error)?;
         self.commit_result(
             actor,
@@ -1290,6 +1363,7 @@ fn port_error(error: TalentError) -> TalentPortError {
         TalentError::RealmViolation => TalentPortError::RealmMismatch,
         TalentError::ApplicationDenied
         | TalentError::SegregationOfDuties
+        | TalentError::HumanDecisionRequired
         | TalentError::OwnerBoundaryViolation
         | TalentError::RetentionBlocked
         | TalentError::OfferExpired
@@ -1328,5 +1402,53 @@ impl<A: AuthorizationPort> TalentPolicyService<A> {
         self.authorization
             .authorize(principal, authority_scope, target_scope, action)
             .await
+    }
+}
+
+#[cfg(test)]
+mod human_decision_order_tests {
+    fn method<'a>(source: &'a str, name: &str, next: &str) -> &'a str {
+        let start = source.find(name).expect("decision method remains present");
+        let end = source[start..]
+            .find(next)
+            .map_or(source.len(), |offset| start + offset);
+        &source[start..end]
+    }
+
+    #[test]
+    fn human_decisions_are_rejected_before_idempotent_replay() {
+        let source = include_str!("application.rs");
+        for body in [
+            method(
+                source,
+                "pub async fn approve_requisition",
+                "pub async fn transition_requisition",
+            ),
+            method(
+                source,
+                "pub async fn transition_requisition",
+                "pub async fn create_candidate_profile",
+            ),
+            method(
+                source,
+                "pub async fn approve_offer",
+                "pub async fn present_offer",
+            ),
+            method(
+                source,
+                "pub async fn decide_offer",
+                "pub async fn request_hire_handoff",
+            ),
+            method(
+                source,
+                "pub async fn approve_proposal",
+                "pub async fn reconcile_proposal",
+            ),
+        ] {
+            assert!(
+                body.find("validate_talent_human_decision").unwrap()
+                    < body.find(".replay_result").unwrap()
+            );
+        }
     }
 }

@@ -4,7 +4,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{AuthorityScope, RecordId};
+use erpx_kernel::{ActorKind, AuthorityScope, CommandId, HumanDecisionProof, RecordId, SessionId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -39,6 +39,57 @@ commerce_id!(ReturnId, "return_id");
 pub enum CommerceRealm {
     Guest,
     Customer,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommerceHumanDecisionEvidence {
+    principal_ref: String,
+    actor_kind: ActorKind,
+    session_id: SessionId,
+    authority_scope: AuthorityScope,
+    decision_ref: String,
+    decided_at: DateTime<Utc>,
+}
+
+impl CommerceHumanDecisionEvidence {
+    fn from_proof(
+        decision: &HumanDecisionProof,
+        scope: &AuthorityScope,
+        expected_ref: &str,
+        at: DateTime<Utc>,
+    ) -> Result<Self, CommerceError> {
+        validate_commerce_human_decision(decision, scope, expected_ref, at)?;
+        Ok(Self {
+            principal_ref: decision.principal_ref().to_owned(),
+            actor_kind: decision.actor().kind,
+            session_id: decision
+                .actor()
+                .session_id
+                .ok_or(CommerceError::HumanDecisionRequired)?,
+            authority_scope: decision.authority_scope().clone(),
+            decision_ref: decision.decision_ref().to_owned(),
+            decided_at: decision.decided_at(),
+        })
+    }
+
+    pub fn principal_ref(&self) -> &str {
+        &self.principal_ref
+    }
+    pub const fn actor_kind(&self) -> ActorKind {
+        self.actor_kind
+    }
+    pub const fn session_id(&self) -> SessionId {
+        self.session_id
+    }
+    pub const fn authority_scope(&self) -> &AuthorityScope {
+        &self.authority_scope
+    }
+    pub fn decision_ref(&self) -> &str {
+        &self.decision_ref
+    }
+    pub const fn decided_at(&self) -> DateTime<Utc> {
+        self.decided_at
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -86,6 +137,8 @@ pub struct CommerceChannel {
     status: ChannelStatus,
     proposed_by: Uuid,
     approved_by: Option<Uuid>,
+    #[serde(default)]
+    human_decisions: Vec<CommerceHumanDecisionEvidence>,
     updated_at: DateTime<Utc>,
 }
 impl CommerceChannel {
@@ -110,6 +163,7 @@ impl CommerceChannel {
             status: ChannelStatus::Draft,
             proposed_by,
             approved_by: None,
+            human_decisions: Vec::new(),
             updated_at: at,
         };
         require_text(&value.code, "channel_code", 128)?;
@@ -122,23 +176,43 @@ impl CommerceChannel {
         &mut self,
         approver: Uuid,
         expected: u64,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), CommerceError> {
+        let evidence = CommerceHumanDecisionEvidence::from_proof(
+            decision,
+            &self.scope,
+            &channel_approve_decision_ref(command_id, self.id, expected),
+            at,
+        )?;
         self.ensure(expected, at)?;
-        if self.status != ChannelStatus::Draft || approver == self.proposed_by {
+        if self.status != ChannelStatus::Draft
+            || approver == self.proposed_by
+            || decision.principal_ref() != approver.to_string()
+        {
             return Err(CommerceError::SegregationOfDuties);
         }
         require_id(approver, "channel_approver")?;
         self.approved_by = Some(approver);
         self.status = ChannelStatus::Approved;
+        self.human_decisions.push(evidence);
         self.advance(at)
     }
     pub fn transition(
         &mut self,
         next_status: ChannelStatus,
         expected: u64,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), CommerceError> {
+        let evidence = CommerceHumanDecisionEvidence::from_proof(
+            decision,
+            &self.scope,
+            &channel_transition_decision_ref(command_id, self.id, expected, next_status),
+            at,
+        )?;
         self.ensure(expected, at)?;
         let allowed = matches!(
             (self.status, next_status),
@@ -154,6 +228,7 @@ impl CommerceChannel {
             return Err(CommerceError::InvalidTransition);
         }
         self.status = next_status;
+        self.human_decisions.push(evidence);
         self.advance(at)
     }
     fn ensure(&self, expected: u64, at: DateTime<Utc>) -> Result<(), CommerceError> {
@@ -182,6 +257,9 @@ impl CommerceChannel {
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
     }
+    pub fn human_decisions(&self) -> &[CommerceHumanDecisionEvidence] {
+        &self.human_decisions
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -206,6 +284,8 @@ pub struct Listing {
     status: ListingStatus,
     proposed_by: Uuid,
     approved_by: Option<Uuid>,
+    #[serde(default)]
+    human_decisions: Vec<CommerceHumanDecisionEvidence>,
     updated_at: DateTime<Utc>,
 }
 impl Listing {
@@ -241,6 +321,7 @@ impl Listing {
             status: ListingStatus::Draft,
             proposed_by,
             approved_by: None,
+            human_decisions: Vec::new(),
             updated_at: at,
         })
     }
@@ -248,23 +329,49 @@ impl Listing {
         &mut self,
         approver: Uuid,
         expected: u64,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), CommerceError> {
+        let evidence = CommerceHumanDecisionEvidence::from_proof(
+            decision,
+            &self.scope,
+            &listing_approve_decision_ref(command_id, self.id, expected),
+            at,
+        )?;
         ensure(expected, self.version, at, self.updated_at)?;
-        if self.status != ListingStatus::Draft || approver == self.proposed_by {
+        if self.status != ListingStatus::Draft
+            || approver == self.proposed_by
+            || decision.principal_ref() != approver.to_string()
+        {
             return Err(CommerceError::SegregationOfDuties);
         }
         require_id(approver, "listing_approver")?;
         self.approved_by = Some(approver);
         self.status = ListingStatus::Approved;
+        self.human_decisions.push(evidence);
         self.advance(at)
     }
     pub fn publish(
         &mut self,
         channel: &CommerceChannel,
         expected: u64,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), CommerceError> {
+        let evidence = CommerceHumanDecisionEvidence::from_proof(
+            decision,
+            &self.scope,
+            &listing_publish_decision_ref(
+                command_id,
+                self.id,
+                expected,
+                channel.id,
+                channel.version,
+            ),
+            at,
+        )?;
         ensure(expected, self.version, at, self.updated_at)?;
         if self.status != ListingStatus::Approved
             || channel.id != self.channel_id
@@ -274,6 +381,7 @@ impl Listing {
             return Err(CommerceError::InvalidTransition);
         }
         self.status = ListingStatus::Published;
+        self.human_decisions.push(evidence);
         self.advance(at)
     }
     pub fn withdraw(&mut self, expected: u64, at: DateTime<Utc>) -> Result<(), CommerceError> {
@@ -318,6 +426,9 @@ impl Listing {
     }
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
+    }
+    pub fn human_decisions(&self) -> &[CommerceHumanDecisionEvidence] {
+        &self.human_decisions
     }
 }
 
@@ -962,6 +1073,90 @@ fn external_next(
         DecisionStatus::Pending => Err(CommerceError::InvalidTransition),
     }
 }
+
+pub fn validate_commerce_human_decision(
+    decision: &HumanDecisionProof,
+    scope: &AuthorityScope,
+    expected_ref: &str,
+    at: DateTime<Utc>,
+) -> Result<(), CommerceError> {
+    let actor = decision.actor();
+    if !actor.is_human()
+        || actor.session_id.is_none()
+        || actor.represented_principal_ref.is_some()
+        || actor.support_capability_id.is_some()
+        || decision.authority_scope() != scope
+        || decision.decision_ref() != expected_ref
+        || decision.decided_at() != at
+    {
+        return Err(CommerceError::HumanDecisionRequired);
+    }
+    Ok(())
+}
+
+pub fn channel_approve_decision_ref(
+    command_id: CommandId,
+    id: ChannelId,
+    expected_version: u64,
+) -> String {
+    format!(
+        "ecommerce.channel.approve:{}:{}:{expected_version}",
+        command_id.as_uuid(),
+        id.as_uuid()
+    )
+}
+
+pub fn channel_transition_decision_ref(
+    command_id: CommandId,
+    id: ChannelId,
+    expected_version: u64,
+    target: ChannelStatus,
+) -> String {
+    format!(
+        "ecommerce.channel.transition.{}:{}:{}:{expected_version}",
+        channel_status_token(target),
+        command_id.as_uuid(),
+        id.as_uuid()
+    )
+}
+
+pub fn listing_approve_decision_ref(
+    command_id: CommandId,
+    id: ListingId,
+    expected_version: u64,
+) -> String {
+    format!(
+        "ecommerce.listing.approve:{}:{}:{expected_version}",
+        command_id.as_uuid(),
+        id.as_uuid()
+    )
+}
+
+pub fn listing_publish_decision_ref(
+    command_id: CommandId,
+    id: ListingId,
+    expected_version: u64,
+    channel_id: ChannelId,
+    channel_version: u64,
+) -> String {
+    format!(
+        "ecommerce.listing.publish:{}:{}:{expected_version}:{}:{channel_version}",
+        command_id.as_uuid(),
+        id.as_uuid(),
+        channel_id.as_uuid()
+    )
+}
+
+const fn channel_status_token(value: ChannelStatus) -> &'static str {
+    match value {
+        ChannelStatus::Draft => "draft",
+        ChannelStatus::Approved => "approved",
+        ChannelStatus::Active => "active",
+        ChannelStatus::Suspended => "suspended",
+        ChannelStatus::Retired => "retired",
+    }
+}
+
 fn validate_scope(scope: &AuthorityScope) -> Result<(), CommerceError> {
     if matches!(
         scope,
@@ -1020,6 +1215,8 @@ pub enum CommerceError {
     RealmViolation,
     #[error("maker-checker policy rejected the action")]
     SegregationOfDuties,
+    #[error("an exact authenticated human decision is required")]
+    HumanDecisionRequired,
     #[error("invalid channel")]
     InvalidChannel,
     #[error("invalid listing")]

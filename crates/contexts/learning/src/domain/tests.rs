@@ -2,7 +2,10 @@ use chrono::{NaiveDate, TimeZone, Utc};
 use erpx_integration_contracts::{
     RecordVersionRef, StableRecordRef, catalog::ContextId, reference::RecordTypeId,
 };
-use erpx_kernel::{AuthorityScope, PrincipalId, RecordId};
+use erpx_kernel::{
+    ActorAttribution, ActorKind, AuthorityScope, CommandId, HumanDecisionProof, PrincipalId,
+    RecordId, SessionId,
+};
 use uuid::Uuid;
 
 use super::*;
@@ -24,6 +27,24 @@ fn scope() -> AuthorityScope {
         branch_id: uuid(3),
     }
 }
+fn command_id(value: u128) -> CommandId {
+    CommandId::try_from_uuid(uuid(value)).unwrap()
+}
+fn human_decision(reference: String, at: chrono::DateTime<Utc>) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: uuid(8).to_string(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(uuid(9)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        scope(),
+        reference,
+        at,
+    )
+    .unwrap()
+}
 fn record(id: u128, owner: ContextId, kind: &str) -> StableRecordRef {
     StableRecordRef::try_new(
         RecordId::try_from_uuid(uuid(id)).unwrap(),
@@ -36,8 +57,10 @@ fn pin(id: u128, owner: ContextId, kind: &str, version: u64) -> RecordVersionRef
     RecordVersionRef::try_new(record(id, owner, kind), version).unwrap()
 }
 fn course() -> Course {
+    let course_id = CourseId::try_from_uuid(uuid(10)).unwrap();
+    let command = command_id(100);
     Course::published(
-        CourseId::try_from_uuid(uuid(10)).unwrap(),
+        course_id,
         scope(),
         "Workplace safety",
         8_000,
@@ -47,6 +70,8 @@ fn course() -> Course {
             ContextId::PlatformAdministration,
             "platform.provider",
         )),
+        &human_decision(course_publish_decision_ref(command, course_id, 0), at(1)),
+        command,
         at(1),
     )
     .unwrap()
@@ -99,6 +124,25 @@ fn published_course_is_a_persistable_initial_version() {
     let course = course();
     assert_eq!(course.status(), CourseStatus::Published);
     assert_eq!(course.version(), 1);
+    assert!(course.publish_decision().is_some());
+}
+
+#[test]
+fn course_publication_rejects_unbound_human_evidence() {
+    let course_id = CourseId::try_from_uuid(uuid(110)).unwrap();
+    let command = command_id(111);
+    let result = Course::published(
+        course_id,
+        scope(),
+        "Unsafe publication",
+        8_000,
+        60,
+        None,
+        &human_decision("learning.course.publish:wrong".into(), at(1)),
+        command,
+        at(1),
+    );
+    assert_eq!(result, Err(LearningDomainError::HumanDecisionRequired));
 }
 
 #[test]

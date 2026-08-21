@@ -4,7 +4,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{AuthorityScope, RecordId};
+use erpx_kernel::{ActorKind, AuthorityScope, CommandId, HumanDecisionProof, RecordId, SessionId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -40,6 +40,48 @@ talent_id!(HireHandoffId, "hire_handoff_id");
 pub enum TalentRealm {
     Candidate,
     Workforce,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TalentHumanDecisionEvidence {
+    principal_ref: String,
+    actor_kind: ActorKind,
+    session_id: SessionId,
+    authority_scope: AuthorityScope,
+    decision_ref: String,
+    decided_at: DateTime<Utc>,
+}
+
+impl TalentHumanDecisionEvidence {
+    fn from_proof(
+        decision: &HumanDecisionProof,
+        scope: &AuthorityScope,
+        expected_ref: &str,
+        at: DateTime<Utc>,
+    ) -> Result<Self, TalentError> {
+        validate_talent_human_decision(decision, scope, expected_ref, at)?;
+        Ok(Self {
+            principal_ref: decision.principal_ref().to_owned(),
+            actor_kind: decision.actor().kind,
+            session_id: decision
+                .actor()
+                .session_id
+                .ok_or(TalentError::HumanDecisionRequired)?,
+            authority_scope: decision.authority_scope().clone(),
+            decision_ref: decision.decision_ref().to_owned(),
+            decided_at: decision.decided_at(),
+        })
+    }
+
+    pub fn principal_ref(&self) -> &str {
+        &self.principal_ref
+    }
+    pub fn decision_ref(&self) -> &str {
+        &self.decision_ref
+    }
+    pub const fn session_id(&self) -> SessionId {
+        self.session_id
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -90,6 +132,8 @@ pub struct Requisition {
     privacy_review_version: u64,
     proposed_by: Uuid,
     approved_by: Option<Uuid>,
+    #[serde(default)]
+    human_decisions: Vec<TalentHumanDecisionEvidence>,
     status: RequisitionStatus,
     updated_at: DateTime<Utc>,
 }
@@ -129,6 +173,7 @@ impl Requisition {
             privacy_review_version,
             proposed_by,
             approved_by: None,
+            human_decisions: Vec::new(),
             status: RequisitionStatus::Draft,
             updated_at: at,
         };
@@ -139,14 +184,26 @@ impl Requisition {
         &mut self,
         approver: Uuid,
         expected: u64,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), TalentError> {
+        let evidence = TalentHumanDecisionEvidence::from_proof(
+            decision,
+            &self.scope,
+            &requisition_approve_decision_ref(command_id, self.id, expected),
+            at,
+        )?;
         ensure(expected, self.version, at, self.updated_at)?;
-        if self.status != RequisitionStatus::Draft || approver == self.proposed_by {
+        if self.status != RequisitionStatus::Draft
+            || approver == self.proposed_by
+            || decision.principal_ref() != approver.to_string()
+        {
             return Err(TalentError::SegregationOfDuties);
         }
         require_id(approver, "requisition_approver")?;
         self.approved_by = Some(approver);
+        self.human_decisions.push(evidence);
         self.status = RequisitionStatus::Approved;
         self.advance(at)
     }
@@ -154,8 +211,16 @@ impl Requisition {
         &mut self,
         next_status: RequisitionStatus,
         expected: u64,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), TalentError> {
+        let evidence = TalentHumanDecisionEvidence::from_proof(
+            decision,
+            &self.scope,
+            &requisition_transition_decision_ref(command_id, self.id, expected, next_status),
+            at,
+        )?;
         ensure(expected, self.version, at, self.updated_at)?;
         let allowed = matches!(
             (self.status, next_status),
@@ -182,6 +247,7 @@ impl Requisition {
         if !allowed {
             return Err(TalentError::InvalidTransition);
         }
+        self.human_decisions.push(evidence);
         self.status = next_status;
         self.advance(at)
     }
@@ -215,6 +281,9 @@ impl Requisition {
     }
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
+    }
+    pub fn human_decisions(&self) -> &[TalentHumanDecisionEvidence] {
+        &self.human_decisions
     }
 }
 
@@ -572,6 +641,8 @@ pub struct Offer {
     proposed_by: Uuid,
     approved_by: Option<Uuid>,
     acceptance_receipt: Option<String>,
+    #[serde(default)]
+    human_decisions: Vec<TalentHumanDecisionEvidence>,
     status: OfferStatus,
     updated_at: DateTime<Utc>,
 }
@@ -604,6 +675,7 @@ impl Offer {
             proposed_by,
             approved_by: None,
             acceptance_receipt: None,
+            human_decisions: Vec::new(),
             status: OfferStatus::Draft,
             updated_at: at,
         };
@@ -614,14 +686,26 @@ impl Offer {
         &mut self,
         approver: Uuid,
         expected: u64,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), TalentError> {
+        let evidence = TalentHumanDecisionEvidence::from_proof(
+            decision,
+            &self.scope,
+            &offer_approve_decision_ref(command_id, self.id, expected),
+            at,
+        )?;
         ensure(expected, self.version, at, self.updated_at)?;
-        if self.status != OfferStatus::Draft || approver == self.proposed_by {
+        if self.status != OfferStatus::Draft
+            || approver == self.proposed_by
+            || decision.principal_ref() != approver.to_string()
+        {
             return Err(TalentError::SegregationOfDuties);
         }
         require_id(approver, "offer_approver")?;
         self.approved_by = Some(approver);
+        self.human_decisions.push(evidence);
         self.status = OfferStatus::Approved;
         self.advance(at)
     }
@@ -639,10 +723,19 @@ impl Offer {
         accepted: bool,
         exact_offer_version: u64,
         receipt: impl Into<String>,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), TalentError> {
+        let evidence = TalentHumanDecisionEvidence::from_proof(
+            decision,
+            &self.scope,
+            &offer_decide_decision_ref(command_id, self.id, exact_offer_version, accepted),
+            at,
+        )?;
         if principal.realm != TalentRealm::Candidate
             || principal.principal_id != self.candidate_principal_id
+            || decision.principal_ref() != principal.principal_id.to_string()
         {
             return Err(TalentError::RealmViolation);
         }
@@ -653,6 +746,7 @@ impl Offer {
         let receipt = receipt.into();
         require_text(&receipt, "offer_receipt", 255)?;
         self.acceptance_receipt = Some(receipt);
+        self.human_decisions.push(evidence);
         self.status = if accepted {
             OfferStatus::Accepted
         } else {
@@ -696,6 +790,9 @@ impl Offer {
     }
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
+    }
+    pub fn human_decisions(&self) -> &[TalentHumanDecisionEvidence] {
+        &self.human_decisions
     }
 }
 
@@ -839,6 +936,8 @@ pub struct TalentProposal {
     amount: Option<MoneyAmount>,
     proposed_by: Uuid,
     approved_by: Option<Uuid>,
+    #[serde(default)]
+    human_decisions: Vec<TalentHumanDecisionEvidence>,
     status: ProposalStatus,
     owner_receipt: Option<String>,
     updated_at: DateTime<Utc>,
@@ -869,6 +968,7 @@ impl TalentProposal {
             amount,
             proposed_by,
             approved_by: None,
+            human_decisions: Vec::new(),
             status: ProposalStatus::Draft,
             owner_receipt: None,
             updated_at: at,
@@ -888,14 +988,26 @@ impl TalentProposal {
         &mut self,
         approver: Uuid,
         expected: u64,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), TalentError> {
+        let evidence = TalentHumanDecisionEvidence::from_proof(
+            decision,
+            &self.scope,
+            &proposal_approve_decision_ref(command_id, self.id, expected),
+            at,
+        )?;
         ensure(expected, self.version, at, self.updated_at)?;
-        if self.status != ProposalStatus::Review || approver == self.proposed_by {
+        if self.status != ProposalStatus::Review
+            || approver == self.proposed_by
+            || decision.principal_ref() != approver.to_string()
+        {
             return Err(TalentError::SegregationOfDuties);
         }
         require_id(approver, "proposal_approver")?;
         self.approved_by = Some(approver);
+        self.human_decisions.push(evidence);
         self.status = ProposalStatus::Approved;
         self.advance(at)
     }
@@ -953,6 +1065,9 @@ impl TalentProposal {
     }
     pub const fn updated_at(&self) -> DateTime<Utc> {
         self.updated_at
+    }
+    pub fn human_decisions(&self) -> &[TalentHumanDecisionEvidence] {
+        &self.human_decisions
     }
 }
 
@@ -1053,6 +1168,103 @@ pub fn talent_record_ref(
         RecordTypeId::try_new(record_type)?,
     )
 }
+
+pub fn validate_talent_human_decision(
+    decision: &HumanDecisionProof,
+    scope: &AuthorityScope,
+    expected_ref: &str,
+    at: DateTime<Utc>,
+) -> Result<(), TalentError> {
+    let actor = decision.actor();
+    if !actor.is_human()
+        || actor.session_id.is_none()
+        || actor.represented_principal_ref.is_some()
+        || actor.support_capability_id.is_some()
+        || decision.authority_scope() != scope
+        || decision.decision_ref() != expected_ref
+        || decision.decided_at() != at
+    {
+        return Err(TalentError::HumanDecisionRequired);
+    }
+    Ok(())
+}
+
+pub fn requisition_approve_decision_ref(
+    command_id: CommandId,
+    id: RequisitionId,
+    expected_version: u64,
+) -> String {
+    format!(
+        "talent.requisition.approve:{}:{}:{expected_version}",
+        command_id.as_uuid(),
+        id.as_uuid()
+    )
+}
+
+pub fn requisition_transition_decision_ref(
+    command_id: CommandId,
+    id: RequisitionId,
+    expected_version: u64,
+    target: RequisitionStatus,
+) -> String {
+    format!(
+        "talent.requisition.transition.{}:{}:{}:{expected_version}",
+        requisition_status_token(target),
+        command_id.as_uuid(),
+        id.as_uuid()
+    )
+}
+
+pub fn offer_approve_decision_ref(
+    command_id: CommandId,
+    id: OfferId,
+    expected_version: u64,
+) -> String {
+    format!(
+        "talent.offer.approve:{}:{}:{expected_version}",
+        command_id.as_uuid(),
+        id.as_uuid()
+    )
+}
+
+pub fn offer_decide_decision_ref(
+    command_id: CommandId,
+    id: OfferId,
+    expected_version: u64,
+    accepted: bool,
+) -> String {
+    let outcome = if accepted { "accept" } else { "reject" };
+    format!(
+        "talent.offer.{outcome}:{}:{}:{expected_version}",
+        command_id.as_uuid(),
+        id.as_uuid()
+    )
+}
+
+pub fn proposal_approve_decision_ref(
+    command_id: CommandId,
+    id: ProposalId,
+    expected_version: u64,
+) -> String {
+    format!(
+        "talent.proposal.approve:{}:{}:{expected_version}",
+        command_id.as_uuid(),
+        id.as_uuid()
+    )
+}
+
+const fn requisition_status_token(value: RequisitionStatus) -> &'static str {
+    match value {
+        RequisitionStatus::Draft => "draft",
+        RequisitionStatus::Approved => "approved",
+        RequisitionStatus::Published => "published",
+        RequisitionStatus::OnHold => "on-hold",
+        RequisitionStatus::Closed => "closed",
+        RequisitionStatus::Cancelled => "cancelled",
+        RequisitionStatus::Archived => "archived",
+    }
+}
+
 fn validate_scope(scope: &AuthorityScope) -> Result<(), TalentError> {
     if matches!(
         scope,
@@ -1111,6 +1323,8 @@ pub enum TalentError {
     RealmViolation,
     #[error("maker-checker policy rejected the action")]
     SegregationOfDuties,
+    #[error("an exact authenticated human decision is required")]
+    HumanDecisionRequired,
     #[error("invalid requisition")]
     InvalidRequisition,
     #[error("invalid candidate profile")]
