@@ -4,7 +4,9 @@ use erpx_cqrs_sqlx::{
     CqrsSqlxError, ProjectionPool, ProjectionRun, ProjectionRunner, ProjectionRunnerConfig,
     ProjectionSource, ProjectionStore, Projector, RebuildHandle, WritePool,
 };
-use erpx_procurement_sqlx::{ProcurementProjector, ProcurementRecordProjector};
+use erpx_procurement_sqlx::{
+    ProcurementProjector, ProcurementRecordProjector, ProcurementWorkflowProjector,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProcurementProjectionRegistration {
@@ -15,6 +17,7 @@ pub struct ProcurementProjectionRegistration {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProcurementProjectionKind {
     PurchaseOrders,
+    WorkflowRecords,
     BusinessRecords,
 }
 
@@ -24,8 +27,13 @@ pub struct ProcurementProjectionFactory;
 impl ProcurementProjectionFactory {
     pub fn registrations(self) -> Vec<ProcurementProjectionRegistration> {
         let purchase_orders = ProcurementProjector::new();
+        let workflow_records = ProcurementWorkflowProjector::new();
         let records = ProcurementRecordProjector::new();
-        vec![registration(&purchase_orders), registration(&records)]
+        vec![
+            registration(&purchase_orders),
+            registration(&workflow_records),
+            registration(&records),
+        ]
     }
 
     pub fn build(
@@ -38,6 +46,7 @@ impl ProcurementProjectionFactory {
         let runner = ProjectionRunner::new(ProjectionSource::new(write), store.clone(), config)?;
         Ok(ProcurementProjectionRuntime {
             purchase_orders: ProcurementProjector::new(),
+            workflow_records: ProcurementWorkflowProjector::new(),
             records: ProcurementRecordProjector::new(),
             runner,
             store,
@@ -48,6 +57,7 @@ impl ProcurementProjectionFactory {
 #[derive(Debug, Clone)]
 pub struct ProcurementProjectionRuntime {
     purchase_orders: ProcurementProjector,
+    workflow_records: ProcurementWorkflowProjector,
     records: ProcurementRecordProjector,
     runner: ProjectionRunner,
     store: ProjectionStore,
@@ -65,6 +75,9 @@ impl ProcurementProjectionRuntime {
             ProcurementProjectionKind::PurchaseOrders => {
                 self.runner.run_active(&self.purchase_orders).await
             }
+            ProcurementProjectionKind::WorkflowRecords => {
+                self.runner.run_active(&self.workflow_records).await
+            }
             ProcurementProjectionKind::BusinessRecords => {
                 self.runner.run_active(&self.records).await
             }
@@ -77,6 +90,9 @@ impl ProcurementProjectionRuntime {
         match kind {
             ProcurementProjectionKind::PurchaseOrders => {
                 self.store.begin_rebuild(&self.purchase_orders).await
+            }
+            ProcurementProjectionKind::WorkflowRecords => {
+                self.store.begin_rebuild(&self.workflow_records).await
             }
             ProcurementProjectionKind::BusinessRecords => {
                 self.store.begin_rebuild(&self.records).await
@@ -95,6 +111,11 @@ impl ProcurementProjectionRuntime {
                     .run_rebuild(&self.purchase_orders, handle, after_sequence)
                     .await
             }
+            ProcurementProjectionKind::WorkflowRecords => {
+                self.runner
+                    .run_rebuild(&self.workflow_records, handle, after_sequence)
+                    .await
+            }
             ProcurementProjectionKind::BusinessRecords => {
                 self.runner
                     .run_rebuild(&self.records, handle, after_sequence)
@@ -109,6 +130,7 @@ impl ProcurementProjectionRuntime {
     ) -> Result<(), CqrsSqlxError> {
         let expected = match kind {
             ProcurementProjectionKind::PurchaseOrders => self.purchase_orders.name(),
+            ProcurementProjectionKind::WorkflowRecords => self.workflow_records.name(),
             ProcurementProjectionKind::BusinessRecords => self.records.name(),
         };
         if handle.projection != expected {
@@ -131,6 +153,7 @@ fn registration(projector: &impl Projector) -> ProcurementProjectionRegistration
 mod tests {
     use erpx_procurement_sqlx::{
         PROJECTION_NAME, RECORD_PROJECTION_NAME, RECORD_SNAPSHOT_EVENT_TYPE, SNAPSHOT_EVENT_TYPE,
+        WORKFLOW_PROJECTION_NAME,
     };
 
     use super::*;
@@ -138,10 +161,11 @@ mod tests {
     #[test]
     fn registrations_are_snapshot_only() {
         let values = ProcurementProjectionFactory.registrations();
-        assert_eq!(values.len(), 2);
+        assert_eq!(values.len(), 3);
         assert_eq!(values[0].name, PROJECTION_NAME);
         assert_eq!(values[0].event_types, vec![SNAPSHOT_EVENT_TYPE]);
-        assert_eq!(values[1].name, RECORD_PROJECTION_NAME);
-        assert_eq!(values[1].event_types, vec![RECORD_SNAPSHOT_EVENT_TYPE]);
+        assert_eq!(values[1].name, WORKFLOW_PROJECTION_NAME);
+        assert_eq!(values[2].name, RECORD_PROJECTION_NAME);
+        assert_eq!(values[2].event_types, vec![RECORD_SNAPSHOT_EVENT_TYPE]);
     }
 }

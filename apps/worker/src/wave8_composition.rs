@@ -24,6 +24,8 @@ pub enum Wave8ProjectionKind {
     FinanceTrialBalance,
     FinanceBankTransactions,
     FinanceStatutoryTax,
+    FinanceVendorInvoices,
+    FinancePayments,
     FinanceBusinessRecords,
     LegalContracts,
     LegalDocuments,
@@ -47,6 +49,8 @@ impl Wave8ProjectionKind {
             Self::FinanceTrialBalance => erpx_finance_sqlx::TRIAL_BALANCE_PROJECTION,
             Self::FinanceBankTransactions => erpx_finance_sqlx::BANK_TRANSACTION_PROJECTION,
             Self::FinanceStatutoryTax => erpx_finance_sqlx::STATUTORY_TAX_PROJECTION,
+            Self::FinanceVendorInvoices => erpx_finance_sqlx::VENDOR_INVOICE_PROJECTION,
+            Self::FinancePayments => erpx_finance_sqlx::PAYMENT_PROJECTION,
             Self::FinanceBusinessRecords => erpx_finance_sqlx::RECORD_PROJECTION_NAME,
             Self::LegalContracts => erpx_legal_sqlx::CONTRACT_PROJECTION,
             Self::LegalDocuments => erpx_legal_sqlx::DOCUMENT_PROJECTION,
@@ -123,6 +127,12 @@ impl Wave8ProjectionExecutor {
             }
             Wave8ProjectionKind::FinanceStatutoryTax => {
                 finance_runtime(write, read, config, FinanceProjectionKind::StatutoryTax)
+            }
+            Wave8ProjectionKind::FinanceVendorInvoices => {
+                finance_runtime(write, read, config, FinanceProjectionKind::VendorInvoices)
+            }
+            Wave8ProjectionKind::FinancePayments => {
+                finance_runtime(write, read, config, FinanceProjectionKind::Payments)
             }
             Wave8ProjectionKind::FinanceBusinessRecords => {
                 finance_runtime(write, read, config, FinanceProjectionKind::BusinessRecords)
@@ -332,6 +342,8 @@ mod tests {
             Wave8ProjectionKind::FinanceTrialBalance,
             Wave8ProjectionKind::FinanceBankTransactions,
             Wave8ProjectionKind::FinanceStatutoryTax,
+            Wave8ProjectionKind::FinanceVendorInvoices,
+            Wave8ProjectionKind::FinancePayments,
             Wave8ProjectionKind::LegalContracts,
             Wave8ProjectionKind::LegalDocuments,
             Wave8ProjectionKind::LegalAccessHistory,
@@ -341,7 +353,7 @@ mod tests {
             Wave8ProjectionKind::SupportSessions,
             Wave8ProjectionKind::SupportCapabilities,
         ];
-        assert_eq!(kinds.len(), 17);
+        assert_eq!(kinds.len(), 19);
     }
 
     #[test]
@@ -371,6 +383,11 @@ mod tests {
                 Wave8ProjectionKind::FinanceStatutoryTax,
                 "finance.statutory_tax",
             ),
+            (
+                Wave8ProjectionKind::FinanceVendorInvoices,
+                "finance.vendor_invoices",
+            ),
+            (Wave8ProjectionKind::FinancePayments, "finance.payments"),
             (Wave8ProjectionKind::LegalContracts, "legal.contracts"),
             (Wave8ProjectionKind::LegalDocuments, "legal.documents"),
             (

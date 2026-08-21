@@ -187,7 +187,7 @@ const PLATFORM_PERMISSIONS: &[&str] = &[
 
 type TaskResult<T = ()> = Result<T, Box<dyn Error + Send + Sync>>;
 
-const STANDARD_WORKERS: [&str; 92] = [
+const STANDARD_WORKERS: [&str; 95] = [
     "support-worker",
     "agent-holding-operations-worker",
     "commercial-catalog-projector",
@@ -209,6 +209,7 @@ const STANDARD_WORKERS: [&str; 92] = [
     "crm-opportunities-projector",
     "crm-business-records-projector",
     "procurement-purchase-orders-projector",
+    "procurement-workflow-records-projector",
     "procurement-business-records-projector",
     "inventory-stock-items-projector",
     "inventory-lifecycle-records-projector",
@@ -256,6 +257,8 @@ const STANDARD_WORKERS: [&str; 92] = [
     "finance-trial-balance-projector",
     "finance-bank-transactions-projector",
     "finance-statutory-tax-projector",
+    "finance-vendor-invoices-projector",
+    "finance-payments-projector",
     "finance-customer-invoices-projector",
     "finance-revenue-schedules-projector",
     "finance-business-records-projector",
@@ -281,7 +284,7 @@ const STANDARD_WORKERS: [&str; 92] = [
     "marketing-delivery-worker",
     "marketing-journey-integration-worker",
 ];
-const DEDICATED_WORKERS: [&str; 95] = [
+const DEDICATED_WORKERS: [&str; 98] = [
     "support-worker",
     "agent-holding-operations-worker",
     "commercial-catalog-projector",
@@ -303,6 +306,7 @@ const DEDICATED_WORKERS: [&str; 95] = [
     "crm-opportunities-projector",
     "crm-business-records-projector",
     "procurement-purchase-orders-projector",
+    "procurement-workflow-records-projector",
     "procurement-business-records-projector",
     "inventory-stock-items-projector",
     "inventory-lifecycle-records-projector",
@@ -350,6 +354,8 @@ const DEDICATED_WORKERS: [&str; 95] = [
     "finance-trial-balance-projector",
     "finance-bank-transactions-projector",
     "finance-statutory-tax-projector",
+    "finance-vendor-invoices-projector",
+    "finance-payments-projector",
     "finance-customer-invoices-projector",
     "finance-revenue-schedules-projector",
     "finance-business-records-projector",
@@ -2826,6 +2832,11 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "b14f",
             ),
             (
+                "procurement-workflow-records-projector",
+                "procurement_workflow_records",
+                "b18b",
+            ),
+            (
                 "procurement-business-records-projector",
                 "procurement_business_records",
                 "b16b",
@@ -3028,6 +3039,7 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "b187" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b187",
                 "b188" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b188",
                 "b189" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b189",
+                "b18b" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b18b",
                 _ => unreachable!("frozen generation-two projection worker suffix"),
             },
             projection_kind: Some(projection_kind),
@@ -3054,6 +3066,12 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "finance_statutory_tax",
                 "b136",
             ),
+            (
+                "finance-vendor-invoices-projector",
+                "finance_vendor_invoices",
+                "b18c",
+            ),
+            ("finance-payments-projector", "finance_payments", "b18d"),
             (
                 "finance-customer-invoices-projector",
                 "finance_customer_invoices",
@@ -3133,6 +3151,8 @@ fn worker_specs(dedicated: bool) -> Vec<WorkerSpec> {
                 "b165" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b165",
                 "b16c" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b16c",
                 "b170" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b170",
+                "b18c" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b18c",
+                "b18d" => "8cf8d67f-186e-4b12-9e1c-bc29f5f5b18d",
                 _ => unreachable!("frozen typed projection worker suffix"),
             },
             projection_kind: Some(projection_kind),
@@ -6467,8 +6487,8 @@ mod tests {
     #[test]
     fn development_starts_the_complete_generation_two_worker_catalog() {
         let standard = worker_specs(false);
-        assert_eq!(standard.len(), 92);
-        assert_eq!(worker_specs(true).len(), 95);
+        assert_eq!(standard.len(), 95);
+        assert_eq!(worker_specs(true).len(), 98);
         assert_eq!(
             standard.iter().map(|spec| spec.name).collect::<Vec<_>>(),
             STANDARD_WORKERS
@@ -6489,7 +6509,7 @@ mod tests {
             .iter()
             .filter_map(|spec| spec.projection_kind)
             .collect::<BTreeSet<_>>();
-        assert_eq!(projection_kinds.len(), 79);
+        assert_eq!(projection_kinds.len(), 82);
         assert!(projection_kinds.contains("quality"));
         assert!(projection_kinds.contains("quality_lifecycle_records"));
         assert!(projection_kinds.contains("identity_access_principals"));
@@ -6502,6 +6522,7 @@ mod tests {
         assert!(projection_kinds.contains("marketing_business_records"));
         assert!(projection_kinds.contains("crm_business_records"));
         assert!(projection_kinds.contains("procurement_business_records"));
+        assert!(projection_kinds.contains("procurement_workflow_records"));
         assert!(projection_kinds.contains("inventory_lifecycle_records"));
         assert!(projection_kinds.contains("customer_authority_business_records"));
         assert!(projection_kinds.contains("customer360_owned_records"));
@@ -6534,6 +6555,8 @@ mod tests {
         assert!(projection_kinds.contains("finance_customer_invoices"));
         assert!(projection_kinds.contains("finance_revenue_schedules"));
         assert!(projection_kinds.contains("finance_business_records"));
+        assert!(projection_kinds.contains("finance_vendor_invoices"));
+        assert!(projection_kinds.contains("finance_payments"));
         assert!(projection_kinds.contains("legal_access_history"));
         assert!(projection_kinds.contains("legal_matters"));
         assert!(projection_kinds.contains("sales_revenue_arrangements"));

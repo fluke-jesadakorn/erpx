@@ -6,9 +6,9 @@ use erpx_cqrs_sqlx::{
 };
 use erpx_finance_sqlx::{
     FinanceBankTransactionProjector, FinanceChartProjector, FinanceCustomerInvoiceProjector,
-    FinanceJournalProjector, FinancePeriodProjector, FinanceRecordProjector,
-    FinanceRevenueScheduleProjector, FinanceStatutoryTaxProjector, FinanceSubledgerProjector,
-    FinanceTrialBalanceProjector,
+    FinanceJournalProjector, FinancePaymentProjector, FinancePeriodProjector,
+    FinanceRecordProjector, FinanceRevenueScheduleProjector, FinanceStatutoryTaxProjector,
+    FinanceSubledgerProjector, FinanceTrialBalanceProjector, FinanceVendorInvoiceProjector,
 };
 use uuid::Uuid;
 
@@ -29,6 +29,8 @@ pub enum FinanceProjectionKind {
     TrialBalance,
     BankTransactions,
     StatutoryTax,
+    VendorInvoices,
+    Payments,
     BusinessRecords,
 }
 
@@ -47,6 +49,8 @@ impl FinanceProjectionFactory {
             registration(&FinanceTrialBalanceProjector::new()),
             registration(&FinanceBankTransactionProjector::new()),
             registration(&FinanceStatutoryTaxProjector::new()),
+            registration(&FinanceVendorInvoiceProjector::new()),
+            registration(&FinancePaymentProjector::new()),
             registration(&FinanceRecordProjector::new()),
         ]
     }
@@ -68,6 +72,8 @@ impl FinanceProjectionFactory {
             trial_balance: FinanceTrialBalanceProjector::new(),
             bank_transactions: FinanceBankTransactionProjector::new(),
             statutory_tax: FinanceStatutoryTaxProjector::new(),
+            vendor_invoices: FinanceVendorInvoiceProjector::new(),
+            payments: FinancePaymentProjector::new(),
             records: FinanceRecordProjector::new(),
             runner,
             store,
@@ -86,6 +92,8 @@ pub struct FinanceProjectionRuntime {
     trial_balance: FinanceTrialBalanceProjector,
     bank_transactions: FinanceBankTransactionProjector,
     statutory_tax: FinanceStatutoryTaxProjector,
+    vendor_invoices: FinanceVendorInvoiceProjector,
+    payments: FinancePaymentProjector,
     records: FinanceRecordProjector,
     runner: ProjectionRunner,
     store: ProjectionStore,
@@ -119,6 +127,10 @@ impl FinanceProjectionRuntime {
             FinanceProjectionKind::StatutoryTax => {
                 self.runner.run_active(&self.statutory_tax).await
             }
+            FinanceProjectionKind::VendorInvoices => {
+                self.runner.run_active(&self.vendor_invoices).await
+            }
+            FinanceProjectionKind::Payments => self.runner.run_active(&self.payments).await,
             FinanceProjectionKind::BusinessRecords => self.runner.run_active(&self.records).await,
         }
     }
@@ -171,6 +183,16 @@ impl FinanceProjectionRuntime {
             FinanceProjectionKind::StatutoryTax => {
                 self.store
                     .begin_or_resume_rebuild(&self.statutory_tax, rebuild_id)
+                    .await
+            }
+            FinanceProjectionKind::VendorInvoices => {
+                self.store
+                    .begin_or_resume_rebuild(&self.vendor_invoices, rebuild_id)
+                    .await
+            }
+            FinanceProjectionKind::Payments => {
+                self.store
+                    .begin_or_resume_rebuild(&self.payments, rebuild_id)
                     .await
             }
             FinanceProjectionKind::BusinessRecords => {
@@ -226,6 +248,14 @@ impl FinanceProjectionRuntime {
                     .run_rebuild(&self.statutory_tax, handle, after)
                     .await
             }
+            FinanceProjectionKind::VendorInvoices => {
+                self.runner
+                    .run_rebuild(&self.vendor_invoices, handle, after)
+                    .await
+            }
+            FinanceProjectionKind::Payments => {
+                self.runner.run_rebuild(&self.payments, handle, after).await
+            }
             FinanceProjectionKind::BusinessRecords => {
                 self.runner.run_rebuild(&self.records, handle, after).await
             }
@@ -246,6 +276,8 @@ impl FinanceProjectionRuntime {
             FinanceProjectionKind::TrialBalance => self.trial_balance.name(),
             FinanceProjectionKind::BankTransactions => self.bank_transactions.name(),
             FinanceProjectionKind::StatutoryTax => self.statutory_tax.name(),
+            FinanceProjectionKind::VendorInvoices => self.vendor_invoices.name(),
+            FinanceProjectionKind::Payments => self.payments.name(),
             FinanceProjectionKind::BusinessRecords => self.records.name(),
         };
         if handle.projection != expected {
@@ -269,20 +301,21 @@ mod tests {
     use super::*;
     use erpx_finance_sqlx::{
         BANK_TRANSACTION_PROJECTION, CHART_PROJECTION, CUSTOMER_INVOICE_PROJECTION,
-        JOURNAL_PROJECTION, PERIOD_PROJECTION, RECORD_PROJECTION_NAME, REVENUE_SCHEDULE_PROJECTION,
-        STATUTORY_TAX_PROJECTION, SUBLEDGER_PROJECTION, TRIAL_BALANCE_PROJECTION,
+        JOURNAL_PROJECTION, PAYMENT_PROJECTION, PERIOD_PROJECTION, RECORD_PROJECTION_NAME,
+        REVENUE_SCHEDULE_PROJECTION, STATUTORY_TAX_PROJECTION, SUBLEDGER_PROJECTION,
+        TRIAL_BALANCE_PROJECTION, VENDOR_INVOICE_PROJECTION,
     };
     #[test]
     fn registrations_are_collision_free() {
         let values = FinanceProjectionFactory.registrations();
-        assert_eq!(values.len(), 10);
+        assert_eq!(values.len(), 12);
         assert_eq!(
             values
                 .iter()
                 .map(|v| v.name.as_str())
                 .collect::<std::collections::BTreeSet<_>>()
                 .len(),
-            10
+            12
         );
         for expected in [
             CHART_PROJECTION,
@@ -294,6 +327,8 @@ mod tests {
             TRIAL_BALANCE_PROJECTION,
             BANK_TRANSACTION_PROJECTION,
             STATUTORY_TAX_PROJECTION,
+            VENDOR_INVOICE_PROJECTION,
+            PAYMENT_PROJECTION,
             RECORD_PROJECTION_NAME,
         ] {
             assert!(values.iter().any(|v| v.name == expected));

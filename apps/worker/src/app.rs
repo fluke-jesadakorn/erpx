@@ -1814,6 +1814,7 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                     | "crm_opportunities"
                     | "crm_business_records"
                     | "procurement_purchase_orders"
+                    | "procurement_workflow_records"
                     | "procurement_business_records"
                     | "inventory_stock_items"
                     | "inventory_lifecycle_records"
@@ -1837,6 +1838,9 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                             "crm_business_records" => Wave6ProjectionKind::CrmBusinessRecords,
                             "procurement_purchase_orders" => {
                                 Wave6ProjectionKind::ProcurementPurchaseOrders
+                            }
+                            "procurement_workflow_records" => {
+                                Wave6ProjectionKind::ProcurementWorkflowRecords
                             }
                             "procurement_business_records" => {
                                 Wave6ProjectionKind::ProcurementBusinessRecords
@@ -1950,6 +1954,8 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                     | "finance_trial_balance"
                     | "finance_bank_transactions"
                     | "finance_statutory_tax"
+                    | "finance_vendor_invoices"
+                    | "finance_payments"
                     | "finance_business_records"
                     | "legal_contracts"
                     | "legal_documents"
@@ -1975,6 +1981,8 @@ pub(crate) async fn run() -> Result<(), Box<dyn std::error::Error>> {
                                 Wave8ProjectionKind::FinanceBankTransactions
                             }
                             "finance_statutory_tax" => Wave8ProjectionKind::FinanceStatutoryTax,
+                            "finance_vendor_invoices" => Wave8ProjectionKind::FinanceVendorInvoices,
+                            "finance_payments" => Wave8ProjectionKind::FinancePayments,
                             "finance_business_records" => {
                                 Wave8ProjectionKind::FinanceBusinessRecords
                             }

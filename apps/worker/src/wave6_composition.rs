@@ -36,6 +36,7 @@ pub enum Wave6ProjectionKind {
     CrmOpportunities,
     CrmBusinessRecords,
     ProcurementPurchaseOrders,
+    ProcurementWorkflowRecords,
     ProcurementBusinessRecords,
     InventoryStockItems,
     InventoryLifecycleRecords,
@@ -78,6 +79,9 @@ impl Wave6ProjectionExecutor {
             Wave6ProjectionKind::CrmBusinessRecords => erpx_crm_sqlx::RECORD_PROJECTION_NAME,
             Wave6ProjectionKind::ProcurementPurchaseOrders => {
                 erpx_procurement_sqlx::PROJECTION_NAME
+            }
+            Wave6ProjectionKind::ProcurementWorkflowRecords => {
+                erpx_procurement_sqlx::WORKFLOW_PROJECTION_NAME
             }
             Wave6ProjectionKind::ProcurementBusinessRecords => {
                 erpx_procurement_sqlx::RECORD_PROJECTION_NAME
@@ -198,6 +202,16 @@ impl Wave6ProjectionExecutor {
                     ProcurementProjectionFactory.registrations()
                 );
                 SnapshotRuntime::Procurement(runtime, ProcurementProjectionKind::PurchaseOrders)
+            }
+            Wave6ProjectionKind::ProcurementWorkflowRecords => {
+                let runtime = ProcurementProjectionFactory
+                    .build(write, read, config)
+                    .map_err(crate::map_cqrs_projection_error)?;
+                debug_assert_eq!(
+                    runtime.registrations(),
+                    ProcurementProjectionFactory.registrations()
+                );
+                SnapshotRuntime::Procurement(runtime, ProcurementProjectionKind::WorkflowRecords)
             }
             Wave6ProjectionKind::ProcurementBusinessRecords => {
                 let runtime = ProcurementProjectionFactory
