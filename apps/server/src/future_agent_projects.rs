@@ -2111,6 +2111,7 @@ where
             // This authority-side read has no rebuildable read checkpoint. It
             // is therefore never advertised as a current projection.
             projection: None,
+            authority_current: true,
         }))
     }
 
@@ -2146,6 +2147,7 @@ where
         Ok(Response::new(agent::ListFieldSuggestionsByRecordResponse {
             suggestions: values.iter().map(encode_field_suggestion).collect(),
             projection: None,
+            authority_current: true,
         }))
     }
 }

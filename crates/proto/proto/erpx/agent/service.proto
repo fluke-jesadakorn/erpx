@@ -527,6 +527,9 @@ message GetFieldSuggestionRequest {
 message GetFieldSuggestionResponse {
   optional FieldSuggestionProjection suggestion = 1;
   erpx.common.ProjectionMetadata projection = 2;
+  // True only for an online, freshly reauthorized authority-side read. Older
+  // readers ignore this; clients must not cache it as an authorization grant.
+  bool authority_current = 3;
 }
 
 message ListFieldSuggestionsByRecordRequest {
@@ -538,6 +541,7 @@ message ListFieldSuggestionsByRecordRequest {
 message ListFieldSuggestionsByRecordResponse {
   repeated FieldSuggestionProjection suggestions = 1;
   erpx.common.ProjectionMetadata projection = 2;
+  bool authority_current = 3;
 }
 
 service AgentOrchestrationCommandService {

@@ -2,9 +2,10 @@ use dioxus::prelude::*;
 use erpx_ui_ai_collaboration::{
     ActivityRailState, ActivityReferenceGate, AiWorkspaceState, AnchorFreshness,
     AssignmentDisplayState, AutocompleteState, CommentCard, CommentEditorDocument,
-    CommentVisibility, ConnectivityState, FloatingLauncherState, LAUNCHER_ACCESSIBILITY,
-    LauncherPresentation, MutationAvailability, PrivacyState, RealtimeState, ThreadCard,
-    ThreadLifecycle, ThreadRealm, TypedActionProposal, WorkspaceSection, activity_accessibility,
+    CommentVisibility, ConnectivityState, FieldSuggestionCard, FieldSuggestionDisplayStatus,
+    FloatingLauncherState, LAUNCHER_ACCESSIBILITY, LauncherPresentation, MutationAvailability,
+    PrivacyState, RealtimeState, ThreadCard, ThreadLifecycle, ThreadRealm, TypedActionProposal,
+    WorkspaceSection, activity_accessibility,
 };
 use erpx_ui_core::Locale;
 use erpx_ui_kit::{
@@ -66,10 +67,67 @@ pub fn RecordActivityRail(
                     }
                     for thread in threads { {render_thread(thread, locale)} }
                 },
-                ActivityRailState::Content { threads, realtime } => rsx! {
+                ActivityRailState::Content { threads, suggestions, realtime } => rsx! {
                     {realtime_status(realtime, locale)}
+                    for suggestion in suggestions { {render_field_suggestion(suggestion, locale)} }
                     for thread in threads { {render_thread(thread, locale)} }
                 },
+            }
+        }
+    }
+}
+
+fn render_field_suggestion(suggestion: FieldSuggestionCard, locale: Locale) -> Element {
+    let (status, tone) = match suggestion.status {
+        FieldSuggestionDisplayStatus::Queued => {
+            (copy(locale, "Queued", "รอคิว"), StatusTone::Neutral)
+        }
+        FieldSuggestionDisplayStatus::Running => {
+            (copy(locale, "Running", "กำลังทำงาน"), StatusTone::Info)
+        }
+        FieldSuggestionDisplayStatus::Ready => (
+            copy(locale, "Ready for review", "พร้อมตรวจสอบ"),
+            StatusTone::Warning,
+        ),
+        FieldSuggestionDisplayStatus::Conflicted => {
+            (copy(locale, "Conflicted", "มีข้อขัดแย้ง"), StatusTone::Danger)
+        }
+        FieldSuggestionDisplayStatus::Applied => {
+            (copy(locale, "Applied", "นำไปใช้แล้ว"), StatusTone::Success)
+        }
+        FieldSuggestionDisplayStatus::Rejected => {
+            (copy(locale, "Rejected", "ปฏิเสธแล้ว"), StatusTone::Neutral)
+        }
+        FieldSuggestionDisplayStatus::Superseded => {
+            (copy(locale, "Superseded", "แทนที่แล้ว"), StatusTone::Neutral)
+        }
+        FieldSuggestionDisplayStatus::Failed => {
+            (copy(locale, "Failed", "ล้มเหลว"), StatusTone::Danger)
+        }
+    };
+    rsx! {
+        article {
+            class: "erpx-field-suggestion",
+            "data-suggestion-id": suggestion.suggestion_id.to_string(),
+            header {
+                div {
+                    p { class: "eyebrow", {copy(locale, "AI FIELD SUGGESTION", "คำแนะนำฟิลด์จาก AI")} }
+                    h3 { {suggestion.owner_label} }
+                }
+                StatusBadge { label: status.to_owned(), tone }
+            }
+            p { {format!("{} · {}", suggestion.provider_label, suggestion.updated_at.format("%Y-%m-%d %H:%M UTC"))} }
+            if suggestion.conflict_count > 0 {
+                p { role: "status", {format!("{}: {}", copy(locale, "Conflicts", "ข้อขัดแย้ง"), suggestion.conflict_count)} }
+            }
+            ul {
+                for change in suggestion.changes {
+                    li {
+                        strong { {change.field_id} }
+                        span { {format!(" → {}", change.proposed_value)} }
+                        small { {format!(" · {}% · {} {}", change.confidence_basis_points / 100, change.evidence_count, copy(locale, "evidence", "หลักฐาน"))} }
+                    }
+                }
             }
         }
     }

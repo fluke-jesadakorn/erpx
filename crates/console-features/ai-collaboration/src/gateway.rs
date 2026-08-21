@@ -16,9 +16,9 @@ use erpx_kernel::{HoldingId, PrincipalId, PrincipalKind};
 use erpx_ui_ai_collaboration::{
     ActivityRailState, AgentRegistryRow, AgentSessionCard, AnchorDisplay, AnchorFreshness,
     AssignmentDisplayState, AutocompleteState, CommentCard, CommentEditorDocument,
-    CommentVisibility, EditorBlock, PrivacyState, ReactionSummary, RealtimeState, RevisionSummary,
-    ThreadCapabilities, ThreadCard, ThreadLifecycle, ThreadRealm, TokenIdentity, TokenKind,
-    TypedActionProposal, TypedToken,
+    CommentVisibility, EditorBlock, FieldSuggestionCard, PrivacyState, ReactionSummary,
+    RealtimeState, RevisionSummary, ThreadCapabilities, ThreadCard, ThreadLifecycle, ThreadRealm,
+    TokenIdentity, TokenKind, TypedActionProposal, TypedToken,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -835,7 +835,27 @@ pub fn content_state(threads: Vec<ThreadCard>, realtime: RealtimeState) -> Activ
     if threads.is_empty() {
         ActivityRailState::Empty
     } else {
-        ActivityRailState::Content { threads, realtime }
+        ActivityRailState::Content {
+            threads,
+            suggestions: Vec::new(),
+            realtime,
+        }
+    }
+}
+
+pub fn content_state_with_suggestions(
+    threads: Vec<ThreadCard>,
+    suggestions: Vec<FieldSuggestionCard>,
+    realtime: RealtimeState,
+) -> ActivityRailState {
+    if threads.is_empty() && suggestions.is_empty() {
+        ActivityRailState::Empty
+    } else {
+        ActivityRailState::Content {
+            threads,
+            suggestions,
+            realtime,
+        }
     }
 }
 

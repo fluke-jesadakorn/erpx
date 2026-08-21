@@ -834,7 +834,7 @@ fn present_wire_thread(
 async fn load_activity_from_collaboration(
     request: ActivityRequest,
 ) -> dioxus::prelude::ServerFnResult<ActivityRailState> {
-    use erpx_console_feature_ai_collaboration::{activity_error, content_state};
+    use erpx_console_feature_ai_collaboration::{activity_error, content_state_with_suggestions};
     use erpx_proto::erpx::collaboration::collaboration_query_service_client::CollaborationQueryServiceClient;
     use erpx_ui_ai_collaboration::RealtimeState;
 
@@ -862,7 +862,7 @@ async fn load_activity_from_collaboration(
         Ok(request) => request,
         Err(error) => return Ok(activity_error(error)),
     };
-    let response = match CollaborationQueryServiceClient::new(channel)
+    let response = match CollaborationQueryServiceClient::new(channel.clone())
         .list_threads_by_record_v2(wire_request)
         .await
     {
@@ -882,7 +882,136 @@ async fn load_activity_from_collaboration(
             Err(error) => return Ok(activity_error(error)),
         }
     }
-    Ok(content_state(threads, RealtimeState::Unavailable))
+    let suggestions = if authority.holding_id.is_empty() {
+        Vec::new()
+    } else {
+        load_field_suggestions(channel, &authority, &request.anchor)
+            .await
+            .unwrap_or_default()
+    };
+    Ok(content_state_with_suggestions(
+        threads,
+        suggestions,
+        RealtimeState::Unavailable,
+    ))
+}
+
+#[cfg(feature = "server")]
+async fn load_field_suggestions(
+    channel: tonic::transport::Channel,
+    authority: &CollaborationAuthority,
+    anchor: &StableRecordRef,
+) -> Result<Vec<erpx_ui_ai_collaboration::FieldSuggestionCard>, GatewayError> {
+    use erpx_proto::erpx::{
+        agent,
+        agent::agent_orchestration_query_service_client::AgentOrchestrationQueryServiceClient,
+        common,
+    };
+
+    let request_id = Uuid::new_v4();
+    let correlation_id = Uuid::new_v4();
+    let request = agent::ListFieldSuggestionsByRecordRequest {
+        context: Some(common::QueryContext {
+            contract_version: 1,
+            request_id: request_id.to_string(),
+            correlation_id: correlation_id.to_string(),
+            actor: Some(common::ActorAttribution {
+                principal_ref: authority.credential.principal_ref.clone(),
+                kind: common::ActorKind::HoldingUser as i32,
+                session_id: authority.credential.session_id.to_string(),
+                represented_principal_ref: String::new(),
+                support_capability_id: String::new(),
+            }),
+            active_scope: Some(common_authority_scope(&authority.scope)?),
+            consistency: Some(common::QueryConsistency {
+                requirement: Some(common::query_consistency::Requirement::Eventual(
+                    common::EventualConsistency {},
+                )),
+            }),
+            audit: Some(common::AuditContext {
+                purpose: "authorized_record_field_suggestions".into(),
+                customer_visible: true,
+                module: "ai-collaboration".into(),
+                correlation_id: correlation_id.to_string(),
+            }),
+        }),
+        source: Some(wire_record(anchor)),
+        page_size: 25,
+    };
+    let response = AgentOrchestrationQueryServiceClient::new(channel)
+        .list_field_suggestions_by_record(authenticated(authority, request)?)
+        .await
+        .map_err(gateway_status)?
+        .into_inner();
+    if !response.authority_current {
+        return Err(GatewayError::Stale);
+    }
+    response
+        .suggestions
+        .into_iter()
+        .map(present_wire_field_suggestion)
+        .collect()
+}
+
+#[cfg(any(feature = "server", feature = "native"))]
+pub(crate) fn present_wire_field_suggestion(
+    value: erpx_proto::erpx::agent::FieldSuggestionProjection,
+) -> Result<erpx_ui_ai_collaboration::FieldSuggestionCard, GatewayError> {
+    use erpx_proto::erpx::agent::{FieldSuggestionStatus, suggested_field_value::Value};
+    use erpx_ui_ai_collaboration::{
+        FieldSuggestionCard, FieldSuggestionDisplayStatus, SuggestedFieldChangeCard,
+    };
+
+    let status = match FieldSuggestionStatus::try_from(value.status).ok() {
+        Some(FieldSuggestionStatus::Queued) => FieldSuggestionDisplayStatus::Queued,
+        Some(FieldSuggestionStatus::Running) => FieldSuggestionDisplayStatus::Running,
+        Some(FieldSuggestionStatus::Ready) => FieldSuggestionDisplayStatus::Ready,
+        Some(FieldSuggestionStatus::Conflicted) => FieldSuggestionDisplayStatus::Conflicted,
+        Some(FieldSuggestionStatus::Applied) => FieldSuggestionDisplayStatus::Applied,
+        Some(FieldSuggestionStatus::Rejected) => FieldSuggestionDisplayStatus::Rejected,
+        Some(FieldSuggestionStatus::Superseded) => FieldSuggestionDisplayStatus::Superseded,
+        Some(FieldSuggestionStatus::Failed) => FieldSuggestionDisplayStatus::Failed,
+        _ => return Err(GatewayError::Unavailable),
+    };
+    let patch = value.patch.ok_or(GatewayError::Unavailable)?;
+    let mut changes = Vec::with_capacity(patch.changes.len());
+    for change in patch.changes {
+        let proposed = change
+            .proposed_value
+            .and_then(|value| value.value)
+            .ok_or(GatewayError::Unavailable)?;
+        let proposed_value = match proposed {
+            Value::Unset(_) => "—".into(),
+            Value::Text(value) | Value::Choice(value) => value,
+            Value::Integer(value) => value.to_string(),
+            Value::Boolean(value) => value.to_string(),
+            Value::Date(value) | Value::DateTime(value) => value,
+            Value::Money(value) => format!("{} {}", value.amount_minor, value.currency),
+        };
+        changes.push(SuggestedFieldChangeCard {
+            field_id: change.field_id,
+            proposed_value,
+            confidence_basis_points: u16::try_from(change.confidence_basis_points)
+                .map_err(|_| GatewayError::Unavailable)?,
+            evidence_count: u16::try_from(change.evidence.len())
+                .map_err(|_| GatewayError::Unavailable)?,
+        });
+    }
+    Ok(FieldSuggestionCard {
+        suggestion_id: Uuid::parse_str(&value.suggestion_id)
+            .map_err(|_| GatewayError::Unavailable)?,
+        aggregate_version: value.aggregate_version,
+        status,
+        owner_label: value.owner_context,
+        provider_label: value.provider_label,
+        changes,
+        conflict_count: u16::try_from(value.conflicts.len())
+            .map_err(|_| GatewayError::Unavailable)?,
+        reviewed_by_human: value.human_review.is_some(),
+        updated_at: chrono::DateTime::parse_from_rfc3339(&value.updated_at)
+            .map_err(|_| GatewayError::Unavailable)?
+            .with_timezone(&chrono::Utc),
+    })
 }
 
 #[cfg(feature = "server")]

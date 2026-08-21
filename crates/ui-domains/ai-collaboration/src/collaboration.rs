@@ -425,6 +425,42 @@ pub struct ThreadCard {
     pub capabilities: ThreadCapabilities,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FieldSuggestionDisplayStatus {
+    Queued,
+    Running,
+    Ready,
+    Conflicted,
+    Applied,
+    Rejected,
+    Superseded,
+    Failed,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SuggestedFieldChangeCard {
+    pub field_id: String,
+    pub proposed_value: String,
+    pub confidence_basis_points: u16,
+    pub evidence_count: u16,
+}
+
+/// Authorized, presentation-safe subset of a typed field suggestion. Digests,
+/// protected material references, and raw owner payloads never enter the UI.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldSuggestionCard {
+    pub suggestion_id: Uuid,
+    pub aggregate_version: u64,
+    pub status: FieldSuggestionDisplayStatus,
+    pub owner_label: String,
+    pub provider_label: String,
+    pub changes: Vec<SuggestedFieldChangeCard>,
+    pub conflict_count: u16,
+    pub reviewed_by_human: bool,
+    pub updated_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RestrictedThreadCard {
     pub neutral_label: String,
@@ -447,6 +483,7 @@ pub enum ActivityRailState {
     Empty,
     Content {
         threads: Vec<ThreadCard>,
+        suggestions: Vec<FieldSuggestionCard>,
         realtime: RealtimeState,
     },
     Denied,
