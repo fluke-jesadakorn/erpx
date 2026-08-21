@@ -795,9 +795,23 @@ const DATA_PLANE_STREAM_SERVICE: ServiceDescriptor = ServiceDescriptor {
     owner: ServiceOwner::Context(ContextId::PlatformAdministration),
     kind: ServiceKind::Stream,
 };
+const FINANCE_PAYABLES_COMMAND_SERVICE: ServiceDescriptor = ServiceDescriptor {
+    id: ServiceId::catalog(266),
+    name: "FinancePayablesCommandService",
+    package: ContextId::Finance.proto_package(),
+    owner: ServiceOwner::Context(ContextId::Finance),
+    kind: ServiceKind::Command,
+};
+const FINANCE_PAYABLES_QUERY_SERVICE: ServiceDescriptor = ServiceDescriptor {
+    id: ServiceId::catalog(267),
+    name: "FinancePayablesQueryService",
+    package: ContextId::Finance.proto_package(),
+    owner: ServiceOwner::Context(ContextId::Finance),
+    kind: ServiceKind::Query,
+};
 
-const fn active_services() -> [ServiceDescriptor; 65] {
-    let mut services = [COLLABORATION_STREAM_SERVICE; 65];
+const fn active_services() -> [ServiceDescriptor; 67] {
+    let mut services = [COLLABORATION_STREAM_SERVICE; 67];
     let mut pair_index = 0;
     while pair_index < CONTEXT_SERVICE_PAIRS.len() {
         let service_index = pair_index * 2;
@@ -808,10 +822,12 @@ const fn active_services() -> [ServiceDescriptor; 65] {
     services[62] = COLLABORATION_STREAM_SERVICE;
     services[63] = REFERENCE_QUERY_SERVICE;
     services[64] = DATA_PLANE_STREAM_SERVICE;
+    services[65] = FINANCE_PAYABLES_COMMAND_SERVICE;
+    services[66] = FINANCE_PAYABLES_QUERY_SERVICE;
     services
 }
 
-pub const ACTIVE_SERVICES: [ServiceDescriptor; 65] = active_services();
+pub const ACTIVE_SERVICES: [ServiceDescriptor; 67] = active_services();
 
 const fn legacy_service_ids() -> [ServiceId; 65] {
     let mut ids = [ServiceId::catalog(101); 65];
@@ -1248,7 +1264,7 @@ mod tests {
 
     #[test]
     fn active_service_ids_are_exact_and_retired_ids_are_never_reused() {
-        assert_eq!(ACTIVE_SERVICES.len(), 65);
+        assert_eq!(ACTIVE_SERVICES.len(), 67);
         let active_ids = ACTIVE_SERVICES
             .iter()
             .map(|service| service.id.number())
@@ -1261,38 +1277,41 @@ mod tests {
             .iter()
             .map(|id| id.number())
             .collect::<BTreeSet<_>>();
-        assert_eq!(active_ids, (201..=265).collect());
-        assert_eq!(active_names.len(), 65);
+        assert_eq!(active_ids, (201..=267).collect());
+        assert_eq!(active_names.len(), 67);
         assert_eq!(retired_ids, (101..=165).collect());
         assert!(active_ids.is_disjoint(&retired_ids));
         assert_eq!(ACTIVE_SERVICES[0].id.to_string(), "IFC-SVC-201");
-        assert_eq!(ACTIVE_SERVICES[64].id.to_string(), "IFC-SVC-265");
+        assert_eq!(ACTIVE_SERVICES[66].id.to_string(), "IFC-SVC-267");
     }
 
     #[test]
-    fn every_context_has_one_command_and_one_query_service() {
+    fn every_context_has_command_and_query_services() {
         for context in ContextId::ALL {
+            let command_count = ACTIVE_SERVICES
+                .iter()
+                .filter(|service| {
+                    service.owner == ServiceOwner::Context(context)
+                        && service.kind == ServiceKind::Command
+                })
+                .count();
+            let query_count = ACTIVE_SERVICES
+                .iter()
+                .filter(|service| {
+                    service.owner == ServiceOwner::Context(context)
+                        && service.kind == ServiceKind::Query
+                })
+                .count();
+            assert!(command_count >= 1, "missing command service for {context}");
+            assert!(query_count >= 1, "missing query service for {context}");
+            let expected = if context == ContextId::Finance { 2 } else { 1 };
             assert_eq!(
-                ACTIVE_SERVICES
-                    .iter()
-                    .filter(|service| {
-                        service.owner == ServiceOwner::Context(context)
-                            && service.kind == ServiceKind::Command
-                    })
-                    .count(),
-                1,
-                "missing command service for {context}"
+                command_count, expected,
+                "unexpected command services for {context}"
             );
             assert_eq!(
-                ACTIVE_SERVICES
-                    .iter()
-                    .filter(|service| {
-                        service.owner == ServiceOwner::Context(context)
-                            && service.kind == ServiceKind::Query
-                    })
-                    .count(),
-                1,
-                "missing query service for {context}"
+                query_count, expected,
+                "unexpected query services for {context}"
             );
         }
     }
