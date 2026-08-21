@@ -35,6 +35,7 @@ use crate::contexts::{
     finance_cqrs::{
         AuthenticatedFinanceRequest, FinanceAccessMode, FinanceAuthenticationError,
         FinanceAuthenticationRequest, FinanceCommandApplication, FinanceHoldingRoute,
+        FinanceOwnerCommandEvaluation, FinanceOwnerCommandTarget,
         FinancePayablesCommandApplication, FinancePayablesQueryApplication,
         FinanceQueryApplication, FinanceRequestAuthenticator,
     },
@@ -472,6 +473,109 @@ impl FinancePayablesQueryApplication for Wave8HoldingApplication {
         finance::PayablesQueryHandler::new(read, access.clone(), access)
             .handle(envelope)
             .await
+    }
+
+    async fn evaluate_payables_owner_command(
+        &self,
+        route: FinanceHoldingRoute,
+        actor: ActorAttribution,
+        active_scope: AuthorityScope,
+        correlation_id: CorrelationId,
+        target: FinanceOwnerCommandTarget,
+    ) -> Result<Option<FinanceOwnerCommandEvaluation>, CqrsError> {
+        let pool = self
+            .write_pool(
+                &route.holding_id,
+                &route.data_profile_key,
+                correlation_id,
+                "finance",
+            )
+            .await?;
+        let access = Self::access(&actor, &active_scope, AccessMode::Write);
+        let adapter = finance_sqlx::SqlxPayablesAdapter::new(pool);
+        let evaluated_at = Utc::now();
+        let direct_human = actor.is_human()
+            && actor.session_id.is_some()
+            && actor.represented_principal_ref.is_none()
+            && actor.support_capability_id.is_none();
+        let evaluation = match target {
+            FinanceOwnerCommandTarget::PostVendorInvoice(id) => {
+                let Some(invoice) = finance::PayablesWriteRepository::load_vendor_invoice(
+                    &adapter,
+                    &active_scope,
+                    id,
+                )
+                .await
+                .map_err(|error| finance_payables_port_failure(error, correlation_id))?
+                else {
+                    return Ok(None);
+                };
+                let entitled = finance::PayablesEntitlementPort::ensure_payables_enabled(
+                    &access,
+                    invoice.scope(),
+                    true,
+                )
+                .await
+                .is_ok();
+                let authorized = finance::PayablesAuthorizationPort::authorize(
+                    &access,
+                    finance::PayablesAuthorizationRequest {
+                        actor: &actor,
+                        authority_scope: &active_scope,
+                        target_scope: invoice.scope(),
+                        action: finance::PayablesAction::PostVendorInvoice,
+                    },
+                )
+                .await
+                .is_ok();
+                FinanceOwnerCommandEvaluation {
+                    source_version: invoice.version(),
+                    allowed: direct_human
+                        && entitled
+                        && authorized
+                        && invoice.status() == finance::VendorInvoiceStatus::Draft
+                        && invoice.prepared_by() != actor.principal_ref,
+                    evaluated_at,
+                }
+            }
+            FinanceOwnerCommandTarget::ReleasePayment(id) => {
+                let Some(payment) =
+                    finance::PayablesWriteRepository::load_payment(&adapter, &active_scope, id)
+                        .await
+                        .map_err(|error| finance_payables_port_failure(error, correlation_id))?
+                else {
+                    return Ok(None);
+                };
+                let entitled = finance::PayablesEntitlementPort::ensure_payables_enabled(
+                    &access,
+                    payment.scope(),
+                    true,
+                )
+                .await
+                .is_ok();
+                let authorized = finance::PayablesAuthorizationPort::authorize(
+                    &access,
+                    finance::PayablesAuthorizationRequest {
+                        actor: &actor,
+                        authority_scope: &active_scope,
+                        target_scope: payment.scope(),
+                        action: finance::PayablesAction::ReleasePayment,
+                    },
+                )
+                .await
+                .is_ok();
+                FinanceOwnerCommandEvaluation {
+                    source_version: payment.version(),
+                    allowed: direct_human
+                        && entitled
+                        && authorized
+                        && payment.status() == finance::PaymentStatus::Draft
+                        && payment.prepared_by() != actor.principal_ref,
+                    evaluated_at,
+                }
+            }
+        };
+        Ok(Some(evaluation))
     }
 }
 
@@ -1188,6 +1292,32 @@ fn storage_configuration_error(correlation_id: CorrelationId, context: &'static 
         ErrorCategory::Internal,
         "Context read storage could not be initialized.",
         false,
+    )
+}
+
+fn finance_payables_port_failure(
+    error: finance::PortError,
+    correlation_id: CorrelationId,
+) -> CqrsError {
+    let (category, retryable) = match error {
+        finance::PortError::Denied | finance::PortError::EntitlementDenied => {
+            (ErrorCategory::Denied, false)
+        }
+        finance::PortError::NotFound => (ErrorCategory::NotFound, false),
+        finance::PortError::Conflict { .. } | finance::PortError::IdempotencyConflict => {
+            (ErrorCategory::Conflict, false)
+        }
+        finance::PortError::Unavailable => (ErrorCategory::Unavailable, true),
+        finance::PortError::Internal | finance::PortError::NotReady(_) => {
+            (ErrorCategory::Internal, false)
+        }
+    };
+    context_failure(
+        correlation_id,
+        "finance.payables.capability_evaluation",
+        category,
+        "Finance owner command availability could not be evaluated.",
+        retryable,
     )
 }
 

@@ -324,6 +324,35 @@ mod tests {
                 "goods receipt line is missing {field}"
             );
         }
+
+        let capabilities = messages
+            .get("ProcurementOwnerCapabilities")
+            .expect("typed Procurement owner capabilities");
+        for field in [
+            "source_version",
+            "approve_requisition",
+            "release_purchase_order",
+            "accept_goods_receipt",
+            "evaluated_at",
+        ] {
+            assert!(
+                capabilities
+                    .field
+                    .iter()
+                    .any(|candidate| { candidate.name.as_deref() == Some(field) })
+            );
+        }
+        for response in [
+            "GetPurchaseOrderResponse",
+            "GetPurchaseRequisitionResponse",
+            "GetGoodsReceiptResponse",
+        ] {
+            assert!(messages[response].field.iter().any(|field| {
+                field.name.as_deref() == Some("owner_capabilities")
+                    && field.type_name.as_deref()
+                        == Some(".erpx.procurement.ProcurementOwnerCapabilities")
+            }));
+        }
     }
 
     #[test]
@@ -403,6 +432,33 @@ mod tests {
             field.name.as_deref() == Some("allocations")
                 && field.type_name.as_deref() == Some(".erpx.finance.FinancePaymentAllocation")
         }));
+
+        let capabilities = messages
+            .get("FinancePayablesOwnerCapabilities")
+            .expect("typed Finance owner capabilities");
+        for field in [
+            "source_version",
+            "post_vendor_invoice",
+            "release_payment",
+            "evaluated_at",
+        ] {
+            assert!(
+                capabilities
+                    .field
+                    .iter()
+                    .any(|candidate| { candidate.name.as_deref() == Some(field) })
+            );
+        }
+        for response in [
+            "GetFinanceVendorInvoiceResponse",
+            "GetFinancePaymentResponse",
+        ] {
+            assert!(messages[response].field.iter().any(|field| {
+                field.name.as_deref() == Some("owner_capabilities")
+                    && field.type_name.as_deref()
+                        == Some(".erpx.finance.FinancePayablesOwnerCapabilities")
+            }));
+        }
     }
 
     #[test]

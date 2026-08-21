@@ -223,6 +223,20 @@ pub struct GetGoodsReceipt {
     pub goods_receipt_id: GoodsReceiptId,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProcurementOwnerCommandTarget {
+    ApproveRequisition(PurchaseRequisitionId),
+    ReleasePurchaseOrder(PurchaseOrderId),
+    AcceptGoodsReceipt(GoodsReceiptId),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OwnerCommandEvaluation {
+    pub source_version: u64,
+    pub allowed: bool,
+    pub evaluated_at: chrono::DateTime<chrono::Utc>,
+}
+
 #[async_trait]
 pub trait ProcurementQueryApplication: Send + Sync + 'static {
     async fn get(
@@ -245,6 +259,14 @@ pub trait ProcurementQueryApplication: Send + Sync + 'static {
         route: SupplyChainHoldingRoute,
         envelope: QueryEnvelope<GetGoodsReceipt>,
     ) -> Result<QueryResult<Option<GoodsReceiptView>>, CqrsError>;
+    async fn evaluate_owner_command(
+        &self,
+        route: SupplyChainHoldingRoute,
+        actor: ActorAttribution,
+        active_scope: AuthorityScope,
+        correlation_id: CorrelationId,
+        target: ProcurementOwnerCommandTarget,
+    ) -> Result<Option<OwnerCommandEvaluation>, CqrsError>;
 }
 
 #[async_trait]
@@ -655,22 +677,44 @@ impl<A: ProcurementQueryApplication, G: SupplyChainRequestAuthenticator> Procure
     ) -> Result<Response<platform::GetPurchaseOrderResponse>, Status> {
         let metadata = request.metadata().clone();
         let input = request.into_inner();
-        let decoded = decode_query(
-            input.metadata,
-            GetPurchaseOrder {
-                purchase_order_id: procurement_id(&input.purchase_order_id)?,
-            },
-        )?;
-        let (route, envelope) =
-            authenticate_query(self.authenticator.as_ref(), metadata, decoded).await?;
+        let purchase_order_id = procurement_id(&input.purchase_order_id)?;
+        let decoded = decode_query(input.metadata, GetPurchaseOrder { purchase_order_id })?;
+        let (route, envelope, write_authorized) =
+            authenticate_owner_query(self.authenticator.as_ref(), metadata, decoded).await?;
+        let capability_route = route.clone();
+        let capability_actor = envelope.actor.clone();
+        let capability_scope = envelope.active_scope.clone();
         let result = self
             .application
             .get(route, envelope)
             .await
             .map_err(status_from_cqrs)?;
+        let evaluation = if write_authorized {
+            self.application
+                .evaluate_owner_command(
+                    capability_route,
+                    capability_actor,
+                    capability_scope,
+                    result.metadata.correlation_id,
+                    ProcurementOwnerCommandTarget::ReleasePurchaseOrder(purchase_order_id),
+                )
+                .await
+                .ok()
+                .flatten()
+        } else {
+            None
+        };
         Ok(Response::new(platform::GetPurchaseOrderResponse {
             order: result.value.order.as_ref().map(encode_order),
             metadata: Some(encode_query_metadata(&result.metadata)),
+            owner_capabilities: result.value.order.as_ref().map(|order| {
+                procurement_owner_capabilities(
+                    order.version,
+                    result.metadata.projection.freshness,
+                    ProcurementOwnerCommandTarget::ReleasePurchaseOrder(purchase_order_id),
+                    evaluation.as_ref(),
+                )
+            }),
         }))
     }
     async fn list(
@@ -713,25 +757,47 @@ impl<A: ProcurementQueryApplication, G: SupplyChainRequestAuthenticator> Procure
     ) -> Result<Response<platform::GetPurchaseRequisitionResponse>, Status> {
         let metadata = request.metadata().clone();
         let input = request.into_inner();
-        let (route, envelope) = authenticate_query(
+        let requisition_id = requisition_id(&input.requisition_id)?;
+        let (route, envelope, write_authorized) = authenticate_owner_query(
             self.authenticator.as_ref(),
             metadata,
-            decode_query(
-                input.metadata,
-                GetPurchaseRequisition {
-                    requisition_id: requisition_id(&input.requisition_id)?,
-                },
-            )?,
+            decode_query(input.metadata, GetPurchaseRequisition { requisition_id })?,
         )
         .await?;
+        let capability_route = route.clone();
+        let capability_actor = envelope.actor.clone();
+        let capability_scope = envelope.active_scope.clone();
         let result = self
             .application
             .get_requisition(route, envelope)
             .await
             .map_err(status_from_cqrs)?;
+        let evaluation = if write_authorized {
+            self.application
+                .evaluate_owner_command(
+                    capability_route,
+                    capability_actor,
+                    capability_scope,
+                    result.metadata.correlation_id,
+                    ProcurementOwnerCommandTarget::ApproveRequisition(requisition_id),
+                )
+                .await
+                .ok()
+                .flatten()
+        } else {
+            None
+        };
         Ok(Response::new(platform::GetPurchaseRequisitionResponse {
             requisition: result.value.as_ref().map(encode_requisition),
             metadata: Some(encode_query_metadata(&result.metadata)),
+            owner_capabilities: result.value.as_ref().map(|requisition| {
+                procurement_owner_capabilities(
+                    requisition.version,
+                    result.metadata.projection.freshness,
+                    ProcurementOwnerCommandTarget::ApproveRequisition(requisition_id),
+                    evaluation.as_ref(),
+                )
+            }),
         }))
     }
 
@@ -741,25 +807,47 @@ impl<A: ProcurementQueryApplication, G: SupplyChainRequestAuthenticator> Procure
     ) -> Result<Response<platform::GetGoodsReceiptResponse>, Status> {
         let metadata = request.metadata().clone();
         let input = request.into_inner();
-        let (route, envelope) = authenticate_query(
+        let goods_receipt_id = goods_receipt_id(&input.goods_receipt_id)?;
+        let (route, envelope, write_authorized) = authenticate_owner_query(
             self.authenticator.as_ref(),
             metadata,
-            decode_query(
-                input.metadata,
-                GetGoodsReceipt {
-                    goods_receipt_id: goods_receipt_id(&input.goods_receipt_id)?,
-                },
-            )?,
+            decode_query(input.metadata, GetGoodsReceipt { goods_receipt_id })?,
         )
         .await?;
+        let capability_route = route.clone();
+        let capability_actor = envelope.actor.clone();
+        let capability_scope = envelope.active_scope.clone();
         let result = self
             .application
             .get_goods_receipt(route, envelope)
             .await
             .map_err(status_from_cqrs)?;
+        let evaluation = if write_authorized {
+            self.application
+                .evaluate_owner_command(
+                    capability_route,
+                    capability_actor,
+                    capability_scope,
+                    result.metadata.correlation_id,
+                    ProcurementOwnerCommandTarget::AcceptGoodsReceipt(goods_receipt_id),
+                )
+                .await
+                .ok()
+                .flatten()
+        } else {
+            None
+        };
         Ok(Response::new(platform::GetGoodsReceiptResponse {
             goods_receipt: result.value.as_ref().map(encode_goods_receipt),
             metadata: Some(encode_query_metadata(&result.metadata)),
+            owner_capabilities: result.value.as_ref().map(|goods_receipt| {
+                procurement_owner_capabilities(
+                    goods_receipt.version,
+                    result.metadata.projection.freshness,
+                    ProcurementOwnerCommandTarget::AcceptGoodsReceipt(goods_receipt_id),
+                    evaluation.as_ref(),
+                )
+            }),
         }))
     }
 }
@@ -1050,6 +1138,71 @@ async fn authenticate_query<Q, G: SupplyChainRequestAuthenticator>(
         .validate()
         .map_err(|_| Status::internal("authenticated supply-chain authority is invalid"))?;
     Ok((authenticated.holding_route().clone(), envelope))
+}
+
+async fn authenticate_owner_query<Q, G: SupplyChainRequestAuthenticator>(
+    authenticator: &G,
+    transport_metadata: MetadataMap,
+    decoded: DecodedQuery<Q>,
+) -> Result<(SupplyChainHoldingRoute, QueryEnvelope<Q>, bool), Status> {
+    let (route, envelope) =
+        authenticate_query(authenticator, transport_metadata.clone(), decoded).await?;
+    if !direct_human_actor(&envelope.actor) {
+        return Ok((route, envelope, false));
+    }
+    let write = authenticator
+        .authenticate(SupplyChainAuthenticationRequest {
+            transport_metadata,
+            presented_actor: envelope.actor.clone(),
+            presented_scope: envelope.active_scope.clone(),
+            presented_route: route.clone(),
+            subscription_id: None,
+            mfa_code: None,
+            access_mode: SupplyChainAccessMode::Write,
+        })
+        .await
+        .ok();
+    let write_authorized = write.as_ref().is_some_and(|authenticated| {
+        authenticated.actor() == &envelope.actor
+            && authenticated.active_scope() == &envelope.active_scope
+            && authenticated.holding_route() == &route
+    });
+    Ok((route, envelope, write_authorized))
+}
+
+fn direct_human_actor(actor: &ActorAttribution) -> bool {
+    actor.is_human()
+        && actor.session_id.is_some()
+        && actor.represented_principal_ref.is_none()
+        && actor.support_capability_id.is_none()
+}
+
+fn procurement_owner_capabilities(
+    projected_version: u64,
+    freshness: FreshnessState,
+    target: ProcurementOwnerCommandTarget,
+    evaluation: Option<&OwnerCommandEvaluation>,
+) -> platform::ProcurementOwnerCapabilities {
+    let exact = evaluation.is_some_and(|evaluation| {
+        evaluation.allowed
+            && evaluation.source_version == projected_version
+            && freshness == FreshnessState::Current
+    });
+    platform::ProcurementOwnerCapabilities {
+        source_version: evaluation.map_or(0, |evaluation| evaluation.source_version),
+        approve_requisition: exact
+            && matches!(target, ProcurementOwnerCommandTarget::ApproveRequisition(_)),
+        release_purchase_order: exact
+            && matches!(
+                target,
+                ProcurementOwnerCommandTarget::ReleasePurchaseOrder(_)
+            ),
+        accept_goods_receipt: exact
+            && matches!(target, ProcurementOwnerCommandTarget::AcceptGoodsReceipt(_)),
+        evaluated_at: evaluation
+            .map(|evaluation| evaluation.evaluated_at.to_rfc3339())
+            .unwrap_or_default(),
+    }
 }
 
 fn decode_command<C>(
@@ -1751,5 +1904,30 @@ mod tests {
         let source = include_str!("procurement_inventory_cqrs.rs");
         assert!(!source.contains(concat!("Pg", "Pool")));
         assert!(!source.contains(concat!("Write", "Pool")));
+    }
+
+    #[test]
+    fn owner_capabilities_require_current_exact_projection_and_only_name_real_commands() {
+        let target = ProcurementOwnerCommandTarget::ApproveRequisition(
+            PurchaseRequisitionId::try_from_uuid(Uuid::from_u128(10)).unwrap(),
+        );
+        let evaluation = OwnerCommandEvaluation {
+            source_version: 4,
+            allowed: true,
+            evaluated_at: chrono::Utc::now(),
+        };
+        let current =
+            procurement_owner_capabilities(4, FreshnessState::Current, target, Some(&evaluation));
+        assert!(current.approve_requisition);
+        assert!(!current.release_purchase_order);
+        assert!(!current.accept_goods_receipt);
+        assert!(
+            !procurement_owner_capabilities(4, FreshnessState::Stale, target, Some(&evaluation),)
+                .approve_requisition
+        );
+        assert!(
+            !procurement_owner_capabilities(3, FreshnessState::Current, target, Some(&evaluation),)
+                .approve_requisition
+        );
     }
 }

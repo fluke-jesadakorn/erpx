@@ -1246,6 +1246,7 @@ message GetFinanceVendorInvoiceResponse {
   optional FinanceVendorInvoiceRecord vendor_invoice = 1;
   optional FinancePayableRecord payable = 2;
   erpx.common.QueryMetadata metadata = 3;
+  optional FinancePayablesOwnerCapabilities owner_capabilities = 4;
 }
 
 message GetFinancePaymentRequest {
@@ -1256,6 +1257,17 @@ message GetFinancePaymentRequest {
 message GetFinancePaymentResponse {
   optional FinancePaymentRecord payment = 1;
   erpx.common.QueryMetadata metadata = 2;
+  optional FinancePayablesOwnerCapabilities owner_capabilities = 3;
+}
+
+// Fresh command material for Finance owner UI controls. Commands remain the
+// authority and re-check the human session, entitlement, lifecycle, evidence,
+// and optimistic version on every mutation.
+message FinancePayablesOwnerCapabilities {
+  uint64 source_version = 1;
+  bool post_vendor_invoice = 2;
+  bool release_payment = 3;
+  string evaluated_at = 4;
 }
 
 service FinancePayablesCommandService {

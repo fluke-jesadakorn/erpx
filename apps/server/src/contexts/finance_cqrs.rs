@@ -155,6 +155,20 @@ pub trait FinancePayablesCommandApplication: Send + Sync + 'static {
         command: CommandEnvelope<PayablesCommand>,
     ) -> Result<CommandReceipt<PayablesMutationResult>, CqrsError>;
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FinanceOwnerCommandTarget {
+    PostVendorInvoice(VendorInvoiceId),
+    ReleasePayment(PaymentId),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FinanceOwnerCommandEvaluation {
+    pub source_version: u64,
+    pub allowed: bool,
+    pub evaluated_at: chrono::DateTime<chrono::Utc>,
+}
+
 #[async_trait]
 pub trait FinancePayablesQueryApplication: Send + Sync + 'static {
     async fn execute_payables_query(
@@ -162,6 +176,14 @@ pub trait FinancePayablesQueryApplication: Send + Sync + 'static {
         route: FinanceHoldingRoute,
         query: QueryEnvelope<PayablesQuery>,
     ) -> Result<QueryResult<PayablesQueryResponse>, CqrsError>;
+    async fn evaluate_payables_owner_command(
+        &self,
+        route: FinanceHoldingRoute,
+        actor: ActorAttribution,
+        active_scope: AuthorityScope,
+        correlation_id: CorrelationId,
+        target: FinanceOwnerCommandTarget,
+    ) -> Result<Option<FinanceOwnerCommandEvaluation>, CqrsError>;
 }
 #[derive(Debug, Clone)]
 pub struct FinanceCommandRpc<A, G> {
@@ -364,15 +386,21 @@ impl<A: FinancePayablesQueryApplication, G: FinanceRequestAuthenticator> Finance
     ) -> Result<Response<platform::GetFinanceVendorInvoiceResponse>, Status> {
         let transport = request.metadata().clone();
         let input = request.into_inner();
+        let vendor_invoice_id = vendor_invoice_id(&input.vendor_invoice_id)?;
+        let decoded = decode_query(
+            input.metadata,
+            PayablesQuery::GetVendorInvoice(GetVendorInvoice { vendor_invoice_id }),
+        )?;
+        let (route, envelope, write_authorized) =
+            authenticate_owner_query(self.authenticator.as_ref(), transport, decoded).await?;
+        let capability_route = route.clone();
+        let capability_actor = envelope.actor.clone();
+        let capability_scope = envelope.active_scope.clone();
         let result = self
-            .query(
-                transport,
-                input.metadata,
-                PayablesQuery::GetVendorInvoice(GetVendorInvoice {
-                    vendor_invoice_id: vendor_invoice_id(&input.vendor_invoice_id)?,
-                }),
-            )
-            .await?;
+            .application
+            .execute_payables_query(route, envelope)
+            .await
+            .map_err(status_from_cqrs)?;
         let PayablesQueryResponse::VendorInvoice {
             vendor_invoice,
             payable,
@@ -380,10 +408,33 @@ impl<A: FinancePayablesQueryApplication, G: FinanceRequestAuthenticator> Finance
         else {
             return Err(Status::internal("Finance payables response type mismatch"));
         };
+        let evaluation = if write_authorized {
+            self.application
+                .evaluate_payables_owner_command(
+                    capability_route,
+                    capability_actor,
+                    capability_scope,
+                    result.metadata.correlation_id,
+                    FinanceOwnerCommandTarget::PostVendorInvoice(vendor_invoice_id),
+                )
+                .await
+                .ok()
+                .flatten()
+        } else {
+            None
+        };
         Ok(Response::new(platform::GetFinanceVendorInvoiceResponse {
             vendor_invoice: vendor_invoice.as_ref().map(encode_vendor_invoice),
             payable: payable.as_ref().map(encode_payable),
             metadata: Some(encode_query_metadata(&result.metadata)),
+            owner_capabilities: vendor_invoice.as_ref().map(|vendor_invoice| {
+                finance_owner_capabilities(
+                    vendor_invoice.version,
+                    result.metadata.projection.freshness,
+                    FinanceOwnerCommandTarget::PostVendorInvoice(vendor_invoice_id),
+                    evaluation.as_ref(),
+                )
+            }),
         }))
     }
 
@@ -393,41 +444,51 @@ impl<A: FinancePayablesQueryApplication, G: FinanceRequestAuthenticator> Finance
     ) -> Result<Response<platform::GetFinancePaymentResponse>, Status> {
         let transport = request.metadata().clone();
         let input = request.into_inner();
+        let payment_id = payment_id(&input.payment_id)?;
+        let decoded = decode_query(
+            input.metadata,
+            PayablesQuery::GetPayment(GetPayment { payment_id }),
+        )?;
+        let (route, envelope, write_authorized) =
+            authenticate_owner_query(self.authenticator.as_ref(), transport, decoded).await?;
+        let capability_route = route.clone();
+        let capability_actor = envelope.actor.clone();
+        let capability_scope = envelope.active_scope.clone();
         let result = self
-            .query(
-                transport,
-                input.metadata,
-                PayablesQuery::GetPayment(GetPayment {
-                    payment_id: payment_id(&input.payment_id)?,
-                }),
-            )
-            .await?;
+            .application
+            .execute_payables_query(route, envelope)
+            .await
+            .map_err(status_from_cqrs)?;
         let PayablesQueryResponse::Payment(payment) = result.value else {
             return Err(Status::internal("Finance payables response type mismatch"));
+        };
+        let evaluation = if write_authorized {
+            self.application
+                .evaluate_payables_owner_command(
+                    capability_route,
+                    capability_actor,
+                    capability_scope,
+                    result.metadata.correlation_id,
+                    FinanceOwnerCommandTarget::ReleasePayment(payment_id),
+                )
+                .await
+                .ok()
+                .flatten()
+        } else {
+            None
         };
         Ok(Response::new(platform::GetFinancePaymentResponse {
             payment: payment.as_ref().map(encode_payment),
             metadata: Some(encode_query_metadata(&result.metadata)),
+            owner_capabilities: payment.as_ref().map(|payment| {
+                finance_owner_capabilities(
+                    payment.version,
+                    result.metadata.projection.freshness,
+                    FinanceOwnerCommandTarget::ReleasePayment(payment_id),
+                    evaluation.as_ref(),
+                )
+            }),
         }))
-    }
-}
-
-impl<A: FinancePayablesQueryApplication, G: FinanceRequestAuthenticator>
-    FinancePayablesQueryRpc<A, G>
-{
-    async fn query(
-        &self,
-        transport: MetadataMap,
-        metadata: Option<common::QueryRequestMetadata>,
-        query: PayablesQuery,
-    ) -> Result<QueryResult<PayablesQueryResponse>, Status> {
-        let decoded = decode_query(metadata, query)?;
-        let (route, envelope) =
-            authenticate_query(self.authenticator.as_ref(), transport, decoded).await?;
-        self.application
-            .execute_payables_query(route, envelope)
-            .await
-            .map_err(status_from_cqrs)
     }
 }
 
@@ -1080,6 +1141,64 @@ async fn authenticate_query<Q, G: FinanceRequestAuthenticator>(
     e.actor = a.actor().clone();
     e.active_scope = a.active_scope().clone();
     Ok((a.route().clone(), e))
+}
+
+async fn authenticate_owner_query<Q, G: FinanceRequestAuthenticator>(
+    auth: &G,
+    transport: MetadataMap,
+    decoded: DecodedQuery<Q>,
+) -> Result<(FinanceHoldingRoute, QueryEnvelope<Q>, bool), Status> {
+    let (route, envelope) = authenticate_query(auth, transport.clone(), decoded).await?;
+    if !direct_human_actor(&envelope.actor) {
+        return Ok((route, envelope, false));
+    }
+    let write = auth
+        .authenticate(FinanceAuthenticationRequest {
+            transport_metadata: transport,
+            presented_actor: envelope.actor.clone(),
+            presented_scope: envelope.active_scope.clone(),
+            presented_route: route.clone(),
+            subscription_id: None,
+            mfa_code: None,
+            access_mode: FinanceAccessMode::Write,
+        })
+        .await
+        .ok();
+    let write_authorized = write.as_ref().is_some_and(|authenticated| {
+        authenticated.actor() == &envelope.actor
+            && authenticated.active_scope() == &envelope.active_scope
+            && authenticated.route() == &route
+    });
+    Ok((route, envelope, write_authorized))
+}
+
+fn direct_human_actor(actor: &ActorAttribution) -> bool {
+    actor.is_human()
+        && actor.session_id.is_some()
+        && actor.represented_principal_ref.is_none()
+        && actor.support_capability_id.is_none()
+}
+
+fn finance_owner_capabilities(
+    projected_version: u64,
+    freshness: FreshnessState,
+    target: FinanceOwnerCommandTarget,
+    evaluation: Option<&FinanceOwnerCommandEvaluation>,
+) -> platform::FinancePayablesOwnerCapabilities {
+    let exact = evaluation.is_some_and(|evaluation| {
+        evaluation.allowed
+            && evaluation.source_version == projected_version
+            && freshness == FreshnessState::Current
+    });
+    platform::FinancePayablesOwnerCapabilities {
+        source_version: evaluation.map_or(0, |evaluation| evaluation.source_version),
+        post_vendor_invoice: exact
+            && matches!(target, FinanceOwnerCommandTarget::PostVendorInvoice(_)),
+        release_payment: exact && matches!(target, FinanceOwnerCommandTarget::ReleasePayment(_)),
+        evaluated_at: evaluation
+            .map(|evaluation| evaluation.evaluated_at.to_rfc3339())
+            .unwrap_or_default(),
+    }
 }
 
 async fn authenticate_query_with_mfa<Q, G: FinanceRequestAuthenticator>(
@@ -1972,5 +2091,29 @@ mod tests {
             .collect::<Vec<_>>()
             .join("\n");
         assert!(!attrs.contains("Debug"));
+    }
+
+    #[test]
+    fn finance_owner_capabilities_require_current_exact_projection() {
+        let target = FinanceOwnerCommandTarget::ReleasePayment(
+            PaymentId::try_from_uuid(Uuid::from_u128(10)).unwrap(),
+        );
+        let evaluation = FinanceOwnerCommandEvaluation {
+            source_version: 2,
+            allowed: true,
+            evaluated_at: chrono::Utc::now(),
+        };
+        let current =
+            finance_owner_capabilities(2, FreshnessState::Current, target, Some(&evaluation));
+        assert!(current.release_payment);
+        assert!(!current.post_vendor_invoice);
+        assert!(
+            !finance_owner_capabilities(2, FreshnessState::Rebuilding, target, Some(&evaluation),)
+                .release_payment
+        );
+        assert!(
+            !finance_owner_capabilities(1, FreshnessState::Current, target, Some(&evaluation),)
+                .release_payment
+        );
     }
 }

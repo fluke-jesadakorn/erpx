@@ -61,9 +61,10 @@ use crate::contexts::{
     },
     procurement_inventory_cqrs::{
         AuthenticatedSupplyChainRequest, GetGoodsReceipt, GetPurchaseRequisition,
-        InventoryCommandApplication, InventoryQueryApplication, ProcurementCommandApplication,
-        ProcurementQueryApplication, SupplyChainAccessMode, SupplyChainAuthenticationError,
-        SupplyChainAuthenticationRequest, SupplyChainHoldingRoute, SupplyChainRequestAuthenticator,
+        InventoryCommandApplication, InventoryQueryApplication, OwnerCommandEvaluation,
+        ProcurementCommandApplication, ProcurementOwnerCommandTarget, ProcurementQueryApplication,
+        SupplyChainAccessMode, SupplyChainAuthenticationError, SupplyChainAuthenticationRequest,
+        SupplyChainHoldingRoute, SupplyChainRequestAuthenticator,
     },
 };
 use crate::holding_workspace::{PresentedHoldingRoute, resolve_holding_workspace};
@@ -949,6 +950,152 @@ impl ProcurementQueryApplication for Wave6HoldingApplication {
                 consistency: envelope.consistency,
             },
         })
+    }
+
+    async fn evaluate_owner_command(
+        &self,
+        route: SupplyChainHoldingRoute,
+        actor: ActorAttribution,
+        active_scope: AuthorityScope,
+        correlation_id: CorrelationId,
+        target: ProcurementOwnerCommandTarget,
+    ) -> Result<Option<OwnerCommandEvaluation>, CqrsError> {
+        let pool = self
+            .write_pool(
+                &route.holding_id,
+                &route.data_profile_key,
+                correlation_id,
+                "procurement",
+            )
+            .await?;
+        let access = Self::access(&actor, &active_scope, AccessMode::Write);
+        let evaluated_at = Utc::now();
+        let direct_human = actor.is_human()
+            && actor.session_id.is_some()
+            && actor.represented_principal_ref.is_none()
+            && actor.support_capability_id.is_none();
+        let evaluation = match target {
+            ProcurementOwnerCommandTarget::ReleasePurchaseOrder(id) => {
+                let repository = procurement_sqlx::ProcurementWriteRepository::new(pool);
+                let Some(order) =
+                    procurement::WriteRepository::load(&repository, &active_scope, id)
+                        .await
+                        .map_err(|error| {
+                            procurement_workflow_port_failure(error, correlation_id)
+                        })?
+                else {
+                    return Ok(None);
+                };
+                let entitled = procurement::EntitlementPort::ensure_procurement_enabled(
+                    &access,
+                    order.scope(),
+                    true,
+                )
+                .await
+                .is_ok();
+                let authorized = procurement::AuthorizationPort::authorize(
+                    &access,
+                    procurement::ports::AuthorizationRequest {
+                        actor: &actor,
+                        authority_scope: &active_scope,
+                        target_scope: order.scope(),
+                        action: procurement::ProcurementAction::ReleaseOrder,
+                    },
+                )
+                .await
+                .is_ok();
+                OwnerCommandEvaluation {
+                    source_version: order.version(),
+                    allowed: direct_human
+                        && entitled
+                        && authorized
+                        && order.status() == procurement::PurchaseOrderStatus::Draft
+                        && order.source_requisition().is_some(),
+                    evaluated_at,
+                }
+            }
+            ProcurementOwnerCommandTarget::ApproveRequisition(id) => {
+                let repository = procurement_sqlx::ProcurementWorkflowSqlxAdapter::new(pool);
+                let Some(requisition) =
+                    procurement::ProcurementWorkflowRepository::load_requisition(
+                        &repository,
+                        &active_scope,
+                        id,
+                    )
+                    .await
+                    .map_err(|error| procurement_workflow_port_failure(error, correlation_id))?
+                else {
+                    return Ok(None);
+                };
+                let entitled = procurement::EntitlementPort::ensure_procurement_enabled(
+                    &access,
+                    requisition.scope(),
+                    true,
+                )
+                .await
+                .is_ok();
+                let authorized = procurement::ProcurementWorkflowAuthorizationPort::authorize_procurement_workflow(
+                    &access,
+                    procurement::ProcurementWorkflowAuthorizationRequest {
+                        actor: &actor,
+                        authority_scope: &active_scope,
+                        target_scope: requisition.scope(),
+                        action: procurement::ProcurementWorkflowAction::ApproveRequisition,
+                    },
+                )
+                .await
+                .is_ok();
+                OwnerCommandEvaluation {
+                    source_version: requisition.version(),
+                    allowed: direct_human
+                        && entitled
+                        && authorized
+                        && requisition.status()
+                            == procurement::PurchaseRequisitionStatus::Submitted,
+                    evaluated_at,
+                }
+            }
+            ProcurementOwnerCommandTarget::AcceptGoodsReceipt(id) => {
+                let repository = procurement_sqlx::ProcurementWorkflowSqlxAdapter::new(pool);
+                let Some(receipt) = procurement::ProcurementWorkflowRepository::load_goods_receipt(
+                    &repository,
+                    &active_scope,
+                    id,
+                )
+                .await
+                .map_err(|error| procurement_workflow_port_failure(error, correlation_id))?
+                else {
+                    return Ok(None);
+                };
+                let entitled = procurement::EntitlementPort::ensure_procurement_enabled(
+                    &access,
+                    receipt.scope(),
+                    true,
+                )
+                .await
+                .is_ok();
+                let authorized = procurement::ProcurementWorkflowAuthorizationPort::authorize_procurement_workflow(
+                    &access,
+                    procurement::ProcurementWorkflowAuthorizationRequest {
+                        actor: &actor,
+                        authority_scope: &active_scope,
+                        target_scope: receipt.scope(),
+                        action: procurement::ProcurementWorkflowAction::AcceptGoodsReceipt,
+                    },
+                )
+                .await
+                .is_ok();
+                OwnerCommandEvaluation {
+                    source_version: receipt.version(),
+                    allowed: direct_human
+                        && entitled
+                        && authorized
+                        && receipt.status() == procurement::GoodsReceiptStatus::PendingAcceptance,
+                    evaluated_at,
+                }
+            }
+        };
+        Ok(Some(evaluation))
     }
 }
 
