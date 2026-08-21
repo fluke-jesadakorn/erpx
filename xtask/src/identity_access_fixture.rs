@@ -23,7 +23,7 @@ use erpx_identity_access_sqlx::{
 };
 use erpx_infrastructure::holding_holding_scope_id;
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
+    ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId, SessionId,
     SystemClock,
 };
 use sqlx::PgPool;
@@ -469,7 +469,7 @@ fn envelope<C>(
         actor: ActorAttribution {
             principal_ref: ROOT_PRINCIPAL.into(),
             kind: ActorKind::PlatformUser,
-            session_id: None,
+            session_id: Some(SessionId::try_from_uuid(stable("session"))?),
             represented_principal_ref: None,
             support_capability_id: None,
         },
