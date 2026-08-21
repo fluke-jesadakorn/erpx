@@ -35,6 +35,7 @@ use crate::contexts::{
     finance_cqrs::{
         AuthenticatedFinanceRequest, FinanceAccessMode, FinanceAuthenticationError,
         FinanceAuthenticationRequest, FinanceCommandApplication, FinanceHoldingRoute,
+        FinancePayablesCommandApplication, FinancePayablesQueryApplication,
         FinanceQueryApplication, FinanceRequestAuthenticator,
     },
     legal_cqrs::{
@@ -106,6 +107,40 @@ impl finance::AuthorizationPort for PreauthorizedAccess {
 #[async_trait]
 impl finance::EntitlementPort for PreauthorizedAccess {
     async fn ensure_finance_enabled(
+        &self,
+        scope: &AuthorityScope,
+        write: bool,
+    ) -> Result<(), finance::PortError> {
+        if self.entitled(scope, write) {
+            Ok(())
+        } else {
+            Err(finance::PortError::EntitlementDenied)
+        }
+    }
+}
+
+#[async_trait]
+impl finance::PayablesAuthorizationPort for PreauthorizedAccess {
+    async fn authorize(
+        &self,
+        request: finance::PayablesAuthorizationRequest<'_>,
+    ) -> Result<(), finance::PortError> {
+        if self.permits(
+            request.actor,
+            request.authority_scope,
+            request.target_scope,
+            request.action.requires_write(),
+        ) {
+            Ok(())
+        } else {
+            Err(finance::PortError::Denied)
+        }
+    }
+}
+
+#[async_trait]
+impl finance::PayablesEntitlementPort for PreauthorizedAccess {
+    async fn ensure_payables_enabled(
         &self,
         scope: &AuthorityScope,
         write: bool,
@@ -381,6 +416,60 @@ impl FinanceQueryApplication for Wave8HoldingApplication {
             .map_err(|_| storage_configuration_error(envelope.correlation_id, "finance"))?;
         let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Read);
         finance::FinanceQueryHandler::new(read, access.clone(), access)
+            .handle(envelope)
+            .await
+    }
+}
+
+#[async_trait]
+impl FinancePayablesCommandApplication for Wave8HoldingApplication {
+    async fn execute_payables_command(
+        &self,
+        route: FinanceHoldingRoute,
+        envelope: CommandEnvelope<finance::PayablesCommand>,
+    ) -> Result<CommandReceipt<finance::PayablesMutationResult>, CqrsError> {
+        let pool = self
+            .write_pool(
+                &route.holding_id,
+                &route.data_profile_key,
+                envelope.correlation_id,
+                "finance",
+            )
+            .await?;
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Write);
+        let adapter = finance_sqlx::SqlxPayablesAdapter::new(pool);
+        finance::PayablesCommandHandler::new(
+            adapter.clone(),
+            adapter.clone(),
+            access.clone(),
+            access,
+            adapter,
+            SystemClock,
+        )
+        .handle(envelope)
+        .await
+    }
+}
+
+#[async_trait]
+impl FinancePayablesQueryApplication for Wave8HoldingApplication {
+    async fn execute_payables_query(
+        &self,
+        route: FinanceHoldingRoute,
+        envelope: QueryEnvelope<finance::PayablesQuery>,
+    ) -> Result<QueryResult<finance::PayablesQueryResponse>, CqrsError> {
+        let pool = self
+            .read_pool(
+                &route.holding_id,
+                &route.data_profile_key,
+                envelope.correlation_id,
+                "finance",
+            )
+            .await?;
+        let read = finance_sqlx::PayablesReadAdapter::new(pool)
+            .map_err(|_| storage_configuration_error(envelope.correlation_id, "finance"))?;
+        let access = Self::access(&envelope.actor, &envelope.active_scope, AccessMode::Read);
+        finance::PayablesQueryHandler::new(read, access.clone(), access)
             .handle(envelope)
             .await
     }

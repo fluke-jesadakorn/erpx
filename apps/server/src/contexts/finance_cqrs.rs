@@ -7,16 +7,23 @@ use erpx_cqrs::{
 use erpx_finance::{
     Account, AccountCategory, AccountId, AccountStatus, AddAccount, ApplySubledgerSettlement,
     BankTransactionFact, BeginPeriodClose, ChangeAccountStatus, ChartId, ClosePeriod, CreateChart,
-    CreateJournal, CreatePeriod, FinanceCommand, FinanceMutationResult, FinanceQuery,
-    FinanceQueryResponse, GetChart, GetJournal, GetPeriod, GetStatutoryTaxReport, GetSubledger,
-    GetTrialBalance, JournalId, JournalLine, JournalLineId, JournalSource, JournalStatus,
-    ListBankTransactions, ListCharts, ListJournals, ListSubledger, NormalBalance, PeriodId,
-    PeriodStatus, PostJournal, ReopenPeriod, StatutoryTaxFact, StatutoryTaxKind, SubledgerId,
-    SubledgerStatus,
+    CreateJournal, CreatePayment, CreatePeriod, CreateVendorInvoice, FinanceCommand,
+    FinanceMutationResult, FinanceQuery, FinanceQueryResponse, GetChart, GetJournal, GetPayment,
+    GetPeriod, GetStatutoryTaxReport, GetSubledger, GetTrialBalance, GetVendorInvoice, JournalId,
+    JournalLine, JournalLineId, JournalSource, JournalStatus, ListBankTransactions, ListCharts,
+    ListJournals, ListSubledger, NormalBalance, PayableView, PayablesCommand,
+    PayablesMutationResult, PayablesQuery, PayablesQueryResponse, PaymentAllocation, PaymentId,
+    PaymentStatus, PaymentView, PeriodId, PeriodStatus, PostJournal, PostVendorInvoice,
+    ReleasePayment, ReopenPeriod, StatutoryTaxFact, StatutoryTaxKind, SubledgerId, SubledgerStatus,
+    ThreeWayMatchTolerance, VendorInvoiceId, VendorInvoiceLine, VendorInvoiceLineId,
+    VendorInvoiceStatus, VendorInvoiceView,
     ports::{
         BankTransactionListFilter, ChartListFilter, ChartView, JournalView, PeriodView,
         SubledgerListFilter, SubledgerView,
     },
+};
+use erpx_integration_contracts::{
+    BoundedContext, CurrencyCode, MoneyAmount, Quantity, RecordRef, procurement,
 };
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
@@ -24,6 +31,8 @@ use erpx_kernel::{
 };
 use erpx_proto::{common, erpx::finance as platform};
 use platform::finance_command_service_server::FinanceCommandService;
+use platform::finance_payables_command_service_server::FinancePayablesCommandService;
+use platform::finance_payables_query_service_server::FinancePayablesQueryService;
 use platform::finance_query_service_server::FinanceQueryService;
 use std::sync::Arc;
 use tonic::{Request, Response, Status, metadata::MetadataMap};
@@ -138,6 +147,22 @@ pub trait FinanceQueryApplication: Send + Sync + 'static {
         query: QueryEnvelope<FinanceQuery>,
     ) -> Result<QueryResult<FinanceQueryResponse>, CqrsError>;
 }
+#[async_trait]
+pub trait FinancePayablesCommandApplication: Send + Sync + 'static {
+    async fn execute_payables_command(
+        &self,
+        route: FinanceHoldingRoute,
+        command: CommandEnvelope<PayablesCommand>,
+    ) -> Result<CommandReceipt<PayablesMutationResult>, CqrsError>;
+}
+#[async_trait]
+pub trait FinancePayablesQueryApplication: Send + Sync + 'static {
+    async fn execute_payables_query(
+        &self,
+        route: FinanceHoldingRoute,
+        query: QueryEnvelope<PayablesQuery>,
+    ) -> Result<QueryResult<PayablesQueryResponse>, CqrsError>;
+}
 #[derive(Debug, Clone)]
 pub struct FinanceCommandRpc<A, G> {
     application: Arc<A>,
@@ -162,6 +187,247 @@ impl<A, G> FinanceQueryRpc<A, G> {
             application,
             authenticator,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FinancePayablesCommandRpc<A, G> {
+    application: Arc<A>,
+    authenticator: Arc<G>,
+}
+impl<A, G> FinancePayablesCommandRpc<A, G> {
+    pub const fn new(application: Arc<A>, authenticator: Arc<G>) -> Self {
+        Self {
+            application,
+            authenticator,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FinancePayablesQueryRpc<A, G> {
+    application: Arc<A>,
+    authenticator: Arc<G>,
+}
+impl<A, G> FinancePayablesQueryRpc<A, G> {
+    pub const fn new(application: Arc<A>, authenticator: Arc<G>) -> Self {
+        Self {
+            application,
+            authenticator,
+        }
+    }
+}
+
+#[async_trait]
+impl<A: FinancePayablesCommandApplication, G: FinanceRequestAuthenticator>
+    FinancePayablesCommandService for FinancePayablesCommandRpc<A, G>
+{
+    async fn create_vendor_invoice(
+        &self,
+        request: Request<platform::CreateFinanceVendorInvoiceRequest>,
+    ) -> Result<Response<platform::FinanceVendorInvoiceMutationResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let command = PayablesCommand::CreateVendorInvoice(CreateVendorInvoice {
+            vendor_invoice_id: vendor_invoice_id(&input.vendor_invoice_id)?,
+            scope: decode_scope(
+                input
+                    .target_scope
+                    .ok_or_else(|| invalid("target_scope is required"))?,
+            )?,
+            invoice_number: input.invoice_number,
+            supplier: supplier_ref(&input.supplier_id)?,
+            purchase_order: decode_procurement_record_ref(
+                input
+                    .purchase_order
+                    .ok_or_else(|| invalid("purchase_order is required"))?,
+                "purchase_order",
+            )?,
+            receipt: decode_procurement_record_ref(
+                input
+                    .receipt
+                    .ok_or_else(|| invalid("receipt is required"))?,
+                "receipt",
+            )?,
+            tolerance: decode_match_tolerance(
+                input
+                    .tolerance
+                    .ok_or_else(|| invalid("tolerance is required"))?,
+            )?,
+            lines: input
+                .lines
+                .into_iter()
+                .map(decode_vendor_invoice_line)
+                .collect::<Result<_, _>>()?,
+            tax_amount: decode_money(
+                input
+                    .tax_amount
+                    .ok_or_else(|| invalid("tax_amount is required"))?,
+            )?,
+            due_on: date(&input.due_on, "due_on")?,
+        });
+        let receipt = self.command(transport, input.metadata, command).await?;
+        vendor_invoice_mutation_response(receipt)
+    }
+
+    async fn post_vendor_invoice(
+        &self,
+        request: Request<platform::PostFinanceVendorInvoiceRequest>,
+    ) -> Result<Response<platform::FinanceVendorInvoiceMutationResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let command = PayablesCommand::PostVendorInvoice(PostVendorInvoice {
+            vendor_invoice_id: vendor_invoice_id(&input.vendor_invoice_id)?,
+            purchase_order: decode_procurement_record_ref(
+                input
+                    .purchase_order
+                    .ok_or_else(|| invalid("purchase_order is required"))?,
+                "purchase_order",
+            )?,
+            receipt: decode_procurement_record_ref(
+                input
+                    .receipt
+                    .ok_or_else(|| invalid("receipt is required"))?,
+                "receipt",
+            )?,
+        });
+        let receipt = self.command(transport, input.metadata, command).await?;
+        vendor_invoice_mutation_response(receipt)
+    }
+
+    async fn create_payment(
+        &self,
+        request: Request<platform::CreateFinancePaymentRequest>,
+    ) -> Result<Response<platform::FinancePaymentMutationResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let command = PayablesCommand::CreatePayment(CreatePayment {
+            payment_id: payment_id(&input.payment_id)?,
+            scope: decode_scope(
+                input
+                    .target_scope
+                    .ok_or_else(|| invalid("target_scope is required"))?,
+            )?,
+            payment_code: input.payment_code,
+            supplier: supplier_ref(&input.supplier_id)?,
+            amount: decode_money(input.amount.ok_or_else(|| invalid("amount is required"))?)?,
+            allocations: input
+                .allocations
+                .into_iter()
+                .map(decode_payment_allocation)
+                .collect::<Result<_, _>>()?,
+        });
+        let receipt = self.command(transport, input.metadata, command).await?;
+        payment_mutation_response(receipt)
+    }
+
+    async fn release_payment(
+        &self,
+        request: Request<platform::ReleaseFinancePaymentRequest>,
+    ) -> Result<Response<platform::FinancePaymentMutationResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let command = PayablesCommand::ReleasePayment(ReleasePayment {
+            payment_id: payment_id(&input.payment_id)?,
+        });
+        let receipt = self.command(transport, input.metadata, command).await?;
+        payment_mutation_response(receipt)
+    }
+}
+
+impl<A: FinancePayablesCommandApplication, G: FinanceRequestAuthenticator>
+    FinancePayablesCommandRpc<A, G>
+{
+    async fn command(
+        &self,
+        transport: MetadataMap,
+        metadata: Option<common::CommandRequestMetadata>,
+        command: PayablesCommand,
+    ) -> Result<CommandReceipt<PayablesMutationResult>, Status> {
+        let decoded = decode_command(metadata, command)?;
+        let (route, envelope) =
+            authenticate_command(self.authenticator.as_ref(), transport, decoded).await?;
+        self.application
+            .execute_payables_command(route, envelope)
+            .await
+            .map_err(status_from_cqrs)
+    }
+}
+
+#[async_trait]
+impl<A: FinancePayablesQueryApplication, G: FinanceRequestAuthenticator> FinancePayablesQueryService
+    for FinancePayablesQueryRpc<A, G>
+{
+    async fn get_vendor_invoice(
+        &self,
+        request: Request<platform::GetFinanceVendorInvoiceRequest>,
+    ) -> Result<Response<platform::GetFinanceVendorInvoiceResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let result = self
+            .query(
+                transport,
+                input.metadata,
+                PayablesQuery::GetVendorInvoice(GetVendorInvoice {
+                    vendor_invoice_id: vendor_invoice_id(&input.vendor_invoice_id)?,
+                }),
+            )
+            .await?;
+        let PayablesQueryResponse::VendorInvoice {
+            vendor_invoice,
+            payable,
+        } = result.value
+        else {
+            return Err(Status::internal("Finance payables response type mismatch"));
+        };
+        Ok(Response::new(platform::GetFinanceVendorInvoiceResponse {
+            vendor_invoice: vendor_invoice.as_ref().map(encode_vendor_invoice),
+            payable: payable.as_ref().map(encode_payable),
+            metadata: Some(encode_query_metadata(&result.metadata)),
+        }))
+    }
+
+    async fn get_payment(
+        &self,
+        request: Request<platform::GetFinancePaymentRequest>,
+    ) -> Result<Response<platform::GetFinancePaymentResponse>, Status> {
+        let transport = request.metadata().clone();
+        let input = request.into_inner();
+        let result = self
+            .query(
+                transport,
+                input.metadata,
+                PayablesQuery::GetPayment(GetPayment {
+                    payment_id: payment_id(&input.payment_id)?,
+                }),
+            )
+            .await?;
+        let PayablesQueryResponse::Payment(payment) = result.value else {
+            return Err(Status::internal("Finance payables response type mismatch"));
+        };
+        Ok(Response::new(platform::GetFinancePaymentResponse {
+            payment: payment.as_ref().map(encode_payment),
+            metadata: Some(encode_query_metadata(&result.metadata)),
+        }))
+    }
+}
+
+impl<A: FinancePayablesQueryApplication, G: FinanceRequestAuthenticator>
+    FinancePayablesQueryRpc<A, G>
+{
+    async fn query(
+        &self,
+        transport: MetadataMap,
+        metadata: Option<common::QueryRequestMetadata>,
+        query: PayablesQuery,
+    ) -> Result<QueryResult<PayablesQueryResponse>, Status> {
+        let decoded = decode_query(metadata, query)?;
+        let (route, envelope) =
+            authenticate_query(self.authenticator.as_ref(), transport, decoded).await?;
+        self.application
+            .execute_payables_query(route, envelope)
+            .await
+            .map_err(status_from_cqrs)
     }
 }
 
@@ -898,6 +1164,253 @@ fn decode_query<Q>(
         .validate()
         .map_err(|_| invalid("query metadata is invalid"))?;
     Ok(DecodedQuery { route, envelope })
+}
+
+fn decode_procurement_record_ref(
+    value: platform::FinanceVersionedRecordRef,
+    expected_kind: &'static str,
+) -> Result<RecordRef, Status> {
+    if value.context != "procurement" || value.aggregate_kind != expected_kind {
+        return Err(invalid("Finance Procurement record reference is invalid"));
+    }
+    RecordRef::try_new(
+        BoundedContext::Procurement,
+        value.aggregate_kind,
+        parse_uuid(&value.aggregate_id, "aggregate_id")?,
+        value.aggregate_version,
+    )
+    .map_err(|_| invalid("Finance Procurement record reference is invalid"))
+}
+
+fn decode_money(value: platform::FinanceMoneyAmount) -> Result<MoneyAmount, Status> {
+    let currency = CurrencyCode::try_new(&value.currency)
+        .map_err(|_| invalid("Finance money currency is invalid"))?;
+    Ok(MoneyAmount::new(value.minor_units, currency))
+}
+
+fn decode_quantity(value: platform::FinanceQuantity) -> Result<Quantity, Status> {
+    let scale = u8::try_from(value.scale).map_err(|_| invalid("Finance quantity is invalid"))?;
+    Quantity::try_new(value.units, scale).map_err(|_| invalid("Finance quantity is invalid"))
+}
+
+fn decode_match_tolerance(
+    value: platform::FinanceThreeWayMatchTolerance,
+) -> Result<ThreeWayMatchTolerance, Status> {
+    let tolerance = ThreeWayMatchTolerance {
+        quantity_basis_points: u16::try_from(value.quantity_basis_points)
+            .map_err(|_| invalid("quantity tolerance is invalid"))?,
+        amount_basis_points: u16::try_from(value.amount_basis_points)
+            .map_err(|_| invalid("amount tolerance is invalid"))?,
+        absolute_amount_minor: value.absolute_amount_minor,
+    };
+    tolerance
+        .validate()
+        .map_err(|_| invalid("three-way match tolerance is invalid"))?;
+    Ok(tolerance)
+}
+
+fn decode_vendor_invoice_line(
+    value: platform::FinanceVendorInvoiceLine,
+) -> Result<VendorInvoiceLine, Status> {
+    Ok(VendorInvoiceLine {
+        line_id: VendorInvoiceLineId::try_from_uuid(parse_uuid(&value.line_id, "line_id")?)
+            .map_err(|_| invalid("line_id is invalid"))?,
+        purchase_order_line: procurement::PurchaseOrderLineRef::try_from_uuid(parse_uuid(
+            &value.purchase_order_line_id,
+            "purchase_order_line_id",
+        )?)
+        .map_err(|_| invalid("purchase_order_line_id is invalid"))?,
+        receipt_line_id: parse_uuid(&value.receipt_line_id, "receipt_line_id")?,
+        invoiced_quantity: decode_quantity(
+            value
+                .invoiced_quantity
+                .ok_or_else(|| invalid("invoiced_quantity is required"))?,
+        )?,
+        invoiced_amount: decode_money(
+            value
+                .invoiced_amount
+                .ok_or_else(|| invalid("invoiced_amount is required"))?,
+        )?,
+    })
+}
+
+fn decode_payment_allocation(
+    value: platform::FinancePaymentAllocation,
+) -> Result<PaymentAllocation, Status> {
+    Ok(PaymentAllocation {
+        payable_id: erpx_finance::PayableId::try_from_uuid(parse_uuid(
+            &value.payable_id,
+            "payable_id",
+        )?)
+        .map_err(|_| invalid("payable_id is invalid"))?,
+        payable_version: value.payable_version,
+        amount: decode_money(
+            value
+                .amount
+                .ok_or_else(|| invalid("allocation amount is required"))?,
+        )?,
+    })
+}
+
+fn supplier_ref(value: &str) -> Result<procurement::SupplierRef, Status> {
+    procurement::SupplierRef::try_from_uuid(parse_uuid(value, "supplier_id")?)
+        .map_err(|_| invalid("supplier_id is invalid"))
+}
+
+fn vendor_invoice_id(value: &str) -> Result<VendorInvoiceId, Status> {
+    VendorInvoiceId::try_from_uuid(parse_uuid(value, "vendor_invoice_id")?)
+        .map_err(|_| invalid("vendor_invoice_id is invalid"))
+}
+
+fn payment_id(value: &str) -> Result<PaymentId, Status> {
+    PaymentId::try_from_uuid(parse_uuid(value, "payment_id")?)
+        .map_err(|_| invalid("payment_id is invalid"))
+}
+
+fn encode_finance_record_ref(value: &RecordRef) -> platform::FinanceVersionedRecordRef {
+    platform::FinanceVersionedRecordRef {
+        context: match value.context {
+            BoundedContext::Procurement => "procurement".into(),
+            _ => "unsupported".into(),
+        },
+        aggregate_kind: value.aggregate_kind.as_str().into(),
+        aggregate_id: value.aggregate_id.to_string(),
+        aggregate_version: value.aggregate_version,
+    }
+}
+
+fn encode_money(value: MoneyAmount) -> platform::FinanceMoneyAmount {
+    platform::FinanceMoneyAmount {
+        minor_units: value.minor_units(),
+        currency: value.currency().as_str().into(),
+    }
+}
+
+fn encode_quantity(value: Quantity) -> platform::FinanceQuantity {
+    platform::FinanceQuantity {
+        units: value.units(),
+        scale: u32::from(value.scale()),
+    }
+}
+
+fn encode_match_tolerance(
+    value: ThreeWayMatchTolerance,
+) -> platform::FinanceThreeWayMatchTolerance {
+    platform::FinanceThreeWayMatchTolerance {
+        quantity_basis_points: u32::from(value.quantity_basis_points),
+        amount_basis_points: u32::from(value.amount_basis_points),
+        absolute_amount_minor: value.absolute_amount_minor,
+    }
+}
+
+fn encode_vendor_invoice_line(value: &VendorInvoiceLine) -> platform::FinanceVendorInvoiceLine {
+    platform::FinanceVendorInvoiceLine {
+        line_id: value.line_id.as_uuid().to_string(),
+        purchase_order_line_id: value.purchase_order_line.as_uuid().to_string(),
+        receipt_line_id: value.receipt_line_id.to_string(),
+        invoiced_quantity: Some(encode_quantity(value.invoiced_quantity)),
+        invoiced_amount: Some(encode_money(value.invoiced_amount)),
+    }
+}
+
+fn encode_vendor_invoice(value: &VendorInvoiceView) -> platform::FinanceVendorInvoiceRecord {
+    platform::FinanceVendorInvoiceRecord {
+        vendor_invoice_id: value.vendor_invoice_id.as_uuid().to_string(),
+        source_version: value.version,
+        scope: Some(encode_scope(&value.scope)),
+        invoice_number: value.invoice_number.clone(),
+        supplier_id: value.supplier.as_uuid().to_string(),
+        purchase_order: Some(encode_finance_record_ref(&value.purchase_order)),
+        receipt: Some(encode_finance_record_ref(&value.receipt)),
+        tolerance: Some(encode_match_tolerance(value.tolerance)),
+        lines: value.lines.iter().map(encode_vendor_invoice_line).collect(),
+        net_amount: Some(encode_money(value.net_amount)),
+        tax_amount: Some(encode_money(value.tax_amount)),
+        total_amount: Some(encode_money(value.total_amount)),
+        payable_id: value.payable_id.map(|id| id.as_uuid().to_string()),
+        due_on: value.due_on.to_string(),
+        status: match value.status {
+            VendorInvoiceStatus::Draft => platform::FinanceVendorInvoiceStatus::Draft as i32,
+            VendorInvoiceStatus::Posted => platform::FinanceVendorInvoiceStatus::Posted as i32,
+        },
+        posted_at: value.posted_at.map(|at| at.to_rfc3339()),
+        created_at: value.created_at.to_rfc3339(),
+        updated_at: value.updated_at.to_rfc3339(),
+        projected_at: None,
+    }
+}
+
+fn encode_payable(value: &PayableView) -> platform::FinancePayableRecord {
+    platform::FinancePayableRecord {
+        payable_id: value.payable_id.as_uuid().to_string(),
+        source_version: value.version,
+        scope: Some(encode_scope(&value.scope)),
+        vendor_invoice_id: value.vendor_invoice_id.as_uuid().to_string(),
+        vendor_invoice_version: value.vendor_invoice_version,
+        supplier_id: value.supplier.as_uuid().to_string(),
+        amount: Some(encode_money(value.amount)),
+        posted_at: value.posted_at.to_rfc3339(),
+    }
+}
+
+fn encode_payment_allocation(value: &PaymentAllocation) -> platform::FinancePaymentAllocation {
+    platform::FinancePaymentAllocation {
+        payable_id: value.payable_id.as_uuid().to_string(),
+        payable_version: value.payable_version,
+        amount: Some(encode_money(value.amount)),
+    }
+}
+
+fn encode_payment(value: &PaymentView) -> platform::FinancePaymentRecord {
+    platform::FinancePaymentRecord {
+        payment_id: value.payment_id.as_uuid().to_string(),
+        source_version: value.version,
+        scope: Some(encode_scope(&value.scope)),
+        payment_code: value.payment_code.clone(),
+        supplier_id: value.supplier.as_uuid().to_string(),
+        amount: Some(encode_money(value.amount)),
+        allocations: value
+            .allocations
+            .iter()
+            .map(encode_payment_allocation)
+            .collect(),
+        status: match value.status {
+            PaymentStatus::Draft => platform::FinancePaymentStatus::Draft as i32,
+            PaymentStatus::Released => platform::FinancePaymentStatus::Released as i32,
+        },
+        released_at: value.released_at.map(|at| at.to_rfc3339()),
+        created_at: value.created_at.to_rfc3339(),
+        updated_at: value.updated_at.to_rfc3339(),
+        projected_at: None,
+    }
+}
+
+fn vendor_invoice_mutation_response(
+    receipt: CommandReceipt<PayablesMutationResult>,
+) -> Result<Response<platform::FinanceVendorInvoiceMutationResponse>, Status> {
+    let PayablesMutationResult::VendorInvoice(value) = &receipt.response else {
+        return Err(Status::internal("Finance payables response type mismatch"));
+    };
+    let payable = value.posted_payable();
+    Ok(Response::new(
+        platform::FinanceVendorInvoiceMutationResponse {
+            receipt: Some(encode_receipt(&receipt)),
+            vendor_invoice: Some(encode_vendor_invoice(value)),
+            payable: payable.as_ref().map(encode_payable),
+        },
+    ))
+}
+
+fn payment_mutation_response(
+    receipt: CommandReceipt<PayablesMutationResult>,
+) -> Result<Response<platform::FinancePaymentMutationResponse>, Status> {
+    let PayablesMutationResult::Payment(value) = &receipt.response else {
+        return Err(Status::internal("Finance payables response type mismatch"));
+    };
+    Ok(Response::new(platform::FinancePaymentMutationResponse {
+        receipt: Some(encode_receipt(&receipt)),
+        payment: Some(encode_payment(value)),
+    }))
 }
 
 fn decode_account(v: platform::FinanceAccountRecord) -> Result<Account, Status> {

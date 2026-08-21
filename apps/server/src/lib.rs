@@ -63,7 +63,9 @@ use contexts::{
         CustomerAuthorityCommandRpc, CustomerAuthorityQueryApplication, CustomerAuthorityQueryRpc,
         CustomerAuthorityRequestAuthenticator,
     },
-    finance_cqrs::{FinanceCommandRpc, FinanceQueryRpc},
+    finance_cqrs::{
+        FinanceCommandRpc, FinancePayablesCommandRpc, FinancePayablesQueryRpc, FinanceQueryRpc,
+    },
     identity_access::{
         IdentityAccessCommandApplication, IdentityAccessCommandRpc, IdentityAccessQueryApplication,
         IdentityAccessQueryRpc, IdentityAccessRequestAuthenticator,
@@ -16825,6 +16827,22 @@ pub async fn run() -> Result<(), Box<dyn std::error::Error>> {
         .add_service(
             erpx_proto::erpx::finance::finance_query_service_server::FinanceQueryServiceServer::new(
                 FinanceQueryRpc::new(wave8_application.clone(), wave8_authenticator.clone()),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::finance::finance_payables_command_service_server::FinancePayablesCommandServiceServer::new(
+                FinancePayablesCommandRpc::new(
+                    wave8_application.clone(),
+                    wave8_authenticator.clone(),
+                ),
+            ),
+        )
+        .add_service(
+            erpx_proto::erpx::finance::finance_payables_query_service_server::FinancePayablesQueryServiceServer::new(
+                FinancePayablesQueryRpc::new(
+                    wave8_application.clone(),
+                    wave8_authenticator.clone(),
+                ),
             ),
         )
         .add_service(
