@@ -95,6 +95,7 @@ mod marketing_provider_secret_manager;
 mod marketing_public_abuse;
 mod platform_completion_runtime;
 mod pos_projection;
+mod procurement_payment_integration;
 mod quality_projection;
 mod role_review_notifications;
 mod role_review_runtime;
@@ -362,6 +363,10 @@ pub use platform_completion_runtime::{
 pub use pos_projection::{
     POS_PROJECTION_HANDLER_NAME, POS_PROJECTION_MAX_PAGE_SIZE, PosProjectionRebuildReport,
     PosProjectionRequest, PosProjectionRunReport, PosProjectionRunner, PosProjectionWorkerError,
+};
+pub use procurement_payment_integration::{
+    ProcureToPayConsumeOutcome, ProcureToPayConsumerError, ProcureToPayConsumerState,
+    ProcureToPayHandoff, ProcureToPayHandoffKind, ProcureToPaySourceEvent,
 };
 pub const QUALITY_PROJECTION_HANDLER_NAME: &str = "quality_projection";
 pub const QUALITY_PROJECTION_MAX_PAGE_SIZE: u32 = MAX_QUALITY_SOURCE_PAGE_SIZE;

@@ -84,6 +84,8 @@ impl ApprovalSessionIngressState {
             finance::Event::JournalPosted(_)
             | finance::Event::ReceivableChanged(_)
             | finance::Event::CustomerInvoicePosted(_)
+            | finance::Event::VendorPayablePosted(_)
+            | finance::Event::PaymentReleased(_)
             | finance::Event::RevenueRecognized(_)
             | finance::Event::CashApplied(_)
             | finance::Event::MarketingSpendPosted(_) => None,

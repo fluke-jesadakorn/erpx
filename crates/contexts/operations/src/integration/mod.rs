@@ -84,7 +84,9 @@ impl PublishedSourceEvent {
                     )
                     .map(Some)
                 }
-                procurement::Event::PurchaseOrderCancelled { .. } => Ok(None),
+                procurement::Event::PurchaseRequisitionApproved(_)
+                | procurement::Event::PurchaseOrderCancelled { .. }
+                | procurement::Event::GoodsReceiptAccepted(_) => Ok(None),
             },
             Self::Inventory(envelope) => match envelope.payload() {
                 inventory::Event::StockMoved(fact) => SourceFactMessage::from_envelope(
@@ -161,6 +163,8 @@ impl PublishedSourceEvent {
                 | finance::Event::PostingApprovalRequested(_)
                 | finance::Event::ReceivableChanged(_)
                 | finance::Event::CustomerInvoicePosted(_)
+                | finance::Event::VendorPayablePosted(_)
+                | finance::Event::PaymentReleased(_)
                 | finance::Event::RevenueRecognized(_)
                 | finance::Event::CashApplied(_)
                 | finance::Event::MarketingSpendPosted(_) => Ok(None),
