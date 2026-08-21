@@ -1,9 +1,19 @@
 mod records;
+mod workflow;
 pub use records::{
     ProcurementRecord, ProcurementRecordError, ProcurementRecordKind, ProcurementRecordStatus,
 };
+pub use workflow::{
+    GoodsReceipt, GoodsReceiptDomainEvent, GoodsReceiptId, GoodsReceiptLine, GoodsReceiptLineId,
+    GoodsReceiptState, GoodsReceiptStatus, InventoryStockItemId, PurchaseRequisition,
+    PurchaseRequisitionDomainEvent, PurchaseRequisitionId, PurchaseRequisitionLine,
+    PurchaseRequisitionLineId, PurchaseRequisitionState, PurchaseRequisitionStatus,
+    ReceiptLineAllowance,
+};
+pub(crate) use workflow::{goods_receipt_decision_ref, requisition_decision_ref};
 
 use chrono::{DateTime, Utc};
+use erpx_integration_contracts::{RecordVersionRef, catalog::ContextId};
 use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -48,6 +58,9 @@ domain_id!(PurchaseOrderId, "purchase_order_id");
 domain_id!(PurchaseOrderLineId, "purchase_order_line_id");
 domain_id!(SupplierId, "supplier_id");
 
+const REQUISITION_RECORD_TYPE: &str = "procurement.requisition";
+const CONTRACT_RECORD_TYPE: &str = "legal.contract";
+
 pub(crate) fn purchase_order_release_decision_ref(
     command_id: CommandId,
     purchase_order_id: PurchaseOrderId,
@@ -81,10 +94,26 @@ pub enum ProcurementDomainError {
     ArithmeticOverflow,
     #[error("purchase order lifecycle transition is not allowed")]
     InvalidTransition,
+    #[error("purchase order requires an exact approved requisition source")]
+    MissingSourceRequisition,
+    #[error("purchase order source reference has the wrong owner or record type")]
+    InvalidSourceReference,
+    #[error("purchase requisition requires an explicit budget reference")]
+    MissingBudgetReference,
     #[error("releasing a purchase order requires an authenticated human decision")]
     HumanDecisionRequired,
     #[error("purchase order timestamp cannot move backwards")]
     InvalidTime,
+    #[error("aggregate version conflict (expected {expected}, actual {actual})")]
+    VersionConflict { expected: u64, actual: u64 },
+    #[error(
+        "receipt quantity for purchase-order line {purchase_order_line_id} exceeds remaining {remaining} with requested {requested}"
+    )]
+    ReceiptQuantityExceeded {
+        purchase_order_line_id: Uuid,
+        remaining: i64,
+        requested: i64,
+    },
     #[error("aggregate version overflowed")]
     VersionOverflow,
 }
@@ -132,6 +161,8 @@ pub(crate) struct ReleasedPurchaseOrderState {
     pub supplier_id: SupplierId,
     pub order_code: String,
     pub lines: Vec<PurchaseOrderLine>,
+    pub source_requisition: RecordVersionRef,
+    pub contract: Option<RecordVersionRef>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -156,6 +187,10 @@ pub struct PurchaseOrder {
     supplier_id: SupplierId,
     currency: String,
     lines: Vec<PurchaseOrderLine>,
+    /// `None` exists only for bounded legacy snapshot restoration. New writes
+    /// must use `create` and therefore always carry an exact requisition.
+    source_requisition: Option<RecordVersionRef>,
+    contract: Option<RecordVersionRef>,
     status: PurchaseOrderStatus,
     created_at: DateTime<Utc>,
     updated_at: DateTime<Utc>,
@@ -172,6 +207,10 @@ pub struct PurchaseOrderState {
     pub supplier_id: SupplierId,
     pub currency: String,
     pub lines: Vec<PurchaseOrderLine>,
+    /// Historical snapshots may omit this. Such orders are readable but may
+    /// not release until an explicit migration pins an approved requisition.
+    pub source_requisition: Option<RecordVersionRef>,
+    pub contract: Option<RecordVersionRef>,
     pub status: PurchaseOrderStatus,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -187,6 +226,8 @@ impl PurchaseOrder {
             supplier_id: state.supplier_id,
             currency: state.currency,
             lines: state.lines,
+            source_requisition: state.source_requisition,
+            contract: state.contract,
             status: state.status,
             created_at: state.created_at,
             updated_at: state.updated_at,
@@ -204,12 +245,22 @@ impl PurchaseOrder {
         supplier_id: SupplierId,
         currency: String,
         lines: Vec<PurchaseOrderLine>,
+        source_requisition: RecordVersionRef,
+        contract: Option<RecordVersionRef>,
         at: DateTime<Utc>,
     ) -> Result<Self, ProcurementDomainError> {
         validate_record_scope(&scope)?;
         validate_code(&order_code, "order_code")?;
         validate_currency(&currency)?;
         validate_lines(&lines, &currency)?;
+        validate_exact_source(
+            &source_requisition,
+            ContextId::Procurement,
+            REQUISITION_RECORD_TYPE,
+        )?;
+        if let Some(contract) = &contract {
+            validate_exact_source(contract, ContextId::Legal, CONTRACT_RECORD_TYPE)?;
+        }
         let value = Self {
             id,
             version: 1,
@@ -218,6 +269,8 @@ impl PurchaseOrder {
             supplier_id,
             currency,
             lines,
+            source_requisition: Some(source_requisition),
+            contract,
             status: PurchaseOrderStatus::Draft,
             created_at: at,
             updated_at: at,
@@ -232,6 +285,12 @@ impl PurchaseOrder {
         validate_code(&self.order_code, "order_code")?;
         validate_currency(&self.currency)?;
         validate_lines(&self.lines, &self.currency)?;
+        if let Some(source) = &self.source_requisition {
+            validate_exact_source(source, ContextId::Procurement, REQUISITION_RECORD_TYPE)?;
+        }
+        if let Some(contract) = &self.contract {
+            validate_exact_source(contract, ContextId::Legal, CONTRACT_RECORD_TYPE)?;
+        }
         self.total_minor()?;
         if self.version == 0 {
             return Err(ProcurementDomainError::VersionOverflow);
@@ -248,6 +307,9 @@ impl PurchaseOrder {
         command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), ProcurementDomainError> {
+        if self.source_requisition.is_none() {
+            return Err(ProcurementDomainError::MissingSourceRequisition);
+        }
         if decision.decision_ref() != purchase_order_release_decision_ref(command_id, self.id)
             || decision.decided_at() != at
             || !decision.authority_scope().contains(&self.scope)
@@ -265,6 +327,11 @@ impl PurchaseOrder {
                 supplier_id: self.supplier_id,
                 order_code: self.order_code.clone(),
                 lines: self.lines.clone(),
+                source_requisition: self
+                    .source_requisition
+                    .clone()
+                    .expect("release rejects legacy orders without a source"),
+                contract: self.contract.clone(),
             },
             at,
         });
@@ -317,6 +384,12 @@ impl PurchaseOrder {
     pub fn lines(&self) -> &[PurchaseOrderLine] {
         &self.lines
     }
+    pub const fn source_requisition(&self) -> Option<&RecordVersionRef> {
+        self.source_requisition.as_ref()
+    }
+    pub const fn contract(&self) -> Option<&RecordVersionRef> {
+        self.contract.as_ref()
+    }
     pub fn total_minor(&self) -> Result<i64, ProcurementDomainError> {
         self.lines.iter().try_fold(0_i64, |total, line| {
             total
@@ -336,6 +409,22 @@ impl PurchaseOrder {
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
     }
+}
+
+pub(crate) fn validate_exact_source(
+    source: &RecordVersionRef,
+    owner: ContextId,
+    record_type: &'static str,
+) -> Result<(), ProcurementDomainError> {
+    source
+        .validate()
+        .map_err(|_| ProcurementDomainError::InvalidSourceReference)?;
+    if source.record().owner_context() != owner
+        || source.record().record_type().as_str() != record_type
+    {
+        return Err(ProcurementDomainError::InvalidSourceReference);
+    }
+    Ok(())
 }
 
 fn validate_record_scope(scope: &AuthorityScope) -> Result<(), ProcurementDomainError> {
@@ -394,7 +483,8 @@ fn validate_currency(value: &str) -> Result<(), ProcurementDomainError> {
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
-    use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+    use erpx_integration_contracts::{RecordTypeId, StableRecordRef};
+    use erpx_kernel::{ActorAttribution, ActorKind, RecordId, SessionId};
 
     use super::*;
 
@@ -417,6 +507,19 @@ mod tests {
 
     fn command_id(value: u128) -> CommandId {
         CommandId::try_from_uuid(id(value)).unwrap()
+    }
+
+    fn requisition_source() -> RecordVersionRef {
+        RecordVersionRef::try_new(
+            StableRecordRef::try_new(
+                RecordId::try_from_uuid(id(70)).unwrap(),
+                ContextId::Procurement,
+                RecordTypeId::try_new(REQUISITION_RECORD_TYPE).unwrap(),
+            )
+            .unwrap(),
+            3,
+        )
+        .unwrap()
     }
 
     fn human_decision(
@@ -458,6 +561,8 @@ mod tests {
             SupplierId::try_from_uuid(id(11)).unwrap(),
             "THB".into(),
             vec![line(12)],
+            requisition_source(),
+            None,
             at(9),
         )
         .unwrap()
@@ -477,6 +582,8 @@ mod tests {
                 SupplierId::try_from_uuid(id(11)).unwrap(),
                 "THB".into(),
                 vec![line(12)],
+                requisition_source(),
+                None,
                 at(9),
             ),
             Err(ProcurementDomainError::InvalidScope)
@@ -494,6 +601,8 @@ mod tests {
                 SupplierId::try_from_uuid(id(11)).unwrap(),
                 "THB".into(),
                 duplicate,
+                requisition_source(),
+                None,
                 at(9),
             ),
             Err(ProcurementDomainError::DuplicateLine)
@@ -508,6 +617,8 @@ mod tests {
                 SupplierId::try_from_uuid(id(11)).unwrap(),
                 "THB".into(),
                 vec![mismatched],
+                requisition_source(),
+                None,
                 at(9),
             ),
             Err(ProcurementDomainError::CurrencyMismatch)
@@ -594,9 +705,41 @@ mod tests {
                 SupplierId::try_from_uuid(id(11)).unwrap(),
                 "THB".into(),
                 vec![first, second],
+                requisition_source(),
+                None,
                 at(9),
             ),
             Err(ProcurementDomainError::ArithmeticOverflow)
         ));
+    }
+
+    #[test]
+    fn legacy_unlinked_order_restores_for_read_but_release_fails_closed() {
+        let mut order = PurchaseOrder::try_rehydrate(PurchaseOrderState {
+            id: PurchaseOrderId::try_from_uuid(id(80)).unwrap(),
+            version: 4,
+            scope: scope(),
+            order_code: "PO-LEGACY".into(),
+            supplier_id: SupplierId::try_from_uuid(id(81)).unwrap(),
+            currency: "THB".into(),
+            lines: vec![line(82)],
+            source_requisition: None,
+            contract: None,
+            status: PurchaseOrderStatus::Draft,
+            created_at: at(9),
+            updated_at: at(9),
+        })
+        .unwrap();
+        assert_eq!(order.source_requisition(), None);
+        let command_id = command_id(83);
+        assert_eq!(
+            order.release(
+                &human_decision(command_id, order.id(), at(10)),
+                command_id,
+                at(10),
+            ),
+            Err(ProcurementDomainError::MissingSourceRequisition)
+        );
+        assert_eq!(order.version(), 4);
     }
 }

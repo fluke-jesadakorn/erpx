@@ -82,9 +82,12 @@ fn fact(
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
-    use erpx_integration_contracts::IntegrationEvent;
+    use erpx_integration_contracts::{
+        IntegrationEvent, RecordTypeId, RecordVersionRef, StableRecordRef, catalog::ContextId,
+    };
     use erpx_kernel::{
-        ActorAttribution, ActorKind, AuthorityScope, CommandId, HumanDecisionProof, SessionId,
+        ActorAttribution, ActorKind, AuthorityScope, CommandId, HumanDecisionProof, RecordId,
+        SessionId,
     };
     use uuid::Uuid;
 
@@ -113,6 +116,17 @@ mod tests {
                 currency: "THB".into(),
                 destination_code: "WH-1".into(),
             }],
+            RecordVersionRef::try_new(
+                StableRecordRef::try_new(
+                    RecordId::try_from_uuid(Uuid::from_u128(8)).unwrap(),
+                    ContextId::Procurement,
+                    RecordTypeId::try_new("procurement.requisition").unwrap(),
+                )
+                .unwrap(),
+                3,
+            )
+            .unwrap(),
+            None,
             Utc.with_ymd_and_hms(2026, 8, 5, 9, 0, 0).single().unwrap(),
         )
         .unwrap();

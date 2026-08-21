@@ -14,16 +14,22 @@ use erpx_cqrs::{
     ProjectionNotReady, ProjectionTarget, QueryConsistency, QueryEnvelope, QueryHandler,
     ReadYourWrites,
 };
+use erpx_integration_contracts::{
+    RecordTypeId, RecordVersionRef, StableRecordRef, catalog::ContextId,
+};
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId, SessionId,
+    FixedClock, QueryId, RecordId, SessionId,
 };
 use uuid::Uuid;
 
 use super::*;
 use crate::{
-    domain::PurchaseOrderLineId,
-    ports::{ReadProjection, StoredCommit},
+    domain::{
+        PurchaseOrderLineId, PurchaseRequisition, PurchaseRequisitionId, PurchaseRequisitionLine,
+        PurchaseRequisitionLineId, PurchaseRequisitionState, PurchaseRequisitionStatus,
+    },
+    ports::{ExactRecordSourceSnapshot, ReadProjection, StoredCommit},
 };
 
 fn id(value: u128) -> Uuid {
@@ -62,6 +68,19 @@ fn line() -> PurchaseOrderLine {
     }
 }
 
+fn requisition_source() -> RecordVersionRef {
+    RecordVersionRef::try_new(
+        StableRecordRef::try_new(
+            RecordId::try_from_uuid(id(14)).unwrap(),
+            ContextId::Procurement,
+            RecordTypeId::try_new("procurement.requisition").unwrap(),
+        )
+        .unwrap(),
+        3,
+    )
+    .unwrap()
+}
+
 fn create_command() -> CreatePurchaseOrder {
     CreatePurchaseOrder {
         purchase_order_id: PurchaseOrderId::try_from_uuid(id(10)).unwrap(),
@@ -70,6 +89,8 @@ fn create_command() -> CreatePurchaseOrder {
         supplier_id: SupplierId::try_from_uuid(id(11)).unwrap(),
         currency: "THB".into(),
         lines: vec![line()],
+        source_requisition: requisition_source(),
+        contract: None,
     }
 }
 
@@ -82,6 +103,8 @@ fn aggregate() -> PurchaseOrder {
         command.supplier_id,
         command.currency,
         command.lines,
+        command.source_requisition,
+        command.contract,
         at(),
     )
     .unwrap();
@@ -155,6 +178,47 @@ impl WriteRepository for FakeWrite {
     ) -> Result<Option<PurchaseOrder>, PortError> {
         self.loads.fetch_add(1, Ordering::SeqCst);
         Ok(self.value.lock().unwrap().clone())
+    }
+}
+
+#[async_trait]
+impl PurchaseOrderSourcePort for FakeWrite {
+    async fn load_approved_requisition_source(
+        &self,
+        _: &AuthorityScope,
+        source: &RecordVersionRef,
+    ) -> Result<Option<PurchaseRequisition>, PortError> {
+        Ok(Some(
+            PurchaseRequisition::try_rehydrate(PurchaseRequisitionState {
+                id: PurchaseRequisitionId::try_from_uuid(source.record().id().as_uuid()).unwrap(),
+                version: source.version(),
+                scope: scope(),
+                requisition_code: "PR-1".into(),
+                requesting_department_code: "FIN".into(),
+                budget_code: Some("BUDGET-1".into()),
+                currency: "THB".into(),
+                lines: vec![PurchaseRequisitionLine {
+                    line_id: PurchaseRequisitionLineId::try_from_uuid(id(15)).unwrap(),
+                    item_code: "ITEM-1".into(),
+                    requested_quantity: 2,
+                    estimated_unit_price_minor: 100,
+                    currency: "THB".into(),
+                    destination_code: "WH-1".into(),
+                }],
+                status: PurchaseRequisitionStatus::Approved,
+                created_at: at(),
+                updated_at: at(),
+            })
+            .unwrap(),
+        ))
+    }
+
+    async fn resolve_contract_source(
+        &self,
+        _: &AuthorityScope,
+        _: &RecordVersionRef,
+    ) -> Result<Option<ExactRecordSourceSnapshot>, PortError> {
+        Ok(None)
     }
 }
 

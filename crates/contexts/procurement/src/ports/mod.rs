@@ -4,7 +4,7 @@ use erpx_cqrs::{
     CommandReceipt, EventPosition, IdempotencyKey, ProjectionMetadata, ProjectionNotReady,
     QueryConsistency,
 };
-use erpx_integration_contracts::procurement;
+use erpx_integration_contracts::{RecordVersionRef, procurement};
 use erpx_kernel::{
     ActorAttribution, AggregateId, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
 };
@@ -63,6 +63,8 @@ pub enum CommandFingerprint {
         supplier_id: SupplierId,
         currency: String,
         lines: Vec<PurchaseOrderLine>,
+        source_requisition: RecordVersionRef,
+        contract: Option<RecordVersionRef>,
     },
     ReleaseOrder {
         purchase_order_id: PurchaseOrderId,
@@ -100,6 +102,7 @@ pub struct ProcurementCommit {
     pub audit: AuditContext,
     pub expected_version: Option<u64>,
     pub aggregate: PurchaseOrder,
+    pub source_guards: Vec<ProcurementSourceGuard>,
     pub integration_events: Vec<procurement::Event>,
 }
 
@@ -155,6 +158,8 @@ pub struct PurchaseOrderView {
     pub supplier_id: SupplierId,
     pub currency: String,
     pub lines: Vec<PurchaseOrderLine>,
+    pub source_requisition: Option<RecordVersionRef>,
+    pub contract: Option<RecordVersionRef>,
     pub status: PurchaseOrderStatus,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -170,6 +175,8 @@ impl From<&PurchaseOrder> for PurchaseOrderView {
             supplier_id: value.supplier_id(),
             currency: value.currency().into(),
             lines: value.lines().to_vec(),
+            source_requisition: value.source_requisition().cloned(),
+            contract: value.contract().cloned(),
             status: value.status(),
             created_at: value.created_at(),
             updated_at: value.updated_at(),
@@ -236,4 +243,6 @@ pub enum PortError {
     Internal,
 }
 mod records;
+mod workflow;
 pub use records::*;
+pub use workflow::*;

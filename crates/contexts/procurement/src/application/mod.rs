@@ -3,6 +3,7 @@ use erpx_cqrs::{
     CommandEnvelope, CommandHandler, CommandReceipt, CqrsError, QueryEnvelope, QueryHandler,
     QueryMetadata, QueryResult,
 };
+use erpx_integration_contracts::RecordVersionRef;
 use erpx_kernel::{
     ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
     ErrorContext, EventId, HumanDecisionProof, KernelError,
@@ -12,14 +13,15 @@ use thiserror::Error;
 
 use crate::{
     domain::{
-        ProcurementDomainError, PurchaseOrder, PurchaseOrderId, PurchaseOrderLine, SupplierId,
-        purchase_order_release_decision_ref,
+        ProcurementDomainError, PurchaseOrder, PurchaseOrderId, PurchaseOrderLine,
+        PurchaseRequisitionStatus, SupplierId, purchase_order_release_decision_ref,
     },
     integration,
     ports::{
         AuthorizationPort, AuthorizationRequest, CommandFingerprint, CommandIdentity,
-        CommandUnitOfWork, EntitlementPort, PortError, ProcurementAction, ProcurementCommit,
-        PurchaseOrderList, PurchaseOrderListFilter, PurchaseOrderView, ReadRepository,
+        CommandUnitOfWork, EntitlementPort, ExactRecordSourceSnapshot, PortError,
+        ProcurementAction, ProcurementCommit, ProcurementSourceGuard, PurchaseOrderList,
+        PurchaseOrderListFilter, PurchaseOrderSourcePort, PurchaseOrderView, ReadRepository,
         StoredCommit, WriteRepository,
     },
 };
@@ -34,6 +36,8 @@ pub struct CreatePurchaseOrder {
     pub supplier_id: SupplierId,
     pub currency: String,
     pub lines: Vec<PurchaseOrderLine>,
+    pub source_requisition: RecordVersionRef,
+    pub contract: Option<RecordVersionRef>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,6 +93,8 @@ pub enum ProcurementApplicationError {
     IntegrationMapping,
     #[error("Procurement decision requires a directly authenticated human")]
     HumanDecisionRequired,
+    #[error("an exact source record is missing, stale, not approved, or outside the order scope")]
+    InvalidSource,
     #[error(transparent)]
     Port(#[from] PortError),
 }
@@ -140,7 +146,7 @@ struct ExistingCommand {
 
 impl<W, U, A, E, C> ProcurementCommandHandler<W, U, A, E, C>
 where
-    W: WriteRepository,
+    W: WriteRepository + PurchaseOrderSourcePort,
     U: CommandUnitOfWork,
     A: AuthorizationPort,
     E: EntitlementPort,
@@ -265,6 +271,7 @@ where
                 authority_scope: command.authority_scope,
                 audit: command.audit,
                 expected_version: Some(expected),
+                source_guards: aggregate_source_guards(&aggregate),
                 aggregate,
                 integration_events,
             })
@@ -276,7 +283,7 @@ where
 #[async_trait]
 impl<W, U, A, E, C> CommandHandler<CreatePurchaseOrder> for ProcurementCommandHandler<W, U, A, E, C>
 where
-    W: WriteRepository,
+    W: WriteRepository + PurchaseOrderSourcePort,
     U: CommandUnitOfWork,
     A: AuthorizationPort,
     E: EntitlementPort,
@@ -301,6 +308,8 @@ where
                 supplier_id: command.supplier_id,
                 currency: command.currency.clone(),
                 lines: command.lines.clone(),
+                source_requisition: command.source_requisition.clone(),
+                contract: command.contract.clone(),
             },
         };
         if let Some(mut stored) = self
@@ -337,6 +346,44 @@ where
                 correlation_id,
             ));
         }
+        let requisition = self
+            .write_repository
+            .load_approved_requisition_source(&envelope.active_scope, &command.source_requisition)
+            .await
+            .map_err(|error| to_cqrs(error.into(), correlation_id))?
+            .ok_or_else(|| to_cqrs(ProcurementApplicationError::InvalidSource, correlation_id))?;
+        if requisition.version() != command.source_requisition.version()
+            || requisition.status() != PurchaseRequisitionStatus::Approved
+            || requisition.scope() != &command.scope
+        {
+            return Err(to_cqrs(
+                ProcurementApplicationError::InvalidSource,
+                correlation_id,
+            ));
+        }
+        let mut source_guards = vec![ProcurementSourceGuard::ExactRecord(
+            ExactRecordSourceSnapshot {
+                source: command.source_requisition.clone(),
+                scope: requisition.scope().clone(),
+            },
+        )];
+        if let Some(contract) = &command.contract {
+            let snapshot = self
+                .write_repository
+                .resolve_contract_source(&envelope.active_scope, contract)
+                .await
+                .map_err(|error| to_cqrs(error.into(), correlation_id))?
+                .ok_or_else(|| {
+                    to_cqrs(ProcurementApplicationError::InvalidSource, correlation_id)
+                })?;
+            if snapshot.source != *contract || snapshot.scope != command.scope {
+                return Err(to_cqrs(
+                    ProcurementApplicationError::InvalidSource,
+                    correlation_id,
+                ));
+            }
+            source_guards.push(ProcurementSourceGuard::ExactRecord(snapshot));
+        }
         let mut aggregate = PurchaseOrder::create(
             command.purchase_order_id,
             command.scope,
@@ -344,6 +391,8 @@ where
             command.supplier_id,
             command.currency,
             command.lines,
+            command.source_requisition,
+            command.contract,
             self.clock.now(),
         )
         .map_err(|error| to_cqrs(error.into(), correlation_id))?;
@@ -364,6 +413,7 @@ where
                 authority_scope: envelope.active_scope,
                 audit: envelope.audit,
                 expected_version: None,
+                source_guards,
                 aggregate,
                 integration_events,
             })
@@ -381,7 +431,7 @@ macro_rules! existing_handler {
         #[async_trait]
         impl<W, U, A, E, C> CommandHandler<$command> for ProcurementCommandHandler<W, U, A, E, C>
         where
-            W: WriteRepository,
+            W: WriteRepository + PurchaseOrderSourcePort,
             U: CommandUnitOfWork,
             A: AuthorizationPort,
             E: EntitlementPort,
@@ -592,7 +642,8 @@ fn to_cqrs(error: ProcurementApplicationError, correlation_id: CorrelationId) ->
         | ProcurementApplicationError::UnexpectedCreateVersion
         | ProcurementApplicationError::MissingExpectedVersion
         | ProcurementApplicationError::InvalidPageSize
-        | ProcurementApplicationError::IntegrationMapping => (
+        | ProcurementApplicationError::IntegrationMapping
+        | ProcurementApplicationError::InvalidSource => (
             "procurement.invalid",
             ErrorCategory::Invalid,
             "The Procurement request is invalid.",
@@ -645,7 +696,24 @@ fn to_cqrs(error: ProcurementApplicationError, correlation_id: CorrelationId) ->
     })
 }
 
+fn aggregate_source_guards(aggregate: &PurchaseOrder) -> Vec<ProcurementSourceGuard> {
+    aggregate
+        .source_requisition()
+        .into_iter()
+        .chain(aggregate.contract())
+        .cloned()
+        .map(|source| {
+            ProcurementSourceGuard::ExactRecord(ExactRecordSourceSnapshot {
+                source,
+                scope: aggregate.scope().clone(),
+            })
+        })
+        .collect()
+}
+
 mod records;
 #[cfg(test)]
 mod tests;
+mod workflow;
 pub use records::{ProcurementRecordApplicationError, ProcurementRecordCommandHandler};
+pub use workflow::*;
