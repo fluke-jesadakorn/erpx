@@ -4,6 +4,7 @@
 mod macros;
 
 mod common;
+mod completion;
 mod editable_fields;
 mod envelope;
 mod foundation;
@@ -43,6 +44,12 @@ pub use authority::{
 pub use common::{
     BoundedText, ContractValidationError, CurrencyCode, DisplayName, MoneyAmount, Quantity,
     ReferenceCode,
+};
+pub use completion::{
+    CURRENT_RECORD_SURFACE, CurrentRecordCompletionGap, CurrentRecordCompletionRegistration,
+    CurrentRecordSurfaceRegistration, OwnerTransportRegistration, RecordAgentEligibility,
+    RecordDecisionPolicyClassification, RecordTokenAutocompleteEligibility,
+    current_record_completion_registration, current_record_completion_registrations,
 };
 pub use editable_fields::{
     EditableFieldAvailability, EditableFieldDefinition, EditableFieldError, EditableFieldRisk,

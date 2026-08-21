@@ -210,6 +210,7 @@ pub(crate) fn scan(root: &Path) -> ArchitectureResult {
     if console_manifest.is_file() {
         reject_manifest_dependencies(&console_manifest, &["erpx-ui"])?;
     }
+    enforce_current_record_surface(root)?;
 
     let console_bff = root.join("crates/console-bff/src");
     if console_bff.is_dir() {
@@ -253,6 +254,98 @@ pub(crate) fn scan(root: &Path) -> ArchitectureResult {
 
     println!("DDD/Clean/Hexagonal/CQRS and ERPX UI kit architecture boundaries passed");
     Ok(())
+}
+
+/// Keep the catalog-driven detail route and its shared collaboration shell as
+/// one architecture registration. Record-family completeness is checked from
+/// the authoritative Rust registries in `erpx-integration-contracts`; this
+/// source boundary prevents Console composition from bypassing those generic
+/// routes or dropping either shared surface.
+fn enforce_current_record_surface(root: &Path) -> ArchitectureResult {
+    let routes_path = root.join("apps/console/src/routes.rs");
+    let catalog_record_path = root.join("crates/console-transport-core/src/lib.rs");
+    let registration_path = root.join("crates/integration-contracts/src/completion.rs");
+    if !routes_path.is_file() || !catalog_record_path.is_file() || !registration_path.is_file() {
+        return Err("current-record route/shell registration sources are missing".into());
+    }
+
+    let registration = fs::read_to_string(&registration_path)?;
+    let route_shape = registered_string(&registration, "canonical_detail_route_shape")
+        .ok_or("current-record canonical route registration is missing")?;
+    let shell = registered_string(&registration, "shell_component")
+        .ok_or("current-record shell registration is missing")?;
+    let references_component = registered_string(&registration, "references_component")
+        .ok_or("current-record References registration is missing")?;
+    let activity_component = registered_string(&registration, "activity_component")
+        .ok_or("current-record Activity registration is missing")?;
+    if route_shape != "/{module}/{record}/{id}" {
+        return Err("current-record canonical route registration is not singular".into());
+    }
+
+    let routes = fs::read_to_string(&routes_path)?;
+    for marker in [
+        "#[route(\"/:workspace/:resource/:id\")]",
+        "#[route(\"/:module/:record/:id\")]",
+        "fn WorkspaceRecord(",
+        "fn CatalogRecordDetail(",
+    ] {
+        if !routes.contains(marker) {
+            return Err(format!(
+                "current-record route/shell registration `{marker}` is missing from {}",
+                routes_path.display()
+            )
+            .into());
+        }
+    }
+
+    let shell_declaration = format!("pub fn {shell}(");
+    let host = routes
+        .find(&shell_declaration)
+        .ok_or_else(|| format!("registered current-record shell `{shell}` is not mounted"))?;
+    let host_source = &routes[host..];
+    let fail_closed = host_source
+        .find("if !record.collaboration_available()")
+        .ok_or("RecordDetailHost must fail closed before collaboration is mounted")?;
+    let references_marker = format!("{references_component} {{");
+    let references = host_source.find(&references_marker).ok_or_else(|| {
+        format!("{shell} must mount registered References component `{references_component}`")
+    })?;
+    let activity_marker = format!("{activity_component} {{");
+    let activity = host_source.find(&activity_marker).ok_or_else(|| {
+        format!("{shell} must mount registered Activity component `{activity_component}`")
+    })?;
+    if !(fail_closed < references && references < activity) {
+        return Err(
+            "RecordDetailHost must fail closed, then mount References and Activity in order".into(),
+        );
+    }
+
+    let catalog_record = fs::read_to_string(&catalog_record_path)?;
+    for marker in [
+        "pub struct CatalogRecord",
+        "LIVE_CURRENT_RECORD_PUBLISHERS",
+        "descriptor.owner.lifecycle() == ContextLifecycle::Current",
+        "LIVE_CURRENT_RECORD_PUBLISHERS.contains(&descriptor.id)",
+    ] {
+        if !catalog_record.contains(marker) {
+            return Err(format!(
+                "catalog-backed current-record availability marker `{marker}` is missing from {}",
+                catalog_record_path.display()
+            )
+            .into());
+        }
+    }
+    Ok(())
+}
+
+fn registered_string(source: &str, field: &str) -> Option<String> {
+    let prefix = format!("{field}: \"");
+    source.lines().find_map(|line| {
+        line.trim()
+            .strip_prefix(&prefix)
+            .and_then(|value| value.split_once('"'))
+            .map(|(value, _)| value.to_owned())
+    })
 }
 
 /// Enforce the Web/macOS renderer boundary independently so platform release
@@ -940,6 +1033,73 @@ mod tests {
         .expect("write allowed contract fixture");
         reject_manifest_dependencies_except_prefix(&manifest, "erpx-", &["erpx-kernel"])
             .expect("kernel-only internal dependency is valid");
+        fs::remove_dir_all(root).expect("remove architecture fixture");
+    }
+
+    #[test]
+    fn current_record_shell_requires_catalog_gating_references_and_activity() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "erpx-architecture-current-record-{}-{nonce}",
+            std::process::id()
+        ));
+        fs::create_dir_all(root.join("apps/console/src")).expect("create Console fixture");
+        fs::create_dir_all(root.join("crates/console-transport-core/src"))
+            .expect("create transport fixture");
+        fs::create_dir_all(root.join("crates/integration-contracts/src"))
+            .expect("create contract fixture");
+        fs::write(
+            root.join("crates/integration-contracts/src/completion.rs"),
+            "canonical_detail_route_shape: \"/{module}/{record}/{id}\",\n\
+             shell_component: \"RecordDetailHost\",\n\
+             references_component: \"RecordReferences\",\n\
+             activity_component: \"AuthorizedRecordActivityRail\",\n",
+        )
+        .expect("write completion registration fixture");
+        let routes = root.join("apps/console/src/routes.rs");
+        fs::write(
+            &routes,
+            "#[route(\"/:workspace/:resource/:id\")]\n\
+             #[route(\"/:module/:record/:id\")]\n\
+             fn WorkspaceRecord() { RecordDetailHost(); }\n\
+             fn CatalogRecordDetail() { RecordDetailHost(); }\n\
+             pub fn RecordDetailHost() {\n\
+                 if !record.collaboration_available() { return; }\n\
+                 RecordReferences {}\n\
+                 AuthorizedRecordActivityRail {}\n\
+             }\n",
+        )
+        .expect("write route fixture");
+        fs::write(
+            root.join("crates/console-transport-core/src/lib.rs"),
+            "pub struct CatalogRecord;\n\
+             use LIVE_CURRENT_RECORD_PUBLISHERS;\n\
+             fn available() {\n\
+                 descriptor.owner.lifecycle() == ContextLifecycle::Current;\n\
+                 LIVE_CURRENT_RECORD_PUBLISHERS.contains(&descriptor.id);\n\
+             }\n",
+        )
+        .expect("write transport fixture");
+        enforce_current_record_surface(&root).expect("complete shared shell registration");
+
+        fs::write(
+            &routes,
+            "#[route(\"/:workspace/:resource/:id\")]\n\
+             #[route(\"/:module/:record/:id\")]\n\
+             fn WorkspaceRecord() { RecordDetailHost(); }\n\
+             fn CatalogRecordDetail() { RecordDetailHost(); }\n\
+             pub fn RecordDetailHost() {\n\
+                 if !record.collaboration_available() { return; }\n\
+                 RecordReferences {}\n\
+             }\n",
+        )
+        .expect("write incomplete route fixture");
+        let error = enforce_current_record_surface(&root)
+            .expect_err("missing Activity Rail registration must fail closed");
+        assert!(error.to_string().contains("AuthorizedRecordActivityRail"));
         fs::remove_dir_all(root).expect("remove architecture fixture");
     }
 }
