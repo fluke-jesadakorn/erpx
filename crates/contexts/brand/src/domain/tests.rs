@@ -1,4 +1,5 @@
 use chrono::{TimeZone, Utc};
+use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
 use uuid::Uuid;
 
 use super::*;
@@ -23,6 +24,33 @@ fn platform_profile() -> BrandProfile {
         at(9),
     )
     .unwrap()
+}
+
+fn publish_draft(
+    profile: &mut BrandProfile,
+    parent: Option<&ParentBrandWitness>,
+    principal_ref: &str,
+    decided_at: DateTime<Utc>,
+) -> Result<(), BrandDomainError> {
+    let command_id = CommandId::try_from_uuid(id(900)).unwrap();
+    let decision = HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: principal_ref.into(),
+            kind: if matches!(profile.scope(), BrandScope::Platform) {
+                ActorKind::PlatformUser
+            } else {
+                ActorKind::HoldingUser
+            },
+            session_id: Some(SessionId::try_from_uuid(id(901)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        profile.scope().authority_scope().unwrap(),
+        brand_publish_decision_ref(command_id, profile.id()),
+        decided_at,
+    )
+    .unwrap();
+    profile.publish_draft(parent, &decision, command_id, decided_at)
 }
 
 #[test]
@@ -162,7 +190,7 @@ fn low_contrast_is_rejected_at_publication() {
     )
     .unwrap();
     assert_eq!(
-        profile.publish_draft(None, "brand-admin".into(), at(10)),
+        publish_draft(&mut profile, None, "brand-admin", at(10)),
         Err(BrandDomainError::InsufficientContrast)
     );
 }
@@ -172,9 +200,7 @@ fn draft_publish_lifecycle_preserves_revision_and_advances_aggregate() {
     let mut profile = platform_profile();
     assert_eq!(profile.version(), 1);
     assert_eq!(profile.draft().unwrap().lifecycle(), BrandLifecycle::Draft);
-    profile
-        .publish_draft(None, "publisher".into(), at(10))
-        .unwrap();
+    publish_draft(&mut profile, None, "publisher", at(10)).unwrap();
     assert_eq!(profile.version(), 2);
     assert!(profile.draft().is_none());
     assert_eq!(profile.published().unwrap().revision(), 1);
@@ -201,7 +227,7 @@ fn publication_rejects_parent_changed_after_draft_save() {
         ..initial
     };
     assert_eq!(
-        profile.publish_draft(Some(&changed), "publisher".into(), at(10)),
+        publish_draft(&mut profile, Some(&changed), "publisher", at(10)),
         Err(BrandDomainError::StaleParent)
     );
 }
@@ -247,9 +273,7 @@ fn business_unit_cannot_lock_categories() {
 #[test]
 fn rollback_copies_owned_source_into_a_new_monotonic_revision() {
     let mut profile = platform_profile();
-    profile
-        .publish_draft(None, "publisher".into(), at(10))
-        .unwrap();
+    publish_draft(&mut profile, None, "publisher", at(10)).unwrap();
     profile
         .set_category_locks(
             [BrandCategory::Color].into_iter().collect(),
@@ -285,9 +309,7 @@ fn rollback_copies_owned_source_into_a_new_monotonic_revision() {
 #[test]
 fn rollback_rejects_cross_profile_source() {
     let mut profile = platform_profile();
-    profile
-        .publish_draft(None, "publisher".into(), at(10))
-        .unwrap();
+    publish_draft(&mut profile, None, "publisher", at(10)).unwrap();
     let result = profile.rollback(
         ArchivedBrandRevision {
             profile_id: BrandProfileId::try_from_uuid(id(999)).unwrap(),
@@ -329,9 +351,7 @@ fn draft_blocks_rollback_and_category_lock_changes() {
 #[test]
 fn published_hierarchy_resolves_only_explicit_unlocked_overrides() {
     let mut platform = platform_profile();
-    platform
-        .publish_draft(None, "publisher".into(), at(10))
-        .unwrap();
+    publish_draft(&mut platform, None, "publisher", at(10)).unwrap();
     platform
         .set_category_locks(
             [BrandCategory::Shape].into_iter().collect(),
@@ -356,9 +376,7 @@ fn published_hierarchy_resolves_only_explicit_unlocked_overrides() {
         at(12),
     )
     .unwrap();
-    holding
-        .publish_draft(Some(&parent), "publisher".into(), at(13))
-        .unwrap();
+    publish_draft(&mut holding, Some(&parent), "publisher", at(13)).unwrap();
 
     let resolved = resolve_published_brand(&platform, Some(&holding), None).unwrap();
     assert_eq!(resolved.definition.display_name, "Acme Holding");

@@ -15,7 +15,7 @@ use erpx_cqrs::{
 };
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId,
-    ErrorCategory, EventId, FixedClock, QueryId,
+    ErrorCategory, EventId, FixedClock, QueryId, SessionId,
 };
 
 use super::*;
@@ -40,7 +40,7 @@ fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "quality-test-actor".into(),
         kind: ActorKind::HoldingUser,
-        session_id: None,
+        session_id: Some(SessionId::try_from_uuid(id(9)).unwrap()),
         represented_principal_ref: None,
         support_capability_id: None,
     }
@@ -375,6 +375,36 @@ fn authorization_denial_prevents_create_commit() {
     )))
     .unwrap_err();
     assert_eq!(error.category(), ErrorCategory::Denied);
+    assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn release_rejects_agent_at_owner_domain_before_commit() {
+    let mut passed = aggregate();
+    passed.start(at()).unwrap();
+    passed
+        .record_result(5, 0, Some("passed review".into()), at())
+        .unwrap();
+    passed.take_uncommitted_events();
+    let uow = FakeUnitOfWork::default();
+    let handler = command_handler(
+        FakeWriteRepository {
+            aggregate: Arc::new(Mutex::new(Some(passed.clone()))),
+            loads: Arc::new(AtomicUsize::new(0)),
+        },
+        uow.clone(),
+        true,
+    );
+    let mut envelope = command_envelope(
+        5,
+        Some(passed.version()),
+        ReleaseInspection {
+            inspection_id: passed.id(),
+        },
+    );
+    envelope.actor.kind = ActorKind::Agent;
+    let error = block_on(handler.handle(envelope)).unwrap_err();
+    assert_eq!(error.category(), ErrorCategory::Invalid);
     assert_eq!(uow.commits.load(Ordering::SeqCst), 0);
 }
 

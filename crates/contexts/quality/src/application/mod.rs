@@ -9,7 +9,7 @@ use erpx_cqrs::{
 };
 use erpx_kernel::{
     ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
-    ErrorContext, EventId, KernelError,
+    ErrorContext, EventId, HumanDecisionProof, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -281,6 +281,9 @@ macro_rules! existing_handler {
             ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
                 envelope.validate()?;
                 let command = envelope.command.clone();
+                let decision_actor = envelope.actor.clone();
+                let decision_scope = envelope.active_scope.clone();
+                let decision_command_id = envelope.command_id;
                 let existing = ExistingCommand {
                     correlation_id: envelope.correlation_id,
                     causation_id: envelope.causation_id,
@@ -298,7 +301,14 @@ macro_rules! existing_handler {
                 };
                 let stored = self
                     .execute_existing(existing, |aggregate, at| {
-                        ($mutation)(aggregate, command, at)
+                        ($mutation)(
+                            aggregate,
+                            command,
+                            decision_actor,
+                            decision_scope,
+                            decision_command_id,
+                            at,
+                        )
                     })
                     .await?;
                 let response = InspectionMutationResult {
@@ -415,7 +425,12 @@ existing_handler!(
     |command: &StartInspection| CommandFingerprint::Start {
         inspection_id: command.inspection_id,
     },
-    |aggregate: &mut QualityInspection, _command: StartInspection, at| aggregate.start(at)
+    |aggregate: &mut QualityInspection,
+     _command: StartInspection,
+     _actor,
+     _scope,
+     _command_id,
+     at| aggregate.start(at)
 );
 existing_handler!(
     RecordInspectionResult,
@@ -426,13 +441,17 @@ existing_handler!(
         failed_quantity: command.failed_quantity,
         note: command.note.clone(),
     },
-    |aggregate: &mut QualityInspection, command: RecordInspectionResult, at| aggregate
-        .record_result(
-            command.passed_quantity,
-            command.failed_quantity,
-            command.note,
-            at,
-        )
+    |aggregate: &mut QualityInspection,
+     command: RecordInspectionResult,
+     _actor,
+     _scope,
+     _command_id,
+     at| aggregate.record_result(
+        command.passed_quantity,
+        command.failed_quantity,
+        command.note,
+        at,
+    )
 );
 existing_handler!(
     ReleaseInspection,
@@ -440,7 +459,21 @@ existing_handler!(
     |command: &ReleaseInspection| CommandFingerprint::Release {
         inspection_id: command.inspection_id,
     },
-    |aggregate: &mut QualityInspection, _command: ReleaseInspection, at| aggregate.release(at)
+    |aggregate: &mut QualityInspection,
+     command: ReleaseInspection,
+     actor,
+     scope,
+     command_id,
+     at| {
+        HumanDecisionProof::try_new(
+            actor,
+            scope,
+            crate::domain::quality_release_decision_ref(command_id, command.inspection_id),
+            at,
+        )
+        .map_err(|_| QualityDomainError::HumanDecisionRequired)
+        .and_then(|decision| aggregate.release(&decision, command_id, at))
+    }
 );
 existing_handler!(
     CancelInspection,
@@ -448,7 +481,12 @@ existing_handler!(
     |command: &CancelInspection| CommandFingerprint::Cancel {
         inspection_id: command.inspection_id,
     },
-    |aggregate: &mut QualityInspection, _command: CancelInspection, at| aggregate.cancel(at)
+    |aggregate: &mut QualityInspection,
+     _command: CancelInspection,
+     _actor,
+     _scope,
+     _command_id,
+     at| aggregate.cancel(at)
 );
 
 pub struct QualityQueryHandler<R, A, E> {

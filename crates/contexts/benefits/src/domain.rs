@@ -1,6 +1,6 @@
 use chrono::{DateTime, NaiveDate, Utc};
 use erpx_integration_contracts::{CurrencyCode, MoneyAmount, RecordVersionRef};
-use erpx_kernel::{AuthorityScope, CorrelationId};
+use erpx_kernel::{AuthorityScope, CommandId, CorrelationId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -92,9 +92,20 @@ impl BenefitPlan {
         value.validate()?;
         Ok(value)
     }
-    pub fn publish(&mut self, at: DateTime<Utc>) -> Result<(), BenefitsDomainError> {
+    pub fn publish(
+        &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), BenefitsDomainError> {
         if self.status != PlanStatus::Draft || at < self.updated_at {
             return Err(BenefitsDomainError::InvalidTransition);
+        }
+        if !decision.authority_scope().contains(&self.scope)
+            || decision.decision_ref() != benefit_plan_publish_decision_ref(command_id, self.id)
+            || decision.decided_at() != at
+        {
+            return Err(BenefitsDomainError::HumanDecisionRequired);
         }
         self.status = PlanStatus::Published;
         self.advance(at)
@@ -482,15 +493,34 @@ impl BenefitEnrollment {
     pub fn mark_payroll_handed_off(
         &mut self,
         id: PayrollHandoffId,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), BenefitsDomainError> {
         if self.status != BenefitEnrollmentStatus::Acknowledged || self.payroll_handoff_id.is_some()
         {
             return Err(BenefitsDomainError::InvalidTransition);
         }
+        self.validate_payroll_release_decision(id, decision, command_id, at)?;
         self.payroll_handoff_id = Some(id);
         self.status = BenefitEnrollmentStatus::PayrollHandedOff;
         self.advance(at)
+    }
+    pub fn validate_payroll_release_decision(
+        &self,
+        id: PayrollHandoffId,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), BenefitsDomainError> {
+        if !decision.authority_scope().contains(&self.scope)
+            || decision.decision_ref()
+                != benefits_payroll_release_decision_ref(command_id, self.id, id)
+            || decision.decided_at() != at
+        {
+            return Err(BenefitsDomainError::HumanDecisionRequired);
+        }
+        Ok(())
     }
     fn advance(&mut self, at: DateTime<Utc>) -> Result<(), BenefitsDomainError> {
         if at < self.updated_at {
@@ -542,6 +572,27 @@ pub struct BenefitsPayrollHandoff {
     pub correlation_id: CorrelationId,
 }
 
+pub fn benefit_plan_publish_decision_ref(command_id: CommandId, plan_id: BenefitPlanId) -> String {
+    format!(
+        "benefits.plan.publish:{}:{}",
+        command_id.as_uuid(),
+        plan_id.as_uuid()
+    )
+}
+
+pub fn benefits_payroll_release_decision_ref(
+    command_id: CommandId,
+    enrollment_id: BenefitEnrollmentId,
+    handoff_id: PayrollHandoffId,
+) -> String {
+    format!(
+        "benefits.payroll.release:{}:{}:{}",
+        command_id.as_uuid(),
+        enrollment_id.as_uuid(),
+        handoff_id.as_uuid()
+    )
+}
+
 fn calculate(
     base: MoneyAmount,
     basis_points: u16,
@@ -590,6 +641,8 @@ pub enum BenefitsDomainError {
     ProviderNotAcknowledged,
     #[error("invalid lifecycle transition")]
     InvalidTransition,
+    #[error("benefits decision requires exact authenticated-human evidence")]
+    HumanDecisionRequired,
     #[error("invalid timestamp")]
     InvalidTimestamp,
     #[error("numeric overflow")]

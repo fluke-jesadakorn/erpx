@@ -3,7 +3,7 @@ mod records;
 
 pub use inspection::{
     InspectionId, InspectionKind, InspectionStatus, QualityDomainError, QualityInspection,
-    QualityInspectionState, deterministic_reference,
+    QualityInspectionState, deterministic_reference, quality_release_decision_ref,
 };
 
 pub(crate) use inspection::DomainEvent;

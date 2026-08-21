@@ -3,7 +3,10 @@ use erpx_integration_contracts::{
     CurrencyCode, MoneyAmount, RecordVersionRef, StableRecordRef, catalog::ContextId,
     reference::RecordTypeId,
 };
-use erpx_kernel::{AuthorityScope, CorrelationId, RecordId};
+use erpx_kernel::{
+    ActorAttribution, ActorKind, AuthorityScope, CommandId, CorrelationId, HumanDecisionProof,
+    RecordId, SessionId,
+};
 use uuid::Uuid;
 
 use super::*;
@@ -42,7 +45,23 @@ fn pin(id: u128, owner: ContextId, kind: &str, version: u64) -> RecordVersionRef
 fn money(value: i64) -> MoneyAmount {
     MoneyAmount::new(value, CurrencyCode::try_new("THB").unwrap())
 }
+fn human_decision(reference: String, decided_at: chrono::DateTime<Utc>) -> HumanDecisionProof {
+    HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: uuid(8).to_string(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(uuid(9)).unwrap()),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        scope(),
+        reference,
+        decided_at,
+    )
+    .unwrap()
+}
 fn plan() -> BenefitPlan {
+    let command_id = CommandId::try_from_uuid(uuid(7)).unwrap();
     let mut value = BenefitPlan::draft(
         BenefitPlanId::try_from_uuid(uuid(10)).unwrap(),
         scope(),
@@ -60,8 +79,59 @@ fn plan() -> BenefitPlan {
         at(1),
     )
     .unwrap();
-    value.publish(at(2)).unwrap();
     value
+        .publish(
+            &human_decision(
+                benefit_plan_publish_decision_ref(command_id, value.id()),
+                at(2),
+            ),
+            command_id,
+            at(2),
+        )
+        .unwrap();
+    value
+}
+
+#[test]
+fn plan_publication_requires_exact_authenticated_human_evidence() {
+    let command_id = CommandId::try_from_uuid(uuid(70)).unwrap();
+    let mut value = BenefitPlan::draft(
+        BenefitPlanId::try_from_uuid(uuid(71)).unwrap(),
+        scope(),
+        "Human guarded plan",
+        CurrencyCode::try_new("THB").unwrap(),
+        "full_time",
+        30,
+        ContributionRule {
+            employee_basis_points: 100,
+            employer_basis_points: 100,
+            employee_flat: money(0),
+            employer_flat: money(0),
+            employee_cap: None,
+        },
+        at(1),
+    )
+    .unwrap();
+    let wrong = human_decision("benefits.plan.publish:wrong".into(), at(2));
+    assert_eq!(
+        value.publish(&wrong, command_id, at(2)),
+        Err(BenefitsDomainError::HumanDecisionRequired)
+    );
+    assert!(
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: uuid(72).to_string(),
+                kind: ActorKind::Agent,
+                session_id: Some(SessionId::try_from_uuid(uuid(73)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope(),
+            benefit_plan_publish_decision_ref(command_id, value.id()),
+            at(2),
+        )
+        .is_err()
+    );
 }
 fn window(plan: &BenefitPlan) -> EnrollmentWindow {
     EnrollmentWindow {

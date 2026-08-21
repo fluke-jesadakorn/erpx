@@ -365,8 +365,14 @@ impl wire::benefits_command_service_server::BenefitsCommandService for BenefitsC
             benefits_sqlx::SqlxBenefitsWriteRepository::new(pool),
             PayrollHandoffUnavailable,
         );
+        let identity = identity(context, body)?;
+        let decision = future_auth::human_decision(
+            &invocation,
+            benefits::benefit_plan_publish_decision_ref(identity.command_id, plan.id()),
+            now,
+        )?;
         let receipt = service
-            .publish_plan(&actor, identity(context, body)?, plan, now)
+            .publish_plan(&actor, identity, plan, decision, now)
             .await
             .map_err(status)?;
         Ok(Response::new(response(
@@ -668,19 +674,34 @@ impl wire::benefits_command_service_server::BenefitsCommandService for BenefitsC
             benefits_sqlx::SqlxBenefitsWriteRepository::new(pool),
             PayrollHandoffUnavailable,
         );
+        let identity = identity(context, body)?;
+        let enrollment_id = benefits::BenefitEnrollmentId::try_from_uuid(uuid(
+            &body.enrollment_id,
+            "enrollment_id",
+        )?)
+        .map_err(|error| Status::invalid_argument(error.to_string()))?;
+        let handoff_id =
+            benefits::PayrollHandoffId::try_from_uuid(uuid(&body.handoff_id, "handoff_id")?)
+                .map_err(|error| Status::invalid_argument(error.to_string()))?;
+        let decision = future_auth::human_decision(
+            &invocation,
+            benefits::benefits_payroll_release_decision_ref(
+                identity.command_id,
+                enrollment_id,
+                handoff_id,
+            ),
+            Utc::now(),
+        )?;
+        let decided_at = decision.decided_at();
         let receipt = service
             .release_payroll(
                 &actor,
-                identity(context, body)?,
-                benefits::BenefitEnrollmentId::try_from_uuid(uuid(
-                    &body.enrollment_id,
-                    "enrollment_id",
-                )?)
-                .map_err(|error| Status::invalid_argument(error.to_string()))?,
+                identity,
+                enrollment_id,
                 &target,
-                benefits::PayrollHandoffId::try_from_uuid(uuid(&body.handoff_id, "handoff_id")?)
-                    .map_err(|error| Status::invalid_argument(error.to_string()))?,
-                Utc::now(),
+                handoff_id,
+                decision,
+                decided_at,
             )
             .await
             .map_err(status)?;

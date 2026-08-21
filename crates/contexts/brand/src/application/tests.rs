@@ -16,7 +16,7 @@ use erpx_cqrs::{
 };
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, CommandId, CorrelationId, ErrorCategory, EventId,
-    FixedClock, QueryId,
+    FixedClock, HumanDecisionProof, QueryId, SessionId,
 };
 use uuid::Uuid;
 
@@ -45,7 +45,7 @@ fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "brand-admin".into(),
         kind: ActorKind::PlatformUser,
-        session_id: None,
+        session_id: Some(SessionId::try_from_uuid(id(9)).unwrap()),
         represented_principal_ref: None,
         support_capability_id: None,
     }
@@ -69,12 +69,17 @@ fn draft_profile() -> BrandProfile {
 
 fn published_profile() -> BrandProfile {
     let mut value = draft_profile();
+    let command_id = CommandId::try_from_uuid(id(8)).unwrap();
+    let decided_at = Utc.with_ymd_and_hms(2026, 8, 5, 10, 0, 0).single().unwrap();
+    let decision = HumanDecisionProof::try_new(
+        actor(),
+        AuthorityScope::Platform,
+        crate::domain::brand_publish_decision_ref(command_id, value.id()),
+        decided_at,
+    )
+    .unwrap();
     value
-        .publish_draft(
-            None,
-            "brand-admin".into(),
-            Utc.with_ymd_and_hms(2026, 8, 5, 10, 0, 0).single().unwrap(),
-        )
+        .publish_draft(None, &decision, command_id, decided_at)
         .unwrap();
     value.take_uncommitted_events();
     value
@@ -483,6 +488,24 @@ fn publish_emits_owner_contract_event() {
     .unwrap();
     assert_eq!(receipt.aggregate.version, 2);
     assert_eq!(uow.commits.lock().unwrap()[0].integration_events.len(), 1);
+}
+
+#[test]
+fn publish_rejects_agent_at_owner_domain_before_commit() {
+    let uow = FakeUnitOfWork::default();
+    let mut envelope = command_envelope(
+        55,
+        Some(1),
+        PublishBrandDraft {
+            profile_id: profile_id(),
+            reason: "agent cannot publish".into(),
+        },
+    );
+    envelope.actor.kind = ActorKind::Agent;
+    let error = block_on(handler(Some(draft_profile()), None, uow.clone(), true).handle(envelope))
+        .unwrap_err();
+    assert_eq!(error.category(), ErrorCategory::Invalid);
+    assert!(uow.commits.lock().unwrap().is_empty());
 }
 
 #[test]

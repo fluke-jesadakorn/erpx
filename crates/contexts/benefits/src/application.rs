@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use erpx_kernel::HumanDecisionProof;
 use thiserror::Error;
 
 use crate::{
@@ -37,6 +38,7 @@ where
         actor: &ActorContext,
         identity: MutationIdentity,
         mut plan: BenefitPlan,
+        decision: HumanDecisionProof,
         at: DateTime<Utc>,
     ) -> Result<CommitReceipt, BenefitsError> {
         identity.validate()?;
@@ -47,14 +49,23 @@ where
         if self.write.load_plan(&authority, plan.id()).await?.is_some() {
             return Err(BenefitsError::Conflict);
         }
-        plan.publish(at)?;
+        plan.publish(&decision, identity.command_id, at)?;
         self.write
             .commit(BenefitsCommit {
                 identity,
                 authority,
                 expected_version: None,
                 event_type: "benefits.plan_published".into(),
-                event_payload: serde_json::json!({"version": plan.version()}),
+                event_payload: serde_json::json!({
+                    "version": plan.version(),
+                    "human_decision": {
+                        "principal_ref": decision.principal_ref(),
+                        "session_id": decision.actor().session_id.map(|value| value.as_uuid()),
+                        "authority_scope": decision.authority_scope(),
+                        "decision_ref": decision.decision_ref(),
+                        "decided_at": decision.decided_at(),
+                    }
+                }),
                 aggregate: BenefitsAggregate::Plan(Box::new(plan)),
             })
             .await
@@ -173,6 +184,7 @@ where
         enrollment_id: BenefitEnrollmentId,
         scope: &erpx_kernel::AuthorityScope,
         handoff_id: PayrollHandoffId,
+        decision: HumanDecisionProof,
         at: DateTime<Utc>,
     ) -> Result<CommitReceipt, BenefitsError> {
         identity.validate()?;
@@ -189,6 +201,14 @@ where
             return Err(BenefitsError::Neutral);
         }
         let expected = enrollment.version();
+        // The owner domain must reject non-human or mismatched evidence before
+        // the external Payroll handoff is attempted.
+        enrollment.validate_payroll_release_decision(
+            handoff_id,
+            &decision,
+            identity.command_id,
+            at,
+        )?;
         let handoff = enrollment.payroll_handoff(handoff_id, identity.correlation_id)?;
         let response = self.payroll.release(&authority, &handoff).await?;
         if !response.accepted {
@@ -198,8 +218,28 @@ where
                     .unwrap_or_else(|| "Payroll rejected contribution handoff".into()),
             ));
         }
-        enrollment.mark_payroll_handed_off(handoff_id, at)?;
-        self.write.commit(BenefitsCommit { identity, authority, expected_version: Some(expected), event_type: "benefits.payroll_handoff_accepted".into(), event_payload: serde_json::json!({"handoff_id": handoff_id.as_uuid(), "owner_correlation_id": response.owner_correlation_id}), aggregate: BenefitsAggregate::Enrollment(Box::new(enrollment)) }).await.map_err(Into::into)
+        enrollment.mark_payroll_handed_off(handoff_id, &decision, identity.command_id, at)?;
+        self.write
+            .commit(BenefitsCommit {
+                identity,
+                authority,
+                expected_version: Some(expected),
+                event_type: "benefits.payroll_handoff_accepted".into(),
+                event_payload: serde_json::json!({
+                    "handoff_id": handoff_id.as_uuid(),
+                    "owner_correlation_id": response.owner_correlation_id,
+                    "human_decision": {
+                        "principal_ref": decision.principal_ref(),
+                        "session_id": decision.actor().session_id.map(|value| value.as_uuid()),
+                        "authority_scope": decision.authority_scope(),
+                        "decision_ref": decision.decision_ref(),
+                        "decided_at": decision.decided_at(),
+                    }
+                }),
+                aggregate: BenefitsAggregate::Enrollment(Box::new(enrollment)),
+            })
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn govern_record(

@@ -7,7 +7,7 @@ use erpx_cqrs::{
 };
 use erpx_kernel::{
     ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
-    ErrorContext, EventId, KernelError, RecordId,
+    ErrorContext, EventId, HumanDecisionProof, KernelError, RecordId,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -310,7 +310,19 @@ where
             ExistingMutation::SaveDraft { definition } => {
                 aggregate.save_draft(*definition, parent.as_ref(), actor_ref, at)
             }
-            ExistingMutation::Publish => aggregate.publish_draft(parent.as_ref(), actor_ref, at),
+            ExistingMutation::Publish => HumanDecisionProof::try_new(
+                command.actor.clone(),
+                command.authority_scope.clone(),
+                crate::domain::brand_publish_decision_ref(
+                    command.identity.command_id,
+                    command.profile_id,
+                ),
+                at,
+            )
+            .map_err(|_| BrandDomainError::HumanDecisionRequired)
+            .and_then(|decision| {
+                aggregate.publish_draft(parent.as_ref(), &decision, command.identity.command_id, at)
+            }),
             ExistingMutation::Rollback { source_revision } => {
                 if source_revision == 0 {
                     return Err(to_cqrs(

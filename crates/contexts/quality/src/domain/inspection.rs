@@ -4,7 +4,7 @@ use erpx_integration_contracts::{
     catalog::ContextId,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{AuthorityScope, RecordId};
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -103,6 +103,8 @@ pub enum QualityDomainError {
     InvalidWindow,
     #[error("only a passed inspection can be released")]
     InspectionNotPassed,
+    #[error("quality release requires exact authenticated-human evidence")]
+    HumanDecisionRequired,
     #[error("a failed inspection requires bounded disposition evidence")]
     DispositionRequired,
 }
@@ -339,9 +341,20 @@ impl QualityInspection {
         Ok(())
     }
 
-    pub fn release(&mut self, at: DateTime<Utc>) -> Result<(), QualityDomainError> {
+    pub fn release(
+        &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        at: DateTime<Utc>,
+    ) -> Result<(), QualityDomainError> {
         if self.status != InspectionStatus::Passed {
             return Err(QualityDomainError::InspectionNotPassed);
+        }
+        if !decision.authority_scope().contains(&self.scope)
+            || decision.decision_ref() != quality_release_decision_ref(command_id, self.id)
+            || decision.decided_at() != at
+        {
+            return Err(QualityDomainError::HumanDecisionRequired);
         }
         self.transition(InspectionStatus::Released, at)?;
         self.uncommitted_events.push(DomainEvent::Released {
@@ -473,6 +486,14 @@ impl QualityInspection {
     }
 }
 
+pub fn quality_release_decision_ref(command_id: CommandId, inspection_id: InspectionId) -> String {
+    format!(
+        "quality.inspection.release:{}:{}",
+        command_id.as_uuid(),
+        inspection_id.as_uuid()
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum DomainEvent {
     Created {
@@ -576,6 +597,7 @@ fn next_version(version: u64) -> Result<u64, QualityDomainError> {
 mod tests {
     use super::*;
     use chrono::TimeZone;
+    use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
 
     fn id(value: u128) -> Uuid {
         Uuid::from_u128(value)
@@ -603,6 +625,26 @@ mod tests {
             Some("LOT-001".into()),
             quantity,
             at(0),
+        )
+        .unwrap()
+    }
+
+    fn release_decision(
+        inspection: &QualityInspection,
+        command_id: CommandId,
+        decided_at: DateTime<Utc>,
+    ) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "quality-reviewer".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(SessionId::try_from_uuid(id(8)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            scope(),
+            quality_release_decision_ref(command_id, inspection.id()),
+            decided_at,
         )
         .unwrap()
     }
@@ -636,7 +678,9 @@ mod tests {
         inspection
             .record_result(5, 0, Some("all samples passed".into()), at(2))
             .unwrap();
-        inspection.release(at(3)).unwrap();
+        let command_id = CommandId::try_from_uuid(id(9)).unwrap();
+        let decision = release_decision(&inspection, command_id, at(3));
+        inspection.release(&decision, command_id, at(3)).unwrap();
         assert_eq!(inspection.status(), InspectionStatus::Released);
         assert_eq!(inspection.version(), 4);
     }

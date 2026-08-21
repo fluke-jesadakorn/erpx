@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -758,10 +758,19 @@ impl BrandProfile {
     pub fn publish_draft(
         &mut self,
         parent: Option<&ParentBrandWitness>,
-        updated_by: String,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<(), BrandDomainError> {
         self.ensure_time(at)?;
+        let target_scope = self.scope.authority_scope()?;
+        if !decision.authority_scope().contains(&target_scope)
+            || decision.decision_ref() != brand_publish_decision_ref(command_id, self.id)
+            || decision.decided_at() != at
+        {
+            return Err(BrandDomainError::HumanDecisionRequired);
+        }
+        let updated_by = decision.principal_ref().to_owned();
         validate_reference(&updated_by, MAX_ACTOR_REFERENCE_BYTES, "updated_by")?;
         let mut draft = self.draft.clone().ok_or(BrandDomainError::DraftNotFound)?;
         validate_definition_with_parent(&self.scope, &draft.definition, parent, true)?;
@@ -968,6 +977,14 @@ impl BrandProfile {
             display_name: published.definition.display_name.clone(),
         }
     }
+}
+
+pub fn brand_publish_decision_ref(command_id: CommandId, profile_id: BrandProfileId) -> String {
+    format!(
+        "brand.draft.publish:{}:{}",
+        command_id.as_uuid(),
+        profile_id.as_uuid()
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1177,6 +1194,8 @@ pub enum BrandDomainError {
     InvalidRollbackSource,
     #[error("brand mutation would not change the aggregate")]
     NoChange,
+    #[error("brand publication requires exact authenticated-human evidence")]
+    HumanDecisionRequired,
     #[error("brand mutation timestamp predates the aggregate")]
     InvalidTimestamp,
     #[error("brand version overflowed")]

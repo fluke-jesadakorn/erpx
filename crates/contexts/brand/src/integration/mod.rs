@@ -102,6 +102,9 @@ fn fact(state: &PublishedBrandState) -> Result<brand::BrandProfileFact, Integrat
 #[cfg(test)]
 mod tests {
     use chrono::{TimeZone, Utc};
+    use erpx_kernel::{
+        ActorAttribution, ActorKind, AuthorityScope, CommandId, HumanDecisionProof, SessionId,
+    };
     use uuid::Uuid;
 
     use super::*;
@@ -126,12 +129,23 @@ mod tests {
                 .unwrap()
                 .is_empty()
         );
+        let command_id = CommandId::try_from_uuid(Uuid::from_u128(2)).unwrap();
+        let decided_at = Utc.with_ymd_and_hms(2026, 8, 5, 10, 0, 0).single().unwrap();
+        let decision = HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "brand-admin".into(),
+                kind: ActorKind::PlatformUser,
+                session_id: Some(SessionId::try_from_uuid(Uuid::from_u128(3)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            AuthorityScope::Platform,
+            crate::domain::brand_publish_decision_ref(command_id, profile.id()),
+            decided_at,
+        )
+        .unwrap();
         profile
-            .publish_draft(
-                None,
-                "brand-admin".into(),
-                Utc.with_ymd_and_hms(2026, 8, 5, 10, 0, 0).single().unwrap(),
-            )
+            .publish_draft(None, &decision, command_id, decided_at)
             .unwrap();
         let events = published_events(&profile.take_uncommitted_events()).unwrap();
         assert!(matches!(
