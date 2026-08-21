@@ -717,6 +717,7 @@ impl Offer {
         self.status = OfferStatus::Presented;
         self.advance(at)
     }
+    #[allow(clippy::too_many_arguments)]
     pub fn candidate_decide(
         &mut self,
         principal: &RealmPrincipal,

@@ -47,6 +47,7 @@ where
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn approve_channel(
         &self,
         actor: CommerceActor,
@@ -142,6 +143,7 @@ where
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn approve_listing(
         &self,
         actor: CommerceActor,

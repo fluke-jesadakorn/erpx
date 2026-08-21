@@ -489,7 +489,7 @@ where
                         correlation,
                     )
                     .await?;
-                let expected = Some(value.version());
+                let expected_version = value.version();
                 let decision = human_decision.as_ref().ok_or_else(|| {
                     to_cqrs(
                         MarketingApplicationError::HumanDecisionRequired,
@@ -497,9 +497,12 @@ where
                     )
                 })?;
                 value
-                    .reject(decision, envelope.command_id, expected.unwrap_or(0), at)
+                    .reject(decision, envelope.command_id, expected_version, at)
                     .map_err(|e| to_cqrs(e.into(), correlation))?;
-                (MarketingAggregate::LeadCandidate(Box::new(value)), expected)
+                (
+                    MarketingAggregate::LeadCandidate(Box::new(value)),
+                    Some(expected_version),
+                )
             }
             MarketingCommand::CreateBudget(c) => {
                 if envelope.expected_aggregate_version.is_some() {

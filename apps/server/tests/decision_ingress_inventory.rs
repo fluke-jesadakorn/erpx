@@ -9,7 +9,6 @@ enum DecisionPolicy {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Enforcement {
     DomainProof,
-    MigrationRequired,
     OwnerPolicy,
 }
 
@@ -26,16 +25,6 @@ macro_rules! human_domain {
             ingress: $ingress,
             policy: DecisionPolicy::HumanOnly,
             enforcement: Enforcement::DomainProof,
-        }
-    };
-}
-
-macro_rules! human_pending {
-    ($ingress:literal) => {
-        Classification {
-            ingress: $ingress,
-            policy: DecisionPolicy::HumanOnly,
-            enforcement: Enforcement::MigrationRequired,
         }
     };
 }
@@ -63,11 +52,11 @@ const CLASSIFICATIONS: &[Classification] = &[
     human_domain!("brand/service.proto:PublishDraft"),
     human_domain!("collaboration/service.proto:ConfirmActionCard"),
     owner_policy!("collaboration/service.proto:TransitionThread"),
-    human_pending!("commercial/service.proto:ActivateBranchEntitlement"),
-    human_pending!("commercial/service.proto:ActivateCompanyEntitlement"),
+    human_domain!("commercial/service.proto:ActivateBranchEntitlement"),
+    human_domain!("commercial/service.proto:ActivateCompanyEntitlement"),
     owner_policy!("commercial/service.proto:ApplyBillingEvent"),
     owner_policy!("commercial/service.proto:ApplyEntitlementChange"),
-    human_pending!("commercial/service.proto:PublishCatalogPlan"),
+    human_domain!("commercial/service.proto:PublishCatalogPlan"),
     owner_policy!("crm/service.proto:AcceptMarketingLead"),
     owner_policy!("crm/service.proto:TransitionOpportunity"),
     human_domain!("ecommerce/service.proto:ApproveChannel"),
@@ -83,10 +72,10 @@ const CLASSIFICATIONS: &[Classification] = &[
     human_domain!("finance/service.proto:PostVendorInvoice"),
     human_domain!("finance/service.proto:ReleasePayment"),
     human_domain!("finance/service.proto:ReopenPeriod"),
-    human_pending!("identity_access/service.proto:ActivatePrincipal"),
+    human_domain!("identity_access/service.proto:ActivatePrincipal"),
     human_domain!("identity_access/service.proto:ApproveDirectoryIdentityReplacement"),
     human_domain!("identity_access/service.proto:RejectDirectoryIdentityReplacement"),
-    human_pending!("identity_access/service.proto:TransitionDirectoryConnectorLifecycle"),
+    human_domain!("identity_access/service.proto:TransitionDirectoryConnectorLifecycle"),
     owner_policy!("inventory/service.proto:ReleaseReservation"),
     human_domain!("learning/service.proto:PublishCourse"),
     human_domain!("legal/service.proto:TransitionContract"),
@@ -95,21 +84,21 @@ const CLASSIFICATIONS: &[Classification] = &[
     human_domain!("manufacturing/service.proto:CloseOrder"),
     human_domain!("manufacturing/service.proto:PublishSpecification"),
     human_domain!("manufacturing/service.proto:ReleaseOrder"),
-    human_pending!("marketing/service.proto:RejectLeadCandidate"),
-    human_pending!("operations/service.proto:CloseException"),
+    human_domain!("marketing/service.proto:RejectLeadCandidate"),
+    human_domain!("operations/service.proto:CloseException"),
     human_domain!("operations/service.proto:DecideApproval"),
-    human_pending!("operations/service.proto:PublishWorkQueuePolicy"),
-    human_pending!("organization/service.proto:ActivateNode"),
+    human_domain!("operations/service.proto:PublishWorkQueuePolicy"),
+    human_domain!("organization/service.proto:ActivateNode"),
     human_domain!("planning/service.proto:ApproveRecommendation"),
     human_domain!("planning/service.proto:RejectRecommendation"),
     human_domain!("planning/service.proto:ReleaseRecommendation"),
-    human_pending!("platform_administration/service.proto:ActivateHolding"),
-    human_pending!("platform_administration/service.proto:ActivateProjectionRebuild"),
+    human_domain!("platform_administration/service.proto:ActivateHolding"),
+    human_domain!("platform_administration/service.proto:ActivateProjectionRebuild"),
     human_domain!("platform_administration/service.proto:DecideDesiredConfiguration"),
     human_domain!("platform_administration/service.proto:DecideRootAccess"),
-    human_pending!("platform_administration/service.proto:PublishCorporateIdentityDraft"),
-    human_pending!("platform_administration/service.proto:TransitionConnector"),
-    human_pending!("platform_administration/service.proto:TransitionHolding"),
+    human_domain!("platform_administration/service.proto:PublishCorporateIdentityDraft"),
+    human_domain!("platform_administration/service.proto:TransitionConnector"),
+    human_domain!("platform_administration/service.proto:TransitionHolding"),
     human_domain!("pos/service.proto:ApproveRefund"),
     owner_policy!("pos/service.proto:CancelRefund"),
     owner_policy!("pos/service.proto:PostRefund"),
@@ -135,14 +124,14 @@ const CLASSIFICATIONS: &[Classification] = &[
     human_domain!("sales/service.proto:ConfirmSalesOrder"),
     human_domain!("sales/service.proto:RejectQuote"),
     human_domain!("support/service.proto:ApproveSession"),
-    human_pending!("support/service.proto:TransitionIncident"),
-    human_pending!("support/service.proto:TransitionTicket"),
+    human_domain!("support/service.proto:TransitionIncident"),
+    human_domain!("support/service.proto:TransitionTicket"),
     human_domain!("talent/service.proto:ApproveOffer"),
     human_domain!("talent/service.proto:ApproveProposal"),
     human_domain!("talent/service.proto:ApproveRequisition"),
     human_domain!("talent/service.proto:DecideOffer"),
     human_domain!("talent/service.proto:TransitionRequisition"),
-    human_pending!("people_payroll/service.proto:TransitionEmployee"),
+    human_domain!("people_payroll/service.proto:TransitionEmployee"),
     human_domain!("people_payroll/service.proto:TransitionExpenseClaim"),
     human_domain!("people_payroll/service.proto:TransitionLeaveRequest"),
     human_domain!("people_payroll/service.proto:TransitionPayrollRun"),
@@ -185,12 +174,12 @@ fn every_decision_shaped_rpc_has_an_explicit_policy_classification() {
 }
 
 #[test]
-fn human_only_and_owner_policy_entries_cannot_use_each_others_enforcement_status() {
+fn every_human_only_ingress_requires_owner_domain_proof() {
     let mut unique = BTreeSet::new();
     for entry in CLASSIFICATIONS {
         assert!(unique.insert(entry.ingress), "duplicate decision ingress");
         match entry.policy {
-            DecisionPolicy::HumanOnly => assert_ne!(entry.enforcement, Enforcement::OwnerPolicy),
+            DecisionPolicy::HumanOnly => assert_eq!(entry.enforcement, Enforcement::DomainProof),
             DecisionPolicy::OwnerPolicyControlled => {
                 assert_eq!(entry.enforcement, Enforcement::OwnerPolicy)
             }

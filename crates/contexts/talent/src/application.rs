@@ -112,6 +112,7 @@ where
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn approve_requisition(
         &self,
         actor: TalentActor,
@@ -161,6 +162,7 @@ where
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn transition_requisition(
         &self,
         actor: TalentActor,
@@ -570,6 +572,7 @@ where
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn approve_offer(
         &self,
         actor: TalentActor,
@@ -870,6 +873,7 @@ where
         .await
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn approve_proposal(
         &self,
         actor: TalentActor,

@@ -3295,7 +3295,7 @@ fn suggestion_apply_context_from_wire_patch(
     let schema = record_editable_field_schema(&source.record_type)
         .filter(|schema| {
             schema.supports_agent_patches()
-                && u64::from(schema.version) == value.schema_version
+                && schema.version == value.schema_version
                 && schema.owner.slug() == source.owner_context
         })
         .ok_or_else(|| invalid("field patch owner schema is unavailable"))?;

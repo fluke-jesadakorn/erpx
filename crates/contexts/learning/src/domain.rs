@@ -125,6 +125,7 @@ impl Course {
         value.validate()?;
         Ok(value)
     }
+    #[allow(clippy::too_many_arguments)]
     pub fn published(
         id: CourseId,
         scope: AuthorityScope,

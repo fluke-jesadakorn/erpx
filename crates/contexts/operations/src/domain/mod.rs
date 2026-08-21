@@ -505,6 +505,7 @@ impl WorkQueuePolicy {
         Ok(value)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn publish(
         id: WorkQueuePolicyId,
         scope: AuthorityScope,
@@ -538,6 +539,7 @@ impl WorkQueuePolicy {
         Ok(value)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn republish(
         &mut self,
         name: String,
