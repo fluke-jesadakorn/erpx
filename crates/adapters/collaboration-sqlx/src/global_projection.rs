@@ -93,10 +93,36 @@ impl GlobalThreadDocument {
                     .map_err(|_| failure("global thread policy identity is invalid"))?
             || (!allow_uncommitted_cursor
                 && (projection.projection_cursor == 0 || projection.projection_checkpoint == 0))
+            || projection.comments.iter().any(|comment| {
+                !valid_comment(comment)
+                    || comment.attachments.len() > erpx_collaboration::MAX_ATTACHMENTS
+                    || comment
+                        .attachments
+                        .iter()
+                        .map(|attachment| attachment.attachment_id)
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .len()
+                        != comment.attachments.len()
+                    || comment.attachments.iter().any(|attachment| {
+                        attachment.anchor != projection.anchor
+                            || attachment.thread_id != Some(projection.id)
+                            || attachment.classification != projection.classification
+                            || attachment.lifecycle
+                                != erpx_collaboration::AttachmentLifecycle::Ready
+                            || attachment.uploaded_by != comment.author
+                    })
+            })
             || projection
-                .comments
+                .followers
                 .iter()
-                .any(|comment| !valid_comment(comment))
+                .any(|follower| follower.principal.kind() != erpx_kernel::PrincipalKind::Human)
+            || projection
+                .followers
+                .iter()
+                .map(|follower| follower.principal.id().as_uuid())
+                .collect::<std::collections::BTreeSet<_>>()
+                .len()
+                != projection.followers.len()
             || policy.retention.minimum_days == 0
         {
             return Err(failure("invalid global thread document"));
@@ -407,6 +433,20 @@ fn valid_comment(comment: &erpx_collaboration::CommentProjectionV2) -> bool {
     if comment.revision == 0
         || comment.author.kind() != erpx_kernel::PrincipalKind::Human
         || comment.created_at > comment.updated_at
+        || comment.reactions.iter().any(|reaction| {
+            reaction.principal.kind() != erpx_kernel::PrincipalKind::Human
+                || reaction.value.trim().is_empty()
+                || reaction.value.len() > 64
+                || reaction.value.chars().any(char::is_control)
+                || reaction.created_at < comment.created_at
+        })
+        || comment
+            .reactions
+            .iter()
+            .map(|reaction| (reaction.principal.id().as_uuid(), reaction.value.as_str()))
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != comment.reactions.len()
     {
         return false;
     }

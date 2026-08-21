@@ -6,8 +6,8 @@
 
 use chrono::{DateTime, Utc};
 use erpx_kernel::{
-    ActorAttribution, ActorKind, AuthorityScope, CorrelationId, PrincipalId, PrincipalKind,
-    SessionId,
+    ActorAttribution, ActorKind, AuthorityScope, CorrelationId, DataClassification, PrincipalId,
+    PrincipalKind, SessionId,
 };
 use sqlx::PgPool;
 use sqlx::Row;
@@ -20,11 +20,13 @@ use crate::{
     GlobalRelationDraftKind, GlobalThreadDocument, ProjectionFreshness,
 };
 use erpx_collaboration::{
+    AttachmentId, AttachmentLifecycle, AttachmentRef, AttachmentView, AttachmentWorkerTransition,
     Audience, CollaborationError, CommentDocument, CommentId, CommentProjectionContent,
-    CommentProjectionV2, CommentVisibility, CommitReceipt, FollowerView, MandatoryFollowReason,
-    MutationIdentity, PortError, PrincipalRef, ReactionView, RecordRelationGraph, RelationId,
-    RelationKind, RelationMutationReceipt, RelationPage, RelationView, RetentionPolicy, ThreadId,
-    ThreadMutation, ThreadProjectionV2, ThreadState, record_relation_graph_thread_id,
+    CommentProjectionV2, CommentVisibility, CommitReceipt, FollowerView, MAX_ATTACHMENTS,
+    MandatoryFollowReason, MutationIdentity, PortError, PrincipalRef, ReactionView,
+    RecordRelationGraph, RelationId, RelationKind, RelationMutationReceipt, RelationPage,
+    RelationView, RetentionPolicy, ThreadId, ThreadMutation, ThreadProjectionV2, ThreadState,
+    record_relation_graph_thread_id,
 };
 use erpx_integration_contracts::{
     AuthorizedItemSummary, ItemDescriptor, StableRecordRef, record_collaboration_policy,
@@ -108,6 +110,32 @@ pub struct GlobalThreadPage {
     pub next_cursor: Option<String>,
     pub authorized_count: u64,
     pub projection_checkpoint: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct GlobalAttachmentRecord {
+    pub view: AttachmentView,
+    pub storage_object_id: Uuid,
+    pub uploader_session_id: Uuid,
+    pub upload_expires_at: DateTime<Utc>,
+    pub lifecycle_version: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GlobalAttachmentMutationReceipt {
+    pub attachment: GlobalAttachmentRecord,
+    pub replayed: bool,
+}
+
+pub fn global_attachment_object_key(
+    attachment_id: AttachmentId,
+    storage_object_id: Uuid,
+) -> String {
+    format!(
+        "collaboration/platform/{}/{}",
+        attachment_id.as_uuid(),
+        storage_object_id
+    )
 }
 
 /// Explicit control write/read pools are injected by the server composition.
@@ -454,7 +482,6 @@ impl SqlxGlobalCollaborationGateway {
         let operation = match mutation {
             ThreadMutation::AddComment(comment) => {
                 if comment.author != actor
-                    || !comment.attachments.is_empty()
                     || !comment.mentions.is_empty()
                     || global.projection.state == ThreadState::Resolved
                     || global
@@ -465,8 +492,20 @@ impl SqlxGlobalCollaborationGateway {
                 {
                     return Err(PortError::InvalidState);
                 }
+                let attachment_views = load_ready_global_attachments(
+                    &mut transaction,
+                    &anchor,
+                    thread_id,
+                    actor,
+                    global.projection.classification,
+                    &comment.attachments,
+                    at,
+                )
+                .await?;
                 let document_json =
                     serde_json::to_value(&comment.document).map_err(|_| PortError::InvalidState)?;
+                let attachment_json = serde_json::to_value(&comment.attachments)
+                    .map_err(|_| PortError::InvalidState)?;
                 let changed = sqlx::query(
                     "INSERT INTO erpx_global_collaboration.comments
                      (thread_id,comment_id,author_principal_id,author_session_id,visibility,
@@ -489,7 +528,7 @@ impl SqlxGlobalCollaborationGateway {
                     "INSERT INTO erpx_global_collaboration.comment_revisions
                      (thread_id,comment_id,revision,author_principal_id,author_session_id,document,
                       plain_text,content_digest,attachments,created_at)
-                     VALUES ($1,$2,1,$3,$4,$5,$6,$7,'[]'::JSONB,$8)",
+                     VALUES ($1,$2,1,$3,$4,$5,$6,$7,$8,$9)",
                 )
                 .bind(thread_id.as_uuid())
                 .bind(comment.comment_id.as_uuid())
@@ -498,6 +537,7 @@ impl SqlxGlobalCollaborationGateway {
                 .bind(document_json)
                 .bind(comment.document.plain_text())
                 .bind(comment.document.digest().to_vec())
+                .bind(attachment_json)
                 .bind(at)
                 .execute(&mut *transaction)
                 .await
@@ -508,7 +548,7 @@ impl SqlxGlobalCollaborationGateway {
                     revision: 1,
                     content: CommentProjectionContent::Visible(comment.document),
                     visibility: CommentVisibility::Visible,
-                    attachments: Vec::new(),
+                    attachments: attachment_views,
                     reactions: Vec::new(),
                     created_at: at,
                     updated_at: at,
@@ -547,12 +587,19 @@ impl SqlxGlobalCollaborationGateway {
                 "thread.comment.add"
             }
             ThreadMutation::EditComment(comment) => {
-                if comment.editor != actor
-                    || !comment.attachments.is_empty()
-                    || !comment.mentions.is_empty()
-                {
+                if comment.editor != actor || !comment.mentions.is_empty() {
                     return Err(PortError::InvalidState);
                 }
+                let attachment_views = load_ready_global_attachments(
+                    &mut transaction,
+                    &anchor,
+                    thread_id,
+                    actor,
+                    global.projection.classification,
+                    &comment.attachments,
+                    at,
+                )
+                .await?;
                 let current = global
                     .projection
                     .comments
@@ -570,11 +617,13 @@ impl SqlxGlobalCollaborationGateway {
                     .ok_or(PortError::InvalidState)?;
                 let document_json =
                     serde_json::to_value(&comment.document).map_err(|_| PortError::InvalidState)?;
+                let attachment_json = serde_json::to_value(&comment.attachments)
+                    .map_err(|_| PortError::InvalidState)?;
                 sqlx::query(
                     "INSERT INTO erpx_global_collaboration.comment_revisions
                      (thread_id,comment_id,revision,author_principal_id,author_session_id,document,
                       plain_text,content_digest,attachments,created_at)
-                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'[]'::JSONB,$9)",
+                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
                 )
                 .bind(thread_id.as_uuid())
                 .bind(comment.comment_id.as_uuid())
@@ -584,6 +633,7 @@ impl SqlxGlobalCollaborationGateway {
                 .bind(document_json)
                 .bind(comment.document.plain_text())
                 .bind(comment.document.digest().to_vec())
+                .bind(attachment_json)
                 .bind(at)
                 .execute(&mut *transaction)
                 .await
@@ -605,7 +655,7 @@ impl SqlxGlobalCollaborationGateway {
                 }
                 current.revision = revision;
                 current.content = CommentProjectionContent::Visible(comment.document);
-                current.attachments.clear();
+                current.attachments = attachment_views;
                 current.updated_at = at;
                 "thread.comment.edit"
             }
@@ -1246,6 +1296,415 @@ impl SqlxGlobalCollaborationGateway {
         .await
         .map_err(|_| PortError::Unavailable)?;
         Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn prepare_attachment_upload(
+        &self,
+        access: &GlobalCollaborationAccess,
+        identity: MutationIdentity,
+        attachment_id: AttachmentId,
+        storage_object_id: Uuid,
+        anchor: StableRecordRef,
+        thread_id: Option<ThreadId>,
+        file_name: String,
+        media_type: String,
+        size_bytes: u64,
+        digest: [u8; 32],
+        upload_expires_at: DateTime<Utc>,
+        at: DateTime<Utc>,
+    ) -> Result<GlobalAttachmentMutationReceipt, PortError> {
+        identity.validate()?;
+        if identity.correlation_id != access.correlation_id()
+            || storage_object_id.is_nil()
+            || size_bytes == 0
+            || size_bytes > 64 * 1024 * 1024
+            || digest == [0; 32]
+            || upload_expires_at <= at
+            || !valid_global_attachment_text(&file_name, 255)
+            || !valid_global_attachment_text(&media_type, 255)
+        {
+            return Err(PortError::InvalidState);
+        }
+        self.authorize_record(access, &anchor, false).await?;
+        let policy = record_collaboration_policy(anchor.record_type().as_str())
+            .filter(|policy| {
+                policy.owner == anchor.owner_context()
+                    && policy.attachments_enabled
+                    && policy.human_internal_mutations_only
+            })
+            .ok_or(PortError::Denied)?;
+        if anchor.owner_context()
+            != erpx_integration_contracts::catalog::ContextId::PlatformAdministration
+        {
+            return Err(PortError::Denied);
+        }
+        if let Some(thread_id) = thread_id {
+            let thread = self.get_thread_v2(access, thread_id).await?;
+            if thread.anchor != anchor || thread.classification != policy.classification {
+                return Err(PortError::Denied);
+            }
+        }
+        let view = AttachmentView {
+            attachment_id,
+            anchor: anchor.clone(),
+            thread_id,
+            file_name,
+            media_type,
+            size_bytes,
+            digest,
+            classification: policy.classification,
+            lifecycle: AttachmentLifecycle::PendingUpload,
+            uploaded_by: PrincipalRef::new(access.principal_id(), PrincipalKind::Human),
+            created_at: at,
+            updated_at: at,
+            expires_at: None,
+        };
+        let attachment = GlobalAttachmentRecord {
+            view,
+            storage_object_id,
+            uploader_session_id: access.session_id(),
+            upload_expires_at,
+            lifecycle_version: 1,
+        };
+        let mut transaction = self.control_write.begin().await.map_err(database_error)?;
+        if let Some(receipt_id) =
+            load_global_attachment_receipt(&mut transaction, &identity).await?
+        {
+            if receipt_id != attachment_id {
+                return Err(PortError::Conflict);
+            }
+            let attachment = load_global_attachment(&mut transaction, attachment_id).await?;
+            validate_global_attachment_binding(
+                &attachment,
+                &anchor,
+                thread_id,
+                Some(access.principal_id()),
+                Some(access.session_id()),
+            )?;
+            transaction.commit().await.map_err(database_error)?;
+            return Ok(GlobalAttachmentMutationReceipt {
+                attachment,
+                replayed: true,
+            });
+        }
+        let anchor_json = serde_json::to_value(&anchor).map_err(|_| PortError::InvalidState)?;
+        let object_key = global_attachment_object_key(attachment_id, storage_object_id);
+        sqlx::query(
+            "INSERT INTO erpx_global_collaboration.attachments
+             (attachment_id,object_id,object_key,anchor_record_id,anchor_record_ref,thread_id,
+              uploader_principal_id,uploader_session_id,classification,file_name,media_type,
+              expected_size_bytes,expected_digest,verified_size_bytes,verified_digest,lifecycle,
+              lifecycle_version,upload_expires_at,finalized_at,scanned_at,scan_engine,
+              scan_evidence_digest,quarantine_reason,expires_at,created_at,updated_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NULL,NULL,'pending_upload',
+                     1,$14,NULL,NULL,NULL,NULL,NULL,NULL,$15,$15)",
+        )
+        .bind(attachment_id.as_uuid())
+        .bind(storage_object_id)
+        .bind(object_key)
+        .bind(anchor.id().as_uuid())
+        .bind(anchor_json)
+        .bind(thread_id.map(|value| value.as_uuid()))
+        .bind(access.principal_id().as_uuid())
+        .bind(access.session_id())
+        .bind(global_classification_name(policy.classification))
+        .bind(&attachment.view.file_name)
+        .bind(&attachment.view.media_type)
+        .bind(to_i64(size_bytes)?)
+        .bind(digest.to_vec())
+        .bind(upload_expires_at)
+        .bind(at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?;
+        let event_cursor = insert_global_attachment_event(
+            &mut transaction,
+            &attachment,
+            Some(access),
+            Some(&identity),
+            at,
+        )
+        .await?;
+        insert_global_attachment_receipt(
+            &mut transaction,
+            &identity,
+            attachment_id,
+            1,
+            event_cursor,
+            at,
+        )
+        .await?;
+        insert_allowed_attachment_audit(
+            &mut transaction,
+            access,
+            "attachment.prepare",
+            anchor.id().as_uuid(),
+            attachment_id.as_uuid(),
+            Some(identity.command_id.as_uuid()),
+            at,
+        )
+        .await?;
+        transaction.commit().await.map_err(database_error)?;
+        Ok(GlobalAttachmentMutationReceipt {
+            attachment,
+            replayed: false,
+        })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn finalize_attachment_upload(
+        &self,
+        access: &GlobalCollaborationAccess,
+        identity: MutationIdentity,
+        attachment_id: AttachmentId,
+        anchor: StableRecordRef,
+        thread_id: ThreadId,
+        verified_size_bytes: u64,
+        verified_digest: [u8; 32],
+        at: DateTime<Utc>,
+    ) -> Result<GlobalAttachmentMutationReceipt, PortError> {
+        identity.validate()?;
+        if identity.correlation_id != access.correlation_id()
+            || verified_size_bytes == 0
+            || verified_digest == [0; 32]
+        {
+            return Err(PortError::InvalidState);
+        }
+        self.authorize_record(access, &anchor, false).await?;
+        let thread = self.get_thread_v2(access, thread_id).await?;
+        if thread.anchor != anchor {
+            return Err(PortError::Denied);
+        }
+        let mut transaction = self.control_write.begin().await.map_err(database_error)?;
+        if let Some(receipt_id) =
+            load_global_attachment_receipt(&mut transaction, &identity).await?
+        {
+            if receipt_id != attachment_id {
+                return Err(PortError::Conflict);
+            }
+            let attachment = load_global_attachment(&mut transaction, attachment_id).await?;
+            validate_global_attachment_binding(
+                &attachment,
+                &anchor,
+                Some(thread_id),
+                Some(access.principal_id()),
+                Some(access.session_id()),
+            )?;
+            transaction.commit().await.map_err(database_error)?;
+            return Ok(GlobalAttachmentMutationReceipt {
+                attachment,
+                replayed: true,
+            });
+        }
+        let anchor_json = serde_json::to_value(&anchor).map_err(|_| PortError::InvalidState)?;
+        let row = sqlx::query(
+            "SELECT expected_size_bytes,expected_digest,classification,thread_id
+             FROM erpx_global_collaboration.attachments
+             WHERE attachment_id=$1 AND anchor_record_id=$2 AND anchor_record_ref=$3::JSONB
+               AND uploader_principal_id=$4 AND uploader_session_id=$5
+               AND lifecycle='pending_upload' AND upload_expires_at>$6 FOR UPDATE",
+        )
+        .bind(attachment_id.as_uuid())
+        .bind(anchor.id().as_uuid())
+        .bind(anchor_json)
+        .bind(access.principal_id().as_uuid())
+        .bind(access.session_id())
+        .bind(at)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(database_error)?
+        .ok_or(PortError::Denied)?;
+        let expected_size = to_u64(
+            row.try_get::<i64, _>("expected_size_bytes")
+                .map_err(|_| PortError::Internal)?,
+        )?;
+        let expected_digest: Vec<u8> = row
+            .try_get("expected_digest")
+            .map_err(|_| PortError::Internal)?;
+        let prepared_thread: Option<Uuid> =
+            row.try_get("thread_id").map_err(|_| PortError::Internal)?;
+        let classification: String = row
+            .try_get("classification")
+            .map_err(|_| PortError::Internal)?;
+        if expected_size != verified_size_bytes
+            || expected_digest.as_slice() != verified_digest
+            || prepared_thread.is_some_and(|value| value != thread_id.as_uuid())
+            || classification != global_classification_name(thread.classification)
+        {
+            return Err(PortError::Conflict);
+        }
+        let changed = sqlx::query(
+            "UPDATE erpx_global_collaboration.attachments
+             SET verified_size_bytes=$2,verified_digest=$3,thread_id=$4,lifecycle='pending_scan',
+                 lifecycle_version=2,finalized_at=$5,updated_at=$5
+             WHERE attachment_id=$1 AND lifecycle='pending_upload'",
+        )
+        .bind(attachment_id.as_uuid())
+        .bind(to_i64(verified_size_bytes)?)
+        .bind(verified_digest.to_vec())
+        .bind(thread_id.as_uuid())
+        .bind(at)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?
+        .rows_affected();
+        if changed != 1 {
+            return Err(PortError::Conflict);
+        }
+        let attachment = load_global_attachment(&mut transaction, attachment_id).await?;
+        validate_global_attachment_binding(
+            &attachment,
+            &anchor,
+            Some(thread_id),
+            Some(access.principal_id()),
+            Some(access.session_id()),
+        )?;
+        let event_cursor = insert_global_attachment_event(
+            &mut transaction,
+            &attachment,
+            Some(access),
+            Some(&identity),
+            at,
+        )
+        .await?;
+        insert_global_attachment_receipt(
+            &mut transaction,
+            &identity,
+            attachment_id,
+            2,
+            event_cursor,
+            at,
+        )
+        .await?;
+        insert_allowed_attachment_audit(
+            &mut transaction,
+            access,
+            "attachment.finalize",
+            anchor.id().as_uuid(),
+            attachment_id.as_uuid(),
+            Some(identity.command_id.as_uuid()),
+            at,
+        )
+        .await?;
+        transaction.commit().await.map_err(database_error)?;
+        Ok(GlobalAttachmentMutationReceipt {
+            attachment,
+            replayed: false,
+        })
+    }
+
+    pub async fn get_attachment_download(
+        &self,
+        access: &GlobalCollaborationAccess,
+        attachment_id: AttachmentId,
+        anchor: &StableRecordRef,
+        thread_id: ThreadId,
+        at: DateTime<Utc>,
+    ) -> Result<GlobalAttachmentRecord, PortError> {
+        self.authorize_record(access, anchor, false).await?;
+        let thread = self.get_thread_v2(access, thread_id).await?;
+        if &thread.anchor != anchor {
+            return Err(PortError::Denied);
+        }
+        let mut transaction = self.control_write.begin().await.map_err(database_error)?;
+        let attachment = load_global_attachment(&mut transaction, attachment_id).await?;
+        validate_global_attachment_binding(&attachment, anchor, Some(thread_id), None, None)?;
+        if attachment.view.lifecycle != AttachmentLifecycle::Ready
+            || attachment.view.classification != thread.classification
+            || attachment
+                .view
+                .expires_at
+                .is_some_and(|expires| expires <= at)
+        {
+            return Err(PortError::Denied);
+        }
+        transaction.commit().await.map_err(database_error)?;
+        Ok(attachment)
+    }
+
+    /// Trusted scanner/expiry transition. No public transport constructs this
+    /// capability, and terminal scan evidence is stored only in control-write.
+    pub async fn transition_attachment(
+        &self,
+        attachment_id: AttachmentId,
+        expected: AttachmentLifecycle,
+        transition: AttachmentWorkerTransition,
+        at: DateTime<Utc>,
+    ) -> Result<GlobalAttachmentRecord, PortError> {
+        transition.validate()?;
+        let next = transition.lifecycle();
+        if !matches!(
+            (&transition, expected),
+            (
+                AttachmentWorkerTransition::ScanPassed { .. }
+                    | AttachmentWorkerTransition::ScanRejected { .. },
+                AttachmentLifecycle::PendingScan
+            ) | (
+                AttachmentWorkerTransition::Expire,
+                AttachmentLifecycle::PendingUpload | AttachmentLifecycle::PendingScan
+            )
+        ) {
+            return Err(PortError::InvalidState);
+        }
+        let mut transaction = self.control_write.begin().await.map_err(database_error)?;
+        let current = load_global_attachment(&mut transaction, attachment_id).await?;
+        if current.view.lifecycle != expected || at < current.view.updated_at {
+            return Err(PortError::Conflict);
+        }
+        let next_version = current
+            .lifecycle_version
+            .checked_add(1)
+            .ok_or(PortError::InvalidState)?;
+        let (scanned_at, engine, evidence, reason) = match &transition {
+            AttachmentWorkerTransition::ScanPassed {
+                engine,
+                evidence_digest,
+            } => (
+                Some(at),
+                Some(engine.as_str()),
+                Some(evidence_digest.to_vec()),
+                None,
+            ),
+            AttachmentWorkerTransition::ScanRejected {
+                engine,
+                evidence_digest,
+                reason,
+            } => (
+                Some(at),
+                Some(engine.as_str()),
+                Some(evidence_digest.to_vec()),
+                Some(reason.as_str()),
+            ),
+            AttachmentWorkerTransition::Expire => (None, None, None, None),
+        };
+        let changed = sqlx::query(
+            "UPDATE erpx_global_collaboration.attachments
+             SET lifecycle=$2,lifecycle_version=$3,scanned_at=$4,scan_engine=$5,
+                 scan_evidence_digest=$6,quarantine_reason=$7,updated_at=$8
+             WHERE attachment_id=$1 AND lifecycle=$9 AND lifecycle_version=$10",
+        )
+        .bind(attachment_id.as_uuid())
+        .bind(global_attachment_lifecycle_name(next))
+        .bind(to_i64(next_version)?)
+        .bind(scanned_at)
+        .bind(engine)
+        .bind(evidence)
+        .bind(reason)
+        .bind(at)
+        .bind(global_attachment_lifecycle_name(expected))
+        .bind(to_i64(current.lifecycle_version)?)
+        .execute(&mut *transaction)
+        .await
+        .map_err(database_error)?
+        .rows_affected();
+        if changed != 1 {
+            return Err(PortError::Conflict);
+        }
+        let attachment = load_global_attachment(&mut transaction, attachment_id).await?;
+        insert_global_attachment_event(&mut transaction, &attachment, None, None, at).await?;
+        transaction.commit().await.map_err(database_error)?;
+        Ok(attachment)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2098,6 +2557,299 @@ impl SqlxGlobalCollaborationGateway {
     }
 }
 
+async fn load_ready_global_attachments(
+    transaction: &mut Transaction<'_, Postgres>,
+    anchor: &StableRecordRef,
+    thread_id: ThreadId,
+    uploader: PrincipalRef,
+    classification: DataClassification,
+    references: &[AttachmentRef],
+    at: DateTime<Utc>,
+) -> Result<Vec<AttachmentView>, PortError> {
+    if references.len() > MAX_ATTACHMENTS
+        || references
+            .iter()
+            .map(|reference| reference.attachment_id)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != references.len()
+    {
+        return Err(PortError::InvalidState);
+    }
+    let mut views = Vec::with_capacity(references.len());
+    for reference in references {
+        let attachment = load_global_attachment(transaction, reference.attachment_id).await?;
+        if attachment.view.anchor != *anchor
+            || attachment.view.thread_id != Some(thread_id)
+            || attachment.view.uploaded_by != uploader
+            || attachment.view.classification != classification
+            || attachment.view.classification != reference.classification
+            || attachment.view.file_name != reference.file_name
+            || attachment.view.media_type != reference.media_type
+            || attachment.view.lifecycle != AttachmentLifecycle::Ready
+            || attachment
+                .view
+                .expires_at
+                .is_some_and(|expires| expires <= at)
+        {
+            return Err(PortError::Denied);
+        }
+        views.push(attachment.view);
+    }
+    Ok(views)
+}
+
+async fn load_global_attachment_receipt(
+    transaction: &mut Transaction<'_, Postgres>,
+    identity: &MutationIdentity,
+) -> Result<Option<AttachmentId>, PortError> {
+    let Some(row) = sqlx::query(
+        "SELECT command_id,request_digest,attachment_id
+         FROM erpx_global_collaboration.attachment_command_receipts
+         WHERE idempotency_key=$1",
+    )
+    .bind(&identity.idempotency_key)
+    .fetch_optional(&mut **transaction)
+    .await
+    .map_err(database_error)?
+    else {
+        return Ok(None);
+    };
+    let command_id: Uuid = row.try_get("command_id").map_err(|_| PortError::Internal)?;
+    let request_digest: Vec<u8> = row
+        .try_get("request_digest")
+        .map_err(|_| PortError::Internal)?;
+    if command_id != identity.command_id.as_uuid()
+        || request_digest.as_slice() != identity.request_digest
+    {
+        return Err(PortError::Conflict);
+    }
+    AttachmentId::try_from_uuid(
+        row.try_get::<Uuid, _>("attachment_id")
+            .map_err(|_| PortError::Internal)?,
+    )
+    .map(Some)
+    .map_err(|_| PortError::Internal)
+}
+
+async fn insert_global_attachment_receipt(
+    transaction: &mut Transaction<'_, Postgres>,
+    identity: &MutationIdentity,
+    attachment_id: AttachmentId,
+    lifecycle_version: u64,
+    event_cursor: i64,
+    at: DateTime<Utc>,
+) -> Result<(), PortError> {
+    sqlx::query(
+        "INSERT INTO erpx_global_collaboration.attachment_command_receipts
+         (idempotency_key,command_id,request_digest,attachment_id,lifecycle_version,event_cursor,
+          created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)",
+    )
+    .bind(&identity.idempotency_key)
+    .bind(identity.command_id.as_uuid())
+    .bind(identity.request_digest.to_vec())
+    .bind(attachment_id.as_uuid())
+    .bind(to_i64(lifecycle_version)?)
+    .bind(event_cursor)
+    .bind(at)
+    .execute(&mut **transaction)
+    .await
+    .map_err(database_error)?;
+    Ok(())
+}
+
+async fn insert_global_attachment_event(
+    transaction: &mut Transaction<'_, Postgres>,
+    attachment: &GlobalAttachmentRecord,
+    access: Option<&GlobalCollaborationAccess>,
+    identity: Option<&MutationIdentity>,
+    at: DateTime<Utc>,
+) -> Result<i64, PortError> {
+    if access.is_some() != identity.is_some() {
+        return Err(PortError::InvalidState);
+    }
+    let document = serde_json::to_value(attachment).map_err(|_| PortError::InvalidState)?;
+    sqlx::query_scalar(
+        "INSERT INTO erpx_global_collaboration.attachment_events
+         (event_id,attachment_id,lifecycle_version,lifecycle,event_document,actor_principal_id,
+          actor_session_id,command_id,correlation_id,occurred_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING event_cursor",
+    )
+    .bind(Uuid::new_v4())
+    .bind(attachment.view.attachment_id.as_uuid())
+    .bind(to_i64(attachment.lifecycle_version)?)
+    .bind(global_attachment_lifecycle_name(attachment.view.lifecycle))
+    .bind(document)
+    .bind(access.map(|value| value.principal_id().as_uuid()))
+    .bind(access.map(GlobalCollaborationAccess::session_id))
+    .bind(identity.map(|value| value.command_id.as_uuid()))
+    .bind(identity.map(|value| value.correlation_id.as_uuid()))
+    .bind(at)
+    .fetch_one(&mut **transaction)
+    .await
+    .map_err(database_error)
+}
+
+async fn load_global_attachment(
+    transaction: &mut Transaction<'_, Postgres>,
+    attachment_id: AttachmentId,
+) -> Result<GlobalAttachmentRecord, PortError> {
+    let row = sqlx::query(
+        "SELECT object_id,anchor_record_ref,thread_id,uploader_principal_id,uploader_session_id,
+                classification,file_name,media_type,expected_size_bytes,expected_digest,lifecycle,
+                lifecycle_version,upload_expires_at,expires_at,created_at,updated_at
+         FROM erpx_global_collaboration.attachments WHERE attachment_id=$1",
+    )
+    .bind(attachment_id.as_uuid())
+    .fetch_optional(&mut **transaction)
+    .await
+    .map_err(database_error)?
+    .ok_or(PortError::NotFound)?;
+    let digest = exact_digest(
+        row.try_get::<Vec<u8>, _>("expected_digest")
+            .map_err(|_| PortError::Internal)?,
+    )?;
+    let uploader = PrincipalId::try_from_uuid(
+        row.try_get::<Uuid, _>("uploader_principal_id")
+            .map_err(|_| PortError::Internal)?,
+    )
+    .map_err(|_| PortError::Internal)?;
+    let lifecycle_name: String = row.try_get("lifecycle").map_err(|_| PortError::Internal)?;
+    Ok(GlobalAttachmentRecord {
+        view: AttachmentView {
+            attachment_id,
+            anchor: serde_json::from_value(
+                row.try_get::<serde_json::Value, _>("anchor_record_ref")
+                    .map_err(|_| PortError::Internal)?,
+            )
+            .map_err(|_| PortError::Internal)?,
+            thread_id: row
+                .try_get::<Option<Uuid>, _>("thread_id")
+                .map_err(|_| PortError::Internal)?
+                .map(ThreadId::try_from_uuid)
+                .transpose()
+                .map_err(|_| PortError::Internal)?,
+            file_name: row.try_get("file_name").map_err(|_| PortError::Internal)?,
+            media_type: row.try_get("media_type").map_err(|_| PortError::Internal)?,
+            size_bytes: to_u64(
+                row.try_get::<i64, _>("expected_size_bytes")
+                    .map_err(|_| PortError::Internal)?,
+            )?,
+            digest,
+            classification: parse_global_classification(
+                &row.try_get::<String, _>("classification")
+                    .map_err(|_| PortError::Internal)?,
+            )?,
+            lifecycle: parse_global_attachment_lifecycle(&lifecycle_name)?,
+            uploaded_by: PrincipalRef::new(uploader, PrincipalKind::Human),
+            created_at: row.try_get("created_at").map_err(|_| PortError::Internal)?,
+            updated_at: row.try_get("updated_at").map_err(|_| PortError::Internal)?,
+            expires_at: row.try_get("expires_at").map_err(|_| PortError::Internal)?,
+        },
+        storage_object_id: row.try_get("object_id").map_err(|_| PortError::Internal)?,
+        uploader_session_id: row
+            .try_get("uploader_session_id")
+            .map_err(|_| PortError::Internal)?,
+        upload_expires_at: row
+            .try_get("upload_expires_at")
+            .map_err(|_| PortError::Internal)?,
+        lifecycle_version: to_u64(
+            row.try_get::<i64, _>("lifecycle_version")
+                .map_err(|_| PortError::Internal)?,
+        )?,
+    })
+}
+
+fn validate_global_attachment_binding(
+    attachment: &GlobalAttachmentRecord,
+    anchor: &StableRecordRef,
+    thread_id: Option<ThreadId>,
+    uploader: Option<PrincipalId>,
+    uploader_session_id: Option<Uuid>,
+) -> Result<(), PortError> {
+    if &attachment.view.anchor != anchor
+        || attachment.view.thread_id != thread_id
+        || uploader.is_some_and(|value| attachment.view.uploaded_by.id() != value)
+        || uploader_session_id.is_some_and(|value| attachment.uploader_session_id != value)
+    {
+        return Err(PortError::Denied);
+    }
+    Ok(())
+}
+
+async fn insert_allowed_attachment_audit(
+    transaction: &mut Transaction<'_, Postgres>,
+    access: &GlobalCollaborationAccess,
+    operation: &'static str,
+    anchor_record_id: Uuid,
+    attachment_id: Uuid,
+    command_id: Option<Uuid>,
+    at: DateTime<Utc>,
+) -> Result<(), PortError> {
+    sqlx::query(
+        "INSERT INTO erpx_global_collaboration.gateway_audit
+         (audit_id,operation,actor_principal_id,actor_session_id,authority_scope,
+          source_record_id,target_record_id,attachment_id,command_id,correlation_id,
+          outcome,occurred_at)
+         VALUES ($1,$2,$3,$4,to_jsonb('Platform'::TEXT),$5,NULL,$6,$7,$8,'allowed',$9)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(operation)
+    .bind(access.principal_id().as_uuid())
+    .bind(access.session_id())
+    .bind(anchor_record_id)
+    .bind(attachment_id)
+    .bind(command_id)
+    .bind(access.correlation_id().as_uuid())
+    .bind(at)
+    .execute(&mut **transaction)
+    .await
+    .map_err(database_error)?;
+    Ok(())
+}
+
+fn exact_digest(value: Vec<u8>) -> Result<[u8; 32], PortError> {
+    value.try_into().map_err(|_| PortError::Internal)
+}
+
+const fn global_attachment_lifecycle_name(value: AttachmentLifecycle) -> &'static str {
+    match value {
+        AttachmentLifecycle::PendingUpload => "pending_upload",
+        AttachmentLifecycle::PendingScan => "pending_scan",
+        AttachmentLifecycle::Ready => "ready",
+        AttachmentLifecycle::Quarantined => "quarantined",
+        AttachmentLifecycle::Expired => "expired",
+    }
+}
+
+fn parse_global_attachment_lifecycle(value: &str) -> Result<AttachmentLifecycle, PortError> {
+    match value {
+        "pending_upload" => Ok(AttachmentLifecycle::PendingUpload),
+        "pending_scan" => Ok(AttachmentLifecycle::PendingScan),
+        "ready" => Ok(AttachmentLifecycle::Ready),
+        "quarantined" => Ok(AttachmentLifecycle::Quarantined),
+        "expired" => Ok(AttachmentLifecycle::Expired),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn parse_global_classification(value: &str) -> Result<DataClassification, PortError> {
+    match value {
+        "public" => Ok(DataClassification::Public),
+        "internal" => Ok(DataClassification::Internal),
+        "confidential" => Ok(DataClassification::Confidential),
+        "restricted" => Ok(DataClassification::Restricted),
+        _ => Err(PortError::Internal),
+    }
+}
+
+fn valid_global_attachment_text(value: &str, maximum: usize) -> bool {
+    value.trim() == value
+        && !value.is_empty()
+        && value.len() <= maximum
+        && !value.chars().any(char::is_control)
+}
+
 async fn load_thread_receipt(
     transaction: &mut Transaction<'_, Postgres>,
     identity: &MutationIdentity,
@@ -2398,5 +3150,25 @@ mod tests {
             mutation.find("self.get_thread_v2").expect("authorization")
                 < mutation.find("FOR UPDATE").expect("write snapshot")
         );
+    }
+
+    #[test]
+    fn platform_attachment_registry_binds_authority_and_keeps_scan_transitions_trusted() {
+        let source = include_str!("global.rs");
+        let production = source.split("#[cfg(test)]").next().unwrap();
+        for required in [
+            "pub async fn prepare_attachment_upload(",
+            "pub async fn finalize_attachment_upload(",
+            "pub async fn get_attachment_download(",
+            "pub async fn transition_attachment(",
+            "uploader_principal_id=$4 AND uploader_session_id=$5",
+            "lifecycle='pending_upload' AND upload_expires_at>$6 FOR UPDATE",
+            "AttachmentWorkerTransition::ScanPassed",
+            "attachment_command_receipts",
+            "insert_allowed_attachment_audit",
+        ] {
+            assert!(production.contains(required), "missing {required}");
+        }
+        assert!(!production.contains("collaboration/{holding_id}"));
     }
 }

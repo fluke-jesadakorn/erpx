@@ -36,6 +36,7 @@ use erpx_collaboration_sqlx::{
     SqlxAttachmentRegistry, SqlxCollaborationAuthorization, SqlxDraftRepository,
     SqlxGlobalCollaborationGateway, SqlxItemDirectory, SqlxRecordRelationRepository,
     SqlxThreadReadRepository, SqlxThreadWriteRepository, attachment_object_key,
+    global_attachment_object_key,
 };
 use erpx_domain::{contracts::AuthorityScope as Scope, data_plane::HOLDING_INFRASTRUCTURE_READ};
 use erpx_infrastructure::{
@@ -87,6 +88,7 @@ use crate::{
 
 const COLLABORATION_READ_PERMISSION: &str = "collaboration.read";
 const COLLABORATION_WRITE_PERMISSION: &str = "collaboration.write";
+const GLOBAL_COLLABORATION_STORAGE_NAMESPACE: &str = "erpx-platform-assets";
 
 type EventStream = Pin<Box<dyn Stream<Item = Result<StreamEvent, Status>> + Send + 'static>>;
 
@@ -1168,26 +1170,63 @@ impl CollaborationCommandService for CollaborationCommandRpc {
                 identity.correlation_id,
             )
             .await?;
-            let outcome = match gateway.authorize_record(&access, &anchor, false).await {
-                Ok(()) => GlobalCollaborationOutcome::Unavailable,
-                Err(PortError::Denied) => GlobalCollaborationOutcome::Denied,
-                _ => GlobalCollaborationOutcome::Unavailable,
-            };
-            gateway
-                .audit(
+            let now = Utc::now();
+            let result = gateway
+                .prepare_attachment_upload(
                     &access,
-                    "attachment.prepare",
-                    Some(anchor.id().as_uuid()),
-                    None,
-                    Some(attachment_id.as_uuid()),
-                    Some(identity.command_id.as_uuid()),
-                    outcome,
+                    identity.clone(),
+                    attachment_id,
+                    Uuid::new_v4(),
+                    anchor.clone(),
+                    thread_id,
+                    input.file_name,
+                    input.media_type,
+                    input.size_bytes,
+                    digest(&input.digest_sha256, "digest_sha256")?,
+                    now + chrono::Duration::minutes(15),
+                    now,
+                )
+                .await;
+            if let Err(error) = &result {
+                gateway
+                    .audit(
+                        &access,
+                        "attachment.prepare",
+                        Some(anchor.id().as_uuid()),
+                        None,
+                        Some(attachment_id.as_uuid()),
+                        Some(identity.command_id.as_uuid()),
+                        global_outcome(error),
+                    )
+                    .await
+                    .map_err(map_collaboration_port_error)?;
+            }
+            let receipt = result.map_err(map_collaboration_port_error)?;
+            let signed = self
+                .state
+                .storage
+                .presign_upload_request(
+                    HoldingObjectUploadRequest {
+                        holding_id: "platform".into(),
+                        storage_namespace: GLOBAL_COLLABORATION_STORAGE_NAMESPACE.into(),
+                        object_key: global_attachment_object_key(
+                            receipt.attachment.view.attachment_id,
+                            receipt.attachment.storage_object_id,
+                        ),
+                        expires_seconds: 900,
+                        content_type: receipt.attachment.view.media_type.clone(),
+                        content_length: receipt.attachment.view.size_bytes,
+                    },
+                    |_| async { Ok::<(), ObjectAuthorizationError>(()) },
                 )
                 .await
-                .map_err(map_collaboration_port_error)?;
-            return Err(Status::unavailable(
-                "global attachment upload is unavailable",
-            ));
+                .map_err(|_| Status::unavailable("attachment upload signing is unavailable"))?;
+            return Ok(Response::new(PrepareAttachmentUploadResponse {
+                attachment: Some(attachment_view_to_proto(&receipt.attachment.view)),
+                upload_token: signed.url.clone(),
+                upload_path: signed.url,
+                upload_expires_at: signed.expires_at.to_rfc3339(),
+            }));
         }
         let runtime = holding_attachment_runtime(
             &self.state,
@@ -1273,9 +1312,47 @@ impl CollaborationCommandService for CollaborationCommandRpc {
             authority_scope(metadata.authority_scope.as_ref())?.1,
             Scope::Platform
         ) {
-            return Err(Status::unavailable(
-                "global attachment upload is unavailable",
-            ));
+            let thread_id = thread_id.ok_or_else(|| {
+                Status::invalid_argument("thread_id is required before attachment scanning")
+            })?;
+            let (gateway, access) = platform_global_gateway(
+                &self.state,
+                &claims,
+                metadata.authority_scope.as_ref(),
+                COLLABORATION_WRITE_PERMISSION,
+                identity.correlation_id,
+            )
+            .await?;
+            let result = gateway
+                .finalize_attachment_upload(
+                    &access,
+                    identity.clone(),
+                    attachment_id,
+                    anchor.clone(),
+                    thread_id,
+                    input.size_bytes,
+                    digest(&input.digest_sha256, "digest_sha256")?,
+                    Utc::now(),
+                )
+                .await;
+            if let Err(error) = &result {
+                gateway
+                    .audit(
+                        &access,
+                        "attachment.finalize",
+                        Some(anchor.id().as_uuid()),
+                        None,
+                        Some(attachment_id.as_uuid()),
+                        Some(identity.command_id.as_uuid()),
+                        global_outcome(error),
+                    )
+                    .await
+                    .map_err(map_collaboration_port_error)?;
+            }
+            let receipt = result.map_err(map_collaboration_port_error)?;
+            return Ok(Response::new(attachment_view_to_proto(
+                &receipt.attachment.view,
+            )));
         }
         let runtime = holding_attachment_runtime(
             &self.state,
@@ -1802,6 +1879,13 @@ impl CollaborationQueryService for CollaborationQueryRpc {
                 correlation,
             )
             .await?;
+            let result = gateway
+                .get_attachment_download(&access, attachment_id, &anchor, thread_id, Utc::now())
+                .await;
+            let outcome = match &result {
+                Ok(_) => GlobalCollaborationOutcome::Allowed,
+                Err(error) => global_outcome(error),
+            };
             gateway
                 .audit(
                     &access,
@@ -1810,13 +1894,36 @@ impl CollaborationQueryService for CollaborationQueryRpc {
                     None,
                     Some(attachment_id.as_uuid()),
                     None,
-                    GlobalCollaborationOutcome::Unavailable,
+                    outcome,
                 )
                 .await
                 .map_err(map_collaboration_port_error)?;
-            return Err(Status::unavailable(
-                "global attachment download is unavailable",
-            ));
+            let attachment = result.map_err(map_collaboration_port_error)?;
+            let signed = self
+                .state
+                .storage
+                .presign_download_request(
+                    HoldingObjectDownloadRequest {
+                        holding_id: "platform".into(),
+                        storage_namespace: GLOBAL_COLLABORATION_STORAGE_NAMESPACE.into(),
+                        object_key: global_attachment_object_key(
+                            attachment.view.attachment_id,
+                            attachment.storage_object_id,
+                        ),
+                        expires_seconds: 300,
+                        content_type: Some(attachment.view.media_type.clone()),
+                        max_bytes: Some(attachment.view.size_bytes),
+                    },
+                    |_| async { Ok::<(), ObjectAuthorizationError>(()) },
+                )
+                .await
+                .map_err(|_| Status::unavailable("attachment download signing is unavailable"))?;
+            return Ok(Response::new(GetAttachmentDownloadResponse {
+                attachment: Some(attachment_view_to_proto(&attachment.view)),
+                download_token: signed.url.clone(),
+                download_path: signed.url,
+                expires_at: signed.expires_at.to_rfc3339(),
+            }));
         }
         let runtime = holding_attachment_runtime(
             &self.state,
@@ -3941,6 +4048,14 @@ fn attachment_scanner_ready() -> bool {
 
 fn map_directory_error(_: erpx_collaboration_sqlx::DirectoryAdapterError) -> Status {
     Status::unavailable("Item Directory is unavailable")
+}
+
+const fn global_outcome(value: &PortError) -> GlobalCollaborationOutcome {
+    match value {
+        PortError::Denied | PortError::NotFound => GlobalCollaborationOutcome::Denied,
+        PortError::Conflict => GlobalCollaborationOutcome::Conflict,
+        _ => GlobalCollaborationOutcome::Unavailable,
+    }
 }
 
 fn map_collaboration_port_error(value: PortError) -> Status {

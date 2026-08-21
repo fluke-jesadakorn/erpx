@@ -16,8 +16,9 @@ pub use attachment::{SqlxAttachmentRegistry, attachment_object_key};
 pub use authorization::SqlxCollaborationAuthorization;
 pub use directory::*;
 pub use global::{
-    GlobalCollaborationAccess, GlobalCollaborationOutcome, GlobalThreadPage,
-    SqlxGlobalCollaborationGateway,
+    GlobalAttachmentMutationReceipt, GlobalAttachmentRecord, GlobalCollaborationAccess,
+    GlobalCollaborationOutcome, GlobalThreadPage, SqlxGlobalCollaborationGateway,
+    global_attachment_object_key,
 };
 pub use global_projection::{
     GLOBAL_COLLABORATION_PROJECTION, GLOBAL_RELATION_DRAFT_EVENT_TYPE,

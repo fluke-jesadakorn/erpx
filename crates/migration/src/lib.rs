@@ -1036,7 +1036,7 @@ mod tests {
 
     #[test]
     fn control_plane_migration_is_embedded_and_has_the_expected_schema() {
-        assert_eq!(CONTROL_PLANE_MIGRATOR.iter().count(), 4);
+        assert_eq!(CONTROL_PLANE_MIGRATOR.iter().count(), 5);
         let initial = CONTROL_PLANE_MIGRATOR
             .iter()
             .next()
@@ -2321,6 +2321,19 @@ mod tests {
                 .sql
                 .contains("ALTER TABLE erpx_global_collaboration.threads")
         );
+        let global_attachment_authority = CONTROL_PLANE_MIGRATOR
+            .iter()
+            .find(|migration| migration.sql.contains("attachment_command_receipts"))
+            .expect("forward-only global attachment authority migration");
+        for contract in [
+            "attachment_events",
+            "attachment_command_receipts",
+            "global_collaboration_attachment_event_append_only",
+            "thread.comment.add",
+            "thread.following.set",
+        ] {
+            assert!(global_attachment_authority.sql.contains(contract));
+        }
     }
 
     #[test]
