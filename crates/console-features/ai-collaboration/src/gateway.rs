@@ -230,30 +230,24 @@ pub enum CollaborationMutation {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AgentMutation {
-    Invoke {
-        agent_id: Uuid,
-        agent_version: u64,
-        context: Option<StableRecordRef>,
-        prompt: String,
-    },
-    ProvideInput {
-        assignment_id: Uuid,
-        input: String,
-    },
-    RetryPinned {
-        assignment_id: Uuid,
-    },
-    Cancel {
-        assignment_id: Uuid,
-        reason: String,
-    },
-    PublishExcerpt {
-        session_id: Uuid,
-        message_id: Uuid,
-    },
-    ConfirmTypedProposal {
-        proposal: TypedActionProposal,
-    },
+    Assign { request: AgentAssignmentRequest },
+    ProvideInput { assignment_id: Uuid, input: String },
+    RetryPinned { assignment_id: Uuid },
+    Cancel { assignment_id: Uuid, reason: String },
+    PublishExcerpt { session_id: Uuid, message_id: Uuid },
+    ConfirmTypedProposal { proposal: TypedActionProposal },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentAssignmentRequest {
+    pub assignment_id: Uuid,
+    pub budget_reservation_id: Uuid,
+    pub agent: TypedToken,
+    pub anchor: StableRecordRef,
+    /// Opaque reference produced by the protected Agent-material boundary.
+    /// Plain prompt text is never accepted by this command contract.
+    pub protected_prompt_ref: String,
+    pub human_confirmed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -456,6 +450,10 @@ pub trait CollaborationGateway: Send + Sync {
         &self,
         request: CollaborationMutation,
     ) -> Result<UiMutationReceipt, GatewayError>;
+    async fn assign_agent(
+        &self,
+        request: AgentAssignmentRequest,
+    ) -> Result<UiMutationReceipt, GatewayError>;
 }
 
 /// Explicit placeholder for targets whose authenticated collaboration wire
@@ -497,6 +495,13 @@ impl CollaborationGateway for UnavailableCollaborationGateway {
     async fn mutate(
         &self,
         _request: CollaborationMutation,
+    ) -> Result<UiMutationReceipt, GatewayError> {
+        Err(GatewayError::Unavailable)
+    }
+
+    async fn assign_agent(
+        &self,
+        _request: AgentAssignmentRequest,
     ) -> Result<UiMutationReceipt, GatewayError> {
         Err(GatewayError::Unavailable)
     }

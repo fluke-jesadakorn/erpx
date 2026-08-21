@@ -118,6 +118,7 @@ erpx-ui-crm.workspace = true
 erpx-ui-customer-360.workspace = true
 erpx-ui-finance.workspace = true
 erpx-ui-foundation.workspace = true
+hex.workspace = true
 erpx-ui-kit.workspace = true
 erpx-ui-legal.workspace = true
 erpx-ui-operations.workspace = true

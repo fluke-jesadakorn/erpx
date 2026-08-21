@@ -4,9 +4,10 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use erpx_console_feature_ai_collaboration::{
-    ActivityRailState, ActivityRequest, AutocompleteRequest, AutocompleteState,
-    CollaborationGateway, CollaborationMutation, GatewayError, RecordReferencesState,
-    RecordResolutionState, ReferencesRequest, ResolveRecordRequest, UiMutationReceipt,
+    ActivityRailState, ActivityRequest, AgentAssignmentRequest, AutocompleteRequest,
+    AutocompleteState, CollaborationGateway, CollaborationMutation, GatewayError,
+    RecordReferencesState, RecordResolutionState, ReferencesRequest, ResolveRecordRequest,
+    UiMutationReceipt,
 };
 use erpx_console_transport_core::{FeatureTransportPrimitive, OpaqueCredentialProvider};
 use erpx_delivery_contract::{
@@ -768,6 +769,13 @@ impl CollaborationGateway for NativeGrpcGateway {
     ) -> Result<UiMutationReceipt, GatewayError> {
         native_mutate(self, request).await
     }
+
+    async fn assign_agent(
+        &self,
+        request: AgentAssignmentRequest,
+    ) -> Result<UiMutationReceipt, GatewayError> {
+        native_assign_agent(self, request).await
+    }
 }
 
 fn native_autocomplete_targets(
@@ -855,6 +863,195 @@ fn native_autocomplete_targets(
             candidates,
         }
     })
+}
+
+async fn native_assign_agent(
+    gateway: &NativeGrpcGateway,
+    request: AgentAssignmentRequest,
+) -> Result<UiMutationReceipt, GatewayError> {
+    use erpx_proto::erpx::{
+        agent,
+        agent::agent_orchestration_command_service_client::AgentOrchestrationCommandServiceClient,
+        common,
+    };
+    use erpx_ui_ai_collaboration::{TokenIdentity, TokenKind};
+    use sha2::{Digest, Sha256};
+
+    if !request.human_confirmed
+        || request.assignment_id.is_nil()
+        || request.budget_reservation_id.is_nil()
+        || request.agent.restricted
+        || request.agent.kind != TokenKind::Agent
+        || !request.protected_prompt_ref.starts_with("agent-material:")
+        || request.protected_prompt_ref.len() > 128
+        || request.protected_prompt_ref.chars().any(char::is_control)
+    {
+        return Err(GatewayError::Denied);
+    }
+    let TokenIdentity::Agent {
+        definition_id,
+        version_id,
+        ..
+    } = request.agent.identity
+    else {
+        return Err(GatewayError::Denied);
+    };
+    let session = gateway.collaboration_session()?;
+    if session.holding_id.is_empty() {
+        return Err(GatewayError::Denied);
+    }
+    let descriptor = native_resolve_descriptor(
+        gateway,
+        session,
+        request.anchor.id().as_uuid(),
+        "agent_assignment_source",
+    )
+    .await?;
+    let resolved = descriptor
+        .record
+        .ok_or(GatewayError::Unavailable)
+        .and_then(native_stable_record)?;
+    if resolved != request.anchor {
+        return Err(GatewayError::Denied);
+    }
+    let command_id = uuid::Uuid::new_v4();
+    let correlation_id = uuid::Uuid::new_v4();
+    let common_scope = native_common_authority_scope(&session.authority_scope)?;
+    let classification = match descriptor.classification.as_str() {
+        "public" => agent::DataClassification::Public,
+        "internal" => agent::DataClassification::Internal,
+        "confidential" => agent::DataClassification::Confidential,
+        "restricted" => agent::DataClassification::Restricted,
+        _ => return Err(GatewayError::Unavailable),
+    };
+    let payload_digest = hex::encode(Sha256::digest(
+        format!(
+            "{}|{}|{}|{}|{}",
+            request.anchor.id(),
+            request.agent.token_id,
+            definition_id,
+            version_id,
+            request.protected_prompt_ref
+        )
+        .as_bytes(),
+    ));
+    let assignment_id = request.assignment_id.hyphenated().to_string();
+    let command = agent::StartAgentAssignmentRequest {
+        context: Some(common::CommandContext {
+            contract_version: 1,
+            command_id: command_id.hyphenated().to_string(),
+            idempotency_key: format!("agent-assign:{assignment_id}"),
+            correlation_id: correlation_id.hyphenated().to_string(),
+            causation_id: String::new(),
+            actor: Some(common::ActorAttribution {
+                principal_ref: session.actor_principal_id.clone(),
+                kind: common::ActorKind::HoldingUser as i32,
+                session_id: session.session_id.hyphenated().to_string(),
+                represented_principal_ref: String::new(),
+                support_capability_id: String::new(),
+            }),
+            active_scope: Some(common_scope.clone()),
+            audit: Some(common::AuditContext {
+                purpose: "human_confirmed_record_agent_assignment".into(),
+                customer_visible: true,
+                module: "ai-collaboration".into(),
+                correlation_id: correlation_id.hyphenated().to_string(),
+            }),
+            expected_aggregate_version: 0,
+            subscription_id: String::new(),
+            mfa_code: String::new(),
+        }),
+        assignment_id: assignment_id.clone(),
+        agent_definition_id: definition_id.hyphenated().to_string(),
+        agent_version_id: version_id.hyphenated().to_string(),
+        assignment_scope: Some(common_scope),
+        origin: agent::AgentInvocationOrigin::Assign as i32,
+        initiating_human_ref: session.actor_principal_id.clone(),
+        source_action_ref: format!(
+            "record-assign:{}:{}",
+            request.anchor.id(),
+            request.agent.token_id
+        ),
+        budget_reservation_id: request.budget_reservation_id.hyphenated().to_string(),
+        budget_subjects: Some(agent::AgentBudgetSubjects {
+            data_profile_key: session.holding_id.clone(),
+            workspace_ref: format!("record:{}", request.anchor.id()),
+            agent_ref: definition_id.hyphenated().to_string(),
+            principal_ref: session.actor_principal_id.clone(),
+            root_assignment_ref: assignment_id.clone(),
+        }),
+        budget_request: Some(agent::AgentBudgetRequest {
+            estimated_units: 10_000,
+            estimated_cost_micros: 100_000,
+            queue_priority: 100,
+            stop_after_units: 10_000,
+        }),
+        prompt_ref: request.protected_prompt_ref,
+        payload: Some(agent::AgentPayloadManifest {
+            payload_digest,
+            classification: classification as i32,
+            field_refs: Vec::new(),
+            document_record_ids: vec![request.anchor.id().to_string()],
+            authorization_checked_at: chrono::Utc::now().to_rfc3339(),
+            contains_secret: false,
+            residency: "holding-policy".into(),
+        }),
+        human_confirmed: true,
+    };
+    let response = AgentOrchestrationCommandServiceClient::new(gateway.channel())
+        .start_assignment(native_authenticated(session, command)?)
+        .await
+        .map_err(native_status)?
+        .into_inner();
+    let receipt = response.receipt.ok_or(GatewayError::Unavailable)?;
+    let aggregate = receipt.aggregate.ok_or(GatewayError::Unavailable)?;
+    if receipt.command_id != command_id.to_string()
+        || receipt.correlation_id != correlation_id.to_string()
+        || response.record_id != assignment_id
+        || aggregate.aggregate_id != assignment_id
+        || aggregate.version == 0
+        || receipt.committed_events.is_empty()
+    {
+        return Err(GatewayError::Unavailable);
+    }
+    Ok(UiMutationReceipt {
+        operation_id: request.assignment_id,
+        replayed: receipt.replayed,
+        notification_badge_delta: 0,
+    })
+}
+
+fn native_common_authority_scope(
+    scope: &erpx_proto::erpx::interface::AuthorityScope,
+) -> Result<erpx_proto::erpx::common::AuthorityScope, GatewayError> {
+    use erpx_proto::erpx::common::{
+        AuthorityScope as CommonAuthorityScope, BranchScope, CompanyScope, HoldingScope,
+        PlatformScope, SubtreeScope, authority_scope::Scope,
+    };
+    use erpx_proto::erpx::interface::AuthorityScopeLevel;
+
+    let required = |value: &Option<String>| value.clone().ok_or(GatewayError::Restricted);
+    let value = match AuthorityScopeLevel::try_from(scope.level) {
+        Ok(AuthorityScopeLevel::Platform) => Scope::Platform(PlatformScope {}),
+        Ok(AuthorityScopeLevel::Holding) => Scope::Holding(HoldingScope {
+            holding_id: required(&scope.holding_id)?,
+        }),
+        Ok(AuthorityScopeLevel::Company) => Scope::Company(CompanyScope {
+            holding_id: required(&scope.holding_id)?,
+            company_id: required(&scope.company_id)?,
+        }),
+        Ok(AuthorityScopeLevel::Branch) => Scope::Branch(BranchScope {
+            holding_id: required(&scope.holding_id)?,
+            company_id: required(&scope.company_id)?,
+            branch_id: required(&scope.branch_id)?,
+        }),
+        Ok(AuthorityScopeLevel::Subtree) => Scope::Subtree(SubtreeScope {
+            holding_id: required(&scope.holding_id)?,
+            organization_node_id: required(&scope.organization_node_id)?,
+        }),
+        _ => return Err(GatewayError::Restricted),
+    };
+    Ok(CommonAuthorityScope { scope: Some(value) })
 }
 
 fn native_command_metadata(
@@ -1474,12 +1671,16 @@ mod tests {
     }
 
     #[test]
-    fn native_collaboration_adapter_calls_typed_phase_two_rpcs() {
+    fn native_collaboration_adapter_calls_typed_collaboration_and_agent_rpcs() {
         let source = include_str!("native_delivery.rs");
         assert!(source.contains("impl CollaborationGateway for NativeGrpcGateway"));
         assert!(source.contains("list_record_relations"));
         assert!(source.contains("list_threads_by_record_v2"));
         assert!(source.contains("start_record_thread_with_comment"));
+        assert!(source.contains("autocomplete_targets"));
+        assert!(source.contains("start_assignment"));
+        assert!(source.contains("if !request.human_confirmed"));
+        assert!(source.contains("human_confirmed: true"));
         assert!(source.contains("expected_thread_version"));
     }
 }

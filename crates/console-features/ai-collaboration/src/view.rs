@@ -412,18 +412,21 @@ pub fn CommentEditorSurface(
     autocomplete: AutocompleteState,
     availability: MutationAvailability,
     locale: Locale,
+    #[props(default)] on_confirm_agent_assignment: Option<
+        EventHandler<erpx_ui_ai_collaboration::TypedToken>,
+    >,
     #[props(default)] submitting: bool,
 ) -> Element {
     let disabled = !availability.enabled || submitting;
     rsx! {
         section { class: "erpx-comment-editor", aria_label: copy(locale, "Comment editor", "ตัวแก้ไขความคิดเห็น"),
             div { class: "erpx-editor-toolbar", role: "toolbar", aria_label: copy(locale, "Formatting and typed references", "การจัดรูปแบบและการอ้างอิงแบบระบุชนิด"),
-                span { title: copy(locale, "At-sign text has no notification or assignment effect in this phase", "ข้อความเครื่องหมาย @ ยังไม่แจ้งเตือนหรือมอบหมายงานในระยะนี้"), "@" }
+                span { title: copy(locale, "Choose an authorized typed target. Plain pasted @text has no effect.", "เลือกเป้าหมายแบบระบุชนิดที่ได้รับอนุญาต ข้อความ @ ที่วางแบบธรรมดาจะไม่มีผล"), "@" }
                 KitButton { r#type: "button", disabled, aria_label: copy(locale, "Reference an authorized record", "อ้างอิงรายการที่ได้รับอนุญาต"), "#" }
                 KitButton { r#type: "button", disabled, {copy(locale, "Attach", "แนบไฟล์")} }
             }
             TextArea { value: document.accessible_plain_text, disabled, aria_label: copy(locale, "Accessible comment text", "ข้อความความคิดเห็นสำหรับการช่วยการเข้าถึง").to_owned() }
-            {render_autocomplete(autocomplete, locale)}
+            {render_autocomplete(autocomplete, locale, on_confirm_agent_assignment)}
             if !availability.enabled {
                 p { class: "erpx-offline-lock", role: "status", {copy(locale, "Editing is unavailable in the current authorization, anchor, realm, or connectivity state.", "ไม่สามารถแก้ไขได้เนื่องจากสิทธิ์ จุดอ้างอิง ขอบเขต หรือสถานะการเชื่อมต่อปัจจุบัน")} }
             }
@@ -432,13 +435,33 @@ pub fn CommentEditorSurface(
     }
 }
 
-fn render_autocomplete(state: AutocompleteState, locale: Locale) -> Element {
+fn render_autocomplete(
+    state: AutocompleteState,
+    locale: Locale,
+    on_confirm_agent_assignment: Option<EventHandler<erpx_ui_ai_collaboration::TypedToken>>,
+) -> Element {
     rsx! {
         div { class: "erpx-autocomplete", role: "listbox", aria_label: copy(locale, "Mention and reference suggestions", "คำแนะนำเมนชันและการอ้างอิง"),
             match state {
                 AutocompleteState::Idle => rsx! {},
                 AutocompleteState::Searching { .. } => rsx! { p { role: "status", {copy(locale, "Searching…", "กำลังค้นหา…")} } },
-                AutocompleteState::Results { candidates, .. } => rsx! { for candidate in candidates { KitButton { r#type: "button", role: "option", disabled: candidate.restricted, "{candidate.display_label}" } } },
+                AutocompleteState::Results { candidates, .. } => rsx! {
+                    for candidate in candidates {
+                        div { class: "erpx-autocomplete__target",
+                            KitButton { r#type: "button", role: "option", disabled: candidate.restricted, "{candidate.display_label}" }
+                            if candidate.kind == erpx_ui_ai_collaboration::TokenKind::Agent {
+                                if let Some(handler) = on_confirm_agent_assignment {
+                                    KitButton {
+                                        r#type: "button",
+                                        disabled: candidate.restricted,
+                                        onclick: move |_| handler.call(candidate.clone()),
+                                        {copy(locale, "Assign…", "มอบหมาย…")}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 AutocompleteState::Empty { .. } => rsx! { p { {copy(locale, "No authorized matches", "ไม่พบรายการที่ได้รับอนุญาต")} } },
                 AutocompleteState::Denied => rsx! { p { {copy(locale, "Suggestions unavailable", "ไม่สามารถแสดงคำแนะนำ")} } },
                 AutocompleteState::Offline => rsx! { p { {copy(locale, "Suggestions require an online connection", "คำแนะนำต้องเชื่อมต่อออนไลน์")} } },
@@ -677,5 +700,21 @@ mod tests {
         assert!(guarded < content);
         assert!(source.contains("no cached authorization was used"));
         assert!(!source.contains(concat!("ReferenceRelationKind::", "Custom")));
+    }
+
+    #[test]
+    fn agent_assignment_is_an_explicit_confirmed_ui_action() {
+        let source = include_str!("view.rs");
+        let typed_agent = source
+            .find("candidate.kind == erpx_ui_ai_collaboration::TokenKind::Agent")
+            .expect("typed Agent gate");
+        let handler = source[typed_agent..]
+            .find("on_confirm_agent_assignment")
+            .expect("explicit confirmation handler");
+        let call = source[typed_agent..]
+            .find("handler.call(candidate.clone())")
+            .expect("button-only assignment callback");
+        assert!(handler < call);
+        assert!(source.contains("Plain pasted @text has no effect"));
     }
 }
