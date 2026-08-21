@@ -97,7 +97,7 @@ fn principal() -> AccessPrincipal {
         at(),
     )
     .unwrap();
-    principal.activate(at()).unwrap();
+    principal.activate_for_test(at()).unwrap();
     principal.take_uncommitted_events();
     principal
 }
@@ -119,7 +119,7 @@ fn human_group() -> AccessPrincipal {
         at(),
     )
     .unwrap();
-    group.activate(at()).unwrap();
+    group.activate_for_test(at()).unwrap();
     group.take_uncommitted_events();
     group
 }

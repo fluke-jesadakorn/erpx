@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::{AuthorityScope, HoldingId};
+use erpx_kernel::{AuthorityScope, CommandId, HoldingId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -183,9 +183,19 @@ impl PlatformHolding {
 
     pub fn transition(
         &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        expected_version: u64,
         action: HoldingLifecycleAction,
         at: DateTime<Utc>,
     ) -> Result<(), PlatformAdministrationDomainError> {
+        if !decision.authority_scope().contains(&self.scope())
+            || decision.decision_ref()
+                != holding_transition_decision_ref(command_id, self.id, expected_version, action)
+            || decision.decided_at() != at
+        {
+            return Err(PlatformAdministrationDomainError::InvalidHoldingTransition);
+        }
         let target = action.target();
         let allowed = matches!(
             (self.status, target),
@@ -229,6 +239,33 @@ impl PlatformHolding {
         }
         self.status = target;
         self.record_changed(at)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn transition_for_test(
+        &mut self,
+        action: HoldingLifecycleAction,
+        at: DateTime<Utc>,
+    ) -> Result<(), PlatformAdministrationDomainError> {
+        use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).expect("test command id");
+        let decision = HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "platform-administration-test-user".into(),
+                kind: ActorKind::PlatformUser,
+                session_id: Some(
+                    SessionId::try_from_uuid(Uuid::new_v4()).expect("test session id"),
+                ),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            AuthorityScope::Platform,
+            holding_transition_decision_ref(command_id, self.id, self.version, action),
+            at,
+        )
+        .expect("test human decision");
+        self.transition(&decision, command_id, self.version, action, at)
     }
 
     fn record_changed(
@@ -294,4 +331,16 @@ impl PlatformHolding {
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.events)
     }
+}
+
+pub fn holding_transition_decision_ref(
+    command_id: CommandId,
+    holding_id: PlatformHoldingId,
+    expected_version: u64,
+    action: HoldingLifecycleAction,
+) -> String {
+    format!(
+        "platform_administration:transition_holding:{command_id}:{}:{expected_version}:{action:?}",
+        holding_id.as_uuid()
+    )
 }

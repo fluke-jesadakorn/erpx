@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -588,8 +588,47 @@ impl OrganizationNode {
         self.transition(OrganizationNodeStatus::Suspended, at)
     }
 
-    pub fn activate(&mut self, at: DateTime<Utc>) -> Result<(), OrganizationDomainError> {
+    pub fn activate(
+        &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        expected_version: u64,
+        at: DateTime<Utc>,
+    ) -> Result<(), OrganizationDomainError> {
+        if !decision.authority_scope().contains(&self.scope)
+            || decision.decision_ref()
+                != organization_node_activation_decision_ref(command_id, self.id, expected_version)
+            || decision.decided_at() != at
+        {
+            return Err(OrganizationDomainError::InvalidTransition {
+                from: self.status,
+                to: OrganizationNodeStatus::Active,
+            });
+        }
         self.transition(OrganizationNodeStatus::Active, at)
+    }
+
+    #[cfg(test)]
+    fn activate_for_test(&mut self, at: DateTime<Utc>) -> Result<(), OrganizationDomainError> {
+        use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).expect("test command id");
+        let decision = HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "organization-test-user".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(
+                    SessionId::try_from_uuid(Uuid::new_v4()).expect("test session id"),
+                ),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            self.scope.clone(),
+            organization_node_activation_decision_ref(command_id, self.id, self.version),
+            at,
+        )
+        .expect("test human decision");
+        self.activate(&decision, command_id, self.version, at)
     }
 
     pub fn archive(&mut self, at: DateTime<Utc>) -> Result<(), OrganizationDomainError> {
@@ -693,6 +732,17 @@ impl OrganizationNode {
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
     }
+}
+
+pub fn organization_node_activation_decision_ref(
+    command_id: CommandId,
+    node_id: OrganizationNodeId,
+    expected_version: u64,
+) -> String {
+    format!(
+        "organization:activate_node:{command_id}:{}:{expected_version}:activate",
+        node_id.as_uuid()
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1003,7 +1053,7 @@ mod tests {
     fn lifecycle_supports_suspend_reactivate_and_terminal_archive() {
         let mut node = department();
         node.suspend(at(1)).unwrap();
-        node.activate(at(2)).unwrap();
+        node.activate_for_test(at(2)).unwrap();
         node.archive(at(3)).unwrap();
         assert_eq!(node.status(), OrganizationNodeStatus::Archived);
         assert_eq!(node.version(), 4);
@@ -1012,7 +1062,7 @@ mod tests {
             Err(OrganizationDomainError::Archived)
         );
         assert!(matches!(
-            node.activate(at(4)),
+            node.activate_for_test(at(4)),
             Err(OrganizationDomainError::InvalidTransition { .. })
         ));
     }
@@ -1029,7 +1079,7 @@ mod tests {
         .unwrap();
 
         holding.suspend(at(1)).unwrap();
-        holding.activate(at(2)).unwrap();
+        holding.activate_for_test(at(2)).unwrap();
 
         assert_eq!(holding.status(), OrganizationNodeStatus::Active);
         assert_eq!(holding.version(), 3);

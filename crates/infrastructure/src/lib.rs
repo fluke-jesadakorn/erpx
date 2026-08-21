@@ -124,7 +124,7 @@ pub use commercial::{
 };
 pub use corporate_identity::{
     CorporateIdentityHistoryEntry, CorporateIdentityRollback, SqlxCorporateIdentityStore,
-    VerifiedBrandDomain,
+    VerifiedBrandDomain, corporate_identity_publish_decision_ref,
 };
 pub use data_plane::{
     ApprovedDesiredConfiguration, DataPlaneEnrollmentConsumption, DataPlaneEnrollmentIssue,
@@ -435,7 +435,7 @@ pub use provisioning::{
     RestoreTestScheduleState, RestoreTestScheduler, RestoredDatabaseVerifier, RoutedDatabaseSide,
     RoutedHoldingDatabase, SystemBackupProcessRunner, ValidatedBackupExecutionResult,
     ValidatedRestoreTestResult, holding_holding_scope_id, holding_owner_assignment_id,
-    initialize_holding_organization_in_pools,
+    initialize_holding_organization_in_pools, projection_rebuild_activation_decision_ref,
 };
 pub use quality_persistence::{
     MAX_QUALITY_PROJECTION_EVENTS, MAX_QUALITY_READ_PAGE_SIZE, MAX_QUALITY_SOURCE_PAGE_SIZE,

@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use erpx_integration_contracts::CurrencyCode;
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 
 use super::{CatalogPlanId, CommercialDomainError, DomainEvent, next_version, validate_text};
@@ -103,7 +103,20 @@ impl CatalogPlan {
         })
     }
 
-    pub fn publish(&mut self, at: DateTime<Utc>) -> Result<(), CommercialDomainError> {
+    pub fn publish(
+        &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        expected_version: u64,
+        at: DateTime<Utc>,
+    ) -> Result<(), CommercialDomainError> {
+        if decision.authority_scope() != &self.scope
+            || decision.decision_ref()
+                != catalog_plan_publish_decision_ref(command_id, self.id, expected_version)
+            || decision.decided_at() != at
+        {
+            return Err(CommercialDomainError::InvalidCatalogTransition);
+        }
         if self.status != CatalogPlanStatus::Draft {
             return Err(CommercialDomainError::InvalidCatalogTransition);
         }
@@ -116,6 +129,33 @@ impl CatalogPlan {
         self.uncommitted_events
             .push(DomainEvent::CatalogPlanPublished);
         Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn publish_for_test(
+        &mut self,
+        at: DateTime<Utc>,
+    ) -> Result<(), CommercialDomainError> {
+        use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+        use uuid::Uuid;
+
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).expect("test command id");
+        let decision = HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "commercial-test-user".into(),
+                kind: ActorKind::PlatformUser,
+                session_id: Some(
+                    SessionId::try_from_uuid(Uuid::new_v4()).expect("test session id"),
+                ),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            self.scope.clone(),
+            catalog_plan_publish_decision_ref(command_id, self.id, self.version),
+            at,
+        )
+        .expect("test human decision");
+        self.publish(&decision, command_id, self.version, at)
     }
 
     pub const fn id(&self) -> CatalogPlanId {
@@ -152,4 +192,15 @@ impl CatalogPlan {
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
     }
+}
+
+pub fn catalog_plan_publish_decision_ref(
+    command_id: CommandId,
+    plan_id: CatalogPlanId,
+    expected_version: u64,
+) -> String {
+    format!(
+        "commercial:publish_catalog_plan:{command_id}:{}:{expected_version}",
+        plan_id.as_uuid()
+    )
 }

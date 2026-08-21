@@ -489,6 +489,18 @@ pub fn directory_identity_replacement_decision_ref(
     )
 }
 
+pub fn directory_connector_lifecycle_decision_ref(
+    command_id: Uuid,
+    connector_id: Uuid,
+    expected_version: u64,
+    target: DirectoryConnectorLifecycle,
+) -> String {
+    format!(
+        "identity_access:transition_directory_connector:{command_id}:{connector_id}:{expected_version}:{}",
+        target.as_str()
+    )
+}
+
 impl DirectoryConnectorReadinessSnapshot {
     pub fn readiness(&self, at: DateTime<Utc>) -> &'static str {
         if self.lifecycle == DirectoryConnectorLifecycle::Active
@@ -3775,6 +3787,66 @@ impl SqlxDirectoryStore {
         correlation_id: Uuid,
         at: DateTime<Utc>,
     ) -> Result<DirectoryConnectorLifecycle, DirectoryError> {
+        self.transition_lifecycle_inner(
+            connector_id,
+            target,
+            actor_ref,
+            correlation_id,
+            at,
+            None,
+            None,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn transition_lifecycle_with_human_decision(
+        &self,
+        connector_id: Uuid,
+        target: DirectoryConnectorLifecycle,
+        command_id: Uuid,
+        expected_version: u64,
+        correlation_id: Uuid,
+        at: DateTime<Utc>,
+        decision: &HumanDecisionProof,
+    ) -> Result<DirectoryConnectorLifecycle, DirectoryError> {
+        if expected_version == 0
+            || decision.decision_ref()
+                != directory_connector_lifecycle_decision_ref(
+                    command_id,
+                    connector_id,
+                    expected_version,
+                    target,
+                )
+            || decision.decided_at() != at
+        {
+            return Err(DirectoryError::InvalidPolicy(
+                "directory lifecycle human decision is invalid".into(),
+            ));
+        }
+        self.transition_lifecycle_inner(
+            connector_id,
+            target,
+            decision.principal_ref(),
+            correlation_id,
+            at,
+            Some(expected_version),
+            Some(decision),
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn transition_lifecycle_inner(
+        &self,
+        connector_id: Uuid,
+        target: DirectoryConnectorLifecycle,
+        actor_ref: &str,
+        correlation_id: Uuid,
+        at: DateTime<Utc>,
+        expected_version: Option<u64>,
+        human_decision: Option<&HumanDecisionProof>,
+    ) -> Result<DirectoryConnectorLifecycle, DirectoryError> {
         bounded_ref(actor_ref, "actor_ref")?;
         if connector_id.is_nil() || correlation_id.is_nil() {
             return Err(DirectoryError::InvalidReference(
@@ -3783,7 +3855,7 @@ impl SqlxDirectoryStore {
         }
         let mut tx = self.pool.begin().await.map_err(sqlx_error)?;
         let row = sqlx::query(
-            "SELECT provider, scope_kind, lifecycle, last_preflight_at,
+            "SELECT provider, scope_kind, lifecycle, revision, last_preflight_at,
                     last_import_completed_at, last_reconciled_at,
                     directory_authority_fingerprint
              FROM erpx_identity.directory_connectors WHERE id=$1 FOR UPDATE",
@@ -3796,6 +3868,15 @@ impl SqlxDirectoryStore {
         let provider = parse_provider(&row.try_get::<String, _>("provider").map_err(sqlx_error)?)?;
         let current =
             parse_connector_lifecycle(&row.try_get::<String, _>("lifecycle").map_err(sqlx_error)?)?;
+        let current_version = u64::try_from(row.try_get::<i64, _>("revision").map_err(sqlx_error)?)
+            .map_err(|_| {
+                DirectoryError::InvalidPolicy("directory connector revision is invalid".into())
+            })?;
+        if expected_version.is_some_and(|expected| expected != current_version) {
+            return Err(DirectoryError::InvalidPolicy(
+                "directory connector version conflict".into(),
+            ));
+        }
         if !current.can_transition_to(target) {
             append_rejected_lifecycle_audit(
                 &mut tx,
@@ -3894,8 +3975,9 @@ impl SqlxDirectoryStore {
         .map_err(sqlx_error)?;
         sqlx::query(
             "INSERT INTO erpx_identity.directory_administration_audit
-                (id, connector_id, action, actor_ref, correlation_id, outcome, occurred_at)
-             VALUES ($1,$2,$3,$4,$5,'accepted',$6)",
+                (id, connector_id, action, actor_ref, correlation_id, outcome, occurred_at,
+                 decision_session_id, decision_authority_scope, decision_ref)
+             VALUES ($1,$2,$3,$4,$5,'accepted',$6,$7,$8,$9)",
         )
         .bind(Uuid::new_v4())
         .bind(connector_id)
@@ -3903,6 +3985,18 @@ impl SqlxDirectoryStore {
         .bind(actor_ref)
         .bind(correlation_id)
         .bind(at)
+        .bind(
+            human_decision
+                .and_then(|decision| decision.actor().session_id)
+                .map(SessionId::as_uuid),
+        )
+        .bind(
+            human_decision
+                .map(|decision| serde_json::to_value(decision.authority_scope()))
+                .transpose()
+                .map_err(|_| DirectoryError::OutboxEncoding)?,
+        )
+        .bind(human_decision.map(HumanDecisionProof::decision_ref))
         .execute(&mut *tx)
         .await
         .map_err(sqlx_error)?;

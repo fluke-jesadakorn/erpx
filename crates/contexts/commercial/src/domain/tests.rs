@@ -47,10 +47,10 @@ fn published_catalog_plan_is_immutable_by_lifecycle() {
         at(),
     )
     .unwrap();
-    plan.publish(at() + Duration::seconds(1)).unwrap();
+    plan.publish_for_test(at() + Duration::seconds(1)).unwrap();
     assert_eq!(plan.version(), 2);
     assert_eq!(
-        plan.publish(at() + Duration::seconds(2)),
+        plan.publish_for_test(at() + Duration::seconds(2)),
         Err(CommercialDomainError::InvalidCatalogTransition)
     );
 }

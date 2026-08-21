@@ -35,7 +35,8 @@ use erpx_infrastructure::{
     ApprovedDesiredConfiguration, CorporateIdentityHistoryEntry, CorporateIdentityRollback,
     DataPlaneEnrollmentConsumption, DataPlaneEnrollmentIssue, PersistenceError, RootAccessGrant,
     RootAccessQueueRecord, SqlxCorporateIdentityStore, SqlxDataPlaneControlStore,
-    SqlxHoldingAdministrationStore, desired_configuration_decision_ref,
+    SqlxHoldingAdministrationStore, corporate_identity_publish_decision_ref,
+    desired_configuration_decision_ref,
     root_access_decision_ref,
 };
 use erpx_integration_contracts::catalog::{WORKSPACES, WorkspaceId};
@@ -1641,14 +1642,35 @@ impl DataPlaneControlRpcImpl {
                 .authorize_mfa(&claims, command_mfa(request.get_ref().context.as_ref()))
                 .await?;
         }
-        let published = store
-            .publish_draft(
+        if command.actor.session_id != Some(claims.session_id)
+            || command.actor.represented_principal_ref.is_some()
+            || command.actor.support_capability_id.is_some()
+        {
+            return Err(Status::permission_denied(
+                "corporate identity publication requires the direct authenticated command session",
+            ));
+        }
+        let decided_at = Utc::now();
+        let human_decision = bind_human_decision(
+            authenticated_human_actor(&claims)?,
+            access.clone(),
+            corporate_identity_publish_decision_ref(
+                command.command_id,
                 profile_id,
                 request.get_ref().expected_draft_version,
+            ),
+            decided_at,
+        )?;
+        let published = store
+            .publish_draft_with_human_decision(
+                profile_id,
+                request.get_ref().expected_draft_version,
+                command.command_id,
                 &claims.principal_ref,
                 &request.get_ref().reason,
                 command.correlation_id,
-                Utc::now(),
+                decided_at,
+                &human_decision,
             )
             .await
             .map_err(persistence_status)?;

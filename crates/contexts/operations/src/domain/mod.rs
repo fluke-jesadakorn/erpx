@@ -40,6 +40,51 @@ pub fn approval_decision_ref(
     )
 }
 
+pub fn exception_close_decision_ref(
+    command_id: CommandId,
+    exception_id: ExceptionId,
+    expected_version: u64,
+) -> String {
+    format!(
+        "operations:close_exception:{command_id}:{}:{expected_version}:close",
+        exception_id.as_uuid()
+    )
+}
+
+pub fn work_queue_policy_publish_decision_ref(
+    command_id: CommandId,
+    policy_id: WorkQueuePolicyId,
+    expected_version: u64,
+) -> String {
+    format!(
+        "operations:publish_work_queue_policy:{command_id}:{}:{expected_version}:publish",
+        policy_id.as_uuid()
+    )
+}
+
+#[cfg(test)]
+fn test_human_decision(
+    scope: AuthorityScope,
+    decision_ref: String,
+    at: DateTime<Utc>,
+) -> HumanDecisionProof {
+    use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+
+    HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: "operations-test-user".into(),
+            kind: ActorKind::HoldingUser,
+            session_id: Some(SessionId::try_from_uuid(Uuid::new_v4()).expect("test session id")),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        scope,
+        decision_ref,
+        at,
+    )
+    .expect("test human decision")
+}
+
 macro_rules! operations_id {
     ($name:ident, $field:literal) => {
         #[derive(
@@ -416,6 +461,33 @@ pub struct WorkQueuePolicyState {
 }
 
 impl WorkQueuePolicy {
+    #[cfg(test)]
+    pub(crate) fn publish_for_test(
+        id: WorkQueuePolicyId,
+        scope: AuthorityScope,
+        name: String,
+        allowed_sources: Vec<BoundedContext>,
+        escalation_after_minutes: u32,
+        at: DateTime<Utc>,
+    ) -> Result<Self, OperationsDomainError> {
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).expect("test command id");
+        let decision = test_human_decision(
+            scope.clone(),
+            work_queue_policy_publish_decision_ref(command_id, id, 0),
+            at,
+        );
+        Self::publish(
+            id,
+            scope,
+            name,
+            allowed_sources,
+            escalation_after_minutes,
+            &decision,
+            command_id,
+            at,
+        )
+    }
+
     pub fn try_rehydrate(state: WorkQueuePolicyState) -> Result<Self, OperationsDomainError> {
         let value = Self {
             id: state.id,
@@ -439,8 +511,16 @@ impl WorkQueuePolicy {
         name: String,
         allowed_sources: Vec<BoundedContext>,
         escalation_after_minutes: u32,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
         at: DateTime<Utc>,
     ) -> Result<Self, OperationsDomainError> {
+        if decision.authority_scope() != &scope
+            || decision.decision_ref() != work_queue_policy_publish_decision_ref(command_id, id, 0)
+            || decision.decided_at() != at
+        {
+            return Err(OperationsDomainError::InvalidApprovalDecision);
+        }
         let mut value = Self {
             id,
             version: 1,
@@ -463,8 +543,18 @@ impl WorkQueuePolicy {
         name: String,
         allowed_sources: Vec<BoundedContext>,
         escalation_after_minutes: u32,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        expected_version: u64,
         at: DateTime<Utc>,
     ) -> Result<(), OperationsDomainError> {
+        if decision.authority_scope() != &self.scope
+            || decision.decision_ref()
+                != work_queue_policy_publish_decision_ref(command_id, self.id, expected_version)
+            || decision.decided_at() != at
+        {
+            return Err(OperationsDomainError::InvalidApprovalDecision);
+        }
         if at < self.updated_at || self.status == WorkQueuePolicyStatus::Retired {
             return Err(if at < self.updated_at {
                 OperationsDomainError::InvalidTimestamp
@@ -486,6 +576,31 @@ impl WorkQueuePolicy {
         next.record_published(at);
         *self = next;
         Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn republish_for_test(
+        &mut self,
+        name: String,
+        allowed_sources: Vec<BoundedContext>,
+        escalation_after_minutes: u32,
+        at: DateTime<Utc>,
+    ) -> Result<(), OperationsDomainError> {
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).expect("test command id");
+        let decision = test_human_decision(
+            self.scope.clone(),
+            work_queue_policy_publish_decision_ref(command_id, self.id, self.version),
+            at,
+        );
+        self.republish(
+            name,
+            allowed_sources,
+            escalation_after_minutes,
+            &decision,
+            command_id,
+            self.version,
+            at,
+        )
     }
 
     pub fn validate(&self) -> Result<(), OperationsDomainError> {
@@ -748,8 +863,35 @@ impl OperationsException {
         Ok(())
     }
 
-    pub fn close(&mut self, at: DateTime<Utc>) -> Result<(), OperationsDomainError> {
+    pub fn close(
+        &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        expected_version: u64,
+        at: DateTime<Utc>,
+    ) -> Result<(), OperationsDomainError> {
+        if decision.authority_scope() != &self.scope
+            || decision.decision_ref()
+                != exception_close_decision_ref(command_id, self.id, expected_version)
+            || decision.decided_at() != at
+        {
+            return Err(OperationsDomainError::InvalidApprovalDecision);
+        }
         self.transition(ExceptionStatus::Closed, at)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn close_for_test(
+        &mut self,
+        at: DateTime<Utc>,
+    ) -> Result<(), OperationsDomainError> {
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).expect("test command id");
+        let decision = test_human_decision(
+            self.scope.clone(),
+            exception_close_decision_ref(command_id, self.id, self.version),
+            at,
+        );
+        self.close(&decision, command_id, self.version, at)
     }
 
     fn transition(

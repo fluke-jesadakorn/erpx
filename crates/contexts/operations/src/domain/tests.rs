@@ -260,13 +260,13 @@ fn lifecycle_transitions_are_versioned_and_fail_atomically() {
 
     let before = value.clone();
     assert_eq!(
-        value.close(at() + Duration::minutes(6)),
+        value.close_for_test(at() + Duration::minutes(6)),
         Err(OperationsDomainError::InvalidTransition)
     );
     assert_eq!(value, before);
 
     value.resolve(at() + Duration::minutes(7)).unwrap();
-    value.close(at() + Duration::minutes(8)).unwrap();
+    value.close_for_test(at() + Duration::minutes(8)).unwrap();
     assert_eq!(value.version(), 4);
     assert_eq!(value.status(), ExceptionStatus::Closed);
 }
@@ -421,7 +421,7 @@ fn policy_rejects_duplicate_sources_and_operations_recursion() {
 
 #[test]
 fn work_queue_policy_is_holding_owned_bounded_and_versioned() {
-    let mut value = WorkQueuePolicy::publish(
+    let mut value = WorkQueuePolicy::publish_for_test(
         WorkQueuePolicyId::try_from_uuid(Uuid::from_u128(30)).unwrap(),
         AuthorityScope::Holding {
             holding_id: Uuid::from_u128(2),
@@ -436,7 +436,7 @@ fn work_queue_policy_is_holding_owned_bounded_and_versioned() {
     assert_eq!(value.status(), WorkQueuePolicyStatus::Active);
     assert_eq!(value.take_uncommitted_events().len(), 1);
     value
-        .republish(
+        .republish_for_test(
             "priority queue v2".into(),
             vec![BoundedContext::Sales, BoundedContext::Support],
             90,
@@ -450,7 +450,7 @@ fn work_queue_policy_is_holding_owned_bounded_and_versioned() {
 #[test]
 fn work_queue_policy_rejects_non_holding_and_unsupported_sources() {
     assert_eq!(
-        WorkQueuePolicy::publish(
+        WorkQueuePolicy::publish_for_test(
             WorkQueuePolicyId::try_from_uuid(Uuid::from_u128(30)).unwrap(),
             AuthorityScope::Company {
                 holding_id: Uuid::from_u128(2),
@@ -464,7 +464,7 @@ fn work_queue_policy_rejects_non_holding_and_unsupported_sources() {
         Err(OperationsDomainError::InvalidDetectionPolicy)
     );
     assert_eq!(
-        WorkQueuePolicy::publish(
+        WorkQueuePolicy::publish_for_test(
             WorkQueuePolicyId::try_from_uuid(Uuid::from_u128(30)).unwrap(),
             AuthorityScope::Holding {
                 holding_id: Uuid::from_u128(2),
@@ -477,7 +477,7 @@ fn work_queue_policy_rejects_non_holding_and_unsupported_sources() {
         Err(OperationsDomainError::InvalidDetectionPolicy)
     );
     assert_eq!(
-        WorkQueuePolicy::publish(
+        WorkQueuePolicy::publish_for_test(
             WorkQueuePolicyId::try_from_uuid(Uuid::from_u128(30)).unwrap(),
             AuthorityScope::Holding {
                 holding_id: Uuid::from_u128(2),

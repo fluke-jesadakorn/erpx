@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -296,9 +296,21 @@ impl ConnectorBinding {
 
     pub fn transition(
         &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        expected_version: u64,
         action: ConnectorTransition,
         at: DateTime<Utc>,
     ) -> Result<(), PlatformAdministrationDomainError> {
+        if !decision
+            .authority_scope()
+            .contains(&self.scope.active_scope())
+            || decision.decision_ref()
+                != connector_transition_decision_ref(command_id, self.id, expected_version, action)
+            || decision.decided_at() != at
+        {
+            return Err(PlatformAdministrationDomainError::InvalidConnectorTransition);
+        }
         let target = action.target();
         let allowed = matches!(
             (self.state, target),
@@ -320,6 +332,33 @@ impl ConnectorBinding {
         }
         self.state = target;
         self.record(at)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn transition_for_test(
+        &mut self,
+        action: ConnectorTransition,
+        at: DateTime<Utc>,
+    ) -> Result<(), PlatformAdministrationDomainError> {
+        use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).expect("test command id");
+        let decision = HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "platform-administration-test-user".into(),
+                kind: ActorKind::PlatformUser,
+                session_id: Some(
+                    SessionId::try_from_uuid(Uuid::new_v4()).expect("test session id"),
+                ),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            self.scope.active_scope(),
+            connector_transition_decision_ref(command_id, self.id, self.version, action),
+            at,
+        )
+        .expect("test human decision");
+        self.transition(&decision, command_id, self.version, action, at)
     }
 
     pub fn observe_readiness(
@@ -414,6 +453,18 @@ impl ConnectorBinding {
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.events)
     }
+}
+
+pub fn connector_transition_decision_ref(
+    command_id: CommandId,
+    connector_id: ConnectorBindingId,
+    expected_version: u64,
+    action: ConnectorTransition,
+) -> String {
+    format!(
+        "platform_administration:transition_connector:{command_id}:{}:{expected_version}:{action:?}",
+        connector_id.as_uuid()
+    )
 }
 
 fn validate_digest(value: &str) -> Result<(), PlatformAdministrationDomainError> {

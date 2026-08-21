@@ -190,6 +190,7 @@ impl PeoplePayrollCommand {
 
     const fn requires_human_decision(&self) -> bool {
         match self {
+            Self::TransitionEmployee(_) => true,
             Self::TransitionLeaveRequest(value) => matches!(
                 value.transition,
                 LeaveTransition::Approve | LeaveTransition::Reject
@@ -453,11 +454,22 @@ where
             .requires_human_decision()
             .then(|| self.clock.now());
         let mut human_decision = if let Some(decided_at) = decision_at {
+            let decision_ref = match &envelope.command {
+                PeoplePayrollCommand::TransitionEmployee(value) => {
+                    crate::domain::employee_transition_decision_ref(
+                        envelope.command_id,
+                        value.employee_id,
+                        envelope.expected_aggregate_version.unwrap_or(0),
+                        &value.transition,
+                    )
+                }
+                _ => envelope.command_id.to_string(),
+            };
             Some(
                 HumanDecisionProof::try_new(
                     envelope.actor.clone(),
                     envelope.active_scope.clone(),
-                    envelope.command_id.to_string(),
+                    decision_ref,
                     decided_at,
                 )
                 .map_err(|_| {
@@ -529,8 +541,20 @@ where
                 let Aggregate::Employee(employee) = &mut aggregate else {
                     unreachable!()
                 };
+                let decision = human_decision.take().ok_or_else(|| {
+                    to_cqrs(
+                        PeoplePayrollApplicationError::HumanDecisionDenied,
+                        correlation,
+                    )
+                })?;
                 employee
-                    .transition(value.transition, at)
+                    .transition(
+                        value.transition,
+                        &decision,
+                        identity.command_id,
+                        expected,
+                        at,
+                    )
                     .map_err(|error| to_cqrs(error.into(), correlation))?;
                 (aggregate, Some(expected))
             }

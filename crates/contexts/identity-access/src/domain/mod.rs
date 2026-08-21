@@ -10,6 +10,7 @@ pub use authority::{
 pub use principal::{
     AccessPrincipal, AccessPrincipalState, GroupMembership, GroupMembershipState, PrincipalId,
     PrincipalStatus, RiskTier, RoleAssignment, RoleAssignmentId, RoleAssignmentState,
+    principal_activation_decision_ref,
 };
 pub use role::{AccessRole, AccessRoleState, PermissionKey, RoleCode, RoleId};
 

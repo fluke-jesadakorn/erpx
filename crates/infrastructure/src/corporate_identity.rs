@@ -7,6 +7,7 @@ use erpx_domain::corporate_identity::{
     BrandCategory, BrandLifecycle, BrandScope, CorporateIdentityError, CorporateIdentityProfile,
     ResolvedCorporateIdentity, resolve_corporate_identity,
 };
+use erpx_kernel::{AuthorityScope, HumanDecisionProof};
 use serde_json::json;
 use sqlx::{Postgres, Row, Transaction};
 use uuid::Uuid;
@@ -185,6 +186,7 @@ impl SqlxCorporateIdentityStore {
             reason,
             correlation_id,
             at,
+            None,
         )
         .await?;
         tx.commit().await?;
@@ -199,6 +201,61 @@ impl SqlxCorporateIdentityStore {
         reason: &str,
         correlation_id: Uuid,
         at: DateTime<Utc>,
+    ) -> Result<CorporateIdentityProfile, PersistenceError> {
+        self.publish_draft_internal(
+            profile_id,
+            expected_draft_version,
+            actor_ref,
+            reason,
+            correlation_id,
+            at,
+            None,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn publish_draft_with_human_decision(
+        &self,
+        profile_id: Uuid,
+        expected_draft_version: u64,
+        command_id: Uuid,
+        actor_ref: &str,
+        reason: &str,
+        correlation_id: Uuid,
+        at: DateTime<Utc>,
+        decision: &HumanDecisionProof,
+    ) -> Result<CorporateIdentityProfile, PersistenceError> {
+        validate_corporate_identity_publish_decision(
+            profile_id,
+            expected_draft_version,
+            command_id,
+            actor_ref,
+            at,
+            decision,
+        )?;
+        self.publish_draft_internal(
+            profile_id,
+            expected_draft_version,
+            actor_ref,
+            reason,
+            correlation_id,
+            at,
+            Some(decision),
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn publish_draft_internal(
+        &self,
+        profile_id: Uuid,
+        expected_draft_version: u64,
+        actor_ref: &str,
+        reason: &str,
+        correlation_id: Uuid,
+        at: DateTime<Utc>,
+        human_decision: Option<&HumanDecisionProof>,
     ) -> Result<CorporateIdentityProfile, PersistenceError> {
         validate_actor(actor_ref)?;
         validate_reason(reason)?;
@@ -241,6 +298,13 @@ impl SqlxCorporateIdentityStore {
             });
         }
         let scope = decode_scope(&profile_row)?;
+        if let Some(decision) = human_decision
+            && !brand_scope_is_authorized(decision.authority_scope(), &scope)
+        {
+            return Err(PersistenceError::InvalidData(
+                "corporate identity publication decision scope is invalid".into(),
+            ));
+        }
         let mut profile = load_version(&mut tx, profile_id, expected_draft_version).await?;
         profile.lifecycle = BrandLifecycle::Published;
         profile.updated_by = actor_ref.to_owned();
@@ -308,6 +372,7 @@ impl SqlxCorporateIdentityStore {
             reason,
             correlation_id,
             at,
+            human_decision,
         )
         .await?;
         tx.commit().await?;
@@ -404,6 +469,7 @@ impl SqlxCorporateIdentityStore {
             &request.reason,
             request.correlation_id,
             request.at,
+            None,
         )
         .await?;
         tx.commit().await?;
@@ -883,6 +949,7 @@ async fn append_event(
     reason: &str,
     correlation_id: Uuid,
     at: DateTime<Utc>,
+    human_decision: Option<&HumanDecisionProof>,
 ) -> Result<(), PersistenceError> {
     let payload = json!({
         "scope": profile.scope.canonical_key(),
@@ -892,6 +959,7 @@ async fn append_event(
         "locked_categories": categories(&profile.locked_categories),
         "contains_executable_css": false,
         "contains_secret_values": false,
+        "human_decision": human_decision.map(human_decision_payload),
     });
     let active_scope = profile.scope.holding_id().map(|holding_id| {
         json!({
@@ -938,6 +1006,59 @@ async fn append_event(
     .execute(&mut **tx)
     .await?;
     Ok(())
+}
+
+pub fn corporate_identity_publish_decision_ref(
+    command_id: Uuid,
+    profile_id: Uuid,
+    expected_draft_version: u64,
+) -> String {
+    format!(
+        "platform_administration:publish_corporate_identity_draft:{command_id}:{profile_id}:{expected_draft_version}:publish"
+    )
+}
+
+fn validate_corporate_identity_publish_decision(
+    profile_id: Uuid,
+    expected_draft_version: u64,
+    command_id: Uuid,
+    actor_ref: &str,
+    at: DateTime<Utc>,
+    decision: &HumanDecisionProof,
+) -> Result<(), PersistenceError> {
+    let expected_ref =
+        corporate_identity_publish_decision_ref(command_id, profile_id, expected_draft_version);
+    if decision.principal_ref() != actor_ref
+        || decision.decision_ref() != expected_ref
+        || decision.decided_at() != at
+    {
+        return Err(PersistenceError::InvalidData(
+            "corporate identity publication human decision is invalid".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn brand_scope_is_authorized(authority: &AuthorityScope, target: &BrandScope) -> bool {
+    match target {
+        BrandScope::Platform => matches!(authority, AuthorityScope::Platform),
+        BrandScope::Holding { holding_id } | BrandScope::BusinessUnit { holding_id, .. } => {
+            authority.contains(&AuthorityScope::Holding {
+                holding_id: *holding_id,
+            })
+        }
+    }
+}
+
+fn human_decision_payload(decision: &HumanDecisionProof) -> serde_json::Value {
+    json!({
+        "principal_ref": decision.principal_ref(),
+        "actor_kind": decision.actor().kind,
+        "session_id": decision.actor().session_id.map(|session| session.as_uuid()),
+        "authority_scope": decision.authority_scope(),
+        "decision_ref": decision.decision_ref(),
+        "decided_at": decision.decided_at(),
+    })
 }
 
 fn normalize_hostname(value: &str) -> Result<String, PersistenceError> {
@@ -1023,6 +1144,23 @@ fn contract_error(error: CorporateIdentityError) -> PersistenceError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+
+    fn human_decision(reference: String, at: DateTime<Utc>) -> HumanDecisionProof {
+        HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "platform-admin".into(),
+                kind: ActorKind::PlatformUser,
+                session_id: Some(SessionId::try_from_uuid(Uuid::from_u128(41)).unwrap()),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            AuthorityScope::Platform,
+            reference,
+            at,
+        )
+        .unwrap()
+    }
 
     #[test]
     fn hostname_normalization_rejects_urls_and_ambiguous_hosts() {
@@ -1047,5 +1185,27 @@ mod tests {
         let unit = scope_parts(&unit_scope);
         assert_eq!(unit.scope_kind, "business_unit");
         assert_eq!(unit.business_unit, Some("finance"));
+    }
+
+    #[test]
+    fn corporate_identity_publish_rejects_mismatched_proof_before_persistence() {
+        let profile_id = Uuid::from_u128(42);
+        let command_id = Uuid::from_u128(43);
+        let at = DateTime::from_timestamp(1_785_000_000, 0).unwrap();
+        let decision = human_decision(
+            corporate_identity_publish_decision_ref(command_id, profile_id, 7),
+            at,
+        );
+        assert!(
+            validate_corporate_identity_publish_decision(
+                profile_id,
+                8,
+                command_id,
+                "platform-admin",
+                at,
+                &decision,
+            )
+            .is_err()
+        );
     }
 }

@@ -167,7 +167,8 @@ use erpx_domain::{
         AllocateCompanyCommand, BillingInterval, BillingState, CatalogPriceKind, ChargeKind,
         CommercialCommandContext, EntitlementDecision, PricingUnit,
         SubscriptionItemSelection as DomainSubscriptionItemSelection, active_subscription_currency,
-        authorize_module,
+        authorize_module, branch_entitlement_activation_decision_ref,
+        company_entitlement_activation_decision_ref,
     },
     contracts::{
         ActorAttribution, ActorKind, AuthorityScope, AuthorityScope as Scope, CONTRACT_VERSION,
@@ -201,6 +202,7 @@ use erpx_domain::{
     platform_completion::{
         BackupControlCommand, HoldingBinding, HoldingLifecycleAction, HoldingLifecycleCommand,
         PitrRecoveryPoint, PlatformAuthorizationProof, PlatformBackupKind,
+        holding_activation_decision_ref,
     },
     support::{SupportCapabilitySecret, SupportDomainPolicy, SupportMode},
 };
@@ -213,8 +215,8 @@ use erpx_identity::{
     DirectoryTlsPolicy, HttpsDirectorySecretResolver, IdentityStoreError, LiveDirectoryError,
     LocalDirectorySecretResolver, PasskeyCeremonyService, SqlxDirectoryStore, SqlxIdentityStore,
     TotpKeyResolver, UnconfiguredDirectorySecretResolver, WebAuthnProvider, WebAuthnProviderConfig,
-    WebAuthnRsProvider, apply_identity_migration, directory_identity_replacement_decision_ref,
-    preflight_directory_connector,
+    WebAuthnRsProvider, apply_identity_migration, directory_connector_lifecycle_decision_ref,
+    directory_identity_replacement_decision_ref, preflight_directory_connector,
 };
 use erpx_infrastructure::{
     ClusterPitrRepository, ControlPlaneDatabaseConfig, ControlPlanePools, DeadLetterReplayCommand,
@@ -240,7 +242,7 @@ use erpx_infrastructure::{
     StripeProviderConfig, StripeWebhookEvent, StripeWebhookPersistenceContext,
     SupportCapabilityAuthorizationRequest, UnconfiguredMarketingCallbackSecretResolver,
     WorkerHeartbeatReadiness, WorkerLiveReadinessPolicy, WorkerReadinessComposition,
-    holding_holding_scope_id,
+    holding_holding_scope_id, projection_rebuild_activation_decision_ref,
 };
 use erpx_kernel::{
     ActorAttribution as KernelActorAttribution, AuditContext as KernelAuditContext,
@@ -5983,6 +5985,12 @@ impl PlatformOperationsRpcImpl {
             )?;
             let holding_id =
                 validate_transport_reference(&request.get_ref().holding_id, "holding_id")?;
+            let expected_registry_version =
+                context.expected_aggregate_version.ok_or_else(|| {
+                    Status::failed_precondition(
+                        "holding activation requires expected_aggregate_version",
+                    )
+                })?;
             let registration = SqlxHoldingStoreRegistry::new(self.state.store.clone())
                 .get(holding_id)
                 .await
@@ -6019,6 +6027,21 @@ impl PlatformOperationsRpcImpl {
                 )
                 .await?;
             let at = Utc::now();
+            let human_decision = HumanDecisionProof::try_new(
+                authenticated_directory_replacement_actor(&claims, &context.actor)?,
+                legacy_kernel_scope(&context.active_scope),
+                holding_activation_decision_ref(
+                    context.command_id,
+                    holding_id,
+                    expected_registry_version,
+                ),
+                at,
+            )
+            .map_err(|_| {
+                Status::permission_denied(
+                    "holding activation requires the direct authenticated human session",
+                )
+            })?;
             let receipt = self
                 .state
                 .platform_completion
@@ -6030,11 +6053,13 @@ impl PlatformOperationsRpcImpl {
                         )
                         .map_err(|_| Status::failed_precondition("holding binding is invalid"))?,
                         action: HoldingLifecycleAction::Activate,
+                        command_id: context.command_id,
                         actor_ref: context.actor.principal_ref.clone(),
                         correlation_id: context.correlation_id,
                         idempotency_key: context.idempotency_key.clone(),
-                        expected_registry_version: Some(registration.registry_version),
+                        expected_registry_version: Some(expected_registry_version),
                         at,
+                        human_decision: Some(human_decision),
                     },
                     proof: platform_authorization_proof(
                         &context.actor.principal_ref,
@@ -6119,11 +6144,13 @@ impl PlatformOperationsRpcImpl {
                         )
                         .map_err(|_| Status::failed_precondition("holding binding is invalid"))?,
                         action: HoldingLifecycleAction::Suspend,
+                        command_id: context.command_id,
                         actor_ref: context.actor.principal_ref.clone(),
                         correlation_id: context.correlation_id,
                         idempotency_key: context.idempotency_key.clone(),
                         expected_registry_version: Some(registration.registry_version),
                         at,
+                        human_decision: None,
                     },
                     proof: platform_authorization_proof(
                         &context.actor.principal_ref,
@@ -6208,11 +6235,13 @@ impl PlatformOperationsRpcImpl {
                         )
                         .map_err(|_| Status::failed_precondition("holding binding is invalid"))?,
                         action: HoldingLifecycleAction::EnterRecovery,
+                        command_id: context.command_id,
                         actor_ref: context.actor.principal_ref.clone(),
                         correlation_id: context.correlation_id,
                         idempotency_key: context.idempotency_key.clone(),
                         expected_registry_version: Some(registration.registry_version),
                         at,
+                        human_decision: None,
                     },
                     proof: platform_authorization_proof(
                         &context.actor.principal_ref,
@@ -6844,6 +6873,29 @@ impl PlatformOperationsRpcImpl {
                 "candidate_read_database_key",
             )?;
             let generation = projection_rebuild_generation(input.generation)?;
+            if projection_name != OPERATIONS_READ_PROJECTION {
+                return Err(Status::invalid_argument(
+                    "projection activation is not supported for this projection",
+                ));
+            }
+            let decided_at = Utc::now();
+            let human_decision = HumanDecisionProof::try_new(
+                authenticated_directory_replacement_actor(&claims, &context.actor)?,
+                legacy_kernel_scope(&context.active_scope),
+                projection_rebuild_activation_decision_ref(
+                    context.command_id,
+                    holding_id,
+                    projection_name,
+                    candidate_read_database_key,
+                    generation,
+                ),
+                decided_at,
+            )
+            .map_err(|_| {
+                Status::permission_denied(
+                    "projection rebuild activation requires the direct authenticated human session",
+                )
+            })?;
             let router = self
                 .state
                 .holding_router
@@ -6855,11 +6907,6 @@ impl PlatformOperationsRpcImpl {
                 .await
                 .map_err(|_| Status::unavailable("holding registry unavailable"))?
                 .ok_or_else(|| Status::failed_precondition("holding is not registered"))?;
-            if projection_name != OPERATIONS_READ_PROJECTION {
-                return Err(Status::invalid_argument(
-                    "projection activation is not supported for this projection",
-                ));
-            }
             let source_version = router
                 .replacement_read_source_version(
                     holding_id,
@@ -6957,10 +7004,14 @@ impl PlatformOperationsRpcImpl {
                 ));
             }
             if router
-                .activate_replacement_read_database(
+                .activate_replacement_read_database_with_human_decision(
                     holding_id,
+                    projection_name,
                     candidate_read_database_key,
                     generation,
+                    context.command_id,
+                    context.correlation_id,
+                    &human_decision,
                 )
                 .await
                 .is_err()
@@ -9111,6 +9162,28 @@ impl DirectoryRpcImpl {
             }
             let connector_id = Uuid::parse_str(request.get_ref().connector_id.trim())
                 .map_err(|_| Status::invalid_argument("connector_id is invalid"))?;
+            let expected_version = context.expected_aggregate_version.ok_or_else(|| {
+                Status::failed_precondition(
+                    "directory connector lifecycle requires expected_aggregate_version",
+                )
+            })?;
+            let decided_at = Utc::now();
+            let decision = HumanDecisionProof::try_new(
+                authenticated_directory_replacement_actor(&claims, &context.actor)?,
+                legacy_kernel_scope(&context.active_scope),
+                directory_connector_lifecycle_decision_ref(
+                    context.command_id,
+                    connector_id,
+                    expected_version,
+                    target,
+                ),
+                decided_at,
+            )
+            .map_err(|_| {
+                Status::permission_denied(
+                    "directory lifecycle requires the direct authenticated human session",
+                )
+            })?;
             let directory = SqlxDirectoryStore::new(self.state.store.pools().write.clone());
             let connector = directory
                 .connector(connector_id)
@@ -9131,12 +9204,14 @@ impl DirectoryRpcImpl {
                     .map_err(|error| Status::failed_precondition(error.to_string()))?;
             }
             let lifecycle = directory
-                .transition_lifecycle(
+                .transition_lifecycle_with_human_decision(
                     connector_id,
                     target,
-                    &claims.principal_ref,
+                    context.command_id,
+                    expected_version,
                     context.correlation_id,
-                    Utc::now(),
+                    decided_at,
+                    &decision,
                 )
                 .await
                 .map_err(|error| Status::failed_precondition(error.to_string()))?;
@@ -12861,9 +12936,26 @@ impl EntitlementRpcImpl {
             )
             .await?;
             let commercial_context = commercial_command_context(&context)?;
+            let decision = HumanDecisionProof::try_new(
+                authenticated_directory_replacement_actor(&claims, &context.actor)?,
+                legacy_kernel_scope(&context.active_scope),
+                company_entitlement_activation_decision_ref(
+                    context.command_id,
+                    customer_id,
+                    &module_key,
+                    company_id,
+                    context.expected_aggregate_version.unwrap_or(0),
+                ),
+                activated_at,
+            )
+            .map_err(|_| {
+                Status::permission_denied(
+                    "company entitlement activation requires the direct authenticated human session",
+                )
+            })?;
             let receipt = self
                 .commercial
-                .activate_entitlement_company_with_expected_version(
+                .activate_entitlement_company_with_human_decision(
                     ActivateCompanyModuleCommand {
                         customer_id,
                         module_key,
@@ -12872,6 +12964,7 @@ impl EntitlementRpcImpl {
                         context: commercial_context,
                     },
                     context.expected_aggregate_version,
+                    &decision,
                 )
                 .await
                 .map_err(|error| commercial_persistence_status(error, context.correlation_id))?;
@@ -12915,9 +13008,27 @@ impl EntitlementRpcImpl {
             )
             .await?;
             let commercial_context = commercial_command_context(&context)?;
+            let decision = HumanDecisionProof::try_new(
+                authenticated_directory_replacement_actor(&claims, &context.actor)?,
+                legacy_kernel_scope(&context.active_scope),
+                branch_entitlement_activation_decision_ref(
+                    context.command_id,
+                    customer_id,
+                    &module_key,
+                    company_id,
+                    branch_id,
+                    context.expected_aggregate_version.unwrap_or(0),
+                ),
+                activated_at,
+            )
+            .map_err(|_| {
+                Status::permission_denied(
+                    "branch entitlement activation requires the direct authenticated human session",
+                )
+            })?;
             let receipt = self
                 .commercial
-                .activate_entitlement_branch_with_expected_version(
+                .activate_entitlement_branch_with_human_decision(
                     ActivateBranchModuleCommand {
                         customer_id,
                         module_key,
@@ -12927,6 +13038,7 @@ impl EntitlementRpcImpl {
                         context: commercial_context,
                     },
                     context.expected_aggregate_version,
+                    &decision,
                 )
                 .await
                 .map_err(|error| commercial_persistence_status(error, context.correlation_id))?;

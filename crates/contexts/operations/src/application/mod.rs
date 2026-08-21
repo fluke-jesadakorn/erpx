@@ -21,7 +21,8 @@ use thiserror::Error;
 use crate::{
     domain::{
         ExceptionId, OperationsDomainError, SourceFactMessage, WorkQueuePolicy, WorkQueuePolicyId,
-        approval_decision_ref,
+        approval_decision_ref, exception_close_decision_ref,
+        work_queue_policy_publish_decision_ref,
     },
     integration,
     ports::{
@@ -384,6 +385,7 @@ where
         &self,
         envelope: CommandEnvelope<OperationsCommand>,
         command: PublishWorkQueuePolicy,
+        decision: HumanDecisionProof,
     ) -> Result<CommandReceipt<OperationsMutationResult>, CqrsError> {
         let correlation = envelope.correlation_id;
         let identity = WorkQueuePolicyCommandIdentity {
@@ -410,7 +412,7 @@ where
             return Ok(stored.into_receipt(response));
         }
 
-        let at = self.clock.now();
+        let at = decision.decided_at();
         let existing = self
             .write
             .load_work_queue_policy(&envelope.active_scope, command.policy_id)
@@ -440,6 +442,9 @@ where
                     command.name,
                     command.allowed_sources,
                     command.escalation_after_minutes,
+                    &decision,
+                    identity.command_id,
+                    expected,
                     at,
                 )
                 .map_err(|error| to_cqrs(error.into(), correlation))?;
@@ -461,6 +466,8 @@ where
                     command.name,
                     command.allowed_sources,
                     command.escalation_after_minutes,
+                    &decision,
+                    identity.command_id,
                     at,
                 )
                 .map_err(|error| to_cqrs(error.into(), correlation))?,
@@ -517,10 +524,48 @@ where
                         .map_err(|error| to_cqrs(error, envelope.correlation_id))?,
                 )
             }
+            OperationsCommand::Close(value) => {
+                let at = self.clock.now();
+                Some(
+                    HumanDecisionProof::try_new(
+                        envelope.actor.clone(),
+                        envelope.active_scope.clone(),
+                        exception_close_decision_ref(
+                            envelope.command_id,
+                            value.exception_id,
+                            envelope.expected_aggregate_version.unwrap_or(0),
+                        ),
+                        at,
+                    )
+                    .map_err(|error| to_cqrs(error.into(), envelope.correlation_id))?,
+                )
+            }
+            OperationsCommand::PublishWorkQueuePolicy(value) => {
+                let at = self.clock.now();
+                Some(
+                    HumanDecisionProof::try_new(
+                        envelope.actor.clone(),
+                        envelope.active_scope.clone(),
+                        work_queue_policy_publish_decision_ref(
+                            envelope.command_id,
+                            value.policy_id,
+                            envelope.expected_aggregate_version.unwrap_or(0),
+                        ),
+                        at,
+                    )
+                    .map_err(|error| to_cqrs(error.into(), envelope.correlation_id))?,
+                )
+            }
             _ => None,
         };
         if let OperationsCommand::PublishWorkQueuePolicy(command) = envelope.command.clone() {
-            return self.handle_policy(envelope, command).await;
+            let decision = human_decision.ok_or_else(|| {
+                to_cqrs(
+                    OperationsApplicationError::HumanDecisionBinding,
+                    envelope.correlation_id,
+                )
+            })?;
+            return self.handle_policy(envelope, command, decision).await;
         }
         let correlation = envelope.correlation_id;
         let identity = CommandIdentity {
@@ -622,9 +667,17 @@ where
             OperationsCommand::Resolve(_) => aggregate
                 .resolve(at)
                 .map_err(|error| to_cqrs(error.into(), correlation))?,
-            OperationsCommand::Close(_) => aggregate
-                .close(at)
-                .map_err(|error| to_cqrs(error.into(), correlation))?,
+            OperationsCommand::Close(_) => {
+                let decision = human_decision.as_ref().ok_or_else(|| {
+                    to_cqrs(
+                        OperationsApplicationError::HumanDecisionBinding,
+                        correlation,
+                    )
+                })?;
+                aggregate
+                    .close(decision, identity.command_id, expected, at)
+                    .map_err(|error| to_cqrs(error.into(), correlation))?;
+            }
             OperationsCommand::PublishWorkQueuePolicy(_) => unreachable!("handled above"),
         }
 

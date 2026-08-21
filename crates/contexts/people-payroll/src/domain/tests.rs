@@ -82,13 +82,13 @@ fn employment_lifecycle_is_closed_and_termination_is_date_safe() {
     )
     .unwrap();
     employee
-        .transition(EmployeeTransition::Activate, at() + Duration::minutes(1))
+        .transition_for_test(EmployeeTransition::Activate, at() + Duration::minutes(1))
         .unwrap();
     employee
-        .transition(EmployeeTransition::PutOnLeave, at() + Duration::minutes(2))
+        .transition_for_test(EmployeeTransition::PutOnLeave, at() + Duration::minutes(2))
         .unwrap();
     employee
-        .transition(
+        .transition_for_test(
             EmployeeTransition::ReturnFromLeave,
             at() + Duration::minutes(3),
         )
@@ -97,7 +97,7 @@ fn employment_lifecycle_is_closed_and_termination_is_date_safe() {
 
     let before = employee.clone();
     assert_eq!(
-        employee.transition(
+        employee.transition_for_test(
             EmployeeTransition::Terminate {
                 terminated_on: date(1).pred_opt().unwrap()
             },
@@ -108,7 +108,7 @@ fn employment_lifecycle_is_closed_and_termination_is_date_safe() {
     assert_eq!(employee, before);
 
     employee
-        .transition(
+        .transition_for_test(
             EmployeeTransition::Terminate {
                 terminated_on: date(5),
             },
@@ -519,7 +519,7 @@ fn failed_version_and_timestamp_advances_are_atomic() {
     .unwrap();
     let before_time = employee.clone();
     assert_eq!(
-        employee.transition(EmployeeTransition::Activate, at() - Duration::seconds(1)),
+        employee.transition_for_test(EmployeeTransition::Activate, at() - Duration::seconds(1)),
         Err(PeoplePayrollDomainError::InvalidWindow),
     );
     assert_eq!(employee, before_time);
@@ -527,7 +527,7 @@ fn failed_version_and_timestamp_advances_are_atomic() {
     employee.version = u64::MAX;
     let before_version = employee.clone();
     assert_eq!(
-        employee.transition(EmployeeTransition::Activate, at()),
+        employee.transition_for_test(EmployeeTransition::Activate, at()),
         Err(PeoplePayrollDomainError::VersionOverflow),
     );
     assert_eq!(employee, before_version);

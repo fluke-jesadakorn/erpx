@@ -325,8 +325,23 @@ impl Employee {
     pub fn transition(
         &mut self,
         transition: EmployeeTransition,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        expected_version: u64,
         at: DateTime<Utc>,
     ) -> Result<(), PeoplePayrollDomainError> {
+        if decision.authority_scope() != &self.scope
+            || decision.decision_ref()
+                != employee_transition_decision_ref(
+                    command_id,
+                    self.id,
+                    expected_version,
+                    &transition,
+                )
+            || decision.decided_at() != at
+        {
+            return Err(PeoplePayrollDomainError::InvalidHumanDecision);
+        }
         let (next, terminated_on) = match transition {
             EmployeeTransition::Activate
                 if matches!(
@@ -362,6 +377,33 @@ impl Employee {
         self.terminated_on = terminated_on;
         self.uncommitted_events.push(self.status_event(at));
         Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn transition_for_test(
+        &mut self,
+        transition: EmployeeTransition,
+        at: DateTime<Utc>,
+    ) -> Result<(), PeoplePayrollDomainError> {
+        use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).expect("test command id");
+        let decision = HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "people-payroll-test-user".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(
+                    SessionId::try_from_uuid(Uuid::new_v4()).expect("test session id"),
+                ),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            self.scope.clone(),
+            employee_transition_decision_ref(command_id, self.id, self.version, &transition),
+            at,
+        )
+        .expect("test human decision");
+        self.transition(transition, &decision, command_id, self.version, at)
     }
 
     pub fn validate(&self) -> Result<(), PeoplePayrollDomainError> {
@@ -438,6 +480,27 @@ impl Employee {
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
     }
+}
+
+pub fn employee_transition_decision_ref(
+    command_id: CommandId,
+    employee_id: EmployeeId,
+    expected_version: u64,
+    transition: &EmployeeTransition,
+) -> String {
+    let action = match transition {
+        EmployeeTransition::Activate => "activate".to_owned(),
+        EmployeeTransition::PutOnLeave => "put_on_leave".to_owned(),
+        EmployeeTransition::ReturnFromLeave => "return_from_leave".to_owned(),
+        EmployeeTransition::Suspend => "suspend".to_owned(),
+        EmployeeTransition::Terminate { terminated_on } => {
+            format!("terminate:{terminated_on}")
+        }
+    };
+    format!(
+        "people_payroll:transition_employee:{command_id}:{}:{expected_version}:{action}",
+        employee_id.as_uuid()
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

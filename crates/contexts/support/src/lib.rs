@@ -19,7 +19,8 @@ pub use domain::{
     IncidentBroadcast, IncidentId, IncidentStatus, IncidentTimelineEntry, MessageAudience,
     MessageId, PlatformCaseStatus, PlatformSupportCase, SessionId, SessionStatus, SupportAggregate,
     SupportCapability, SupportDomainError, SupportMode, SupportSession, SupportTicket,
-    SupportTicketId, TicketMessage, TicketStatus, support_session_approval_decision_ref,
+    SupportTicketId, TicketMessage, TicketStatus, incident_transition_decision_ref,
+    support_session_approval_decision_ref, ticket_transition_decision_ref,
 };
 pub use ports::{
     AuthorizationPort, CommandUnitOfWork, EntitlementPort, IncidentList, IncidentListFilter,

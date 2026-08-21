@@ -17,7 +17,7 @@ use erpx_cqrs_sqlx::WritePool;
 use erpx_domain::platform_completion::PitrRecoveryPoint;
 use erpx_kernel::{
     ActorAttribution as KernelActorAttribution, ActorKind as KernelActorKind, AuditContext,
-    AuthorityScope, CommandId, CorrelationId, FixedClock,
+    AuthorityScope, CommandId, CorrelationId, FixedClock, HumanDecisionProof,
 };
 use erpx_migration::{migrate_holding_read, migrate_holding_write};
 use erpx_organization::ports::AuthorizationRequest;
@@ -3289,6 +3289,30 @@ impl HoldingDatabaseRouter {
                 holding_id,
                 candidate_read_database_key,
                 generation,
+            )
+            .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn activate_replacement_read_database_with_human_decision(
+        &self,
+        holding_id: &str,
+        projection_name: &str,
+        candidate_read_database_key: &str,
+        generation: u64,
+        command_id: Uuid,
+        correlation_id: Uuid,
+        decision: &HumanDecisionProof,
+    ) -> Result<(), PersistenceError> {
+        HoldingProvisioner::new(self.control.clone())
+            .activate_read_database_if_generation_with_human_decision(
+                holding_id,
+                projection_name,
+                candidate_read_database_key,
+                generation,
+                command_id,
+                correlation_id,
+                decision,
             )
             .await
     }
@@ -7472,6 +7496,50 @@ impl HoldingProvisioner {
         candidate_read_database_key: &str,
         generation: u64,
     ) -> Result<(), PersistenceError> {
+        self.activate_read_database_if_generation_internal(
+            holding_id,
+            candidate_read_database_key,
+            generation,
+            None,
+        )
+        .await
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn activate_read_database_if_generation_with_human_decision(
+        &self,
+        holding_id: &str,
+        projection_name: &str,
+        candidate_read_database_key: &str,
+        generation: u64,
+        command_id: Uuid,
+        correlation_id: Uuid,
+        decision: &HumanDecisionProof,
+    ) -> Result<(), PersistenceError> {
+        validate_projection_rebuild_activation_decision(
+            holding_id,
+            projection_name,
+            candidate_read_database_key,
+            generation,
+            command_id,
+            decision,
+        )?;
+        self.activate_read_database_if_generation_internal(
+            holding_id,
+            candidate_read_database_key,
+            generation,
+            Some((projection_name, correlation_id, decision)),
+        )
+        .await
+    }
+
+    async fn activate_read_database_if_generation_internal(
+        &self,
+        holding_id: &str,
+        candidate_read_database_key: &str,
+        generation: u64,
+        human_decision: Option<(&str, Uuid, &HumanDecisionProof)>,
+    ) -> Result<(), PersistenceError> {
         validate_ref(holding_id, "holding_id")?;
         validate_database_key(candidate_read_database_key, "candidate_read_database_key")?;
         let generation = i64::try_from(generation).map_err(|_| {
@@ -7535,9 +7603,75 @@ impl HoldingProvisioner {
                 actual: None,
             });
         }
+        if let Some((projection_name, correlation_id, decision)) = human_decision {
+            sqlx::query(
+                "INSERT INTO erpx_control.audit_events
+                    (id, actor_ref, customer_account_id, action, purpose,
+                     correlation_id, payload, recorded_at)
+                 VALUES ($1, $2, NULL, 'platform.projection_rebuild.activate',
+                         'activate a verified projection rebuild generation', $3, $4, $5)",
+            )
+            .bind(Uuid::new_v4())
+            .bind(decision.principal_ref())
+            .bind(correlation_id)
+            .bind(json!({
+                "holding_id": holding_id,
+                "projection_name": projection_name,
+                "candidate_read_database_key": candidate_read_database_key,
+                "generation": generation,
+                "human_decision": {
+                    "principal_ref": decision.principal_ref(),
+                    "actor_kind": decision.actor().kind,
+                    "session_id": decision.actor().session_id.map(|session| session.as_uuid()),
+                    "authority_scope": decision.authority_scope(),
+                    "decision_ref": decision.decision_ref(),
+                    "decided_at": decision.decided_at(),
+                }
+            }))
+            .bind(decision.decided_at())
+            .execute(&mut *tx)
+            .await?;
+        }
         tx.commit().await?;
         Ok(())
     }
+}
+
+pub fn projection_rebuild_activation_decision_ref(
+    command_id: Uuid,
+    holding_id: &str,
+    projection_name: &str,
+    candidate_read_database_key: &str,
+    generation: u64,
+) -> String {
+    format!(
+        "platform_administration:activate_projection_rebuild:{command_id}:{holding_id}:{projection_name}:{candidate_read_database_key}:{generation}:activate"
+    )
+}
+
+fn validate_projection_rebuild_activation_decision(
+    holding_id: &str,
+    projection_name: &str,
+    candidate_read_database_key: &str,
+    generation: u64,
+    command_id: Uuid,
+    decision: &HumanDecisionProof,
+) -> Result<(), PersistenceError> {
+    let expected_ref = projection_rebuild_activation_decision_ref(
+        command_id,
+        holding_id,
+        projection_name,
+        candidate_read_database_key,
+        generation,
+    );
+    if !matches!(decision.authority_scope(), AuthorityScope::Platform)
+        || decision.decision_ref() != expected_ref
+    {
+        return Err(PersistenceError::InvalidData(
+            "projection rebuild activation human decision is invalid".into(),
+        ));
+    }
+    Ok(())
 }
 
 async fn invoke_backup_executor<E, Fut>(
@@ -8767,6 +8901,43 @@ fn is_duplicate_database(error: &sqlx::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn projection_rebuild_activation_rejects_mismatched_proof_before_persistence() {
+        let command_id = Uuid::from_u128(51);
+        let decision = HumanDecisionProof::try_new(
+            KernelActorAttribution {
+                principal_ref: "platform-admin".into(),
+                kind: KernelActorKind::PlatformUser,
+                session_id: Some(
+                    erpx_kernel::SessionId::try_from_uuid(Uuid::from_u128(52)).unwrap(),
+                ),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            AuthorityScope::Platform,
+            projection_rebuild_activation_decision_ref(
+                command_id,
+                "holding-a",
+                "operations",
+                "read-candidate",
+                9,
+            ),
+            DateTime::from_timestamp(1_785_000_000, 0).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            validate_projection_rebuild_activation_decision(
+                "holding-a",
+                "operations",
+                "read-candidate",
+                10,
+                command_id,
+                &decision,
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn item_directory_source_fence_is_exactly_holding_bound_and_typed() {

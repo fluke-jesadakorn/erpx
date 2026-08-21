@@ -6,14 +6,17 @@ use erpx_domain::commercial::{
     BillingProviderCommandEvidence, BillingState, CatalogError, CatalogPrice, CatalogPriceKind,
     CatalogReconciliationReport, ChargeKind, CommercialCatalogRevisionDraft,
     CommercialCommandChange, CommercialCommandContext, CommercialCommandReceipt,
-    CommercialCommandResult, EntitlementAllocationBook, EntitlementCapacity,
-    GrandfatheredPriceMigration, Money, PricingUnit, ProviderBillingEvent, ProviderCatalogPrice,
-    ProviderCatalogRevision, ProviderEntitlementUpdate, PublishedCommercialCatalogRevision,
+    CommercialCommandResult, CommercialHumanDecisionEvidence, EntitlementAllocationBook,
+    EntitlementCapacity, GrandfatheredPriceMigration, Money, PricingUnit, ProviderBillingEvent,
+    ProviderCatalogPrice, ProviderCatalogRevision, ProviderEntitlementUpdate,
+    PublishedCommercialCatalogRevision, validate_branch_entitlement_activation_decision,
+    validate_company_entitlement_activation_decision,
 };
 use erpx_domain::customer::{
     Customer360, Customer360DetailReadContext, Customer360Projection, CustomerCommercialReadDto,
     CustomerReadView,
 };
+use erpx_kernel::HumanDecisionProof;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, Row, Transaction};
@@ -3943,6 +3946,7 @@ impl SqlxCommercialStore {
                 "company_id": command.company_id,
                 "at": command.at,
                 "book": book,
+                "human_decision": command.context.human_decision.as_ref(),
             }),
             command.at,
             &command.context.actor_ref,
@@ -3955,6 +3959,7 @@ impl SqlxCommercialStore {
                 "module_key": command.module_key,
                 "company_id": command.company_id,
                 "at": command.at,
+                "human_decision": command.context.human_decision.as_ref(),
             }),
         )
         .await?;
@@ -3970,6 +3975,29 @@ impl SqlxCommercialStore {
         complete_commercial_idempotency(&mut transaction, &command.context, &receipt).await?;
         transaction.commit().await?;
         Ok(receipt)
+    }
+
+    /// Authenticated-human ingress. Proof validation happens before opening a
+    /// transaction or consulting idempotency receipts, and the redacted proof
+    /// material is retained in audit/outbox JSON through the command context.
+    pub async fn activate_entitlement_company_with_human_decision(
+        &self,
+        mut command: ActivateCompanyModuleCommand,
+        expected_version: Option<u64>,
+        decision: &HumanDecisionProof,
+    ) -> Result<CommercialCommandReceipt, PersistenceError> {
+        validate_company_entitlement_activation_decision(
+            &command,
+            expected_version.unwrap_or(0),
+            decision,
+        )
+        .map_err(|_| commercial_invalid("company activation human decision is invalid"))?;
+        command.context.human_decision = Some(
+            CommercialHumanDecisionEvidence::from_proof(decision)
+                .map_err(|_| commercial_invalid("company activation human decision is invalid"))?,
+        );
+        self.activate_entitlement_company_with_expected_version(command, expected_version)
+            .await
     }
 
     pub async fn activate_entitlement_branch(
@@ -4054,6 +4082,7 @@ impl SqlxCommercialStore {
                 "branch_id": command.branch_id,
                 "at": command.at,
                 "book": book,
+                "human_decision": command.context.human_decision.as_ref(),
             }),
             command.at,
             &command.context.actor_ref,
@@ -4067,6 +4096,7 @@ impl SqlxCommercialStore {
                 "company_id": command.company_id,
                 "branch_id": command.branch_id,
                 "at": command.at,
+                "human_decision": command.context.human_decision.as_ref(),
             }),
         )
         .await?;
@@ -4082,6 +4112,27 @@ impl SqlxCommercialStore {
         complete_commercial_idempotency(&mut transaction, &command.context, &receipt).await?;
         transaction.commit().await?;
         Ok(receipt)
+    }
+
+    /// Branch counterpart to `activate_entitlement_company_with_human_decision`.
+    pub async fn activate_entitlement_branch_with_human_decision(
+        &self,
+        mut command: ActivateBranchModuleCommand,
+        expected_version: Option<u64>,
+        decision: &HumanDecisionProof,
+    ) -> Result<CommercialCommandReceipt, PersistenceError> {
+        validate_branch_entitlement_activation_decision(
+            &command,
+            expected_version.unwrap_or(0),
+            decision,
+        )
+        .map_err(|_| commercial_invalid("branch activation human decision is invalid"))?;
+        command.context.human_decision = Some(
+            CommercialHumanDecisionEvidence::from_proof(decision)
+                .map_err(|_| commercial_invalid("branch activation human decision is invalid"))?,
+        );
+        self.activate_entitlement_branch_with_expected_version(command, expected_version)
+            .await
     }
 
     pub async fn insert_stripe_event(

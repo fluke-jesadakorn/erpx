@@ -313,6 +313,14 @@ impl PlatformControlStore {
             "state": target.as_str(),
             "registry_version": new_registry_version,
             "updated_at": command.at,
+            "human_decision": command.human_decision.as_ref().map(|decision| json!({
+                "principal_ref": decision.principal_ref(),
+                "actor_kind": decision.actor().kind,
+                "session_id": decision.actor().session_id.map(|session| session.as_uuid()),
+                "authority_scope": decision.authority_scope(),
+                "decision_ref": decision.decision_ref(),
+                "decided_at": decision.decided_at(),
+            })),
         });
         let aggregate_version = positive_u64(aggregate_version, "holding lifecycle version")?;
         let event_id = append_event(

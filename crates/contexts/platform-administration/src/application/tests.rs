@@ -15,7 +15,7 @@ use erpx_cqrs::{
 };
 use erpx_kernel::{
     ActorAttribution, ActorKind, AuditContext, AuthorityScope, CommandId, CorrelationId, EventId,
-    FixedClock, QueryId,
+    FixedClock, QueryId, SessionId,
 };
 use uuid::Uuid;
 
@@ -53,7 +53,7 @@ fn actor() -> ActorAttribution {
     ActorAttribution {
         principal_ref: "platform-root".into(),
         kind: ActorKind::PlatformUser,
-        session_id: None,
+        session_id: Some(SessionId::try_from_uuid(id(90)).unwrap()),
         represented_principal_ref: None,
         support_capability_id: None,
     }

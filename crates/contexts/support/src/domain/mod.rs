@@ -7,7 +7,7 @@ use erpx_integration_contracts::{
     customer, identity_access,
     reference::{RecordTypeId, ReferenceValidationError},
 };
-use erpx_kernel::{AuthorityScope, HumanDecisionProof, RecordId};
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof, RecordId};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -324,9 +324,19 @@ impl SupportTicket {
 
     pub fn transition(
         &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        expected_version: u64,
         next: TicketStatus,
         at: DateTime<Utc>,
     ) -> Result<(), SupportDomainError> {
+        if decision.authority_scope() != &self.scope
+            || decision.decision_ref()
+                != ticket_transition_decision_ref(command_id, self.id, expected_version, next)
+            || decision.decided_at() != at
+        {
+            return Err(SupportDomainError::HumanApprovalRequired);
+        }
         self.ensure_mutable()?;
         let valid = matches!(
             (self.status, next),
@@ -357,6 +367,33 @@ impl SupportTicket {
         self.status = next;
         self.record_change(at);
         Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn transition_for_test(
+        &mut self,
+        next: TicketStatus,
+        at: DateTime<Utc>,
+    ) -> Result<(), SupportDomainError> {
+        use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).expect("test command id");
+        let decision = HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "support-test-user".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(
+                    SessionId::try_from_uuid(Uuid::new_v4()).expect("test session id"),
+                ),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            self.scope.clone(),
+            ticket_transition_decision_ref(command_id, self.id, self.version, next),
+            at,
+        )
+        .expect("test human decision");
+        self.transition(&decision, command_id, self.version, next, at)
     }
 
     pub fn add_message(
@@ -635,10 +672,20 @@ impl Incident {
 
     pub fn transition(
         &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        expected_version: u64,
         next: IncidentStatus,
-        actor_ref: String,
         at: DateTime<Utc>,
     ) -> Result<(), SupportDomainError> {
+        if decision.authority_scope() != &self.scope
+            || decision.decision_ref()
+                != incident_transition_decision_ref(command_id, self.id, expected_version, next)
+            || decision.decided_at() != at
+        {
+            return Err(SupportDomainError::HumanApprovalRequired);
+        }
+        let actor_ref = decision.principal_ref().to_owned();
         self.ensure_mutable()?;
         let valid = matches!(
             (self.status, next),
@@ -660,6 +707,34 @@ impl Incident {
         self.status = next;
         self.record_change(at);
         Ok(())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn transition_for_test(
+        &mut self,
+        next: IncidentStatus,
+        actor_ref: String,
+        at: DateTime<Utc>,
+    ) -> Result<(), SupportDomainError> {
+        use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).expect("test command id");
+        let decision = HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: actor_ref,
+                kind: ActorKind::HoldingUser,
+                session_id: Some(
+                    SessionId::try_from_uuid(Uuid::new_v4()).expect("test session id"),
+                ),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            self.scope.clone(),
+            incident_transition_decision_ref(command_id, self.id, self.version, next),
+            at,
+        )
+        .expect("test human decision");
+        self.transition(&decision, command_id, self.version, next, at)
     }
 
     pub fn add_timeline(
@@ -779,6 +854,30 @@ impl Incident {
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
     }
+}
+
+pub fn ticket_transition_decision_ref(
+    command_id: CommandId,
+    ticket_id: SupportTicketId,
+    expected_version: u64,
+    next: TicketStatus,
+) -> String {
+    format!(
+        "support:transition_ticket:{command_id}:{}:{expected_version}:{next:?}",
+        ticket_id.as_uuid()
+    )
+}
+
+pub fn incident_transition_decision_ref(
+    command_id: CommandId,
+    incident_id: IncidentId,
+    expected_version: u64,
+    next: IncidentStatus,
+) -> String {
+    format!(
+        "support:transition_incident:{command_id}:{}:{expected_version}:{next:?}",
+        incident_id.as_uuid()
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

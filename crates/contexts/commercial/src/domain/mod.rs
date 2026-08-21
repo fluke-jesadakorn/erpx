@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
-pub use catalog::{CatalogPlan, CatalogPlanStatus};
+pub use catalog::{CatalogPlan, CatalogPlanStatus, catalog_plan_publish_decision_ref};
 pub use entitlement::{Entitlement, EntitlementCapacity, EntitlementState};
 pub use records::{
     CommercialLifecycleRecord, CommercialLifecycleRecordError, CommercialLifecycleRecordKind,

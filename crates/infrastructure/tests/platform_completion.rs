@@ -8,6 +8,7 @@ use erpx_domain::platform_completion::{
 };
 use erpx_domain::platform_completion::{
     HoldingLifecycleAction, HoldingLifecycleCommand, PlatformAuthorizationProof,
+    holding_activation_decision_ref,
 };
 use erpx_infrastructure::{
     ControlPlaneDatabaseConfig, ControlPlanePoolSettings, ControlPlanePools, DatabaseSide,
@@ -15,6 +16,10 @@ use erpx_infrastructure::{
     PLATFORM_COMPLETION_PROJECTION, PLATFORM_RECONCILIATION_AGGREGATE, PlatformControlStore,
     PlatformPersistenceError, PlatformReadModelWriter, SqlxControlPlane,
     SqlxPlatformReadModelWriter,
+};
+use erpx_kernel::{
+    ActorAttribution, ActorKind, AuthorityScope as KernelAuthorityScope, HumanDecisionProof,
+    SessionId,
 };
 use erpx_migration::{migrate_control_plane, migrate_control_read};
 use sqlx::{PgPool, postgres::PgPoolOptions};
@@ -120,14 +125,30 @@ async fn lifecycle_rejects_future_health_observations() {
         local_break_glass: false,
         break_glass_ticket_ref: None,
     };
+    let command_id = Uuid::new_v4();
+    let human_decision = HumanDecisionProof::try_new(
+        ActorAttribution {
+            principal_ref: "platform-admin".into(),
+            kind: ActorKind::PlatformUser,
+            session_id: Some(SessionId::try_from_uuid(Uuid::new_v4()).expect("session")),
+            represented_principal_ref: None,
+            support_capability_id: None,
+        },
+        KernelAuthorityScope::Platform,
+        holding_activation_decision_ref(command_id, &binding.holding_id, 1),
+        at,
+    )
+    .expect("human decision");
     let command = HoldingLifecycleCommand {
         binding,
         action: HoldingLifecycleAction::Activate,
+        command_id,
         actor_ref: "platform-admin".into(),
         correlation_id: Uuid::new_v4(),
         idempotency_key: format!("future-health-{suffix}"),
         expected_registry_version: Some(1),
         at,
+        human_decision: Some(human_decision),
     };
 
     let error = PlatformControlStore::new(control)

@@ -64,13 +64,13 @@ fn requested_session() -> SupportSession {
     )
     .unwrap();
     ticket
-        .transition(
+        .transition_for_test(
             TicketStatus::Triaged,
             opened_at + chrono::Duration::seconds(30),
         )
         .unwrap();
     ticket
-        .transition(
+        .transition_for_test(
             TicketStatus::AccessRequested,
             opened_at + chrono::Duration::minutes(1),
         )

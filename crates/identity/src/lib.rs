@@ -72,7 +72,8 @@ pub use directory::{
     DirectorySupervisorClaim, DirectorySyncCursor, DirectorySyncPage, DirectoryTlsMode,
     DirectoryTlsPolicy, DirectoryUser, MAX_DIRECTORY_BATCH_SIZE, MAX_DIRECTORY_IMPORT_USERS,
     MAX_DIRECTORY_PAGE_SIZE, SqlxDirectoryStore, directory_authority_key,
-    directory_identity_replacement_decision_ref, immutable_identity_link,
+    directory_connector_lifecycle_decision_ref, directory_identity_replacement_decision_ref,
+    immutable_identity_link,
 };
 pub use error::IdentityError;
 pub use password::{PasswordDigest, PasswordHashingConfig, PasswordService};
@@ -138,6 +139,8 @@ pub const IDENTITY_AUTHENTICATED_AUTHORITY_MIGRATION_SQL: &str =
     include_str!("../migrations/0014_authenticated_authority.sql");
 pub const IDENTITY_DIRECTORY_REPLACEMENT_DECISION_MIGRATION_SQL: &str =
     include_str!("../migrations/0015_directory_replacement_human_decision.sql");
+pub const IDENTITY_DIRECTORY_LIFECYCLE_DECISION_MIGRATION_SQL: &str =
+    include_str!("../migrations/0016_directory_lifecycle_human_decision.sql");
 
 /// Apply the identity schema and its forward reconciliation/outbox migration
 /// to a write-side pool. Callers must not run this function against a read
@@ -192,6 +195,9 @@ pub async fn apply_identity_migration(pool: &sqlx::PgPool) -> Result<(), sqlx::E
     sqlx::raw_sql(IDENTITY_DIRECTORY_REPLACEMENT_DECISION_MIGRATION_SQL)
         .execute(&mut *transaction)
         .await?;
+    sqlx::raw_sql(IDENTITY_DIRECTORY_LIFECYCLE_DECISION_MIGRATION_SQL)
+        .execute(&mut *transaction)
+        .await?;
     transaction.commit().await?;
     Ok(())
 }
@@ -233,6 +239,17 @@ mod tests {
         assert!(fence.contains("identity_session.principal_kind IS NULL"));
         assert!(fence.contains("principal.authenticated_realm <> 'internal_workforce'"));
         assert!(fence.contains("principal.principal_kind <> 'human'"));
+    }
+
+    #[test]
+    fn directory_lifecycle_decision_migration_persists_complete_evidence() {
+        let sql = IDENTITY_DIRECTORY_LIFECYCLE_DECISION_MIGRATION_SQL;
+        assert!(sql.contains("decision_session_id UUID"));
+        assert!(sql.contains("decision_authority_scope JSONB"));
+        assert!(sql.contains("decision_ref TEXT"));
+        assert!(sql.contains("decision_session_id IS NULL"));
+        assert!(sql.contains("decision_session_id IS NOT NULL"));
+        assert!(sql.contains("VALIDATE CONSTRAINT"));
     }
 
     #[test]

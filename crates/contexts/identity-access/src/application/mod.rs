@@ -10,7 +10,7 @@ use erpx_cqrs::{
 };
 use erpx_kernel::{
     ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
-    ErrorContext, EventId, KernelError,
+    ErrorContext, EventId, HumanDecisionProof, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -215,6 +215,8 @@ pub enum IdentityAccessApplicationError {
     InvalidPageSize,
     #[error("identity access integration event mapping failed")]
     IntegrationMapping,
+    #[error("principal activation requires an authenticated human decision")]
+    HumanDecisionRequired,
     #[error("an authority group must be a governed human group or agent pool")]
     InvalidAuthorityGroupKind,
     #[error(transparent)]
@@ -655,12 +657,77 @@ macro_rules! principal_transition_handler {
     };
 }
 
-principal_transition_handler!(
-    ActivatePrincipal,
-    IdentityAccessAction::ActivatePrincipal,
-    ActivatePrincipal,
-    activate
-);
+#[async_trait]
+impl<W, U, A, E, C> CommandHandler<ActivatePrincipal>
+    for IdentityAccessCommandHandler<W, U, A, E, C>
+where
+    W: WriteRepository,
+    U: CommandUnitOfWork,
+    A: AuthorizationPort,
+    E: EntitlementPort,
+    C: Clock,
+{
+    type Response = PrincipalMutationResult;
+
+    async fn handle(
+        &self,
+        envelope: CommandEnvelope<ActivatePrincipal>,
+    ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
+        envelope.validate()?;
+        let command = envelope.command;
+        let correlation_id = envelope.correlation_id;
+        let expected_version = envelope.expected_aggregate_version.unwrap_or(0);
+        let command_id = envelope.command_id;
+        let decided_at = self.clock.now();
+        let decision = HumanDecisionProof::try_new(
+            envelope.actor.clone(),
+            envelope.active_scope.clone(),
+            crate::domain::principal_activation_decision_ref(
+                command_id,
+                command.principal_id,
+                expected_version,
+            ),
+            decided_at,
+        )
+        .map_err(|_| {
+            to_cqrs(
+                IdentityAccessApplicationError::HumanDecisionRequired,
+                correlation_id,
+            )
+        })?;
+        let stored = self
+            .execute_existing(
+                ExistingCommand {
+                    correlation_id,
+                    causation_id: envelope.causation_id,
+                    actor: envelope.actor,
+                    authority_scope: envelope.active_scope,
+                    audit: envelope.audit,
+                    expected_version: envelope.expected_aggregate_version,
+                    identity: CommandIdentity {
+                        command_id,
+                        idempotency_key: envelope.idempotency_key,
+                        fingerprint: CommandFingerprint::ActivatePrincipal {
+                            principal_id: command.principal_id,
+                        },
+                    },
+                    key: AggregateKey::Principal(command.principal_id),
+                    action: IdentityAccessAction::ActivatePrincipal,
+                },
+                move |aggregate, _| match aggregate {
+                    IdentityAccessAggregate::Principal(value) => value
+                        .activate(&decision, command_id, expected_version, decided_at)
+                        .map_err(Into::into),
+                    IdentityAccessAggregate::Role(_) => {
+                        Err(IdentityAccessApplicationError::AggregateTypeMismatch)
+                    }
+                },
+            )
+            .await?;
+        let principal = principal_view(&stored.aggregate, correlation_id)?;
+        Ok(stored.into_receipt(PrincipalMutationResult { principal }))
+    }
+}
 principal_transition_handler!(
     SuspendPrincipal,
     IdentityAccessAction::SuspendPrincipal,
@@ -671,7 +738,7 @@ principal_transition_handler!(
     ReactivatePrincipal,
     IdentityAccessAction::ReactivatePrincipal,
     ReactivatePrincipal,
-    activate
+    reactivate
 );
 principal_transition_handler!(
     DisablePrincipal,
@@ -1356,6 +1423,7 @@ fn to_cqrs(error: IdentityAccessApplicationError, correlation_id: CorrelationId)
             false,
         ),
         IdentityAccessApplicationError::ScopeOutsideAuthority
+        | IdentityAccessApplicationError::HumanDecisionRequired
         | IdentityAccessApplicationError::Port(PortError::Denied)
         | IdentityAccessApplicationError::Port(PortError::EntitlementDenied) => (
             "identity_access.denied",

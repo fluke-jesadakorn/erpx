@@ -48,9 +48,11 @@ fn ticket() -> SupportTicket {
 fn access_requested_ticket() -> SupportTicket {
     let mut value = ticket();
     value.take_uncommitted_events();
-    value.transition(TicketStatus::Triaged, at()).unwrap();
     value
-        .transition(TicketStatus::AccessRequested, at())
+        .transition_for_test(TicketStatus::Triaged, at())
+        .unwrap();
+    value
+        .transition_for_test(TicketStatus::AccessRequested, at())
         .unwrap();
     value
 }
@@ -141,16 +143,24 @@ fn ticket_requires_eligible_customer_and_owning_company_scope() {
 fn ticket_lifecycle_is_ordered_and_closed_is_terminal() {
     let mut value = ticket();
     assert!(matches!(
-        value.transition(TicketStatus::Resolved, at()),
+        value.transition_for_test(TicketStatus::Resolved, at()),
         Err(SupportDomainError::InvalidTicketTransition)
     ));
-    value.transition(TicketStatus::Triaged, at()).unwrap();
-    value.transition(TicketStatus::InProgress, at()).unwrap();
-    value.transition(TicketStatus::Resolved, at()).unwrap();
     value
-        .transition(TicketStatus::CustomerConfirmed, at())
+        .transition_for_test(TicketStatus::Triaged, at())
         .unwrap();
-    value.transition(TicketStatus::Closed, at()).unwrap();
+    value
+        .transition_for_test(TicketStatus::InProgress, at())
+        .unwrap();
+    value
+        .transition_for_test(TicketStatus::Resolved, at())
+        .unwrap();
+    value
+        .transition_for_test(TicketStatus::CustomerConfirmed, at())
+        .unwrap();
+    value
+        .transition_for_test(TicketStatus::Closed, at())
+        .unwrap();
     assert!(matches!(
         value.add_message(
             TicketMessage::new(
@@ -502,16 +512,16 @@ fn incident_audiences_are_explicit_and_postmortem_is_terminal() {
         )
         .unwrap();
     incident
-        .transition(IncidentStatus::Identified, "commander".into(), at())
+        .transition_for_test(IncidentStatus::Identified, "commander".into(), at())
         .unwrap();
     incident
-        .transition(IncidentStatus::Monitoring, "commander".into(), at())
+        .transition_for_test(IncidentStatus::Monitoring, "commander".into(), at())
         .unwrap();
     incident
-        .transition(IncidentStatus::Resolved, "commander".into(), at())
+        .transition_for_test(IncidentStatus::Resolved, "commander".into(), at())
         .unwrap();
     incident
-        .transition(IncidentStatus::PostmortemComplete, "commander".into(), at())
+        .transition_for_test(IncidentStatus::PostmortemComplete, "commander".into(), at())
         .unwrap();
     assert!(matches!(
         incident.broadcast(

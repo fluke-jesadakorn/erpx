@@ -1,5 +1,5 @@
 use chrono::{DateTime, Duration, Utc};
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -529,7 +529,60 @@ impl AccessPrincipal {
         Ok(value)
     }
 
-    pub fn activate(&mut self, at: DateTime<Utc>) -> Result<(), IdentityAccessDomainError> {
+    pub fn activate(
+        &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        expected_version: u64,
+        at: DateTime<Utc>,
+    ) -> Result<(), IdentityAccessDomainError> {
+        if self.status != PrincipalStatus::Invited
+            || decision.authority_scope() != &self.scope
+            || decision.decision_ref()
+                != principal_activation_decision_ref(command_id, self.id, expected_version)
+            || decision.decided_at() != at
+        {
+            return Err(IdentityAccessDomainError::InvalidPrincipalTransition {
+                from: self.status,
+                to: PrincipalStatus::Active,
+            });
+        }
+        self.transition(PrincipalStatus::Active, at)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn activate_for_test(
+        &mut self,
+        at: DateTime<Utc>,
+    ) -> Result<(), IdentityAccessDomainError> {
+        use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).expect("test command id");
+        let decision = HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "identity-access-test-user".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(
+                    SessionId::try_from_uuid(Uuid::new_v4()).expect("test session id"),
+                ),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            self.scope.clone(),
+            principal_activation_decision_ref(command_id, self.id, self.version),
+            at,
+        )
+        .expect("test human decision");
+        self.activate(&decision, command_id, self.version, at)
+    }
+
+    pub fn reactivate(&mut self, at: DateTime<Utc>) -> Result<(), IdentityAccessDomainError> {
+        if self.status != PrincipalStatus::Suspended {
+            return Err(IdentityAccessDomainError::InvalidPrincipalTransition {
+                from: self.status,
+                to: PrincipalStatus::Active,
+            });
+        }
         self.transition(PrincipalStatus::Active, at)
     }
 
@@ -825,6 +878,17 @@ impl AccessPrincipal {
     }
 }
 
+pub fn principal_activation_decision_ref(
+    command_id: CommandId,
+    principal_id: PrincipalId,
+    expected_version: u64,
+) -> String {
+    format!(
+        "identity_access:activate_principal:{command_id}:{}:{expected_version}:activate",
+        principal_id.as_uuid()
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::TimeZone;
@@ -853,7 +917,7 @@ mod tests {
             at(8),
         )
         .unwrap();
-        principal.activate(at(9)).unwrap();
+        principal.activate_for_test(at(9)).unwrap();
         principal.take_uncommitted_events();
         principal
     }
@@ -886,12 +950,12 @@ mod tests {
     fn principal_lifecycle_is_explicit_and_disabled_is_terminal() {
         let mut principal = principal();
         principal.suspend(at(10)).unwrap();
-        principal.activate(at(11)).unwrap();
+        principal.reactivate(at(11)).unwrap();
         principal.disable(at(12)).unwrap();
         assert_eq!(principal.status(), PrincipalStatus::Disabled);
         assert_eq!(principal.version(), 5);
         assert!(matches!(
-            principal.activate(at(13)),
+            principal.activate_for_test(at(13)),
             Err(IdentityAccessDomainError::InvalidPrincipalTransition { .. })
         ));
     }

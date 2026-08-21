@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use erpx_kernel::{ActorKind as KernelActorKind, AuthorityScope, CommandId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use thiserror::Error;
@@ -77,6 +78,38 @@ pub struct CommercialCommandContext {
     pub correlation_id: Uuid,
     pub actor_ref: String,
     pub purpose: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub human_decision: Option<CommercialHumanDecisionEvidence>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommercialHumanDecisionEvidence {
+    pub principal_ref: String,
+    pub actor_kind: KernelActorKind,
+    pub session_id: Uuid,
+    pub authority_scope: AuthorityScope,
+    pub decision_ref: String,
+    pub decided_at: DateTime<Utc>,
+}
+
+impl CommercialHumanDecisionEvidence {
+    pub fn from_proof(
+        decision: &HumanDecisionProof,
+    ) -> Result<Self, CommercialCommandValidationError> {
+        let session_id = decision
+            .actor()
+            .session_id
+            .map(|value| value.as_uuid())
+            .ok_or(CommercialCommandValidationError::HumanDecisionRequired)?;
+        Ok(Self {
+            principal_ref: decision.principal_ref().to_owned(),
+            actor_kind: decision.actor().kind,
+            session_id,
+            authority_scope: decision.authority_scope().clone(),
+            decision_ref: decision.decision_ref().to_owned(),
+            decided_at: decision.decided_at(),
+        })
+    }
 }
 
 impl std::fmt::Debug for CommercialCommandContext {
@@ -106,6 +139,7 @@ impl CommercialCommandContext {
             correlation_id,
             actor_ref: actor_ref.into(),
             purpose: purpose.into(),
+            human_decision: None,
         };
         context.validate()?;
         Ok(context)
@@ -122,7 +156,15 @@ impl CommercialCommandContext {
             ));
         }
         validate_reference(&self.actor_ref, "actor_ref")?;
-        validate_reference(&self.purpose, "purpose")
+        validate_reference(&self.purpose, "purpose")?;
+        if let Some(decision) = &self.human_decision {
+            validate_reference(&decision.principal_ref, "human_decision.principal_ref")?;
+            validate_reference(&decision.decision_ref, "human_decision.decision_ref")?;
+            if decision.session_id.is_nil() || decision.principal_ref != self.actor_ref {
+                return Err(CommercialCommandValidationError::HumanDecisionRequired);
+            }
+        }
+        Ok(())
     }
 
     /// Provider commands use an event-derived idempotency key. A random
@@ -196,6 +238,54 @@ impl ActivateCompanyModuleCommand {
     }
 }
 
+pub fn company_entitlement_activation_decision_ref(
+    command_id: Uuid,
+    customer_id: Uuid,
+    module_key: &str,
+    company_id: Uuid,
+    expected_version: u64,
+) -> String {
+    format!(
+        "commercial:activate_company_entitlement:{command_id}:{customer_id}:{module_key}:{company_id}:{expected_version}"
+    )
+}
+
+pub fn branch_entitlement_activation_decision_ref(
+    command_id: Uuid,
+    customer_id: Uuid,
+    module_key: &str,
+    company_id: Uuid,
+    branch_id: Uuid,
+    expected_version: u64,
+) -> String {
+    format!(
+        "commercial:activate_branch_entitlement:{command_id}:{customer_id}:{module_key}:{company_id}:{branch_id}:{expected_version}"
+    )
+}
+
+pub fn validate_company_entitlement_activation_decision(
+    command: &ActivateCompanyModuleCommand,
+    expected_version: u64,
+    decision: &HumanDecisionProof,
+) -> Result<(), CommercialCommandValidationError> {
+    let command_id = CommandId::try_from_uuid(command.context.command_id)
+        .map_err(|_| CommercialCommandValidationError::NilIdentifier)?;
+    if decision.principal_ref() != command.context.actor_ref
+        || decision.decided_at() != command.at
+        || decision.decision_ref()
+            != company_entitlement_activation_decision_ref(
+                command_id.as_uuid(),
+                command.customer_id,
+                &command.module_key,
+                command.company_id,
+                expected_version,
+            )
+    {
+        return Err(CommercialCommandValidationError::HumanDecisionRequired);
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ActivateBranchModuleCommand {
     pub customer_id: Uuid,
@@ -215,6 +305,30 @@ impl ActivateBranchModuleCommand {
     }
 }
 
+pub fn validate_branch_entitlement_activation_decision(
+    command: &ActivateBranchModuleCommand,
+    expected_version: u64,
+    decision: &HumanDecisionProof,
+) -> Result<(), CommercialCommandValidationError> {
+    let command_id = CommandId::try_from_uuid(command.context.command_id)
+        .map_err(|_| CommercialCommandValidationError::NilIdentifier)?;
+    if decision.principal_ref() != command.context.actor_ref
+        || decision.decided_at() != command.at
+        || decision.decision_ref()
+            != branch_entitlement_activation_decision_ref(
+                command_id.as_uuid(),
+                command.customer_id,
+                &command.module_key,
+                command.company_id,
+                command.branch_id,
+                expected_version,
+            )
+    {
+        return Err(CommercialCommandValidationError::HumanDecisionRequired);
+    }
+    Ok(())
+}
+
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum CommercialCommandValidationError {
     #[error("commercial command identifier cannot be nil")]
@@ -229,6 +343,8 @@ pub enum CommercialCommandValidationError {
     InvalidQuantity,
     #[error("provider event is not for this entitlement module")]
     ProviderModuleMismatch,
+    #[error("entitlement activation requires an authenticated human decision")]
+    HumanDecisionRequired,
 }
 
 fn validate_reference(

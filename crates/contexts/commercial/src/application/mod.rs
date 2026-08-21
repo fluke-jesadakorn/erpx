@@ -12,7 +12,7 @@ use erpx_cqrs::{
 use erpx_integration_contracts::CurrencyCode;
 use erpx_kernel::{
     ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
-    ErrorContext, EventId, KernelError,
+    ErrorContext, EventId, HumanDecisionProof, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -142,6 +142,8 @@ pub enum CommercialApplicationError {
     ProviderCapabilityMismatch,
     #[error("commercial integration event mapping failed")]
     IntegrationMapping,
+    #[error("catalog publication requires an authenticated human decision bound to this command")]
+    HumanDecisionRequired,
     #[error("stored idempotency receipt has an unexpected aggregate type")]
     ReceiptTypeMismatch,
     #[error(transparent)]
@@ -389,6 +391,23 @@ where
                 plan_id: command.plan_id,
             },
         };
+        let decided_at = self.clock.now();
+        let decision = HumanDecisionProof::try_new(
+            envelope.actor.clone(),
+            envelope.active_scope.clone(),
+            crate::domain::catalog_plan_publish_decision_ref(
+                envelope.command_id,
+                command.plan_id,
+                envelope.expected_aggregate_version.unwrap_or(0),
+            ),
+            decided_at,
+        )
+        .map_err(|_| {
+            to_cqrs(
+                CommercialApplicationError::HumanDecisionRequired,
+                correlation_id,
+            )
+        })?;
         if let Some(mut stored) = self
             .unit_of_work
             .find_receipt(&identity)
@@ -427,7 +446,7 @@ where
             Self::expected_version(envelope.expected_aggregate_version, aggregate.version())
                 .map_err(|e| to_cqrs(e, correlation_id))?;
         aggregate
-            .publish(self.clock.now())
+            .publish(&decision, envelope.command_id, expected, decided_at)
             .map_err(|e| to_cqrs(e.into(), correlation_id))?;
         let stored = self
             .commit(
@@ -1023,6 +1042,7 @@ fn to_cqrs(error: CommercialApplicationError, correlation_id: CorrelationId) -> 
             false,
         ),
         CommercialApplicationError::ScopeOutsideAuthority
+        | CommercialApplicationError::HumanDecisionRequired
         | CommercialApplicationError::Port(
             PortError::Denied | PortError::ScopeMismatch | PortError::ProviderRejected,
         ) => (

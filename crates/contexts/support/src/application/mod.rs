@@ -509,6 +509,46 @@ where
             idempotency_key: envelope.idempotency_key.clone(),
             fingerprint: envelope.command.fingerprint(),
         };
+        let decision_at = matches!(
+            envelope.command,
+            SupportCommand::TransitionTicket(_) | SupportCommand::TransitionIncident(_)
+        )
+        .then(|| self.clock.now());
+        let mut human_decision = match (&envelope.command, decision_at) {
+            (SupportCommand::TransitionTicket(value), Some(at)) => Some(
+                HumanDecisionProof::try_new(
+                    envelope.actor.clone(),
+                    envelope.active_scope.clone(),
+                    crate::domain::ticket_transition_decision_ref(
+                        envelope.command_id,
+                        value.ticket_id,
+                        envelope.expected_aggregate_version.unwrap_or(0),
+                        value.next,
+                    ),
+                    at,
+                )
+                .map_err(|_| {
+                    to_cqrs(SupportApplicationError::HumanApprovalRequired, correlation)
+                })?,
+            ),
+            (SupportCommand::TransitionIncident(value), Some(at)) => Some(
+                HumanDecisionProof::try_new(
+                    envelope.actor.clone(),
+                    envelope.active_scope.clone(),
+                    crate::domain::incident_transition_decision_ref(
+                        envelope.command_id,
+                        value.incident_id,
+                        envelope.expected_aggregate_version.unwrap_or(0),
+                        value.next,
+                    ),
+                    at,
+                )
+                .map_err(|_| {
+                    to_cqrs(SupportApplicationError::HumanApprovalRequired, correlation)
+                })?,
+            ),
+            _ => None,
+        };
         if let Some(stored) = self
             .replay(&envelope, &identity, action)
             .await
@@ -523,9 +563,8 @@ where
                 correlation,
             ));
         }
-        let at = self.clock.now();
+        let at = decision_at.unwrap_or_else(|| self.clock.now());
         let actor_ref = envelope.actor.principal_ref.clone();
-        let mut human_decision = None;
         let (mut aggregate, expected_version, dependency, session_id, device_ref) = match &envelope
             .command
         {
@@ -557,8 +596,11 @@ where
                     .ok_or_else(|| port_to_cqrs(PortError::NotFound, correlation))?;
                 let expected = Self::expected(envelope.expected_aggregate_version, value.version())
                     .map_err(|e| to_cqrs(e, correlation))?;
+                let decision = human_decision.as_ref().ok_or_else(|| {
+                    to_cqrs(SupportApplicationError::HumanApprovalRequired, correlation)
+                })?;
                 value
-                    .transition(v.next, at)
+                    .transition(decision, identity.command_id, expected, v.next, at)
                     .map_err(|e| to_cqrs(e.into(), correlation))?;
                 (
                     SupportAggregate::Ticket(value),
@@ -764,8 +806,11 @@ where
                     .ok_or_else(|| port_to_cqrs(PortError::NotFound, correlation))?;
                 let expected = Self::expected(envelope.expected_aggregate_version, value.version())
                     .map_err(|e| to_cqrs(e, correlation))?;
+                let decision = human_decision.as_ref().ok_or_else(|| {
+                    to_cqrs(SupportApplicationError::HumanApprovalRequired, correlation)
+                })?;
                 value
-                    .transition(v.next, actor_ref.clone(), at)
+                    .transition(decision, identity.command_id, expected, v.next, at)
                     .map_err(|e| to_cqrs(e.into(), correlation))?;
                 (
                     SupportAggregate::Incident(value),

@@ -32,17 +32,17 @@ fn holding_lifecycle_rejects_unsafe_shortcut_and_retirement_from_active() {
     let mut holding = holding();
     assert_eq!(holding.status(), HoldingLifecycleState::PendingSubscription);
     holding
-        .transition(HoldingLifecycleAction::BeginProvisioning, at())
+        .transition_for_test(HoldingLifecycleAction::BeginProvisioning, at())
         .unwrap();
     assert_eq!(
-        holding.transition(HoldingLifecycleAction::Suspend, at()),
+        holding.transition_for_test(HoldingLifecycleAction::Suspend, at()),
         Err(PlatformAdministrationDomainError::InvalidHoldingTransition)
     );
     holding
-        .transition(HoldingLifecycleAction::Activate, at())
+        .transition_for_test(HoldingLifecycleAction::Activate, at())
         .unwrap();
     assert_eq!(
-        holding.transition(HoldingLifecycleAction::Retire, at()),
+        holding.transition_for_test(HoldingLifecycleAction::Retire, at()),
         Err(PlatformAdministrationDomainError::InvalidHoldingTransition)
     );
 }
@@ -52,11 +52,11 @@ fn holding_transition_increments_version_and_records_fact() {
     let mut holding = holding();
     holding.take_uncommitted_events();
     holding
-        .transition(HoldingLifecycleAction::BeginProvisioning, at())
+        .transition_for_test(HoldingLifecycleAction::BeginProvisioning, at())
         .unwrap();
     holding.take_uncommitted_events();
     holding
-        .transition(HoldingLifecycleAction::Activate, at())
+        .transition_for_test(HoldingLifecycleAction::Activate, at())
         .unwrap();
     assert_eq!(holding.version(), 3);
     assert!(
@@ -111,10 +111,10 @@ fn connector_cannot_reactivate_after_retirement() {
     )
     .unwrap();
     connector
-        .transition(ConnectorTransition::Retire, at())
+        .transition_for_test(ConnectorTransition::Retire, at())
         .unwrap();
     assert_eq!(
-        connector.transition(ConnectorTransition::Activate, at()),
+        connector.transition_for_test(ConnectorTransition::Activate, at()),
         Err(PlatformAdministrationDomainError::InvalidConnectorTransition)
     );
 }
@@ -134,7 +134,7 @@ fn connector_activation_requires_matching_successful_preflight_evidence() {
     )
     .unwrap();
     assert_eq!(
-        connector.transition(ConnectorTransition::Activate, at()),
+        connector.transition_for_test(ConnectorTransition::Activate, at()),
         Err(PlatformAdministrationDomainError::ConnectorNotReady)
     );
     connector
@@ -151,7 +151,7 @@ fn connector_activation_requires_matching_successful_preflight_evidence() {
         )
         .unwrap();
     connector
-        .transition(ConnectorTransition::Activate, at() + Duration::seconds(2))
+        .transition_for_test(ConnectorTransition::Activate, at() + Duration::seconds(2))
         .unwrap();
     assert_eq!(connector.state(), ConnectorState::Active);
 }
@@ -196,7 +196,7 @@ fn connector_rejects_stale_mismatched_or_replayed_readiness() {
         Err(PlatformAdministrationDomainError::StaleReadinessEvidence)
     );
     assert_eq!(
-        connector.transition(ConnectorTransition::Activate, at() + Duration::seconds(3)),
+        connector.transition_for_test(ConnectorTransition::Activate, at() + Duration::seconds(3)),
         Err(PlatformAdministrationDomainError::ConnectorNotReady)
     );
 }
@@ -265,10 +265,10 @@ fn revoked_admin_context_never_becomes_active_again() {
 fn branch_pair_topology_never_falls_back_to_holding_route() {
     let mut holding = holding();
     holding
-        .transition(HoldingLifecycleAction::BeginProvisioning, at())
+        .transition_for_test(HoldingLifecycleAction::BeginProvisioning, at())
         .unwrap();
     holding
-        .transition(HoldingLifecycleAction::Activate, at())
+        .transition_for_test(HoldingLifecycleAction::Activate, at())
         .unwrap();
     let mut routes = DataPlaneRouteCatalog::new(
         holding.id(),

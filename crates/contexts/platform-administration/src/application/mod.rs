@@ -8,7 +8,7 @@ use erpx_cqrs::{
 };
 use erpx_kernel::{
     ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
-    ErrorContext, EventId, KernelError,
+    ErrorContext, EventId, HumanDecisionProof, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -155,6 +155,8 @@ pub enum PlatformAdministrationApplicationError {
     ReceiptTypeMismatch,
     #[error("platform administration integration event mapping failed")]
     IntegrationMapping,
+    #[error("platform lifecycle transition requires an authenticated human decision")]
+    HumanDecisionRequired,
     #[error(transparent)]
     Port(#[from] PortError),
 }
@@ -454,6 +456,24 @@ impl<
                 action: command.action,
             },
         };
+        let decided_at = self.clock.now();
+        let decision = HumanDecisionProof::try_new(
+            envelope.actor.clone(),
+            envelope.active_scope.clone(),
+            crate::domain::holding_transition_decision_ref(
+                envelope.command_id,
+                command.holding_id,
+                envelope.expected_aggregate_version.unwrap_or(0),
+                command.action,
+            ),
+            decided_at,
+        )
+        .map_err(|_| {
+            to_cqrs(
+                PlatformAdministrationApplicationError::HumanDecisionRequired,
+                correlation_id,
+            )
+        })?;
         if let Some(stored) = self
             .replay(
                 &identity,
@@ -490,7 +510,13 @@ impl<
         let expected = Self::expected(envelope.expected_aggregate_version, aggregate.version())
             .map_err(|e| to_cqrs(e, correlation_id))?;
         aggregate
-            .transition(command.action, self.clock.now())
+            .transition(
+                &decision,
+                envelope.command_id,
+                expected,
+                command.action,
+                decided_at,
+            )
             .map_err(|e| to_cqrs(e.into(), correlation_id))?;
         let stored = self
             .commit(
@@ -614,6 +640,24 @@ impl<
                 action: command.action,
             },
         };
+        let decided_at = self.clock.now();
+        let decision = HumanDecisionProof::try_new(
+            envelope.actor.clone(),
+            envelope.active_scope.clone(),
+            crate::domain::connector_transition_decision_ref(
+                envelope.command_id,
+                command.connector_id,
+                envelope.expected_aggregate_version.unwrap_or(0),
+                command.action,
+            ),
+            decided_at,
+        )
+        .map_err(|_| {
+            to_cqrs(
+                PlatformAdministrationApplicationError::HumanDecisionRequired,
+                correlation_id,
+            )
+        })?;
         if let Some(stored) = self
             .replay(
                 &identity,
@@ -650,7 +694,13 @@ impl<
         let expected = Self::expected(envelope.expected_aggregate_version, aggregate.version())
             .map_err(|e| to_cqrs(e, correlation_id))?;
         aggregate
-            .transition(command.action, self.clock.now())
+            .transition(
+                &decision,
+                envelope.command_id,
+                expected,
+                command.action,
+                decided_at,
+            )
             .map_err(|e| to_cqrs(e.into(), correlation_id))?;
         let stored = self
             .commit(
@@ -1215,6 +1265,7 @@ fn to_cqrs(
         PlatformAdministrationApplicationError::ScopeOutsideAuthority
         | PlatformAdministrationApplicationError::AuthorizationScopeMismatch
         | PlatformAdministrationApplicationError::MfaRequired
+        | PlatformAdministrationApplicationError::HumanDecisionRequired
         | PlatformAdministrationApplicationError::Port(PortError::Denied)
         | PlatformAdministrationApplicationError::Port(PortError::EntitlementDenied)
         | PlatformAdministrationApplicationError::Port(PortError::MfaRequired) => (

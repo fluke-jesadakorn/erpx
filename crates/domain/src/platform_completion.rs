@@ -10,6 +10,7 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Duration, Utc};
+use erpx_kernel::{AuthorityScope as KernelAuthorityScope, HumanDecisionProof};
 use hex::FromHex;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -334,11 +335,14 @@ pub fn validate_lifecycle_transition(
 pub struct HoldingLifecycleCommand {
     pub binding: HoldingBinding,
     pub action: HoldingLifecycleAction,
+    pub command_id: Uuid,
     pub actor_ref: String,
     pub correlation_id: Uuid,
     pub idempotency_key: String,
     pub expected_registry_version: Option<u64>,
     pub at: DateTime<Utc>,
+    #[serde(skip)]
+    pub human_decision: Option<HumanDecisionProof>,
 }
 
 impl HoldingLifecycleCommand {
@@ -347,6 +351,7 @@ impl HoldingLifecycleCommand {
         proof: &PlatformAuthorizationProof,
     ) -> Result<(), PlatformCompletionError> {
         self.binding.validate()?;
+        identifier(self.command_id, "command_id")?;
         identifier(self.correlation_id, "correlation_id")?;
         bounded(&self.actor_ref, "actor_ref", PLATFORM_MAX_REFERENCE_BYTES)?;
         bounded(
@@ -354,6 +359,33 @@ impl HoldingLifecycleCommand {
             "idempotency_key",
             PLATFORM_MAX_REFERENCE_BYTES,
         )?;
+        if self.action == HoldingLifecycleAction::Activate {
+            let expected_version =
+                self.expected_registry_version
+                    .ok_or(PlatformCompletionError::InvalidField {
+                        field: "expected_registry_version",
+                    })?;
+            let decision =
+                self.human_decision
+                    .as_ref()
+                    .ok_or(PlatformCompletionError::InvalidField {
+                        field: "human_decision",
+                    })?;
+            if !matches!(decision.authority_scope(), KernelAuthorityScope::Platform)
+                || decision.principal_ref() != self.actor_ref
+                || decision.decision_ref()
+                    != holding_activation_decision_ref(
+                        self.command_id,
+                        &self.binding.holding_id,
+                        expected_version,
+                    )
+                || decision.decided_at() != self.at
+            {
+                return Err(PlatformCompletionError::InvalidField {
+                    field: "human_decision",
+                });
+            }
+        }
         proof.validate(
             &self.actor_ref,
             &self.binding.scope(),
@@ -362,6 +394,16 @@ impl HoldingLifecycleCommand {
             self.at,
         )
     }
+}
+
+pub fn holding_activation_decision_ref(
+    command_id: Uuid,
+    holding_id: &str,
+    expected_registry_version: u64,
+) -> String {
+    format!(
+        "platform_administration:activate_holding:{command_id}:{holding_id}:{expected_registry_version}:activate"
+    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -980,6 +1022,10 @@ pub fn stable_holding_scope_id(data_profile_key: &str) -> Uuid {
 
 #[cfg(test)]
 mod tests {
+    use erpx_kernel::{
+        ActorAttribution, ActorKind, AuthorityScope as KernelAuthorityScope, SessionId,
+    };
+
     use super::*;
 
     fn proof(permission: &str, at: DateTime<Utc>) -> PlatformAuthorizationProof {
@@ -1019,6 +1065,55 @@ mod tests {
                 HoldingLifecycleAction::Suspend,
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn holding_activation_rejects_missing_or_mismatched_human_decision_before_persistence() {
+        let at = Utc::now();
+        let binding = HoldingBinding::new("holding-a", "holding-a").expect("binding");
+        let command_id = Uuid::new_v4();
+        let mut command = HoldingLifecycleCommand {
+            binding,
+            action: HoldingLifecycleAction::Activate,
+            command_id,
+            actor_ref: "platform-admin".into(),
+            correlation_id: Uuid::new_v4(),
+            idempotency_key: "activate-holding-a".into(),
+            expected_registry_version: Some(7),
+            at,
+            human_decision: None,
+        };
+        let authorization = proof("platform.holding.provision", at);
+        assert_eq!(
+            command.validate(&authorization),
+            Err(PlatformCompletionError::InvalidField {
+                field: "human_decision"
+            })
+        );
+
+        command.human_decision = Some(
+            HumanDecisionProof::try_new(
+                ActorAttribution {
+                    principal_ref: "platform-admin".into(),
+                    kind: ActorKind::PlatformUser,
+                    session_id: Some(
+                        SessionId::try_from_uuid(Uuid::new_v4()).expect("test session"),
+                    ),
+                    represented_principal_ref: None,
+                    support_capability_id: None,
+                },
+                KernelAuthorityScope::Platform,
+                holding_activation_decision_ref(command_id, "holding-a", 6),
+                at,
+            )
+            .expect("human decision"),
+        );
+        assert_eq!(
+            command.validate(&authorization),
+            Err(PlatformCompletionError::InvalidField {
+                field: "human_decision"
+            })
         );
     }
 

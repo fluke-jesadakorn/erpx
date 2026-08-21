@@ -1226,13 +1226,55 @@ fn valid_human_decision(request: &SupportCommit) -> bool {
                 && session.approved_by() == Some(decision.principal_ref())
                 && session.approved_at() == Some(decision.decided_at())
         }
-        (CommandFingerprint::ApproveSession { .. }, _, _) | (_, _, Some(_)) => false,
+        (
+            CommandFingerprint::TransitionTicket { ticket_id, next },
+            SupportAggregate::Ticket(ticket),
+            Some(decision),
+        ) => {
+            ticket.id() == *ticket_id
+                && decision.actor() == &request.actor
+                && decision.authority_scope() == ticket.scope()
+                && decision.decision_ref()
+                    == erpx_support::ticket_transition_decision_ref(
+                        request.identity.command_id,
+                        *ticket_id,
+                        request.expected_version.unwrap_or(0),
+                        *next,
+                    )
+                && decision.decided_at() == ticket.updated_at()
+        }
+        (
+            CommandFingerprint::TransitionIncident { incident_id, next },
+            SupportAggregate::Incident(incident),
+            Some(decision),
+        ) => {
+            incident.id() == *incident_id
+                && decision.actor() == &request.actor
+                && decision.authority_scope() == incident.scope()
+                && decision.decision_ref()
+                    == erpx_support::incident_transition_decision_ref(
+                        request.identity.command_id,
+                        *incident_id,
+                        request.expected_version.unwrap_or(0),
+                        *next,
+                    )
+                && decision.decided_at() == incident.updated_at()
+        }
+        (CommandFingerprint::ApproveSession { .. }, _, _)
+        | (CommandFingerprint::TransitionTicket { .. }, _, _)
+        | (CommandFingerprint::TransitionIncident { .. }, _, _)
+        | (_, _, Some(_)) => false,
         (_, _, None) => true,
     }
 }
 
 fn requires_human_decision(fingerprint: &CommandFingerprint) -> bool {
-    matches!(fingerprint, CommandFingerprint::ApproveSession { .. })
+    matches!(
+        fingerprint,
+        CommandFingerprint::ApproveSession { .. }
+            | CommandFingerprint::TransitionTicket { .. }
+            | CommandFingerprint::TransitionIncident { .. }
+    )
 }
 
 fn human_decision_payload(decision: &HumanDecisionProof) -> Value {

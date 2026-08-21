@@ -3,7 +3,10 @@ use erpx_cqrs::{
     CommandEnvelope, CommandHandler, CommandReceipt, CqrsError, QueryEnvelope, QueryHandler,
     QueryMetadata, QueryResult,
 };
-use erpx_kernel::{AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, KernelError};
+use erpx_kernel::{
+    AuthorityScope, Clock, CorrelationId, ErrorCategory, ErrorContext, HumanDecisionProof,
+    KernelError,
+};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -177,6 +180,8 @@ pub enum MarketingApplicationError {
     InvalidPageSize,
     #[error("Marketing integration mapping failed")]
     IntegrationMapping,
+    #[error("lead rejection requires an authenticated human decision bound to this command")]
+    HumanDecisionRequired,
     #[error(transparent)]
     Port(#[from] PortError),
 }
@@ -363,6 +368,39 @@ where
             idempotency_key: envelope.idempotency_key.clone(),
             fingerprint,
         };
+        if matches!(envelope.command, MarketingCommand::Reject(_))
+            && envelope.expected_aggregate_version.is_none()
+        {
+            return Err(to_cqrs(
+                MarketingApplicationError::MissingExpectedVersion,
+                correlation,
+            ));
+        }
+        // Construct human-only evidence before receipt lookup so replay cannot
+        // authorize a non-human, sessionless, represented, or support actor.
+        let decision_at =
+            matches!(envelope.command, MarketingCommand::Reject(_)).then(|| self.clock.now());
+        let human_decision = match (&envelope.command, decision_at) {
+            (MarketingCommand::Reject(command), Some(at)) => Some(
+                HumanDecisionProof::try_new(
+                    envelope.actor.clone(),
+                    envelope.active_scope.clone(),
+                    crate::domain::lead_rejection_decision_ref(
+                        envelope.command_id,
+                        command.lead_id,
+                        envelope.expected_aggregate_version.unwrap_or(0),
+                    ),
+                    at,
+                )
+                .map_err(|_| {
+                    to_cqrs(
+                        MarketingApplicationError::HumanDecisionRequired,
+                        correlation,
+                    )
+                })?,
+            ),
+            _ => None,
+        };
         if let Some(stored) = self
             .replay(&identity, &envelope.actor, &envelope.active_scope, action)
             .await
@@ -373,7 +411,7 @@ where
             return Ok(stored.into_receipt(response));
         }
 
-        let at = self.clock.now();
+        let at = decision_at.unwrap_or_else(|| self.clock.now());
         let (mut aggregate, expected) = match envelope.command {
             MarketingCommand::Create(c) => {
                 if envelope.expected_aggregate_version.is_some() {
@@ -452,8 +490,14 @@ where
                     )
                     .await?;
                 let expected = Some(value.version());
+                let decision = human_decision.as_ref().ok_or_else(|| {
+                    to_cqrs(
+                        MarketingApplicationError::HumanDecisionRequired,
+                        correlation,
+                    )
+                })?;
                 value
-                    .reject(at)
+                    .reject(decision, envelope.command_id, expected.unwrap_or(0), at)
                     .map_err(|e| to_cqrs(e.into(), correlation))?;
                 (MarketingAggregate::LeadCandidate(Box::new(value)), expected)
             }
@@ -851,6 +895,7 @@ fn port_to_cqrs(error: PortError, correlation: CorrelationId) -> CqrsError {
 fn to_cqrs(error: MarketingApplicationError, correlation_id: CorrelationId) -> CqrsError {
     let (code, category, message, retryable) = match error {
         MarketingApplicationError::ScopeOutsideAuthority
+        | MarketingApplicationError::HumanDecisionRequired
         | MarketingApplicationError::Port(PortError::Denied | PortError::EntitlementDenied) => (
             "marketing.denied",
             ErrorCategory::Denied,

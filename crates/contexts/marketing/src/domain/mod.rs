@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use erpx_integration_contracts::{
     BoundedContext, DimensionSet, MoneyAmount, RecordRef, marketing, operations,
 };
-use erpx_kernel::AuthorityScope;
+use erpx_kernel::{AuthorityScope, CommandId, HumanDecisionProof};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
@@ -282,13 +282,49 @@ impl LeadCandidate {
         Ok(())
     }
 
-    pub fn reject(&mut self, at: DateTime<Utc>) -> Result<(), MarketingDomainError> {
+    pub fn reject(
+        &mut self,
+        decision: &HumanDecisionProof,
+        command_id: CommandId,
+        expected_version: u64,
+        at: DateTime<Utc>,
+    ) -> Result<(), MarketingDomainError> {
+        if decision.authority_scope() != &self.scope
+            || decision.decision_ref()
+                != lead_rejection_decision_ref(command_id, self.id, expected_version)
+            || decision.decided_at() != at
+        {
+            return Err(MarketingDomainError::InvalidTransition);
+        }
         if self.status != LeadCandidateStatus::Captured {
             return Err(MarketingDomainError::InvalidTransition);
         }
         self.advance(at)?;
         self.status = LeadCandidateStatus::Rejected;
         Ok(())
+    }
+
+    #[cfg(test)]
+    fn reject_for_test(&mut self, at: DateTime<Utc>) -> Result<(), MarketingDomainError> {
+        use erpx_kernel::{ActorAttribution, ActorKind, SessionId};
+
+        let command_id = CommandId::try_from_uuid(Uuid::new_v4()).expect("test command id");
+        let decision = HumanDecisionProof::try_new(
+            ActorAttribution {
+                principal_ref: "marketing-test-user".into(),
+                kind: ActorKind::HoldingUser,
+                session_id: Some(
+                    SessionId::try_from_uuid(Uuid::new_v4()).expect("test session id"),
+                ),
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            self.scope.clone(),
+            lead_rejection_decision_ref(command_id, self.id, self.version),
+            at,
+        )
+        .expect("test human decision");
+        self.reject(&decision, command_id, self.version, at)
     }
 
     fn advance(&mut self, at: DateTime<Utc>) -> Result<(), MarketingDomainError> {
@@ -365,6 +401,17 @@ impl LeadCandidate {
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
     }
+}
+
+pub fn lead_rejection_decision_ref(
+    command_id: CommandId,
+    lead_id: LeadCandidateId,
+    expected_version: u64,
+) -> String {
+    format!(
+        "marketing:reject_lead_candidate:{command_id}:{}:{expected_version}",
+        lead_id.as_uuid()
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1152,7 +1199,7 @@ mod tests {
         lead.qualify(7_500, at).unwrap();
         assert_eq!(lead.status(), LeadCandidateStatus::Qualified);
         assert_eq!(
-            lead.reject(at),
+            lead.reject_for_test(at),
             Err(MarketingDomainError::InvalidTransition)
         );
     }
@@ -1174,7 +1221,7 @@ mod tests {
     fn timestamps_and_scopes_are_authoritative() {
         let mut lead = lead();
         assert_eq!(
-            lead.reject(lead.created_at() - Duration::seconds(1)),
+            lead.reject_for_test(lead.created_at() - Duration::seconds(1)),
             Err(MarketingDomainError::InvalidTimestamp)
         );
         assert!(matches!(

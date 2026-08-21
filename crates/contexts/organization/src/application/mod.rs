@@ -5,7 +5,7 @@ use erpx_cqrs::{
 };
 use erpx_kernel::{
     ActorAttribution, AuditContext, AuthorityScope, Clock, CorrelationId, ErrorCategory,
-    ErrorContext, EventId, KernelError,
+    ErrorContext, EventId, HumanDecisionProof, KernelError,
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -112,6 +112,8 @@ pub enum OrganizationApplicationError {
     InvalidPageSize,
     #[error("organization integration event mapping failed")]
     IntegrationMapping,
+    #[error("organization activation requires an authenticated human decision")]
+    HumanDecisionRequired,
     #[error(transparent)]
     Port(#[from] PortError),
 }
@@ -187,6 +189,7 @@ struct ExistingCommand {
     node_id: OrganizationNodeId,
     action: OrganizationAction,
     hierarchy_check: HierarchyCheck,
+    human_decision: Option<HumanDecisionProof>,
 }
 
 impl<W, U, A, E, H, C, S> OrganizationCommandHandler<W, U, A, E, H, C, S>
@@ -269,6 +272,9 @@ where
         F: FnOnce(
                 &mut OrganizationNode,
                 chrono::DateTime<chrono::Utc>,
+                Option<&HumanDecisionProof>,
+                erpx_kernel::CommandId,
+                u64,
             ) -> Result<(), OrganizationDomainError>
             + Send,
     {
@@ -360,8 +366,18 @@ where
             }
         };
 
-        mutate(&mut aggregate, self.clock.now())
-            .map_err(|error| to_cqrs(error.into(), command.correlation_id))?;
+        let at = command
+            .human_decision
+            .as_ref()
+            .map_or_else(|| self.clock.now(), HumanDecisionProof::decided_at);
+        mutate(
+            &mut aggregate,
+            at,
+            command.human_decision.as_ref(),
+            command.identity.command_id,
+            expected,
+        )
+        .map_err(|error| to_cqrs(error.into(), command.correlation_id))?;
         let domain_events = aggregate.take_uncommitted_events();
         let integration_events = integration::published_events(&domain_events).map_err(|_| {
             to_cqrs(
@@ -409,6 +425,29 @@ macro_rules! existing_handler {
             ) -> Result<CommandReceipt<Self::Response>, CqrsError> {
                 envelope.validate()?;
                 let command = envelope.command.clone();
+                let human_decision = if $action == OrganizationAction::Activate {
+                    let at = self.clock.now();
+                    Some(
+                        HumanDecisionProof::try_new(
+                            envelope.actor.clone(),
+                            envelope.active_scope.clone(),
+                            crate::domain::organization_node_activation_decision_ref(
+                                envelope.command_id,
+                                command.node_id,
+                                envelope.expected_aggregate_version.unwrap_or(0),
+                            ),
+                            at,
+                        )
+                        .map_err(|_| {
+                            to_cqrs(
+                                OrganizationApplicationError::HumanDecisionRequired,
+                                envelope.correlation_id,
+                            )
+                        })?,
+                    )
+                } else {
+                    None
+                };
                 let existing = ExistingCommand {
                     correlation_id: envelope.correlation_id,
                     causation_id: envelope.causation_id,
@@ -424,10 +463,11 @@ macro_rules! existing_handler {
                     node_id: command.node_id,
                     action: $action,
                     hierarchy_check: ($hierarchy)(&command),
+                    human_decision,
                 };
                 let stored = self
-                    .execute_existing(existing, |aggregate, at| {
-                        ($mutation)(aggregate, command, at)
+                    .execute_existing(existing, |aggregate, at, decision, command_id, expected| {
+                        ($mutation)(aggregate, command, at, decision, command_id, expected)
                     })
                     .await?;
                 let response = OrganizationMutationResult {
@@ -560,7 +600,7 @@ existing_handler!(
         name: command.name.clone(),
     },
     |_command: &RenameOrganizationNode| HierarchyCheck::None,
-    |aggregate: &mut OrganizationNode, command: RenameOrganizationNode, at| aggregate
+    |aggregate: &mut OrganizationNode, command: RenameOrganizationNode, at, _, _, _| aggregate
         .rename(command.name, at)
 );
 existing_handler!(
@@ -571,7 +611,7 @@ existing_handler!(
         code: command.code.clone(),
     },
     |_command: &ChangeOrganizationCode| HierarchyCheck::None,
-    |aggregate: &mut OrganizationNode, command: ChangeOrganizationCode, at| aggregate
+    |aggregate: &mut OrganizationNode, command: ChangeOrganizationCode, at, _, _, _| aggregate
         .change_code(command.code, at)
 );
 existing_handler!(
@@ -584,7 +624,7 @@ existing_handler!(
     |command: &ReparentOrganizationNode| HierarchyCheck::ReparentPlacement(
         command.placement.clone()
     ),
-    |aggregate: &mut OrganizationNode, command: ReparentOrganizationNode, at| aggregate
+    |aggregate: &mut OrganizationNode, command: ReparentOrganizationNode, at, _, _, _| aggregate
         .reparent(command.placement, at)
 );
 existing_handler!(
@@ -594,7 +634,8 @@ existing_handler!(
         node_id: command.node_id,
     },
     |_command: &SuspendOrganizationNode| HierarchyCheck::None,
-    |aggregate: &mut OrganizationNode, _command: SuspendOrganizationNode, at| aggregate.suspend(at)
+    |aggregate: &mut OrganizationNode, _command: SuspendOrganizationNode, at, _, _, _| aggregate
+        .suspend(at)
 );
 existing_handler!(
     ActivateOrganizationNode,
@@ -603,8 +644,19 @@ existing_handler!(
         node_id: command.node_id,
     },
     |_command: &ActivateOrganizationNode| HierarchyCheck::Activate,
-    |aggregate: &mut OrganizationNode, _command: ActivateOrganizationNode, at| aggregate
-        .activate(at)
+    |aggregate: &mut OrganizationNode,
+     _command: ActivateOrganizationNode,
+     at,
+     decision: Option<&HumanDecisionProof>,
+     command_id,
+     expected| {
+        let from = aggregate.status();
+        let decision = decision.ok_or(OrganizationDomainError::InvalidTransition {
+            from,
+            to: crate::domain::OrganizationNodeStatus::Active,
+        })?;
+        aggregate.activate(decision, command_id, expected, at)
+    }
 );
 existing_handler!(
     ArchiveOrganizationNode,
@@ -613,7 +665,8 @@ existing_handler!(
         node_id: command.node_id,
     },
     |_command: &ArchiveOrganizationNode| HierarchyCheck::Archive,
-    |aggregate: &mut OrganizationNode, _command: ArchiveOrganizationNode, at| aggregate.archive(at)
+    |aggregate: &mut OrganizationNode, _command: ArchiveOrganizationNode, at, _, _, _| aggregate
+        .archive(at)
 );
 
 pub struct OrganizationQueryHandler<R, A, E, S = PlacementScopeContainment> {
@@ -822,6 +875,7 @@ fn to_cqrs(error: OrganizationApplicationError, correlation_id: CorrelationId) -
             false,
         ),
         OrganizationApplicationError::ScopeOutsideAuthority
+        | OrganizationApplicationError::HumanDecisionRequired
         | OrganizationApplicationError::Port(PortError::Denied)
         | OrganizationApplicationError::Port(PortError::EntitlementDenied) => (
             "organization.denied",

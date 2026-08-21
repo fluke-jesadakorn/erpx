@@ -7,7 +7,7 @@ mod routing;
 pub use admin_context::{AdminContextId, AdminContextStatus, HoldingAdminContext};
 pub use connector::{
     ConnectorBinding, ConnectorBindingId, ConnectorKind, ConnectorReadinessEvidence,
-    ConnectorScope, ConnectorState, ConnectorTransition,
+    ConnectorScope, ConnectorState, ConnectorTransition, connector_transition_decision_ref,
 };
 pub use governance::{
     PlatformGovernanceRecord, PlatformGovernanceRecordError, PlatformGovernanceRecordKind,
@@ -15,7 +15,7 @@ pub use governance::{
 };
 pub use holding::{
     EnvironmentId, HoldingLifecycleAction, HoldingLifecycleState, PlatformHolding,
-    PlatformHoldingId,
+    PlatformHoldingId, holding_transition_decision_ref,
 };
 pub use routing::{
     DataPlaneDeploymentMode, DataPlaneRoute, DataPlaneRouteCatalog, DataPlaneRouteState,
