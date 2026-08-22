@@ -28,8 +28,9 @@ pub const DEVELOPMENT_SOD_BYPASS_PERMISSION: &str = "development.sod.self-approv
 pub const DEVELOPMENT_CONTEXT_HEADER: &str = "x-erpx-dev-persona-context";
 pub const DEVELOPMENT_CONTEXT_LIFETIME: Duration = Duration::days(30);
 
-pub const DEVELOPMENT_CONTROLLER_READ_PERMISSIONS: [&str; 10] = [
+pub const DEVELOPMENT_CONTROLLER_READ_PERMISSIONS: [&str; 11] = [
     "platform.customer.read",
+    "platform.directory.read",
     "platform.holding.read",
     "platform.infrastructure.read",
     "holding.infrastructure.read",

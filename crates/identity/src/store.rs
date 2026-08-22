@@ -4402,4 +4402,22 @@ mod rate_limit_tests {
             at,
         ));
     }
+
+    #[test]
+    fn development_holding_allowlist_preserves_platform_directory_reads() {
+        let policy = RoleAssignmentTargetPolicy::HoldingAllowlist(vec![
+            DEVELOPMENT_CONTROLLER_TARGET_HOLDING.into(),
+        ]);
+
+        assert!(role_assignment_target_allows(
+            Some(&policy),
+            "platform.directory.read",
+            None,
+        ));
+        assert!(!role_assignment_target_allows(
+            Some(&policy),
+            "platform.directory.manage",
+            None,
+        ));
+    }
 }
