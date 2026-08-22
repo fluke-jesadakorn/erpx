@@ -115,15 +115,28 @@ async fn runtime_snapshot(store: &SqlxControlPlane) -> Result<RuntimeSnapshot, s
         )
         .fetch_one(pool)
         .await?;
+    // Keep terminal evidence in the scheduler while reporting only incidents
+    // that have not been remediated by a newer successful projection run.
     let (projection_backlog, projection_retryable, projection_dead_letters): (i64, i64, i64) =
         sqlx::query_as(
             "SELECT
                 count(*) FILTER (
-                    WHERE state IN ('pending', 'claimed', 'retryable', 'rebuild_pending')
+                    WHERE job.state IN ('pending', 'claimed', 'retryable', 'rebuild_pending')
                 ),
-                count(*) FILTER (WHERE state='retryable'),
-                count(*) FILTER (WHERE state='dead_letter')
-             FROM erpx_control.holding_projection_jobs",
+                count(*) FILTER (WHERE job.state='retryable'),
+                count(*) FILTER (
+                    WHERE job.state='dead_letter'
+                      AND NOT EXISTS (
+                          SELECT 1
+                          FROM erpx_control.holding_projection_jobs AS recovery
+                          WHERE recovery.holding_id=job.holding_id
+                            AND recovery.data_profile_key=job.data_profile_key
+                            AND recovery.projection_name=job.projection_name
+                            AND recovery.state IN ('succeeded','rebuild_succeeded')
+                            AND recovery.updated_at > job.updated_at
+                      )
+                )
+             FROM erpx_control.holding_projection_jobs AS job",
         )
         .fetch_one(pool)
         .await?;

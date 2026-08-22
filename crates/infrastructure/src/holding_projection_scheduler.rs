@@ -32,7 +32,11 @@ pub const MAX_PROJECTION_STATUS_FRESHNESS_SECONDS: i64 = 300;
 pub const HOLDING_PROJECTION_PERMISSION: &str = "holding.projection.execute";
 /// current holding projections whose initial jobs must reach a terminal
 /// success before a freshly bootstrapped Server can accept traffic.
-pub const FRESH_INITIAL_HOLDING_PROJECTIONS: [&str; 27] = [
+pub const FRESH_INITIAL_HOLDING_PROJECTIONS: [&str; 31] = [
+    "operations.exceptions",
+    "operations.source_signals",
+    "operations.work_queue_policies",
+    "operations.lifecycle-records",
     "quality.inspections",
     "identity_access.principals",
     "identity_access.roles",
@@ -3010,5 +3014,15 @@ mod tests {
                 && name.len() <= MAX_PROJECTION_NAME_LENGTH
                 && !name.chars().any(char::is_control)
         }));
+        assert!(
+            [
+                "operations.exceptions",
+                "operations.source_signals",
+                "operations.work_queue_policies",
+                "operations.lifecycle-records",
+            ]
+            .into_iter()
+            .all(|name| FRESH_INITIAL_HOLDING_PROJECTIONS.contains(&name))
+        );
     }
 }

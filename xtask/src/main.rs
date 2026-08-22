@@ -65,6 +65,13 @@ const DATA_PROFILE_KEY: &str = "demo-holding-v6";
 const RESTRICTED_HOLDING_ID: &str = "4017ec64-6620-50e2-bfdc-14d0a9b3c414";
 const RESTRICTED_DATA_PROFILE_KEY: &str = "beacon-holding-v6";
 const FIXTURE_VERSION: &str = "erpx-demo-v7";
+const DEV_REQUIRED_HOLDING_PROJECTIONS: [&str; 5] = [
+    "operations.exceptions",
+    "operations.source_signals",
+    "operations.work_queue_policies",
+    "operations.lifecycle-records",
+    "item_directory",
+];
 const DEV_STATE_VERSION: u32 = 3;
 const WEB_LAUNCH_CONTRACT_VERSION: u32 = 4;
 const WEB_SESSION_CACHE_CONTRACT_VERSION: u32 = 1;
@@ -1834,7 +1841,7 @@ async fn seed_demo(root: &Path, config: &DevConfig) -> TaskResult {
     Ok(())
 }
 
-async fn reconcile_item_directory_projection_job(
+async fn reconcile_required_projection_jobs(
     config: &DevConfig,
     fresh_runtime: Option<&FreshRuntimeManifest>,
     actor_ref: &str,
@@ -1885,10 +1892,10 @@ async fn reconcile_item_directory_projection_job(
     }));
     let authorization = ProjectionSchedulerAuthorization::new(
         actor_ref,
-        "reconcile local Item Directory projection",
+        "reconcile required local holding projections",
         Uuid::new_v5(
             &Uuid::NAMESPACE_URL,
-            format!("erpx:dev:{FIXTURE_VERSION}:item-directory").as_bytes(),
+            format!("erpx:dev:{FIXTURE_VERSION}:required-holding-projections").as_bytes(),
         ),
     )?;
     let repository = HoldingProjectionSchedulerRepository::new(
@@ -1899,25 +1906,35 @@ async fn reconcile_item_directory_projection_job(
     let policy = ProjectionPolicy::new(500, 10, 10, 1, 60)?;
     let now = Utc::now();
     for (holding_id, data_profile_key, canonical_holding_id) in bindings {
-        repository
-            .schedule(
-                ProjectionScheduleRequest {
-                    binding: HoldingHoldingBinding::new(holding_id, data_profile_key)?,
-                    projection_name: "item_directory".into(),
-                    job_key: format!("dev-reconcile:{FIXTURE_VERSION}:item-directory-current-v1"),
-                    kind: ProjectionJobKind::Incremental,
-                    available_at: chrono::DateTime::UNIX_EPOCH,
-                    policy,
-                    payload: serde_json::json!({
-                        "canonical_holding_id": canonical_holding_id,
-                    }),
-                },
-                now,
-            )
-            .await?;
+        let binding = HoldingHoldingBinding::new(holding_id, data_profile_key)?;
+        for projection_name in DEV_REQUIRED_HOLDING_PROJECTIONS {
+            let payload = if projection_name == "item_directory" {
+                serde_json::json!({
+                    "canonical_holding_id": canonical_holding_id,
+                })
+            } else {
+                serde_json::json!({})
+            };
+            repository
+                .schedule(
+                    ProjectionScheduleRequest {
+                        binding: binding.clone(),
+                        projection_name: projection_name.into(),
+                        job_key: format!(
+                            "dev-reconcile:{FIXTURE_VERSION}:{projection_name}-current-v1"
+                        ),
+                        kind: ProjectionJobKind::Incremental,
+                        available_at: chrono::DateTime::UNIX_EPOCH,
+                        policy,
+                        payload,
+                    },
+                    now,
+                )
+                .await?;
+        }
     }
     write.close().await;
-    println!("dev Item Directory projection: scheduled or already current");
+    println!("dev required holding projections: scheduled or already current");
     Ok(())
 }
 
@@ -2503,7 +2520,7 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
             println!("dev access fixture: reused ({:?})", phase.elapsed());
         }
     }
-    reconcile_item_directory_projection_job(config, fresh_runtime.as_ref(), &projection_actor_ref)
+    reconcile_required_projection_jobs(config, fresh_runtime.as_ref(), &projection_actor_ref)
         .await?;
 
     let phase = Instant::now();
@@ -5151,16 +5168,30 @@ async fn verify_runtime_readiness(root: &Path, config: &DevConfig) -> TaskResult
         .into());
     }
 
+    // Dead-letter rows remain durable evidence. A newer successful run of the
+    // same projection resolves the current readiness incident without
+    // rewriting that history.
     let projection_states: (i64, i64, i64, i64) = sqlx::query_as(
         "SELECT
-            count(*) FILTER (WHERE state='retryable'),
-            count(*) FILTER (WHERE state='dead_letter'),
-            count(*) FILTER (WHERE state='claimed' AND lease_until <= now()),
+            count(*) FILTER (WHERE job.state='retryable'),
             count(*) FILTER (
-                WHERE state IN ('pending', 'rebuild_pending')
-                  AND available_at < now() - interval '60 seconds'
+                WHERE job.state='dead_letter'
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM erpx_control.holding_projection_jobs AS recovery
+                      WHERE recovery.holding_id=job.holding_id
+                        AND recovery.data_profile_key=job.data_profile_key
+                        AND recovery.projection_name=job.projection_name
+                        AND recovery.state IN ('succeeded','rebuild_succeeded')
+                        AND recovery.updated_at > job.updated_at
+                  )
+            ),
+            count(*) FILTER (WHERE job.state='claimed' AND job.lease_until <= now()),
+            count(*) FILTER (
+                WHERE job.state IN ('pending', 'rebuild_pending')
+                  AND job.available_at < now() - interval '60 seconds'
             )
-         FROM erpx_control.holding_projection_jobs",
+         FROM erpx_control.holding_projection_jobs AS job",
     )
     .fetch_one(&write)
     .await
