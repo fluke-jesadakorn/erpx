@@ -547,6 +547,7 @@ pub fn permission_catalog() -> Vec<PermissionCatalogEntry> {
             ) {
                 permissions.extend(suggestion_apply_permissions(unit).map(str::to_owned));
             }
+            permissions.extend(workspace_reference_read_permissions(unit).map(str::to_owned));
             entries.push(PermissionCatalogEntry {
                 role_key: format!("{unit}_{}", level.as_str()),
                 target_scope: DirectoryRoleTargetScope::Branch,
@@ -555,6 +556,16 @@ pub fn permission_catalog() -> Vec<PermissionCatalogEntry> {
         }
     }
     entries
+}
+
+fn workspace_reference_read_permissions(unit: &str) -> impl Iterator<Item = &'static str> {
+    let permissions: &'static [&'static str] = match unit {
+        "operations" => &["operations.exception.read"],
+        "inventory" => &["inventory.document.read"],
+        "marketing-crm" => &["marketing.campaign.read"],
+        _ => &[],
+    };
+    permissions.iter().copied()
 }
 
 fn suggestion_apply_permissions(unit: &str) -> impl Iterator<Item = &'static str> {
@@ -1355,6 +1366,30 @@ mod tests {
                     .all(|permission| !permission.ends_with(".suggestion.apply")),
                 "{role} must stay review-only"
             );
+        }
+    }
+
+    #[test]
+    fn workspace_roles_include_their_reference_owner_read_permission() {
+        let catalog = permission_catalog();
+        for (unit, permission) in [
+            ("operations", "operations.exception.read"),
+            ("inventory", "inventory.document.read"),
+            ("marketing-crm", "marketing.campaign.read"),
+        ] {
+            for level in BusinessUnitRoleLevel::ALL {
+                let role_key = format!("{unit}_{}", level.as_str());
+                let role = catalog
+                    .iter()
+                    .find(|entry| entry.role_key == role_key)
+                    .unwrap_or_else(|| panic!("missing {role_key}"));
+                assert!(
+                    role.permissions
+                        .iter()
+                        .any(|candidate| candidate == permission),
+                    "{role_key} is missing {permission}"
+                );
+            }
         }
     }
 
