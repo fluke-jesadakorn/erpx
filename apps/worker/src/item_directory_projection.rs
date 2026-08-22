@@ -270,9 +270,10 @@ impl ItemDirectoryHoldingProjectionExecutor {
             .map(Uuid::parse_str)
             .transpose()
             .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
-        let holding_uuid = write.canonical_holding_id;
-        if holding_uuid.is_nil()
-            || read.canonical_holding_id != holding_uuid
+        let holding_uuid = write
+            .canonical_holding_id
+            .ok_or(HoldingProjectionExecutorError::Permanent)?;
+        if read.canonical_holding_id != Some(holding_uuid)
             || payload_holding_uuid.is_some_and(|value| value != holding_uuid)
         {
             return Err(HoldingProjectionExecutorError::Permanent);

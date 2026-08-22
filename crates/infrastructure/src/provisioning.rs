@@ -3102,9 +3102,9 @@ pub struct RoutedHoldingDatabase {
     pool: sqlx::PgPool,
     pub holding_id: String,
     /// Canonical domain holding identity authorized by the control-plane
-    /// customer/holding binding. This may differ from the opaque physical
-    /// route identity used by the registry.
-    pub canonical_holding_id: Uuid,
+    /// customer/holding binding. Legacy infrastructure-only routes can remain
+    /// unbound, but consumers of domain data must reject `None`.
+    pub canonical_holding_id: Option<Uuid>,
     pub data_profile_key: String,
     pub database_key: String,
     pub side: RoutedDatabaseSide,
@@ -3114,7 +3114,7 @@ impl HoldingDatabaseRouter {
     async fn canonical_holding_id_for_route(
         &self,
         holding_id: &str,
-    ) -> Result<Uuid, PersistenceError> {
+    ) -> Result<Option<Uuid>, PersistenceError> {
         let canonical = sqlx::query_scalar::<_, Uuid>(
             "SELECT canonical_holding_id
              FROM erpx_control.customer_holding_bindings
@@ -3123,17 +3123,11 @@ impl HoldingDatabaseRouter {
         .bind(holding_id)
         .fetch_optional(&self.control.pools().write)
         .await?;
-        canonical
-            .or_else(|| {
-                Uuid::parse_str(holding_id)
-                    .ok()
-                    .filter(|value| !value.is_nil())
-            })
-            .ok_or_else(|| {
-                PersistenceError::InvalidData(
-                    "holding route has no canonical holding identity".into(),
-                )
-            })
+        Ok(canonical.or_else(|| {
+            Uuid::parse_str(holding_id)
+                .ok()
+                .filter(|value| !value.is_nil())
+        }))
     }
 
     pub fn new(
