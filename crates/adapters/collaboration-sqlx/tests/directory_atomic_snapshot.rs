@@ -248,6 +248,7 @@ async fn prove_future_facts_are_checkpoint_fenced(
     }
     let search_request = DirectorySearchRequest {
         query: "checkpoint future".into(),
+        record_type: None,
         page_size: 10,
         cursor: None,
     };

@@ -564,14 +564,22 @@ fn ProtectedRouteSurface(query: RouteQuery) -> Element {
         RouteQuery::Workspace {
             workspace,
             resource: Some(resource),
-        } => Some(format!("/{workspace}/{resource}")),
+        } if *workspace != Workspace::Ai => Some(format!("/{workspace}/{resource}")),
+        RouteQuery::Workspace {
+            workspace: Workspace::Ai,
+            resource: Some(_),
+        } => None,
         RouteQuery::Workspace {
             workspace,
             resource: None,
-        } => Some(format!(
+        } if *workspace != Workspace::Ai => Some(format!(
             "/{workspace}/{}",
             default_workspace_resource(*workspace)
         )),
+        RouteQuery::Workspace {
+            workspace: Workspace::Ai,
+            resource: None,
+        } => None,
         RouteQuery::PlatformHoldings => Some("/platform/holdings".to_owned()),
         _ => None,
     };
@@ -5507,27 +5515,27 @@ const fn workspace_label(workspace: Workspace, locale: Locale) -> &'static str {
 
 const fn default_workspace_resource(workspace: Workspace) -> &'static str {
     match workspace {
-        Workspace::Operations => "exceptions",
-        Workspace::Finance => "journal-entries",
-        Workspace::Sales => "orders",
-        Workspace::Procurement => "purchase-orders",
-        Workspace::Inventory => "stock-items",
-        Workspace::Asset => "assets",
-        Workspace::Maintenance => "work-orders",
-        Workspace::Quality => "inspections",
-        Workspace::Marketing => "campaigns",
-        Workspace::People => "employees",
-        Workspace::Pos => "sales",
-        Workspace::Legal => "contracts",
-        Workspace::Manufacturing => "production-orders",
-        Workspace::Planning => "demand-plans",
-        Workspace::Project => "projects",
-        Workspace::Commerce => "listings",
-        Workspace::Talent => "candidates",
-        Workspace::Learning => "enrollments",
-        Workspace::Benefits => "benefit-plans",
-        Workspace::FieldService => "service-orders",
-        Workspace::Ai => "conversations",
+        Workspace::Operations => "exception",
+        Workspace::Finance => "journal",
+        Workspace::Sales => "order",
+        Workspace::Procurement => "purchase-order",
+        Workspace::Inventory => "document",
+        Workspace::Asset => "asset",
+        Workspace::Maintenance => "work-order",
+        Workspace::Quality => "inspection",
+        Workspace::Marketing => "campaign",
+        Workspace::People => "employee",
+        Workspace::Pos => "sale",
+        Workspace::Legal => "contract",
+        Workspace::Manufacturing => "order",
+        Workspace::Planning => "demand-plan",
+        Workspace::Project => "project",
+        Workspace::Commerce => "catalog-publication",
+        Workspace::Talent => "candidate",
+        Workspace::Learning => "enrollment",
+        Workspace::Benefits => "plan",
+        Workspace::FieldService => "visit",
+        Workspace::Ai => "thread",
     }
 }
 
@@ -5547,27 +5555,26 @@ fn humanize_resource(value: &str) -> String {
 
 fn localized_resource_label(value: &str, locale: Locale) -> String {
     let label = match (value, locale) {
-        ("exceptions", Locale::Th) => "ข้อยกเว้น",
-        ("journal-entries", Locale::Th) => "รายการสมุดรายวัน",
-        ("orders", Locale::Th) => "คำสั่งซื้อ",
-        ("purchase-orders", Locale::Th) => "ใบสั่งซื้อ",
-        ("stock-items", Locale::Th) => "รายการสินค้าคงคลัง",
-        ("assets", Locale::Th) => "สินทรัพย์",
-        ("work-orders", Locale::Th) => "ใบงาน",
-        ("inspections", Locale::Th) => "การตรวจสอบ",
-        ("campaigns", Locale::Th) => "แคมเปญ",
-        ("employees", Locale::Th) => "พนักงาน",
-        ("sales", Locale::Th) => "รายการขาย",
-        ("contracts", Locale::Th) => "สัญญา",
-        ("production-orders", Locale::Th) => "คำสั่งผลิต",
-        ("demand-plans", Locale::Th) => "แผนอุปสงค์",
-        ("projects", Locale::Th) => "โครงการ",
-        ("listings", Locale::Th) => "รายการสินค้าออนไลน์",
-        ("candidates", Locale::Th) => "ผู้สมัคร",
-        ("enrollments", Locale::Th) => "การลงทะเบียน",
-        ("benefit-plans", Locale::Th) => "แผนสวัสดิการ",
-        ("service-orders", Locale::Th) => "ใบงานบริการ",
-        ("conversations", Locale::Th) => "บทสนทนา",
+        ("exception" | "exceptions", Locale::Th) => "ข้อยกเว้น",
+        ("journal" | "journal-entries", Locale::Th) => "รายการสมุดรายวัน",
+        ("order" | "orders", Locale::Th) => "คำสั่งซื้อ",
+        ("purchase-order" | "purchase-orders", Locale::Th) => "ใบสั่งซื้อ",
+        ("document" | "stock-items", Locale::Th) => "เอกสารสินค้าคงคลัง",
+        ("asset" | "assets", Locale::Th) => "สินทรัพย์",
+        ("work-order" | "work-orders", Locale::Th) => "ใบงาน",
+        ("inspection" | "inspections", Locale::Th) => "การตรวจสอบ",
+        ("campaign" | "campaigns", Locale::Th) => "แคมเปญ",
+        ("employee" | "employees", Locale::Th) => "พนักงาน",
+        ("sale" | "sales", Locale::Th) => "รายการขาย",
+        ("contract" | "contracts", Locale::Th) => "สัญญา",
+        ("demand-plan" | "demand-plans", Locale::Th) => "แผนอุปสงค์",
+        ("project" | "projects", Locale::Th) => "โครงการ",
+        ("catalog-publication" | "listings", Locale::Th) => "รายการสินค้าออนไลน์",
+        ("candidate" | "candidates", Locale::Th) => "ผู้สมัคร",
+        ("enrollment" | "enrollments", Locale::Th) => "การลงทะเบียน",
+        ("plan" | "benefit-plans", Locale::Th) => "แผนสวัสดิการ",
+        ("visit" | "service-orders", Locale::Th) => "ใบงานบริการ",
+        ("thread" | "conversations", Locale::Th) => "บทสนทนา",
         _ => return humanize_resource(value),
     };
     label.to_owned()
@@ -6028,7 +6035,7 @@ mod tests {
         };
         let thai_heading = route_heading(&thai_route, "unused", Locale::Th);
         let thai = route_unavailable_copy(&thai_route, &thai_heading, Locale::Th);
-        assert_eq!(thai.title, "สินค้าคงคลัง · รายการสินค้าคงคลัง ยังไม่พร้อมใช้งาน");
+        assert_eq!(thai.title, "สินค้าคงคลัง · เอกสารสินค้าคงคลัง ยังไม่พร้อมใช้งาน");
         assert!(thai.reason.contains("แหล่งข้อมูลที่เชื่อถือได้"));
         assert!(thai.reason.contains("ไม่มีการแสดงข้อมูล"));
     }

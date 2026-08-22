@@ -92,6 +92,7 @@ pub(crate) mod server {
     use chrono::{DateTime, Utc};
     use dioxus::fullstack::FullstackContext;
     use dioxus::server::axum::http::{HeaderName, HeaderValue, header};
+    use erpx_delivery_contract::{QueryRequest, RouteQuery, Workspace};
     use erpx_proto::{
         common::{
             ActorAttribution, ActorKind, AuditContext, AuthorityScope, EventualConsistency,
@@ -564,6 +565,92 @@ pub(crate) mod server {
             message: message.into(),
             reason_code: Some(reason_code.into()),
         }
+    }
+
+    async fn workspace_contribution(
+        workspace: Workspace,
+        domain: WorkDomain,
+        label: &str,
+        thai: bool,
+    ) -> SourceResult {
+        let request = QueryRequest {
+            route: RouteQuery::Workspace {
+                workspace,
+                resource: None,
+            },
+            cursor: None,
+            limit: 1,
+            locale: if thai { "th" } else { "en" }.into(),
+        };
+        match crate::workspace_delivery::query_route(&request).await {
+            Ok(data) if matches!(data.freshness_tag.as_str(), "fresh" | "stale") => {
+                let freshness = if data.freshness_tag == "stale" {
+                    ReadModelFreshness::Stale
+                } else {
+                    ReadModelFreshness::Current
+                };
+                SourceResult {
+                    items: Vec::new(),
+                    contribution: contribution(
+                        domain,
+                        label,
+                        0,
+                        freshness,
+                        !data.page.items.is_empty() || data.page.next_cursor.is_some(),
+                        thai,
+                    ),
+                    projection: None,
+                }
+            }
+            _ => SourceResult {
+                items: Vec::new(),
+                contribution: unavailable_contribution(
+                    domain,
+                    label,
+                    "workspace_projection_unavailable",
+                    thai,
+                ),
+                projection: None,
+            },
+        }
+    }
+
+    pub(super) fn queue_health(
+        contributions: &[WorkSourceContribution],
+        total: u32,
+    ) -> (ReadModelAvailability, ReadModelFreshness) {
+        if contributions.is_empty() {
+            return (ReadModelAvailability::Empty, ReadModelFreshness::Current);
+        }
+        let successful_sources = contributions
+            .iter()
+            .filter(|source| source.availability != ReadModelAvailability::Unavailable)
+            .count();
+        let availability = if successful_sources == 0 {
+            ReadModelAvailability::Unavailable
+        } else if contributions.iter().any(|source| {
+            matches!(
+                source.availability,
+                ReadModelAvailability::Partial | ReadModelAvailability::Unavailable
+            )
+        }) {
+            ReadModelAvailability::Partial
+        } else if total == 0 {
+            ReadModelAvailability::Empty
+        } else {
+            ReadModelAvailability::Available
+        };
+        let freshness = if successful_sources == 0 {
+            ReadModelFreshness::Unknown
+        } else if contributions
+            .iter()
+            .any(|source| source.freshness == ReadModelFreshness::Stale)
+        {
+            ReadModelFreshness::Stale
+        } else {
+            ReadModelFreshness::Current
+        };
+        (availability, freshness)
     }
 
     async fn support_incidents(
@@ -1207,43 +1294,46 @@ pub(crate) mod server {
             }
         }
 
-        for (path, domain, english, thai_label) in [
+        for (path, workspace, domain, english, thai_label) in [
             (
                 "/finance",
+                Workspace::Finance,
                 WorkDomain::Finance,
                 "Finance close reviews",
                 "การตรวจสอบปิดบัญชี",
             ),
             (
                 "/people",
+                Workspace::People,
                 WorkDomain::People,
                 "People approvals",
                 "การอนุมัติด้านบุคลากร",
             ),
             (
                 "/maintenance",
+                Workspace::Maintenance,
                 WorkDomain::Maintenance,
                 "Maintenance work orders",
                 "ใบงานบำรุงรักษา",
             ),
             (
                 "/procurement",
+                Workspace::Procurement,
                 WorkDomain::Procurement,
                 "Procurement approvals",
                 "การอนุมัติจัดซื้อ",
             ),
         ] {
             if route_item(&groups, path).is_some() {
-                results.push(SourceResult {
-                    items: Vec::new(),
-                    contribution: unavailable_contribution(
+                results.push(
+                    workspace_contribution(
+                        workspace,
                         domain,
                         if thai { thai_label } else { english },
-                        "not_connected",
                         thai,
-                    ),
-                    projection: None,
-                });
+                    )
+                    .await,
+                );
             }
         }
 
@@ -1289,34 +1379,7 @@ pub(crate) mod server {
             .iter()
             .map(|source| source.contribution.clone())
             .collect::<Vec<_>>();
-        let successful_sources = contributions
-            .iter()
-            .filter(|source| source.availability != ReadModelAvailability::Unavailable)
-            .count();
-        let availability = if successful_sources == 0 {
-            ReadModelAvailability::Unavailable
-        } else if contributions.iter().any(|source| {
-            matches!(
-                source.availability,
-                ReadModelAvailability::Partial | ReadModelAvailability::Unavailable
-            )
-        }) {
-            ReadModelAvailability::Partial
-        } else if counters.total == 0 {
-            ReadModelAvailability::Empty
-        } else {
-            ReadModelAvailability::Available
-        };
-        let freshness = if successful_sources == 0 {
-            ReadModelFreshness::Unknown
-        } else if contributions
-            .iter()
-            .any(|source| source.freshness == ReadModelFreshness::Stale)
-        {
-            ReadModelFreshness::Stale
-        } else {
-            ReadModelFreshness::Current
-        };
+        let (availability, freshness) = queue_health(&contributions, counters.total);
         let queue = WorkQueueReadModel {
             view: request.view,
             meta: WorkQueueMeta {
@@ -1406,5 +1469,17 @@ mod tests {
         ));
         assert_eq!(unknown, "owner_request_invalid");
         assert!(!unknown.contains('@'));
+    }
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn roles_without_supported_work_sources_render_an_authoritative_empty_shell() {
+        assert_eq!(
+            server::queue_health(&[], 0),
+            (
+                erpx_ui_core::ReadModelAvailability::Empty,
+                ReadModelFreshness::Current
+            )
+        );
     }
 }

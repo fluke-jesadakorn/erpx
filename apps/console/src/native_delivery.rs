@@ -243,6 +243,7 @@ async fn native_resolve_descriptor(
             record_id: record_id.hyphenated().to_string(),
             authority_scope: Some(session.authority_scope.clone()),
             purpose: purpose.into(),
+            record_type: None,
         },
     )?;
     let response = ReferenceQueryServiceClient::new(gateway.channel())
@@ -725,6 +726,7 @@ impl CollaborationGateway for NativeGrpcGateway {
                 query: query.to_owned(),
                 page_size: 20,
                 cursor: None,
+                record_type: None,
             },
         )?;
         let response = ReferenceQueryServiceClient::new(self.channel())

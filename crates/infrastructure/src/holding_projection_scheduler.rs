@@ -32,7 +32,7 @@ pub const MAX_PROJECTION_STATUS_FRESHNESS_SECONDS: i64 = 300;
 pub const HOLDING_PROJECTION_PERMISSION: &str = "holding.projection.execute";
 /// current holding projections whose initial jobs must reach a terminal
 /// success before a freshly bootstrapped Server can accept traffic.
-pub const FRESH_INITIAL_HOLDING_PROJECTIONS: [&str; 26] = [
+pub const FRESH_INITIAL_HOLDING_PROJECTIONS: [&str; 27] = [
     "quality.inspections",
     "identity_access.principals",
     "identity_access.roles",
@@ -59,6 +59,7 @@ pub const FRESH_INITIAL_HOLDING_PROJECTIONS: [&str; 26] = [
     "people_payroll.payroll_runs",
     "pos.sales",
     "pos.refunds",
+    "item_directory",
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq)]

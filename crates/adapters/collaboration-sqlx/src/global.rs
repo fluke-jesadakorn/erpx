@@ -2029,6 +2029,7 @@ impl SqlxGlobalCollaborationGateway {
         if remaining > 0 {
             let search = DirectorySearchRequest {
                 query: query.to_owned(),
+                record_type: None,
                 page_size: u16::try_from(remaining)
                     .map_err(|_| DirectoryAdapterError::Unavailable)?,
                 cursor: None,
@@ -2175,7 +2176,7 @@ impl SqlxGlobalCollaborationGateway {
                                                AND statement_timestamp(),FALSE) AS fresh
                FROM erpx_global_collaboration_read.projection_state WHERE singleton=TRUE
              ), authorized AS MATERIALIZED (
-               SELECT descriptor.descriptor,descriptor.search_vector,
+               SELECT descriptor.descriptor,descriptor.search_vector,descriptor.record_type,
                       descriptor.source_event_position,descriptor.record_id
                FROM checkpoint
                JOIN erpx_global_collaboration_read.descriptors descriptor
@@ -2194,7 +2195,8 @@ impl SqlxGlobalCollaborationGateway {
                WHERE checkpoint.fresh
              ), matching AS MATERIALIZED (
                SELECT descriptor,source_event_position,record_id FROM authorized
-               WHERE search_vector @@ websearch_to_tsquery('simple',$2)
+               WHERE ($2='' OR search_vector @@ websearch_to_tsquery('simple',$2))
+                 AND ($5::TEXT IS NULL OR record_type=$5)
              ), authorized_count AS MATERIALIZED (
                SELECT count(*)::BIGINT AS authorized_count FROM matching
              ), page AS MATERIALIZED (
@@ -2208,6 +2210,7 @@ impl SqlxGlobalCollaborationGateway {
         .bind(&request.query)
         .bind(i64::from(request.page_size))
         .bind(offset)
+        .bind(request.record_type.as_deref())
         .fetch_all(&mut *transaction)
         .await
         .map_err(|_| DirectoryAdapterError::Unavailable)?;

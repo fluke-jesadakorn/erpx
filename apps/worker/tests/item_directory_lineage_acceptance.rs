@@ -790,6 +790,7 @@ async fn assert_visible(
             access,
             &DirectorySearchRequest {
                 query: "lineage".into(),
+                record_type: None,
                 page_size: 10,
                 cursor: None,
             },
@@ -819,6 +820,7 @@ async fn assert_denied_before_payload_and_count(
             access,
             &DirectorySearchRequest {
                 query: "lineage".into(),
+                record_type: None,
                 page_size: 10,
                 cursor: None,
             },

@@ -62,6 +62,9 @@ message ResolveReferenceRequest {
   string record_id = 1;
   AuthorityScope authority_scope = 2;
   string purpose = 3;
+  // Optional exact catalog type used to authorize workspace-owned details.
+  // A mismatch is indistinguishable from an absent or denied record.
+  optional string record_type = 4;
 }
 
 message ResolveReferenceResponse {
@@ -77,6 +80,10 @@ message SearchItemsRequest {
   string query = 3;
   uint32 page_size = 4;
   optional string cursor = 5;
+  // Optional exact catalog record type used by authorized workspace lists.
+  // The grant and scope joins still run before this filter, so denied records
+  // cannot affect payloads, counts, or cursors.
+  optional string record_type = 6;
 }
 
 message SearchItemsResponse {

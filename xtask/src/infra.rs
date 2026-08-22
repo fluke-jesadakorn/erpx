@@ -1823,6 +1823,10 @@ pub(crate) fn dedicated_common_environment(root: &Path) -> TaskResult<Vec<(&'sta
     let secrets = read_secrets(root)?;
     let endpoint = format!("https://localhost:{MINIO_API_PORT}");
     let ca = ca_path(root).display().to_string();
+    let branch_profile_url = format!(
+        "postgres://localhost:{POSTGRES_PORT}/postgres?sslmode=verify-full&sslrootcert={}",
+        ca_path(root).display()
+    );
     Ok(vec![
         (
             "ERPX_CONTROL_WRITE_DATABASE_URL",
@@ -1835,6 +1839,15 @@ pub(crate) fn dedicated_common_environment(root: &Path) -> TaskResult<Vec<(&'sta
         (
             "ERPX_LOCAL_INFRA_PROFILE_MANIFEST",
             local_topology_path(root).display().to_string(),
+        ),
+        ("ERPX_DATABASE_PROFILE_DEFAULT_URL", branch_profile_url),
+        (
+            "ERPX_DATABASE_PROFILE_DEFAULT_USERNAME",
+            "erpx_admin".into(),
+        ),
+        (
+            "ERPX_DATABASE_PROFILE_DEFAULT_PASSWORD",
+            secrets.postgres_admin_password.clone(),
         ),
         ("ERPX_MINIO_ENDPOINT", endpoint.clone()),
         ("ERPX_MINIO_ACCESS_KEY", secrets.minio_access_key.clone()),

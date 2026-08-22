@@ -17,7 +17,8 @@ use erpx_infrastructure::{
 use erpx_integration_contracts::{
     AUTHORITY_EVIDENCE_EVENT_TYPE, HoldingItemDirectoryFact, ITEM_DIRECTORY_FACT_VERSION,
     ITEM_DIRECTORY_OWNER_EVENT_TYPE, ITEM_DIRECTORY_PROJECTION_NAME, ItemDescriptorDraft,
-    ItemDescriptorDraftV2, organization::ORGANIZATION_LINEAGE_CHANGED_EVENT_TYPE,
+    ItemDescriptorDraftV2, catalog::record_publisher,
+    organization::ORGANIZATION_LINEAGE_CHANGED_EVENT_TYPE,
 };
 use erpx_kernel::HoldingId;
 use erpx_organization_sqlx::SNAPSHOT_EVENT_TYPE as ORGANIZATION_SNAPSHOT_EVENT_TYPE;
@@ -135,8 +136,10 @@ pub fn decode_item_directory_owner_event(
     draft
         .validate()
         .map_err(|_| ItemDirectoryProjectionError::MalformedOwnerFact)?;
-    if draft.record().id().as_uuid() != event.aggregate_id.as_uuid()
-        || draft.record().owner_context().slug() != event.context.replace('_', "-")
+    let record = draft.record();
+    let publisher = record_publisher(record.record_type().as_str());
+    if publisher.is_none_or(|publisher| publisher.owner != record.owner_context())
+        || record.owner_context().slug() != event.context.replace('_', "-")
         || draft.descriptor_version() != event.aggregate_version
     {
         return Err(ItemDirectoryProjectionError::OwnerEnvelopeMismatch);
@@ -259,8 +262,21 @@ impl ItemDirectoryHoldingProjectionExecutor {
         read: &RoutedHoldingDatabase,
     ) -> Result<(), HoldingProjectionExecutorError> {
         validate_routed_claim(claim, write, read)?;
-        let holding_uuid = Uuid::parse_str(&claim.job.binding.holding_id)
+        let payload_holding_uuid = claim
+            .job
+            .payload
+            .get("canonical_holding_id")
+            .and_then(serde_json::Value::as_str)
+            .map(Uuid::parse_str)
+            .transpose()
             .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
+        let holding_uuid = write.canonical_holding_id;
+        if holding_uuid.is_nil()
+            || read.canonical_holding_id != holding_uuid
+            || payload_holding_uuid.is_some_and(|value| value != holding_uuid)
+        {
+            return Err(HoldingProjectionExecutorError::Permanent);
+        }
         let holding_id = HoldingId::try_from_uuid(holding_uuid)
             .map_err(|_| HoldingProjectionExecutorError::Permanent)?;
         let write_pool = WritePool::for_holding(write.database_pool().clone(), holding_uuid)
@@ -569,6 +585,19 @@ mod tests {
                 .source_event_position(),
             81
         );
+    }
+
+    #[test]
+    fn owner_event_may_publish_a_cataloged_secondary_record() {
+        let holding_id = HoldingId::try_from_uuid(id()).unwrap();
+        let mut value = event();
+        let secondary_id = id();
+        value.payload["record"]["id"] = serde_json::Value::String(secondary_id.to_string());
+        let publication = decode_item_directory_owner_event(holding_id, &value).unwrap();
+        let ItemDirectoryFact::DescriptorChanged(changed) = publication.fact else {
+            panic!("owner draft must materialize as a descriptor change");
+        };
+        assert_eq!(changed.descriptor.record().id().as_uuid(), secondary_id);
     }
 
     #[test]

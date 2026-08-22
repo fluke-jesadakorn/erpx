@@ -229,6 +229,14 @@ pub async fn query_route(
             Ok(context) => context,
             Err(error) => return Ok(Err(error)),
         };
+        if matches!(
+            &request.route,
+            erpx_delivery_contract::RouteQuery::Workspace { .. }
+                | erpx_delivery_contract::RouteQuery::Record { .. }
+                | erpx_delivery_contract::RouteQuery::Reference { .. }
+        ) {
+            return Ok(crate::workspace_delivery::query_route(&request).await);
+        }
         return Ok(Ok(crate::routes::route_data_for_query(&request)));
     }
 

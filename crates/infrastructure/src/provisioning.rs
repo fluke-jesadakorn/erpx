@@ -3101,12 +3101,41 @@ impl<'a> HoldingSourceRebuildLock<'a> {
 pub struct RoutedHoldingDatabase {
     pool: sqlx::PgPool,
     pub holding_id: String,
+    /// Canonical domain holding identity authorized by the control-plane
+    /// customer/holding binding. This may differ from the opaque physical
+    /// route identity used by the registry.
+    pub canonical_holding_id: Uuid,
     pub data_profile_key: String,
     pub database_key: String,
     pub side: RoutedDatabaseSide,
 }
 
 impl HoldingDatabaseRouter {
+    async fn canonical_holding_id_for_route(
+        &self,
+        holding_id: &str,
+    ) -> Result<Uuid, PersistenceError> {
+        let canonical = sqlx::query_scalar::<_, Uuid>(
+            "SELECT canonical_holding_id
+             FROM erpx_control.customer_holding_bindings
+             WHERE holding_id=$1 AND binding_state='configured'",
+        )
+        .bind(holding_id)
+        .fetch_optional(&self.control.pools().write)
+        .await?;
+        canonical
+            .or_else(|| {
+                Uuid::parse_str(holding_id)
+                    .ok()
+                    .filter(|value| !value.is_nil())
+            })
+            .ok_or_else(|| {
+                PersistenceError::InvalidData(
+                    "holding route has no canonical holding identity".into(),
+                )
+            })
+    }
+
     pub fn new(
         control: Arc<SqlxControlPlane>,
         config: HoldingDatabaseProvisioningConfig,
@@ -3392,6 +3421,7 @@ impl HoldingDatabaseRouter {
         };
         validate_database_key(&database_key, "database_key")?;
         let database_url = render_database_url(&self.config.database_url_template, &database_key)?;
+        let canonical_holding_id = self.canonical_holding_id_for_route(holding_id).await?;
         let pool = PgPoolOptions::new()
             .max_connections(10)
             .connect(&database_url)
@@ -3399,6 +3429,7 @@ impl HoldingDatabaseRouter {
         let routed = RoutedHoldingDatabase {
             pool,
             holding_id: holding_id.into(),
+            canonical_holding_id,
             data_profile_key: data_profile_key.into(),
             database_key,
             side,
@@ -3487,6 +3518,7 @@ impl HoldingDatabaseRouter {
                     &profile_key,
                     &credential_profile_key,
                 )?;
+                let canonical_holding_id = self.canonical_holding_id_for_route(holding_id).await?;
                 let pool = PgPoolOptions::new()
                     .max_connections(10)
                     .connect_with(profile.database_options(&database_key))
@@ -3494,6 +3526,7 @@ impl HoldingDatabaseRouter {
                 let routed = RoutedHoldingDatabase {
                     pool,
                     holding_id: holding_id.into(),
+                    canonical_holding_id,
                     data_profile_key: data_profile_key.into(),
                     database_key,
                     side,
@@ -3646,6 +3679,7 @@ impl HoldingDatabaseRouter {
             &self.config.database_url_template,
             candidate_read_database_key,
         )?;
+        let canonical_holding_id = self.canonical_holding_id_for_route(holding_id).await?;
         let pool = PgPoolOptions::new()
             .max_connections(10)
             .connect(&database_url)
@@ -3653,6 +3687,7 @@ impl HoldingDatabaseRouter {
         let routed = RoutedHoldingDatabase {
             pool,
             holding_id: holding_id.into(),
+            canonical_holding_id,
             data_profile_key: data_profile_key.into(),
             database_key: candidate_read_database_key.into(),
             side: RoutedDatabaseSide::Read,

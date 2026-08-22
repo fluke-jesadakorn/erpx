@@ -261,6 +261,7 @@ impl FutureEnterpriseGrpcGateway {
                 record_id: id.clone(),
                 authority_scope: Some(requested_scope.clone()),
                 purpose: "future_workspace_detail".into(),
+                record_type: None,
             })?)
             .await
             .map_err(map_status)?
@@ -611,6 +612,7 @@ impl EnterpriseWorkspaceGateway for FutureEnterpriseGrpcGateway {
                 query: family.segment.into(),
                 page_size,
                 cursor,
+                record_type: None,
             })?)
             .await
             .map_err(map_status)?

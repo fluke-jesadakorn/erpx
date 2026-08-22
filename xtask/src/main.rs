@@ -29,7 +29,9 @@ use erpx_identity::{
     apply_identity_migration,
 };
 use erpx_infrastructure::{
-    ControlPlanePools, FRESH_INITIAL_HOLDING_PROJECTIONS, HoldingStoreRegistration,
+    ControlPlanePools, FRESH_INITIAL_HOLDING_PROJECTIONS, HoldingHoldingBinding,
+    HoldingProjectionSchedulerRepository, HoldingStoreRegistration, ProjectionJobKind,
+    ProjectionPolicy, ProjectionScheduleRequest, ProjectionSchedulerAuthorization,
     SqlxControlPlane, SqlxHoldingAdministrationStore, SqlxHoldingStoreRegistry,
     holding_holding_scope_id,
 };
@@ -1832,6 +1834,93 @@ async fn seed_demo(root: &Path, config: &DevConfig) -> TaskResult {
     Ok(())
 }
 
+async fn reconcile_item_directory_projection_job(
+    config: &DevConfig,
+    fresh_runtime: Option<&FreshRuntimeManifest>,
+    actor_ref: &str,
+) -> TaskResult {
+    let (control_write_database, control_read_database, route_bindings) = fresh_runtime
+        .map_or_else(
+            || {
+                (
+                    DATABASES[0],
+                    DATABASES[1],
+                    vec![
+                        (HOLDING_ID.to_owned(), DATA_PROFILE_KEY.to_owned()),
+                        (
+                            RESTRICTED_HOLDING_ID.to_owned(),
+                            RESTRICTED_DATA_PROFILE_KEY.to_owned(),
+                        ),
+                    ],
+                )
+            },
+            |manifest| {
+                (
+                    manifest.control_write_database.as_str(),
+                    manifest.control_read_database.as_str(),
+                    vec![(
+                        manifest.holding_id.clone(),
+                        manifest.data_profile_key.clone(),
+                    )],
+                )
+            },
+        );
+    let write = pool(&config.database_url(control_write_database)).await?;
+    let read = pool(&config.database_url(control_read_database)).await?;
+    let mut bindings = Vec::with_capacity(route_bindings.len());
+    for (holding_id, data_profile_key) in route_bindings {
+        let canonical_holding_id = sqlx::query_scalar::<_, Uuid>(
+            "SELECT canonical_holding_id
+             FROM erpx_control.holding_summary_projection
+             WHERE holding_id=$1 AND configuration_state='configured'",
+        )
+        .bind(&holding_id)
+        .fetch_one(&write)
+        .await?;
+        bindings.push((holding_id, data_profile_key, canonical_holding_id));
+    }
+    let control = std::sync::Arc::new(SqlxControlPlane::new(ControlPlanePools {
+        write: write.clone(),
+        read,
+    }));
+    let authorization = ProjectionSchedulerAuthorization::new(
+        actor_ref,
+        "reconcile local Item Directory projection",
+        Uuid::new_v5(
+            &Uuid::NAMESPACE_URL,
+            format!("erpx:dev:{FIXTURE_VERSION}:item-directory").as_bytes(),
+        ),
+    )?;
+    let repository = HoldingProjectionSchedulerRepository::new(
+        write.clone(),
+        std::sync::Arc::new(SqlxHoldingStoreRegistry::new(control)),
+        authorization,
+    );
+    let policy = ProjectionPolicy::new(500, 10, 10, 1, 60)?;
+    let now = Utc::now();
+    for (holding_id, data_profile_key, canonical_holding_id) in bindings {
+        repository
+            .schedule(
+                ProjectionScheduleRequest {
+                    binding: HoldingHoldingBinding::new(holding_id, data_profile_key)?,
+                    projection_name: "item_directory".into(),
+                    job_key: format!("dev-reconcile:{FIXTURE_VERSION}:item-directory-current-v1"),
+                    kind: ProjectionJobKind::Incremental,
+                    available_at: chrono::DateTime::UNIX_EPOCH,
+                    policy,
+                    payload: serde_json::json!({
+                        "canonical_holding_id": canonical_holding_id,
+                    }),
+                },
+                now,
+            )
+            .await?;
+    }
+    write.close().await;
+    println!("dev Item Directory projection: scheduled or already current");
+    Ok(())
+}
+
 async fn configure_demo_holdings(control: &std::sync::Arc<SqlxControlPlane>) -> TaskResult {
     const ALL_MODULES: &[&str] = &[
         "operations",
@@ -2358,6 +2447,9 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
     } else {
         initialize_databases(config, false).await?;
     }
+    if dedicated && development_access_enabled && fresh_runtime.is_none() {
+        dev_access::migrate_active_branch_schemas(root, config).await?;
+    }
     println!("dev schema: reconciled ({:?})", phase.elapsed());
 
     let demo_current = fresh_runtime.is_some()
@@ -2411,6 +2503,8 @@ async fn dev(root: &Path, config: &DevConfig, options: DevOptions) -> TaskResult
             println!("dev access fixture: reused ({:?})", phase.elapsed());
         }
     }
+    reconcile_item_directory_projection_job(config, fresh_runtime.as_ref(), &projection_actor_ref)
+        .await?;
 
     let phase = Instant::now();
     let runtime_values = read_dotenv(&root.join(".env.local"))?;

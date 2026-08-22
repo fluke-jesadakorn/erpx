@@ -402,6 +402,7 @@ mod server {
             record_id: record.id().to_string(),
             authority_scope: Some(shared::reference_scope(authority)?),
             purpose: "phase5_owner_source".into(),
+            record_type: None,
         };
         let response = ReferenceQueryServiceClient::new(channel)
             .resolve(shared::authenticated(authority, request)?)

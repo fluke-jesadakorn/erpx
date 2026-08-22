@@ -112,6 +112,7 @@ impl ReferenceQueryService for ReferenceQueryRpc {
         let claims = self.state.auth.authorize(&request).await?;
         let input = request.into_inner();
         let record_id = record_id(&input.record_id)?;
+        let permission = requested_reference_permission(input.record_type.as_deref());
         if matches!(
             authority_scope(input.authority_scope.as_ref())?.1,
             Scope::Platform
@@ -120,16 +121,20 @@ impl ReferenceQueryService for ReferenceQueryRpc {
                 &self.state,
                 &claims,
                 input.authority_scope.as_ref(),
-                COLLABORATION_READ_PERMISSION,
+                permission,
                 CorrelationId::try_from_uuid(Uuid::new_v4())
                     .map_err(|_| Status::internal("correlation generation failed"))?,
             )
             .await?;
             validate_purpose(&input.purpose)?;
-            let result = gateway
-                .resolve_reference(&access, record_id)
-                .await
-                .map_err(map_directory_error)?;
+            validate_record_type_filter(input.record_type.as_deref())?;
+            let result = constrain_reference_record_type(
+                gateway
+                    .resolve_reference(&access, record_id)
+                    .await
+                    .map_err(map_directory_error)?,
+                input.record_type.as_deref(),
+            );
             let outcome = match &result {
                 DirectoryLookup::Visible { .. } => GlobalCollaborationOutcome::Allowed,
                 DirectoryLookup::Neutral => GlobalCollaborationOutcome::Denied,
@@ -153,17 +158,21 @@ impl ReferenceQueryService for ReferenceQueryRpc {
             &self.state,
             &claims,
             input.authority_scope.as_ref(),
-            COLLABORATION_READ_PERMISSION,
+            permission,
         )
         .await?;
         validate_purpose(&input.purpose)?;
+        validate_record_type_filter(input.record_type.as_deref())?;
         let data_profile_key = authorized.data_profile_key.clone();
         let directory_access = authorized.directory_access()?;
         let directory = SqlxItemDirectory::new(authorized.read_pool);
-        let result = directory
-            .resolve(&directory_access, record_id, Utc::now())
-            .await
-            .map_err(map_directory_error)?;
+        let result = constrain_reference_record_type(
+            directory
+                .resolve(&directory_access, record_id, Utc::now())
+                .await
+                .map_err(map_directory_error)?,
+            input.record_type.as_deref(),
+        );
         Ok(Response::new(resolve_response(result, &data_profile_key)?))
     }
 
@@ -173,6 +182,7 @@ impl ReferenceQueryService for ReferenceQueryRpc {
     ) -> Result<Response<SearchItemsResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let input = request.into_inner();
+        let permission = requested_reference_permission(input.record_type.as_deref());
         if matches!(
             authority_scope(input.authority_scope.as_ref())?.1,
             Scope::Platform
@@ -181,18 +191,24 @@ impl ReferenceQueryService for ReferenceQueryRpc {
                 &self.state,
                 &claims,
                 input.authority_scope.as_ref(),
-                COLLABORATION_READ_PERMISSION,
+                permission,
                 CorrelationId::try_from_uuid(Uuid::new_v4())
                     .map_err(|_| Status::internal("correlation generation failed"))?,
             )
             .await?;
             validate_purpose(&input.purpose)?;
-            validate_search(&input.query, input.page_size, input.cursor.as_deref())?;
+            validate_search(
+                &input.query,
+                input.record_type.as_deref(),
+                input.page_size,
+                input.cursor.as_deref(),
+            )?;
             let result = gateway
                 .search_references(
                     &access,
                     &DirectorySearchRequest {
                         query: input.query,
+                        record_type: input.record_type,
                         page_size: u16::try_from(input.page_size)
                             .map_err(|_| Status::invalid_argument("page_size is invalid"))?,
                         cursor: input.cursor,
@@ -215,11 +231,16 @@ impl ReferenceQueryService for ReferenceQueryRpc {
             &self.state,
             &claims,
             input.authority_scope.as_ref(),
-            COLLABORATION_READ_PERMISSION,
+            permission,
         )
         .await?;
         validate_purpose(&input.purpose)?;
-        validate_search(&input.query, input.page_size, input.cursor.as_deref())?;
+        validate_search(
+            &input.query,
+            input.record_type.as_deref(),
+            input.page_size,
+            input.cursor.as_deref(),
+        )?;
         let page_size = u16::try_from(input.page_size)
             .map_err(|_| Status::invalid_argument("page_size is invalid"))?;
         let data_profile_key = authorized.data_profile_key.clone();
@@ -230,6 +251,7 @@ impl ReferenceQueryService for ReferenceQueryRpc {
                 &directory_access,
                 &DirectorySearchRequest {
                     query: input.query,
+                    record_type: input.record_type,
                     page_size,
                     cursor: input.cursor,
                 },
@@ -1446,7 +1468,7 @@ impl CollaborationQueryService for CollaborationQueryRpc {
     ) -> Result<Response<SearchThreadsResponse>, Status> {
         let claims = self.state.auth.authorize(&request).await?;
         let input = request.into_inner();
-        validate_search(&input.query, input.page_size, input.cursor.as_deref())?;
+        validate_search(&input.query, None, input.page_size, input.cursor.as_deref())?;
         let runtime = collaboration_query_runtime(
             &self.state,
             &claims,
@@ -2157,12 +2179,34 @@ impl CollaborationQueryService for CollaborationQueryRpc {
 }
 
 struct AuthorizedHoldingRequest {
+    holding_route_id: String,
     data_profile_key: String,
     holding_id: HoldingId,
     principal_id: PrincipalId,
     active_scope: AuthorityScope,
     route_scope: HoldingDataRouteScope,
     read_pool: sqlx::PgPool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AuthorizedReadRoute {
+    /// Business records and collaboration data follow the active physical
+    /// holding/company/branch route selected by the authoritative scope.
+    ScopeLocal,
+    /// The Item Directory is one holding-wide security projection. Branch and
+    /// company containment is evaluated inside its authorization-first SQL
+    /// snapshot, never by routing the query to an unprojected branch database.
+    HoldingDirectory,
+}
+
+const fn authorized_read_route_scope(
+    scope_route: HoldingDataRouteScope,
+    read_route: AuthorizedReadRoute,
+) -> HoldingDataRouteScope {
+    match read_route {
+        AuthorizedReadRoute::ScopeLocal => scope_route,
+        AuthorizedReadRoute::HoldingDirectory => HoldingDataRouteScope::Holding,
+    }
 }
 
 impl AuthorizedHoldingRequest {
@@ -2402,7 +2446,7 @@ async fn collaboration_command_runtime(
         .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
     let write = router
         .route_scoped(
-            &authorized.data_profile_key,
+            &authorized.holding_route_id,
             &authorized.data_profile_key,
             authorized.route_scope,
             RoutedDatabaseSide::Write,
@@ -2452,7 +2496,7 @@ async fn holding_relation_runtime(
         .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
     let write = router
         .route_scoped(
-            &authorized.data_profile_key,
+            &authorized.holding_route_id,
             &authorized.data_profile_key,
             authorized.route_scope,
             RoutedDatabaseSide::Write,
@@ -2495,7 +2539,7 @@ async fn holding_relation_query_runtime(
         .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
     let write = router
         .route_scoped(
-            &authorized.data_profile_key,
+            &authorized.holding_route_id,
             &authorized.data_profile_key,
             authorized.route_scope,
             RoutedDatabaseSide::Write,
@@ -2536,7 +2580,7 @@ async fn holding_record_thread_runtime(
         .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
     let write = router
         .route_scoped(
-            &authorized.data_profile_key,
+            &authorized.holding_route_id,
             &authorized.data_profile_key,
             authorized.route_scope,
             RoutedDatabaseSide::Write,
@@ -2577,7 +2621,7 @@ async fn holding_attachment_runtime(
         .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
     let write = router
         .route_scoped(
-            &authorized.data_profile_key,
+            &authorized.holding_route_id,
             &authorized.data_profile_key,
             authorized.route_scope,
             RoutedDatabaseSide::Write,
@@ -2635,7 +2679,7 @@ async fn holding_thread_v2_runtime(
         .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
     let write = router
         .route_scoped(
-            &authorized.data_profile_key,
+            &authorized.holding_route_id,
             &authorized.data_profile_key,
             authorized.route_scope,
             RoutedDatabaseSide::Write,
@@ -2845,7 +2889,7 @@ async fn collaboration_query_runtime(
         .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
     let write = router
         .route_scoped(
-            &authorized.data_profile_key,
+            &authorized.holding_route_id,
             &authorized.data_profile_key,
             authorized.route_scope,
             RoutedDatabaseSide::Write,
@@ -2884,7 +2928,15 @@ async fn authorize_holding_request(
             "request attribution does not match authenticated authority",
         ));
     }
-    authorize_known_holding_request(state, claims, data_profile_key, domain_scope, permission).await
+    authorize_known_holding_request(
+        state,
+        claims,
+        data_profile_key,
+        domain_scope,
+        permission,
+        AuthorizedReadRoute::ScopeLocal,
+    )
+    .await
 }
 
 fn collaboration_actor(
@@ -3034,27 +3086,77 @@ async fn authorize_reference_request(
         .ok_or_else(|| {
             Status::failed_precondition("holding is not bound to a holding data plane")
         })?;
-    if !holding_binding_matches(presented_holding, &bound_holding) {
+    if !holding_binding_matches(presented_holding, &bound_holding, canonical_holding_id) {
         return Err(Status::permission_denied(
             "presented holding does not match the authorized data plane",
         ));
     }
-    authorize_known_holding_request(state, claims, bound_holding, domain_scope, permission).await
+    authorize_known_holding_request(
+        state,
+        claims,
+        bound_holding,
+        domain_scope,
+        permission,
+        AuthorizedReadRoute::HoldingDirectory,
+    )
+    .await
 }
 
-fn holding_binding_matches(presented: Option<&str>, bound: &str) -> bool {
-    presented.is_none_or(|presented| presented == bound)
+fn holding_binding_matches(presented: Option<&str>, bound: &str, canonical: Uuid) -> bool {
+    presented.is_none_or(|presented| presented == bound || presented == canonical.to_string())
 }
 
 async fn authorize_known_holding_request(
     state: &AppState,
     claims: &erpx_identity::AccessTokenClaims,
-    data_profile_key: String,
+    presented_holding_id: String,
     domain_scope: Scope,
     permission: &str,
+    read_route: AuthorizedReadRoute,
 ) -> Result<AuthorizedHoldingRequest, Status> {
-    let holding_id = holding_id(&data_profile_key)?;
-    let principal_id = principal_id(&claims.principal_ref)?;
+    let canonical_holding_id = match &domain_scope {
+        Scope::Holding { holding_id }
+        | Scope::Company { holding_id, .. }
+        | Scope::Branch { holding_id, .. }
+        | Scope::Subtree { holding_id, .. } => *holding_id,
+        Scope::Platform => {
+            return Err(Status::permission_denied(
+                "holding authorization requires an explicit holding scope",
+            ));
+        }
+    };
+    let administration = SqlxHoldingAdministrationStore::new(state.store.clone());
+    let bound_holding_id = administration
+        .holding_id_for_root_holding(canonical_holding_id)
+        .await
+        .map_err(|_| Status::unavailable("holding data-plane binding is unavailable"))?
+        .ok_or_else(|| {
+            Status::failed_precondition("holding is not bound to a holding data plane")
+        })?;
+    if !holding_binding_matches(
+        Some(&presented_holding_id),
+        &bound_holding_id,
+        canonical_holding_id,
+    ) {
+        return Err(Status::permission_denied(
+            "presented holding does not match the authorized data plane",
+        ));
+    }
+    let binding = administration
+        .customer_holding_binding(&bound_holding_id)
+        .await
+        .map_err(|_| Status::unavailable("holding data-plane binding is unavailable"))?
+        .ok_or_else(|| {
+            Status::failed_precondition("holding is not bound to a holding data plane")
+        })?;
+    if binding.canonical_holding_id != canonical_holding_id {
+        return Err(Status::permission_denied(
+            "holding binding does not match the authorized scope",
+        ));
+    }
+    let holding_id = HoldingId::try_from_uuid(binding.canonical_holding_id)
+        .map_err(|_| Status::unavailable("canonical holding identity is unavailable"))?;
+    let principal_id = principal_id(state, &claims.principal_ref).await?;
     state
         .auth
         .authorize_role_for_holding_with_exact_subtree(
@@ -3062,25 +3164,36 @@ async fn authorize_known_holding_request(
             claims,
             &domain_scope,
             permission,
-            Some(&data_profile_key),
+            Some(&binding.holding_id),
         )
         .await?;
-    let (active_scope, data_profile_key, route_scope) = holding_route_scope(&domain_scope)?;
+    let (active_scope, _canonical_scope_key, route_scope) = holding_route_scope(&domain_scope)?;
     let router = state
         .holding_router
         .as_ref()
         .ok_or_else(|| Status::unavailable("holding database routing is unavailable"))?;
+    let read_route_scope = authorized_read_route_scope(route_scope, read_route);
     let read = router
         .route_scoped(
-            &data_profile_key,
-            &data_profile_key,
-            route_scope,
+            &binding.holding_id,
+            &binding.data_profile_key,
+            read_route_scope,
             RoutedDatabaseSide::Read,
         )
         .await
-        .map_err(|_| Status::unavailable("holding read route is unavailable"))?;
+        .map_err(|error| {
+            tracing::warn!(
+                holding_id = binding.holding_id,
+                data_profile_key = binding.data_profile_key,
+                ?read_route_scope,
+                %error,
+                "authorized Item Directory route failed"
+            );
+            Status::unavailable("holding read route is unavailable")
+        })?;
     Ok(AuthorizedHoldingRequest {
-        data_profile_key,
+        holding_route_id: binding.holding_id,
+        data_profile_key: binding.data_profile_key,
         holding_id,
         principal_id,
         active_scope,
@@ -4152,7 +4265,8 @@ fn attachment_scanner_ready() -> bool {
         .is_some_and(|value| value.eq_ignore_ascii_case("true") || value == "1")
 }
 
-fn map_directory_error(_: erpx_collaboration_sqlx::DirectoryAdapterError) -> Status {
+fn map_directory_error(error: erpx_collaboration_sqlx::DirectoryAdapterError) -> Status {
+    tracing::warn!(%error, "Item Directory adapter failure");
     Status::unavailable("Item Directory is unavailable")
 }
 
@@ -4362,6 +4476,7 @@ fn thread_id(value: &str) -> Result<ThreadId, Status> {
         .ok_or_else(|| Status::invalid_argument("thread_id is invalid"))
 }
 
+#[cfg(test)]
 fn holding_id(value: &str) -> Result<HoldingId, Status> {
     Uuid::parse_str(value)
         .ok()
@@ -4369,11 +4484,19 @@ fn holding_id(value: &str) -> Result<HoldingId, Status> {
         .ok_or_else(|| Status::invalid_argument("holding_id is invalid"))
 }
 
-fn principal_id(value: &str) -> Result<PrincipalId, Status> {
-    Uuid::parse_str(value)
-        .ok()
-        .and_then(|id| PrincipalId::try_from_uuid(id).ok())
-        .ok_or_else(|| Status::permission_denied("principal identity is unavailable"))
+async fn principal_id(state: &AppState, principal_ref: &str) -> Result<PrincipalId, Status> {
+    let id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id
+         FROM erpx_identity.principals
+         WHERE principal_ref=$1 AND status <> 'suspended'",
+    )
+    .bind(principal_ref)
+    .fetch_optional(&state.store.pools().write)
+    .await
+    .map_err(|_| Status::unavailable("principal identity lookup is unavailable"))?
+    .ok_or_else(|| Status::permission_denied("principal identity is unavailable"))?;
+    PrincipalId::try_from_uuid(id)
+        .map_err(|_| Status::permission_denied("principal identity is unavailable"))
 }
 
 fn validate_purpose(value: &str) -> Result<(), Status> {
@@ -4383,11 +4506,52 @@ fn validate_purpose(value: &str) -> Result<(), Status> {
     Ok(())
 }
 
-fn validate_search(query: &str, page_size: u32, cursor: Option<&str>) -> Result<(), Status> {
-    if query.trim().is_empty() || query.len() > 256 || query.chars().any(char::is_control) {
+fn validate_search(
+    query: &str,
+    record_type: Option<&str>,
+    page_size: u32,
+    cursor: Option<&str>,
+) -> Result<(), Status> {
+    validate_record_type_filter(record_type)?;
+    if (query.is_empty() && record_type.is_none())
+        || query.trim() != query
+        || query.len() > 256
+        || query.chars().any(char::is_control)
+    {
         return Err(Status::invalid_argument("query is invalid"));
     }
     validate_page(page_size, cursor)
+}
+
+fn validate_record_type_filter(record_type: Option<&str>) -> Result<(), Status> {
+    if record_type.is_some_and(|value| {
+        erpx_integration_contracts::RecordTypeId::try_new(value).is_err()
+            || erpx_integration_contracts::record_policy(value).is_none()
+    }) {
+        return Err(Status::invalid_argument("record_type is invalid"));
+    }
+    Ok(())
+}
+
+fn requested_reference_permission(record_type: Option<&str>) -> &'static str {
+    record_type
+        .and_then(erpx_integration_contracts::record_policy)
+        .map_or(COLLABORATION_READ_PERMISSION, |policy| policy.permission)
+}
+
+fn constrain_reference_record_type(
+    lookup: DirectoryLookup<erpx_integration_contracts::ItemDescriptor>,
+    expected: Option<&str>,
+) -> DirectoryLookup<erpx_integration_contracts::ItemDescriptor> {
+    match lookup {
+        DirectoryLookup::Visible { value, .. }
+            if expected
+                .is_some_and(|expected| value.record().record_type().as_str() != expected) =>
+        {
+            DirectoryLookup::Neutral
+        }
+        lookup => lookup,
+    }
 }
 
 fn validate_page(page_size: u32, cursor: Option<&str>) -> Result<(), Status> {
@@ -4586,14 +4750,37 @@ mod tests {
 
     #[test]
     fn holding_binding_is_server_derived_and_mismatch_or_nil_fails_closed() {
-        let holding = Uuid::new_v4().to_string();
-        assert!(holding_binding_matches(None, &holding));
-        assert!(holding_binding_matches(Some(&holding), &holding));
+        let canonical = Uuid::new_v4();
+        let holding = "demo";
+        assert!(holding_binding_matches(None, holding, canonical));
+        assert!(holding_binding_matches(Some(holding), holding, canonical));
+        assert!(holding_binding_matches(
+            Some(&canonical.to_string()),
+            holding,
+            canonical
+        ));
         assert!(!holding_binding_matches(
             Some(&Uuid::new_v4().to_string()),
-            &holding
+            holding,
+            canonical
         ));
         assert!(holding_id(&Uuid::nil().to_string()).is_err());
+    }
+
+    #[test]
+    fn item_directory_uses_holding_projection_while_scope_local_reads_keep_branch_route() {
+        let branch = HoldingDataRouteScope::Branch {
+            company_id: Uuid::new_v4(),
+            branch_id: Uuid::new_v4(),
+        };
+        assert_eq!(
+            authorized_read_route_scope(branch, AuthorizedReadRoute::ScopeLocal),
+            branch
+        );
+        assert_eq!(
+            authorized_read_route_scope(branch, AuthorizedReadRoute::HoldingDirectory),
+            HoldingDataRouteScope::Holding
+        );
     }
 
     #[test]

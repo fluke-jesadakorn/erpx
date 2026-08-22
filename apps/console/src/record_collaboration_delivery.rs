@@ -237,6 +237,7 @@ async fn resolve_from_item_directory(
         record_id: request.record_id.hyphenated().to_string(),
         authority_scope: Some(authority_scope),
         purpose: "record_collaboration".into(),
+        record_type: None,
     });
     let metadata = wire_request.metadata_mut();
     let insert = |metadata: &mut tonic::metadata::MetadataMap,
@@ -480,6 +481,7 @@ async fn resolve_exact_descriptor(
             record_id: record.id().as_uuid().hyphenated().to_string(),
             authority_scope: Some(authority.scope.clone()),
             purpose: purpose.into(),
+            record_type: None,
         },
     )?;
     let response = ReferenceQueryServiceClient::new(channel)
@@ -1101,6 +1103,7 @@ async fn autocomplete_from_item_directory(
         query: query.to_owned(),
         page_size: 20,
         cursor: None,
+        record_type: None,
     };
     let search = match authenticated(&authority, search) {
         Ok(request) => request,

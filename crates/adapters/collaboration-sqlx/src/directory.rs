@@ -10,7 +10,8 @@ use chrono::{DateTime, Duration, Utc};
 use erpx_integration_contracts::{
     AuthorizedItemSummary, CanonicalRouteMoved, EffectiveGrantChanged, EffectiveGrantRevoked,
     HoldingItemDirectoryFact, ItemDescriptor, ItemDescriptorChanged, ItemDirectoryFact,
-    ItemTombstoned, ReferenceRelationChanged, ReferenceRelationRevoked, StableRecordRef,
+    ItemTombstoned, RecordTypeId, ReferenceRelationChanged, ReferenceRelationRevoked,
+    StableRecordRef,
 };
 use erpx_kernel::{AuthorityScope, HoldingId, PolicyId, PrincipalId, RecordId};
 use sqlx::{PgPool, Postgres, Row, Transaction};
@@ -132,6 +133,7 @@ impl AuthorizedDirectoryRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DirectorySearchRequest {
     pub query: String,
+    pub record_type: Option<String>,
     pub page_size: u16,
     pub cursor: Option<String>,
 }
@@ -156,7 +158,20 @@ pub enum DirectoryAutocompleteTarget {
 
 impl DirectorySearchRequest {
     pub fn validate(&self) -> Result<(), DirectoryAdapterError> {
-        validate_search_text(&self.query, MAX_DIRECTORY_SEARCH_BYTES, "search query")?;
+        if self.query.is_empty() {
+            if self.record_type.is_none() {
+                return Err(DirectoryAdapterError::Invalid("search query"));
+            }
+        } else {
+            validate_search_text(&self.query, MAX_DIRECTORY_SEARCH_BYTES, "search query")?;
+        }
+        if self
+            .record_type
+            .as_deref()
+            .is_some_and(|value| RecordTypeId::try_new(value).is_err())
+        {
+            return Err(DirectoryAdapterError::Invalid("record_type"));
+        }
         if self.page_size == 0 || self.page_size > MAX_DIRECTORY_PAGE_SIZE {
             return Err(DirectoryAdapterError::Invalid("page_size"));
         }
@@ -360,7 +375,7 @@ impl SqlxItemDirectory {
                FROM erpx_collaboration_read.item_directory_projection_state \
                WHERE holding_id=$1\
              ), authorized AS MATERIALIZED (\
-               SELECT descriptor.descriptor,descriptor.search_vector, \
+               SELECT descriptor.descriptor,descriptor.search_vector,descriptor.record_type, \
                       descriptor.source_event_position,descriptor.record_id \
                FROM projection \
                JOIN erpx_collaboration_read.item_directory_effective_grants grant_fact \
@@ -384,7 +399,8 @@ impl SqlxItemDirectory {
              ), matching AS MATERIALIZED (\
                SELECT descriptor,source_event_position,record_id \
                FROM authorized \
-               WHERE search_vector @@ websearch_to_tsquery('simple', $4)\
+               WHERE ($4='' OR search_vector @@ websearch_to_tsquery('simple', $4)) \
+                 AND ($8::TEXT IS NULL OR record_type=$8)\
              ), authorized_count AS (\
                SELECT count(*)::BIGINT AS authorized_count FROM matching\
              ), page AS (\
@@ -403,6 +419,7 @@ impl SqlxItemDirectory {
         .bind(i64::from(request.page_size))
         .bind(offset)
         .bind(now)
+        .bind(request.record_type.as_deref())
         .fetch_all(&mut *tx)
         .await
         .map_err(map_database_error)?;
@@ -1094,10 +1111,19 @@ impl ItemDirectoryProjectionAdapter {
         let source = i64::try_from(source_high_watermark)
             .map_err(|_| DirectoryAdapterError::Invalid("source_high_watermark"))?;
         let row = sqlx::query(
-            "UPDATE erpx_collaboration_read.item_directory_projection_state \
-             SET source_high_watermark=GREATEST(source_high_watermark,$2),state='rebuilding',updated_at=$3 \
-             WHERE holding_id=$1 AND state IN ('ready','rebuilding') \
-               AND applied_position<=GREATEST(source_high_watermark,$2) \
+            "INSERT INTO erpx_collaboration_read.item_directory_projection_state \
+                (holding_id,rebuild_generation,source_high_watermark,applied_position,state,last_success_at,updated_at) \
+             VALUES ($1,1,$2,0,'rebuilding',NULL,$3) \
+             ON CONFLICT (holding_id) DO UPDATE SET \
+              source_high_watermark=GREATEST( \
+                erpx_collaboration_read.item_directory_projection_state.source_high_watermark, \
+                EXCLUDED.source_high_watermark), \
+              state='rebuilding',updated_at=EXCLUDED.updated_at \
+             WHERE erpx_collaboration_read.item_directory_projection_state.state IN ('ready','rebuilding') \
+               AND erpx_collaboration_read.item_directory_projection_state.applied_position \
+                   <= GREATEST( \
+                     erpx_collaboration_read.item_directory_projection_state.source_high_watermark, \
+                     EXCLUDED.source_high_watermark) \
              RETURNING rebuild_generation,source_high_watermark,applied_position",
         )
         .bind(holding_id.as_uuid())

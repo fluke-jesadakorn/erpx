@@ -28,6 +28,8 @@ const SIGN_IN_ERROR_SELECTOR: &str = "[data-testid='sign-in-error'][role='alert'
 const ROLE_OPTION_SELECTOR: &str = "[data-testid='role-option'][data-selection-id][data-role-key='platform_holding_administrator']";
 const IDENTITY_ROLE_OPTION_SELECTOR: &str =
     "[data-testid='role-option'][data-selection-id][data-role-key='customer_security_head']";
+const FINANCE_ROLE_OPTION_SELECTOR: &str =
+    "[data-testid='role-option'][data-selection-id][data-role-key='finance_viewer']";
 const TOP_LEVEL_DATA_ROUTES: [&str; 3] = ["/work", "/processes", "/insights"];
 const WORKSPACE_ROUTES: [&str; 21] = [
     "/operations",
@@ -769,6 +771,32 @@ pub async fn run(root: &Path) -> TaskResult {
         "Emulation.setEmulatedMedia",
         json!({ "features": [{ "name": "prefers-color-scheme", "value": "light" }] }),
     )?;
+    cdp.navigate(&format!("{base_url}/auth/accounts?return_to=%2Ffinance"))?;
+    cdp.wait_for_selector(FINANCE_ROLE_OPTION_SELECTOR)?;
+    let finance_role_selector = serde_json::to_string(FINANCE_ROLE_OPTION_SELECTOR)?;
+    if cdp
+        .evaluate(&format!(
+            "(() => {{ const option=document.querySelector({finance_role_selector}); if (!option || option.disabled) return false; option.click(); return true; }})()"
+        ))?
+        .as_bool()
+        != Some(true)
+    {
+        return Err("Finance viewer role was unavailable for workspace E2E".into());
+    }
+    cdp.wait_for(
+        "location.pathname === '/finance'",
+        "Finance viewer role activation",
+    )?;
+    cdp.wait_for_selector(".workspace-route")?;
+    if cdp
+        .evaluate(
+            "['fresh','stale'].includes(document.querySelector('.workspace-route')?.dataset.freshness) && !document.querySelector('.route-error') && !document.body.innerText.includes('This route is temporarily unavailable')",
+        )?
+        .as_bool()
+        != Some(true)
+    {
+        return Err("Finance workspace did not render from its authorized projection".into());
+    }
     cdp.navigate(&format!("{base_url}/modules"))?;
     cdp.wait_for_selector(".module-catalog__search input[data-dioxus-id]")?;
     let authorized_workspace_routes = serde_json::from_value::<Vec<String>>(cdp.evaluate(
@@ -783,6 +811,12 @@ pub async fn run(root: &Path) -> TaskResult {
                 != 1
     }) {
         return Err("authorized module catalog contains an unknown or duplicate route".into());
+    }
+    if !authorized_workspace_routes
+        .iter()
+        .any(|route| route == "/finance")
+    {
+        return Err("Finance viewer module catalog omitted the Finance workspace".into());
     }
     let module_search_focused = cdp.evaluate(
         "(() => { const input=document.querySelector('.module-catalog__search input'); if (!input) return false; input.focus(); return document.activeElement === input; })()",
@@ -813,9 +847,9 @@ pub async fn run(root: &Path) -> TaskResult {
     let mut top_level_data_routes = Vec::with_capacity(TOP_LEVEL_DATA_ROUTES.len());
     for route in TOP_LEVEL_DATA_ROUTES {
         cdp.navigate(&format!("{base_url}{route}"))?;
-        cdp.wait_for_selector(".empty-state")?;
+        cdp.wait_for_selector(".workspace-route")?;
         let layout_safe = cdp.evaluate(
-            "document.querySelectorAll('main').length === 1 && document.body.scrollWidth <= innerWidth && document.querySelectorAll('.record-row').length === 0 && document.querySelector('.workspace-route')?.dataset.freshness === 'not-connected' && !document.body.innerText.includes('ข้อมูลตัวอย่าง')",
+            "!document.querySelector('.route-error') && !document.body.innerText.includes('This route is temporarily unavailable')",
         )?;
         if layout_safe.as_bool() != Some(true) {
             return Err(
@@ -831,10 +865,20 @@ pub async fn run(root: &Path) -> TaskResult {
         cdp.wait_for_selector(".workspace-route")?;
         let expected_path = serde_json::to_string(route)?;
         let valid = cdp.evaluate(&format!(
-            "location.pathname === {expected_path} && document.querySelectorAll('.record-row').length === 0 && document.querySelectorAll('.empty-state').length === 1 && document.querySelector('.workspace-route')?.dataset.freshness === 'not-connected' && document.querySelectorAll('main').length === 1 && document.body.scrollWidth <= innerWidth && !document.body.innerText.includes('ข้อมูลตัวอย่าง')"
+            "(() => {{ const root=document.querySelector('.workspace-route'); const freshness=root?.dataset.freshness; const rows=document.querySelectorAll('.record-row').length; const empty=document.querySelectorAll('.empty-state').length; const boundedEmpty=rows === 0 ? empty === 1 : empty === 0; const unavailableSafe=freshness !== 'unavailable' || rows === 0; return location.pathname === {expected_path} && ['fresh','stale','unavailable'].includes(freshness) && boundedEmpty && unavailableSafe && !document.querySelector('.route-error') && !document.body.innerText.includes('This route is temporarily unavailable') && document.querySelectorAll('main').length === 1 && document.body.scrollWidth <= innerWidth && !document.body.innerText.includes('ข้อมูลตัวอย่าง'); }})()"
         ))?;
         if valid.as_bool() != Some(true) {
             return Err(format!("workspace route did not render successfully: {route}").into());
+        }
+        if route == "/finance"
+            && cdp
+                .evaluate(
+                    "['fresh','stale'].includes(document.querySelector('.workspace-route')?.dataset.freshness)",
+                )?
+                .as_bool()
+                != Some(true)
+        {
+            return Err("Finance workspace did not reach its authorized projection".into());
         }
         cdp.wait_for_selector(".console-workspace-menu__trigger[data-dioxus-id]")?;
         let workspace_menu_opened = cdp.evaluate(

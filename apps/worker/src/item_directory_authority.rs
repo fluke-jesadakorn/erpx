@@ -1608,8 +1608,34 @@ pub fn decode_authority_evidence(
     {
         return Err(AuthorityProjectionError::UnsupportedContract);
     }
-    let fact: AuthorityEvidenceFact = serde_json::from_value(event.payload.clone())
-        .map_err(|_| AuthorityProjectionError::MalformedEvidence)?;
+    #[derive(serde::Deserialize)]
+    #[serde(untagged)]
+    enum AuthorityEvidenceWire {
+        Direct(AuthorityEvidenceFact),
+        PayloadKind(AuthorityEvidencePayloadKind),
+    }
+
+    #[derive(serde::Deserialize)]
+    struct AuthorityEvidencePayloadKind {
+        payload_kind: AuthorityEvidencePayloadKindTag,
+        payload: AuthorityEvidenceFact,
+    }
+
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "snake_case")]
+    enum AuthorityEvidencePayloadKindTag {
+        Authority,
+    }
+
+    let fact = match serde_json::from_value::<AuthorityEvidenceWire>(event.payload.clone())
+        .map_err(|_| AuthorityProjectionError::MalformedEvidence)?
+    {
+        AuthorityEvidenceWire::Direct(fact) => fact,
+        AuthorityEvidenceWire::PayloadKind(AuthorityEvidencePayloadKind {
+            payload_kind: AuthorityEvidencePayloadKindTag::Authority,
+            payload,
+        }) => payload,
+    };
     fact.validate()
         .map_err(|_| AuthorityProjectionError::MalformedEvidence)?;
     let matches_envelope = match &fact {
@@ -2147,11 +2173,65 @@ mod tests {
             occurred_at: now,
         };
         assert_eq!(decode_authority_evidence(&event).unwrap(), fact);
+        event.payload = serde_json::json!({
+            "payload_kind": "authority",
+            "payload": fact,
+        });
+        assert_eq!(decode_authority_evidence(&event).unwrap(), fact);
         event.aggregate_version = 3;
         assert_eq!(
             decode_authority_evidence(&event),
             Err(AuthorityProjectionError::EnvelopeMismatch)
         );
+    }
+
+    #[test]
+    fn authority_decoder_accepts_current_identity_access_role_wire() {
+        let holding_id = id();
+        let role_id = id();
+        let now = Utc::now();
+        let event = ProjectionEvent {
+            event_id: EventId::try_from_uuid(id()).unwrap(),
+            global_sequence: 45,
+            context: "identity_access".into(),
+            partition: "role".into(),
+            command_id: CommandId::try_from_uuid(id()).unwrap(),
+            event_type: AUTHORITY_EVIDENCE_EVENT_TYPE.into(),
+            event_version: AUTHORITY_EVIDENCE_VERSION,
+            aggregate_type: "access_role".into(),
+            aggregate_id: AggregateId::try_from_uuid(role_id).unwrap(),
+            aggregate_version: 1,
+            active_scope: AuthorityScope::Platform,
+            actor: ActorAttribution {
+                principal_ref: "worker:test".into(),
+                kind: ActorKind::SystemWorker,
+                session_id: None,
+                represented_principal_ref: None,
+                support_capability_id: None,
+            },
+            correlation_id: CorrelationId::try_from_uuid(id()).unwrap(),
+            causation_id: None,
+            payload: serde_json::json!({
+                "payload_kind": "authority",
+                "payload": {
+                    "authority_fact": "role",
+                    "fact": {
+                        "role_id": role_id,
+                        "role_version": 1,
+                        "scope": {"Holding": {"holding_id": holding_id}},
+                        "permissions": ["identity_access.read", "security.read"],
+                        "classification_ceiling": "restricted",
+                        "active": true,
+                        "changed_at": now,
+                    }
+                }
+            }),
+            occurred_at: now,
+        };
+        assert!(matches!(
+            decode_authority_evidence(&event),
+            Ok(AuthorityEvidenceFact::Role(_))
+        ));
     }
 
     #[test]

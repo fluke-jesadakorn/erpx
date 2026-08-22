@@ -1952,6 +1952,12 @@ async fn reconcile_branch_fixtures(
                         .into());
                     }
                 }
+                migrate_active_branch_databases(
+                    &profile,
+                    &route.write_database_key,
+                    &route.read_database_key,
+                )
+                .await?;
                 reconcile_active_branch_business_units(
                     &control,
                     &route.holding_key,
@@ -2003,6 +2009,60 @@ async fn reconcile_branch_fixtures(
     }
     if config.port == 55_432 {
         crate::infra::ensure_postgres_hba_for_databases(&branch_databases)?;
+    }
+    Ok(())
+}
+
+async fn migrate_active_branch_databases(
+    profile: &ApprovedDatabaseProfileConnection,
+    write_database_key: &str,
+    read_database_key: &str,
+) -> TaskResult {
+    for (database_key, side) in [(write_database_key, "write"), (read_database_key, "read")] {
+        let pool = profile.connect(database_key).await?;
+        let migration = match side {
+            "write" => erpx_migration::migrate_holding_write(&pool).await,
+            _ => erpx_migration::migrate_holding_read(&pool).await,
+        };
+        pool.close().await;
+        migration?;
+    }
+    Ok(())
+}
+
+pub(crate) async fn migrate_active_branch_schemas(root: &Path, config: &DevConfig) -> TaskResult {
+    let (profile_url, profile_username, profile_password) = if config.port == 55_432 {
+        crate::infra::dedicated_branch_profile(root)?
+    } else {
+        (
+            format!(
+                "postgres://{}:{}/postgres?sslmode=disable",
+                config.host, config.port
+            ),
+            config.user.clone(),
+            config.password.clone(),
+        )
+    };
+    let profile = ApprovedDatabaseProfileConnection::from_values(
+        BRANCH_PROFILE_KEY,
+        &profile_url,
+        &profile_username,
+        &profile_password,
+    )?;
+    let control = super::pool(&config.database_url(DATABASES[0])).await?;
+    let routes = sqlx::query_as::<_, (String, String)>(
+        "SELECT write_database_key, read_database_key
+         FROM erpx_control.branch_database_routes
+         WHERE holding_id IN ($1,$2) AND profile_key=$3 AND state='active'",
+    )
+    .bind(HOLDING_ID)
+    .bind(RESTRICTED_HOLDING_ID)
+    .bind(BRANCH_PROFILE_KEY)
+    .fetch_all(&control)
+    .await?;
+    control.close().await;
+    for (write_database_key, read_database_key) in routes {
+        migrate_active_branch_databases(&profile, &write_database_key, &read_database_key).await?;
     }
     Ok(())
 }
