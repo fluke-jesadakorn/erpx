@@ -77,6 +77,14 @@ pub(crate) async fn fetch_navigation_manifest(
         .await
         .map_err(|status| format!("navigation manifest failed: {:?}", status.code()))?
         .into_inner();
+    let manifest_has_authorized_item = response.groups.iter().any(|group| {
+        group.items.iter().any(|item| {
+            matches!(
+                platform::NavigationAccessState::try_from(item.access_state),
+                Ok(platform::NavigationAccessState::Authorized)
+            )
+        })
+    });
     let groups = response
         .groups
         .into_iter()
@@ -84,24 +92,27 @@ pub(crate) async fn fetch_navigation_manifest(
             let items = group
                 .items
                 .into_iter()
-                .filter(|item| {
-                    crate::routes::is_canonical_console_path(
+                .filter_map(|item| {
+                    if !crate::routes::is_canonical_console_path(
                         &item.path,
                         erpx_delivery_contract::ClientChannel::Web,
-                    )
-                })
-                .map(|item| {
+                    ) {
+                        return None;
+                    }
                     let access = match platform::NavigationAccessState::try_from(item.access_state)
                     {
                         Ok(platform::NavigationAccessState::Locked) => {
                             NavAccess::locked(item.required_role_keys)
                         }
-                        _ => NavAccess::Authorized,
+                        Ok(platform::NavigationAccessState::Authorized) => NavAccess::Authorized,
+                        Ok(platform::NavigationAccessState::Unspecified) | Err(_) => return None,
                     };
-                    NavItem::new(item.label, item.path, item.icon)
-                        .with_manifest_metadata(item.route_id, item.label_key)
-                        .with_action_capabilities(item.action_capabilities)
-                        .with_access(access)
+                    Some(
+                        NavItem::new(item.label, item.path, item.icon)
+                            .with_manifest_metadata(item.route_id, item.label_key)
+                            .with_action_capabilities(item.action_capabilities)
+                            .with_access(access),
+                    )
                 })
                 .collect::<Vec<_>>();
             (!items.is_empty()).then(|| {
@@ -110,11 +121,26 @@ pub(crate) async fn fetch_navigation_manifest(
             })
         })
         .collect::<Vec<_>>();
-    if groups.is_empty() {
+    if groups.is_empty() && manifest_has_authorized_item {
+        Ok(work_fallback_navigation())
+    } else if groups.is_empty() {
         Err("authorized navigation manifest is empty".to_owned())
     } else {
         Ok(groups)
     }
+}
+
+fn work_fallback_navigation() -> Vec<NavGroup> {
+    vec![
+        NavGroup::new(
+            "Work",
+            vec![
+                NavItem::new("Work", "/work", "work")
+                    .with_manifest_metadata("work", "nav.route.work"),
+            ],
+        )
+        .with_manifest_metadata("common", "nav.group.common"),
+    ]
 }
 
 fn canonical_uuid(value: &str) -> Result<String, String> {
@@ -170,4 +196,19 @@ pub(crate) fn authority_scope(scope_key: &str) -> Result<(AuthorityScope, ActorK
 fn metadata(value: &str) -> Result<MetadataValue<tonic::metadata::Ascii>, String> {
     MetadataValue::try_from(value)
         .map_err(|_| "navigation credential invalid: Unauthenticated".to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::work_fallback_navigation;
+
+    #[test]
+    fn authorized_unimplemented_navigation_falls_back_to_the_work_shell() {
+        let groups = work_fallback_navigation();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].group_id, "common");
+        assert_eq!(groups[0].items.len(), 1);
+        assert_eq!(groups[0].items[0].path, "/work");
+        assert!(groups[0].items[0].is_authorized());
+    }
 }
