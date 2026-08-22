@@ -4869,6 +4869,22 @@ async fn verify(root: &Path) -> TaskResult {
     let config = DevConfig::load(root)?;
     verify_core(root)?;
     verify_local_sqlx(root, &config).await?;
+    // The ignored SQLx suite deliberately exercises the dedicated cluster at
+    // high concurrency. A fail-fast local worker can exhaust its small pool
+    // and exit while that disposable workload is running, after the initial
+    // runtime snapshot but before the readiness handoff. Reconcile the warm
+    // development runtime after the suite so verification judges the final
+    // service set, rather than a stale pre-suite PID snapshot.
+    dev(
+        root,
+        &config,
+        DevOptions {
+            mode: DevMode::Warm,
+            web_debug: false,
+            hot_patch: true,
+        },
+    )
+    .await?;
     verify_runtime_readiness(root, &config).await?;
     for (url, recovery_seconds) in [
         ("http://127.0.0.1:50052/health", 5),
