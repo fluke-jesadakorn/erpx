@@ -6,9 +6,12 @@ use async_trait::async_trait;
 use erpx_cqrs::{CommandEnvelope, CommandReceipt, QueryEnvelope, QueryResult};
 use erpx_finance::{
     CustomerInvoiceStatus, FinanceCommand, FinanceMutationResult, FinanceQuery,
-    FinanceQueryResponse, JournalStatus, PeriodStatus, RevenueScheduleStatus, SubledgerStatus,
+    FinanceQueryResponse, JournalStatus, PayablesCommand, PayablesMutationResult, PayablesQuery,
+    PayablesQueryResponse, PaymentStatus, PeriodStatus, RevenueScheduleStatus, SubledgerStatus,
+    VendorInvoiceStatus,
     ports::{
-        ChartView, CustomerInvoiceView, JournalView, PeriodView, RevenueScheduleView, SubledgerView,
+        ChartView, CustomerInvoiceView, JournalView, PaymentView, PeriodView, RevenueScheduleView,
+        SubledgerView, VendorInvoiceView,
     },
 };
 use erpx_ui_foundation::{CommandGateway, QueryGateway, UiError};
@@ -25,6 +28,13 @@ pub fn present_mutation(v: &FinanceMutationResult) -> FinanceContent {
         FinanceMutationResult::RevenueSchedule(x) => {
             FinanceContent::Item(revenue_schedule(x.clone()))
         }
+    }
+}
+
+pub fn present_payables_mutation(v: &PayablesMutationResult) -> FinanceContent {
+    match v {
+        PayablesMutationResult::VendorInvoice(x) => FinanceContent::Item(vendor_invoice(x.clone())),
+        PayablesMutationResult::Payment(x) => FinanceContent::Item(payment(x.clone())),
     }
 }
 pub fn present_query(v: QueryResult<FinanceQueryResponse>) -> QueryResult<Option<FinanceContent>> {
@@ -96,6 +106,20 @@ pub fn present_query(v: QueryResult<FinanceQueryResponse>) -> QueryResult<Option
             amount_minor: x.output_vat_minor - x.input_vat_minor + x.withholding_minor,
             currency: x.currency,
         }),
+    };
+    QueryResult { value, metadata }
+}
+
+pub fn present_payables_query(
+    v: QueryResult<PayablesQueryResponse>,
+) -> QueryResult<Option<FinanceContent>> {
+    let metadata = v.metadata;
+    let value = match v.value {
+        PayablesQueryResponse::VendorInvoice {
+            vendor_invoice: view,
+            ..
+        } => view.map(vendor_invoice).map(FinanceContent::Item),
+        PayablesQueryResponse::Payment(view) => view.map(payment).map(FinanceContent::Item),
     };
     QueryResult { value, metadata }
 }
@@ -203,6 +227,42 @@ fn revenue_schedule(v: RevenueScheduleView) -> FinanceItem {
     }
 }
 
+fn vendor_invoice(v: VendorInvoiceView) -> FinanceItem {
+    FinanceItem {
+        id: v.vendor_invoice_id.as_uuid().to_string(),
+        version: v.version,
+        scope: format!("{:?}", v.scope),
+        code: v.invoice_number,
+        kind: "vendor_invoice".into(),
+        status: match v.status {
+            VendorInvoiceStatus::Draft => "draft",
+            VendorInvoiceStatus::Posted => "posted",
+        }
+        .into(),
+        currency: Some(v.total_amount.currency().as_str().into()),
+        amount_minor: Some(v.total_amount.minor_units()),
+        updated_at: Some(v.updated_at.to_rfc3339()),
+    }
+}
+
+fn payment(v: PaymentView) -> FinanceItem {
+    FinanceItem {
+        id: v.payment_id.as_uuid().to_string(),
+        version: v.version,
+        scope: format!("{:?}", v.scope),
+        code: v.payment_code,
+        kind: "payment".into(),
+        status: match v.status {
+            PaymentStatus::Draft => "draft",
+            PaymentStatus::Released => "released",
+        }
+        .into(),
+        currency: Some(v.amount.currency().as_str().into()),
+        amount_minor: Some(v.amount.minor_units()),
+        updated_at: Some(v.updated_at.to_rfc3339()),
+    }
+}
+
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 pub trait FinanceProtoTransport: Send + Sync {
@@ -214,6 +274,19 @@ pub trait FinanceProtoTransport: Send + Sync {
         &self,
         envelope: QueryEnvelope<FinanceQuery>,
     ) -> Result<QueryResult<FinanceQueryResponse>, UiError>;
+}
+
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+pub trait FinancePayablesProtoTransport: Send + Sync {
+    async fn payables_command(
+        &self,
+        envelope: CommandEnvelope<PayablesCommand>,
+    ) -> Result<CommandReceipt<PayablesMutationResult>, UiError>;
+    async fn payables_query(
+        &self,
+        envelope: QueryEnvelope<PayablesQuery>,
+    ) -> Result<QueryResult<PayablesQueryResponse>, UiError>;
 }
 #[derive(Debug, Clone)]
 pub struct FinanceGateway<T> {
@@ -250,6 +323,46 @@ impl<T: FinanceProtoTransport> QueryGateway<FinanceQuery> for FinanceGateway<T> 
         e: QueryEnvelope<FinanceQuery>,
     ) -> Result<QueryResult<Self::Response>, UiError> {
         self.transport.query(e).await
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct FinancePayablesGateway<T> {
+    transport: T,
+}
+impl<T> FinancePayablesGateway<T> {
+    pub const fn new(transport: T) -> Self {
+        Self { transport }
+    }
+    pub const fn transport(&self) -> &T {
+        &self.transport
+    }
+    pub fn into_transport(self) -> T {
+        self.transport
+    }
+}
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+impl<T: FinancePayablesProtoTransport> CommandGateway<PayablesCommand>
+    for FinancePayablesGateway<T>
+{
+    type Response = PayablesMutationResult;
+    async fn execute(
+        &self,
+        e: CommandEnvelope<PayablesCommand>,
+    ) -> Result<CommandReceipt<Self::Response>, UiError> {
+        self.transport.payables_command(e).await
+    }
+}
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+impl<T: FinancePayablesProtoTransport> QueryGateway<PayablesQuery> for FinancePayablesGateway<T> {
+    type Response = PayablesQueryResponse;
+    async fn execute(
+        &self,
+        e: QueryEnvelope<PayablesQuery>,
+    ) -> Result<QueryResult<Self::Response>, UiError> {
+        self.transport.payables_query(e).await
     }
 }
 

@@ -5,7 +5,10 @@ pub mod owner_detail;
 pub mod presenter;
 pub mod sales_workspace;
 pub mod view;
-pub use gateway::{FinanceGateway, FinanceProtoTransport};
+pub use gateway::{
+    FinanceGateway, FinancePayablesGateway, FinancePayablesProtoTransport, FinanceProtoTransport,
+    present_payables_mutation, present_payables_query,
+};
 pub use models::{FinanceItem, FinanceItems};
 pub use owner_detail::*;
 pub use presenter::{FinanceContent, FinancePresenter};
