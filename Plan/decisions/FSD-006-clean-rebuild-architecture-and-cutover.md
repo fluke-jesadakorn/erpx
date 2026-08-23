@@ -27,10 +27,11 @@ before invoking domain behavior. Integration-contract packages may depend on
 the shared kernel but not on context cores.
 
 Each context exposes one internal Command service and one internal Query
-service. Collaboration additionally exposes a stream service, the Item
+service, except Finance which owns two Command and two Query services (core
+and payables). Collaboration additionally exposes a stream service, the Item
 Directory exposes a reference query service, and Platform Administration
-exposes a data-plane stream service. The 65 replacement services use
-`IFC-SVC-201..265`; `IFC-SVC-001..065` are retired and never reused.
+exposes a data-plane stream service. The 67 replacement services use
+`IFC-SVC-201..267`; `IFC-SVC-001..065` are retired and never reused.
 
 The target route grammar is singular:
 

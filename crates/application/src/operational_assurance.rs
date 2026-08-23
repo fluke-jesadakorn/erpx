@@ -18,7 +18,7 @@ pub const MAX_RTO: Duration = Duration::hours(4);
 pub const REQUIRED_SCHEMA_REVISION: u16 = 2;
 pub const REQUIRED_SERVICE_CATALOG_GENERATION: u16 = 2;
 pub const REQUIRED_CONTEXT_COUNT: u16 = 31;
-pub const REQUIRED_SERVICE_COUNT: u16 = 65;
+pub const REQUIRED_SERVICE_COUNT: u16 = 67;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -736,7 +736,7 @@ mod tests {
             schema_revision: 2,
             service_catalog_generation: 2,
             context_count: 31,
-            service_count: 65,
+            service_count: 67,
             created_at: now,
         }
     }

@@ -367,8 +367,8 @@ def validate_catalogs(errors: list[str]) -> None:
     legacy_rows = re.findall(
         r"^\| (IFC-SVC-0[0-9]{2}) \| (\w+) \|", interface_text, re.M
     )
-    if len(proto_services) != 65:
-        add_error(errors, f"repository exposes {len(proto_services)} protobuf services, expected 65")
+    if len(proto_services) != 67:
+        add_error(errors, f"repository exposes {len(proto_services)} protobuf services, expected 67")
     catalog_ids = re.findall(r"^\| (IFC-[A-Z]+-[0-9]{3}) \|", interface_text, re.M)
     duplicates = [item for item, count in Counter(catalog_ids).items() if count > 1]
     if duplicates:
@@ -382,10 +382,10 @@ def validate_catalogs(errors: list[str]) -> None:
         interface_text,
         re.M,
     )
-    expected_replacement_ids = {f"IFC-SVC-{number:03d}" for number in range(201, 266)}
+    expected_replacement_ids = {f"IFC-SVC-{number:03d}" for number in range(201, 268)}
     actual_replacement_ids = {row[0] for row in replacement_rows}
-    if actual_replacement_ids != expected_replacement_ids or len(replacement_rows) != 65:
-        add_error(errors, "replacement service catalog IDs must be exactly IFC-SVC-201..265")
+    if actual_replacement_ids != expected_replacement_ids or len(replacement_rows) != 67:
+        add_error(errors, "replacement service catalog IDs must be exactly IFC-SVC-201..267")
     replacement_services = {service for _catalog_id, service, _owner, _kind in replacement_rows}
     if replacement_services != proto_services:
         add_error(
@@ -562,7 +562,7 @@ def validate_decisions_and_invariants(errors: list[str]) -> None:
         "CQRS",
         "schema generation v2",
         "atomic hard cutover",
-        "IFC-SVC-201..265",
+        "IFC-SVC-201..267",
     ):
         if marker not in fsd_006:
             add_error(errors, f"FSD-006 is missing architecture/cutover marker {marker}")
@@ -666,7 +666,7 @@ def main() -> int:
     print(f"- Acceptance scenarios: {len(scenarios)}")
     print("- Bounded contexts: 31 (21 original + 8 enterprise + Collaboration + Agent Orchestration)")
     print("- Canonical workspaces: 21")
-    print("- Replacement protobuf services cataloged: 65 (legacy 65 retired)")
+    print("- Replacement protobuf services cataloged: 67 (legacy 65 retired)")
     print(f"- Deterministic evidence packages: {len(definition_ids)}")
     return 0
 

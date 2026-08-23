@@ -17,7 +17,7 @@ runtime behavior.
 | Git baseline | `2c9bd786afcd0348054d7623461e5b4a074a09ab` |
 | Snapshot | Current working tree, including uncommitted product and design changes |
 | Primary channel | Web |
-| Target | Clean rebuild: 31 bounded contexts, 21 canonical workspaces, and 65 replacement services |
+| Target | Clean rebuild: 31 bounded contexts, 21 canonical workspaces, and 67 replacement services |
 | Requirement count | Reported by `python3 Plan/tools/validate_requirements.py` |
 | Review cadence | Event-driven |
 
@@ -181,7 +181,7 @@ the following combined architecture authoritative for baseline 2.0.0:
 Domain code depends only on the minimal kernel and its own domain types. It
 does not import frameworks, serialized contracts, provider SDKs, or another
 context core. The route baseline is singular, stable copied links resolve at
-`/reference/item/:id`, and 65 replacement services use `IFC-SVC-201..265`.
+`/reference/item/:id`, and 67 replacement services use `IFC-SVC-201..267`.
 Legacy `/workspaces`, `/api/bff`, `/references/:id`, `IFC-SVC-001..065`, event
 namespaces, and schema generations receive no compatibility aliases at the
 atomic hard cutover.

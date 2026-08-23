@@ -385,13 +385,13 @@ event namespaces, realm policies, and channel policies. UI, BFF, server, tests,
 and descriptor publishers build paths from this catalog.
 
 The 31 contexts each expose one internal `<Context>CommandService` and one
-`<Context>QueryService`. Collaboration additionally exposes
-`CollaborationStreamService`; the Item Directory exposes
-`ReferenceQueryService`; Platform exposes `DataPlaneStreamService`. The result
-is 65 active services.
+`<Context>QueryService`, except Finance which owns two pairs (core and
+payables). Collaboration additionally exposes `CollaborationStreamService`;
+the Item Directory exposes `ReferenceQueryService`; Platform exposes
+`DataPlaneStreamService`. The result is 67 active services.
 
 Legacy `IFC-SVC-001..065` entries become Retired and are never reused. New
-contracts use `IFC-SVC-201..265` and packages such as `erpx.finance.v2`,
+contracts use `IFC-SVC-201..267` and packages such as `erpx.finance.v2`,
 `erpx.collaboration.v2`, and `erpx.agent.v2`.
 
 Integration events use `<context>.<record>.<event>.v1`. Event and command names
@@ -597,7 +597,7 @@ Gate: E2E-01, 02, 03, 16, 18, and 26.
 
 ### Phase 4 — Universal records and interfaces
 
-- Replace all protobuf contracts with the 65-service context catalog.
+- Replace all protobuf contracts with the 67-service context catalog.
 - Replace UI/BFF routes with the singular resource grammar.
 - Publish descriptors from every implemented aggregate's atomic outbox.
 - Implement the two-tier Item Directory, authorized resolver, PostgreSQL FTS,
@@ -698,7 +698,7 @@ production-like topology.
 | Ports | Consumer-owned semantics, timeout/retry/reconciliation behavior, no framework/provider leakage |
 | SQLx | Normalized constraints, RLS, transaction atomicity, write/read separation, secret exclusion |
 | Projection | Duplicate, ordering, gap, poison, retry, dead letter, rebuild, replacement activation, deletion propagation |
-| Contract | Exactly 65 active new services, retired legacy IDs, package ownership, required fields, unknown-value denial |
+| Contract | Exactly 67 active new services, retired legacy IDs, package ownership, required fields, unknown-value denial |
 | HTTP/routes | Complete catalog, UUID parsing, no legacy paths, no hidden metadata, safe redirect and command behavior |
 | Worker/process manager | Durable lease/checkpoint, restart, retry bounds, cancellation race, compensation and reconciliation |
 | Collaboration | Revision, tombstone, mention snapshots, retention/hold, SSE reconnect, moderation and external isolation |

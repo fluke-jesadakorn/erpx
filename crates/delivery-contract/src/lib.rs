@@ -21,8 +21,8 @@ use uuid::Uuid;
 
 pub const DELIVERY_CONTRACT_VERSION: u16 = 4;
 pub const SERVICE_ID_FIRST_: u16 = 201;
-pub const SERVICE_ID_LAST_: u16 = 265;
-pub const SERVICE_COUNT_: usize = 65;
+pub const SERVICE_ID_LAST_: u16 = 267;
+pub const SERVICE_COUNT_: usize = 67;
 pub const SESSION_CACHE_MAX_ENTRIES: usize = 64;
 pub const SESSION_CACHE_MAX_BYTES: usize = 32 * 1024 * 1024;
 pub const MAX_PAGE_SIZE_: u16 = 200;
@@ -926,7 +926,7 @@ mod tests {
     }
 
     #[test]
-    fn service_range_is_exactly_sixty_five_service_ids() {
+    fn service_range_is_exactly_sixty_seven_service_ids() {
         assert_eq!(
             SERVICE_ID_LAST_ - SERVICE_ID_FIRST_ + 1,
             SERVICE_COUNT_ as u16

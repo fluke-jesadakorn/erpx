@@ -16,12 +16,13 @@ is authoritative where the source snapshot differs.
 | REQ-IFC-005 | Command idempotency | ERPX shall declare the idempotency identity and conflict semantics for each command interface. | Retry safety must be explicit. | Success: retry returns prior result; Denial: changed payload under same key conflicts; Failure: uncertain commit is queryable. | [ADR-002](../../adr/ADR-002-cqrs.md) | E2E-30 |
 | REQ-IFC-006 | Query consistency | ERPX shall declare authoritative, projection, freshness, paging, and audit semantics for each query interface. | Consumers need truthful reads. | Success: response declares semantics; Denial: protected query reveals no hidden count; Failure: stale/unavailable state is explicit. | [ADR-002](../../adr/ADR-002-cqrs.md) | E2E-16, E2E-30 |
 | REQ-IFC-007 | Event contract | ERPX shall declare producer, consumers, key, ordering, version, classification, replay, and deletion semantics for each integration event. | Events cross ownership boundaries. | Success: consumer replays idempotently; Denial: consumer cannot write producer state; Failure: gap enters reconciliation. | [Integration contracts](../../crates/integration-contracts/src/lib.rs) | E2E-16, E2E-30 |
-| REQ-IFC-008 | Catalog reconciliation | ERPX shall reconcile implementation catalogs against exactly 31 context owners, 21 module workspaces, 65 replacement service IDs, singular routes, typed events, and schema generation v2. | Documentation and runtime must not drift silently. | Success: the implemented typed catalog matches this baseline; Denial: a duplicate, omitted, retired, or uncataloged identifier fails; Failure: parser uncertainty reports a blocking error. | [FSD-006](../decisions/FSD-006-clean-rebuild-architecture-and-cutover.md) | E2E-16, E2E-30 |
+| REQ-IFC-008 | Catalog reconciliation | ERPX shall reconcile implementation catalogs against exactly 31 context owners, 21 module workspaces, 67 replacement service IDs, singular routes, typed events, and schema generation v2. | Documentation and runtime must not drift silently. | Success: the implemented typed catalog matches this baseline; Denial: a duplicate, omitted, retired, or uncataloged identifier fails; Failure: parser uncertainty reports a blocking error. | [FSD-006](../decisions/FSD-006-clean-rebuild-architecture-and-cutover.md) | E2E-16, E2E-30 |
 
 ## Replacement protobuf service catalog
 
-The active clean-rebuild contract set contains exactly 65 internal services.
-Each bounded context owns one Command and one Query service; the three
+The active clean-rebuild contract set contains exactly 67 internal services.
+Each bounded context owns one Command and one Query service, except Finance
+which owns two Command and two Query services (core and payables); the three
 cross-cutting entries are read/stream adapters without business write
 authority. Names, IDs, and ownership are normative. Implementation packages
 use context-specific `erpx.<context>.v2` namespaces rather than the legacy
@@ -105,6 +106,8 @@ monolithic package.
 | IFC-SVC-263 | CollaborationStreamService | Collaboration | Stream | Target via FSD-006 |
 | IFC-SVC-264 | ReferenceQueryService | Item Directory projection | Query | Target via FSD-006 |
 | IFC-SVC-265 | DataPlaneStreamService | Platform Administration | Stream | Target via FSD-006 |
+| IFC-SVC-266 | FinancePayablesCommandService | Finance | Command | Target via FSD-006 |
+| IFC-SVC-267 | FinancePayablesQueryService | Finance | Query | Target via FSD-006 |
 
 ## Observed legacy protobuf service catalog
 

@@ -599,7 +599,7 @@ impl FreshRuntimeManifest {
         if self.version != 4
             || self.schema_revision != 2
             || self.service_catalog_generation != 4
-            || self.service_id_range != "IFC-SVC-201..265"
+            || self.service_id_range != "IFC-SVC-201..267"
             || self.state != "prepared"
             || self.installation_generation.is_nil()
             || !valid_prefix
@@ -1241,7 +1241,7 @@ fn load_reconfiguration_manifest(
     object.insert("service_catalog_generation".into(), serde_json::json!(4));
     object.insert(
         "service_id_range".into(),
-        serde_json::json!("IFC-SVC-201..265"),
+        serde_json::json!("IFC-SVC-201..267"),
     );
     object.remove("n8n_config_sha256");
     let rollback = object
@@ -1329,7 +1329,7 @@ async fn reconfigure_local(root: &Path, confirmation: Option<&String>) -> TaskRe
     println!("  Databases: {}", manifest.database_names().join(", "));
     println!("  MinIO root: /Users/fluke/erpx-minio-data (retain all objects)");
     println!("  MinIO namespace probe: {}", manifest.object_namespace);
-    println!("  Runtime manifest: v4, service catalog generation 4 (IFC-SVC-201..265)");
+    println!("  Runtime manifest: v4, service catalog generation 4 (IFC-SVC-201..267)");
     println!("  Retired runtime removal: .runtime/n8n");
     println!("  PITR: inactive; active installation and receipt: verified");
     let Some(confirmation) = confirmation else {
@@ -6565,7 +6565,7 @@ mod tests {
             version: 4,
             schema_revision: 2,
             service_catalog_generation: 4,
-            service_id_range: "IFC-SVC-201..265".into(),
+            service_id_range: "IFC-SVC-201..267".into(),
             state: "prepared".into(),
             prepared_at: "2026-08-05T01:02:03Z".into(),
             installation_generation: Uuid::parse_str("4fbf88d8-ea38-51b6-93f6-8cdb6c7585ec")

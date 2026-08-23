@@ -264,7 +264,7 @@ worker, auditor.
 schema-generation-v2 databases, preserved pre-cutover environment, backup,
 rehearsed restore, and rollback/forward-recovery plan exist.
 
-**Flow.** Verify normalized schemas, RLS, typed catalogs, 65 services, singular
+**Flow.** Verify normalized schemas, RLS, typed catalogs, 67 services, singular
 routes, event namespaces, and empty-state policy; take a release fence without
 data import or dual write; atomically switch all ownership to v2; prove legacy
 routes/services/events/schema are rejected and new commands succeed; execute

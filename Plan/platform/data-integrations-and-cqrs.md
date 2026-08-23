@@ -176,8 +176,9 @@ failure categories.
 ### REQ-INT-001 — Versioned typed APIs
 
 **Requirement.** ERPX shall expose exactly one internal Command service and one
-internal Query service for each of 31 bounded contexts, plus the three approved
-cross-cutting query/stream services, using `IFC-SVC-201..265`.
+internal Query service for each of 31 bounded contexts, plus the Finance
+payables pair and the three approved cross-cutting query/stream services, using
+`IFC-SVC-201..267`.
 
 **Rationale.** Independently deployed Server, Worker, Console, and agent
 components need an explicit interoperability boundary.
@@ -307,7 +308,7 @@ contract generation.
 
 **Acceptance criteria.** Descriptor generation is deterministic; checks compare
 the entire artifact against baseline 2.0.0; removed identifiers remain retired
-and reserved; all 65 replacement services reconcile to their owners; a legacy
+and reserved; all 67 replacement services reconcile to their owners; a legacy
 route/service/event/schema probe fails; any mismatch blocks release.
 
 **Sources.** [Contract policy](../../CONTRACT_POLICY.md),
