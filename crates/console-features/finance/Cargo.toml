@@ -7,7 +7,10 @@ license.workspace = true
 [dependencies]
 dioxus = { workspace = true, features = ["hooks", "html", "macro", "signals"] }
 async-trait.workspace = true
+chrono.workspace = true
 erpx-cqrs.workspace = true
+erpx-kernel.workspace = true
+uuid.workspace = true
 erpx-finance.workspace = true
 erpx-integration-contracts.workspace = true
 erpx-ui-core.workspace = true

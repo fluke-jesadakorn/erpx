@@ -368,11 +368,111 @@ impl<T: FinancePayablesProtoTransport> QueryGateway<PayablesQuery> for FinancePa
 
 #[cfg(test)]
 mod tests {
+    use super::{
+        payment as present_payment, present_payables_mutation, vendor_invoice as present_vendor,
+    };
+    use erpx_finance::{
+        PayablesMutationResult, PaymentStatus, PaymentView, VendorInvoiceStatus, VendorInvoiceView,
+    };
+    use erpx_integration_contracts::{CurrencyCode, MoneyAmount};
+    use erpx_kernel::AuthorityScope;
+    use uuid::Uuid;
+
     #[test]
     fn gateway_is_the_only_core_mapping_boundary() {
         let source = include_str!("gateway.rs");
         assert!(source.contains("erpx_finance"));
         assert!(!source.contains(concat!("erpx_", "proto")));
         assert!(!source.contains(concat!("ton", "ic::")));
+    }
+
+    fn scope() -> AuthorityScope {
+        AuthorityScope::Holding {
+            holding_id: Uuid::new_v4(),
+        }
+    }
+
+    fn vendor_view() -> VendorInvoiceView {
+        VendorInvoiceView {
+            vendor_invoice_id: erpx_finance::VendorInvoiceId::try_from_uuid(Uuid::new_v4())
+                .expect("id"),
+            version: 1,
+            scope: scope(),
+            invoice_number: "INV-001".into(),
+            supplier: erpx_integration_contracts::procurement::SupplierRef::try_from_uuid(
+                Uuid::new_v4(),
+            )
+            .expect("supplier"),
+            purchase_order: erpx_integration_contracts::RecordRef::try_new(
+                erpx_integration_contracts::BoundedContext::Procurement,
+                "purchase-order",
+                Uuid::new_v4(),
+                1,
+            )
+            .expect("po"),
+            receipt: erpx_integration_contracts::RecordRef::try_new(
+                erpx_integration_contracts::BoundedContext::Procurement,
+                "receipt",
+                Uuid::new_v4(),
+                1,
+            )
+            .expect("receipt"),
+            tolerance: erpx_finance::ThreeWayMatchTolerance {
+                quantity_basis_points: 0,
+                amount_basis_points: 0,
+                absolute_amount_minor: 0,
+            },
+            lines: Vec::new(),
+            net_amount: MoneyAmount::new(8_000, CurrencyCode::try_new("USD").expect("usd")),
+            tax_amount: MoneyAmount::new(2_000, CurrencyCode::try_new("USD").expect("usd")),
+            total_amount: MoneyAmount::new(10_000, CurrencyCode::try_new("USD").expect("usd")),
+            payable_id: None,
+            due_on: chrono::NaiveDate::from_ymd_opt(2026, 8, 23).expect("date"),
+            status: VendorInvoiceStatus::Draft,
+            posted_at: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        }
+    }
+
+    fn payment_view() -> PaymentView {
+        PaymentView {
+            payment_id: erpx_finance::PaymentId::try_from_uuid(Uuid::new_v4()).expect("id"),
+            version: 1,
+            scope: scope(),
+            payment_code: "PAY-001".into(),
+            supplier: erpx_integration_contracts::procurement::SupplierRef::try_from_uuid(
+                Uuid::new_v4(),
+            )
+            .expect("supplier"),
+            amount: MoneyAmount::new(5_000, CurrencyCode::try_new("USD").expect("usd")),
+            allocations: Vec::new(),
+            status: PaymentStatus::Draft,
+            released_at: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        }
+    }
+
+    #[test]
+    fn payables_presenters_map_vendor_invoice_and_payment() {
+        let vendor = vendor_view();
+        let payment_view_value = payment_view();
+        let vendor_item = present_vendor(vendor.clone());
+        assert_eq!(vendor_item.kind, "vendor_invoice");
+        assert_eq!(vendor_item.status, "draft");
+        assert_eq!(vendor_item.code, "INV-001");
+        assert_eq!(vendor_item.amount_minor, Some(10_000));
+        let payment_item = present_payment(payment_view_value.clone());
+        assert_eq!(payment_item.kind, "payment");
+        assert_eq!(payment_item.status, "draft");
+        let mutation = PayablesMutationResult::VendorInvoice(vendor);
+        let content = present_payables_mutation(&mutation);
+        match content {
+            super::super::presenter::FinanceContent::Item(item) => {
+                assert_eq!(item.kind, "vendor_invoice")
+            }
+            _ => panic!("expected item"),
+        }
     }
 }

@@ -2895,14 +2895,17 @@ name = "erpx-console-feature-finance"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "dioxus",
  "erpx-cqrs",
  "erpx-finance",
  "erpx-integration-contracts",
+ "erpx-kernel",
  "erpx-ui-core",
  "erpx-ui-foundation",
  "erpx-ui-kit",
  "serde",
+ "uuid",
 ]
 
 [[package]]
