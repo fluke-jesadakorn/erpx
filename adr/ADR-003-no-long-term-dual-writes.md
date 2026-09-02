@@ -1,5 +1,9 @@
 # ADR-003: No long-term dual writes
 
+> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
+> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+
+
 **Status:** Accepted  
 **Decision:** During migration, Legacy changes may be captured for deterministic shadow comparison, but ERPX will not remain a second write target. After a cohort cutover, ERPX is the sole mutation owner; Legacy is read-only during its retention window and is then retired for that context.
 

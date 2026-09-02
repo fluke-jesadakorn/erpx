@@ -1,4 +1,6 @@
-name: ERPX checks
+# Deprecated — Rust CI (archived 2026-09-02). Kept for history on backup/rust-2026-09-02.
+# Living CI is .github/workflows/nextjs.yml (npm run lint + build). This file is not run on development anymore.
+name: ERPX checks (deprecated — Rust, archived)
 
 on:
   push:

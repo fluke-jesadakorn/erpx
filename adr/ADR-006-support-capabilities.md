@@ -1,5 +1,9 @@
 # ADR-006: Customer-approved support capabilities
 
+> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
+> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+
+
 **Status:** Accepted  
 **Decision:** Support access is an immutable, random 256-bit opaque capability whose hash is persisted. It is bound to ticket, customer, agent, device/session, represented user, mode, permissions, modules, company/branch scope, reason, and expiry. Modes are capped at 8h for diagnostic read and 2h for mutation/impersonation. Approval requires an active Holding Owner or Customer Security Head.
 

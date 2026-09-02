@@ -1,5 +1,9 @@
 # ADR-010: Shared Dioxus target strategy
 
+> **Deprecated — Archived (Dioxus, see backup/rust-2026-09-02). No longer authoritative on this branch.**
+> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+
+
 **Status:** Accepted  
 **Decision:** One Rust/Dioxus UI crate owns shared navigation, domain components, state variants, localization, validation, and accessibility semantics. Thin target adapters provide Web/gRPC-Web, macOS/Windows/Linux desktop transport/storage, and Android/iOS mobile platform capabilities. Sensitive session material uses platform-secure storage; no target stores tokens in ordinary local storage or logs.
 

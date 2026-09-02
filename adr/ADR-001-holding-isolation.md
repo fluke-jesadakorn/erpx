@@ -1,5 +1,9 @@
 # ADR-001: Holding isolation
 
+> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
+> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+
+
 **Status:** Accepted for implementation  
 **Decision:** Business data is physically separated per Holding into one opaque authoritative write database, one replaceable read database, and one object-storage namespace. A Holding chooses `ErpxManaged` or the opt-in `CustomerDataPlane` mode. In either mode the Holding remains the physical isolation boundary and its business units are logical contexts inside the same database pair. The control plane stores only opaque database/storage/key references and redacted health metadata. Holding credentials never enter a browser, Dioxus client, customer-facing response, log, support diagnostic, or the ERPX broker. `HoldingId` is the canonical organization-root identifier throughout routing, authorization, storage, and infrastructure.
 

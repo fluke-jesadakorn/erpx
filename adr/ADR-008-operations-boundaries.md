@@ -1,5 +1,9 @@
 # ADR-008: Operations context boundaries
 
+> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
+> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+
+
 **Status:** Accepted  
 **Decision:** Operations owns orchestration projections, plans, commitments, fulfillment/capacity scenarios, exceptions, work queues, calendars, shifts, handovers, SOPs, dispatch batches, and escalation. It consumes versioned events from Sales, Procurement, Inventory, Finance, Maintenance, Support, and Integrations. It never becomes the source of sales orders, purchase orders, stock movements, invoices, or journals.
 

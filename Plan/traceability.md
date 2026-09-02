@@ -1,8 +1,10 @@
 # Traceability — Requirement → Code → Spec
 
-> Every row links a requirement surface to its contract, implementation, and business-plan spec. Docs = code.
+> **Archived — Rust era (pruned 2026-09-02).** Every row below links to archived Rust contracts (`crates/proto/proto/erpx/*/service.proto` on `backup/rust-2026-09-02`, briefly copied to `docs/contracts/proto/`) and Rust implementations (`crates/contexts/*/src/application.rs`). This branch is now Next.js (`src/app/`) — the living route table is TBD under `docs/contracts/next/` and the archived table is kept here for reference. See `CUTOVER.md` (2026-09-02), `CONTRACT_POLICY.md`, and `ADR-020`.
 
-## RPCs (≈552)
+> Every row links a requirement surface to its contract, implementation, and business-plan spec. Docs = code (archived).
+
+## RPCs (≈552) — archived Rust table (see banner above; living Next.js routes are TBD)
 
 | RPC | Context | Contract | Implementation | Spec |
 |---|---|---|---|---|

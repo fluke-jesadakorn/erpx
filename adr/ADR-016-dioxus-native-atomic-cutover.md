@@ -1,5 +1,9 @@
 # ADR-016: Dioxus Native/Blitz atomic cutover
 
+> **Deprecated — Archived (Dioxus Native/Blitz, see backup).**
+> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+
+
 **Status:** Accepted  
 **Date:** 2026-08-18
 

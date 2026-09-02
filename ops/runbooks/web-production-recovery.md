@@ -1,5 +1,7 @@
 # ERPX Web Production Recovery Runbook
 
+> **Deprecated — Dioxus era (archived 2026-09-02).** Describes Postgres PITR / object recovery for the Rust monorepo. Archived on `backup/rust-2026-09-02`. The Next.js era will derive new runbooks under `ops/runbooks/nextjs-*.md`.
+
 ## Backup restore
 
 Restore the latest logical backup into a disposable, isolated database and

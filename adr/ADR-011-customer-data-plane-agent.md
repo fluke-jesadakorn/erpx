@@ -1,5 +1,9 @@
 # ADR-011: Customer-hosted data plane and outbound agent
 
+> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
+> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+
+
 **Status:** Accepted for implementation
 **Decision:** ERPX remains the managed control plane and console. A holding may opt into a customer-hosted data plane containing its write/read PostgreSQL databases, object storage, directory connectivity, secret provider, background workers, backup integration, and an ERPX data-plane agent. The agent establishes an outbound-only mTLS channel, authenticates with a one-time enrollment token and customer certificate, pins ERPX signing keys, and accepts only signed, versioned desired configuration and a closed set of typed operations.
 

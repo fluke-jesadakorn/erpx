@@ -1,5 +1,9 @@
 # ADR-015: Retire n8n and unify the local Cargo/runtime boundary
 
+> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
+> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+
+
 **Status:** Accepted
 
 **Decision:** ERPX no longer exposes n8n as a connector, bootstrap phase, local

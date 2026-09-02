@@ -4,7 +4,7 @@
 
 ## What ERPX is
 
-Web-first, Rust/Dioxus modular monolith ERP. Dioxus console on `:3004`, Tonic gRPC on `:50051`, HTTP auth/health on `:50052`. DDD + Clean + Hexagonal + CQRS. Single deployable that scales from local dev to self-hosted to hosted. See `01-vision-and-scope.md`.
+Web-first Next.js 16 ERP on this branch (App Router `src/app/` on `http://localhost:3000`, route handlers). Rust/Dioxus/Tonic (`:3004`/`:50051`/`:50052`, DDD + Clean + Hex/CQRS) is archived on `backup/rust-2026-09-02` — see `CUTOVER.md` and `docs/README.md`. See `01-vision-and-scope.md`.
 
 ## Who it's for
 

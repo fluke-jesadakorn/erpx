@@ -1,5 +1,9 @@
 # ADR-005: Audited global reads
 
+> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
+> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+
+
 **Status:** Accepted  
 **Decision:** Platform global reads use a read gateway. Every detailed customer/module/scope read records actor, customer, module, scope, purpose, timestamp, correlation ID, and outcome. The audit is projected to the customer security view. Bulk export and sensitive document download require explicit approved support/customer authorization.
 

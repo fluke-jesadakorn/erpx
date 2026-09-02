@@ -12,7 +12,7 @@ git show rust-archive-2026-09-02 --stat    # tag at cutover point f97b74d6
 git show cc0887d --stat                    # pre-cutover baseline per CUTOVER.md
 ```
 
-Contracts and schemas were copied to `docs/` (`docs/contracts/proto/**` — 37 proto files, `docs/schema/migrations*` — 28 SQL files) for reference.
+Contracts and schemas (37 proto files + 28 SQL files) were briefly copied to `docs/` at `f97b74d6` then pruned from this branch (`99a66de7`, see `docs/README.md`). Reference remains on `backup/rust-2026-09-02`. Living contracts on this branch will be REST/tRPC + Prisma under `src/app/` and `docs/contracts/next/` — see `CONTRACT_POLICY.md` and `docs/TOC.md`.
 
 ## Stack
 
@@ -37,21 +37,20 @@ Environment via `.env` / `.env.local` (ignored, see `.env.example`). `node_modul
 ```
 src/app/            # App Router — layout.tsx, page.tsx, globals.css, (future route handlers)
 public/             # static assets (next.svg, vercel.svg etc)
-Plan/               # business plan (current, 31 contexts) + traceability.md
-Plan.legacy-*/      # archived baselines
-adr/                # 19 ADRs (isolation, CQRS, RBAC, etc)
-audits/             # retained implementation evidence (330+ dirs)
-Designed/           # Pencil canvas MainDesign.pen — edit only via Pencil MCP
-docs/               # archived Rust contracts + schemas (reference-only)
-fixtures/ ops/      # fixtures + runbooks
-.agents/skills/     # workflow skills
+Plan/               # business plan (31 contexts) + traceability.md + LEGACY.md stub
+adr/                # 20 ADRs (19 historical + ADR-020 Next.js stack)
+audits/             # implementation evidence (~40 dirs after 2026-09-02 prune; see audits/README.md)
+Designed/           # Pencil canvas MainDesign.pen — edit only via Pencil MCP + README.md
+docs/               # TOC.md hub + agents/ + archive/ (contracts/schema pruned — see docs/README.md)
+fixtures/ ops/      # fixtures + runbooks (ops/runbooks marked Deprecated Dioxus-era)
+.agents/skills/     # workflow skills (canonical; .claude/skills removed)
 ```
 
 `Designed/MainDesign.pen` is encrypted — access only via Pencil MCP (see `Designed/AGENTS.md`).
 
 ## Business context
 
-See `Plan/README.md` (vision, scope, 31 contexts, `@`-mention contract), `CONTEXT.md` (glossary), `Plan/traceability.md` (RPC/route/table → code matrix), `adr/` (18 decisions). Legacy technical specs live under `Plan.legacy-codebase-2026-08-29/`.
+See `docs/TOC.md` (single hub) → `Plan/README.md` (vision, scope, 31 contexts, `@`-mention contract), `CONTEXT.md` (glossary), `Plan/traceability.md` (archived RPC table + living Next.js routes), `adr/` (20 decisions, ADR-020 is the Next.js stack). Legacy specs are archived on `backup/rust-2026-09-02` (`Plan/LEGACY.md`).
 
 ## Verification
 

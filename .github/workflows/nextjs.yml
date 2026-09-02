@@ -1,0 +1,44 @@
+name: nextjs
+
+on:
+  push:
+    paths:
+      - "src/**"
+      - "public/**"
+      - "next.config.ts"
+      - "next-env.d.ts"
+      - "tsconfig.json"
+      - "eslint.config.mjs"
+      - "postcss.config.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/nextjs.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "public/**"
+      - "next.config.ts"
+      - "next-env.d.ts"
+      - "tsconfig.json"
+      - "eslint.config.mjs"
+      - "postcss.config.mjs"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/nextjs.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  lint-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+      - run: npm run build

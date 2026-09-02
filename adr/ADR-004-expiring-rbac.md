@@ -1,5 +1,9 @@
 # ADR-004: Universal expiring RBAC
 
+> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
+> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+
+
 **Status:** Accepted  
 **Decision:** Every ERPX role assignment has a bounded half-open validity window `[valid_from, valid_until)`, scope, functional domain, authority level, risk tier, grant/approval/review attribution, reason/reference, parent assignment, and immutable assignment version. Renewal creates a new version. No permanent assignment is representable through the command API.
 

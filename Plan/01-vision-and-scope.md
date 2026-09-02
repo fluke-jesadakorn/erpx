@@ -14,13 +14,13 @@ No aspirational contexts added.
 
 ## What’s open vs commercial
 
-- **Open (this repo):** all 31 contexts, console, server/worker/migrator/wal-archive/data-plane-agent, migrations, proto contracts. Self-hostable via `cargo xtask dev --detach` (host-native Postgres, MinIO, Ollama).
-- **Commercial overlay (hosted only):** Stripe-billed billing/entitlement (`commercial` context, `stripe_event_inbox`, `billing_lifecycles`, `entitlement_allocation_books`) — authoritative in Stripe (ADR-007), mirrored locally. Not required for local dev or self-hosted. Pricing is hosted-tier concern; self-hosted runs without Stripe keys (synthetic success never faked).
+- **Open (this repo):** all 31 contexts as business plans + Next.js implementation in `src/app/` (route handlers, Prisma/Drizzle). Full Rust implementation (`crates/*`, `apps/*`) is archived on `backup/rust-2026-09-02` (`rust-archive-2026-09-02`, `f97b74d6`); this branch is docs-only + Next.js scaffold.
+- **Commercial overlay (hosted only):** Stripe-billed billing/entitlement (`commercial` context) — authoritative in Stripe (ADR-007), mirrored locally when present. Not required for local dev or self-hosted.
 
 ## Licensing & deployment tiers
 
 - License: see repo `LICENSE` (open-source).
-- Tiers: **Local dev** (loopback, `cargo xtask reconfigure-local`, `reset-dev --confirm RESET_ERPX_DEV`) → **Self-hosted** (your Postgres/MinIO, your TLS) → **Hosted** (operator-managed Postgres/MinIO + Stripe). Same container, same migrations.
+- Tiers on this branch: **Local dev** (`npm run dev` on `http://localhost:3000`) → **Self-hosted** (Next.js + Postgres/Prisma) → **Hosted** (operator-managed + Stripe). Rust tiers (`cargo xtask dev --detach`, `reconfigure-local`, `reset-dev --confirm RESET_ERPX_DEV`) are archived on `backup/rust-2026-09-02`.
 
 ## Ownership & change control
 
@@ -54,8 +54,8 @@ Implementation ships sequentially (Q14=A) but spec covers all 31; see `Plan/03-c
 
 ## Architecture appendix
 
-For deep technical detail (DDD/Clean/Hex, CQRS/outbox, holding isolation, RBAC, PITR) see archived technical snapshot `Plan.legacy-codebase-2026-08-29/` and `adr/` (18 ADRs). Architecture is not duplicated here to keep this a business plan.
+For deep technical detail (DDD/Clean/Hex, CQRS/outbox, holding isolation, RBAC, PITR) see `adr/` (20 ADRs — ADR-020 is the Next.js stack) and `Plan/LEGACY.md` (pruned baselines archived on `backup/rust-2026-09-02`). Architecture is not duplicated here.
 
 ## Verification
 
-Each capability page links to proto + domain + data + a `cargo xtask` hint. Full traceability in `Plan/traceability.md` (~539 RPCs + reference routing).
+Each capability page links to its business spec + archived proto (`docs/contracts/proto/` on backup) and living Next.js route in `src/app/` (once materialized). Full traceability in `Plan/traceability.md` — archived Rust table (banner) + living `src/app` route table (TBD). Verify this branch with `npm run lint` + `npm run build`; Rust gate `cargo xtask verify` is on backup.

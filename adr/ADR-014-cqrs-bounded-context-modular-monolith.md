@@ -1,5 +1,9 @@
 # ADR-014: CQRS bounded-context modular monolith
 
+> **Deprecated — Archived (CQRS modular monolith, Rust era). Superseded by ADR-020 for Next.js.**
+> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+
+
 **Status:** Accepted for implementation
 
 ## Decision

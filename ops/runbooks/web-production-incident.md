@@ -1,5 +1,7 @@
 # ERPX Web Production Incident Runbook
 
+> **Deprecated — Dioxus era (archived 2026-09-02).** This runbook describes the Dioxus Web / Tonic / worker stack (`:3004`/`:50051`/`:9000`) which was removed from `development` on `d15909bb`. It remains on `backup/rust-2026-09-02` for reference. Living runbooks for the Next.js era will live under `ops/runbooks/nextjs-*.md` (TBD).
+
 This runbook applies to the Dioxus Web, typed API, worker, PostgreSQL, and
 object-storage production stack. Preserve correlation IDs, audit events, and
 outbox evidence during every response.

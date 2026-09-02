@@ -1,7 +1,28 @@
 # ERPX Development Cutover Record
 
-Cutover completed on 2026-07-31 in the local development environment. This
-record does not assert production readiness or external vendor certification.
+This record does not assert production readiness or external vendor certification.
+
+## 2026-09-02 Rust → Next.js — hard cut to docs-only + Next.js rebuild
+
+Cutover completed on 2026-09-02 on branch `development`: the entire Rust/Dioxus/Tonic/SQLx
+monorepo (137 crates, 1321 `*.rs`, 37 `*.proto`, 28 SQLx migrations, 8 `apps/*`) was removed
+and replaced by a fresh **Next.js 16 App Router** scaffold (`src/app/`, React 19, Tailwind 4, TypeScript).
+The Rust code was not migrated — docs were preserved.
+
+- **Commits:** archive point `f97b74d6` (`backup/rust-2026-09-02`), deletion `d15909bb`, scaffold `29136c81`, legacy prune `99a66de7`.
+- **Tags/baseline:** `rust-archive-2026-09-02` at `f97b74d6`, pre-cutover baseline `cc0887dd3f16fe8dbdc827c1655750d9fafd91d2`.
+- **Archived then pruned on this branch (A,B):** `crates/proto/proto/erpx/**` (37 proto + descriptors) and `crates/migration/migrations*` (28 SQL files) were copied to `docs/contracts/proto/` + `docs/schema/migrations*` then pruned from `development` — reference remains on `backup/rust-2026-09-02`. `Plan.legacy-2026-08-29/` (43 md) and `Plan.legacy-codebase-2026-08-29/` (40 md) were also pruned.
+- **Recovery:**
+  ```bash
+  git checkout backup/rust-2026-09-02
+  git show rust-archive-2026-09-02 --stat   # f97b74d6
+  git show cc0887d --stat
+  ```
+- **Next.js verification on this branch:** `npm run lint` + `npm run build` (replaces `cargo xtask verify` which remains on backup).
+
+## 2026-07-31 Folio → Rust — bounded development reset
+
+Cutover completed on 2026-07-31 in the local development environment.
 
 ## Recovery boundary
 

@@ -1,5 +1,9 @@
 # ADR-007: Stripe authority for commercial state
 
+> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
+> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+
+
 **Status:** Accepted  
 **Decision:** Stripe is authoritative for payment/subscription lifecycle. ERPX owns catalog revisions, mapping, entitlements, allocation, grandfathering decisions, and local reconciliation metadata. Stripe webhooks are verified over the raw body, persisted in an inbox, processed idempotently and out-of-order safely, and reconciled by workers.
 

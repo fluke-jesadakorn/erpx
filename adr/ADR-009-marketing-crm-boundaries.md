@@ -1,5 +1,9 @@
 # ADR-009: Marketing and CRM boundaries
 
+> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
+> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+
+
 **Status:** Accepted (n8n retired by ADR-015)  
 **Decision:** Marketing owns acquisition profiles, consent, suppression, audiences, campaigns, journeys, content, channels, and attribution. CRM owns accepted leads, accounts, contacts, opportunities, activities, qualification, and conversion. Consent is checked both when scheduling and immediately before delivery. Approved integration commands are explicit, not arbitrary database access.
 

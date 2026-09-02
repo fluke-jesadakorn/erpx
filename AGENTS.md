@@ -53,15 +53,17 @@ Keep `.env`, `.env.local`, `node_modules/`, `.next/`, and `out/` outside Git. Do
 
 ## Structure
 
+> Full map: `docs/TOC.md` (single hub for all docs).
+
 - `src/app/` — Next.js App Router (layout, page, globals.css, route handlers)
 - `public/` — static assets
-- `Plan/`, `Plan.legacy-2026-08-29/`, `Plan.legacy-codebase-2026-08-29/` — business plans and traceability
-- `adr/` — architecture decision records (18, authoritative for isolation/security)
-- `audits/` — retained implementation/acceptance evidence
-- `Designed/` — Pencil canvas `MainDesign.pen` (access via Pencil MCP only)
-- `docs/` — archived Rust contracts (`contracts/proto/**`) and schemas (`schema/migrations*`) plus `docs/README.md`
-- `fixtures/`, `ops/` — deterministic fixtures and runbooks
-- `.agents/skills/`, `.claude/skills/` — workflow skills (domain-modeling, grilling, prototype, research, wayfinder)
+- `Plan/` — business plans and traceability (`LEGACY.md` stub for pruned baselines)
+- `adr/` — architecture decision records (20: 19 historical + ADR-020 Next.js stack)
+- `audits/` — implementation/acceptance evidence (~40 dirs; see `audits/README.md`)
+- `Designed/` — Pencil canvas `MainDesign.pen` (access via Pencil MCP only) + `README.md`
+- `docs/` — `TOC.md` hub + `agents/` + `archive/` (contracts/schema pruned — see `docs/README.md`)
+- `fixtures/`, `ops/` — deterministic fixtures and runbooks (ops runbooks marked Deprecated)
+- `.agents/skills/` — workflow skills (canonical; `.claude/skills/` removed, see `Designed/README.md`)
 
 ## Recovery
 

@@ -49,3 +49,9 @@ next-env.d.ts
 .sqlx/
 target/
 .cargo/
+
+# local skill mirror — canonical is .agents/skills/ (see AGENTS.md, docs/TOC.md)
+.claude/skills/
+
+# wayfinder local tracker — archived to docs/archive/wayfinder-2026-09-02/
+.scratch/

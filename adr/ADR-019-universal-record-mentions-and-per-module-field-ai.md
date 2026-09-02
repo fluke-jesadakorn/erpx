@@ -1,5 +1,9 @@
 # ADR-019: Universal record mentions and per-module field AI
 
+> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
+> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+
+
 Universal `@<context>/<id>` record mentions and per-module human-approved field AI ship as cross-cutting capabilities.
 
 **Context:** `@` existed only as principal/group/pool `MentionTarget` inside collaboration threads; field AI existed only as generic `RecordFieldPatch` in `agent-orchestration` with human-approved lifecycle. Product needs multi-record coverage per host (project → tasks → invoices) and AI that reads referenced records and ghost-fills the host form, in every module.
@@ -19,4 +23,3 @@ Universal `@<context>/<id>` record mentions and per-module human-approved field 
 **Cross-module spine:** canonical chain `projects → procurement/inventory → sales → finance → assets/operations → support/field_service` (role labels `dependsOn/blocks/billedBy/fulfills/authoredWith`) must be navigable end-to-end via `Search` + `ListBacklinks`. Spec-ahead for thin contexts (e.g., `catalog` with no services) defines intended contract but is flagged `spec-ahead — no implementation yet`.
 
 **Verification:** Q15=C per-module Chromium E2E + disposable-DB harnesses (`cargo xtask test-affected` per owning crate + `reference`/`collaboration`/`agent-orchestration`) wired as code lands; spec now, no empty skeletons checked in.
-

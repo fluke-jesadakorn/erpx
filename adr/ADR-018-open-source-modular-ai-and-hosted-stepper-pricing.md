@@ -1,5 +1,9 @@
 # ADR-018: Open-source modular AI and hosted stepper seat pricing
 
+> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
+> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+
+
 **Status:** Accepted for implementation
 **Date:** 2026-08-28
 
