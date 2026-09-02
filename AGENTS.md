@@ -1,76 +1,77 @@
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
+
 # AGENTS.md
 
-ERPX is a Rust/Dioxus workspace rooted at this directory.
+ERPX is a Next.js workspace rooted at this directory (rebuilt from Rust/Dioxus on 2026-09-02).
 
 ## Tooling
 
-Use Cargo with the pinned Rust toolchain. JavaScript package managers and
-Next.js are not part of this repository.
+Use Node.js 20+ with npm (or pnpm) and the pinned Next.js toolchain. Rust/Cargo/Dioxus/Tonic/SQLx are no longer part of this branch — full Rust source is archived on `backup/rust-2026-09-02` tag `rust-archive-2026-09-02` and baseline `cc0887d` per `CUTOVER.md`.
+
+```bash
+node -v   # 20+
+npm -v    # 11+
+npm run dev    # Next.js on http://localhost:3000
+npm run build  # production build
+npm run lint   # eslint
+```
 
 ## Verification
 
-Keep Dioxus hot reload running while editing UI Rust/RSX. Do not run Cargo tests
-after every UI edit. Use the quick affected lane at a small checkpoint:
+Keep `npm run dev` hot reload running while editing UI. At a checkpoint:
 
 ```bash
-cargo xtask check-affected --dry-run
-cargo xtask check-affected
+npm run lint
+npm run build
 ```
 
-It format-checks changed Rust files and runs owning-package `cargo check`
-targets without linking tests, scanning architecture, or checking reverse
-dependencies. Finish a related change set with the thorough affected lane:
-
-```bash
-cargo xtask test-affected --dry-run
-cargo xtask test-affected
-```
-
-The thorough selector formats changed Rust files, tests changed package targets,
-compile-checks reverse dependencies, and runs mapped domain harnesses. Use
-`cargo check-fast` and `cargo test-fast` when deliberately escalating to the
-whole Web workspace. Run `cargo xtask test <harness> [filter]` for a specific
-domain when needed. Harness names are documented in `README.md`. Before handoff,
-run the complete serialized gate once:
-
-```bash
-cargo xtask verify
-```
-
-The complete verifier includes formatting, warnings-denied workspace Clippy,
-the full workspace test suite with default Web features, Web/Server Console
-checks, a Dioxus Web build, SQLx acceptance, and runtime smoke checks. Do not
-duplicate those commands before it or substitute a production web framework
-build. Desktop/Mobile certification is deferred to the manual
-`cargo xtask verify-platforms` command and must not enter the default workflow.
+Before handoff, run the full gate once (`lint` + `build` must pass, no TS errors). Browser smoke on `http://localhost:3000` should render `src/app/page.tsx`. Add `playwright` e2e if needed (`npm run build` includes route typecheck).
 
 ## Development
 
-Run `cargo xtask dev --detach` when a live runtime is needed and keep Dioxus hot
-reload active while editing UI Rust/RSX. Re-run the same command after backend
-edits for a selective warm restart; use `cargo xtask dev --detach --fresh` for a
-full non-destructive runtime reconcile when needed. Reload or restart the
-development runtime freely, but after every reload or restart verify with
-`cargo xtask status` and a relevant live request that ERPX is usable again. The
-development server does not need to remain running on port 3004 at handoff. Use
-`cargo xtask stop` to stop only recorded ERPX child processes.
+```bash
+npm install        # install deps
+npm run dev        # start dev server (auto-reload on src/app/*, src/components/*, globals.css)
+npm run build      # verify production build
+```
+
+Environment is kept in `.env` / `.env.local` (ignored). See `.env.example` for required vars. Legacy Rust runtime files (`.runtime/`, `target/`, `.cargo/`) are no longer used — see backup branch for history.
+
+Reload or restart the dev server freely and verify with a live request that `http://localhost:3000` is usable again. The server does not need to remain running at handoff.
 
 ## Runtime safety
 
-Keep `.env`, `.env.local`, `.sqlx/`, `target/`, and `.runtime/` outside Git.
-PostgreSQL, MinIO, and Ollama are host-native. Local credentials and TLS are
-managed by `cargo xtask reconfigure-local`; retained databases and objects must
-not be deleted during reconfiguration.
-
-`cargo xtask reset-dev` is destructive and must retain its loopback endpoint,
-schema/bucket allowlist, target printout, and literal confirmation fences.
+Keep `.env`, `.env.local`, `node_modules/`, `.next/`, and `out/` outside Git. Do not commit secrets. Past Rust artifacts (`Cargo.toml`, `crates/`, `apps/`, `xtask/`, `third_party/`) were deleted in this cutover — do not reintroduce Cargo tooling on this branch without a new ADR.
 
 ## Structure
 
-Applications live under `apps/`, shared crates under `crates/`, migrations
-under `crates/migration/`, fixtures under `fixtures/`, architecture decisions
-under `adr/`, retained ERPX evidence under `audits/`, and development
-orchestration under `xtask/`.
+- `src/app/` — Next.js App Router (layout, page, globals.css, route handlers)
+- `public/` — static assets
+- `Plan/`, `Plan.legacy-2026-08-29/`, `Plan.legacy-codebase-2026-08-29/` — business plans and traceability
+- `adr/` — architecture decision records (18, authoritative for isolation/security)
+- `audits/` — retained implementation/acceptance evidence
+- `Designed/` — Pencil canvas `MainDesign.pen` (access via Pencil MCP only)
+- `docs/` — archived Rust contracts (`contracts/proto/**`) and schemas (`schema/migrations*`) plus `docs/README.md`
+- `fixtures/`, `ops/` — deterministic fixtures and runbooks
+- `.agents/skills/`, `.claude/skills/` — workflow skills (domain-modeling, grilling, prototype, research, wayfinder)
+
+## Recovery
+
+To view the prior Rust monorepo:
+
+```bash
+git checkout backup/rust-2026-09-02
+git show rust-archive-2026-09-02 --stat
+# or see CUTOVER.md recovery boundary cc0887d
+```
 
 <!-- skills:start -->
 ## barlevalon workflow skills
