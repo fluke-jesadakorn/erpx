@@ -37,12 +37,12 @@ Environment via `.env` / `.env.local` (ignored, see `.env.example`). `node_modul
 ```
 src/app/            # App Router — layout.tsx, page.tsx, globals.css, (future route handlers)
 public/             # static assets (next.svg, vercel.svg etc)
-Plan/               # business plan (31 contexts) + traceability.md + LEGACY.md stub
-adr/                # 20 ADRs (19 historical + ADR-020 Next.js stack)
-audits/             # implementation evidence (~40 dirs after 2026-09-02 prune; see audits/README.md)
+Plan/               # business plan (31 contexts) + traceability.md + ARCHIVE.md canonical
+adr/                # 20 ADRs (19 historical + ADR-020 Next.js stack) — see adr/README.md
+audits/             # stub → docs/archive/dioxus-2026-08-evidence/ (22 dirs 3.9M, see audits/README.md)
 Designed/           # Pencil canvas MainDesign.pen — edit only via Pencil MCP + README.md
-docs/               # TOC.md hub + agents/ + archive/ (contracts/schema pruned — see docs/README.md)
-fixtures/ ops/      # fixtures + runbooks (ops/runbooks marked Deprecated Dioxus-era)
+docs/               # TOC.md hub + agents/ + archive/ (contracts/schema pruned — see docs/README.md + Plan/ARCHIVE.md)
+fixtures/ ops/      # fixtures + runbooks (ops/ living Next.js: nextjs-incident.md nextjs-recovery.md — see ops/README.md)
 .agents/skills/     # workflow skills (canonical; .claude/skills removed)
 ```
 

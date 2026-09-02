@@ -33,7 +33,7 @@ Cutover completed on 2026-07-31 in the local development environment.
   bridge configuration, active historical documentation, Folio database files,
   and Folio-only service templates were deleted from the active tree.
 - Existing ERPX implementation and acceptance evidence was promoted to the
-  root `audits/` directory.
+  root `audits/` directory (now archived at `docs/archive/dioxus-2026-08-evidence/` 22 dirs 3.9M on `development`; 330 dirs 72M on `backup/rust-2026-09-02`).
 - Source recovery is available from the baseline commit. Folio database and
   object data were intentionally deleted without archival; there is no data
   rollback.
@@ -86,13 +86,13 @@ Finance is the first **production-real** vertical (Holding/Group, international-
 **Cutover gate — parallel + TB-match (not big-bang):**
 - Legacy remains authoritative for 1–2 closes; ERPX ingests verified opening TB + journals.
 - Gate flips only after `TB(legacy) == TB(erpx)` + `aging(legacy) == aging(erpx)` for the closing date, plus `cargo xtask verify` green.
-- Evidence: `ImportChartCsv` (50 accounts) + 20 mixed-currency journals + hybrid vendor/customer invoices + 100 tx CSV bank import → match → reconcile → TB/BS/PL/aging → close/reopen → TB-match report under `audits/`.
+- Evidence: `ImportChartCsv` (50 accounts) + 20 mixed-currency journals + hybrid vendor/customer invoices + 100 tx CSV bank import → match → reconcile → TB/BS/PL/aging → close/reopen → TB-match report under `audits/` (now `docs/archive/dioxus-2026-08-evidence/` 22 dirs + `backup/rust-2026-09-02:audits` 330 dirs).
 
 **Contracts added (wire-compatible, 26→31 RPCs):** `RevalueSubledgers`, `ImportChartCsv`, `ImportOpeningTrialBalance`, `GetFinancialStatements`, `ListAging` (see `crates/proto/proto/erpx/finance/service.proto` and `Plan/traceability.md`).
 
 **Console:** `/finance` Overview (KPI/TB health) · Chart · Journals · Payables/Receivables · Bank Import CSV→Match→Reconcile · Periods Close/Reopen (proof dialog) · Reports TB/BS/PL/Aging; typed `@` chips + `ReferenceQueryService.search` + `FinanceShellStatus` Fresh/Stale/Offline/Denied.
 
-**Ops:** `FINANCE_BANK_PROVIDER_ENABLED=false` in v1; `fx_rates`/`reval_journal_link` in holding data pair; no new Topo tables beyond fx/reval link. `ops/` runbooks reference this gate; `Plan/README.md` edit rule Q18=A still applies.
+**Ops:** `FINANCE_BANK_PROVIDER_ENABLED=false` in v1; `fx_rates`/`reval_journal_link` in holding data pair; no new Topo tables beyond fx/reval link. `ops/` living Next.js runbooks (`ops/runbooks/nextjs-incident.md`, `nextjs-recovery.md`, `ops/README.md`) replace Dioxus `docs/archive/ops-dioxus-2026-09-02/`; `Plan/README.md` edit rule Q18=A still applies.
 
 ## Verification
 

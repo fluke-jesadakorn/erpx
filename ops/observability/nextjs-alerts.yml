@@ -1,0 +1,24 @@
+# Next.js production alerts (replaces erpx-web-production-alerts.yml with erpx_projection_* for Dioxus)
+groups:
+  - name: nextjs
+    interval: 30s
+    rules:
+      - alert: NextJsUp
+        expr: up{job="nextjs"} != 1
+        for: 2m
+        labels: {severity: critical}
+        annotations: {runbook: "ops/runbooks/nextjs-incident.md#server-unavailable"}
+      - alert: NextJsHttp5xx
+        expr: sum(rate(nextjs_http_requests_total{status=~"5.."}[5m])) > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations: {runbook: "ops/runbooks/nextjs-incident.md#http-errors"}
+      - alert: NextJsBuildFailure
+        expr: increase(nextjs_build_failures_total[10m]) > 0
+        labels: {severity: critical}
+        annotations: {runbook: "ops/runbooks/nextjs-incident.md#build-failures"}
+      - alert: DbPoolExhaustion
+        expr: nextjs_db_pool_connections{state="waiting"} > 10
+        for: 5m
+        labels: {severity: warning}
+        annotations: {runbook: "ops/runbooks/nextjs-incident.md#server-unavailable"}

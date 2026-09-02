@@ -1,29 +1,30 @@
 # ERPX — Open-Source Business Plans
 
-> **Code is truth.** Every capability below traces to the Next.js implementation (`src/app/`) and to the archived Rust contracts previously at `crates/proto` / `crates/contexts` (archived on `backup/rust-2026-09-02` — see `CUTOVER.md`). Previous baselines `Plan.legacy-2026-08-29/` and `Plan.legacy-codebase-2026-08-29/` were pruned from this branch on 2026-09-02 (A) — history remains on backup.
+> **Code is truth.** Every capability traces to `src/app/` (Next.js, `http://localhost:3000`) + archived Rust `crates/proto` / `crates/contexts` on `backup/rust-2026-09-02` (`CUTOVER.md` 2026-09-02). History: `Plan/ARCHIVE.md` (canonical) + `Plan/LEGACY.md` stub.
 
 ## What ERPX is
 
-Web-first Next.js 16 ERP on this branch (App Router `src/app/` on `http://localhost:3000`, route handlers). Rust/Dioxus/Tonic (`:3004`/`:50051`/`:50052`, DDD + Clean + Hex/CQRS) is archived on `backup/rust-2026-09-02` — see `CUTOVER.md` and `docs/README.md`. See `01-vision-and-scope.md`.
+Web-first Next.js 16 ERP (App Router, route handlers). Rust/Dioxus/Tonic (`:3004/:50051/:50052`) archived on `backup/rust-2026-09-02` — see `docs/TOC.md` (hub) + `01-vision-and-scope.md`.
 
 ## Who it's for
 
-Everyone — open-source. Self-hosters, contributors, enterprise evaluators, and operators. No hidden commercial gate: the code in this repo is the product.
+Everyone — open-source, self-hosters, contributors, enterprise. No commercial gate — this repo is the product.
 
 ## How to use this Plan
 
-- `01-vision-and-scope.md` — vision, scope, licensing, deployment tiers, contribution model, and the **universal `@`-mention** contract.
-- `02-capabilities/<group>/<context>.md` — 31 lightweight one-pagers (Q5=A, <80 lines each) grouped by value stream (Q8=B). Each links to proto + domain + data + verification.
-- `CONTEXT.md` (repo root) — code-derived glossary, no implementation.
-- `Plan/glossary.md` — pointer to `CONTEXT.md`.
-- `Plan/traceability.md` — RPC/route/table → code → spec matrix.
+- `Plan/MAP.md` — flat index 31 contexts (find `sales` without remembering `03`)
+- `02-capabilities/<group>/README.md` — 13 group indexes (e.g., `03 Finance/Sales/POS`)
+- `02-capabilities/<group>/<context>.md` — 31 one-pagers (26-35L, domain invariants + Data owned)
+- `03-cross-cutting/@-and-ai/<ctx>.md` — 31 deep (60-65L delta) + `_shared-contract.md` (109L single source for @/AI)
+- `01-vision-and-scope.md` — vision, tiers, universal `@`-mention contract + spine
+- `CONTEXT.md` + `Plan/glossary.md` — glossary, `traceability.md` → code/spec matrix (archived 552 rows in `<details>` + living `docs/contracts/next/route-table.md`)
 
 ## Quick links
 
-- Verify: `npm run lint` + `npm run build` (Next.js; Rust gate `cargo xtask verify` is archived on backup)
-- ADRs: `adr/` (19 decisions — see `adr/ADR-020` for Next.js stack; historical via backup)
-- Recovery: `backup/rust-2026-09-02` + tag `rust-archive-2026-09-02` + baseline `cc0887d` (see `CUTOVER.md`)
+- Verify: `npm run lint` + `npm run build` (Next.js; `cargo xtask verify` archived on backup)
+- ADRs: `adr/` 20 decisions (`adr/README.md` index, `ADR-020` living)
+- Recovery: `backup/rust-2026-09-02` + `rust-archive-2026-09-02` + `cc0887d` (see `CUTOVER.md` + `Plan/ARCHIVE.md`)
 
 ## Edit rule (Q18=A)
 
-PRs welcome. Any `Plan/` edit must update `traceability.md` and reference the code SHA it describes. Docs = code.
+PRs welcome. Any `Plan/` edit must update `traceability.md` + code SHA. Docs = code.

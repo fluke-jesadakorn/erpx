@@ -37,11 +37,13 @@ README.md                           # entry — Next.js reboot 2026-09-02, recov
 │   ├── README.md                   # stub — 27 PNGs + routes /work-queue, /billing/*, /sales, /work + link to Plan
 │   ├── AGENTS.md                   # Pencil-only guardrail
 │   └── MainDesign.pen (15M) + images/ (27 PNG, 16M)  # single source — do not grep .pen
-├── audits/                         # after prune 330→22, 72M→3.9M (see audits/README.md)
-│   ├── README.md                   # index — before/after + keep-list (22 dirs)
-│   ├── CURRENT-CERTIFICATION.md    # Dioxus cert (archived) + Next.js gate pointer
-│   └── (keep) DIOXUS-CUTOVER*, ADR-017-PHASES-0-6, e2e-all-modules, finance_darkmode_fixed, finance_live_full …
-├── fixtures/ + ops/                # fixtures (ai/* 4 json, migration) + runbooks (ops/runbooks/* Deprecated)
+├── audits/                         # stub → docs/archive/dioxus-2026-08-evidence/ (22 dirs 3.9M; see audits/README.md)
+├── docs/archive/
+│   ├── dioxus-2026-08-evidence/    # 22 dirs 3.9M (pruned 330→22) — see docs/archive/dioxus-2026-08-evidence/README.md + backup
+│   ├── delivery-2026-08/           # Delivery 768L (Rust DDD) archived
+│   ├── ops-dioxus-2026-09-02/      # ops 68K (Dioxus runbooks :3004/:50051, erpx_*) archived
+│   └── wayfinder-2026-09-02/       # 10 tickets + prototype — audit trail
+├── fixtures/ + ops/                # fixtures (ai/* 4 json, migration) + ops/ living Next.js (nextjs-incident.md nextjs-recovery.md)
 ├── src/app/                        # living Next.js — layout.tsx, page.tsx, globals.css, future route handlers
 ├── .agents/skills/                 # canonical 6 skills (domain-modeling, grilling, prototype, research, wayfinder)
 ├── .github/workflows/
