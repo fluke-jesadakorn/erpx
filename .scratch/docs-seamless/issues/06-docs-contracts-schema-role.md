@@ -1,6 +1,8 @@
-Status: open
+Status: resolved
 Type: grilling
 Blocked by: 01, 03
+Claimed-by: muse-spark-1.2
+Resolved-at: 2026-09-02
 
 # 06 — docs/contracts + docs/schema เอาไว้ทำอะไร
 
@@ -22,6 +24,17 @@ Blocked by: 01, 03
 
 ## Answer
 
-<!-- หลังคุย: เลือก A/B/C + ข้อความแบนเนอร์ + การแก้ CONTRACT_POLICY + ถ้า B ต้องระบุเครื่องมือ -->
+**ตัดสินใจ: เลือก A — เก็บเป็น archive อ้างอิงอย่างเดียว (ตอนนี้) + เตรียม C ในอนาคต**
+
+- **ตอนนี้เลือก A:** `docs/contracts/proto/**` + `docs/schema/migrations*` ให้เป็น **Reference-only · Next.js ใช้ REST/tRPC/Prisma แทน** — ใส่แบนเนอร์หัว `docs/README.md` และหัวแต่ละ `proto`/`sql` ว่า “Archive from Rust `f97b74d6` — not live on Next.js, see backup/rust-2026-09-02” ห้ามแก้ไฟล์เหล่านี้
+- **อนาคตเป็น C:** เมื่อ Next.js มี route จริง ให้สร้าง `docs/contracts/next/` (เช่น `openapi.yaml` หรือ `src/app` route table) แยกชัดเจน ไม่ปน archive — ตอนนั้น `CONTRACT_POLICY.md` จะลิงก์ไป `docs/contracts/next/`
+- **`CONTRACT_POLICY.md` แก้ตอนนี้:** จาก protobuf 6 bullets → เปลี่ยนเป็น Next.js policy สั้น: “Contracts use REST/tRPC versioned namespace, field numbers never reused reserved, idempotency key + tenant scope, every change updates OpenAPI + Prisma schema + traceability + `docs/contracts/next/`” — ทิ้ง protobuf descriptor bullet ไว้ใน `docs/contracts/README.md` archive อย่างเดียว
+- **`Plan/traceability.md` ชี้:** คอลัมน์ Contract จะชี้ไป `docs/contracts/proto` (archive) + `src/app` (living) พร้อมป้าย Archived; คอลัมน์ Implementation จะชี้ `src/app` แทน `crates/`
+- **ต้องมี ADR-020:** บันทึกใน 03 แล้ว — ให้ ADR-020 ระบุว่า contract stack ใหม่คือ REST/tRPC + Prisma/Drizzle (เลือก Prisma เป็น default)
+
+*Grilling ถาม 3 ทางเลือก — แนะนำ A ตอนนี้เพราะ Next.js ยังไม่มี route จริง จะทำ B เลยจะเดา impl*
 
 ## Comments
+
+- Resolved: 2026-09-02 — เลือก A archive-only + เตรียม C; แก้ CONTRACT_POLICY + traceability ตามนี้
+- Unblocks: 07 บางส่วน (contracts role ชัดแล้ว)

@@ -1,6 +1,8 @@
-Status: open
+Status: resolved
 Type: prototype
 Blocked by: 02, 03, 04, 05, 06, 07
+Claimed-by: muse-spark-1.2
+Resolved-at: 2026-09-02
 
 # 08 — ต้นแบบสารบัญ Seamless
 
@@ -27,6 +29,23 @@ HITL — ต้องพรีวิวให้คนดูแล้วตอ�
 
 ## Answer
 
-<!-- หลังทำ prototype: ลิงก์ไฟล์ prototype + สรุป feedback -->
+**Prototype เสร็จ — throwaway branch `.scratch/docs-seamless/prototype/TOC-seamless.md` (ไม่ใช่ของจริง, ตั้งใจให้ลบทิ้งได้)**
+
+Tree 3 ชั้นหลัง prune:
+```
+README (entry) → AGENTS/CLAUDE → CUTOVER 2 entries → Plan (31 contexts + LEGACY stub + glossary pointer) → CONTEXT → adr 19 (13 Reconfirmed + 3 Deprecated → ADR-020) → docs (archive proto 37 + schema 28 + TOCเดียว) → Designed (pen 15M + images 27 PNG + README stub) → audits (<20M + README สารบัญ) → fixtures/ops (runbooks ใหม่) → src/app (living) → .agents/skills เดียว → .github/nextjs.yml
+```
+
+วิธีเดินไม่หลง 3 เส้น:
+1. ใหม่: `README` → `Plan/01` → `Plan/02` context → `CONTEXT` → `src/app` → ประวัติ `CUTOVER`+`docs`+backup
+2. ศัพท์: ทุกที่ชี้ `CONTEXT.md`
+3. ประวัติ: `CUTOVER` 2 entries + `Plan/LEGACY.md` + `docs/README` → `backup/rust-2026-09-02`
+
+Prototype นี้พิสูจน์ว่า critical 7 จะหมด (CUTOVER 2 entries, CONTRACT_POLICY แก้, traceability ชี้ archive, ไม่มี dup legacy/audits/skills) และสารบัญเดียว (`docs/TOC.md` หรือ `src/app/docs`) พอ — รอ feedback ก่อนทำจริง
+
+*HITL prototype — ทำบน `.scratch/docs-seamless/prototype/` ใกล้ที่ใช้งานจริง แต่ชื่อชัดเจนว่า throwaway, ไม่มี test, รันง่าย*
 
 ## Comments
+
+- Resolved: 2026-09-02 — prototype อยู่ .scratch, ไม่ commit เข้า main; validated decision (tree) จะถูก fold เข้า `docs/TOC.md` ตอน hand-off
+- ถ้าโอเค → hand-off สร้าง `docs/TOC.md` + `Plan/LEGACY.md` + `Designed/README.md` + `audits/README.md` + แก้ `CUTOVER.md` + `CONTRACT_POLICY.md` + ลบตาม 04/05
