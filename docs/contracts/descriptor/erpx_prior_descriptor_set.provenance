@@ -1,4 +1,0 @@
-commit=db2860f1
-source=crates/proto/proto/erpx/catalog/active.proto
-sha256=3360090a8778d583ac93919ac4d234f04fd93776b704e462d5ec8a8cb29a29f8
-purpose=Mandatory additive-wire compatibility baseline preceding ADR-017 rollout

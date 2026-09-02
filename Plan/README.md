@@ -1,6 +1,6 @@
 # ERPX — Open-Source Business Plans
 
-> **Code is truth.** Every capability below traces to implemented code (`crates/proto`, `crates/domain`, `crates/contexts`, `crates/migration`, `apps/console`, `apps/server`). Archived baselines: `Plan.legacy-2026-08-29/` (aspirational FSDs) and `Plan.legacy-codebase-2026-08-29/` (technical snapshot).
+> **Code is truth.** Every capability below traces to the Next.js implementation (`src/app/`) and to the archived Rust contracts previously at `crates/proto` / `crates/contexts` (archived on `backup/rust-2026-09-02` — see `CUTOVER.md`). Previous baselines `Plan.legacy-2026-08-29/` and `Plan.legacy-codebase-2026-08-29/` were pruned from this branch on 2026-09-02 (A) — history remains on backup.
 
 ## What ERPX is
 
@@ -20,10 +20,9 @@ Everyone — open-source. Self-hosters, contributors, enterprise evaluators, and
 
 ## Quick links
 
-- Verify (full gate): `cargo xtask verify`
-- Fast: `cargo xtask check-affected` / `cargo xtask test-affected`
-- Single harness: `cargo xtask test <harness> [filter]`
-- ADRs: `adr/` (18 decisions, authoritative for isolation/security/interop)
+- Verify: `npm run lint` + `npm run build` (Next.js; Rust gate `cargo xtask verify` is archived on backup)
+- ADRs: `adr/` (19 decisions — see `adr/ADR-020` for Next.js stack; historical via backup)
+- Recovery: `backup/rust-2026-09-02` + tag `rust-archive-2026-09-02` + baseline `cc0887d` (see `CUTOVER.md`)
 
 ## Edit rule (Q18=A)
 
