@@ -90,7 +90,7 @@ README.md                           # entry — Next.js reboot 2026-09-02, recov
 
 ## Notes
 
-- **Refactored 2026-09-02:** `Plan/MAP.md` + 13 group READMEs + `_shared-contract.md` (shared 150L) + 4 deep trimmed (213L→60L, sales/finance/pos/commercial as example, rest 27 to follow same pattern) + `docs/contracts/next/route-table.md` (living) resolve 9 hops → 1 hop for sales, 62-file duplication, group-number indirection, Archive vs Living confusion. See `docs/archive/wayfinder-2026-09-02/map.md` for decisions 02-10 and `Plan/MAP.md` for full index.
+- **Refactored 2026-09-02 (complete):** `Plan/MAP.md` (31 rows) + 13 group READMEs (200L) + `_shared-contract.md` (109L single source for 150L×31) + **31 deep trimmed 213L avg → 60-65L** (6150L → 2156L, -3994L this batch + -600L prior, total -4600L) + `docs/contracts/next/route-table.md` (living) — resolves 9 hops → 1 hop for sales (`Plan/MAP.md` search `sales`), 62-file duplication, group-number indirection, Archive vs Living confusion. See `docs/archive/wayfinder-2026-09-02/map.md` (10 tickets) and `Plan/MAP.md` for full index. Parallel new→swap per your request.
 - No file is duplicated in two places anymore (legacy dirs deleted, `audits/` pruned 330→22, contracts split archive/living, skills single-homed at `.agents/skills/`).
 - The 7 critical contradictions (second cutover invisible, protobuf vs pruned, 558 dead links) are resolved by banners in `CUTOVER.md`, `CONTRACT_POLICY.md`, `Plan/traceability.md`, and this hub.
 - If you came from `.scratch/docs-seamless/prototype/TOC-seamless.md` — that was the throwaway prototype; this `docs/TOC.md` is the living one.
