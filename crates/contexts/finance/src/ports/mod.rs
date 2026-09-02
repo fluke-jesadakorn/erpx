@@ -48,6 +48,8 @@ pub enum FinanceAction {
     ViewSubledger,
     ListSubledger,
     ViewTrialBalance,
+    ViewFinancialStatements,
+    ViewAging,
     ViewBanking,
     ViewStatutoryTax,
 }
@@ -66,6 +68,8 @@ impl FinanceAction {
                 | Self::ViewSubledger
                 | Self::ListSubledger
                 | Self::ViewTrialBalance
+                | Self::ViewFinancialStatements
+                | Self::ViewAging
                 | Self::ViewBanking
                 | Self::ViewStatutoryTax
         )
@@ -195,6 +199,26 @@ pub enum CommandFingerprint {
     ApplySubledgerSettlement {
         subledger_id: SubledgerId,
         amount_minor: i64,
+    },
+    RevalueSubledgers {
+        period_id: PeriodId,
+        chart_id: ChartId,
+        fx_snapshot_micros: u64,
+        base_currency: String,
+        quote_currency: String,
+        as_of: NaiveDate,
+    },
+    ImportChartCsv {
+        chart_id: ChartId,
+        scope: AuthorityScope,
+        code: String,
+        currency: String,
+        row_count: usize,
+    },
+    ImportOpeningTrialBalance {
+        chart_id: ChartId,
+        period_id: PeriodId,
+        row_count: usize,
     },
 }
 
@@ -388,6 +412,7 @@ pub struct JournalView {
     pub journal_code: String,
     pub entry_date: NaiveDate,
     pub currency: String,
+    pub fx_rate_micros: Option<u64>,
     pub source: JournalSource,
     pub description: String,
     pub lines: Vec<JournalLine>,
@@ -410,6 +435,7 @@ impl From<&Journal> for JournalView {
             journal_code: value.journal_code().into(),
             entry_date: value.entry_date(),
             currency: value.currency().into(),
+            fx_rate_micros: value.fx_rate().map(|r| r.micros),
             source: value.source().clone(),
             description: value.description().into(),
             lines: value.lines().to_vec(),
@@ -691,6 +717,20 @@ pub trait ReadRepository: Send + Sync {
         chart_id: ChartId,
         consistency: &QueryConsistency,
     ) -> Result<ReadProjection<TrialBalanceView>, PortError>;
+    async fn get_financial_statements(
+        &self,
+        scope: &AuthorityScope,
+        chart_id: ChartId,
+        period_id: PeriodId,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<crate::domain::FinancialStatements>, PortError>;
+    async fn list_aging(
+        &self,
+        scope: &AuthorityScope,
+        kind: &crate::domain::SubledgerKind,
+        as_of: &NaiveDate,
+        consistency: &QueryConsistency,
+    ) -> Result<ReadProjection<crate::domain::AgingReport>, PortError>;
     async fn list_bank_transactions(
         &self,
         scope: &AuthorityScope,

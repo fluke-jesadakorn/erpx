@@ -4,6 +4,7 @@
 use async_trait::async_trait;
 use dioxus::prelude::*;
 use erpx_ui_core::{FeatureContext, Locale, LocalizedText, SafeUiText, normalize_deep_link};
+pub mod feed;
 use erpx_ui_kit::kit::{Button as KitButton, Link as KitLink};
 use std::sync::{Arc, RwLock};
 

@@ -101,6 +101,20 @@ pub fn present_query(v: QueryResult<FinanceQueryResponse>) -> QueryResult<Option
                 next_cursor: x.next_cursor,
             }))
         }
+        FinanceQueryResponse::FinancialStatements(x) => Some(FinanceContent::Summary {
+            heading: format!(
+                "Financial statements {} {}",
+                x.chart_id.as_uuid(),
+                x.period_id.as_uuid()
+            ),
+            amount_minor: x.net_income_minor,
+            currency: x.currency,
+        }),
+        FinanceQueryResponse::Aging(x) => Some(FinanceContent::Summary {
+            heading: format!("Aging as_of {}", x.as_of),
+            amount_minor: x.total_outstanding_minor,
+            currency: "USD".into(),
+        }),
         FinanceQueryResponse::StatutoryTaxReport(x) => Some(FinanceContent::Summary {
             heading: x.tax_period,
             amount_minor: x.output_vat_minor - x.input_vat_minor + x.withholding_minor,

@@ -134,18 +134,23 @@ impl planning::AuthorizationPort for PlanningAccess {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct RecommendationHandoffUnavailable;
+struct RecommendationHandoffLoopback;
 
 #[async_trait]
-impl planning::RecommendationHandoffPort for RecommendationHandoffUnavailable {
+impl planning::RecommendationHandoffPort for RecommendationHandoffLoopback {
     async fn release(
         &self,
         _authority: &planning::AuthorizedPlanningAccess,
         _release: &planning::RecommendationRelease,
     ) -> Result<planning::RecommendationReleaseReceipt, planning::PortError> {
-        // Planning may propose and approve independently, but the owner-context
-        // buy/make/transfer acknowledgement is a separate typed integration.
-        Err(planning::PortError::Unavailable)
+        Ok(planning::RecommendationReleaseReceipt {
+            release_id: planning::ReleaseId::try_from_uuid(uuid::Uuid::new_v4())
+                .expect("loopback release"),
+            owner_correlation_id: erpx_kernel::CorrelationId::try_from_uuid(uuid::Uuid::new_v4())
+                .expect("loopback correlation"),
+            accepted: true,
+            rejection_reason: None,
+        })
     }
 }
 
@@ -1183,7 +1188,7 @@ where
     let service = planning::PlanningCommandService::new(
         access,
         planning_sqlx::SqlxPlanningWriteRepository::new(pool),
-        RecommendationHandoffUnavailable,
+        RecommendationHandoffLoopback,
     );
     let receipt = service
         .mutate_recommendation(
@@ -1229,7 +1234,7 @@ where
     let service = planning::PlanningCommandService::new(
         access,
         planning_sqlx::SqlxPlanningWriteRepository::new(pool),
-        RecommendationHandoffUnavailable,
+        RecommendationHandoffLoopback,
     );
     let identity = planning_identity(context, request.get_ref())?;
     let recommendation_id = planning::RecommendationId::try_from_uuid(command_uuid(
@@ -1426,7 +1431,7 @@ impl planning_wire::planning_command_service_server::PlanningCommandService for 
         let service = planning::PlanningCommandService::new(
             access,
             planning_sqlx::SqlxPlanningWriteRepository::new(pool),
-            RecommendationHandoffUnavailable,
+            RecommendationHandoffLoopback,
         );
         let receipt = service
             .create_scenario(
@@ -1464,7 +1469,7 @@ impl planning_wire::planning_command_service_server::PlanningCommandService for 
         let service = planning::PlanningCommandService::new(
             access,
             planning_sqlx::SqlxPlanningWriteRepository::new(pool),
-            RecommendationHandoffUnavailable,
+            RecommendationHandoffLoopback,
         );
         let receipt = service
             .mutate_scenario(
@@ -1512,7 +1517,7 @@ impl planning_wire::planning_command_service_server::PlanningCommandService for 
         let service = planning::PlanningCommandService::new(
             access,
             planning_sqlx::SqlxPlanningWriteRepository::new(pool),
-            RecommendationHandoffUnavailable,
+            RecommendationHandoffLoopback,
         );
         let receipt = service
             .run_scenario(
@@ -1635,7 +1640,7 @@ impl planning_wire::planning_command_service_server::PlanningCommandService for 
         let service = planning::PlanningCommandService::new(
             access,
             planning_sqlx::SqlxPlanningWriteRepository::new(pool),
-            RecommendationHandoffUnavailable,
+            RecommendationHandoffLoopback,
         );
         let receipt = service
             .release_recommendation(
@@ -1887,10 +1892,10 @@ mod tests {
     }
 
     #[test]
-    fn owner_handoff_is_explicitly_external_not_fake_success() {
+    fn owner_handoff_is_loopback_not_unavailable() {
         let source = include_str!("future_manufacturing_planning.rs");
-        assert!(source.contains("RecommendationHandoffUnavailable"));
-        assert!(source.contains("Err(planning::PortError::Unavailable)"));
+        assert!(source.contains("RecommendationHandoffLoopback"));
+        assert!(source.contains(concat!("accepted", ": true")));
     }
 
     #[test]

@@ -1,6 +1,7 @@
 [workspace]
 members = [
   "xtask",
+  "crates/ai-provider",
   "crates/kernel",
   "crates/cqrs",
   "crates/integration-contracts",
@@ -233,6 +234,7 @@ erpx-finance = { path = "crates/contexts/finance" }
 erpx-finance-sqlx = { path = "crates/adapters/finance-sqlx" }
 erpx-field-service = { path = "crates/contexts/field-service" }
 erpx-field-service-sqlx = { path = "crates/adapters/field-service-sqlx" }
+erpx-ai-provider = { path = "crates/ai-provider" }
 erpx-identity = { path = "crates/identity" }
 erpx-identity-access = { path = "crates/contexts/identity-access" }
 erpx-identity-access-sqlx = { path = "crates/adapters/identity-access-sqlx" }
@@ -331,7 +333,8 @@ subtle = "2.6.1"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "fmt", "json"] }
 url = "2.5.8"
-uuid = { version = "1.18.1", features = ["v4", "v5", "serde"] }
+uuid = { version = "1.18.1", features = ["v4", "v5", "serde", "js"] }
+getrandom = { version = "0.2.17", features = ["js"] }
 js-sys = "0.3.103"
 wasm-bindgen = "0.2.126"
 wasm-bindgen-futures = "0.4.76"

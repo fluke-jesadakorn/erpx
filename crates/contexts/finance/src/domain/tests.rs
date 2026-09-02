@@ -137,6 +137,7 @@ fn journal(value: u128) -> Journal {
         format!("J-{value}"),
         date(5),
         "THB".into(),
+        None,
         JournalSource::Manual {
             reference: format!("MAN-{value}"),
         },
@@ -191,6 +192,7 @@ fn journal_requires_balanced_unique_lines_in_one_currency() {
             "J-30".into(),
             date(5),
             "THB".into(),
+            None,
             JournalSource::Manual {
                 reference: "MAN-30".into()
             },

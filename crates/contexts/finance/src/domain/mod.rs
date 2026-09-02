@@ -154,10 +154,69 @@ pub enum FinanceDomainError {
     InvalidRevenueScheduleTransition,
     #[error("Finance amount arithmetic overflowed")]
     ArithmeticOverflow,
+    #[error("FX rate must be a positive micros value in safe range")]
+    InvalidFxRate,
+    #[error("FX rate is required when journal currency differs from chart currency")]
+    FxRateRequired,
+    #[error("revaluation requires open subledgers and valid FX snapshot")]
+    InvalidRevaluation,
     #[error("Finance timestamp cannot move backwards")]
     InvalidTimestamp,
     #[error("Finance aggregate version overflowed")]
     VersionOverflow,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FxRate {
+    pub micros: u64,
+}
+
+impl FxRate {
+    pub const MICROS_SCALE: u64 = 1_000_000;
+    pub const MIN_MICROS: u64 = 1;
+    pub const MAX_MICROS: u64 = 1_000_000_000_000;
+
+    pub fn new(micros: u64) -> Result<Self, FinanceDomainError> {
+        if micros < Self::MIN_MICROS || micros > Self::MAX_MICROS {
+            return Err(FinanceDomainError::InvalidFxRate);
+        }
+        Ok(Self { micros })
+    }
+
+    pub fn validate(&self) -> Result<(), FinanceDomainError> {
+        Self::new(self.micros).map(|_| ())
+    }
+
+    pub fn convert_minor(&self, amount_minor: i64) -> Result<i64, FinanceDomainError> {
+        let amount = i128::from(amount_minor);
+        let converted = amount
+            .checked_mul(i128::from(self.micros))
+            .ok_or(FinanceDomainError::ArithmeticOverflow)?
+            / i128::from(Self::MICROS_SCALE);
+        if converted < i128::from(i64::MIN) || converted > i128::from(i64::MAX) {
+            return Err(FinanceDomainError::ArithmeticOverflow);
+        }
+        Ok(converted as i64)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FxSnapshot {
+    pub base_currency: String,
+    pub quote_currency: String,
+    pub rate: FxRate,
+    pub as_of: chrono::NaiveDate,
+}
+
+impl FxSnapshot {
+    pub fn validate(&self) -> Result<(), FinanceDomainError> {
+        validate_currency(&self.base_currency)?;
+        validate_currency(&self.quote_currency)?;
+        if self.base_currency == self.quote_currency {
+            return Err(FinanceDomainError::InvalidFxRate);
+        }
+        self.rate.validate()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -835,6 +894,7 @@ pub struct Journal {
     journal_code: String,
     entry_date: NaiveDate,
     currency: String,
+    fx_rate: Option<FxRate>,
     source: JournalSource,
     description: String,
     lines: Vec<JournalLine>,
@@ -859,6 +919,7 @@ impl Journal {
         journal_code: String,
         entry_date: NaiveDate,
         currency: String,
+        fx_rate: Option<FxRate>,
         source: JournalSource,
         description: String,
         lines: Vec<JournalLine>,
@@ -868,6 +929,9 @@ impl Journal {
         updated_at: DateTime<Utc>,
     ) -> Result<Self, FinanceDomainError> {
         let (debit_total_minor, credit_total_minor) = validate_journal_lines(&lines, &currency)?;
+        if let Some(rate) = &fx_rate {
+            rate.validate()?;
+        }
         let value = Self {
             id,
             version,
@@ -877,6 +941,7 @@ impl Journal {
             journal_code,
             entry_date,
             currency,
+            fx_rate,
             source,
             description,
             lines,
@@ -901,12 +966,16 @@ impl Journal {
         journal_code: String,
         entry_date: NaiveDate,
         currency: String,
+        fx_rate: Option<FxRate>,
         source: JournalSource,
         description: String,
         lines: Vec<JournalLine>,
         at: DateTime<Utc>,
     ) -> Result<Self, FinanceDomainError> {
         let (debit, credit) = validate_journal_lines(&lines, &currency)?;
+        if let Some(rate) = &fx_rate {
+            rate.validate()?;
+        }
         let value = Self {
             id,
             version: 1,
@@ -916,6 +985,7 @@ impl Journal {
             journal_code,
             entry_date,
             currency,
+            fx_rate,
             source,
             description,
             lines,
@@ -952,9 +1022,16 @@ impl Journal {
             || self.period_id != period.id()
             || self.scope != *chart.scope()
             || self.scope != *period.scope()
-            || self.currency != chart.currency()
         {
             return Err(FinanceDomainError::JournalBindingMismatch);
+        }
+        match (&self.fx_rate, self.currency == chart.currency()) {
+            (None, true) => {}
+            (Some(rate), false) => {
+                rate.validate()?;
+            }
+            (None, false) => return Err(FinanceDomainError::FxRateRequired),
+            (Some(_), true) => return Err(FinanceDomainError::InvalidFxRate),
         }
         if period.status() != PeriodStatus::Open {
             return Err(FinanceDomainError::InvalidPeriodTransition);
@@ -989,6 +1066,9 @@ impl Journal {
         validate_scope(&self.scope)?;
         validate_code(&self.journal_code, "journal_code")?;
         validate_currency(&self.currency)?;
+        if let Some(rate) = &self.fx_rate {
+            rate.validate()?;
+        }
         self.source.validate()?;
         validate_text(&self.description, "journal_description", MAX_TEXT_BYTES)?;
         let (debit, credit) = validate_journal_lines(&self.lines, &self.currency)?;
@@ -1016,6 +1096,33 @@ impl Journal {
         Ok(())
     }
 
+    pub fn fx_rate(&self) -> Option<&FxRate> {
+        self.fx_rate.as_ref()
+    }
+
+    pub fn base_converted_totals(
+        &self,
+        base_currency: &str,
+    ) -> Result<(i64, i64), FinanceDomainError> {
+        validate_currency(base_currency)?;
+        if self.currency == base_currency {
+            if self.fx_rate.is_some() {
+                return Err(FinanceDomainError::InvalidFxRate);
+            }
+            return Ok((self.debit_total_minor, self.credit_total_minor));
+        }
+        let rate = self
+            .fx_rate
+            .as_ref()
+            .ok_or(FinanceDomainError::FxRateRequired)?;
+        rate.validate()?;
+        let base_debit = rate.convert_minor(self.debit_total_minor)?;
+        let base_credit = rate.convert_minor(self.credit_total_minor)?;
+        if base_debit != base_credit {
+            return Err(FinanceDomainError::UnbalancedJournal);
+        }
+        Ok((base_debit, base_credit))
+    }
     pub const fn id(&self) -> JournalId {
         self.id
     }
@@ -1070,6 +1177,285 @@ impl Journal {
     pub(crate) fn take_uncommitted_events(&mut self) -> Vec<DomainEvent> {
         std::mem::take(&mut self.uncommitted_events)
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FinancialStatementLine {
+    pub account_id: AccountId,
+    pub account_code: String,
+    pub account_name: String,
+    pub category: AccountCategory,
+    pub amount_minor: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FinancialStatements {
+    pub chart_id: ChartId,
+    pub period_id: PeriodId,
+    pub currency: String,
+    pub balance_sheet: Vec<FinancialStatementLine>,
+    pub profit_and_loss: Vec<FinancialStatementLine>,
+    pub total_assets_minor: i64,
+    pub total_liabilities_minor: i64,
+    pub total_equity_minor: i64,
+    pub total_revenue_minor: i64,
+    pub total_expense_minor: i64,
+    pub net_income_minor: i64,
+    pub balanced: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgingBucket {
+    Current,
+    Days1_30,
+    Days31_60,
+    Days61_90,
+    Over90,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgingLine {
+    pub subledger_id: SubledgerId,
+    pub document_code: String,
+    pub currency: String,
+    pub outstanding_minor: i64,
+    pub due_on: chrono::NaiveDate,
+    pub days_past_due: i64,
+    pub bucket: AgingBucket,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgingReport {
+    pub as_of: chrono::NaiveDate,
+    pub kind: SubledgerKind,
+    pub lines: Vec<AgingLine>,
+    pub total_outstanding_minor: i64,
+    pub bucket_totals: std::collections::BTreeMap<String, i64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChartCsvRow {
+    pub account_id: String,
+    pub code: String,
+    pub name: String,
+    pub category: AccountCategory,
+    pub normal_balance: NormalBalance,
+    pub parent_code: Option<String>,
+    pub status: AccountStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OpeningTrialBalanceRow {
+    pub account_code: String,
+    pub debit_minor: i64,
+    pub credit_minor: i64,
+}
+
+pub fn build_financial_statements(
+    chart: &Chart,
+    period: &AccountingPeriod,
+    trial_lines: &[(Account, i64)],
+) -> Result<FinancialStatements, FinanceDomainError> {
+    if chart.id().as_uuid() == Uuid::nil() || period.id().as_uuid() == Uuid::nil() {
+        return Err(FinanceDomainError::NilIdentifier {
+            field: "chart_or_period",
+        });
+    }
+    let mut bs: Vec<FinancialStatementLine> = Vec::new();
+    let mut pl: Vec<FinancialStatementLine> = Vec::new();
+    let mut total_assets = 0_i64;
+    let mut total_liabilities = 0_i64;
+    let mut total_equity = 0_i64;
+    let mut total_revenue = 0_i64;
+    let mut total_expense = 0_i64;
+    for (account, net) in trial_lines {
+        let line = FinancialStatementLine {
+            account_id: account.account_id,
+            account_code: account.code.clone(),
+            account_name: account.name.clone(),
+            category: account.category,
+            amount_minor: *net,
+        };
+        match account.category {
+            AccountCategory::Asset => {
+                total_assets = total_assets
+                    .checked_add(*net)
+                    .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+                bs.push(line);
+            }
+            AccountCategory::Liability => {
+                total_liabilities = total_liabilities
+                    .checked_add(*net)
+                    .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+                bs.push(line);
+            }
+            AccountCategory::Equity => {
+                total_equity = total_equity
+                    .checked_add(*net)
+                    .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+                bs.push(line);
+            }
+            AccountCategory::Revenue => {
+                total_revenue = total_revenue
+                    .checked_add(*net)
+                    .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+                pl.push(line);
+            }
+            AccountCategory::Expense => {
+                total_expense = total_expense
+                    .checked_add(*net)
+                    .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+                pl.push(line);
+            }
+        }
+    }
+    let net_income = total_revenue
+        .checked_sub(total_expense)
+        .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+    let bs_balanced = total_assets
+        .checked_sub(total_liabilities)
+        .and_then(|v| v.checked_sub(total_equity))
+        .and_then(|v| v.checked_sub(net_income))
+        .map(|v| v == 0)
+        .unwrap_or(false);
+    Ok(FinancialStatements {
+        chart_id: chart.id(),
+        period_id: period.id(),
+        currency: chart.currency().to_owned(),
+        balance_sheet: bs,
+        profit_and_loss: pl,
+        total_assets_minor: total_assets,
+        total_liabilities_minor: total_liabilities,
+        total_equity_minor: total_equity,
+        total_revenue_minor: total_revenue,
+        total_expense_minor: total_expense,
+        net_income_minor: net_income,
+        balanced: bs_balanced,
+    })
+}
+
+pub fn build_aging_report(
+    subledgers: &[SubledgerItem],
+    kind: SubledgerKind,
+    as_of: chrono::NaiveDate,
+) -> Result<AgingReport, FinanceDomainError> {
+    let mut lines: Vec<AgingLine> = Vec::new();
+    let mut total = 0_i64;
+    let mut bucket_totals: std::collections::BTreeMap<String, i64> =
+        std::collections::BTreeMap::new();
+    for item in subledgers {
+        if item.status() == SubledgerStatus::Settled {
+            continue;
+        }
+        let is_receivable = matches!(item.kind(), SubledgerKind::Receivable(_));
+        let want_receivable = matches!(kind, SubledgerKind::Receivable(_));
+        if is_receivable != want_receivable {
+            continue;
+        }
+        let outstanding = item.outstanding_minor();
+        if outstanding <= 0 {
+            continue;
+        }
+        let created = item.created_at().date_naive();
+        let days = (as_of - created).num_days();
+        let bucket = match days {
+            d if d <= 0 => AgingBucket::Current,
+            1..=30 => AgingBucket::Days1_30,
+            31..=60 => AgingBucket::Days31_60,
+            61..=90 => AgingBucket::Days61_90,
+            _ => AgingBucket::Over90,
+        };
+        let key = format!("{:?}", bucket);
+        *bucket_totals.entry(key.clone()).or_insert(0) = bucket_totals
+            .get(&key)
+            .copied()
+            .unwrap_or(0)
+            .checked_add(outstanding)
+            .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+        total = total
+            .checked_add(outstanding)
+            .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+        lines.push(AgingLine {
+            subledger_id: item.id(),
+            document_code: item.document_code().to_owned(),
+            currency: item.currency().to_owned(),
+            outstanding_minor: outstanding,
+            due_on: created,
+            days_past_due: days,
+            bucket,
+        });
+    }
+    Ok(AgingReport {
+        as_of,
+        kind,
+        lines,
+        total_outstanding_minor: total,
+        bucket_totals,
+    })
+}
+
+pub fn validate_chart_csv_rows(rows: &[ChartCsvRow]) -> Result<(), FinanceDomainError> {
+    if rows.is_empty() || rows.len() > MAX_ACCOUNTS {
+        return Err(FinanceDomainError::InvalidAccountCount);
+    }
+    let mut codes: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    let mut ids: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+    for row in rows {
+        validate_account_code(&row.code)?;
+        validate_text(&row.name, "account_name", MAX_CODE_BYTES)?;
+        if !ids.insert(row.account_id.clone()) || !codes.insert(row.code.clone()) {
+            return Err(FinanceDomainError::DuplicateAccount);
+        }
+        if let Some(parent) = &row.parent_code {
+            validate_account_code(parent)?;
+            if parent == &row.code {
+                return Err(FinanceDomainError::InvalidAccountHierarchy);
+            }
+        }
+    }
+    for row in rows {
+        if let Some(parent) = &row.parent_code {
+            if !codes.contains(parent) {
+                return Err(FinanceDomainError::InvalidAccountHierarchy);
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_opening_trial_balance(
+    rows: &[OpeningTrialBalanceRow],
+) -> Result<(), FinanceDomainError> {
+    if rows.is_empty() {
+        return Err(FinanceDomainError::InvalidJournalLines);
+    }
+    let mut debit: i64 = 0;
+    let mut credit: i64 = 0;
+    for row in rows {
+        validate_account_code(&row.account_code)?;
+        if row.debit_minor < 0
+            || row.credit_minor < 0
+            || (row.debit_minor > 0)
+                == (row.credit_minor > 0 && row.credit_minor != 0 && row.debit_minor != 0)
+        {}
+        if row.debit_minor > 0 && row.credit_minor > 0 {
+            return Err(FinanceDomainError::InvalidJournalAmount);
+        }
+        if row.debit_minor == 0 && row.credit_minor == 0 {
+            return Err(FinanceDomainError::InvalidJournalAmount);
+        }
+        debit = debit
+            .checked_add(row.debit_minor)
+            .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+        credit = credit
+            .checked_add(row.credit_minor)
+            .ok_or(FinanceDomainError::ArithmeticOverflow)?;
+    }
+    if debit != credit {
+        return Err(FinanceDomainError::UnbalancedJournal);
+    }
+    Ok(())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

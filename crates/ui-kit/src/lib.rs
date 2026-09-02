@@ -28,18 +28,20 @@ pub use kit::{
     Density, Disclosure, KitProvider, Link, SelectControl, Table, button, input, textarea,
 };
 pub use premium::{
-    BarChart, Button, ButtonTone, ChartPoint, ChartSeries, DashboardBreakdown,
-    DashboardBreakdownSegment, DashboardMetric, DashboardRange, DashboardRangeSelector,
-    DashboardReadModel, DashboardWorkItem, DonutChart, Drawer, EmptyState, HeatmapChart,
-    LineAreaChart, MetricCard, PageHero, PremiumDataTable, ProgressRing, ReadModelMeta,
-    SectionCard, Skeleton, Sparkline, StackedBarChart, StatusBadge, StatusTone, TabItem, Tabs,
-    Timeline, TimelineItem, Toast, ToastTone, Toolbar, chart_polyline_points,
+    BarChart, Board, BoardCardDef, BoardColumnDef, Button, ButtonTone, ChartPoint, ChartSeries,
+    DashboardBreakdown, DashboardBreakdownSegment, DashboardMetric, DashboardRange,
+    DashboardRangeSelector, DashboardReadModel, DashboardWorkItem, DonutChart, Drawer, EmptyState,
+    HeatmapChart, LineAreaChart, MetricCard, PageHero, PremiumDataTable, ProgressRing,
+    ReadModelMeta, SectionCard, Skeleton, Sparkline, StackedBarChart, StatusBadge, StatusTone,
+    TabItem, Tabs, Timeline, TimelineItem, Toast, ToastTone, Toolbar, chart_polyline_points,
 };
 
 /// Shared CSS variables and component styles. Applications can include this once in their root
 /// component and layer client-specific styles on top.
 pub const SHARED_STYLES: &str = concat!(
     include_str!("../assets/tokens.css"),
+    include_str!("../assets/tailwind.css"),
+    include_str!("../assets/linear-kit-overrides.css"),
     include_str!("../assets/foundation.css"),
     include_str!("../assets/premium-composites.css"),
     include_str!("../assets/chart-composites.css")
@@ -49,11 +51,15 @@ pub const SHARED_STYLES: &str = concat!(
 #[component]
 pub fn SharedStylesheets() -> Element {
     static TOKENS: Asset = asset!("/assets/tokens.css");
+    static TAILWIND: Asset = asset!("/assets/tailwind.css");
+    static LINEAR_OVERRIDES: Asset = asset!("/assets/linear-kit-overrides.css");
     static FOUNDATION: Asset = asset!("/assets/foundation.css");
     static PREMIUM_COMPOSITES: Asset = asset!("/assets/premium-composites.css");
     static CHART_COMPOSITES: Asset = asset!("/assets/chart-composites.css");
     rsx! {
         document::Stylesheet { href: TOKENS }
+        document::Stylesheet { href: TAILWIND }
+        document::Stylesheet { href: LINEAR_OVERRIDES }
         document::Stylesheet { href: FOUNDATION }
         document::Stylesheet { href: PREMIUM_COMPOSITES }
         document::Stylesheet { href: CHART_COMPOSITES }

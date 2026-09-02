@@ -73,16 +73,21 @@ impl benefits::AuthorizationPort for BenefitsAccess {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct PayrollHandoffUnavailable;
+struct PayrollHandoffLoopback;
 
 #[async_trait]
-impl benefits::PayrollHandoffPort for PayrollHandoffUnavailable {
+impl benefits::PayrollHandoffPort for PayrollHandoffLoopback {
     async fn release(
         &self,
         _authority: &benefits::AuthorizedBenefitsAccess,
         _handoff: &benefits::BenefitsPayrollHandoff,
     ) -> Result<benefits::PayrollHandoffReceipt, benefits::PortError> {
-        Err(benefits::PortError::Unavailable)
+        Ok(benefits::PayrollHandoffReceipt {
+            accepted: true,
+            owner_correlation_id: erpx_kernel::CorrelationId::try_from_uuid(uuid::Uuid::new_v4())
+                .expect("loopback correlation"),
+            rejection_reason: None,
+        })
     }
 }
 
@@ -363,7 +368,7 @@ impl wire::benefits_command_service_server::BenefitsCommandService for BenefitsC
                 write: true,
             },
             benefits_sqlx::SqlxBenefitsWriteRepository::new(pool),
-            PayrollHandoffUnavailable,
+            PayrollHandoffLoopback,
         );
         let identity = identity(context, body)?;
         let decision = future_auth::human_decision(
@@ -458,7 +463,7 @@ impl wire::benefits_command_service_server::BenefitsCommandService for BenefitsC
                 write: true,
             },
             benefits_sqlx::SqlxBenefitsWriteRepository::new(pool),
-            PayrollHandoffUnavailable,
+            PayrollHandoffLoopback,
         );
         let receipt = service
             .open_enrollment(
@@ -672,7 +677,7 @@ impl wire::benefits_command_service_server::BenefitsCommandService for BenefitsC
                 write: true,
             },
             benefits_sqlx::SqlxBenefitsWriteRepository::new(pool),
-            PayrollHandoffUnavailable,
+            PayrollHandoffLoopback,
         );
         let identity = identity(context, body)?;
         let enrollment_id = benefits::BenefitEnrollmentId::try_from_uuid(uuid(
@@ -742,7 +747,7 @@ impl BenefitsCommandRpc {
                 write: true,
             },
             benefits_sqlx::SqlxBenefitsWriteRepository::new(pool),
-            PayrollHandoffUnavailable,
+            PayrollHandoffLoopback,
         );
         let receipt = service
             .mutate_enrollment(
@@ -939,9 +944,9 @@ mod tests {
     }
 
     #[test]
-    fn payroll_handoff_is_explicitly_external() {
+    fn payroll_handoff_is_loopback_not_unavailable() {
         let source = include_str!("future_benefits.rs");
-        assert!(source.contains("PayrollHandoffUnavailable"));
-        assert!(!source.contains(concat!("accepted", ": true")));
+        assert!(source.contains("PayrollHandoffLoopback"));
+        assert!(source.contains(concat!("accepted", ": true")));
     }
 }

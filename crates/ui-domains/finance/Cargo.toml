@@ -6,5 +6,8 @@ rust-version.workspace = true
 license.workspace = true
 [dependencies]
 erpx-ui-core.workspace = true
+erpx-ui-ai-collaboration.workspace = true
+erpx-domain.workspace = true
+uuid.workspace = true
 [lints]
 workspace = true

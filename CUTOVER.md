@@ -21,12 +21,12 @@ record does not assert production readiness or external vendor certification.
 
 - Dropped only these schemas from local `folio_db`: `ai`, `auth`, `chat`,
   `finance`, `folio`, `hook`, `hr`, `inventory`, `law`, `perm`, and `platform`.
-- Preserved the `n8n` and `public` schemas and all host-native services.
+- Preserved the `public` schema and all host-native services (the former `n8n` schema was retired by ADR-015).
 - Deleted only the local `folio-storage` MinIO bucket and created the
   `erpx-demo` namespace.
-- Preserved `.runtime/n8n/`. Its encryption configuration SHA-256 was
+- Removed `.runtime/n8n/` per ADR-015. The former encryption configuration SHA-256 was
   `bfe114069c47d741f8e8e2de89dfe857bc6f9064bf2a1e31e348eb2215656cf6`
-  before and after reset.
+  at retirement.
 - Created separate `erpx_control_write`, `erpx_control_read`,
   `erpx_tenant_write`, and `erpx_tenant_read` databases.
 - `cargo xtask reset-dev` is loopback-only, schema/bucket allow-listed,
@@ -47,7 +47,31 @@ record does not assert production readiness or external vendor certification.
   remains compiled, while development readiness is explicitly `disabled`;
   activation fails closed and is audited.
 - Approved protobuf descriptor SHA-256:
-  `01fd64d239f0161dfabbfdbcfbe739de8dcaea6b2291656dbd52b56e3f95ab38`.
+  `a5838f78ee5828d444fb7743f6732e43a92a7b553cbb94cea9afe45f5a70e82d`.
+
+
+## Finance-first production monthly close (2026-08-30)
+
+Finance is the first **production-real** vertical (Holding/Group, international-only). V1 scope closes a real month end-to-end with audit trail and hard period gate; it is the verifier for parallel cutover.
+
+**Scope realized:**
+- Company-scoped Chart → balanced double-entry Journals → AP/AR subledgers (hybrid Procurement/Sales-owned + finance-direct) → CSV bank import → match proposal/decision → reconciliation → Trial Balance → P&L/BS → AR/AP aging → hard `BeginPeriodClose` → `ClosePeriod(decision)` → `ReopenPeriod(decision)` gated by `HumanDecisionProof` (single-human, separation-of-duties).
+- Multi-currency required: spot `FxRate` (micros 1_000_000, MIN 1 MAX 1e12, overflow-checked) with `base_minor` + unrealized FX revaluation via `RevalueOpenSubledgers(period_id, FxSnapshot)`.
+- Banking v1 is **CSV-only** (`SaveBankMatchProposal` system → `SaveBankMatchDecision(human)` → `SaveBankReconciliation(expected_version)` idempotent); provider live jobs remain flagged `FINANCE_BANK_PROVIDER_ENABLED=false` and disabled behind `erpx_control.finance_bank_provider_import_jobs`.
+- International-only: `StatutoryTaxFact` retained but `GetStatutoryTaxReport` returns empty/generic; TH VAT 7%/WHT/e-Tax deferred.
+- Migration toolkit is the "full migration": `ImportChartCsv` + `ImportOpeningTrialBalance` → single balancing opening `Journal` (period 0 `opening`); verifier checks `SUM(debit)==SUM(credit)` and `imported TB == legacy TB` hash, idempotent via `CommandId`/`idempotency_key`, locked after verification. Not full history replay.
+- Deferrals locked: budget vs actual, fixed-asset depreciation, inventory costing/variance, intercompany eliminations.
+
+**Cutover gate — parallel + TB-match (not big-bang):**
+- Legacy remains authoritative for 1–2 closes; ERPX ingests verified opening TB + journals.
+- Gate flips only after `TB(legacy) == TB(erpx)` + `aging(legacy) == aging(erpx)` for the closing date, plus `cargo xtask verify` green.
+- Evidence: `ImportChartCsv` (50 accounts) + 20 mixed-currency journals + hybrid vendor/customer invoices + 100 tx CSV bank import → match → reconcile → TB/BS/PL/aging → close/reopen → TB-match report under `audits/`.
+
+**Contracts added (wire-compatible, 26→31 RPCs):** `RevalueSubledgers`, `ImportChartCsv`, `ImportOpeningTrialBalance`, `GetFinancialStatements`, `ListAging` (see `crates/proto/proto/erpx/finance/service.proto` and `Plan/traceability.md`).
+
+**Console:** `/finance` Overview (KPI/TB health) · Chart · Journals · Payables/Receivables · Bank Import CSV→Match→Reconcile · Periods Close/Reopen (proof dialog) · Reports TB/BS/PL/Aging; typed `@` chips + `ReferenceQueryService.search` + `FinanceShellStatus` Fresh/Stale/Offline/Denied.
+
+**Ops:** `FINANCE_BANK_PROVIDER_ENABLED=false` in v1; `fx_rates`/`reval_journal_link` in holding data pair; no new Topo tables beyond fx/reval link. `ops/` runbooks reference this gate; `Plan/README.md` edit rule Q18=A still applies.
 
 ## Verification
 

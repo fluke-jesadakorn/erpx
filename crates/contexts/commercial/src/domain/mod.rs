@@ -1,5 +1,6 @@
 mod catalog;
 mod entitlement;
+pub mod hosted_pricing;
 mod records;
 mod subscription;
 
@@ -19,6 +20,7 @@ pub use records::{
 pub use subscription::{BillingSignal, Subscription, SubscriptionState, SubscriptionStatus};
 
 pub const MAX_COMMERCIAL_TEXT_BYTES: usize = 255;
+pub const FLOW_AI_CAPABILITY: &str = "flow_ai";
 
 macro_rules! commercial_id {
     ($name:ident, $field:literal) => {

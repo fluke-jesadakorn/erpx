@@ -1036,7 +1036,7 @@ mod tests {
 
     #[test]
     fn control_plane_migration_is_embedded_and_has_the_expected_schema() {
-        assert_eq!(CONTROL_PLANE_MIGRATOR.iter().count(), 6);
+        assert_eq!(CONTROL_PLANE_MIGRATOR.iter().count(), 7);
         let initial = CONTROL_PLANE_MIGRATOR
             .iter()
             .next()
@@ -1193,7 +1193,7 @@ mod tests {
 
     #[test]
     fn holding_write_and_read_migrations_are_separate_and_rls_backed() {
-        assert_eq!(HOLDING_WRITE_MIGRATOR.iter().count(), 9);
+        assert_eq!(HOLDING_WRITE_MIGRATOR.iter().count(), 10);
         assert_eq!(HOLDING_READ_MIGRATOR.iter().count(), 5);
         let write = HOLDING_WRITE_MIGRATOR
             .iter()

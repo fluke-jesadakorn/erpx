@@ -98,6 +98,13 @@ pub enum CollaborationAction {
     ManageDraft,
     ReadStream,
     ReadInbox,
+    ListFeed,
+    GetFeedItem,
+    SearchFeed,
+    ShareFeedItem,
+    CreateHashtagTopic,
+    FollowHashtag,
+    ListHashtagTopics,
 }
 
 /// Record capability returned before any relation graph lookup. Source and
@@ -476,6 +483,107 @@ impl AuthorizedSearchAccess {
     pub const fn external_portal(&self) -> Option<crate::domain::ExternalPortal> {
         self.external_portal
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthorizedFeedAccess {
+    holding_id: HoldingId,
+    authority_scope: AuthorityScope,
+    actor: PrincipalRef,
+    external_portal: Option<crate::domain::ExternalPortal>,
+    action: CollaborationAction,
+}
+
+impl AuthorizedFeedAccess {
+    pub fn try_from_authorization(
+        holding_id: HoldingId,
+        authority_scope: AuthorityScope,
+        actor: PrincipalRef,
+        external_portal: Option<crate::domain::ExternalPortal>,
+        action: CollaborationAction,
+    ) -> Result<Self, PortError> {
+        authority_scope.validate().map_err(|_| PortError::Denied)?;
+        if !matches!(
+            action,
+            CollaborationAction::ListFeed
+                | CollaborationAction::GetFeedItem
+                | CollaborationAction::SearchFeed
+                | CollaborationAction::ShareFeedItem
+                | CollaborationAction::CreateHashtagTopic
+                | CollaborationAction::FollowHashtag
+                | CollaborationAction::ListHashtagTopics
+        ) {
+            return Err(PortError::Denied);
+        }
+        Ok(Self {
+            holding_id,
+            authority_scope,
+            actor,
+            external_portal,
+            action,
+        })
+    }
+    pub const fn holding_id(&self) -> HoldingId {
+        self.holding_id
+    }
+    pub const fn authority_scope(&self) -> &AuthorityScope {
+        &self.authority_scope
+    }
+    pub const fn actor(&self) -> PrincipalRef {
+        self.actor
+    }
+    pub const fn external_portal(&self) -> Option<crate::domain::ExternalPortal> {
+        self.external_portal
+    }
+    pub const fn action(&self) -> CollaborationAction {
+        self.action
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FeedPageView {
+    pub items: Vec<crate::feed::FeedItem>,
+    pub next_cursor: Option<String>,
+    pub authorized_count: u64,
+}
+
+#[async_trait]
+pub trait FeedReadRepository: Send + Sync {
+    async fn list_feed(
+        &self,
+        access: &AuthorizedFeedAccess,
+        filter: &crate::feed::FeedFilter,
+        page_size: usize,
+        cursor: Option<&str>,
+    ) -> Result<FeedPageView, PortError>;
+    async fn get_feed_item(
+        &self,
+        access: &AuthorizedFeedAccess,
+        feed_item_id: crate::feed::FeedItemId,
+    ) -> Result<Option<crate::feed::FeedItem>, PortError>;
+    async fn search_feed(
+        &self,
+        access: &AuthorizedFeedAccess,
+        query: &str,
+        filter: &crate::feed::FeedFilter,
+        page_size: usize,
+        cursor: Option<&str>,
+    ) -> Result<FeedPageView, PortError>;
+}
+
+#[async_trait]
+pub trait FeedWriteRepository: Send + Sync {
+    async fn create_hashtag_topic(
+        &self,
+        access: &AuthorizedFeedAccess,
+        topic: crate::feed::HashtagTopic,
+    ) -> Result<crate::feed::HashtagTopic, PortError>;
+    async fn follow_hashtag(
+        &self,
+        access: &AuthorizedFeedAccess,
+        tag: &str,
+        follow: bool,
+    ) -> Result<bool, PortError>;
 }
 
 #[async_trait]

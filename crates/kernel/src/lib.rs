@@ -75,6 +75,8 @@ uuid_identifier!(QueryId);
 uuid_identifier!(RecordId);
 uuid_identifier!(SessionId);
 
+pub mod feed;
+
 /// Classification carried by records, fields, events, and provider payloads.
 ///
 /// Ordering is intentional: a larger value is always at least as restrictive

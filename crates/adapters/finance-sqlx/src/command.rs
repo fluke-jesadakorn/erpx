@@ -251,6 +251,7 @@ async fn load_journal_relational(
             .map_err(|_| PortError::Internal)?,
         row.try_get("entry_date").map_err(|_| PortError::Internal)?,
         currency,
+        None,
         source,
         row.try_get("description")
             .map_err(|_| PortError::Internal)?,
@@ -1980,6 +1981,13 @@ fn fingerprint_target(v: &CommandFingerprint) -> (String, &'static str) {
         | CommandFingerprint::PostJournal { journal_id, .. } => {
             (journal_partition(*journal_id), JOURNAL_AGGREGATE_TYPE)
         }
+        CommandFingerprint::RevalueSubledgers { period_id, .. }
+        | CommandFingerprint::ImportOpeningTrialBalance { period_id, .. } => {
+            (period_partition(*period_id), JOURNAL_AGGREGATE_TYPE)
+        }
+        CommandFingerprint::ImportChartCsv { chart_id, .. } => {
+            (chart_partition(*chart_id), CHART_AGGREGATE_TYPE)
+        }
         CommandFingerprint::CreateReceivableFromInvoice { subledger_id, .. }
         | CommandFingerprint::CreatePayableFromProcurement { subledger_id, .. }
         | CommandFingerprint::ApplySubledgerSettlement { subledger_id, .. } => {
@@ -2039,6 +2047,9 @@ fn audit_action(v: &CommandFingerprint) -> &'static str {
         CommandFingerprint::ReopenPeriod { .. } => "finance.period.reopen",
         CommandFingerprint::CreateJournal { .. } => "finance.journal.create",
         CommandFingerprint::PostJournal { .. } => "finance.journal.post",
+        CommandFingerprint::RevalueSubledgers { .. } => "finance.journal.revalue",
+        CommandFingerprint::ImportChartCsv { .. } => "finance.chart.import_csv",
+        CommandFingerprint::ImportOpeningTrialBalance { .. } => "finance.journal.import_opening",
         CommandFingerprint::CreateCustomerInvoice { .. } => "finance.customer_invoice.create",
         CommandFingerprint::PostCustomerInvoice { .. } => "finance.customer_invoice.post",
         CommandFingerprint::CancelCustomerInvoice { .. } => "finance.customer_invoice.cancel",

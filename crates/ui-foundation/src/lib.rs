@@ -16,4 +16,5 @@ pub use fake::{FakeCommandGateway, FakeQueryGateway};
 pub use flow::{CommandThenQuery, ReadYourWritesCoordinator, ReadYourWritesRequest};
 pub use gateway::{CommandGateway, QueryGateway};
 pub use presenter::{Presenter, PresenterEvent, PresenterState};
+pub mod feed;
 pub use session::{RequestContextBuilder, RequestContextError, SessionContext};

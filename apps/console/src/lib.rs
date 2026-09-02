@@ -15,6 +15,9 @@ mod bff_navigation;
 mod delivery;
 #[cfg(any(feature = "web", feature = "server"))]
 mod feature_delivery;
+mod feed_surface;
+#[cfg(any(feature = "web", feature = "server"))]
+mod future_enterprise_gateway;
 #[cfg(any(feature = "web", feature = "server"))]
 mod insight_delivery;
 #[cfg(feature = "native")]
@@ -34,6 +37,8 @@ mod security_delivery;
 #[cfg(feature = "server")]
 mod server;
 #[cfg(any(feature = "web", feature = "server"))]
+mod support_delivery;
+#[cfg(any(feature = "web", feature = "server"))]
 mod work_delivery;
 #[cfg(feature = "server")]
 mod workspace_delivery;
@@ -49,7 +54,7 @@ pub(crate) const LOGIN_PATH: &str = "/auth/sign-in";
 
 #[cfg(feature = "server")]
 pub(crate) fn authenticated_landing_path() -> &'static str {
-    "/work"
+    "/"
 }
 
 #[cfg(feature = "server")]

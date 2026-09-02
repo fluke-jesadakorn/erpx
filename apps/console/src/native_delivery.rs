@@ -1916,6 +1916,71 @@ impl ConsoleGateway for NativeGrpcGateway {
     ) -> Result<Vec<CollaborationEvent>, DeliveryError> {
         Err(DeliveryError::unavailable(Some(500)))
     }
+
+    async fn ai_suggest(
+        &self,
+        _request: erpx_delivery_contract::AiSuggestionRequest,
+    ) -> Result<erpx_delivery_contract::AiSuggestionResponse, DeliveryError> {
+        Err(DeliveryError::unavailable(Some(500)))
+    }
+
+    async fn ai_flow_analyze(
+        &self,
+        _request: erpx_delivery_contract::FlowAnalysisRequest,
+    ) -> Result<erpx_delivery_contract::FlowAnalysisResponse, DeliveryError> {
+        Err(DeliveryError::unavailable(Some(500)))
+    }
+
+    async fn ai_provider_presets(
+        &self,
+    ) -> Result<Vec<erpx_delivery_contract::AiProviderPresetView>, DeliveryError> {
+        Ok(erpx_ai_provider::AI_PROVIDER_PRESETS
+            .iter()
+            .map(|preset| erpx_delivery_contract::AiProviderPresetView {
+                kind: preset.kind,
+                label: preset.label.to_owned(),
+                default_endpoint: preset.default_endpoint.to_owned(),
+                default_model: preset.default_model.to_owned(),
+                free: preset.free,
+            })
+            .collect())
+    }
+
+    async fn hosted_quote(
+        &self,
+        seats: u32,
+    ) -> Result<erpx_delivery_contract::HostedPricingQuote, DeliveryError> {
+        if seats > 5000 {
+            return Err(DeliveryError::Validation(
+                erpx_delivery_contract::DeliveryErrorMeta {
+                    correlation_id: uuid::Uuid::new_v4(),
+                    retry_after_ms: None,
+                    retryable: false,
+                },
+            ));
+        }
+        Ok(erpx_delivery_contract::hosted_quote(seats))
+    }
+
+    async fn save_ai_provider_config(
+        &self,
+        _request: erpx_delivery_contract::SaveAiProviderConfigRequest,
+    ) -> Result<erpx_delivery_contract::AiProviderConfigView, DeliveryError> {
+        Err(DeliveryError::unavailable(Some(500)))
+    }
+
+    async fn load_ai_provider_config(
+        &self,
+    ) -> Result<Option<erpx_delivery_contract::AiProviderConfigView>, DeliveryError> {
+        Err(DeliveryError::unavailable(Some(500)))
+    }
+
+    async fn test_ai_provider_connection(
+        &self,
+        _request: erpx_delivery_contract::AiProviderTestRequest,
+    ) -> Result<erpx_delivery_contract::AiProviderTestResponse, DeliveryError> {
+        Err(DeliveryError::unavailable(Some(500)))
+    }
 }
 
 #[cfg(test)]

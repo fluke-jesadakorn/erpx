@@ -1,3 +1,39 @@
+@layer erpx-components {
+/* Console Linear overrides — public/auth/workspace */
+
+/* Kit root ensures 100vh */
+.erpx-kit-root { min-height: 100vh; }
+
+/* Auth — Linear: flat brand, no aurora */
+.auth-layout {
+  grid-template-columns: minmax(360px, .92fr) minmax(420px, 1.08fr);
+}
+.auth-layout__brand {
+  background: #080A0C;
+  color: #F7F8F8;
+  padding: clamp(32px, 6vw, 80px);
+}
+.auth-layout__brand::after { display: none; }
+.auth-layout__eyebrow { color: #8B95FF; }
+.auth-layout__brand h1 { font-size: clamp(36px, 4.5vw, 52px); letter-spacing: -.04em; font-weight: 700; }
+.auth-layout__summary { color: #8A8F98; font-size: 15px; }
+.auth-layout__content { background: var(--erpx-bg); }
+.auth-page-form { border: 1px solid var(--erpx-border); background: var(--erpx-surface); border-radius: 12px; box-shadow: var(--erpx-shadow-md); padding: 28px; gap: 16px; width: min(100%, 400px); }
+.auth-page-form h2 { font-size: 24px; letter-spacing: -.02em; font-weight: 650; }
+.auth-page-form__field > span { font-size: 12px; font-weight: 600; color: var(--erpx-text); }
+.auth-page-form input { border: 1px solid var(--erpx-border); background: var(--erpx-surface); border-radius: 8px; }
+.auth-page-form > button { background: #5E6AD2; color: #fff; border: 0; border-radius: 8px; min-height: 40px; font-weight: 600; }
+
+/* Public */
+.public-layout { background: var(--erpx-bg); color: var(--erpx-text); }
+
+/* Console shell overrides — Linear */
+.console-shell { grid-template-columns: 240px minmax(0,1fr); background: var(--erpx-bg); }
+@media (max-width: 760px) { .console-shell { grid-template-columns: 1fr; } }
+
+/* Page headers across domains */
+.erpx-kit-root h1, .erpx-kit-root h2 { letter-spacing: -.03em; }
+}
 /* Console route-surface layout; controls resolve through erpx_ui::kit. */
 :root { font-family: Inter, "Noto Sans Thai", Tahoma, ui-sans-serif, system-ui, sans-serif; color: #e8eef5; background: #0d1218; }
 * { box-sizing: border-box; }
@@ -161,7 +197,9 @@ button { cursor: pointer; }
 .console-workspace-menu__trigger:hover, .console-workspace-menu__trigger:focus-visible { background: var(--erpx-surface-raised); color: var(--erpx-text); outline: none; }
 .console-workspace-menu nav { display: grid; gap: 3px; max-height: min(48vh, 430px); margin-top: 6px; overflow-y: auto; padding-left: 8px; }
 .console-nav__account { display: grid; gap: 4px; min-width: 0; margin-top: auto; border-top: 1px solid var(--erpx-border); padding: 16px 8px 2px; }
-.console-nav__account :where(strong, span, a) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.console-nav__account strong { overflow-wrap: anywhere; word-break: break-all; line-height: 1.35; }
+.console-nav__account :where(span, a) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.console-nav__account span { display: block; }
 .console-nav__account small, .console-nav__account span { color: var(--erpx-text-muted); font-size: 10px; }
 .console-nav__account a { margin-top: 6px; font-size: 11px; }
 .console-main { min-width: 0; }
@@ -1642,23 +1680,17 @@ html[data-locale="th"] :where(.customer-route-tabs, .ui-support-route-tabs, .ui-
   background:
     linear-gradient(180deg, rgb(255 255 255 / 2%), transparent 24%),
     var(--erpx-primary-surface);
+  gap: 10px;
 }
-.console-nav nav a { position: relative; min-height: 42px; font-weight: 620; }
+.console-nav nav a { position: relative; min-height: 38px; font-weight: 550; letter-spacing: -.01em; }
 .console-nav nav a.is-active {
   border-color: var(--erpx-border-strong);
   background: var(--erpx-surface);
   color: var(--erpx-text);
-  box-shadow: inset 3px 0 0 var(--erpx-primary), 0 8px 24px rgb(0 0 0 / 8%);
+  box-shadow: inset 3px 0 0 var(--erpx-primary);
+  font-weight: 600;
 }
-.console-nav nav a.is-active::after {
-  position: absolute;
-  right: 11px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--erpx-primary);
-  content: "";
-}
+.console-nav nav a.is-active::after { display: none; }
 .console-workspace-menu__trigger { min-height: 44px; color: var(--erpx-text); }
 .console-workspace-menu__trigger small {
   display: inline-grid;
@@ -2268,3 +2300,30 @@ html[data-locale="th"] :where(.customer-route-tabs, .ui-support-route-tabs, .ui-
   .skip-link, .module-catalog__grid .module-card { transition: none; }
   .module-catalog__grid .module-card:hover { transform: none; }
 }
+
+/* console finance menu — hybrid grouped rail (shadcn-inspired, fixes duplicate label) */
+.console-finance-menu { margin-top: 14px; border-top: 1px solid var(--erpx-border); padding-top: 14px; }
+.console-finance-menu__trigger { display: flex; width: 100%; min-height: 38px; align-items: center; justify-content: space-between; gap: 8px; border: 0; border-radius: var(--erpx-radius-sm); padding: 8px 10px; background: transparent; color: var(--erpx-text); cursor: pointer; font-size: var(--erpx-font-size-sm); font-weight: 750; letter-spacing: -.01em; }
+.console-finance-menu__trigger:hover, .console-finance-menu__trigger:focus-visible { background: var(--erpx-surface-raised); color: var(--erpx-text); outline: none; }
+.console-finance-menu__trigger[aria-expanded="true"] { background: var(--erpx-surface-raised); }
+.console-finance-menu__label { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.console-finance-menu__icon { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 6px; background: var(--erpx-primary-surface); color: var(--erpx-primary); font-size: 11px; font-weight: 800; flex: 0 0 20px; }
+.console-finance-menu__count { display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 7px; border: 1px solid var(--erpx-border); border-radius: 999px; background: var(--erpx-surface); color: var(--erpx-text-muted); font-size: 10px; font-weight: 750; font-variant-numeric: tabular-nums; margin-left: auto; }
+.console-finance-menu__nav { display: grid; gap: 2px; margin-top: 8px; padding-left: 8px; border-left: 1px solid var(--erpx-border-subtle); margin-left: 10px; }
+.console-finance-menu__link { display: flex; min-height: 36px; align-items: center; gap: 8px; border: 1px solid transparent; border-radius: var(--erpx-radius-sm); padding: 7px 10px; color: var(--erpx-text-muted); font-size: 13px; font-weight: 500; text-decoration: none; transition: background 140ms, color 140ms, border-color 140ms, box-shadow 140ms; }
+.console-finance-menu__link:hover, .console-finance-menu__link:focus-visible { border-color: var(--erpx-border-strong); background: var(--erpx-surface-raised); color: var(--erpx-text); outline: none; }
+.console-finance-menu__link.is-active { background: var(--erpx-primary-surface); color: var(--erpx-text); border-color: var(--erpx-border-strong); box-shadow: inset 3px 0 0 var(--erpx-primary); font-weight: 600; }
+.console-finance-menu__link-icon { width: 18px; height: 18px; flex: 0 0 18px; display: grid; place-items: center; border-radius: 4px; background: transparent; color: var(--erpx-text-muted); font-size: 12px; line-height: 1; }
+.console-finance-menu__link.is-active .console-finance-menu__link-icon { color: var(--erpx-primary); background: var(--erpx-surface); }
+.console-finance-menu__link-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+
+
+/* Hybrid rail polish — spacing, footer, search affordance */
+.console-nav__primary { gap: 4px; }
+.console-nav__account a { border: 1px solid transparent; border-radius: 6px; }
+.console-nav__account a:hover { border-color: var(--erpx-border); }
+
+/* Primary nav icons — hybrid rail polish */
+.console-nav__primary a { gap: 8px; }
+.console-nav__link-icon { width: 18px; height: 18px; flex: 0 0 18px; display: grid; place-items: center; border-radius: 4px; color: var(--erpx-text-muted); font-size: 11px; line-height: 1; font-weight: 700; }
+.console-nav nav a.is-active .console-nav__link-icon { color: var(--erpx-primary); background: var(--erpx-surface); }

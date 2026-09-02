@@ -8,7 +8,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use chrono::{TimeZone, Utc};
+use chrono::{NaiveDate, TimeZone, Utc};
 use erpx_cqrs::{
     CONTRACT_VERSION, CommandEnvelope, CommandHandler, EventPosition, FreshnessState,
     IdempotencyKey, ProjectionMetadata, ProjectionNotReady, ProjectionTarget, QueryConsistency,
@@ -123,6 +123,7 @@ fn journal() -> Journal {
         "J-30".into(),
         chrono::NaiveDate::from_ymd_opt(2026, 8, 5).unwrap(),
         "THB".into(),
+        None,
         JournalSource::Manual {
             reference: "MAN-30".into(),
         },
@@ -968,6 +969,24 @@ impl ReadRepository for NotReadyRead {
         _: &str,
         _: &QueryConsistency,
     ) -> Result<ReadProjection<StatutoryTaxReport>, PortError> {
+        Err(PortError::Internal)
+    }
+    async fn get_financial_statements(
+        &self,
+        _: &AuthorityScope,
+        _: ChartId,
+        _: PeriodId,
+        _: &QueryConsistency,
+    ) -> Result<ReadProjection<crate::domain::FinancialStatements>, PortError> {
+        Err(PortError::Internal)
+    }
+    async fn list_aging(
+        &self,
+        _: &AuthorityScope,
+        _: &crate::domain::SubledgerKind,
+        _: &NaiveDate,
+        _: &QueryConsistency,
+    ) -> Result<ReadProjection<crate::domain::AgingReport>, PortError> {
         Err(PortError::Internal)
     }
 }

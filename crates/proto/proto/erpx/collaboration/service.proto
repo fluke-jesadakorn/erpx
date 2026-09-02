@@ -541,6 +541,144 @@ message ListMentionInboxResponse {
 // always identifies one authorized anchored thread. The server resolves its
 // opaque anchor and applies record plus audience policy before reading a
 // cursor or event row.
+
+message FeedItemView {
+  string feed_item_id = 1;
+  string holding_id = 2;
+  string thread_id = 3;
+  optional string comment_id = 4;
+  erpx.interface.RecordRef anchor = 5;
+  PrincipalRef author = 6;
+  Audience audience = 7;
+  erpx.interface.AuthorityScope visibility_scope = 8;
+  string classification = 9;
+  string created_at = 10;
+  string day_bucket = 11;
+  repeated string hashtags = 12;
+  repeated erpx.interface.RecordRef record_refs = 13;
+  optional string share_of = 14;
+  map<string, uint32> reaction_counts = 15;
+  uint32 reply_depth = 16;
+  optional string parent_comment_id = 17;
+  bool tombstone = 18;
+}
+
+message HashtagTopicView {
+  string hashtag_id = 1;
+  string tag = 2;
+  PrincipalRef created_by = 3;
+  string created_at = 4;
+  uint64 feed_item_count = 5;
+}
+
+message FeedFilter {
+  repeated string contexts = 1;
+  optional string day = 2;
+  optional string hashtag = 3;
+  optional erpx.interface.RecordRef topic_record = 4;
+  bool author_me = 5;
+  bool following_only = 6;
+}
+
+message ListFeedRequest {
+  string holding_id = 1;
+  erpx.interface.AuthorityScope authority_scope = 2;
+  string actor_principal_id = 3;
+  FeedFilter filter = 4;
+  uint32 page_size = 5;
+  optional string cursor = 6;
+}
+
+message ListFeedResponse {
+  repeated FeedItemView items = 1;
+  optional string next_cursor = 2;
+  uint64 authorized_count = 3;
+  erpx.interface.DirectoryFreshness freshness = 4;
+}
+
+message GetFeedItemRequest {
+  string holding_id = 1;
+  erpx.interface.AuthorityScope authority_scope = 2;
+  string actor_principal_id = 3;
+  string feed_item_id = 4;
+}
+
+message GetFeedItemResponse {
+  optional FeedItemView item = 1;
+  erpx.interface.DirectoryFreshness freshness = 2;
+}
+
+message SearchFeedRequest {
+  string holding_id = 1;
+  erpx.interface.AuthorityScope authority_scope = 2;
+  string actor_principal_id = 3;
+  string query = 4;
+  FeedFilter filter = 5;
+  uint32 page_size = 6;
+  optional string cursor = 7;
+}
+
+message SearchFeedResponse {
+  repeated FeedItemView items = 1;
+  optional string next_cursor = 2;
+  uint64 authorized_count = 3;
+  erpx.interface.DirectoryFreshness freshness = 4;
+}
+
+message ShareFeedItemRequest {
+  CommandMetadata metadata = 1;
+  string source_feed_item_id = 2;
+  string new_thread_id = 3;
+  string new_comment_id = 4;
+  optional string day = 5;
+  repeated string hashtags = 6;
+}
+
+message ShareFeedItemResponse {
+  FeedItemView item = 1;
+  MutationReceipt receipt = 2;
+}
+
+message ListMyDayRequest {
+  string holding_id = 1;
+  erpx.interface.AuthorityScope authority_scope = 2;
+  string actor_principal_id = 3;
+  string day = 4;
+  uint32 page_size = 5;
+  optional string cursor = 6;
+}
+
+message CreateHashtagTopicRequest {
+  CommandMetadata metadata = 1;
+  string hashtag_id = 2;
+  string tag = 3;
+}
+
+message FollowHashtagRequest {
+  CommandMetadata metadata = 1;
+  string tag = 2;
+  bool follow = 3;
+}
+
+message FollowHashtagResponse {
+  bool following = 1;
+}
+
+message ListHashtagTopicsRequest {
+  string holding_id = 1;
+  erpx.interface.AuthorityScope authority_scope = 2;
+  string actor_principal_id = 3;
+  string query = 4;
+  uint32 page_size = 5;
+  optional string cursor = 6;
+}
+
+message ListHashtagTopicsResponse {
+  repeated HashtagTopicView topics = 1;
+  optional string next_cursor = 2;
+}
+
+
 message CollaborationStreamRequest {
   string holding_id = 1;
   erpx.interface.AuthorityScope authority_scope = 2;
@@ -567,6 +705,9 @@ service CollaborationCommandService {
   rpc StartRecordThreadWithComment(StartRecordThreadWithCommentRequest) returns (MutationReceipt);
   rpc PrepareAttachmentUpload(PrepareAttachmentUploadRequest) returns (PrepareAttachmentUploadResponse);
   rpc FinalizeAttachmentUpload(FinalizeAttachmentUploadRequest) returns (AttachmentView);
+  rpc ShareFeedItem(ShareFeedItemRequest) returns (ShareFeedItemResponse);
+  rpc CreateHashtagTopic(CreateHashtagTopicRequest) returns (HashtagTopicView);
+  rpc FollowHashtag(FollowHashtagRequest) returns (FollowHashtagResponse);
 }
 
 service CollaborationQueryService {
@@ -579,6 +720,11 @@ service CollaborationQueryService {
   rpc ListThreadsByRecordV2(ListThreadsByRecordRequest) returns (ListThreadsByRecordV2Response);
   rpc GetAttachmentDownload(GetAttachmentDownloadRequest) returns (GetAttachmentDownloadResponse);
   rpc AutocompleteTargets(AutocompleteTargetsRequest) returns (AutocompleteTargetsResponse);
+  rpc ListFeed(ListFeedRequest) returns (ListFeedResponse);
+  rpc GetFeedItem(GetFeedItemRequest) returns (GetFeedItemResponse);
+  rpc SearchFeed(SearchFeedRequest) returns (SearchFeedResponse);
+  rpc ListMyDay(ListMyDayRequest) returns (ListFeedResponse);
+  rpc ListHashtagTopics(ListHashtagTopicsRequest) returns (ListHashtagTopicsResponse);
 }
 
 service CollaborationStreamService {

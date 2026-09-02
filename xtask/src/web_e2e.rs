@@ -880,20 +880,30 @@ pub async fn run(root: &Path) -> TaskResult {
         {
             return Err("Finance workspace did not reach its authorized projection".into());
         }
-        cdp.wait_for_selector(".console-workspace-menu__trigger[data-dioxus-id]")?;
-        let workspace_menu_opened = cdp.evaluate(
-            "(() => { const trigger=document.querySelector('.console-workspace-menu__trigger'); if (!trigger) return false; trigger.click(); return true; })()",
-        )?;
-        if workspace_menu_opened.as_bool() != Some(true) {
-            return Err(format!("workspace menu trigger was unavailable: {route}").into());
+        if route == "/finance" {
+            cdp.wait_for_selector(".console-finance-menu__trigger[data-dioxus-id]")?;
+            let finance_menu_opened = cdp.evaluate(
+                "(() => { const trigger=document.querySelector('.console-finance-menu__trigger'); if (!trigger) return false; if (trigger.getAttribute('aria-expanded') !== 'true') trigger.click(); return true; })()",
+            )?;
+            if finance_menu_opened.as_bool() != Some(true) {
+                return Err(format!("finance menu trigger was unavailable: {route}").into());
+            }
+            cdp.wait_for(
+                &format!(
+                    "Boolean(document.querySelector(`.console-finance-menu a[aria-current='page'][href={}]`))",
+                    serde_json::to_string(route)?
+                ),
+                &format!("active finance navigation for {route}"),
+            )?;
+        } else {
+            cdp.wait_for(
+                &format!(
+                    "Boolean(document.querySelector(`a[aria-current='page'][href={}]`))",
+                    serde_json::to_string(route)?
+                ),
+                &format!("active workspace navigation for {route}"),
+            )?;
         }
-        cdp.wait_for(
-            &format!(
-                "Boolean(document.querySelector(`a[aria-current='page'][href={}]`))",
-                serde_json::to_string(route)?
-            ),
-            &format!("active workspace navigation for {route}"),
-        )?;
         workspace_routes.push(route.clone());
     }
 

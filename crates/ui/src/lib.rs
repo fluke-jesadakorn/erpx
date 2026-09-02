@@ -13,6 +13,7 @@ pub use erpx_console_transport_core::{
 
 mod auth;
 mod enterprise;
+mod hosted_pricing;
 mod i18n;
 mod navigation;
 mod routes;
@@ -34,6 +35,7 @@ pub use enterprise::{
     EnterpriseState, EnterpriseStateKind, MutationMode, REFERENCE_ITEM_TEMPLATE,
     canonical_workspace_navigation, workspace_label, workspace_supports_channel,
 };
+pub use hosted_pricing::{HostedPlanView, HostedQuoteView, HostedSeatStepView};
 pub use i18n::{
     Locale, LocaleContext, LocaleFormatter, LocalizedText, TranslationKey, provide_locale,
     use_locale,

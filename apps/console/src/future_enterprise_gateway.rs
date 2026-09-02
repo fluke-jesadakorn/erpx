@@ -294,7 +294,10 @@ impl FutureEnterpriseGrpcGateway {
             || record.record_type != expected_type
             || descriptor.descriptor_version == 0
             || descriptor.source_event_position == 0
-            || Uuid::parse_str(&resolved_scope.holding_id).is_err()
+            || resolved_scope
+                .holding_id
+                .as_deref()
+                .is_none_or(|value| Uuid::parse_str(value).is_err())
             || !same_hierarchy(&requested_scope, &resolved_scope)
         {
             return Err(EnterpriseGatewayError::Unavailable);
@@ -644,7 +647,10 @@ impl EnterpriseWorkspaceGateway for FutureEnterpriseGrpcGateway {
                 || descriptor.descriptor_version == 0
                 || descriptor.source_event_position == 0
                 || !same_hierarchy(&requested_scope, &scope)
-                || Uuid::parse_str(&scope.holding_id).is_err()
+                || scope
+                    .holding_id
+                    .as_deref()
+                    .is_none_or(|value| Uuid::parse_str(value).is_err())
             {
                 return Err(EnterpriseGatewayError::Unavailable);
             }

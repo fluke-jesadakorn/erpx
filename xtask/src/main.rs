@@ -476,11 +476,15 @@ struct FreshRuntimeManifest {
     prepared_at: String,
     installation_generation: Uuid,
     installation_prefix: String,
+    #[serde(alias = "tenant_id")]
     holding_id: String,
+    #[serde(alias = "holding_ref")]
     data_profile_key: String,
     control_write_database: String,
     control_read_database: String,
+    #[serde(alias = "tenant_write_database")]
     holding_write_database: String,
+    #[serde(alias = "tenant_read_database")]
     holding_read_database: String,
     object_namespace: String,
     rollback: serde_json::Value,
@@ -492,11 +496,15 @@ struct LocalReconfigurationManifest {
     service_catalog_generation: u16,
     installation_generation: Uuid,
     installation_prefix: String,
+    #[serde(alias = "tenant_id")]
     holding_id: String,
+    #[serde(alias = "holding_ref")]
     data_profile_key: String,
     control_write_database: String,
     control_read_database: String,
+    #[serde(alias = "tenant_write_database")]
     holding_write_database: String,
+    #[serde(alias = "tenant_read_database")]
     holding_read_database: String,
     object_namespace: String,
 }
@@ -580,14 +588,26 @@ impl FreshRuntimeManifest {
             "{}-holding-objects",
             self.installation_prefix.replace('_', "-")
         );
+        let expected_tenant_namespace = format!(
+            "{}-tenant-objects",
+            self.installation_prefix.replace('_', "-")
+        );
         let holding_write_token = self
             .holding_write_database
             .strip_prefix(&format!("{}_", self.installation_prefix))
-            .and_then(|value| value.strip_suffix("_holding_write"));
+            .and_then(|value| {
+                value
+                    .strip_suffix("_holding_write")
+                    .or_else(|| value.strip_suffix("_tenant_write"))
+            });
         let holding_read_token = self
             .holding_read_database
             .strip_prefix(&format!("{}_", self.installation_prefix))
-            .and_then(|value| value.strip_suffix("_holding_read"));
+            .and_then(|value| {
+                value
+                    .strip_suffix("_holding_read")
+                    .or_else(|| value.strip_suffix("_tenant_read"))
+            });
         let holding_token_valid = holding_write_token == holding_read_token
             && holding_write_token.is_some_and(|token| {
                 token.len() == 12 && token.bytes().all(|byte| byte.is_ascii_hexdigit())
@@ -596,10 +616,14 @@ impl FreshRuntimeManifest {
             == format!("{}_control_write", self.installation_prefix)
             && self.control_read_database == format!("{}_control_read", self.installation_prefix)
             && holding_token_valid;
+        let service_id_range_valid = self.service_id_range == "IFC-SVC-201..267"
+            || self.service_id_range == "IFC-SVC-201..265";
+        let object_namespace_valid = self.object_namespace == expected_object_namespace
+            || self.object_namespace == expected_tenant_namespace;
         if self.version != 4
             || self.schema_revision != 2
             || self.service_catalog_generation != 4
-            || self.service_id_range != "IFC-SVC-201..267"
+            || !service_id_range_valid
             || self.state != "prepared"
             || self.installation_generation.is_nil()
             || !valid_prefix
@@ -608,7 +632,7 @@ impl FreshRuntimeManifest {
             || holding_id.is_none()
             || data_profile_key.is_none()
             || chrono::DateTime::parse_from_rfc3339(&self.prepared_at).is_err()
-            || self.object_namespace != expected_object_namespace
+            || !object_namespace_valid
             || !names_match_prefix
             || !rollback_valid
         {
@@ -1229,7 +1253,8 @@ fn load_reconfiguration_manifest(
                     .bytes()
                     .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
         })
-        || manifest.object_namespace != "erpxv8-holding-objects"
+        || (manifest.object_namespace != "erpxv8-holding-objects"
+            && manifest.object_namespace != "erpxv8-tenant-objects")
     {
         return Err("reconfigure-local manifest failed the active erpxv8 fence".into());
     }

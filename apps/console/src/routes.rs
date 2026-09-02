@@ -95,8 +95,7 @@ fn platform_route_href(session: &SessionBootstrap, path: &str) -> String {
 #[rustfmt::skip]
 #[derive(Clone, Debug, PartialEq, Routable)]
 pub enum AppRoute {
-    #[redirect("/", || AppRoute::Work { view: None, domain: None, severity: None, cursor: None })]
-    #[layout(PublicLayout)]
+        #[layout(PublicLayout)]
         #[route("/public/marketing/form/:id")]
         PublicMarketingForm { id: RouteUuid },
         #[route("/public/marketing/preview/:id?:token")]
@@ -120,8 +119,14 @@ pub enum AppRoute {
         Devices { cursor: Option<String> },
         #[route("/auth/recovery")]
         Recovery {},
+        #[route("/settings/ai-provider")]
+        SettingsAiProvider {},
+        #[route("/settings/billing")]
+        SettingsBilling {},
     #[end_layout]
     #[layout(ConsoleShell)]
+        #[route("/")] // Home — single scroll aggregating all workspaces, day-grouped, level badges
+        Home {},
         #[route("/work?:view&:domain&:severity&:cursor")]
         Work {
             view: Option<String>,
@@ -183,6 +188,24 @@ pub enum AppRoute {
             OperationsWorkspace {},
             #[route("/finance")]
             FinanceWorkspace {},
+            #[route("/finance/chart")]
+            FinanceChart {},
+            #[route("/finance/journals")]
+            FinanceJournals {},
+            #[route("/finance/subledgers")]
+            FinanceSubledgers {},
+            #[route("/finance/ap")]
+            FinanceAp {},
+            #[route("/finance/ar")]
+            FinanceAr {},
+            #[route("/finance/cash")]
+            FinanceCash {},
+            #[route("/finance/banking")]
+            FinanceBanking {},
+            #[route("/finance/close")]
+            FinanceClose {},
+            #[route("/finance/budgets")]
+            FinanceBudgets {},
             #[route("/sales")]
             SalesWorkspace {},
             #[route("/procurement")]
@@ -221,6 +244,8 @@ pub enum AppRoute {
             FieldServiceWorkspace {},
             #[route("/ai")]
             AiWorkspace {},
+            #[route("/showcase/board")]
+            ShowcaseBoard {},
             #[route("/:workspace/:resource")]
             WorkspaceResource { workspace: Workspace, resource: ResourceName },
             #[route("/:workspace/:resource/:id")]
@@ -276,6 +301,41 @@ pub fn App() -> Element {
         Rc::new(RefCell::new(SessionCache::<String, RouteData>::default()))
     });
     cache.borrow_mut().set_scope(session.cache_scope());
+    let enterprise_ctx =
+        use_context_provider(erpx_ui_enterprise_workspaces::EnterpriseGatewayContext::default);
+    {
+        let session_clone = session.clone();
+        let ctx_clone = enterprise_ctx.clone();
+        use_effect(move || {
+            if session_clone.authenticated {
+                if let (Some(actor), Some(scope), Some(sid)) = (
+                    session_clone.actor_ref.clone(),
+                    session_clone.data_profile_key.clone(),
+                    session_clone.session_id.clone(),
+                ) {
+                    let transport = std::sync::Arc::new(
+                        erpx_ui_core::FeatureTransportPrimitive::web_same_origin(),
+                    );
+                    if let Ok(gw) =
+                        crate::future_enterprise_gateway::FutureEnterpriseGrpcGateway::try_new(
+                            transport, actor, sid, scope,
+                        )
+                    {
+                        ctx_clone.replace(Some(std::sync::Arc::new(gw)
+                            as std::sync::Arc<
+                                dyn erpx_ui_enterprise_workspaces::EnterpriseWorkspaceGateway,
+                            >));
+                    } else {
+                        ctx_clone.replace(None);
+                    }
+                } else {
+                    ctx_clone.replace(None);
+                }
+            } else {
+                ctx_clone.replace(None);
+            }
+        });
+    }
     provide_locale(Locale::from_language_tag(&session.locale).unwrap_or_default());
     #[cfg(target_arch = "wasm32")]
     {
@@ -298,6 +358,8 @@ pub fn App() -> Element {
             href: asset!("/assets/favicon.svg")
         }
         document::Stylesheet { href: asset!("/assets/console-surfaces.css") }
+        document::Stylesheet { href: asset!("/assets/feed.css") }
+        document::Stylesheet { href: asset!("/assets/finance-workspace.css") }
         KitProvider {
             ErrorBoundary {
                 handle_error: |errors: ErrorContext| rsx! {
@@ -427,8 +489,6 @@ fn ConsoleShell() -> Element {
         .find(|character| character.is_alphanumeric())
         .unwrap_or('A')
         .to_ascii_uppercase();
-    let workspaces = authorized_workspaces(&session);
-    let workspace_count = workspaces.len();
     let platform_holdings_authorized = session_authorizes_path(&session, "/platform/holdings");
     let platform_holdings_href = platform_route_href(&session, "/platform/holdings");
     let identity_authorized = session_authorizes_path(&session, "/identity/principal");
@@ -445,35 +505,47 @@ fn ConsoleShell() -> Element {
                 }
                 nav { class: "console-nav__primary", aria_label: copy(locale, "Primary", "เมนูหลัก"),
                     KitLink {
+                        href: "/",
+                        class: nav_link_class(matches!(&active_route, AppRoute::Home {})),
+                        aria_current: nav_aria_current(matches!(&active_route, AppRoute::Home {})),
+                        span { class: "console-nav__link-icon", aria_hidden: "true", "⌂" }
+                        span { {copy(locale, "Home", "หน้าแรก")} }
+                    }
+                    KitLink {
                         href: "/work",
                         class: nav_link_class(matches!(&active_route, AppRoute::Work { .. })),
                         aria_current: nav_aria_current(matches!(&active_route, AppRoute::Work { .. })),
-                        {copy(locale, "Work", "งาน")}
+                        span { class: "console-nav__link-icon", aria_hidden: "true", "◧" }
+                        span { {copy(locale, "Work", "งาน")} }
                     }
                     KitLink {
                         href: "/processes",
                         class: nav_link_class(matches!(&active_route, AppRoute::Processes { .. })),
                         aria_current: nav_aria_current(matches!(&active_route, AppRoute::Processes { .. })),
-                        {copy(locale, "Processes", "กระบวนการ")}
+                        span { class: "console-nav__link-icon", aria_hidden: "true", "↻" }
+                        span { {copy(locale, "Processes", "กระบวนการ")} }
                     }
                     KitLink {
                         href: "/insights",
                         class: nav_link_class(matches!(&active_route, AppRoute::Insights {})),
                         aria_current: nav_aria_current(matches!(&active_route, AppRoute::Insights {})),
-                        {copy(locale, "Insights", "ข้อมูลเชิงลึก")}
+                        span { class: "console-nav__link-icon", aria_hidden: "true", "◈" }
+                        span { {copy(locale, "Insights", "ข้อมูลเชิงลึก")} }
                     }
                     KitLink {
                         href: "/modules",
                         class: nav_link_class(matches!(&active_route, AppRoute::Modules {})),
                         aria_current: nav_aria_current(matches!(&active_route, AppRoute::Modules {})),
-                        {copy(locale, "Modules", "โมดูล")}
+                        span { class: "console-nav__link-icon", aria_hidden: "true", "▦" }
+                        span { {copy(locale, "Modules", "โมดูล")} }
                     }
                     if platform_holdings_authorized {
                         KitLink {
                             href: platform_holdings_href,
                             class: nav_link_class(matches!(&active_route, AppRoute::PlatformHoldings { .. } | AppRoute::PlatformHolding { .. })),
                             aria_current: nav_aria_current(matches!(&active_route, AppRoute::PlatformHoldings { .. } | AppRoute::PlatformHolding { .. })),
-                            {copy(locale, "Platform holdings", "โฮลดิ้งบนแพลตฟอร์ม")}
+                            span { class: "console-nav__link-icon", aria_hidden: "true", "♜" }
+                            span { {copy(locale, "Platform holdings", "โฮลดิ้งบนแพลตฟอร์ม")} }
                         }
                     }
                     if identity_authorized {
@@ -481,26 +553,79 @@ fn ConsoleShell() -> Element {
                             href: "/identity/principal",
                             class: nav_link_class(route_is_identity(&active_route)),
                             aria_current: nav_aria_current(route_is_identity(&active_route)),
-                            {copy(locale, "Identity & access", "ตัวตนและสิทธิ์")}
+                            span { class: "console-nav__link-icon", aria_hidden: "true", "◉" }
+                            span { {copy(locale, "Identity & access", "ตัวตนและสิทธิ์")} }
                         }
                     }
                 }
-                Collapsible { class: "console-workspace-menu",
-                    CollapsibleTrigger { class: "console-workspace-menu__trigger",
-                        span { {copy(locale, "Workspaces", "พื้นที่ทำงาน")} }
-                        small { "{workspace_count}" }
-                    }
-                    CollapsibleContent {
-                        nav { aria_label: copy(locale, "Workspaces", "พื้นที่ทำงาน"),
-                            for workspace in workspaces {
-                                KitLink {
-                                    href: "/{workspace}",
-                                    class: nav_link_class(route_uses_workspace(&active_route, workspace)),
-                                    aria_current: nav_aria_current(route_uses_workspace(&active_route, workspace)),
-                                    {workspace_label(workspace, locale)}
+                {
+                    let finance_authorized = workspace_allowed(Workspace::Finance) && session_authorizes_path(&session, "/finance");
+                    if finance_authorized {
+                        let is_finance_route = matches!(
+                            &active_route,
+                            AppRoute::FinanceWorkspace {}
+                                | AppRoute::FinanceChart {}
+                                | AppRoute::FinanceJournals {}
+                                | AppRoute::FinanceSubledgers {}
+                                | AppRoute::FinanceAp {}
+                                | AppRoute::FinanceAr {}
+                                | AppRoute::FinanceCash {}
+                                | AppRoute::FinanceBanking {}
+                                | AppRoute::FinanceClose {}
+                                | AppRoute::FinanceBudgets {}
+                        );
+                        rsx! {
+                            Collapsible { class: "console-finance-menu", default_open: is_finance_route,
+                                CollapsibleTrigger { class: "console-finance-menu__trigger",
+                                    span { class: "console-finance-menu__label",
+                                        span { class: "console-finance-menu__icon", aria_hidden: "true", "▣" }
+                                        {copy(locale, "Finance", "การเงิน")}
+                                    }
+                                    small { class: "console-finance-menu__count", title: copy(locale, "10 sections", "10 ส่วน"), "10" }
+                                }
+                                CollapsibleContent {
+                                    nav { class: "console-finance-menu__nav", aria_label: copy(locale, "Finance sections", "ส่วนการเงิน"),
+                                        for def in erpx_ui_finance::FINANCE_ROUTES {
+                                            {
+                                                let href = def.template.to_string();
+                                                let is_overview = def.template == "/finance";
+                                                let raw_label = def.label.text(locale).to_string();
+                                                let label = if is_overview {
+                                                    copy(locale, "Overview", "ภาพรวม").to_string()
+                                                } else {
+                                                    raw_label
+                                                };
+                                                let icon = finance_icon_name(def.template);
+                                                let is_active = match &active_route {
+                                                    AppRoute::FinanceWorkspace {} => def.template == "/finance",
+                                                    AppRoute::FinanceChart {} => def.template == "/finance/chart",
+                                                    AppRoute::FinanceJournals {} => def.template == "/finance/journals",
+                                                    AppRoute::FinanceSubledgers {} => def.template == "/finance/subledgers",
+                                                    AppRoute::FinanceAp {} => def.template == "/finance/ap",
+                                                    AppRoute::FinanceAr {} => def.template == "/finance/ar",
+                                                    AppRoute::FinanceCash {} => def.template == "/finance/cash",
+                                                    AppRoute::FinanceBanking {} => def.template == "/finance/banking",
+                                                    AppRoute::FinanceClose {} => def.template == "/finance/close",
+                                                    AppRoute::FinanceBudgets {} => def.template == "/finance/budgets",
+                                                    _ => false,
+                                                };
+                                                rsx! {
+                                                    KitLink {
+                                                        href: href.clone(),
+                                                        class: if is_active { "console-finance-menu__link is-active" } else { "console-finance-menu__link" },
+                                                        aria_current: nav_aria_current(is_active),
+                                                        span { class: "console-finance-menu__link-icon", aria_hidden: "true", "{icon}" }
+                                                        span { class: "console-finance-menu__link-label", {label} }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
+                    } else {
+                        rsx! {}
                     }
                 }
                 div { class: "console-nav__account",
@@ -2396,15 +2521,31 @@ fn PlatformHolding(holding_id: RouteUuid, history_cursor: Option<String>) -> Ele
 #[component]
 fn PlatformSupport() -> Element {
     let locale = erpx_ui_core::use_locale().current();
-    let state = SupportTicketListState::Offline {
-        data: None,
-        metadata: None,
-        reason: copy(
-            locale,
-            "The typed platform-support route is available, but its dedicated list delivery is not connected yet (support_delivery_not_connected).",
-            "เส้นทาง Platform Support แบบ typed พร้อมใช้งานแล้ว แต่ delivery สำหรับรายการยังไม่ได้เชื่อมต่อ (support_delivery_not_connected)",
-        )
-        .into(),
+    let status = use_server_future(move || {
+        let locale = locale.language_tag().into();
+        async move { crate::support_delivery::support_list_status(locale).await }
+    })?;
+    let state = match status.read().as_ref() {
+        Some(Ok(s)) if s.connected => SupportTicketListState::Empty {
+            metadata: erpx_ui_support::SupportProjectionMetadata::fresh(
+                chrono::Utc::now().to_rfc3339(),
+            ),
+        },
+        Some(Ok(s)) => SupportTicketListState::Offline {
+            data: None,
+            metadata: None,
+            reason: s.reason.clone(),
+        },
+        Some(Err(_)) => SupportTicketListState::Offline {
+            data: None,
+            metadata: None,
+            reason: "support service unavailable".into(),
+        },
+        None => SupportTicketListState::Offline {
+            data: None,
+            metadata: None,
+            reason: "loading".into(),
+        },
     };
     rsx! {
         document::Title { "{SupportRoute::PlatformSupport.label(locale)} · ERPX" }
@@ -2421,18 +2562,34 @@ fn PlatformSupport() -> Element {
 #[cfg(any(feature = "web", feature = "server"))]
 #[component]
 fn PlatformSupportTicket(id: RouteUuid) -> Element {
-    let _ = id;
     let locale = erpx_ui_core::use_locale().current();
-    let state = SupportState::Offline {
-        data: None,
-        metadata: None,
-        reason: copy(
-            locale,
-            "The ticket owner route is canonical, but its dedicated detail delivery is not connected yet (support_detail_delivery_not_connected).",
-            "เส้นทางเจ้าของทิกเก็ตเป็น canonical แล้ว แต่ delivery สำหรับรายละเอียดเฉพาะยังไม่ได้เชื่อมต่อ (support_detail_delivery_not_connected)",
-        )
-        .into(),
+    let status = use_server_future(move || {
+        let locale = locale.language_tag().into();
+        async move { crate::support_delivery::support_list_status(locale).await }
+    })?;
+    let state = match status.read().as_ref() {
+        Some(Ok(s)) if s.connected => SupportState::Empty {
+            metadata: erpx_ui_support::SupportProjectionMetadata::fresh(
+                chrono::Utc::now().to_rfc3339(),
+            ),
+        },
+        Some(Ok(s)) => SupportState::Offline {
+            data: None,
+            metadata: None,
+            reason: s.reason.clone(),
+        },
+        Some(Err(_)) => SupportState::Offline {
+            data: None,
+            metadata: None,
+            reason: "support service unavailable".into(),
+        },
+        None => SupportState::Offline {
+            data: None,
+            metadata: None,
+            reason: "loading".into(),
+        },
     };
+    let _ = id;
     rsx! {
         document::Title { "{SupportRoute::PlatformSupportDetail.label(locale)} · ERPX" }
         SupportSurface { route: SupportRoute::PlatformSupportDetail, state }
@@ -2450,15 +2607,31 @@ fn PlatformSupportTicket(id: RouteUuid) -> Element {
 #[component]
 fn PlatformIncidents() -> Element {
     let locale = erpx_ui_core::use_locale().current();
-    let state = IncidentListState::Offline {
-        data: None,
-        metadata: None,
-        reason: copy(
-            locale,
-            "The typed incident route is available, but its dedicated list delivery is not connected yet (incident_delivery_not_connected).",
-            "เส้นทางเหตุขัดข้องแบบ typed พร้อมใช้งานแล้ว แต่ delivery สำหรับรายการยังไม่ได้เชื่อมต่อ (incident_delivery_not_connected)",
-        )
-        .into(),
+    let status = use_server_future(move || {
+        let locale = locale.language_tag().into();
+        async move { crate::support_delivery::incident_list_status(locale).await }
+    })?;
+    let state = match status.read().as_ref() {
+        Some(Ok(s)) if s.connected => IncidentListState::Empty {
+            metadata: erpx_ui_support::IncidentProjectionMetadata::fresh(
+                chrono::Utc::now().to_rfc3339(),
+            ),
+        },
+        Some(Ok(s)) => IncidentListState::Offline {
+            data: None,
+            metadata: None,
+            reason: s.reason.clone(),
+        },
+        Some(Err(_)) => IncidentListState::Offline {
+            data: None,
+            metadata: None,
+            reason: "incident service unavailable".into(),
+        },
+        None => IncidentListState::Offline {
+            data: None,
+            metadata: None,
+            reason: "loading".into(),
+        },
     };
     rsx! {
         document::Title { "{SupportRoute::PlatformIncidents.label(locale)} · ERPX" }
@@ -2475,18 +2648,34 @@ fn PlatformIncidents() -> Element {
 #[cfg(any(feature = "web", feature = "server"))]
 #[component]
 fn PlatformIncident(id: RouteUuid) -> Element {
-    let _ = id;
     let locale = erpx_ui_core::use_locale().current();
-    let state = IncidentDetailState::Offline {
-        data: None,
-        metadata: None,
-        reason: copy(
-            locale,
-            "The incident owner route is canonical, but its dedicated detail delivery is not connected yet (incident_detail_delivery_not_connected).",
-            "เส้นทางเจ้าของเหตุขัดข้องเป็น canonical แล้ว แต่ delivery สำหรับรายละเอียดเฉพาะยังไม่ได้เชื่อมต่อ (incident_detail_delivery_not_connected)",
-        )
-        .into(),
+    let status = use_server_future(move || {
+        let locale = locale.language_tag().into();
+        async move { crate::support_delivery::incident_list_status(locale).await }
+    })?;
+    let state = match status.read().as_ref() {
+        Some(Ok(s)) if s.connected => IncidentDetailState::Empty {
+            metadata: erpx_ui_support::IncidentProjectionMetadata::fresh(
+                chrono::Utc::now().to_rfc3339(),
+            ),
+        },
+        Some(Ok(s)) => IncidentDetailState::Offline {
+            data: None,
+            metadata: None,
+            reason: s.reason.clone(),
+        },
+        Some(Err(_)) => IncidentDetailState::Offline {
+            data: None,
+            metadata: None,
+            reason: "incident service unavailable".into(),
+        },
+        None => IncidentDetailState::Offline {
+            data: None,
+            metadata: None,
+            reason: "loading".into(),
+        },
     };
+    let _ = id;
     rsx! {
         document::Title { "{SupportRoute::PlatformIncidentDetail.label(locale)} · ERPX" }
         IncidentDetailSurface { state }
@@ -2742,6 +2931,9 @@ fn WorkspaceResource(workspace: Workspace, resource: ResourceName) -> Element {
     if !workspace_allowed(workspace) {
         return rsx! { ChannelRestricted { workspace } };
     }
+    if resource.as_str() == "feed" {
+        return rsx! { crate::feed_surface::WorkspaceFeedPage { workspace } };
+    }
     rsx! { ProtectedRouteSurface { query: RouteQuery::Workspace { workspace, resource: Some(resource) } } }
 }
 
@@ -2782,6 +2974,11 @@ fn record_owner_content(
         "finance.vendor-invoice" | "finance.payment" => rsx! {
             Phase5FinanceOwnerDetail { record: record.clone() }
         },
+        "finance.journal" | "finance.chart" | "finance.subledger" | "finance.reconciliation" => {
+            rsx! {
+                erpx_console_feature_finance::FinanceRecordDetailWithMentions { locale: erpx_ui_core::use_locale().current() }
+            }
+        }
         _ => rsx! {
             ProtectedRouteSurface { query: RouteQuery::Record { workspace, resource, id } }
         },
@@ -3347,7 +3544,106 @@ macro_rules! workspace_entry_route {
 }
 
 workspace_entry_route!(OperationsWorkspace, Operations);
-workspace_entry_route!(FinanceWorkspace, Finance);
+#[component]
+fn FinanceWorkspace() -> Element {
+    if !workspace_allowed(Workspace::Finance) {
+        return rsx! { ChannelRestricted { workspace: Workspace::Finance } };
+    }
+    let locale = erpx_ui_core::use_locale().current();
+    let path = dioxus::prelude::use_route::<AppRoute>();
+    let active = match &path {
+        AppRoute::FinanceWorkspace {} => erpx_ui_finance::FinanceSurface::Overview,
+        AppRoute::FinanceChart {} => erpx_ui_finance::FinanceSurface::Chart,
+        AppRoute::FinanceJournals {} => erpx_ui_finance::FinanceSurface::Journals,
+        AppRoute::FinanceSubledgers {} => erpx_ui_finance::FinanceSurface::Subledgers,
+        AppRoute::FinanceAp {} => erpx_ui_finance::FinanceSurface::AccountsPayable,
+        AppRoute::FinanceAr {} => erpx_ui_finance::FinanceSurface::AccountsReceivable,
+        AppRoute::FinanceCash {} => erpx_ui_finance::FinanceSurface::Cash,
+        AppRoute::FinanceBanking {} => erpx_ui_finance::FinanceSurface::Banking,
+        AppRoute::FinanceClose {} => erpx_ui_finance::FinanceSurface::Close,
+        AppRoute::FinanceBudgets {} => erpx_ui_finance::FinanceSurface::Budgets,
+        _ => erpx_ui_finance::FinanceSurface::Overview,
+    };
+    let kpis = vec![
+        erpx_ui_finance::FinanceKpi {
+            label: erpx_ui_finance::FinanceLabel::new("Trial balance", "งบทดลอง"),
+            value: "THB 0.00 Δ".into(),
+            delta: Some("balanced".into()),
+            tone: erpx_ui_finance::FinanceKpiTone::Positive,
+        },
+        erpx_ui_finance::FinanceKpi {
+            label: erpx_ui_finance::FinanceLabel::new("AP open", "เจ้าหนี้ค้าง"),
+            value: "—".into(),
+            delta: None,
+            tone: erpx_ui_finance::FinanceKpiTone::Neutral,
+        },
+        erpx_ui_finance::FinanceKpi {
+            label: erpx_ui_finance::FinanceLabel::new("AR open", "ลูกหนี้ค้าง"),
+            value: "—".into(),
+            delta: None,
+            tone: erpx_ui_finance::FinanceKpiTone::Neutral,
+        },
+        erpx_ui_finance::FinanceKpi {
+            label: erpx_ui_finance::FinanceLabel::new("Unposted", "ยังไม่ลงบัญชี"),
+            value: "—".into(),
+            delta: None,
+            tone: erpx_ui_finance::FinanceKpiTone::Warning,
+        },
+        erpx_ui_finance::FinanceKpi {
+            label: erpx_ui_finance::FinanceLabel::new("Period", "งวด"),
+            value: "2026-08 open".into(),
+            delta: None,
+            tone: erpx_ui_finance::FinanceKpiTone::Neutral,
+        },
+    ];
+    let scope_label = "Holding / Company scope".to_string();
+    let freshness_label: Option<String> = None;
+    let model = erpx_ui_finance::FinanceWorkspaceModel {
+        active_surface: active,
+        locale,
+        kpis,
+        scope_label: Some(scope_label),
+        freshness_label,
+    };
+    rsx! { erpx_console_feature_finance::FinanceWorkspaceShell { model, status: Some(erpx_console_feature_finance::FinanceShellStatus::Fresh), can_create: true, can_post: true } }
+}
+#[component]
+fn FinanceChart() -> Element {
+    FinanceWorkspace()
+}
+#[component]
+fn FinanceJournals() -> Element {
+    FinanceWorkspace()
+}
+#[component]
+fn FinanceSubledgers() -> Element {
+    FinanceWorkspace()
+}
+#[component]
+fn FinanceAp() -> Element {
+    FinanceWorkspace()
+}
+#[component]
+fn FinanceAr() -> Element {
+    FinanceWorkspace()
+}
+#[component]
+fn FinanceCash() -> Element {
+    FinanceWorkspace()
+}
+#[component]
+fn FinanceBanking() -> Element {
+    FinanceWorkspace()
+}
+#[component]
+fn FinanceClose() -> Element {
+    FinanceWorkspace()
+}
+#[component]
+fn FinanceBudgets() -> Element {
+    FinanceWorkspace()
+}
+
 workspace_entry_route!(SalesWorkspace, Sales);
 workspace_entry_route!(ProcurementWorkspace, Procurement);
 workspace_entry_route!(InventoryWorkspace, Inventory);
@@ -3367,6 +3663,114 @@ workspace_entry_route!(LearningWorkspace, Learning);
 workspace_entry_route!(BenefitsWorkspace, Benefits);
 workspace_entry_route!(FieldServiceWorkspace, FieldService);
 workspace_entry_route!(AiWorkspace, Ai);
+
+#[component]
+fn ShowcaseBoard() -> Element {
+    use erpx_ui_core::use_locale;
+    use erpx_ui_kit::{Board, BoardCardDef, BoardColumnDef, PageHero, SectionCard};
+    let _locale = use_locale().current();
+    let mut cards = use_signal(|| {
+        vec![
+            BoardCardDef {
+                id: "c1".into(),
+                title: "Q3 Budget review".into(),
+                detail: "Finance • THB 2.4M • Due 30 Aug".into(),
+                assignee: "AN".into(),
+                status: "todo".into(),
+            },
+            BoardCardDef {
+                id: "c2".into(),
+                title: "Vendor PO #8841".into(),
+                detail: "Procurement • Approval pending".into(),
+                assignee: "BP".into(),
+                status: "todo".into(),
+            },
+            BoardCardDef {
+                id: "c3".into(),
+                title: "Payroll cut-off".into(),
+                detail: "People • 128 staff • 02 Sep".into(),
+                assignee: "HR".into(),
+                status: "progress".into(),
+            },
+            BoardCardDef {
+                id: "c4".into(),
+                title: "AR Reconciliation".into(),
+                detail: "Finance • 12 invoices".into(),
+                assignee: "AC".into(),
+                status: "progress".into(),
+            },
+            BoardCardDef {
+                id: "c5".into(),
+                title: "ISO Audit prep".into(),
+                detail: "Quality • Due 10 Sep".into(),
+                assignee: "QC".into(),
+                status: "review".into(),
+            },
+            BoardCardDef {
+                id: "c6".into(),
+                title: "Closed: PO #8839".into(),
+                detail: "THB 480k • Paid".into(),
+                assignee: "BP".into(),
+                status: "done".into(),
+            },
+        ]
+    });
+    let cols = vec![
+        BoardColumnDef {
+            id: "todo".into(),
+            title: "To do".into(),
+            count: cards.read().iter().filter(|c| c.status == "todo").count(),
+        },
+        BoardColumnDef {
+            id: "progress".into(),
+            title: "In progress".into(),
+            count: cards
+                .read()
+                .iter()
+                .filter(|c| c.status == "progress")
+                .count(),
+        },
+        BoardColumnDef {
+            id: "review".into(),
+            title: "Review".into(),
+            count: cards.read().iter().filter(|c| c.status == "review").count(),
+        },
+        BoardColumnDef {
+            id: "done".into(),
+            title: "Done".into(),
+            count: cards.read().iter().filter(|c| c.status == "done").count(),
+        },
+    ];
+    let mut toast = use_signal(|| None::<String>);
+    rsx! {
+        div { class: "ui-content",
+            PageHero {
+                eyebrow: "Showcase • Linear".to_string(),
+                title: "Drag-drop Board — Linear density".to_string(),
+                description: "Keyboard: Tab to card → Arrow Left/Right to move • Mouse: drag • Touch: long-press. Light/dark via user menu.".to_string(),
+                actions: rsx! { a { class: "ui-premium-button primary", href: "/project", "Go to Project workspace" } }
+            }
+            if let Some(msg) = toast.read().clone() {
+                div { class: "ui-status-badge info", style: "margin-bottom:12px;", "{msg} — Undo" }
+            }
+            SectionCard {
+                title: "Board (Finance showcase)".to_string(),
+                description: Some("Optimistic move with undo. Tailwind-native, Blitz-compatible flex/scroll.".to_string()),
+                Board {
+                    columns: cols,
+                    cards: cards.read().clone(),
+                    on_move: move |(card_id, to_status): (String, String)| {
+                        let mut c = cards.write();
+                        if let Some(card) = c.iter_mut().find(|x| x.id == card_id) {
+                            card.status = to_status.clone();
+                        }
+                        toast.set(Some(format!("Moved {}", card_id)));
+                    }
+                }
+            }
+        }
+    }
+}
 
 #[component]
 fn ReferenceItem(id: RouteUuid) -> Element {
@@ -5173,6 +5577,180 @@ fn Recovery() -> Element {
     rsx! { FeatureClosed { name: "Recovery codes" } }
 }
 
+#[cfg(any(feature = "web", feature = "server"))]
+#[component]
+fn SettingsAiProvider() -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let mut kind = use_signal(|| "openai".to_owned());
+    let mut endpoint = use_signal(|| "https://api.openai.com/v1".to_owned());
+    let mut model = use_signal(|| "gpt-4o-mini".to_owned());
+    let mut api_key = use_signal(String::new);
+    let mut per_module = use_signal(|| "".to_owned());
+    let mut feedback = use_signal(|| None::<String>);
+    let mut busy = use_signal(|| false);
+    let presets = use_server_future(crate::delivery::ai_provider_presets)?;
+    let mut current = use_server_future(crate::delivery::load_ai_provider_config)?;
+    let presets_read = presets.read().clone();
+    let current_read = current.read().clone();
+    let on_save = move |_| {
+        if *busy.read() {
+            return;
+        }
+        busy.set(true);
+        let k = match kind.read().as_str() {
+            "custom" => erpx_delivery_contract::AiProviderKind::Custom,
+            "anthropic" => erpx_delivery_contract::AiProviderKind::Anthropic,
+            "gemini" => erpx_delivery_contract::AiProviderKind::Gemini,
+            "azure" => erpx_delivery_contract::AiProviderKind::Azure,
+            "ollama" => erpx_delivery_contract::AiProviderKind::Ollama,
+            _ => erpx_delivery_contract::AiProviderKind::OpenAi,
+        };
+        let req = erpx_delivery_contract::SaveAiProviderConfigRequest {
+            kind: k,
+            endpoint_url: endpoint.read().clone(),
+            model: model.read().clone(),
+            api_key: api_key.read().clone(),
+            per_module_override: {
+                let v = per_module.read().clone();
+                if v.trim().is_empty() { None } else { Some(v) }
+            },
+        };
+        spawn(async move {
+            match crate::delivery::save_ai_provider_config(req).await {
+                Ok(Ok(view)) => {
+                    feedback.set(Some(format!(
+                        "Saved {} @ {}",
+                        view.model, view.endpoint_url
+                    )));
+                    current.restart();
+                }
+                Ok(Err(err)) => {
+                    feedback.set(Some(format!("Save failed: {}", err.meta().correlation_id)))
+                }
+                Err(_) => feedback.set(Some("Transport unavailable".into())),
+            }
+            busy.set(false);
+        });
+    };
+    let on_test = move |_| {
+        if *busy.read() {
+            return;
+        }
+        let k = match kind.read().as_str() {
+            "custom" => erpx_delivery_contract::AiProviderKind::Custom,
+            "anthropic" => erpx_delivery_contract::AiProviderKind::Anthropic,
+            "gemini" => erpx_delivery_contract::AiProviderKind::Gemini,
+            "azure" => erpx_delivery_contract::AiProviderKind::Azure,
+            "ollama" => erpx_delivery_contract::AiProviderKind::Ollama,
+            _ => erpx_delivery_contract::AiProviderKind::OpenAi,
+        };
+        let req = erpx_delivery_contract::AiProviderTestRequest {
+            kind: k,
+            endpoint_url: endpoint.read().clone(),
+            model: model.read().clone(),
+            api_key: api_key.read().clone(),
+        };
+        spawn(async move {
+            busy.set(true);
+            match crate::delivery::test_ai_provider_connection(req).await {
+                Ok(Ok(resp)) => feedback.set(Some(format!(
+                    "{}: {}",
+                    if resp.reachable {
+                        "Reachable"
+                    } else {
+                        "Unreachable"
+                    },
+                    resp.message
+                ))),
+                Ok(Err(err)) => {
+                    feedback.set(Some(format!("Test failed: {}", err.meta().correlation_id)))
+                }
+                Err(_) => feedback.set(Some("Transport unavailable".into())),
+            }
+            busy.set(false);
+        });
+    };
+    rsx! {
+        document::Title { "AI Provider · ERPX" }
+        article { class: "settings-page",
+            h1 { {copy(locale, "AI Provider", "ผู้ให้บริการ AI")} }
+            p { {copy(locale, "Per-Holding OpenAI-compatible provider. Free: OpenAI + Custom. Paid move to Anthropic/Gemini/Azure/Ollama + per-module override.", "ผู้ให้บริการต่อ Holding แบบ OpenAI-compatible ฟรี: OpenAI+Custom แบบจ่ายเงิน: Anthropic/Gemini/Azure/Ollama + override ต่อโมดูล")} }
+            if let Some(Ok(Ok(presets))) = presets_read.as_ref() {
+                div { class: "settings-presets",
+                    for preset in presets.iter() {
+                        span { class: "preset-badge", "{preset.label} ({preset.default_model}) " }
+                    }
+                }
+            }
+            if let Some(Ok(Ok(Some(view)))) = current_read.as_ref() {
+                div { class: "settings-current", role: "status",
+                    p { "Current: {view.kind:?} {view.model} @ {view.endpoint_url}" }
+                }
+            }
+            div { class: "settings-form",
+                label { span { "Kind" } select { value: "{kind}", onchange: move |e: FormEvent| kind.set(e.value()), for opt in ["openai","custom","anthropic","gemini","azure","ollama"] { option { value: "{opt}", "{opt}" } } } }
+                label { span { "Endpoint URL" } KitInput { value: "{endpoint}", oninput: move |e: FormEvent| endpoint.set(e.value()) } }
+                label { span { "Model" } KitInput { value: "{model}", oninput: move |e: FormEvent| model.set(e.value()) } }
+                label { span { "API Key (encrypted aes-gcm)" } KitInput { r#type: "password", value: "{api_key}", oninput: move |e: FormEvent| api_key.set(e.value()) } }
+                label { span { "Per-module override (paid only)" } KitInput { value: "{per_module}", oninput: move |e: FormEvent| per_module.set(e.value()), placeholder: "finance / procurement / empty = Holding-wide" } }
+                div { class: "route-actions",
+                    KitButton { variant: ButtonVariant::Primary, r#type: "button", disabled: *busy.read(), onclick: on_save, {copy(locale, "Save provider", "บันทึกผู้ให้บริการ")} }
+                    KitButton { variant: ButtonVariant::Secondary, r#type: "button", disabled: *busy.read(), onclick: on_test, {copy(locale, "Test connection", "ทดสอบการเชื่อมต่อ")} }
+                }
+                if let Some(msg) = feedback.read().as_ref() {
+                    p { class: "settings-feedback", role: "status", "{msg}" }
+                }
+            }
+            p { class: "settings-hint", "Endpoint must be https unless loopback (127.0.0.1/localhost). Key stored encrypted with AAD = holding_id." }
+        }
+    }
+}
+
+#[cfg(feature = "native")]
+#[component]
+fn SettingsAiProvider() -> Element {
+    rsx! { FeatureClosed { name: "AI Provider settings (web only)" } }
+}
+
+#[cfg(any(feature = "web", feature = "server"))]
+#[component]
+fn SettingsBilling() -> Element {
+    let locale = erpx_ui_core::use_locale().current();
+    let mut seats = use_signal(|| 10_u32);
+    let mut quote = use_server_future(move || {
+        let s = *seats.read();
+        async move { crate::delivery::hosted_quote(s).await }
+    })?;
+    let quote_read = quote.read().clone();
+    rsx! {
+        document::Title { "Billing · ERPX" }
+        article { class: "settings-page",
+            h1 { {copy(locale, "Hosted billing", "การเรียกเก็บเงินแบบโฮสต์")} }
+            p { {copy(locale, "Blended stepper per active seat/month + Flow AI $29/Holding flat. Topup $20 = $20 credit + 10% fee.", "คิดแบบขั้นบันไดต่อที่นั่งที่ใช้งาน/เดือน + Flow AI $29 ต่อ Holding แบบเหมา เติมเงิน $20 = เครดิต $20 + ค่าธรรมเนียม 10%")} }
+            label { span { "Seats (active principals with login in cycle)" } KitInput { r#type: "number", value: "{seats}", oninput: move |e: FormEvent| if let Ok(v) = e.value().parse::<u32>() { seats.set(v); }} }
+            KitButton { variant: ButtonVariant::Secondary, r#type: "button", onclick: move |_| quote.restart(), {copy(locale, "Refresh quote", "รีเฟรชใบเสนอราคา")} }
+            if let Some(Ok(Ok(q))) = quote_read.as_ref() {
+                div { class: "billing-quote", role: "status",
+                    p { "Tier: {q.tier} · Seats: {q.seats}" }
+                    p { "Monthly: ${q.monthly_cents as f64 / 100.0:.2} · With Flow: ${q.monthly_cents_with_flow as f64 / 100.0:.2} · Flow add-on: ${q.flow_cents as f64 / 100.0:.2}" }
+                    p { "Example: 10 seats starter blended 5×$9 + 5×$7 = $80, with Flow = $109. 30 seats = $200, 60 seats = $335. 200+ custom." }
+                }
+            }
+            div { class: "billing-steps",
+                for step in erpx_commercial::HOSTED_SEAT_STEPS.iter() {
+                    p { "{step.min_seats}–{step.max_seats.map(|m| m.to_string()).unwrap_or_else(|| \"∞\".into())} @ ${step.price_cents_per_seat as f64 /100.0:.2}" }
+                }
+            }
+        }
+    }
+}
+
+#[cfg(feature = "native")]
+#[component]
+fn SettingsBilling() -> Element {
+    rsx! { FeatureClosed { name: "Billing (web only)" } }
+}
+
 #[derive(Clone, PartialEq)]
 enum PublicFormSubmissionState {
     Idle,
@@ -5432,7 +6010,23 @@ const fn theme_mode_label(locale: Locale, mode: ThemeMode) -> &'static str {
     }
 }
 
-const fn nav_link_class(active: bool) -> &'static str {
+fn finance_icon_name(template: &str) -> &'static str {
+    match template {
+        "/finance" => "◎",
+        "/finance/chart" => "₵",
+        "/finance/journals" => "▤",
+        "/finance/subledgers" => "▥",
+        "/finance/ap" => "↓",
+        "/finance/ar" => "↑",
+        "/finance/cash" => "$",
+        "/finance/banking" => "▣",
+        "/finance/close" => "✓",
+        "/finance/budgets" => "◫",
+        _ => "·",
+    }
+}
+
+fn nav_link_class(active: bool) -> &'static str {
     if active {
         "console-nav__link is-active"
     } else {
@@ -5442,6 +6036,11 @@ const fn nav_link_class(active: bool) -> &'static str {
 
 const fn nav_aria_current(active: bool) -> Option<&'static str> {
     if active { Some("page") } else { None }
+}
+
+#[component]
+fn Home() -> Element {
+    rsx! { crate::feed_surface::HomeFeedPage {} }
 }
 
 fn route_is_identity(route: &AppRoute) -> bool {
@@ -5460,6 +6059,7 @@ fn route_is_identity(route: &AppRoute) -> bool {
     )
 }
 
+#[allow(dead_code)]
 fn route_uses_workspace(route: &AppRoute, expected: Workspace) -> bool {
     let path = route.to_string();
     let workspace_path = format!("/{expected}");

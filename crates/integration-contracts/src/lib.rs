@@ -6,11 +6,13 @@ mod macros;
 mod common;
 mod completion;
 mod editable_fields;
+pub mod editable_fields_spec_ahead;
 mod envelope;
 mod foundation;
 
 pub mod catalog;
 pub mod reference;
+pub mod reference_edge;
 
 pub mod assets;
 pub mod authority;
@@ -77,6 +79,10 @@ pub use reference::{
     ReferenceRelationRevoked, ReferenceValidationError, StableFieldRef,
     record_collaboration_policies, record_collaboration_policy, record_policies, record_policy,
     record_policy_id,
+};
+pub use reference_edge::{
+    MAX_REFERENCE_EDGES_PER_HOST, RecordReferenceEdge, RecordReferenceEdgeView,
+    RecordResolutionState, ReferenceEdgeKind,
 };
 
 #[cfg(test)]

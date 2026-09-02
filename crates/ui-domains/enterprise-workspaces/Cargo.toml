@@ -10,6 +10,9 @@ async-trait.workspace = true
 dioxus = { workspace = true, features = ["hooks", "html", "macro", "signals"] }
 erpx-ui-core.workspace = true
 erpx-ui-kit.workspace = true
+erpx-kernel.workspace = true
+erpx-ui-foundation.workspace = true
+serde.workspace = true
 
 [lints]
 workspace = true

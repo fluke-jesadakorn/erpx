@@ -2426,6 +2426,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "erpx-ai-provider"
+version = "0.1.0"
+dependencies = [
+ "aes-gcm",
+ "base64 0.22.1",
+ "chrono",
+ "rand_core 0.6.4",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "url",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
 name = "erpx-android-bridge"
 version = "0.1.0"
 dependencies = [
@@ -2579,6 +2595,7 @@ name = "erpx-collaboration"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "base64 0.22.1",
  "chrono",
  "erpx-integration-contracts",
  "erpx-kernel",
@@ -2649,6 +2666,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "dioxus",
+ "erpx-ai-provider",
  "erpx-assets",
  "erpx-brand",
  "erpx-commercial",
@@ -2726,6 +2744,7 @@ dependencies = [
  "erpx-ui-support",
  "erpx-web-session",
  "erpx-web-session-sqlx",
+ "getrandom 0.2.17",
  "hex",
  "js-sys",
  "prost-types",
@@ -2897,11 +2916,14 @@ dependencies = [
  "async-trait",
  "chrono",
  "dioxus",
+ "erpx-console-feature-ai-collaboration",
  "erpx-cqrs",
  "erpx-finance",
  "erpx-integration-contracts",
  "erpx-kernel",
+ "erpx-ui-ai-collaboration",
  "erpx-ui-core",
+ "erpx-ui-finance",
  "erpx-ui-foundation",
  "erpx-ui-kit",
  "serde",
@@ -3337,6 +3359,8 @@ name = "erpx-delivery-contract"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "erpx-ai-provider",
+ "erpx-commercial",
  "serde",
  "uuid",
 ]
@@ -3597,6 +3621,7 @@ dependencies = [
 name = "erpx-kernel"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "serde",
  "thiserror 2.0.19",
@@ -4396,15 +4421,21 @@ version = "0.1.0"
 dependencies = [
  "async-trait",
  "dioxus",
+ "erpx-kernel",
  "erpx-ui-core",
+ "erpx-ui-foundation",
  "erpx-ui-kit",
+ "serde",
 ]
 
 [[package]]
 name = "erpx-ui-finance"
 version = "0.1.0"
 dependencies = [
+ "erpx-domain",
+ "erpx-ui-ai-collaboration",
  "erpx-ui-core",
+ "uuid",
 ]
 
 [[package]]
@@ -4412,10 +4443,12 @@ name = "erpx-ui-foundation"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "erpx-cqrs",
  "erpx-kernel",
  "serde",
  "thiserror 2.0.19",
+ "uuid",
 ]
 
 [[package]]

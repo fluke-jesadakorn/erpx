@@ -7,7 +7,9 @@ license.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+erpx-ai-provider.workspace = true
 serde.workspace = true
+erpx-commercial.workspace = true
 uuid.workspace = true
 
 [lints]

@@ -71,3 +71,18 @@ Applications live under `apps/`, shared crates under `crates/`, migrations
 under `crates/migration/`, fixtures under `fixtures/`, architecture decisions
 under `adr/`, retained ERPX evidence under `audits/`, and development
 orchestration under `xtask/`.
+
+<!-- skills:start -->
+## barlevalon workflow skills
+
+Workflow skills are installed in `.agents/skills`.
+When asked for a named workflow, read that skill's `SKILL.md` before acting.
+If the skill links helper files, read those too.
+
+Installed skills:
+- `domain-modeling`: `.agents/skills/domain-modeling/SKILL.md`
+- `grilling`: `.agents/skills/grilling/SKILL.md`
+- `prototype`: `.agents/skills/prototype/SKILL.md`
+- `research`: `.agents/skills/research/SKILL.md`
+- `wayfinder`: `.agents/skills/wayfinder/SKILL.md`
+<!-- skills:end -->

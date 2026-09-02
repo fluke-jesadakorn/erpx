@@ -94,6 +94,7 @@ erpx-cqrs.workspace = true
 erpx-crm.workspace = true
 erpx-customer-authority.workspace = true
 erpx-customer-360.workspace = true
+erpx-ai-provider.workspace = true
 erpx-identity-access.workspace = true
 erpx-integration-contracts.workspace = true
 erpx-inventory.workspace = true
@@ -141,6 +142,7 @@ url.workspace = true
 webauthn-rs-proto.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom.workspace = true
 js-sys.workspace = true
 tonic.workspace = true
 tonic-web-wasm-client.workspace = true

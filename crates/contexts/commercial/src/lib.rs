@@ -14,6 +14,11 @@ pub use application::{
     GetEntitlement, GetEntitlementResult, GetSubscription, GetSubscriptionResult, ListCatalogPlans,
     ListEntitlements, ListSubscriptions, PublishCatalogPlan,
 };
+pub use domain::FLOW_AI_CAPABILITY;
+pub use domain::hosted_pricing::{
+    FLOW_AI_CENTS_PER_HOLDING, HOSTED_SEAT_STEPS, HostedTier, SeatStep, TOPUP_FEE_BPS,
+    hosted_monthly_cents, hosted_monthly_cents_with_flow, topup_billed_cents,
+};
 pub use domain::{
     BillingSignal, CatalogPlan, CatalogPlanId, CatalogPlanStatus, CommercialAggregate,
     CommercialDomainError, CommercialLifecycleRecord, CommercialLifecycleRecordError,

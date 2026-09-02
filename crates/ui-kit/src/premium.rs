@@ -883,3 +883,96 @@ pub fn ProgressRing(value: f64, label: String) -> Element {
     };
     rsx! { div { class: "ui-progress-ring", role: "progressbar", aria_label: safe(label), aria_valuemin: "0", aria_valuemax: "100", aria_valuenow: format!("{value:.0}"), style: format!("--progress: {value:.2}%"), span { "{value:.0}%" } } }
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoardColumnDef {
+    pub id: String,
+    pub title: String,
+    pub count: usize,
+}
+#[derive(Debug, Clone, PartialEq)]
+pub struct BoardCardDef {
+    pub id: String,
+    pub title: String,
+    pub detail: String,
+    pub assignee: String,
+    pub status: String,
+}
+#[component]
+pub fn Board(
+    columns: Vec<BoardColumnDef>,
+    cards: Vec<BoardCardDef>,
+    on_move: EventHandler<(String, String)>,
+) -> Element {
+    let mut dragging: Signal<Option<String>> = use_signal(|| None);
+    let mut drag_over: Signal<Option<String>> = use_signal(|| None);
+    rsx! {
+        div { class: "ui-board", role: "list", aria_label: "Board",
+            for col in columns.clone() {
+                div {
+                    class: "ui-board-column",
+                    role: "listitem",
+                    "data-column": col.id.clone(),
+                    ondragover: {
+                        let col_id = col.id.clone();
+                        move |e| { e.prevent_default(); drag_over.set(Some(col_id.clone())); }
+                    },
+                    ondragleave: move |_| drag_over.set(None),
+                    ondrop: {
+                        let col_id = col.id.clone();
+                        move |_| {
+                            if let Some(card_id) = dragging.read().clone() {
+                                on_move.call((card_id.clone(), col_id.clone()));
+                            }
+                            dragging.set(None);
+                            drag_over.set(None);
+                        }
+                    },
+                    header {
+                        span { "{col.title}" }
+                        span { "{col.count}" }
+                    }
+                    for card in cards.iter().filter(|c| c.status == col.id).cloned() {
+                        div {
+                            key: "{card.id}",
+                            class: "ui-board-card",
+                            role: "listitem",
+                            draggable: "true",
+                            "data-dragging": if *dragging.read() == Some(card.id.clone()) { "true" } else { "false" },
+                            "aria-grabbed": if *dragging.read() == Some(card.id.clone()) { "true" } else { "false" },
+                            tabindex: "0",
+                            ondragstart: {
+                                let cid = card.id.clone();
+                                move |_| dragging.set(Some(cid.clone()))
+                            },
+                            ondragend: move |_| { dragging.set(None); drag_over.set(None); },
+                            onkeydown: {
+                                let cid = card.id.clone();
+                                let cols = columns.clone();
+                                move |e: KeyboardEvent| {
+                                    let key = e.key();
+                                    let cur_status = card.status.clone();
+                                    let idx = cols.iter().position(|c| c.id == cur_status).unwrap_or(0);
+                                    if key == Key::ArrowRight && idx + 1 < cols.len() {
+                                        on_move.call((cid.clone(), cols[idx + 1].id.clone()));
+                                    } else if key == Key::ArrowLeft && idx > 0 {
+                                        on_move.call((cid.clone(), cols[idx - 1].id.clone()));
+                                    }
+                                }
+                            },
+                            div { class: "ui-board-card-title", "{card.title}" }
+                            small { "{card.detail}" }
+                            div { class: "ui-board-meta",
+                                span { class: "ui-status-badge", "{card.assignee}" }
+                                span { "{card.status}" }
+                            }
+                        }
+                    }
+                    if *drag_over.read() == Some(col.id.clone()) {
+                        div { class: "ui-board-placeholder", aria_hidden: "true" }
+                    }
+                }
+            }
+        }
+    }
+}

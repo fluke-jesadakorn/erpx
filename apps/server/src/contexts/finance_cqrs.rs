@@ -6,17 +6,19 @@ use erpx_cqrs::{
 };
 use erpx_finance::{
     Account, AccountCategory, AccountId, AccountStatus, AddAccount, ApplySubledgerSettlement,
-    BankTransactionFact, BeginPeriodClose, ChangeAccountStatus, ChartId, ClosePeriod, CreateChart,
-    CreateJournal, CreatePayment, CreatePeriod, CreateVendorInvoice, FinanceCommand,
-    FinanceMutationResult, FinanceQuery, FinanceQueryResponse, GetChart, GetJournal, GetPayment,
-    GetPeriod, GetStatutoryTaxReport, GetSubledger, GetTrialBalance, GetVendorInvoice, JournalId,
-    JournalLine, JournalLineId, JournalSource, JournalStatus, ListBankTransactions, ListCharts,
-    ListJournals, ListSubledger, NormalBalance, PayableView, PayablesCommand,
-    PayablesMutationResult, PayablesQuery, PayablesQueryResponse, PaymentAllocation, PaymentId,
-    PaymentStatus, PaymentView, PeriodId, PeriodStatus, PostJournal, PostVendorInvoice,
-    ReleasePayment, ReopenPeriod, StatutoryTaxFact, StatutoryTaxKind, SubledgerId, SubledgerStatus,
-    ThreeWayMatchTolerance, VendorInvoiceId, VendorInvoiceLine, VendorInvoiceLineId,
-    VendorInvoiceStatus, VendorInvoiceView,
+    BankTransactionFact, BeginPeriodClose, ChangeAccountStatus, ChartCsvRow, ChartId, ClosePeriod,
+    CreateChart, CreateJournal, CreatePayment, CreatePeriod, CreateVendorInvoice, FinanceCommand,
+    FinanceMutationResult, FinanceQuery, FinanceQueryResponse, FxRate, FxSnapshot, GetChart,
+    GetFinancialStatements, GetJournal, GetPayment, GetPeriod, GetStatutoryTaxReport, GetSubledger,
+    GetTrialBalance, GetVendorInvoice, ImportChartCsv, ImportOpeningTrialBalance, JournalId,
+    JournalLine, JournalLineId, JournalSource, JournalStatus, ListAging, ListBankTransactions,
+    ListCharts, ListJournals, ListSubledger, NormalBalance, OpeningTrialBalanceRow, PayableView,
+    PayablesCommand, PayablesMutationResult, PayablesQuery, PayablesQueryResponse,
+    PaymentAllocation, PaymentId, PaymentStatus, PaymentView, PeriodId, PeriodStatus, PostJournal,
+    PostVendorInvoice, ReleasePayment, ReopenPeriod, RevalueSubledgers, StatutoryTaxFact,
+    StatutoryTaxKind, SubledgerId, SubledgerKind, SubledgerStatus, ThreeWayMatchTolerance,
+    VendorInvoiceId, VendorInvoiceLine, VendorInvoiceLineId, VendorInvoiceStatus,
+    VendorInvoiceView,
     ports::{
         BankTransactionListFilter, ChartListFilter, ChartView, JournalView, PeriodView,
         SubledgerListFilter, SubledgerView,
@@ -604,6 +606,10 @@ impl<A: FinanceCommandApplication, G: FinanceRequestAuthenticator> FinanceComman
                 "public Finance journal creation accepts manual source only",
             ));
         };
+        let fx_rate = i
+            .fx_rate_micros
+            .map(|micros| FxRate::new(micros).map_err(|_| invalid("fx_rate_micros is invalid")))
+            .transpose()?;
         let command = FinanceCommand::CreateJournal(CreateJournal {
             journal_id: journal_id(&i.journal_id)?,
             scope: decode_scope(
@@ -615,6 +621,7 @@ impl<A: FinanceCommandApplication, G: FinanceRequestAuthenticator> FinanceComman
             journal_code: i.journal_code,
             entry_date: date(&i.entry_date, "entry_date")?,
             currency: i.currency,
+            fx_rate,
             source: JournalSource::Manual {
                 reference: source.reference,
             },
@@ -663,6 +670,91 @@ impl<A: FinanceCommandApplication, G: FinanceRequestAuthenticator> FinanceComman
             )
             .await?,
         )
+    }
+    async fn revalue_subledgers(
+        &self,
+        r: Request<platform::RevalueSubledgersRequest>,
+    ) -> Result<Response<platform::FinanceJournalMutationResponse>, Status> {
+        let transport = r.metadata().clone();
+        let i = r.into_inner();
+        let fx_rate =
+            FxRate::new(i.fx_rate_micros).map_err(|_| invalid("fx_rate_micros is invalid"))?;
+        let snapshot = FxSnapshot {
+            base_currency: i.base_currency,
+            quote_currency: i.quote_currency,
+            rate: fx_rate,
+            as_of: date(&i.as_of, "as_of")?,
+        };
+        let command = FinanceCommand::RevalueSubledgers(RevalueSubledgers {
+            period_id: period_id(&i.period_id)?,
+            chart_id: chart_id(&i.chart_id)?,
+            fx_snapshot: snapshot,
+        });
+        journal_response(self.command(transport, i.metadata, command).await?)
+    }
+    async fn import_chart_csv(
+        &self,
+        r: Request<platform::ImportChartCsvRequest>,
+    ) -> Result<Response<platform::FinanceChartMutationResponse>, Status> {
+        let transport = r.metadata().clone();
+        let i = r.into_inner();
+        let mut id_to_code: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+        for acc in &i.accounts {
+            id_to_code.insert(acc.account_id.clone(), acc.code.clone());
+        }
+        let rows: Vec<ChartCsvRow> = i
+            .accounts
+            .into_iter()
+            .map(|acc| {
+                let parent_code = acc
+                    .parent_account_id
+                    .and_then(|pid| id_to_code.get(&pid).cloned());
+                Ok(ChartCsvRow {
+                    account_id: acc.account_id,
+                    code: acc.code,
+                    name: acc.name,
+                    category: decode_account_category(acc.category)?,
+                    normal_balance: decode_normal_balance(acc.normal_balance)?,
+                    parent_code,
+                    status: decode_account_status(acc.status)?,
+                })
+            })
+            .collect::<Result<Vec<_>, Status>>()?;
+        let command = FinanceCommand::ImportChartCsv(ImportChartCsv {
+            chart_id: chart_id(&i.chart_id)?,
+            scope: decode_scope(
+                i.target_scope
+                    .ok_or_else(|| invalid("target_scope is required"))?,
+            )?,
+            code: i.code,
+            name: i.name,
+            currency: i.currency,
+            csv_rows: rows,
+        });
+        chart_response(self.command(transport, i.metadata, command).await?)
+    }
+    async fn import_opening_trial_balance(
+        &self,
+        r: Request<platform::ImportOpeningTrialBalanceRequest>,
+    ) -> Result<Response<platform::FinanceJournalMutationResponse>, Status> {
+        let transport = r.metadata().clone();
+        let i = r.into_inner();
+        let rows: Vec<OpeningTrialBalanceRow> = i
+            .rows
+            .into_iter()
+            .map(|row| OpeningTrialBalanceRow {
+                account_code: row.account_code,
+                debit_minor: row.debit_minor,
+                credit_minor: row.credit_minor,
+            })
+            .collect();
+        let command = FinanceCommand::ImportOpeningTrialBalance(ImportOpeningTrialBalance {
+            chart_id: chart_id(&i.chart_id)?,
+            period_id: period_id(&i.period_id)?,
+            rows,
+        });
+        journal_response(self.command(transport, i.metadata, command).await?)
     }
 }
 impl<A: FinanceCommandApplication, G: FinanceRequestAuthenticator> FinanceCommandRpc<A, G> {
@@ -965,6 +1057,126 @@ impl<A: FinanceQueryApplication, G: FinanceRequestAuthenticator> FinanceQuerySer
                 metadata: Some(encode_query_metadata(&x.metadata)),
             },
         ))
+    }
+    async fn get_financial_statements(
+        &self,
+        r: Request<platform::GetFinancialStatementsRequest>,
+    ) -> Result<Response<platform::GetFinancialStatementsResponse>, Status> {
+        let t = r.metadata().clone();
+        let i = r.into_inner();
+        let x = self
+            .query(
+                t,
+                i.metadata,
+                FinanceQuery::GetFinancialStatements(GetFinancialStatements {
+                    chart_id: chart_id(&i.chart_id)?,
+                    period_id: period_id(&i.period_id)?,
+                }),
+            )
+            .await?;
+        let FinanceQueryResponse::FinancialStatements(v) = x.value else {
+            return Err(Status::internal("Finance query response mismatch"));
+        };
+        Ok(Response::new(platform::GetFinancialStatementsResponse {
+            chart_id: v.chart_id.as_uuid().to_string(),
+            period_id: v.period_id.as_uuid().to_string(),
+            currency: v.currency,
+            balance_sheet: v
+                .balance_sheet
+                .into_iter()
+                .map(|l| platform::FinancialStatementLineRecord {
+                    account_id: l.account_id.as_uuid().to_string(),
+                    account_code: l.account_code,
+                    account_name: l.account_name,
+                    category: encode_account_category(l.category) as i32,
+                    amount_minor: l.amount_minor,
+                })
+                .collect(),
+            profit_and_loss: v
+                .profit_and_loss
+                .into_iter()
+                .map(|l| platform::FinancialStatementLineRecord {
+                    account_id: l.account_id.as_uuid().to_string(),
+                    account_code: l.account_code,
+                    account_name: l.account_name,
+                    category: encode_account_category(l.category) as i32,
+                    amount_minor: l.amount_minor,
+                })
+                .collect(),
+            total_assets_minor: v.total_assets_minor,
+            total_liabilities_minor: v.total_liabilities_minor,
+            total_equity_minor: v.total_equity_minor,
+            total_revenue_minor: v.total_revenue_minor,
+            total_expense_minor: v.total_expense_minor,
+            net_income_minor: v.net_income_minor,
+            balanced: v.balanced,
+            metadata: Some(encode_query_metadata(&x.metadata)),
+        }))
+    }
+    async fn list_aging(
+        &self,
+        r: Request<platform::ListAgingRequest>,
+    ) -> Result<Response<platform::ListAgingResponse>, Status> {
+        let t = r.metadata().clone();
+        let i = r.into_inner();
+        let kind = match i.kind.as_str() {
+            "receivable" => SubledgerKind::Receivable(
+                erpx_integration_contracts::customer::CustomerRef::try_from_uuid(Uuid::from_u128(
+                    1,
+                ))
+                .unwrap_or_else(|_| {
+                    erpx_integration_contracts::customer::CustomerRef::try_from_uuid(
+                        Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
+                    )
+                    .unwrap()
+                }),
+            ),
+            _ => SubledgerKind::Payable(
+                erpx_integration_contracts::procurement::SupplierRef::try_from_uuid(
+                    Uuid::from_u128(1),
+                )
+                .unwrap_or_else(|_| {
+                    erpx_integration_contracts::procurement::SupplierRef::try_from_uuid(
+                        Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
+                    )
+                    .unwrap()
+                }),
+            ),
+        };
+        let x = self
+            .query(
+                t,
+                i.metadata,
+                FinanceQuery::ListAging(ListAging {
+                    kind,
+                    as_of: date(&i.as_of, "as_of")?,
+                    page_size: u16::try_from(i.page_size)
+                        .map_err(|_| invalid("page_size is invalid"))?,
+                    after_cursor: i.cursor,
+                }),
+            )
+            .await?;
+        let FinanceQueryResponse::Aging(v) = x.value else {
+            return Err(Status::internal("Finance query response mismatch"));
+        };
+        Ok(Response::new(platform::ListAgingResponse {
+            lines: v
+                .lines
+                .into_iter()
+                .map(|l| platform::AgingLineRecord {
+                    subledger_id: l.subledger_id.as_uuid().to_string(),
+                    document_code: l.document_code,
+                    currency: l.currency,
+                    outstanding_minor: l.outstanding_minor,
+                    due_on: l.due_on.to_string(),
+                    days_past_due: l.days_past_due,
+                    bucket: format!("{:?}", l.bucket),
+                })
+                .collect(),
+            total_outstanding_minor: v.total_outstanding_minor,
+            bucket_totals: v.bucket_totals.into_iter().collect(),
+            metadata: Some(encode_query_metadata(&x.metadata)),
+        }))
     }
     async fn list_bank_transactions(
         &self,
@@ -1611,6 +1823,7 @@ fn encode_journal(v: &JournalView) -> platform::FinanceJournalRecord {
         journal_code: v.journal_code.clone(),
         entry_date: v.entry_date.to_string(),
         currency: v.currency.clone(),
+        fx_rate_micros: v.fx_rate_micros,
         manual_source: match &v.source {
             JournalSource::Manual { reference } => Some(platform::FinanceManualJournalSource {
                 reference: reference.clone(),

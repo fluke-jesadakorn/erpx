@@ -1,10 +1,14 @@
 //! Finance Console vertical slice.
+pub mod finance_workspace;
 pub mod gateway;
 pub mod models;
 pub mod owner_detail;
 pub mod presenter;
 pub mod sales_workspace;
 pub mod view;
+pub use finance_workspace::{
+    FinanceRecordDetailWithMentions, FinanceShellStatus, FinanceWorkspaceShell,
+};
 pub use gateway::{
     FinanceGateway, FinancePayablesGateway, FinancePayablesProtoTransport, FinanceProtoTransport,
     present_payables_mutation, present_payables_query,

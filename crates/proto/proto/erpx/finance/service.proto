@@ -804,6 +804,7 @@ message FinanceJournalRecord {
   string created_at = 16;
   string updated_at = 17;
   string projected_at = 18;
+  optional uint64 fx_rate_micros = 19;
 }
 
 message FinanceSubledgerRecord {
@@ -899,6 +900,7 @@ message CreateTypedFinanceJournalRequest {
   FinanceJournalSource source = 9;
   string description = 10;
   repeated FinanceJournalLineRecord lines = 11;
+  optional uint64 fx_rate_micros = 12;
 }
 
 message PostTypedFinanceJournalRequest {
@@ -1074,6 +1076,94 @@ message FinanceStatutoryTaxReportRecord {
   int64 output_vat_minor = 5;
   int64 input_vat_minor = 6;
   int64 withholding_minor = 7;
+}
+
+message RevalueSubledgersRequest {
+  erpx.common.CommandRequestMetadata metadata = 1;
+  string period_id = 2;
+  string chart_id = 3;
+  string base_currency = 4;
+  string quote_currency = 5;
+  uint64 fx_rate_micros = 6;
+  string as_of = 7;
+}
+
+message ImportChartCsvRequest {
+  erpx.common.CommandRequestMetadata metadata = 1;
+  string chart_id = 2;
+  erpx.common.AuthorityScope target_scope = 3;
+  string code = 4;
+  string name = 5;
+  string currency = 6;
+  repeated FinanceAccountRecord accounts = 7;
+}
+
+message ImportOpeningTrialBalanceRequest {
+  erpx.common.CommandRequestMetadata metadata = 1;
+  string chart_id = 2;
+  string period_id = 3;
+  repeated OpeningTrialBalanceRow rows = 4;
+}
+
+message OpeningTrialBalanceRow {
+  string account_code = 1;
+  int64 debit_minor = 2;
+  int64 credit_minor = 3;
+}
+
+message GetFinancialStatementsRequest {
+  erpx.common.QueryRequestMetadata metadata = 1;
+  string chart_id = 2;
+  string period_id = 3;
+}
+
+message FinancialStatementLineRecord {
+  string account_id = 1;
+  string account_code = 2;
+  string account_name = 3;
+  FinanceAccountCategory category = 4;
+  int64 amount_minor = 5;
+}
+
+message GetFinancialStatementsResponse {
+  string chart_id = 1;
+  string period_id = 2;
+  string currency = 3;
+  repeated FinancialStatementLineRecord balance_sheet = 4;
+  repeated FinancialStatementLineRecord profit_and_loss = 5;
+  int64 total_assets_minor = 6;
+  int64 total_liabilities_minor = 7;
+  int64 total_equity_minor = 8;
+  int64 total_revenue_minor = 9;
+  int64 total_expense_minor = 10;
+  int64 net_income_minor = 11;
+  bool balanced = 12;
+  erpx.common.QueryMetadata metadata = 13;
+}
+
+message ListAgingRequest {
+  erpx.common.QueryRequestMetadata metadata = 1;
+  string kind = 2;
+  string as_of = 3;
+  uint32 page_size = 4;
+  optional string cursor = 5;
+}
+
+message AgingLineRecord {
+  string subledger_id = 1;
+  string document_code = 2;
+  string currency = 3;
+  int64 outstanding_minor = 4;
+  string due_on = 5;
+  int64 days_past_due = 6;
+  string bucket = 7;
+}
+
+message ListAgingResponse {
+  repeated AgingLineRecord lines = 1;
+  int64 total_outstanding_minor = 2;
+  map<string, int64> bucket_totals = 3;
+  erpx.common.QueryMetadata metadata = 4;
 }
 
 message GetTypedFinanceStatutoryTaxReportResponse {
@@ -1300,6 +1390,9 @@ service FinanceCommandService {
   rpc PostJournal(PostTypedFinanceJournalRequest) returns (FinanceJournalMutationResponse);
   rpc ApplySubledgerSettlement(ApplyFinanceSubledgerSettlementRequest)
       returns (FinanceSubledgerMutationResponse);
+  rpc RevalueSubledgers(RevalueSubledgersRequest) returns (FinanceJournalMutationResponse);
+  rpc ImportChartCsv(ImportChartCsvRequest) returns (FinanceChartMutationResponse);
+  rpc ImportOpeningTrialBalance(ImportOpeningTrialBalanceRequest) returns (FinanceJournalMutationResponse);
 }
 
 service FinanceQueryService {
@@ -1315,6 +1408,8 @@ service FinanceQueryService {
       returns (ListTypedFinanceSubledgerResponse);
   rpc GetTrialBalance(GetTypedFinanceTrialBalanceRequest)
       returns (GetTypedFinanceTrialBalanceResponse);
+  rpc GetFinancialStatements(GetFinancialStatementsRequest) returns (GetFinancialStatementsResponse);
+  rpc ListAging(ListAgingRequest) returns (ListAgingResponse);
   rpc ListBankTransactions(ListTypedFinanceBankTransactionsRequest)
       returns (ListTypedFinanceBankTransactionsResponse);
   rpc GetStatutoryTaxReport(GetTypedFinanceStatutoryTaxReportRequest)

@@ -9,7 +9,9 @@ license.workspace = true
 async-trait = { workspace = true }
 erpx-cqrs.workspace = true
 erpx-kernel.workspace = true
+chrono.workspace = true
 serde = { workspace = true }
+uuid.workspace = true
 thiserror = { workspace = true }
 
 [lints]

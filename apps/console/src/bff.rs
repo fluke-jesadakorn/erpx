@@ -62,9 +62,32 @@ pub(crate) struct BffState {
     auth_http: reqwest::Client,
     refresh_lock: Arc<Mutex<()>>,
     production_profile: bool,
+    #[cfg(feature = "server")]
+    control_pool: Option<sqlx::PgPool>,
 }
 
 impl BffState {
+    #[cfg(feature = "server")]
+    pub(crate) fn new(
+        sessions: Arc<dyn WebSessionStore>,
+        auth_http_origin: String,
+        grpc_origin: String,
+        trusted_public_origins: String,
+        platform_origin: String,
+        production_profile: bool,
+    ) -> Result<Self, io::Error> {
+        Self::new_with_pool(
+            sessions,
+            auth_http_origin,
+            grpc_origin,
+            trusted_public_origins,
+            platform_origin,
+            production_profile,
+            None,
+        )
+    }
+
+    #[cfg(not(feature = "server"))]
     pub(crate) fn new(
         sessions: Arc<dyn WebSessionStore>,
         auth_http_origin: String,
@@ -100,6 +123,51 @@ impl BffState {
             refresh_lock: Arc::new(Mutex::new(())),
             production_profile,
         })
+    }
+
+    #[cfg(feature = "server")]
+    pub(crate) fn new_with_pool(
+        sessions: Arc<dyn WebSessionStore>,
+        auth_http_origin: String,
+        grpc_origin: String,
+        trusted_public_origins: String,
+        platform_origin: String,
+        production_profile: bool,
+        control_pool: Option<sqlx::PgPool>,
+    ) -> Result<Self, io::Error> {
+        let auth_http_origin = auth_http_origin.trim_end_matches('/');
+        let grpc_origin = grpc_origin.trim_end_matches('/');
+        if !(auth_http_origin.starts_with("http://") || auth_http_origin.starts_with("https://"))
+            || !(grpc_origin.starts_with("http://") || grpc_origin.starts_with("https://"))
+        {
+            return Err(io::Error::other("identity HTTP origin is invalid"));
+        }
+        let trusted_public_origins = parse_trusted_public_origins(&trusted_public_origins)?;
+        erpx_console_bff::validate_runtime_origins(
+            auth_http_origin,
+            grpc_origin,
+            &trusted_public_origins,
+            production_profile,
+        )?;
+        Ok(Self {
+            sessions,
+            auth_http_origin: Arc::from(auth_http_origin),
+            grpc_origin: Arc::from(grpc_origin),
+            trusted_public_origins,
+            platform_origin: Arc::from(platform_origin.trim_end_matches('/')),
+            auth_http: reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .map_err(|_| io::Error::other("identity HTTP client is unavailable"))?,
+            refresh_lock: Arc::new(Mutex::new(())),
+            production_profile,
+            control_pool,
+        })
+    }
+
+    #[cfg(feature = "server")]
+    pub(crate) fn control_pool(&self) -> Option<&sqlx::PgPool> {
+        self.control_pool.as_ref()
     }
 
     pub(crate) fn grpc_origin(&self) -> &str {
@@ -457,15 +525,15 @@ fn console_page_redirect(request: &Request, context: &BffSessionContext) -> Opti
     }
     let path = request.uri().path();
     if path == "/" {
-        return Some(
-            if context.snapshot.authenticated && context.snapshot.role_selection_required {
-                role_selection_location(crate::authenticated_landing_path())
-            } else if context.snapshot.authenticated {
-                crate::authenticated_landing_path().to_owned()
-            } else {
-                crate::login_redirect_location(crate::authenticated_landing_path())
-            },
-        );
+        if context.snapshot.authenticated && context.snapshot.role_selection_required {
+            return Some(role_selection_location(crate::authenticated_landing_path()));
+        }
+        if context.snapshot.authenticated {
+            return None;
+        }
+        return Some(crate::login_redirect_location(
+            crate::authenticated_landing_path(),
+        ));
     }
     if crate::is_legacy_login_path(path) {
         return Some(crate::LOGIN_PATH.to_owned());

@@ -1081,7 +1081,7 @@ async fn autocomplete_from_item_directory(
                 });
             }
         };
-        return Ok(autocomplete_targets_state(query, response)?);
+        return autocomplete_targets_state(query, response);
     }
     if let Err(error) = resolve_exact_descriptor(
         channel.clone(),

@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use chrono::{DateTime, Utc};
-use erpx_kernel::{HumanDecisionProof, PrincipalId, PrincipalKind};
+use erpx_kernel::{HoldingId, HumanDecisionProof, PrincipalId, PrincipalKind};
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -2467,5 +2467,338 @@ mod tests {
         };
         assert!(edit.mentions.is_empty());
         assert_eq!(thread.mentions()[0].id(), mention_id);
+    }
+}
+
+// ----- Social Feed extensions -----
+
+use crate::feed::{self, FeedFilter, FeedItem, FeedItemId, HashtagTopic, HashtagTopicId};
+use crate::ports::{AuthorizedFeedAccess, FeedPageView, FeedReadRepository, FeedWriteRepository};
+
+#[derive(Debug, Clone)]
+pub struct ListFeedQuery {
+    pub holding_id: HoldingId,
+    pub authority_scope: erpx_kernel::AuthorityScope,
+    pub actor_principal_id: PrincipalId,
+    pub filter: FeedFilter,
+    pub page_size: usize,
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct GetFeedItemQuery {
+    pub holding_id: HoldingId,
+    pub authority_scope: erpx_kernel::AuthorityScope,
+    pub actor_principal_id: PrincipalId,
+    pub feed_item_id: FeedItemId,
+}
+
+#[derive(Debug, Clone)]
+pub struct SearchFeedQuery {
+    pub holding_id: HoldingId,
+    pub authority_scope: erpx_kernel::AuthorityScope,
+    pub actor_principal_id: PrincipalId,
+    pub query: String,
+    pub filter: FeedFilter,
+    pub page_size: usize,
+    pub cursor: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CreateHashtagTopicCommand {
+    pub identity: MutationIdentity,
+    pub hashtag_id: HashtagTopicId,
+    pub tag: String,
+    pub at: DateTime<Utc>,
+}
+
+fn validate_feed_human(
+    actor: &crate::ports::ActorContext,
+) -> Result<(), CollaborationApplicationError> {
+    if !actor.attribution.is_human() {
+        return Err(CollaborationApplicationError::HumanDecisionDenied);
+    }
+    Ok(())
+}
+
+pub struct FeedQueryService<A, R> {
+    authorization: A,
+    read: R,
+}
+
+impl<A, R> FeedQueryService<A, R>
+where
+    A: crate::ports::AuthorizationPort,
+    R: FeedReadRepository,
+{
+    pub const fn new(authorization: A, read: R) -> Self {
+        Self {
+            authorization,
+            read,
+        }
+    }
+
+    pub async fn list_feed(
+        &self,
+        actor: &crate::ports::ActorContext,
+        query: ListFeedQuery,
+    ) -> Result<FeedPageView, CollaborationApplicationError> {
+        actor
+            .validate()
+            .map_err(|_| CollaborationApplicationError::Neutral)?;
+        query
+            .filter
+            .validate()
+            .map_err(|e| CollaborationApplicationError::Invalid(e.to_string()))?;
+        let action = crate::ports::CollaborationAction::ListFeed;
+        let search_access: crate::ports::AuthorizedSearchAccess = self
+            .authorization
+            .authorize_search(actor)
+            .await
+            .map_err(Into::<CollaborationApplicationError>::into)?;
+        let feed_access = AuthorizedFeedAccess::try_from_authorization(
+            query.holding_id,
+            query.authority_scope,
+            search_access.actor(),
+            search_access.external_portal(),
+            action,
+        )
+        .map_err(|_| CollaborationApplicationError::Neutral)?;
+        let page_size = query.page_size.clamp(1, feed::MAX_FEED_PAGE_SIZE);
+        self.read
+            .list_feed(
+                &feed_access,
+                &query.filter,
+                page_size,
+                query.cursor.as_deref(),
+            )
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn get_feed_item(
+        &self,
+        actor: &crate::ports::ActorContext,
+        query: GetFeedItemQuery,
+    ) -> Result<Option<FeedItem>, CollaborationApplicationError> {
+        actor
+            .validate()
+            .map_err(|_| CollaborationApplicationError::Neutral)?;
+        let action = crate::ports::CollaborationAction::GetFeedItem;
+        let search_access: crate::ports::AuthorizedSearchAccess = self
+            .authorization
+            .authorize_search(actor)
+            .await
+            .map_err(Into::<CollaborationApplicationError>::into)?;
+        let feed_access = AuthorizedFeedAccess::try_from_authorization(
+            query.holding_id,
+            query.authority_scope,
+            search_access.actor(),
+            search_access.external_portal(),
+            action,
+        )
+        .map_err(|_| CollaborationApplicationError::Neutral)?;
+        self.read
+            .get_feed_item(&feed_access, query.feed_item_id)
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn search_feed(
+        &self,
+        actor: &crate::ports::ActorContext,
+        query: SearchFeedQuery,
+    ) -> Result<FeedPageView, CollaborationApplicationError> {
+        actor
+            .validate()
+            .map_err(|_| CollaborationApplicationError::Neutral)?;
+        if query.query.trim().is_empty() || query.query.len() > 512 {
+            return Err(CollaborationApplicationError::Invalid(
+                "query invalid".into(),
+            ));
+        }
+        query
+            .filter
+            .validate()
+            .map_err(|e| CollaborationApplicationError::Invalid(e.to_string()))?;
+        let action = crate::ports::CollaborationAction::SearchFeed;
+        let search_access: crate::ports::AuthorizedSearchAccess = self
+            .authorization
+            .authorize_search(actor)
+            .await
+            .map_err(Into::<CollaborationApplicationError>::into)?;
+        let feed_access = AuthorizedFeedAccess::try_from_authorization(
+            query.holding_id,
+            query.authority_scope,
+            search_access.actor(),
+            search_access.external_portal(),
+            action,
+        )
+        .map_err(|_| CollaborationApplicationError::Neutral)?;
+        let page_size = query.page_size.clamp(1, feed::MAX_FEED_PAGE_SIZE);
+        self.read
+            .search_feed(
+                &feed_access,
+                &query.query,
+                &query.filter,
+                page_size,
+                query.cursor.as_deref(),
+            )
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn list_my_day(
+        &self,
+        actor: &crate::ports::ActorContext,
+        mut query: ListFeedQuery,
+    ) -> Result<FeedPageView, CollaborationApplicationError> {
+        query.filter.author_me = true;
+        query.filter.author_principal_id = Some(actor.principal.id());
+        self.list_feed(actor, query).await
+    }
+}
+
+pub struct FeedCommandService<A, W> {
+    authorization: A,
+    write: W,
+}
+
+impl<A, W> FeedCommandService<A, W>
+where
+    A: crate::ports::AuthorizationPort,
+    W: FeedWriteRepository,
+{
+    pub const fn new(authorization: A, write: W) -> Self {
+        Self {
+            authorization,
+            write,
+        }
+    }
+
+    pub async fn create_hashtag_topic(
+        &self,
+        actor: &crate::ports::ActorContext,
+        command: CreateHashtagTopicCommand,
+    ) -> Result<HashtagTopic, CollaborationApplicationError> {
+        validate_feed_human(actor)?;
+        command
+            .identity
+            .validate()
+            .map_err(|_| CollaborationApplicationError::Invalid("identity".into()))?;
+        let normalized = feed::normalize_hashtag(&command.tag)
+            .map_err(|e| CollaborationApplicationError::Invalid(e.to_string()))?;
+        let search_access: crate::ports::AuthorizedSearchAccess = self
+            .authorization
+            .authorize_search(actor)
+            .await
+            .map_err(Into::<CollaborationApplicationError>::into)?;
+        let feed_access = AuthorizedFeedAccess::try_from_authorization(
+            actor.holding_id,
+            actor.authority_scope.clone(),
+            search_access.actor(),
+            search_access.external_portal(),
+            crate::ports::CollaborationAction::CreateHashtagTopic,
+        )
+        .map_err(|_| CollaborationApplicationError::Neutral)?;
+        let topic =
+            HashtagTopic::try_new(command.hashtag_id, normalized, actor.principal, command.at)
+                .map_err(|e| CollaborationApplicationError::Invalid(e.to_string()))?;
+        self.write
+            .create_hashtag_topic(&feed_access, topic)
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn follow_hashtag(
+        &self,
+        actor: &crate::ports::ActorContext,
+        tag: &str,
+        follow: bool,
+    ) -> Result<bool, CollaborationApplicationError> {
+        validate_feed_human(actor)?;
+        let normalized = feed::normalize_hashtag(tag)
+            .map_err(|e| CollaborationApplicationError::Invalid(e.to_string()))?;
+        let search_access: crate::ports::AuthorizedSearchAccess = self
+            .authorization
+            .authorize_search(actor)
+            .await
+            .map_err(Into::<CollaborationApplicationError>::into)?;
+        let feed_access = AuthorizedFeedAccess::try_from_authorization(
+            actor.holding_id,
+            actor.authority_scope.clone(),
+            search_access.actor(),
+            search_access.external_portal(),
+            crate::ports::CollaborationAction::FollowHashtag,
+        )
+        .map_err(|_| CollaborationApplicationError::Neutral)?;
+        self.write
+            .follow_hashtag(&feed_access, &normalized, follow)
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn share_feed_item(
+        &self,
+        actor: &crate::ports::ActorContext,
+        source_item: FeedItem,
+        new_thread_id: crate::domain::ThreadId,
+        new_comment_id: crate::domain::CommentId,
+        hashtags: Vec<String>,
+        at: DateTime<Utc>,
+    ) -> Result<FeedItem, CollaborationApplicationError> {
+        validate_feed_human(actor)?;
+        if hashtags.len() > feed::MAX_HASHTAGS_PER_ITEM {
+            return Err(CollaborationApplicationError::Invalid(
+                "too many hashtags".into(),
+            ));
+        }
+        let mut normalized_tags = Vec::new();
+        for tag in hashtags {
+            normalized_tags.push(
+                feed::normalize_hashtag(&tag)
+                    .map_err(|e| CollaborationApplicationError::Invalid(e.to_string()))?,
+            );
+        }
+        let action = crate::ports::CollaborationAction::ShareFeedItem;
+        let search_access: crate::ports::AuthorizedSearchAccess = self
+            .authorization
+            .authorize_search(actor)
+            .await
+            .map_err(Into::<CollaborationApplicationError>::into)?;
+        let feed_access = AuthorizedFeedAccess::try_from_authorization(
+            actor.holding_id,
+            actor.authority_scope.clone(),
+            search_access.actor(),
+            search_access.external_portal(),
+            action,
+        )
+        .map_err(|_| CollaborationApplicationError::Neutral)?;
+        if !source_item.is_visible_to(&feed_access.authority_scope().clone(), feed_access.actor()) {
+            return Err(CollaborationApplicationError::Neutral);
+        }
+        let new_item = FeedItem {
+            id: FeedItemId::new_v4(),
+            holding_id: source_item.holding_id,
+            thread_id: new_thread_id,
+            comment_id: Some(new_comment_id),
+            anchor: source_item.anchor.clone(),
+            author: actor.principal,
+            audience: source_item.audience.clone(),
+            visibility_scope: source_item.visibility_scope.clone(),
+            classification: source_item.classification,
+            created_at: at,
+            day_bucket: feed::day_bucket(at),
+            hashtags: normalized_tags,
+            record_refs: source_item.record_refs.clone(),
+            share_of: Some(source_item.id),
+            reaction_counts: Default::default(),
+            reply_depth: 0,
+            parent_comment_id: None,
+        };
+        new_item
+            .validate()
+            .map_err(|e| CollaborationApplicationError::Invalid(e.to_string()))?;
+        Ok(new_item)
     }
 }

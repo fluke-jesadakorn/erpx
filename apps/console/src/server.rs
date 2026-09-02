@@ -165,6 +165,7 @@ pub(crate) async fn router() -> Result<Router, io::Error> {
         .connect(&database_url)
         .await
         .map_err(|_| io::Error::other("web session persistence is unavailable"))?;
+    let ai_pool = pool.clone();
     let store: Arc<dyn WebSessionStore> = Arc::new(SqlxWebSessionStore::new(pool, cipher));
     let auth_http_origin =
         env::var(AUTH_HTTP_ORIGIN_ENV).unwrap_or_else(|_| "http://127.0.0.1:50052".to_owned());
@@ -225,13 +226,14 @@ pub(crate) async fn router() -> Result<Router, io::Error> {
             "development access is forbidden in the Web production profile",
         ));
     }
-    let state = BffState::new(
+    let state = BffState::new_with_pool(
         store,
         auth_http_origin,
         grpc_origin,
         trusted_public_origins,
         platform_origin,
         production_profile,
+        Some(ai_pool),
     )?;
 
     Ok(dioxus_router(crate::App)

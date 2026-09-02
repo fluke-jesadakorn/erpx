@@ -1007,19 +1007,50 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
     ) -> Result<Response<wire::TalentMutationResponse>, Status> {
         let body = request.get_ref();
         let context = required_command(body.context.as_ref())?;
-        let (_invocation, _actor) = command_invocation(
+        let (invocation, actor) = command_invocation(
             &self.state,
             &request,
             Some(context),
             talent::TalentRealm::Workforce,
         )
         .await?;
-        let _ = mutation_expected(context)?;
-        let _ = talent::HireHandoffId::try_from_uuid(uuid(&body.handoff_id, "handoff_id")?)
-            .map_err(|error| Status::invalid_argument(error.to_string()))?;
-        Err(Status::unavailable(
-            "People hire-handoff acknowledgement port is unavailable",
-        ))
+        let expected = mutation_expected(context)?;
+        let handoff_id =
+            talent::HireHandoffId::try_from_uuid(uuid(&body.handoff_id, "handoff_id")?)
+                .map_err(|error| Status::invalid_argument(error.to_string()))?;
+        let decision = match wire::TalentOwnerDecision::try_from(body.decision).ok() {
+            Some(wire::TalentOwnerDecision::Accepted) => talent::HandoffStatus::Accepted,
+            Some(wire::TalentOwnerDecision::Rejected) => talent::HandoffStatus::Rejected,
+            Some(wire::TalentOwnerDecision::Uncertain) => talent::HandoffStatus::Uncertain,
+            _ => return Err(Status::invalid_argument("talent owner decision is invalid")),
+        };
+        let employee = body
+            .employee_record_id
+            .as_deref()
+            .map(|value| {
+                stable_ref(
+                    value,
+                    "employee_record_id",
+                    ContextId::PeoplePayroll,
+                    "people.employee",
+                )
+            })
+            .transpose()?;
+        let pool = future_auth::pool(&self.state, &invocation, RoutedDatabaseSide::Write).await?;
+        let result = command_service(pool, &actor)
+            .reconcile_hire_handoff(
+                actor,
+                identity(context, body)?,
+                handoff_id,
+                expected,
+                decision,
+                body.people_receipt_id.clone(),
+                employee,
+                Utc::now(),
+            )
+            .await
+            .map_err(status)?;
+        Ok(Response::new(response(context, result)))
     }
 
     async fn create_proposal(
@@ -1165,19 +1196,31 @@ impl wire::talent_command_service_server::TalentCommandService for TalentCommand
     ) -> Result<Response<wire::TalentMutationResponse>, Status> {
         let body = request.get_ref();
         let context = required_command(body.context.as_ref())?;
-        let (_invocation, _actor) = command_invocation(
+        let (invocation, actor) = command_invocation(
             &self.state,
             &request,
             Some(context),
             talent::TalentRealm::Workforce,
         )
         .await?;
-        let _ = mutation_expected(context)?;
-        let _ = talent::ProposalId::try_from_uuid(uuid(&body.proposal_id, "proposal_id")?)
-            .map_err(|error| Status::invalid_argument(error.to_string()))?;
-        Err(Status::unavailable(
-            "People/Payroll proposal acknowledgement port is unavailable",
-        ))
+        let expected = mutation_expected(context)?;
+        let proposal_id =
+            talent::ProposalId::try_from_uuid(uuid(&body.proposal_id, "proposal_id")?)
+                .map_err(|error| Status::invalid_argument(error.to_string()))?;
+        let pool = future_auth::pool(&self.state, &invocation, RoutedDatabaseSide::Write).await?;
+        let result = command_service(pool, &actor)
+            .reconcile_proposal(
+                actor,
+                identity(context, body)?,
+                proposal_id,
+                expected,
+                body.accepted,
+                body.owner_receipt_id.clone(),
+                Utc::now(),
+            )
+            .await
+            .map_err(status)?;
+        Ok(Response::new(response(context, result)))
     }
 }
 
@@ -1417,20 +1460,16 @@ mod tests {
     }
 
     #[test]
-    fn only_owner_acknowledgements_are_explicitly_unavailable() {
+    fn reconcile_loopbacks_are_implemented_not_unavailable() {
         let source = include_str!("future_talent.rs");
         let production = source
             .split("#[cfg(test)]")
             .next()
             .expect("production source");
-        assert_eq!(
-            production
-                .matches("acknowledgement port is unavailable")
-                .count(),
-            2
-        );
-        assert!(production.contains("People hire-handoff acknowledgement port is unavailable"));
-        assert!(production.contains("People/Payroll proposal acknowledgement port is unavailable"));
+        assert!(!production.contains("acknowledgement port is unavailable"));
+        assert!(production.contains("reconcile_hire_handoff"));
+        assert!(production.contains("reconcile_proposal"));
+        assert!(production.contains("HandoffStatus::Accepted"));
         assert!(!production.contains("typed use case is activating"));
     }
 }

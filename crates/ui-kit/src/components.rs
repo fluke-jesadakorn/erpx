@@ -19,7 +19,7 @@ use crate::kit::{
     button::{Button as KitButton, ButtonSize, ButtonVariant},
     dialog::{Dialog as KitDialog, DialogTitle as KitDialogTitle},
     input::Input as KitInput,
-    sidebar::{Sidebar as KitSidebar, SidebarCollapsible, SidebarProvider},
+    sidebar::{Sidebar as KitSidebar, SidebarCollapsible, SidebarProvider, SidebarRail},
     textarea::Textarea as KitTextarea,
     tooltip::{
         Tooltip as KitTooltip, TooltipContent as KitTooltipContent,
@@ -466,7 +466,8 @@ pub fn AppShell(
             }
             KitSidebar {
                 class: "ui-sidebar-boundary",
-                collapsible: SidebarCollapsible::None,
+                collapsible: SidebarCollapsible::Icon,
+                SidebarRail {}
                 nav {
                     class: "{nav_class}",
                     aria_label: locale.text(TranslationKey::Navigation),
@@ -516,6 +517,20 @@ pub fn AppShell(
                         aria_label: shared_text(current_locale, "Close navigation", "ปิดเมนูนำทาง"),
                         onclick: move |_| mobile_nav_open.set(false),
                         EnterpriseIcon { name: "close".to_owned() }
+                    }
+                }
+                div { class: "ui-sidebar-search",
+                    KitButton {
+                        size: ButtonSize::Default,
+                        variant: ButtonVariant::Ghost,
+                        class: "ui-global-search-trigger",
+                        r#type: "button",
+                        aria_label: shared_text(current_locale, "Search or jump to…", "ค้นหาหรือไปที่…"),
+                        aria_keyshortcuts: "Control+K Meta+K",
+                        onclick: move |_| command_open.set(true),
+                        EnterpriseIcon { name: "search".to_owned() }
+                        span { class: "ui-nav-label", {shared_text(current_locale, "Search or jump to…", "ค้นหาหรือไปที่…")} }
+                        kbd { "⌘K" }
                     }
                 }
                 if role_context.switchable {
@@ -570,6 +585,7 @@ pub fn AppShell(
                                     KitLink {
                                         class: if is_active(&active_path, &item.path) { "ui-nav-item active" } else { "ui-nav-item" },
                                         href: "{item.path}",
+                                        title: "{item.label}",
                                         onclick: move |event: MouseEvent| {
                                             event.prevent_default();
                                             on_navigate.call(path_for_click.clone());
@@ -584,7 +600,6 @@ pub fn AppShell(
                         }
                     }
                     if has_workspace_navigation || has_module_catalog {
-                        div { class: "ui-nav-section-label ui-nav-label", {shared_text(current_locale, "Workspaces", "พื้นที่ทำงาน")} }
                         for group in nav_groups.iter().filter(|group| !is_administration_group(&group.group_id)) {
                             {
                                 let authorized_items = authorized_group_items(group);
@@ -598,11 +613,17 @@ pub fn AppShell(
                                 );
                                 let hidden_count = authorized_items.len().saturating_sub(visible_items.len());
                                 let region_id = format!("erpx-nav-authorized-{group_id}");
+                                let is_group_active = authorized_items.iter().any(|item| is_active(&active_path, &item.path));
+                                let group_variant = if authorized_items.len() > SIDEBAR_GROUP_LIMIT || is_group_active && authorized_items.len() > 3 { "elevated" } else { "default" };
                                 if !authorized_items.is_empty() {
                                     rsx! {
-                                        KitDisclosure { class: "ui-nav-group", open: true,
+                                        KitDisclosure { class: "ui-nav-group", open: true, "data-variant": "{group_variant}", "data-open": "true",
                                             summary { class: "ui-nav-group-heading",
                                                 span { class: "ui-nav-group-title", "{group.label}" }
+                                                if authorized_items.len() > 1 {
+                                                    span { class: "ui-nav-count", "{authorized_items.len()}" }
+                                                }
+                                                span { class: "ui-nav-group-chevron", aria_hidden: "true", EnterpriseIcon { name: "chevron".to_owned() } }
                                             }
                                             div { id: region_id.clone(), class: "ui-nav-group-items",
                                                 for item in visible_items {
@@ -612,6 +633,7 @@ pub fn AppShell(
                                                             KitLink {
                                                                 class: if is_active(&active_path, &item.path) { "ui-nav-item active" } else { "ui-nav-item" },
                                                                 href: "{item.path}",
+                                                                title: "{item.label}",
                                                                 onclick: move |event: MouseEvent| {
                                                                     event.prevent_default();
                                                                     on_navigate.call(path_for_click.clone());
@@ -689,11 +711,17 @@ pub fn AppShell(
                                 let visible_items = visible_sidebar_items(&authorized_items, &active_path, expanded);
                                 let hidden_count = authorized_items.len().saturating_sub(visible_items.len());
                                 let region_id = format!("erpx-nav-authorized-{group_id}");
+                                let is_group_active = authorized_items.iter().any(|item| is_active(&active_path, &item.path));
+                                let group_variant = if authorized_items.len() > SIDEBAR_GROUP_LIMIT || is_group_active { "elevated" } else { "default" };
                                 if !authorized_items.is_empty() {
                                     rsx! {
-                                        KitDisclosure { class: "ui-nav-group ui-nav-administration-group", open: true,
+                                        KitDisclosure { class: "ui-nav-group ui-nav-administration-group", open: true, "data-variant": "{group_variant}", "data-open": "true",
                                             summary { class: "ui-nav-group-heading",
                                                 span { class: "ui-nav-group-title", "{group.label}" }
+                                                if authorized_items.len() > 1 {
+                                                    span { class: "ui-nav-count", "{authorized_items.len()}" }
+                                                }
+                                                span { class: "ui-nav-group-chevron", aria_hidden: "true", EnterpriseIcon { name: "chevron".to_owned() } }
                                             }
                                             div { id: region_id.clone(), class: "ui-nav-group-items",
                                                 for item in visible_items {
@@ -703,6 +731,7 @@ pub fn AppShell(
                                                             KitLink {
                                                                 class: if is_active(&active_path, &item.path) { "ui-nav-item active" } else { "ui-nav-item" },
                                                                 href: "{item.path}",
+                                                                title: "{item.label}",
                                                                 onclick: move |event: MouseEvent| {
                                                                     event.prevent_default();
                                                                     on_navigate.call(path_for_click.clone());
@@ -749,16 +778,29 @@ pub fn AppShell(
                     }
                 }
                     div { class: "ui-nav-footer",
-                        LocaleToggle {}
-                        span { class: "ui-locale-name ui-nav-label", "{current_locale.native_name()}" }
-                        KitButton { size: ButtonSize::Default,
-                            variant: ButtonVariant::Secondary,
-                            class: "ui-icon-button ui-theme-button",
-                            r#type: "button",
-                            aria_label: shared_text(current_locale, "Change color mode", "เปลี่ยนโหมดสี"),
-                            onclick: move |_| theme.toggle(),
-                            EnterpriseIcon { name: "theme".to_owned() }
-                            span { class: "ui-nav-label", {theme_mode_label(current_locale, theme.current())} }
+                        div { class: "ui-signed-in-card",
+                            span { class: "ui-signed-in-avatar", aria_hidden: "true", "{profile_avatar}" }
+                            span { class: "ui-signed-in-copy ui-nav-label",
+                                strong { "{profile_principal}" }
+                                small { "{role_context.role_label}" }
+                            }
+                        }
+                        div { class: "ui-nav-footer-actions",
+                            LocaleToggle {}
+                            span { class: "ui-locale-name ui-nav-label", "{current_locale.native_name()}" }
+                            KitButton { size: ButtonSize::Default,
+                                variant: ButtonVariant::Secondary,
+                                class: "ui-icon-button ui-theme-button",
+                                r#type: "button",
+                                aria_label: shared_text(current_locale, "Change color mode", "เปลี่ยนโหมดสี"),
+                                onclick: move |_| theme.toggle(),
+                                EnterpriseIcon { name: "theme".to_owned() }
+                                span { class: "ui-nav-label", {theme_mode_label(current_locale, theme.current())} }
+                            }
+                        }
+                        div { class: "ui-nav-label", style: "padding: 2px 6px 0; font-size: 10px; color: var(--erpx-sidebar-muted); opacity:.75; letter-spacing:.02em;",
+                            span { "Signed in · " }
+                            small { "{role_context.scope_label}" }
                         }
                     }
                 }

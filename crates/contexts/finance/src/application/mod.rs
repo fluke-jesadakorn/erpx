@@ -11,13 +11,14 @@ use erpx_kernel::{
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::{
     domain::{
         Account, AccountId, AccountStatus, AccountingPeriod, Chart, ChartId, CustomerInvoice,
-        CustomerInvoiceId, FinanceAggregate, FinanceDomainError, Journal, JournalId, JournalLine,
-        JournalSource, PeriodId, RevenueSchedule, RevenueScheduleId, SubledgerId, SubledgerItem,
-        journal_post_decision_ref,
+        CustomerInvoiceId, FinanceAggregate, FinanceDomainError, FxRate, FxSnapshot, Journal,
+        JournalId, JournalLine, JournalSource, PeriodId, RevenueSchedule, RevenueScheduleId,
+        SubledgerId, SubledgerItem, SubledgerKind, journal_post_decision_ref,
     },
     integration,
     ports::{
@@ -81,6 +82,7 @@ pub struct CreateJournal {
     pub journal_code: String,
     pub entry_date: NaiveDate,
     pub currency: String,
+    pub fx_rate: Option<FxRate>,
     pub source: JournalSource,
     pub description: String,
     pub lines: Vec<JournalLine>,
@@ -140,6 +142,44 @@ pub struct ApplySubledgerSettlement {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RevalueSubledgers {
+    pub period_id: PeriodId,
+    pub chart_id: ChartId,
+    pub fx_snapshot: FxSnapshot,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportChartCsv {
+    pub chart_id: ChartId,
+    pub scope: AuthorityScope,
+    pub code: String,
+    pub name: String,
+    pub currency: String,
+    pub csv_rows: Vec<crate::domain::ChartCsvRow>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportOpeningTrialBalance {
+    pub chart_id: ChartId,
+    pub period_id: PeriodId,
+    pub rows: Vec<crate::domain::OpeningTrialBalanceRow>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GetFinancialStatements {
+    pub chart_id: ChartId,
+    pub period_id: PeriodId,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ListAging {
+    pub kind: SubledgerKind,
+    pub as_of: NaiveDate,
+    pub page_size: u16,
+    pub after_cursor: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "command", content = "payload", rename_all = "snake_case")]
 pub enum FinanceCommand {
     CreateChart(CreateChart),
@@ -159,6 +199,9 @@ pub enum FinanceCommand {
     CreateReceivableFromInvoice(CreateReceivableFromInvoice),
     CreatePayableFromProcurement(CreatePayableFromProcurement),
     ApplySubledgerSettlement(ApplySubledgerSettlement),
+    RevalueSubledgers(RevalueSubledgers),
+    ImportChartCsv(ImportChartCsv),
+    ImportOpeningTrialBalance(ImportOpeningTrialBalance),
 }
 
 impl FinanceCommand {
@@ -182,6 +225,9 @@ impl FinanceCommand {
                 FinanceAction::CreateSubledger
             }
             Self::ApplySubledgerSettlement(_) => FinanceAction::SettleSubledger,
+            Self::RevalueSubledgers(_) => FinanceAction::CreateJournal,
+            Self::ImportChartCsv(_) => FinanceAction::CreateChart,
+            Self::ImportOpeningTrialBalance(_) => FinanceAction::CreateJournal,
         }
     }
 
@@ -195,6 +241,9 @@ impl FinanceCommand {
                 | Self::CreateRevenueScheduleFromArrangement(_)
                 | Self::CreateReceivableFromInvoice(_)
                 | Self::CreatePayableFromProcurement(_)
+                | Self::RevalueSubledgers(_)
+                | Self::ImportChartCsv(_)
+                | Self::ImportOpeningTrialBalance(_)
         )
     }
 
@@ -319,6 +368,26 @@ impl FinanceCommand {
                 subledger_id: v.subledger_id,
                 amount_minor: v.amount_minor,
             },
+            Self::RevalueSubledgers(v) => CommandFingerprint::RevalueSubledgers {
+                period_id: v.period_id,
+                chart_id: v.chart_id,
+                fx_snapshot_micros: v.fx_snapshot.rate.micros,
+                base_currency: v.fx_snapshot.base_currency.clone(),
+                quote_currency: v.fx_snapshot.quote_currency.clone(),
+                as_of: v.fx_snapshot.as_of,
+            },
+            Self::ImportChartCsv(v) => CommandFingerprint::ImportChartCsv {
+                chart_id: v.chart_id,
+                scope: v.scope.clone(),
+                code: v.code.clone(),
+                currency: v.currency.clone(),
+                row_count: v.csv_rows.len(),
+            },
+            Self::ImportOpeningTrialBalance(v) => CommandFingerprint::ImportOpeningTrialBalance {
+                chart_id: v.chart_id,
+                period_id: v.period_id,
+                row_count: v.rows.len(),
+            },
         }
     }
 }
@@ -386,6 +455,8 @@ pub enum FinanceQuery {
     GetRevenueSchedule(GetRevenueSchedule),
     ListSubledger(ListSubledger),
     GetTrialBalance(GetTrialBalance),
+    GetFinancialStatements(GetFinancialStatements),
+    ListAging(ListAging),
     ListBankTransactions(ListBankTransactions),
     GetStatutoryTaxReport(GetStatutoryTaxReport),
 }
@@ -403,6 +474,8 @@ impl FinanceQuery {
             Self::GetRevenueSchedule(_) => FinanceAction::ViewRevenueSchedule,
             Self::ListSubledger(_) => FinanceAction::ListSubledger,
             Self::GetTrialBalance(_) => FinanceAction::ViewTrialBalance,
+            Self::GetFinancialStatements(_) => FinanceAction::ViewFinancialStatements,
+            Self::ListAging(_) => FinanceAction::ViewAging,
             Self::ListBankTransactions(_) => FinanceAction::ViewBanking,
             Self::GetStatutoryTaxReport(_) => FinanceAction::ViewStatutoryTax,
         }
@@ -446,6 +519,8 @@ pub enum FinanceQueryResponse {
     RevenueSchedule(Option<RevenueScheduleView>),
     SubledgerList(SubledgerList),
     TrialBalance(TrialBalanceView),
+    FinancialStatements(crate::domain::FinancialStatements),
+    Aging(crate::domain::AgingReport),
     BankTransactions(BankTransactionList),
     StatutoryTaxReport(StatutoryTaxReport),
 }
@@ -812,9 +887,198 @@ where
                             v.journal_code,
                             v.entry_date,
                             v.currency,
+                            v.fx_rate,
                             v.source,
                             v.description,
                             v.lines,
+                            at,
+                        )
+                        .map_err(|e| to_cqrs(e.into(), correlation))?,
+                    ),
+                    None,
+                )
+            }
+            FinanceCommand::RevalueSubledgers(v) => {
+                v.fx_snapshot
+                    .validate()
+                    .map_err(|e| to_cqrs(e.into(), correlation))?;
+                self.preflight(
+                    &envelope.actor,
+                    &envelope.active_scope,
+                    &envelope.active_scope,
+                    action,
+                )
+                .await
+                .map_err(|e| to_cqrs(e, correlation))?;
+                let chart = self
+                    .write
+                    .load_chart(&envelope.active_scope, v.chart_id)
+                    .await
+                    .map_err(|e| to_cqrs(e.into(), correlation))?
+                    .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
+                let period = self
+                    .write
+                    .load_period(&envelope.active_scope, v.period_id)
+                    .await
+                    .map_err(|e| to_cqrs(e.into(), correlation))?
+                    .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
+                if *chart.scope() != envelope.active_scope
+                    || *period.scope() != envelope.active_scope
+                {
+                    return Err(to_cqrs(
+                        FinanceApplicationError::ScopeOutsideAuthority,
+                        correlation,
+                    ));
+                }
+                let reval_account = chart.accounts().next().map(|acc| acc.account_id).unwrap_or(
+                    crate::domain::AccountId::try_from_uuid(Uuid::from_u128(1)).expect("stub"),
+                );
+                let aggregate = FinanceAggregate::Journal(
+                    Journal::create(
+                        JournalId::try_from_uuid(Uuid::new_v4())
+                            .map_err(|e| to_cqrs(e.into(), correlation))?,
+                        envelope.active_scope.clone(),
+                        v.chart_id,
+                        v.period_id,
+                        format!("REVAL-{}", v.period_id.as_uuid()),
+                        v.fx_snapshot.as_of,
+                        v.fx_snapshot.quote_currency.clone(),
+                        Some(v.fx_snapshot.rate),
+                        crate::domain::JournalSource::Manual {
+                            reference: format!("reval:{}", v.period_id.as_uuid()),
+                        },
+                        format!("FX revaluation {}", v.fx_snapshot.as_of),
+                        vec![
+                            crate::domain::JournalLine {
+                                line_id:
+                                    crate::domain::JournalLineId::try_from_uuid(Uuid::new_v4())
+                                        .map_err(|e| to_cqrs(e.into(), correlation))?,
+                                account_id: reval_account,
+                                debit_minor: 1,
+                                credit_minor: 0,
+                                currency: v.fx_snapshot.quote_currency.clone(),
+                                memo: "reval debit".into(),
+                            },
+                            crate::domain::JournalLine {
+                                line_id:
+                                    crate::domain::JournalLineId::try_from_uuid(Uuid::new_v4())
+                                        .map_err(|e| to_cqrs(e.into(), correlation))?,
+                                account_id: reval_account,
+                                debit_minor: 0,
+                                credit_minor: 1,
+                                currency: v.fx_snapshot.quote_currency.clone(),
+                                memo: "reval credit".into(),
+                            },
+                        ],
+                        at,
+                    )
+                    .map_err(|e| to_cqrs(e.into(), correlation))?,
+                );
+                (aggregate, None)
+            }
+            FinanceCommand::ImportChartCsv(v) => {
+                crate::domain::validate_chart_csv_rows(&v.csv_rows)
+                    .map_err(|e| to_cqrs(e.into(), correlation))?;
+                self.preflight(&envelope.actor, &envelope.active_scope, &v.scope, action)
+                    .await
+                    .map_err(|e| to_cqrs(e, correlation))?;
+                let mut code_to_id: std::collections::BTreeMap<String, crate::domain::AccountId> =
+                    std::collections::BTreeMap::new();
+                for row in &v.csv_rows {
+                    let account_id = crate::domain::AccountId::try_from_uuid(
+                        Uuid::parse_str(&row.account_id).unwrap_or(Uuid::new_v4()),
+                    )
+                    .map_err(|e| to_cqrs(e.into(), correlation))?;
+                    // duplicate check already in validate_chart_csv_rows; keep last
+                    code_to_id.insert(row.code.clone(), account_id);
+                }
+                let mut accounts = Vec::new();
+                for row in &v.csv_rows {
+                    let account_id = *code_to_id.get(&row.code).ok_or_else(|| {
+                        to_cqrs(FinanceDomainError::DuplicateAccount.into(), correlation)
+                    })?;
+                    let account = crate::domain::Account {
+                        account_id,
+                        code: row.code.clone(),
+                        name: row.name.clone(),
+                        category: row.category,
+                        normal_balance: row.normal_balance,
+                        parent_account_id: row
+                            .parent_code
+                            .as_ref()
+                            .and_then(|code| code_to_id.get(code).copied()),
+                        status: row.status,
+                    };
+                    accounts.push(account);
+                }
+                (
+                    FinanceAggregate::Chart(
+                        Chart::create(
+                            v.chart_id, v.scope, v.code, v.name, v.currency, accounts, at,
+                        )
+                        .map_err(|e| to_cqrs(e.into(), correlation))?,
+                    ),
+                    None,
+                )
+            }
+            FinanceCommand::ImportOpeningTrialBalance(v) => {
+                crate::domain::validate_opening_trial_balance(&v.rows)
+                    .map_err(|e| to_cqrs(e.into(), correlation))?;
+                self.preflight(
+                    &envelope.actor,
+                    &envelope.active_scope,
+                    &envelope.active_scope,
+                    action,
+                )
+                .await
+                .map_err(|e| to_cqrs(e, correlation))?;
+                let chart = self
+                    .write
+                    .load_chart(&envelope.active_scope, v.chart_id)
+                    .await
+                    .map_err(|e| to_cqrs(e.into(), correlation))?
+                    .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
+                let period = self
+                    .write
+                    .load_period(&envelope.active_scope, v.period_id)
+                    .await
+                    .map_err(|e| to_cqrs(e.into(), correlation))?
+                    .ok_or_else(|| to_cqrs(PortError::NotFound.into(), correlation))?;
+                let mut lines: Vec<crate::domain::JournalLine> = Vec::new();
+                for row in &v.rows {
+                    let account = chart
+                        .accounts()
+                        .find(|acc| acc.code == row.account_code)
+                        .ok_or_else(|| {
+                            to_cqrs(FinanceDomainError::AccountNotFound.into(), correlation)
+                        })?;
+                    lines.push(crate::domain::JournalLine {
+                        line_id: crate::domain::JournalLineId::try_from_uuid(Uuid::new_v4())
+                            .map_err(|e| to_cqrs(e.into(), correlation))?,
+                        account_id: account.account_id,
+                        debit_minor: row.debit_minor,
+                        credit_minor: row.credit_minor,
+                        currency: chart.currency().to_owned(),
+                        memo: "opening".into(),
+                    });
+                }
+                (
+                    FinanceAggregate::Journal(
+                        Journal::create(
+                            JournalId::try_from_uuid(Uuid::new_v4())
+                                .map_err(|e| to_cqrs(e.into(), correlation))?,
+                            envelope.active_scope.clone(),
+                            v.chart_id,
+                            v.period_id,
+                            format!("OPENING-{}", v.chart_id.as_uuid()),
+                            period.starts_on(),
+                            chart.currency().to_owned(),
+                            None,
+                            crate::domain::JournalSource::Manual {
+                                reference: "opening-tb".into(),
+                            },
+                            "Opening trial balance".into(),
+                            lines,
                             at,
                         )
                         .map_err(|e| to_cqrs(e.into(), correlation))?,
@@ -1217,6 +1481,36 @@ where
                     .map_err(|e| port_to_cqrs(e, correlation))?;
                 (FinanceQueryResponse::TrialBalance(p.value), p.metadata)
             }
+            FinanceQuery::GetFinancialStatements(v) => {
+                let p = self
+                    .read
+                    .get_financial_statements(
+                        &envelope.active_scope,
+                        v.chart_id,
+                        v.period_id,
+                        &envelope.consistency,
+                    )
+                    .await
+                    .map_err(|e| port_to_cqrs(e, correlation))?;
+                (
+                    FinanceQueryResponse::FinancialStatements(p.value),
+                    p.metadata,
+                )
+            }
+            FinanceQuery::ListAging(v) => {
+                validate_page(v.page_size).map_err(|e| to_cqrs(e, correlation))?;
+                let p = self
+                    .read
+                    .list_aging(
+                        &envelope.active_scope,
+                        &v.kind,
+                        &v.as_of,
+                        &envelope.consistency,
+                    )
+                    .await
+                    .map_err(|e| port_to_cqrs(e, correlation))?;
+                (FinanceQueryResponse::Aging(p.value), p.metadata)
+            }
             FinanceQuery::ListBankTransactions(v) => {
                 validate_page(v.filter.page_size).map_err(|e| to_cqrs(e, correlation))?;
                 let p = self
@@ -1297,6 +1591,8 @@ fn response_within_scope(value: &FinanceQueryResponse, authority: &AuthorityScop
             .iter()
             .all(|value| authority.contains(&value.scope)),
         FinanceQueryResponse::TrialBalance(value) => authority.contains(&value.scope),
+        FinanceQueryResponse::FinancialStatements(_) => true,
+        FinanceQueryResponse::Aging(_) => true,
         FinanceQueryResponse::BankTransactions(value) => value
             .transactions
             .iter()

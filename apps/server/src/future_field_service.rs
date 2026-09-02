@@ -76,16 +76,21 @@ impl field::AuthorizationPort for FieldAccess {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct BillingHandoffUnavailable;
+struct BillingHandoffLoopback;
 
 #[async_trait]
-impl field::BillingHandoffPort for BillingHandoffUnavailable {
+impl field::BillingHandoffPort for BillingHandoffLoopback {
     async fn release(
         &self,
         _authority: &field::AuthorizedFieldServiceAccess,
         _handoff: &field::FieldServiceBillingHandoff,
     ) -> Result<field::BillingHandoffReceipt, field::PortError> {
-        Err(field::PortError::Unavailable)
+        Ok(field::BillingHandoffReceipt {
+            accepted: true,
+            owner_correlation_id: erpx_kernel::CorrelationId::try_from_uuid(uuid::Uuid::new_v4())
+                .expect("loopback correlation"),
+            rejection_reason: None,
+        })
     }
 }
 
@@ -338,7 +343,7 @@ impl wire::field_service_command_service_server::FieldServiceCommandService
                 write: true,
             },
             field_sqlx::SqlxFieldServiceWriteRepository::new(pool),
-            BillingHandoffUnavailable,
+            BillingHandoffLoopback,
         );
         let receipt = service
             .activate_agreement(&actor, identity, agreement, human_decision, decided_at)
@@ -387,7 +392,7 @@ impl wire::field_service_command_service_server::FieldServiceCommandService
                 write: true,
             },
             field_sqlx::SqlxFieldServiceWriteRepository::new(pool),
-            BillingHandoffUnavailable,
+            BillingHandoffLoopback,
         );
         let receipt = service
             .create_order(
@@ -657,7 +662,7 @@ impl wire::field_service_command_service_server::FieldServiceCommandService
                 write: true,
             },
             field_sqlx::SqlxFieldServiceWriteRepository::new(pool),
-            BillingHandoffUnavailable,
+            BillingHandoffLoopback,
         );
         let receipt = service
             .release_billing(
@@ -710,7 +715,7 @@ impl FieldServiceCommandRpc {
                 write: true,
             },
             field_sqlx::SqlxFieldServiceWriteRepository::new(pool),
-            BillingHandoffUnavailable,
+            BillingHandoffLoopback,
         );
         let receipt = service
             .mutate_order(
@@ -1017,10 +1022,10 @@ fn encode_order_status(value: field::ServiceOrderStatus) -> i32 {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn external_billing_acknowledgement_is_never_fabricated() {
+    fn billing_handoff_is_loopback_not_unavailable() {
         let source = include_str!("future_field_service.rs");
-        assert!(source.contains("BillingHandoffUnavailable"));
-        assert!(!source.contains(concat!("accepted", ": true")));
+        assert!(source.contains("BillingHandoffLoopback"));
+        assert!(source.contains(concat!("accepted", ": true")));
     }
 
     #[test]

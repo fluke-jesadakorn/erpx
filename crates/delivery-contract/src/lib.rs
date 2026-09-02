@@ -16,6 +16,9 @@ use std::{
 };
 
 use async_trait::async_trait;
+pub use erpx_ai_provider::{
+    AiProviderConfig, AiProviderKind, FlowAnalysisRequest, FlowAnalysisResponse,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -533,6 +536,8 @@ pub struct SessionBootstrap {
     pub catalog_version: u16,
     pub platform_origin: String,
     pub authorized_navigation: Option<AuthorizedNavigation>,
+    #[serde(default)]
+    pub session_id: Option<String>,
 }
 
 impl SessionBootstrap {
@@ -678,6 +683,89 @@ pub struct CollaborationEvent {
     pub summary: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AiSuggestionRequest {
+    pub workspace: Workspace,
+    pub resource: ResourceName,
+    pub field: String,
+    pub context: String,
+    pub locale: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AiSuggestionResponse {
+    pub suggestions: Vec<String>,
+    pub evidence_refs: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AiProviderPresetView {
+    pub kind: AiProviderKind,
+    pub label: String,
+    pub default_endpoint: String,
+    pub default_model: String,
+    pub free: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostedPricingQuote {
+    pub seats: u32,
+    pub tier: String,
+    pub monthly_cents: u32,
+    pub monthly_cents_with_flow: u32,
+    pub flow_cents: u32,
+}
+
+pub fn hosted_quote(seats: u32) -> HostedPricingQuote {
+    let cents = erpx_commercial::hosted_monthly_cents(seats).unwrap_or(0);
+    let with_flow = erpx_commercial::hosted_monthly_cents_with_flow(seats, true).unwrap_or(0);
+    HostedPricingQuote {
+        seats,
+        tier: erpx_commercial::HostedTier::from_seats(seats)
+            .label()
+            .to_owned(),
+        monthly_cents: cents,
+        monthly_cents_with_flow: with_flow,
+        flow_cents: erpx_commercial::FLOW_AI_CENTS_PER_HOLDING,
+    }
+}
+
+pub type HostedPlan = erpx_commercial::HostedTier;
+pub type SeatStep = erpx_commercial::SeatStep;
+pub const FLOW_AI_CAPABILITY: &str = erpx_commercial::FLOW_AI_CAPABILITY;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AiProviderConfigView {
+    pub kind: AiProviderKind,
+    pub endpoint_url: String,
+    pub model: String,
+    pub per_module_override: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SaveAiProviderConfigRequest {
+    pub kind: AiProviderKind,
+    pub endpoint_url: String,
+    pub model: String,
+    pub api_key: String,
+    pub per_module_override: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AiProviderTestRequest {
+    pub kind: AiProviderKind,
+    pub endpoint_url: String,
+    pub model: String,
+    pub api_key: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AiProviderTestResponse {
+    pub reachable: bool,
+    pub message: String,
+}
+
 #[async_trait(?Send)]
 pub trait ConsoleGateway: Send + Sync {
     async fn bootstrap(&self, request: BootstrapRequest)
@@ -706,6 +794,32 @@ pub trait ConsoleGateway: Send + Sync {
         &self,
         request: CollaborationSubscription,
     ) -> Result<Vec<CollaborationEvent>, DeliveryError>;
+
+    async fn ai_suggest(
+        &self,
+        request: AiSuggestionRequest,
+    ) -> Result<AiSuggestionResponse, DeliveryError>;
+
+    async fn ai_flow_analyze(
+        &self,
+        request: FlowAnalysisRequest,
+    ) -> Result<FlowAnalysisResponse, DeliveryError>;
+
+    async fn ai_provider_presets(&self) -> Result<Vec<AiProviderPresetView>, DeliveryError>;
+
+    async fn hosted_quote(&self, seats: u32) -> Result<HostedPricingQuote, DeliveryError>;
+
+    async fn save_ai_provider_config(
+        &self,
+        request: SaveAiProviderConfigRequest,
+    ) -> Result<AiProviderConfigView, DeliveryError>;
+
+    async fn load_ai_provider_config(&self) -> Result<Option<AiProviderConfigView>, DeliveryError>;
+
+    async fn test_ai_provider_connection(
+        &self,
+        request: AiProviderTestRequest,
+    ) -> Result<AiProviderTestResponse, DeliveryError>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]

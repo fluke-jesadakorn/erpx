@@ -212,6 +212,7 @@ mod tests {
             "J-30".into(),
             chrono::NaiveDate::from_ymd_opt(2026, 8, 5).unwrap(),
             "THB".into(),
+            None,
             JournalSource::Manual {
                 reference: "MAN-30".into(),
             },

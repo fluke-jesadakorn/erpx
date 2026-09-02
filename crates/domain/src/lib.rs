@@ -32,5 +32,6 @@ pub mod pos;
 pub mod pos_refund;
 pub mod procurement_inventory;
 pub mod quality;
+pub mod reference_graph;
 pub mod sales;
 pub mod support;

@@ -4,6 +4,7 @@
 mod attachment;
 mod authorization;
 mod directory;
+mod feed;
 mod global;
 mod global_projection;
 mod projection;
@@ -15,6 +16,7 @@ mod write;
 pub use attachment::{SqlxAttachmentRegistry, attachment_object_key};
 pub use authorization::SqlxCollaborationAuthorization;
 pub use directory::*;
+pub use feed::{FeedProjector, SqlxFeedRepository};
 pub use global::{
     GlobalAttachmentMutationReceipt, GlobalAttachmentRecord, GlobalCollaborationAccess,
     GlobalCollaborationOutcome, GlobalMentionInboxItem, GlobalThreadPage,

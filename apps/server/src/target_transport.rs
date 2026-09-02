@@ -51,16 +51,20 @@ use erpx_proto::erpx::{
     collaboration::{
         AddCommentRequest, AddRecordRelationRequest, AudienceRealm, AutocompleteTarget,
         AutocompleteTargetsRequest, AutocompleteTargetsResponse, CollaborationStreamRequest,
-        CommentIdentityRequest, ConfirmActionCardRequest, CreateThreadRequest, EditCommentRequest,
+        CommentIdentityRequest, ConfirmActionCardRequest, CreateHashtagTopicRequest,
+        CreateThreadRequest, EditCommentRequest, FollowHashtagRequest, FollowHashtagResponse,
         FollowingRequest, GetAttachmentDownloadRequest, GetAttachmentDownloadResponse,
-        GetThreadRequest, GetThreadResponse, GetThreadV2Response, ListMentionInboxRequest,
-        ListMentionInboxResponse, ListRecordRelationsRequest, ListRecordRelationsResponse,
-        ListThreadsByRecordRequest, ListThreadsByRecordResponse, ListThreadsByRecordV2Response,
-        ModerateCommentRequest, ModerationDecision, MutationReceipt, OpaqueMentionInboxFact,
-        PrepareAttachmentUploadRequest, PrepareAttachmentUploadResponse, ProposeActionCardRequest,
-        ReactionRequest, RecordRelationKind,
+        GetFeedItemRequest, GetFeedItemResponse, GetThreadRequest, GetThreadResponse,
+        GetThreadV2Response, HashtagTopicView, ListFeedRequest, ListFeedResponse,
+        ListHashtagTopicsRequest, ListHashtagTopicsResponse, ListMentionInboxRequest,
+        ListMentionInboxResponse, ListMyDayRequest, ListRecordRelationsRequest,
+        ListRecordRelationsResponse, ListThreadsByRecordRequest, ListThreadsByRecordResponse,
+        ListThreadsByRecordV2Response, ModerateCommentRequest, ModerationDecision, MutationReceipt,
+        OpaqueMentionInboxFact, PrepareAttachmentUploadRequest, PrepareAttachmentUploadResponse,
+        ProposeActionCardRequest, ReactionRequest, RecordRelationKind,
         RelationMutationReceipt as ProtoRelationMutationReceipt, RevokeRecordRelationRequest,
-        SearchThreadsRequest, SearchThreadsResponse, StartRecordThreadWithCommentRequest,
+        SearchFeedRequest, SearchFeedResponse, SearchThreadsRequest, SearchThreadsResponse,
+        ShareFeedItemRequest, ShareFeedItemResponse, StartRecordThreadWithCommentRequest,
         ThreadTransition, TransitionThreadRequest, TypedCommentTokenKind, WithdrawMentionRequest,
         collaboration_command_service_server::CollaborationCommandService,
         collaboration_query_service_server::CollaborationQueryService,
@@ -1419,6 +1423,27 @@ impl CollaborationCommandService for CollaborationCommandRpc {
             &DomainAttachmentView::from(&receipt.attachment),
         )))
     }
+
+    async fn share_feed_item(
+        &self,
+        _request: Request<ShareFeedItemRequest>,
+    ) -> Result<Response<ShareFeedItemResponse>, Status> {
+        Err(Status::unimplemented("share_feed_item is unavailable"))
+    }
+
+    async fn create_hashtag_topic(
+        &self,
+        _request: Request<CreateHashtagTopicRequest>,
+    ) -> Result<Response<HashtagTopicView>, Status> {
+        Err(Status::unimplemented("create_hashtag_topic is unavailable"))
+    }
+
+    async fn follow_hashtag(
+        &self,
+        _request: Request<FollowHashtagRequest>,
+    ) -> Result<Response<FollowHashtagResponse>, Status> {
+        Err(Status::unimplemented("follow_hashtag is unavailable"))
+    }
 }
 
 #[derive(Clone)]
@@ -2175,6 +2200,41 @@ impl CollaborationQueryService for CollaborationQueryRpc {
             },
         };
         Ok(Response::new(response))
+    }
+
+    async fn list_feed(
+        &self,
+        _request: Request<ListFeedRequest>,
+    ) -> Result<Response<ListFeedResponse>, Status> {
+        Err(Status::unimplemented("list_feed is unavailable"))
+    }
+
+    async fn get_feed_item(
+        &self,
+        _request: Request<GetFeedItemRequest>,
+    ) -> Result<Response<GetFeedItemResponse>, Status> {
+        Err(Status::unimplemented("get_feed_item is unavailable"))
+    }
+
+    async fn search_feed(
+        &self,
+        _request: Request<SearchFeedRequest>,
+    ) -> Result<Response<SearchFeedResponse>, Status> {
+        Err(Status::unimplemented("search_feed is unavailable"))
+    }
+
+    async fn list_my_day(
+        &self,
+        _request: Request<ListMyDayRequest>,
+    ) -> Result<Response<ListFeedResponse>, Status> {
+        Err(Status::unimplemented("list_my_day is unavailable"))
+    }
+
+    async fn list_hashtag_topics(
+        &self,
+        _request: Request<ListHashtagTopicsRequest>,
+    ) -> Result<Response<ListHashtagTopicsResponse>, Status> {
+        Err(Status::unimplemented("list_hashtag_topics is unavailable"))
     }
 }
 

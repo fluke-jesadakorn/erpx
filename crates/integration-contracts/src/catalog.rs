@@ -88,6 +88,10 @@ impl ContextId {
         Self::AgentOrchestration,
     ];
 
+    pub const fn supports_record_references(self) -> bool {
+        true
+    }
+
     pub const fn slug(self) -> &'static str {
         match self {
             Self::IdentityAccess => "identity-access",

@@ -1,0 +1,13 @@
+module,route,record_type,field_id,required,kind,max,classification,risk,permission,crud_steps,captures
+finance,/finance,finance.journal,journal.description,true,Text,2048,Restricted,Low,finance.journal.suggestion.apply,CreateJournal→PostJournal→List→Detail→Edit→@sales/quote→AI ghost→Apply v2,finance_{list,detail,form,ai-ready,applied}.png
+sales,/sales,sales.quote,quote.notes,false,Text,2048,Confidential,Low,sales.quote.suggestion.apply,CreateQuote 4fields→custom line→@finance/journal→Order→Apply, sales_{...}.png
+procurement,/procurement,procurement.requisition,requisition.notes,false,Text,4096,Internal,Low,procurement.requisition.suggestion.apply,CreateRequisition→@projects→AI fill→Approve,...
+inventory,/inventory,inventory.move,move.notes,false,Text,2048,Internal,Low,inventory.move.suggestion.apply,CreateMove→@procurement→backlinks
+manufacturing,/manufacturing,manufacturing.order,manufacturing.notes,false,Text,4096,Internal,Low,manufacturing.record.suggestion.apply,PublishSpec→CreateOrder→ReportResult→@inventory→AI
+planning,/planning,planning.scenario,planning.notes,false,Text,4096,Internal,Low,planning.record.suggestion.apply,CreateScenario→demand→supply
+project,/project,project.project,project.notes,false,Text,8192,Internal,Low,project.record.suggestion.apply,CreateProject→WBS→@procurement dependsOn
+commerce,/commerce,commerce.order,ecommerce.notes,false,Text,4096,Internal,Low,commerce.record.suggestion.apply,CreatePublication→cart→order
+talent,/talent,talent.candidate,talent.notes,false,Text,4096,Internal,Low,talent.record.suggestion.apply,CreateRequisition→candidate→offer
+learning,/learning,learning.enrollment,learning.notes,false,Text,4096,Internal,Low,learning.record.suggestion.apply,CreateCourse→enrollment
+benefits,/benefits,benefits.election,benefits.notes,false,Text,4096,Internal,Low,benefits.record.suggestion.apply,CreatePlan→election
+field-service,/field-service,field-service.dispatch,field_service.notes,false,Text,4096,Internal,Low,field_service.record.suggestion.apply,CreateDispatch→visit→@maintenance

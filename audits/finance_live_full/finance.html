@@ -1,0 +1,191 @@
+<!DOCTYPE html><html lang="en" data-locale="en"><head>
+        <title>ERPX</title>
+        <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta charset="UTF-8">
+        <style>
+            #dx-toast-template {
+                display: none;
+                visibility: hidden;
+            }
+
+            .dx-toast {
+                position: absolute;
+                top: 10px;
+                right: 0;
+                padding-right: 10px;
+                user-select: none;
+                /* transition: transform 0.2s ease; */
+                z-index: 2147483647;
+            }
+
+            .dx-toast .dx-toast-inner {
+                /* transition: right 0.2s ease-out; */
+                position: fixed;
+
+                background-color: #181B20;
+                color: #ffffff;
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+                display: grid;
+                grid-template-columns: auto auto;
+                max-width: 400px;
+                min-height: 56px;
+                border-radius: 5px;
+            }
+
+            .dx-toast .dx-toast-inner {
+                cursor: pointer;
+                margin-right: 10px;
+            }
+
+            .dx-toast .dx-toast-level-bar-container {
+                height: 100%;
+                width: 6px;
+            }
+
+            .dx-toast .dx-toast-level-bar-container .dx-toast-level-bar {
+                width: 100%;
+                height: 100%;
+                border-radius: 5px 0px 0px 5px;
+            }
+
+            .dx-toast .dx-toast-content {
+                padding: 8px;
+            }
+
+            .dx-toast .dx-toast-header {
+                display: flex;
+                flex-direction: row;
+                justify-content: start;
+                align-items: end;
+                margin-bottom: 10px;
+            }
+
+            .dx-toast .dx-toast-header>svg {
+                height: 18px;
+                margin-right: 5px;
+            }
+
+            .dx-toast .dx-toast-header .dx-toast-header-text {
+                font-size: 14px;
+                font-weight: 700;
+                padding: 0;
+                margin: 0;
+            }
+
+            .dx-toast .dx-toast-msg {
+                font-size: 11px;
+                font-weight: 400;
+                padding: 0;
+                margin: 0;
+            }
+
+            .dx-toast-level-bar.info {
+                background-color: #428EFF;
+            }
+
+            .dx-toast-level-bar.success {
+                background-color: #42FF65;
+            }
+
+            .dx-toast-level-bar.error {
+                background-color: #FF4242;
+            }
+        </style>
+        <script>
+            const STORAGE_KEY = "SCHEDULED-DX-TOAST";
+            let currentTimeout = null;
+            let currentToastId = 0;
+
+            // Show a toast, removing the previous one.
+            function showDXToast(headerText, message, progressLevel, durationMs) {
+                const decor = document.getElementById("__dx-toast-decor");
+                const text = document.getElementById("__dx-toast-text");
+                const msg = document.getElementById("__dx-toast-msg");
+                const inner = document.getElementById("__dx-toast-inner");
+                const toast = document.getElementById("__dx-toast");
+
+                if (decor) decor.className = `dx-toast-level-bar ${progressLevel}`;
+                if (text) text.innerText = headerText;
+                if (msg) msg.innerText = message;
+                if (inner) inner.style.right = "0";
+                if (toast) {
+                    toast.removeAttribute("aria-hidden");
+                    toast.addEventListener("click", closeDXToast);
+                }
+
+                // Wait a bit of time so animation plays correctly.
+                setTimeout(
+                    () => {
+                        let ourToastId = currentToastId;
+                        currentTimeout = setTimeout(() => {
+                            if (ourToastId == currentToastId) {
+                                closeDXToast();
+                            }
+                        }, durationMs);
+                    },
+                    100
+                );
+
+                currentToastId += 1;
+            }
+
+            // Schedule a toast to be displayed after reload.
+            function scheduleDXToast(headerText, message, level, durationMs) {
+                let data = {
+                    headerText,
+                    message,
+                    level,
+                    durationMs,
+                };
+
+                let jsonData = JSON.stringify(data);
+                sessionStorage.setItem(STORAGE_KEY, jsonData);
+            }
+
+            // Close the current toast.
+            function closeDXToast() {
+                document.getElementById("__dx-toast-inner").style.right = "-1000px";
+                document.getElementById("__dx-toast").setAttribute("aria-hidden", "true");
+                clearTimeout(currentTimeout);
+            }
+
+            // Handle any scheduled toasts after reload.
+            let potentialData = sessionStorage.getItem(STORAGE_KEY);
+            if (potentialData) {
+                sessionStorage.removeItem(STORAGE_KEY);
+                let data = JSON.parse(potentialData);
+                showDXToast(data.headerText, data.message, data.level, data.durationMs);
+            }
+
+            window.scheduleDXToast = scheduleDXToast;
+            window.showDXToast = showDXToast;
+            window.closeDXToast = closeDXToast;
+        </script>
+    <link rel="stylesheet" href="/assets/tokens-dxhf0be6693ff883ea2.css" type="text/css"><link rel="stylesheet" href="/assets/tailwind-dxh8d55392c89327ca7.css" type="text/css"><link rel="stylesheet" href="/assets/linear-kit-overrides-dxhed4c781cee677c8.css" type="text/css"><link rel="stylesheet" href="/assets/foundation-dxhc1ab1afb635df7b7.css" type="text/css"><link rel="stylesheet" href="/assets/premium-composites-dxh5e9f2cc89e959c44.css" type="text/css"><link rel="stylesheet" href="/assets/chart-composites-dxhaee5b1f822893ed8.css" type="text/css"><link rel="icon" href="/assets/favicon-dxhdb2ff4ada9c88de.svg" type="image/svg+xml"><link rel="stylesheet" href="/assets/console-surfaces-dxhdf7437a6eb57df22.css" type="text/css"><link rel="stylesheet" href="/assets/feed-dxha8e878ff25445d74.css" type="text/css"><link rel="stylesheet" href="/assets/finance-workspace-dxh67ed8e3cafafe03a.css" type="text/css"><link rel="stylesheet" href="/assets/provider-dxhe7175ab39bbabd7a.css"><link rel="stylesheet" href="/assets/style-dxhee83553a9017b6cf.css"><link rel="stylesheet" href="/assets/style-dxha0a26cc4e198a85.css"><link rel="stylesheet" href="/assets/style-dxh5ac05aa8a995e92.css"><link rel="stylesheet" href="/assets/adapters-dxh7678b36c194db6e0.css"><link rel="stylesheet" href="/assets/style-dxhe875914d923f819.css"></head>
+    <body>
+        <div id="__dx-toast" class="dx-toast" aria-hidden="true">
+            <div id="__dx-toast-inner" class="dx-toast-inner" style="right:-1000px;">
+                <div class="dx-toast-level-bar-container">
+                    <div id="__dx-toast-decor" class="dx-toast-level-bar __info"></div>
+                </div>
+                <div class="dx-toast-content">
+                    <div class="dx-toast-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" preserveAspectRatio="none">
+                            <path d="M22.158 1.783c0 3.077-.851 5.482-2.215 7.377s-3.32 3.557-5.447 5.33-4.425 3.657-6.252 6.195-3.102 5.515-3.102 9.532h4.699c0-3.077.853-5.377 2.217-7.272s3.32-3.557 5.447-5.33 4.425-3.657 6.252-6.195 3.102-5.62 3.102-9.637z" fill="#e96020"></path>
+                            <path d="M9.531 25.927c-.635 0-1.021.515-1.02 1.15s.385 1.151 1.02 1.15H22.47a1.151 1.151 0 1 0 0-2.301zm1.361-4.076c-.608 0-.954.558-.953 1.166s.346 1.035.953 1.035h10.217a1.101 1.101 0 1 0 0-2.201zm0-13.594a1.101 1.101 0 1 0 0 2.201h10.217c.607 0 .953-.598.953-1.205s-.345-.996-.953-.996zM9.531 4.021A1.15 1.15 0 0 0 8.38 5.17a1.15 1.15 0 0 0 1.15 1.15h12.94c.635 0 1.021-.498 1.02-1.133s-.386-1.166-1.02-1.166z" fill="#2d323b"></path>
+                            <path d="M5.142 1.783c0 4.016 1.275 7.099 3.102 9.637s4.125 4.422 6.252 6.195 4.083 3.656 5.447 5.551 2.215 3.974 2.215 7.051h4.701c0-4.016-1.275-7.038-3.102-9.576s-4.125-4.422-6.252-6.195-4.083-3.435-5.447-5.33S9.841 4.86 9.841 1.783z" fill="#00a8d6"></path>
+                        </svg>
+                        <h3 id="__dx-toast-text" class="dx-toast-header-text">Your app is being rebuilt.</h3>
+                    </div>
+                    <p id="__dx-toast-msg" class="dx-toast-msg">A non-hot-reloadable change occurred and we must rebuild.</p>
+                </div>
+            </div>
+        </div>
+        <div id="main" data-dioxus-id="0"><script>window.hydrate_queue=[];window.dx_hydrate=(id,data,debug_types,debug_locations)=>{let decoded=atob(data),bytes=Uint8Array.from(decoded,(c)=>c.charCodeAt(0));if(window.hydration_callback)window.hydration_callback(id,bytes,debug_types,debug_locations);else window.hydrate_queue.push([id,bytes,debug_types,debug_locations])};
+</script><!--placeholder0--><!--placeholder1--><!--placeholder2--><!--placeholder3--><!--placeholder4--><!--placeholder5--><!--placeholder6--><!--placeholder7--><!--placeholder8--><!--placeholder9--><div class="erpx-kit-root-774fc431" style="--erpx-light-primary:#5e6ad2;--erpx-light-on-primary:#ffffff;--erpx-light-accent:#5e6ad2;--erpx-light-on-accent:#ffffff;--erpx-light-bg:#ffffff;--erpx-light-surface:#f8f9fa;--erpx-light-surface-raised:#f2f3f5;--erpx-light-border:#e2e4e8;--erpx-light-text:#0a0a0a;--erpx-light-text-muted:#60646c;--erpx-light-link:#5e6ad2;--erpx-light-focus:#5e6ad2;--erpx-dark-primary:#5e6ad2;--erpx-dark-on-primary:#ffffff;--erpx-dark-accent:#5e6ad2;--erpx-dark-on-accent:#ffffff;--erpx-dark-bg:#080a0c;--erpx-dark-surface:#0e1012;--erpx-dark-surface-raised:#15181b;--erpx-dark-border:#1f2225;--erpx-dark-text:#f7f8f8;--erpx-dark-text-muted:#8a8f98;--erpx-dark-link:#8b95ff;--erpx-dark-focus:#5e6ad2;--erpx-font-sans:Inter, 'Noto Sans Thai', ui-sans-serif, system-ui, sans-serif;--erpx-heading-scale:1.00;--erpx-body-scale:1.00;--erpx-line-height:1.50;--erpx-radius:10px;--erpx-control-height:40px;--erpx-shadow:0 8px 24px rgb(2 8 12 / 12%);--erpx-nav-tint:8%;--erpx-motion:140ms;" data-erpx-component="provider" data-density="comfortable" data-locale="en" data-theme="system" data-node-hydration="10"><div class="console-shell" data-node-hydration="11"><a class="erpx-link-b3829a94 skip-link" data-erpx-component="link" href="#main-content" data-node-hydration="12,click:1" data-dioxus-id="205">Skip to content</a><aside class="console-nav"><div class="console-nav__brand"><span class="console-nav__mark" aria-hidden="true">E</span><div><strong>ERPX</strong><small>Enterprise console</small></div></div><nav class="console-nav__primary" aria-label="Primary" data-node-hydration="15"><a class="erpx-link-b3829a94 console-nav__link" data-erpx-component="link" href="/" data-node-hydration="16,click:1" data-dioxus-id="200"><span class="console-nav__link-icon" aria-hidden="true" data-node-hydration="17">⌂</span><span data-node-hydration="18">Home</span></a><a class="erpx-link-b3829a94 console-nav__link" data-erpx-component="link" href="/work" data-node-hydration="20,click:1" data-dioxus-id="196"><span class="console-nav__link-icon" aria-hidden="true" data-node-hydration="21">◧</span><span data-node-hydration="22">Work</span></a><a class="erpx-link-b3829a94 console-nav__link" data-erpx-component="link" href="/processes" data-node-hydration="24,click:1" data-dioxus-id="192"><span class="console-nav__link-icon" aria-hidden="true" data-node-hydration="25">↻</span><span data-node-hydration="26">Processes</span></a><a class="erpx-link-b3829a94 console-nav__link" data-erpx-component="link" href="/insights" data-node-hydration="28,click:1" data-dioxus-id="188"><span class="console-nav__link-icon" aria-hidden="true" data-node-hydration="29">◈</span><span data-node-hydration="30">Insights</span></a><a class="erpx-link-b3829a94 console-nav__link" data-erpx-component="link" href="/modules" data-node-hydration="32,click:1" data-dioxus-id="184"><span class="console-nav__link-icon" aria-hidden="true" data-node-hydration="33">▦</span><span data-node-hydration="34">Modules</span></a><!--placeholder36--><!--placeholder37--></nav><div class="console-finance-menu" data-disabled="false" data-erpx-component="collapsible" data-open="true" data-node-hydration="38"><button aria-controls="dxc-26" aria-expanded="true" class="dx-collapsible-trigger-bfcc8b51 console-finance-menu__trigger" data-disabled="false" data-open="true" type="button" data-node-hydration="39,click:1" data-dioxus-id="125"><span class="console-finance-menu__label" data-node-hydration="40"><span class="console-finance-menu__icon" aria-hidden="true">▣</span>Finance</span><small class="console-finance-menu__count" title="10 sections" data-node-hydration="42">10</small><svg xmlns="http://www.w3.org/2000/svg" width="1rem" height="1rem" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke="var(--erpx-text)" data-node-hydration="43"><path d="m7 15 5 5 5-5"></path><path d="m7 9 5-5 5 5"></path></svg></button><div id="dxc-26" data-open="true" data-disabled="false" class="dx-collapsible-content-bfcc8b51" data-node-hydration="44"><nav class="console-finance-menu__nav" aria-label="Finance sections" data-node-hydration="45"><a aria-current="page" class="erpx-link-b3829a94 console-finance-menu__link is-active" data-erpx-component="link" href="/finance" data-node-hydration="46,click:1" data-dioxus-id="132"><span class="console-finance-menu__link-icon" aria-hidden="true" data-node-hydration="47">◎</span><span class="console-finance-menu__link-label" data-node-hydration="49">Overview</span></a><a class="erpx-link-b3829a94 console-finance-menu__link" data-erpx-component="link" href="/finance/chart" data-node-hydration="51,click:1" data-dioxus-id="137"><span class="console-finance-menu__link-icon" aria-hidden="true" data-node-hydration="52">₵</span><span class="console-finance-menu__link-label" data-node-hydration="54">Chart of accounts</span></a><a class="erpx-link-b3829a94 console-finance-menu__link" data-erpx-component="link" href="/finance/journals" data-node-hydration="56,click:1" data-dioxus-id="142"><span class="console-finance-menu__link-icon" aria-hidden="true" data-node-hydration="57">▤</span><span class="console-finance-menu__link-label" data-node-hydration="59">Journals</span></a><a class="erpx-link-b3829a94 console-finance-menu__link" data-erpx-component="link" href="/finance/subledgers" data-node-hydration="61,click:1" data-dioxus-id="147"><span class="console-finance-menu__link-icon" aria-hidden="true" data-node-hydration="62">▥</span><span class="console-finance-menu__link-label" data-node-hydration="64">Subledgers</span></a><a class="erpx-link-b3829a94 console-finance-menu__link" data-erpx-component="link" href="/finance/ap" data-node-hydration="66,click:1" data-dioxus-id="152"><span class="console-finance-menu__link-icon" aria-hidden="true" data-node-hydration="67">↓</span><span class="console-finance-menu__link-label" data-node-hydration="69">Accounts payable</span></a><a class="erpx-link-b3829a94 console-finance-menu__link" data-erpx-component="link" href="/finance/ar" data-node-hydration="71,click:1" data-dioxus-id="157"><span class="console-finance-menu__link-icon" aria-hidden="true" data-node-hydration="72">↑</span><span class="console-finance-menu__link-label" data-node-hydration="74">Accounts receivable</span></a><a class="erpx-link-b3829a94 console-finance-menu__link" data-erpx-component="link" href="/finance/cash" data-node-hydration="76,click:1" data-dioxus-id="162"><span class="console-finance-menu__link-icon" aria-hidden="true" data-node-hydration="77">$</span><span class="console-finance-menu__link-label" data-node-hydration="79">Cash</span></a><a class="erpx-link-b3829a94 console-finance-menu__link" data-erpx-component="link" href="/finance/banking" data-node-hydration="81,click:1" data-dioxus-id="167"><span class="console-finance-menu__link-icon" aria-hidden="true" data-node-hydration="82">▣</span><span class="console-finance-menu__link-label" data-node-hydration="84">Banking</span></a><a class="erpx-link-b3829a94 console-finance-menu__link" data-erpx-component="link" href="/finance/close" data-node-hydration="86,click:1" data-dioxus-id="172"><span class="console-finance-menu__link-icon" aria-hidden="true" data-node-hydration="87">✓</span><span class="console-finance-menu__link-label" data-node-hydration="89">Period close</span></a><a class="erpx-link-b3829a94 console-finance-menu__link" data-erpx-component="link" href="/finance/budgets" data-node-hydration="91,click:1" data-dioxus-id="177"><span class="console-finance-menu__link-icon" aria-hidden="true" data-node-hydration="92">◫</span><span class="console-finance-menu__link-label" data-node-hydration="94">Budgets</span></a></nav></div></div><div class="console-nav__account"><small>Signed in as</small><strong>local:dev-controller</strong><span>Finance Administrator</span><a class="erpx-link-b3829a94" data-erpx-component="link" href="/auth/accounts" data-node-hydration="99,click:1" data-dioxus-id="119">Change role or account</a></div></aside><main class="console-main" id="main-content" tabindex="-1"><header class="console-header"><div class="console-header__context"><strong>Finance Administrator</strong><span title="branch:f9c2cc9e-acac-4cd7-9040-e7376f8f6682:76a59381-c0cd-5eb7-81cb-7bb5d46d34cd:7d10b7d7-752c-59c1-adb1-cf480a50621e" data-node-hydration="102">Branch scope</span></div><a aria-label="Change role or account" class="erpx-link-b3829a94 console-header__account" data-erpx-component="link" href="/auth/accounts" data-node-hydration="104,click:1" data-dioxus-id="114"><span aria-hidden="true" data-node-hydration="105">L</span></a><button aria-label="Switch to Thai" class="dx-button-441a8282 ui-icon-button ui-locale-toggle" data-erpx-component="button" data-size="default" data-style="ghost" data-tone="ghost" title="Switch to Thai" type="button" data-node-hydration="107,click:1,mousedown:1,mouseup:1,keydown:1" data-dioxus-id="112">ไทย</button><button aria-label="Change color mode" class="dx-button-441a8282 console-theme-toggle" data-erpx-component="button" data-size="default" data-style="secondary" data-tone="secondary" title="System" type="button" data-node-hydration="109,click:1,mousedown:1,mouseup:1,keydown:1" data-dioxus-id="110"><span aria-hidden="true" data-node-hydration="110">◐</span></button><span class="console-header__version">Delivery v4</span></header><section class="platform-layout" data-renderer-boundary="workspace" data-node-hydration="112"><section class="finance-workspace" data-surface="Overview" data-node-hydration="113"><header class="finance-workspace__header"><div class="finance-workspace__title"><h1>Finance</h1><span class="finance-workspace__scope" data-node-hydration="115">Holding / Company scope</span></div><span class="finance-workspace__freshness" role="status" data-node-hydration="117">Projection: fresh</span></header><div class="finance-workspace__layout finance-workspace__layout--with-rail" data-node-hydration="119"><div class="finance-workspace__main"><section class="finance-kpi-strip" role="region" aria-label="Key indicators" data-node-hydration="120"><article class="finance-kpi finance-kpi--positive" data-node-hydration="121"><h3>Trial balance</h3><p class="finance-kpi__value">THB 0.00 Δ</p><span class="finance-kpi__delta" data-node-hydration="124">balanced</span></article><article class="finance-kpi finance-kpi--neutral" data-node-hydration="126"><h3>AP open</h3><p class="finance-kpi__value">—</p><!--placeholder129--></article><article class="finance-kpi finance-kpi--neutral" data-node-hydration="130"><h3>AR open</h3><p class="finance-kpi__value">—</p><!--placeholder133--></article><article class="finance-kpi finance-kpi--warning" data-node-hydration="134"><h3>Unposted</h3><p class="finance-kpi__value">—</p><!--placeholder137--></article><article class="finance-kpi finance-kpi--neutral" data-node-hydration="138"><h3>Period</h3><p class="finance-kpi__value">2026-08 open</p><!--placeholder141--></article></section><div class="finance-workspace__actions" data-node-hydration="142"><button aria-busy="false" class="dx-button-441a8282 ui-premium-button primary" data-erpx-component="button" data-size="default" data-style="primary" data-tone="primary" type="button" data-node-hydration="143,click:1,mousedown:1,mouseup:1,keydown:1" data-dioxus-id="100"><!--placeholder144--><span data-node-hydration="145">New journal</span></button><button aria-busy="false" class="dx-button-441a8282 ui-premium-button secondary" data-erpx-component="button" data-size="default" data-style="secondary" data-tone="secondary" type="button" data-node-hydration="147,click:1,mousedown:1,mouseup:1,keydown:1" data-dioxus-id="96"><!--placeholder148--><span data-node-hydration="149">Import bank CSV</span></button><button aria-busy="false" class="dx-button-441a8282 ui-premium-button secondary" data-erpx-component="button" data-size="default" data-style="secondary" data-tone="secondary" type="button" data-node-hydration="151,click:1,mousedown:1,mouseup:1,keydown:1" data-dioxus-id="92"><!--placeholder152--><span data-node-hydration="153">Suggest review (AI)</span></button></div><section class="finance-surface" data-surface="Overview" data-node-hydration="155"><h2>Overview</h2><p class="finance-surface__desc">Trial balance, open payables/receivables, cash, and period health at a glance.</p><div class="finance-overview-grid" data-node-hydration="158"><section class="finance-overview__panel"><h3>Period health</h3><p class="finance-overview__metric">2026-08 · open · Δ THB 0.00</p><p class="finance-overview__hint">Trial balance is balanced. 3 periods ready to close.</p></section><section class="finance-overview__panel"><h3>Unposted queue</h3><ul class="finance-overview__list"><li><span>J-2026-0881</span><span>THB 12,400</span><span class="dx-badge-8cef32ee" data-erpx-component="badge" data-style="secondary" data-tone="secondary" padding="true" data-node-hydration="163">draft</span></li><li><span>J-2026-0882</span><span>THB 8,200</span><span class="dx-badge-8cef32ee" data-erpx-component="badge" data-style="secondary" data-tone="secondary" padding="true" data-node-hydration="165">draft</span></li><li><span>J-2026-0883</span><span>THB 3,900</span><span class="dx-badge-8cef32ee" data-erpx-component="badge" data-style="secondary" data-tone="secondary" padding="true" data-node-hydration="167">pending</span></li></ul></section><section class="finance-overview__panel"><h3>Cash &amp; exposure</h3><div class="finance-overview__stats"><div><strong>AP open</strong><span>—</span></div><div><strong>AR open</strong><span>—</span></div><div><strong>Bank</strong><span>THB 0.00</span></div></div></section></div></section><section class="finance-mention-composer" aria-label="Mention composer" data-node-hydration="170"><h3>Add a note with @ mentions</h3><p class="finance-mention-composer__hint">Type @ to reference people, agents, or any record: PO, SO, receipt, cost center, journal, invoice… References persist as ordered deduped edges (max 50/host) and appear bidirectionally via Item Directory.</p><div class="finance-mention-composer__field"><textarea class="finance-mention-composer__input" placeholder="Type @ to mention… e.g. @record:… or @user:…" value="" data-node-hydration="173,input:1" data-dioxus-id="25"></textarea><!--placeholder174--></div><div class="finance-mention-composer__resolved"><!--placeholder175--></div><div class="finance-mention-composer__chips"><span class="finance-mention-chip" title="finance.chart" data-node-hydration="176">Chart · finance.chart</span><span class="finance-mention-chip" title="finance.journal" data-node-hydration="178">Journal · finance.journal</span><span class="finance-mention-chip" title="finance.subledger" data-node-hydration="180">Subledger · finance.subledger</span><span class="finance-mention-chip" title="finance.vendor-invoice" data-node-hydration="182">Vendor invoice · finance.vendor-invoice</span><span class="finance-mention-chip" title="finance.payment" data-node-hydration="184">Payment · finance.payment</span><span class="finance-mention-chip" title="finance.invoice" data-node-hydration="186">Customer invoice · finance.invoice</span><span class="finance-mention-chip" title="finance.revenue-schedule" data-node-hydration="188">Revenue schedule · finance.revenue-schedule</span><span class="finance-mention-chip" title="finance.period" data-node-hydration="190">Period · finance.period</span><span class="finance-mention-chip" title="finance.bank-transaction" data-node-hydration="192">Bank transaction · finance.bank-transaction</span></div></section><section class="finance-cross-palette" data-node-hydration="194"><h3>This workspace as a mention target</h3><p>Any finance record can be @mentioned elsewhere as @record:&lt;uuid&gt; and its fields as @field:&lt;uuid&gt;:&lt;field&gt;@v&lt;ver&gt;.</p><ul><li><code>@record:&lt;journal-uuid&gt;</code> — Journal</li><li><code>@field:&lt;journal-uuid&gt;:amount@v1</code> — Amount field</li><li><code>@record:&lt;invoice-uuid&gt;</code> — Customer / Vendor invoice</li></ul></section></div><aside class="finance-workspace__rail" aria-label="Activity and references" data-node-hydration="200"><section class="finance-activity-rail" data-node-hydration="201"><h3>Activity &amp; references</h3><p>Record-anchored threads and backlinks appear here. @ mentions create bidirectional references via the universal reference graph (cap 50/host, deduped, ordered).</p><div class="finance-activity-rail__placeholder" role="status"><p>No discussion yet — start a thread with @ mentions. Finance records are resolvable as @record:&lt;uuid&gt; and fields as @field:&lt;uuid&gt;:&lt;field&gt;@v&lt;ver&gt;.</p></div><p class="finance-activity-rail__hint">Detail pages (/finance/journal/&lt;id&gt;, /finance/vendor-invoice/&lt;id&gt;, etc.) show the live collaboration rail with references and threads.</p></section></aside></div></section></section></main></div><!--placeholder206--><div role="region" aria-label="0 notifications" tabindex="-1" style="--toast-count: 0" class="dx-toast-container-76e98aad" data-erpx-component="toast-region" data-node-hydration="207"><ol data-node-hydration="208"><!--placeholder209--></ol></div></div><script>window.initial_dioxus_hydration_data="loEY9okYaBgvGGYYaRhuGGEYbhhjGGX2mQRdGKEYYhhPGGsYqhhtGGEYdRh0GGgYZRhuGHQYaRhjGGEYdBhlGGQY9RhpGGEYYxh0GG8YchhfGHIYZRhmGHQYbBhvGGMYYRhsGDoYZBhlGHYYLRhjGG8Ybhh0GHIYbxhsGGwYZRhyGHAYZBhhGHQYYRhfGHAYchhvGGYYaRhsGGUYXxhrGGUYeRh4GHUYYhhyGGEYbhhjGGgYOhhmGDkYYxgyGGMYYxg5GGUYLRhhGGMYYRhjGC0YNBhjGGQYNxgtGDkYMBg0GDAYLRhlGDcYMxg3GDYYZhg4GGYYNhg2GDgYMhg6GDcYNhhhGDUYORgzGDgYMRgtGGMYMBhjGGQYLRg1GGUYYhg3GC0YOBgxGGMYYhgtGDcYYhhiGDUYZBg0GDYYZBgzGDQYYxhkGDoYNxhkGDEYMBhiGDcYZBg3GC0YNxg1GDIYYxgtGDUYORhjGDEYLRhhGGQYYhgxGC0YYxhmGDQYOBgwGGEYNRgwGDYYMhgxGGUYaBhyGG8YbBhlGF8YchhlGGYYdRhmGGkYbhhhGG4YYxhlGF8YYRhkGG0YaRhuGGkYcxh0GHIYYRh0GG8YchhmGGwYbxhjGGEYbBhlGGIYZRhuGGcYYxhoGGEYbhhuGGUYbBhjGHcYZRhiGG8YYxhhGHQYYRhsGG8YZxhfGHYYZRhyGHMYaRhvGG4EGG8YcBhsGGEYdBhmGG8YchhtGF8YbxhyGGkYZxhpGG4YeBgpGGgYdBh0GHAYcxg6GC8YLxhmGGwYdRhrGGUYLRhtGGEYYxhiGG8YbxhrGDEYNhguGHQYYRhpGGwYYhg0GDgYMxg2GDkYLhh0GHMYLhhuGGUYdBh1GGEYdRh0GGgYbxhyGGkYehhlGGQYXxhuGGEYdhhpGGcYYRh0GGkYbxhuGKMYahhoGG8YbRhlGF8YchhvGHUYdBhlGGUYLxh3GG8YchhrGGYYZxhyGG8YdRhwGHMYgRikGGgYZxhyGG8YdRhwGF8YaRhkGHAYYhh1GHMYaRhuGGUYcxhzGF8YbRhvGGQYdRhsGGUYcxhlGGwYYRhiGGUYbBhwGEIYdRhzGGkYbhhlGHMYcxggGE0YbxhkGHUYbBhlGHMYaRhsGGEYYhhlGGwYXxhrGGUYeRh4GBoYbhhhGHYYLhhnGHIYbxh1GHAYLhhiGHUYcxhpGG4YZRhzGHMYXxhtGG8YZBh1GGwYZRhzGGYYchhvGHUYdBhlGHMYgRimGGgYchhvGHUYdBhlGF8YaRhkGGcYZhhpGG4YYRhuGGMYZRhlGGwYYRhiGGUYbBhnGEYYaRhuGGEYbhhjGGUYaRhsGGEYYhhlGGwYXxhrGGUYeRh1GG4YYRh2GC4YdxhvGHIYaxhzGHAYYRhjGGUYLhhmGGkYbhhhGG4YYxhlGGQYcBhhGHQYaBhoGC8YZhhpGG4YYRhuGGMYZRhkGGkYYxhvGG4YZhhtGG8YZBh1GGwYZRhzGGEYYxh0GGkYbxhuGF8YYxhhGHAYYRhiGGkYbBhpGHQYaRhlGHMYlRh4GCAYRRhuGHEYdRhlGHUYZRhGGGkYbhhhGG4YYxhlGEIYYRhuGGsYUBhyGG8YdhhpGGQYZRhyGEkYbRhwGG8Ychh0GHgYIhhHGGUYdBhGGGkYbhhhGG4YYxhlGEMYbxhuGHMYbxhsGGkYZBhhGHQYZRhkGFQYchhpGGEYbBhCGGEYbBhhGG4YYxhlGHYYRxhlGHQYRhhpGG4YYRhuGGMYZRhUGHIYaRhhGGwYQhhhGGwYYRhuGGMYZRhwGEcYZRh0GFQYaBhhGGkYVBhhGHgYUhhlGHAYbxhyGHQYcxhJGG0YcBhvGHIYdBhCGGEYbhhrGFMYdBhhGHQYZRhtGGUYbhh0GHgYGhhMGGkYcxh0GEYYaRhuGGEYbhhjGGUYQhhhGG4YaxhpGG4YZxhSGGUYYRhkGFIYbxh3GHMYcRhMGGkYcxh0GEYYaRhuGGEYbhhjGGUYQxhoGGEYchh0GHMYdxhMGGkYcxh0GEYYaRhuGGEYbhhjGGUYQxhsGG8YcxhlGFIYZRh2GGkYZRh3GHMYeBgcGEwYaRhzGHQYRhhpGG4YYRhuGGMYZRhTGHUYYhhsGGUYZBhnGGUYchhSGGUYYRhkGFIYbxh3GHMYchhMGGkYcxh0GFAYbxhzGHQYZRhkGEoYbxh1GHIYbhhhGGwYcxhyGFAYbxhzGHQYRhhpGG4YYRhuGGMYZRhKGG8YdRhyGG4YYRhsGHEYUhhlGGMYbxhyGGQYVBhoGGEYaRhUGGEYeBhGGGEYYxh0GHMYUhhlGGcYaRhzGHQYZRhyGEIYYRhuGGsYQRhjGGMYbxh1GG4YdBhzGFMYYRh2GGUYQRhsGGwYbxhjGGEYdBhpGG8YbhhCGGEYdBhjGGgYdRhTGGEYdhhlGEIYYRhuGGsYTRhhGHQYYxhoGEQYZRhjGGkYcxhpGG8Ybhh1GFMYYRh2GGUYQhhhGG4YaxhNGGEYdBhjGGgYUBhyGG8YcBhvGHMYYRhsGHYYUxhhGHYYZRhCGGEYbhhrGFIYZRhjGG8YbhhjGGkYbBhpGGEYdBhpGG8YbhhwGFMYYRh2GGUYRhhpGG4YYRhuGGMYZRhDGGgYYRhyGHQYdhhTGGEYdhhlGEYYaRhuGGEYbhhjGGUYQxhsGG8YcxhlGFIYZRh2GGkYZRh3GHEYUxhhGHYYZRhGGGkYbhhhGG4YYxhlGFAYZRhyGGkYbxhkGG0YUxhhGHYYZRhTGHUYYhhsGGUYZBhnGGUYchh4GB0YYRh1GHQYaBhvGHIYaRh6GGEYdBhpGG8YbhhfGGMYbxhuGHQYZRh4GHQYXxh2GGUYchhzGGkYbxhuAhhqGHMYZRhzGHMYaRhvGG4YXxhpGGQYeBgkGGYYZBhhGDEYMxhkGGIYMxgtGDgYYhgzGDAYLRg0GGQYNhgwGC0YYRg1GDYYMhgtGDQYMhhhGDIYNBhkGGIYNhhkGDMYMRg4gRj1gRj1gRj1gRj1gRj1gRj1gRj1gRj1gRj1gRj1gRj1gRj19oEY9YEY9YEY9YcYZhhkGHgYYxgtGDIYNoEY9Q==";window.initial_dioxus_hydration_debug_types=["core::option::Option<dioxus_core::render_error::CapturedError>","unknown","alloc::string::String","unknown","unknown","unknown","core::result::Result<erpx_delivery_contract::SessionBootstrap, dioxus_core::render_error::CapturedError>","unknown","bool","unknown","bool","unknown","bool","unknown","bool","unknown","bool","unknown","bool","unknown","bool","unknown","bool","unknown","bool","unknown","bool","unknown","bool","unknown","bool","unknown","unknown","unknown","bool","unknown","bool","unknown","bool","unknown","alloc::string::String","unknown","bool"];window.initial_dioxus_hydration_debug_locations=["/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/ssr.rs:556:29","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-fullstack-core-0.8.0-alpha.1/src/history.rs:44:30","unknown","unknown","unknown","apps/console/src/routes.rs:273:22","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14","unknown","unknown","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14","unknown","third_party/dioxus-components/primitives/src/lib.rs:74:25","unknown","/Users/fluke/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/dioxus-server-0.8.0-alpha.1/src/document.rs:165:14"];</script></div>
+    <script type="module" async="" src="/./wasm/erpx-console.js"></script>
+            
+
+</body></html>

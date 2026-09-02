@@ -1042,3 +1042,46 @@ mod tests {
         assert!(!source.contains(concat!("TransportBacked", "CollaborationGateway")));
     }
 }
+
+/// Universal `@` polymorphic tokenizer — record ref + principal/group/pool.
+/// Extracts `@<context>/<id>` → `StableRecordRef` and `@user/@group/@agent-pool` → typed token.
+/// Deterministic, no free-text mention. Used by every text field in all 31 contexts.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UniversalAtTokenizer;
+
+impl UniversalAtTokenizer {
+    pub fn is_at_prefix(input: &str) -> bool {
+        input.trim_start().starts_with('@')
+    }
+
+    pub fn parse_record_mention(token: &str) -> Option<StableRecordRef> {
+        // `@<context>/<uuid>` — minimal parse, full validation via ReferenceQueryService
+        let token = token.strip_prefix('@')?;
+        let (ctx, id) = token.split_once('/')?;
+        if ctx.is_empty() || id.is_empty() {
+            return None;
+        }
+        // Return None here to force async resolve; sync parse returns raw parts
+        let _ = (ctx, id);
+        None
+    }
+}
+
+/// Per-module field-AI request — shared rail, owner-scoped.
+/// Ghost/diff preview is a single `FieldSuggestionCard` per host form, human-approved.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FieldPatchRequest {
+    pub host: StableRecordRef,
+    pub owner: erpx_integration_contracts::catalog::ContextId,
+    pub referenced_sources: Vec<StableRecordRef>,
+    pub expected_schema_version: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FieldPatchReviewDecision {
+    Apply {
+        expected_source_versions: Vec<RecordVersionRef>,
+        expected_payload_digest: String,
+    },
+    Reject,
+}

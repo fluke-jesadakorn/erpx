@@ -24,17 +24,20 @@ a read-side event receipt or checkpoint and returns an explicit not-ready
 result when its bounded wait expires; it never falls back to a write table.
 
 The original implementation used `erpx.platform`. ADR-016 completes its
-retirement: active packages are now context-specific `erpx.<context>.v2`
-services in `IFC-SVC-201..265`, promoted through one coordinated Server,
-Worker, Web, and Native cutover. The monolithic source is split by bounded
-context, and each context exposes separate typed command and query services.
+retirement: active packages are now context-specific `erpx.<context>`
+(unversioned, ADR-016) services in `IFC-SVC-201..267` (67 services, ADR-018),
+promoted through one coordinated Server, Worker, Web, and Native cutover. The
+monolithic source is split by bounded context, and each context exposes
+separate typed command and query services.
 
 The cutover creates new control-write, control-read, holding-write, holding-read,
 and object-storage resources and copies no ERPX application state. Bootstrap
 creates only the mandatory Root/Owner identities, holding/holding registry,
 canonical business-unit catalog, and neutral corporate identity. Existing
-resources remain offline and non-authoritative for rollback. The n8n state and
-encryption configuration under `.runtime/n8n/` are never modified or replaced.
+resources remain offline and non-authoritative for rollback. The former n8n
+state under `.runtime/n8n/` was retired by ADR-015; local runtime no longer
+ships an n8n fingerprint or encryption recheck, and `cargo xtask
+reconfigure-local` fails closed if `n8n` is reintroduced.
 
 Bootstrap publishes a non-secret, write-once runtime manifest only after the
 new namespace, database migrations, restricted seed inventory, holding
