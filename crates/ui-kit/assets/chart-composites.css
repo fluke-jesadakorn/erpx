@@ -1,6 +1,0 @@
-@layer erpx-components {
-.ui-bar-chart, .ui-stacked-bar-chart, .ui-line-area-chart, .ui-donut-chart { border: 1px solid var(--erpx-border); border-radius: 12px; background: var(--erpx-surface); padding: 16px; }
-.ui-bar-column span { background: #5E6AD2 !important; }
-.ui-stacked-track span { background: var(--series-color, #5E6AD2); }
-.ui-donut-chart .segment { stroke: var(--series-color, #5E6AD2); }
-}

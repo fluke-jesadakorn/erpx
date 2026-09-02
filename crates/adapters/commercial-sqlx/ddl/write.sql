@@ -1,6 +1,0 @@
--- Commercial commands require the shared erpx_cqrs_write foundation and the
--- context guard tables assigned by migration 0058 plus the matching control
--- write guard composition. Catalog snapshots/guards live in control-write;
--- subscription and entitlement snapshots/guards live in holding-write.
--- Receipts, audit evidence, and outbox records use each plane's shared atomic
--- store and its transactional context-guard hook.

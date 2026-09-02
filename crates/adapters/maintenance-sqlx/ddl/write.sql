@@ -1,3 +1,0 @@
--- Evidence contract: canonical installation is holding-write migration 0060.
--- Maintenance commands use the typed Assets fact inbox and source-event
--- uniqueness guards in the same database as the shared command store.

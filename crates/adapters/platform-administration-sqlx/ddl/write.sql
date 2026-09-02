@@ -1,2 +1,0 @@
--- Canonical composition: control migrations 0075 then 0076.
--- See CONTROL_WRITE_DDL; duplicated DDL is intentionally not maintained here.

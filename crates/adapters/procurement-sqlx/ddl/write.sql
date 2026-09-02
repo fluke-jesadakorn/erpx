@@ -1,3 +1,0 @@
--- Evidence contract: canonical installation is holding-write migration 0060.
--- Commands atomically update erpx_procurement_write.purchase_order_guards
--- with shared aggregate snapshots, receipts, audit rows, and outbox events.

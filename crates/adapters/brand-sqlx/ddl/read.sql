@@ -1,3 +1,0 @@
--- Canonical Brand read DDL is composed from control-read migrations 0015 and
--- 0016. Profiles, resolved identities, and history are generation scoped and
--- disposable; query adapters never receive a write capability.

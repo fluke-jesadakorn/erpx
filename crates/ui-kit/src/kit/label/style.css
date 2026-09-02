@@ -1,9 +1,0 @@
-/* Label Styles */
-.dx-label {
-  display: flex;
-  align-items: center;
-  color: var(--erpx-text);
-  font-size: 0.8rem;
-  line-height: 1;
-}
-
