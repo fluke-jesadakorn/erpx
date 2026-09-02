@@ -1,6 +1,6 @@
 # Plan — Archive (canonical for all pruned `Plan`/`docs` history)
 
-> **Single canonical — 2026-09-02.** All banners `Pruned on development 2026-09-02` (`docs/plan/LEGACY.md`, `docs/README.md`, `docs/contracts/README.md`, `docs/schema/README.md`, `CUTOVER.md:2026-09-02`) point here. Living spec is `docs/plan/` (31 contexts) + `docs/TOC.md` + `docs/plan/MAP.md` (31 rows).
+> **Single canonical — 2026-09-02.** All banners `Pruned 2026-09-02` (`docs/plan/LEGACY.md`, `docs/README.md`, `CUTOVER.md:2026-09-02`) point here. Living is `docs/plan/` (31) + `docs/TOC.md` + `MAP.md` (31).
 
 ## What was pruned on `development` (`99a66de7` A,B)
 
@@ -32,6 +32,6 @@ git checkout backup/rust-2026-09-02 -- Plan.legacy-2026-08-29/ Plan.legacy-codeb
 
 ## Living replacement
 
-- `docs/plan/` 31 contexts (13 groups, 26-35L light + 60-65L deep trimmed via `_shared-contract.md` 109L, `MAP.md` 31 rows, 13 group `README.md`)
-- `docs/TOC.md` (single hub) → `docs/plan/MAP.md` → `docs/plan/01-vision-and-scope.md` (spine) → `src/app/` + `docs/contracts/next/route-table.md` (living)
-- `docs/plan/LEGACY.md:1` (18L stub) + `docs/README.md:1` (8L) + `docs/contracts/README.md:1` (5L) + `docs/schema/README.md:1` (5L) — each 4-line pointer here (not 25L inventory)
+- `docs/plan/` 31 contexts (13 groups, 26-35L light + 60-65L deep via `_shared-contract.md` 109L, `MAP.md` 31 rows)
+- `docs/TOC.md` → `MAP.md` → `01-vision-and-scope.md` → `src/app/` + `docs/contracts/next/route-table.md`
+- Stubs `docs/README.md` + `docs/plan/LEGACY.md` → here (archive canonical)

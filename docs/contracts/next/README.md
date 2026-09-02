@@ -1,6 +1,6 @@
 # docs/contracts/next — Living contracts (Next.js era)
 
-> **Skeleton — empty until `src/app/` routes are materialized.** This folder will hold the living API contract for the Next.js rebuild (OpenAPI and/or tRPC definitions). It is the counterpart to the archived Rust contracts on `backup/rust-2026-09-02` (37 proto files) documented in `docs/contracts/README.md` + `docs/schema/README.md`.
+> Skeleton — living contracts for Next.js (archived Rust 37 proto on `backup/rust-2026-09-02`, see `docs/plan/ARCHIVE.md`).
 
 ## Intended contents
 

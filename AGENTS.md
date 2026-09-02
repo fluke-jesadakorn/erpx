@@ -24,46 +24,22 @@ npm run build  # production build
 npm run lint   # eslint
 ```
 
-## Verification
-
-Keep `npm run dev` hot reload running while editing UI. At a checkpoint:
+## Dev & Verify
 
 ```bash
-npm run lint
-npm run build
+npm install; npm run dev    # :3000 hot reload src/app/*, globals.css
+npm run lint; npm run build # gate must pass (route typecheck); smoke src/app/page.tsx; optional playwright e2e
 ```
 
-Before handoff, run the full gate once (`lint` + `build` must pass, no TS errors). Browser smoke on `http://localhost:3000` should render `src/app/page.tsx`. Add `playwright` e2e if needed (`npm run build` includes route typecheck).
-
-## Development
-
-```bash
-npm install        # install deps
-npm run dev        # start dev server (auto-reload on src/app/*, src/components/*, globals.css)
-npm run build      # verify production build
-```
-
-Environment is kept in `.env` / `.env.local` (ignored). See `.env.example` for required vars. Legacy Rust runtime files (`.runtime/`, `target/`, `.cargo/`) are no longer used — see backup branch for history.
-
-Reload or restart the dev server freely and verify with a live request that `http://localhost:3000` is usable again. The server does not need to remain running at handoff.
-
-## Runtime safety
-
-Keep `.env`, `.env.local`, `node_modules/`, `.next/`, and `out/` outside Git. Do not commit secrets. Past Rust artifacts (`Cargo.toml`, `crates/`, `apps/`, `xtask/`, `third_party/`) were deleted in this cutover — do not reintroduce Cargo tooling on this branch without a new ADR.
+Env `.env/.env.local` ignored (see `.env.example`). Legacy `.runtime/target/.cargo` not used — see `backup`. Keep `.env/node_modules/.next/out` out of Git; no secrets; no Cargo without ADR.
 
 ## Structure
 
-> Full map: `docs/TOC.md` (single hub for all docs).
+> Map: `docs/TOC.md` (single hub).
 
-- `src/app/` — Next.js App Router (layout, page, globals.css, route handlers)
-- `public/` — static assets
-- `docs/plan/` — business plans and traceability (`ARCHIVE.md` canonical for pruned baselines, `LEGACY.md` stub)
-- `docs/adr/` — architecture decision records (20: 19 historical + ADR-020 Next.js stack) — see `docs/adr/README.md`
-- `audits/` — stub → `docs/archive/dioxus-2026-08-evidence/` (22 dirs 3.9M; see `audits/README.md`)
-- `Designed/` — Pencil canvas `MainDesign.pen` (access via Pencil MCP only) + `README.md`
-- `docs/` — `TOC.md` hub + `agents/` + `archive/` (contracts/schema pruned — see `docs/README.md` + `docs/plan/ARCHIVE.md`)
-- `fixtures/`, `ops/` — deterministic fixtures and runbooks (`ops/` living Next.js: `nextjs-incident.md nextjs-recovery.md` — see `ops/README.md`)
-- `.agents/skills/` — workflow skills (canonical; `.claude/skills/` removed, see `Designed/README.md`)
+- `src/app/` Next.js App Router, `public/` assets
+- `docs/` → `TOC.md` hub + `plan/` 31 contexts (`ARCHIVE.md` canonical) + `adr/` 20 (ADR-020 living) + `contracts/next/` + `archive/` · `audits/` stub → `docs/archive/dioxus-2026-08-evidence/`
+- `Designed/MainDesign.pen` (Pencil MCP) · `fixtures/` `ops/` (runbooks `nextjs-incident/recovery.md`) · `.agents/skills/` 6
 
 ## Recovery
 

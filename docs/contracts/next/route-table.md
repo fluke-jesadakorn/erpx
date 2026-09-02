@@ -1,6 +1,6 @@
 # docs/contracts/next — Route Table (Living, Next.js)
 
-> **Parallel file — new.** Living counterpart to archived `docs/plan/traceability.md` (552 Rust RPCs). This table will grow as `src/app/api/*` routes are implemented. Each row must also update `CONTRACT_POLICY.md` + Prisma/Drizzle schema + `docs/plan/traceability.md` living section (ADR-020, Q18=A). Proto on `backup/rust-2026-09-02` (`sales/service.proto` etc) is archived — see `docs/contracts/README.md` + `docs/plan/LEGACY.md` + `CUTOVER.md:2026-09-02`.
+> Living counterpart to `docs/plan/traceability.md` (552 Rust RPCs archived on `backup/rust-2026-09-02`, see `docs/plan/ARCHIVE.md` + `CUTOVER.md`). Grows as `src/app/api/*` lands.
 
 ## Routes (initial — 1 example, rest TBD)
 
