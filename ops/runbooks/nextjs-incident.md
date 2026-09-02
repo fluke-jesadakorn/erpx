@@ -1,6 +1,6 @@
 # Next.js Production Incident Runbook
 
-> **Living — Next.js 16 / Vercel.** Replaces `docs/archive/ops-dioxus-2026-09-02/runbooks/web-production-incident.md` (Dioxus `:3004`). See `adr/ADR-020` + `docs/contracts/next/route-table.md`.
+> **Living — Next.js 16 / Vercel.** Replaces `docs/archive/ops-dioxus-2026-09-02/runbooks/web-production-incident.md` (Dioxus `:3004`). See `docs/adr/ADR-020` + `docs/contracts/next/route-table.md`.
 
 ## Server unavailable (Vercel / self-hosted Next.js)
 

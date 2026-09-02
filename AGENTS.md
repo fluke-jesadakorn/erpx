@@ -57,11 +57,11 @@ Keep `.env`, `.env.local`, `node_modules/`, `.next/`, and `out/` outside Git. Do
 
 - `src/app/` — Next.js App Router (layout, page, globals.css, route handlers)
 - `public/` — static assets
-- `Plan/` — business plans and traceability (`ARCHIVE.md` canonical for pruned baselines, `LEGACY.md` stub)
-- `adr/` — architecture decision records (20: 19 historical + ADR-020 Next.js stack) — see `adr/README.md`
+- `docs/plan/` — business plans and traceability (`ARCHIVE.md` canonical for pruned baselines, `LEGACY.md` stub)
+- `docs/adr/` — architecture decision records (20: 19 historical + ADR-020 Next.js stack) — see `docs/adr/README.md`
 - `audits/` — stub → `docs/archive/dioxus-2026-08-evidence/` (22 dirs 3.9M; see `audits/README.md`)
 - `Designed/` — Pencil canvas `MainDesign.pen` (access via Pencil MCP only) + `README.md`
-- `docs/` — `TOC.md` hub + `agents/` + `archive/` (contracts/schema pruned — see `docs/README.md` + `Plan/ARCHIVE.md`)
+- `docs/` — `TOC.md` hub + `agents/` + `archive/` (contracts/schema pruned — see `docs/README.md` + `docs/plan/ARCHIVE.md`)
 - `fixtures/`, `ops/` — deterministic fixtures and runbooks (`ops/` living Next.js: `nextjs-incident.md nextjs-recovery.md` — see `ops/README.md`)
 - `.agents/skills/` — workflow skills (canonical; `.claude/skills/` removed, see `Designed/README.md`)
 

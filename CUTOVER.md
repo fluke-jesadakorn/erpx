@@ -88,11 +88,11 @@ Finance is the first **production-real** vertical (Holding/Group, international-
 - Gate flips only after `TB(legacy) == TB(erpx)` + `aging(legacy) == aging(erpx)` for the closing date, plus `cargo xtask verify` green.
 - Evidence: `ImportChartCsv` (50 accounts) + 20 mixed-currency journals + hybrid vendor/customer invoices + 100 tx CSV bank import → match → reconcile → TB/BS/PL/aging → close/reopen → TB-match report under `audits/` (now `docs/archive/dioxus-2026-08-evidence/` 22 dirs + `backup/rust-2026-09-02:audits` 330 dirs).
 
-**Contracts added (wire-compatible, 26→31 RPCs):** `RevalueSubledgers`, `ImportChartCsv`, `ImportOpeningTrialBalance`, `GetFinancialStatements`, `ListAging` (see `crates/proto/proto/erpx/finance/service.proto` and `Plan/traceability.md`).
+**Contracts added (wire-compatible, 26→31 RPCs):** `RevalueSubledgers`, `ImportChartCsv`, `ImportOpeningTrialBalance`, `GetFinancialStatements`, `ListAging` (see `crates/proto/proto/erpx/finance/service.proto` and `docs/plan/traceability.md`).
 
 **Console:** `/finance` Overview (KPI/TB health) · Chart · Journals · Payables/Receivables · Bank Import CSV→Match→Reconcile · Periods Close/Reopen (proof dialog) · Reports TB/BS/PL/Aging; typed `@` chips + `ReferenceQueryService.search` + `FinanceShellStatus` Fresh/Stale/Offline/Denied.
 
-**Ops:** `FINANCE_BANK_PROVIDER_ENABLED=false` in v1; `fx_rates`/`reval_journal_link` in holding data pair; no new Topo tables beyond fx/reval link. `ops/` living Next.js runbooks (`ops/runbooks/nextjs-incident.md`, `nextjs-recovery.md`, `ops/README.md`) replace Dioxus `docs/archive/ops-dioxus-2026-09-02/`; `Plan/README.md` edit rule Q18=A still applies.
+**Ops:** `FINANCE_BANK_PROVIDER_ENABLED=false` in v1; `fx_rates`/`reval_journal_link` in holding data pair; no new Topo tables beyond fx/reval link. `ops/` living Next.js runbooks (`ops/runbooks/nextjs-incident.md`, `nextjs-recovery.md`, `ops/README.md`) replace Dioxus `docs/archive/ops-dioxus-2026-09-02/`; `docs/plan/README.md` edit rule Q18=A still applies.
 
 ## Verification
 

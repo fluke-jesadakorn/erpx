@@ -37,11 +37,11 @@ Environment via `.env` / `.env.local` (ignored, see `.env.example`). `node_modul
 ```
 src/app/            # App Router — layout.tsx, page.tsx, globals.css, (future route handlers)
 public/             # static assets (next.svg, vercel.svg etc)
-Plan/               # business plan (31 contexts) + traceability.md + ARCHIVE.md canonical
-adr/                # 20 ADRs (19 historical + ADR-020 Next.js stack) — see adr/README.md
+docs/plan/               # business plan (31 contexts) + traceability.md + ARCHIVE.md canonical
+docs/adr/                # 20 ADRs (19 historical + ADR-020 Next.js stack) — see docs/adr/README.md
 audits/             # stub → docs/archive/dioxus-2026-08-evidence/ (22 dirs 3.9M, see audits/README.md)
 Designed/           # Pencil canvas MainDesign.pen — edit only via Pencil MCP + README.md
-docs/               # TOC.md hub + agents/ + archive/ (contracts/schema pruned — see docs/README.md + Plan/ARCHIVE.md)
+docs/               # TOC.md hub + agents/ + archive/ (contracts/schema pruned — see docs/README.md + docs/plan/ARCHIVE.md)
 fixtures/ ops/      # fixtures + runbooks (ops/ living Next.js: nextjs-incident.md nextjs-recovery.md — see ops/README.md)
 .agents/skills/     # workflow skills (canonical; .claude/skills removed)
 ```
@@ -50,7 +50,7 @@ fixtures/ ops/      # fixtures + runbooks (ops/ living Next.js: nextjs-incident.
 
 ## Business context
 
-See `docs/TOC.md` (single hub) → `Plan/README.md` (vision, scope, 31 contexts, `@`-mention contract), `CONTEXT.md` (glossary), `Plan/traceability.md` (archived RPC table + living Next.js routes), `adr/` (20 decisions, ADR-020 is the Next.js stack). Legacy specs are archived on `backup/rust-2026-09-02` (`Plan/LEGACY.md`).
+See `docs/TOC.md` (single hub) → `docs/plan/README.md` (vision, scope, 31 contexts, `@`-mention contract), `CONTEXT.md` (glossary), `docs/plan/traceability.md` (archived RPC table + living Next.js routes), `docs/adr/` (20 decisions, ADR-020 is the Next.js stack). Legacy specs are archived on `backup/rust-2026-09-02` (`docs/plan/LEGACY.md`).
 
 ## Verification
 
