@@ -4,7 +4,25 @@
 
 > Every row links a requirement surface to its contract, implementation, and business-plan spec. Docs = code (archived).
 
+
 ## RPCs (≈552) — archived Rust table (see banner above; living Next.js routes are TBD)
+
+> **Archived Rust table — 552 rows, collapsed for readability.** Expand below; living Next.js routes are in `docs/contracts/next/route-table.md`.
+
+## Living — Next.js routes (TBD, grows as `src/app/api` lands)
+
+| Route | Method | Context | Spec (light → deep) | Proto (archived) | Status |
+|---|---|---|---|---|---|
+| `POST /api/sales/quotes` | POST | sales | `Plan/02/.../sales.md:9` → `03/sales.md:15` | `sales/service.proto:CreateQuote` | TBD |
+| `POST /api/finance/journals` | POST | finance | `Plan/02/.../finance.md:9` → `03/finance.md:15` | `finance/service.proto:CreateJournal` | TBD |
+| `POST /api/pos/sales` | POST | pos | `Plan/02/.../pos.md:9` → `03/pos.md:15` | `pos/service.proto:CreateSale` | TBD |
+| `GET /api/customer360/:id` | GET | customer_360 | `Plan/02/.../customer_360.md` | `customer_360/service.proto` | TBD |
+
+See `docs/contracts/next/route-table.md` for full living table.
+
+<details>
+<summary>Archived — Rust RPCs (≈552) — click to expand</summary>
+
 
 | RPC | Context | Contract | Implementation | Spec |
 |---|---|---|---|---|
@@ -561,6 +579,9 @@
 | GetHireHandoff | talent | `crates/proto/proto/erpx/talent/service.proto` | `crates/contexts/talent/src/application.rs` | `Plan/02-capabilities/*/talent.md` |
 | GetProposal | talent | `crates/proto/proto/erpx/talent/service.proto` | `crates/contexts/talent/src/application.rs` | `Plan/02-capabilities/*/talent.md` |
 | GetRecord | talent | `crates/proto/proto/erpx/talent/service.proto` | `crates/contexts/talent/src/application.rs` | `Plan/02-capabilities/*/talent.md` |
+
+
+</details>
 
 ## Reference routing — `@`-mentions
 
