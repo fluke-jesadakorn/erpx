@@ -152,7 +152,9 @@ a.chip:hover{transform:translateY(-1px);border-color:hsl(var(--primary))}
       <div class="flex-1"></div>
       <button id="themeBtn" aria-label="theme" class="inline-flex h-[38px] w-[38px] items-center justify-center rounded-[11px] border border-border bg-card transition hover:-translate-y-px hover:border-primary hover:text-primary"></button>
       <button id="bellBtn" aria-label="notifications" class="relative inline-flex h-[38px] w-[38px] items-center justify-center rounded-[11px] border border-border bg-card transition hover:-translate-y-px hover:border-primary hover:text-primary"><i data-lucide="bell" class="h-[19px] w-[19px]"></i><span class="absolute right-[7px] top-[7px] h-2 w-2 rounded-full bg-destructive ring-2 ring-card"></span></button>
-      <div id="meAv" class="inline-flex h-[34px] w-[34px] flex-none items-center justify-center rounded-full text-xs font-bold text-white ring-2 ring-white/40">HA</div>
+      <button id="roleChip" class="hidden items-center gap-1.5 rounded-[11px] border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary sm:inline-flex"></button>
+      <button id="meAv" class="inline-flex h-[34px] w-[34px] flex-none items-center justify-center rounded-full text-xs font-bold text-white ring-2 ring-white/40">HA</button>
+      <div id="roledd" class="absolute right-6 top-[62px] z-20 hidden w-[330px] rounded-2xl border border-border bg-card p-2 shadow-lift"></div>
       <div id="dd" class="absolute right-6 top-[62px] z-20 hidden w-[360px] rounded-2xl border border-border bg-card p-2 shadow-lift"></div>
     </div>
     <div class="mx-auto flex w-full max-w-[1280px] items-start gap-6 px-7 pb-16 pt-8 max-md:px-3.5">
@@ -338,6 +340,33 @@ const LANES=[
 {ctx:"procurement",id:"REQ-2026-014",t:"Approve MRO requisition $6.8K",why:"procurement-approver",due:"due today"},
 {ctx:"support",id:"TICKET-509",t:"Acknowledge stock mismatch",why:"SLA clock running",due:"1h12m",sla:4320}];
 const WIDGET={talent:"kanban",support:"kanban",projects:"tree",organization:"tree"};
+/* ---------- roles (lane-gated, super admin sees/does all) ---------- */
+const ROLES=[
+["super","Super Admin","all lanes · approves anything"],
+["finance-approver","Finance Approver","period-gate · close"],
+["procurement-approver","Procurement Approver","REQ approvals"],
+["sales-approver","Sales Approver","quotes expiring <3d"],
+["sales-rep","Sales Rep","quotes · orders"],
+["warehouse","Warehouse","stock · shortages"],
+["support","Support Agent","tickets · SLA <2h"],
+["hr-approver","HR Approver","leave · payroll"],
+["hiring-manager","Hiring Manager","offers"],
+["pm","Project Manager","WBS · blocked"],
+["marketing-ops","Marketing Ops","campaigns"],
+["platform","Platform Admin","holding · access"]];
+const OWNER={brand:"brand-owner",commercial:"billing-owner",identity_access:"security",organization:"platform",
+platform_administration:"platform",customer_authority:"privacy",support:"support",finance:"finance-approver",
+sales:"sales-approver",pos:"store-manager",assets:"ops",inventory:"warehouse",maintenance:"maintenance-lead",
+operations:"ops-lead",procurement:"procurement-approver",quality:"quality-lead",legal:"legal-approver",
+people_payroll:"hr-approver",crm:"sales-lead",marketing:"marketing-ops",manufacturing:"shop-lead",
+planning:"planner",projects:"pm",ecommerce:"store-ops",benefits:"hr-approver",learning:"people-lead",
+talent:"hiring-manager",field_service:"dispatcher",agent:"owners"};
+let ME={role:"super",name:"Holding Admin",av:"HA"};
+try{const s=JSON.parse(localStorage.getItem("erpx-me")||"null");if(s&&s.role)ME=s}catch(e){}
+function roleLabel(r){const f=ROLES.find(x=>x[0]===r);return f?f[1]:r}
+const PERSONAS={"super":["Holding Admin","HA"],"finance-approver":["Nisa","NC"],"procurement-approver":["Noon","NW"],"sales-approver":["Mali","MS"],"sales-rep":["Beam","BM"],"warehouse":["Dao","DA"],"support":["Aom","AO"],"hr-approver":["Fon","FO"],"hiring-manager":["Bee","BE"],"pm":["Top","TP"],"marketing-ops":["Mod","MO"],"platform":["Art","AT"]};
+function canAct(k,proof){if(ME.role==="super")return true;if(!proof)return true;return ME.role===(OWNER[k]||"__none__")}
+function needRole(k){return OWNER[k]||"owner"}
 /* in-memory demo state */
 const AUD={},SUG={},DONE_LANE={};
 function flowOf(k){return FLOW[k]||{stages:["Open","In progress","Done"],neg:["Blocked","Cancelled"],done:["Done"],alias:{},acts:{Open:[["Start progress","In progress"]],"In progress":[["Mark done","Done"],["Block","Blocked",1]],Blocked:[["Unblock","In progress"],["Cancel","Cancelled",1]],Done:[]}}}
@@ -346,6 +375,7 @@ function badgeFor(k,st){const f=flowOf(k);return f.done.includes(st)?"b-ok":f.ne
 function audit(k,id){const key=k+"/"+id;if(!AUD[key]){const r=CTX[k].rows.find(x=>x[0]===id);
   AUD[key]=[{by:"System",t:`Created · holding-isolated, outbox committed`,time:"2d"},{by:"Nisa",t:`Status moved to ${r?r[3]:"—"} — proof attached, audited.`,time:"5h"}]}return AUD[key]}
 function doAct(k,id,label,to,proof){const c=CTX[k];if(!c)return;const r=c.rows.find(x=>x[0]===id);if(!r)return;
+  if(!canAct(k,proof)){say(`Requires ${needRole(k)} — you are ${roleLabel(ME.role)}. Switch role via avatar.`);return}
   r[3]=to;r[4]=badgeFor(k,to);audit(k,id).unshift({by:"You",t:`${label}${proof?" · HumanDecisionProof attached":""} → ${to}.`,time:"now"});
   FEED.unshift({ctx:k,t:`${id}: ${label} → ${to}.`,tags:c.tags.slice(0,1),time:"0m",likes:0,by:"You",av:"YO",rr:id,cm:[]});
   say(proof?`Proof attached — ${label} done, posted to feed`:`${label} done, posted to feed`);
@@ -454,7 +484,7 @@ function setTheme(t){document.documentElement.classList.toggle("dark",t==="dark"
   $("themeBtn").innerHTML=`<i data-lucide="${t==="dark"?"sun":"moon"}" class="h-[19px] w-[19px]"></i>`;icons()}
 setTheme((()=>{try{return localStorage.getItem("erpx-theme")||"light"}catch(e){return"light"}})());
 $("themeBtn").onclick=()=>{const d=!document.documentElement.classList.contains("dark");setTheme(d?"dark":"light");say(d?"Dark mode on":"Light mode on")};
-$("meAv").style.cssText=avbg("Holding Admin");
+renderRole();
 /* ---------- shell ---------- */
 let nav=`<div class="flex items-center gap-3 px-5 pb-3.5 pt-[22px]"><div class="flex h-9 w-9 items-center justify-center rounded-[9px] text-[17px] font-extrabold text-white" style="background:#B3402A">E</div><div><b class="text-[16.5px] tracking-tight text-white">ERPX</b><small class="block text-[11px] font-medium text-[#857d6f]">Social ERP · Acme</small></div></div><div class="flex flex-col gap-0.5 px-3 pb-3.5">`;
 nav+=`<a class="nitem flex items-center gap-3 rounded-[9px] border border-transparent px-3 py-2 font-medium text-[#c9c2b6] hover:bg-white/10 hover:text-white" data-r="#/feed" href="#/feed"><i data-lucide="home" class="h-[18px] w-[18px] opacity-75"></i><span>Feed</span></a>`;
@@ -463,10 +493,29 @@ nav+=`<a class="nitem flex items-center gap-3 rounded-[9px] border border-transp
 nav+=`<a class="nitem flex items-center gap-3 rounded-[9px] border border-transparent px-3 py-2 font-medium text-[#c9c2b6] hover:bg-white/10 hover:text-white" data-r="#/journeys" href="#/journeys"><i data-lucide="route" class="h-[18px] w-[18px] opacity-75"></i><span>Journeys</span></a>`;
 for(const [g,ctxs] of GROUPS){nav+=`<div class="px-3 pb-1 pt-3.5 text-[10.5px] font-bold uppercase tracking-[.1em] text-[#857d6f]">${g}</div>`;
 for(const c of ctxs){nav+=`<a class="nitem flex items-center gap-3 rounded-[9px] border border-transparent px-3 py-2 font-medium text-[#c9c2b6] hover:bg-white/10 hover:text-white" data-r="#/ctx/${c}" href="#/ctx/${c}"><i data-lucide="${LICON[c]}" class="h-[18px] w-[18px] opacity-75"></i><span>${CTX[c].n}</span></a>`}}
-nav+=`</div><div class="mt-auto flex items-center gap-2.5 border-t border-white/10 p-4 px-5 text-xs text-[#857d6f]"><span class="pulse"></span><span>Acme Holding · Bangkok<br>Projection Fresh · audited</span></div>`;
+nav+=`</div><div class="mt-auto flex items-center gap-2.5 border-t border-white/10 p-4 px-5 text-xs text-[#857d6f]"><span class="pulse"></span><span>Acme Holding · Bangkok<br>Projection Fresh · audited<br><b id="meRole" class="text-white"></b></span></div>`;
 side.innerHTML=nav;
+renderRole();
 $("menuBtn").onclick=()=>document.body.classList.toggle("navopen");
-$("bellBtn").onclick=e=>{e.stopPropagation();dd.classList.toggle("hidden")};
+$("bellBtn").onclick=e=>{e.stopPropagation();dd.classList.toggle("hidden");const rd=$("roledd");if(rd)rd.classList.add("hidden")};
+document.addEventListener("click",e=>{if(!dd.contains(e.target))dd.classList.add("hidden");const rd2=$("roledd");if(rd2&&!rd2.contains(e.target)&&e.target.id!=="meAv"&&e.target.id!=="roleChip"&&!e.target.closest("#meAv")&&!e.target.closest("#roleChip"))rd2.classList.add("hidden")});
+/* role switcher */
+function renderRole(){$("meAv").textContent=ME.av;$("meAv").style.cssText=avbg(ME.name);
+  $("roleChip").innerHTML=(ME.role==="super"?'<i data-lucide="shield-check" class="h-3.5 w-3.5"></i> ':"")+roleLabel(ME.role);
+  const mr=$("meRole");if(mr)mr.textContent=ME.name+" · "+roleLabel(ME.role);
+  const rd=$("roledd");rd.innerHTML=`<h4 class="mx-3 mb-1 mt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Act as role</h4>`+
+  ROLES.map(r=>`<button class="flex w-full items-center gap-3 rounded-[11px] p-2.5 text-left text-sm hover:bg-muted" data-role="${r[0]}">
+  <span class="inline-flex h-[30px] w-[30px] flex-none items-center justify-center rounded-full text-[11px] font-bold text-white" style="${avbg((PERSONAS[r[0]]||["?","?"])[0])}">${(PERSONAS[r[0]]||["?","?"])[1]}</span>
+  <span><b>${r[1]}</b>${r[0]==="super"?' <span class="ml-1 rounded bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">ALL ACCESS</span>':""}<br><small class="text-muted-foreground">${r[2]}</small></span>
+  ${ME.role===r[0]?'<i data-lucide="check" class="ml-auto h-4 w-4 text-primary"></i>':""}</button>`).join("");
+  rd.querySelectorAll("[data-role]").forEach(b=>b.onclick=()=>setRole(b.dataset.role));icons()}
+function setRole(r){const p=PERSONAS[r]||["Someone","?"];ME={role:r,name:p[0],av:p[1]};
+  try{localStorage.setItem("erpx-me",JSON.stringify(ME))}catch(e){}
+  renderRole();$("roledd").classList.add("hidden");
+  say(`Now acting as ${ME.name} · ${roleLabel(r)}${r==="super"?" — all lanes, all approvals":""}`);
+  views((location.hash||"#/feed").replace("#/",""));icons()}
+$("meAv").onclick=e=>{e.stopPropagation();dd.classList.add("hidden");$("roledd").classList.toggle("hidden")};
+$("roleChip").onclick=e=>{e.stopPropagation();dd.classList.add("hidden");$("roledd").classList.toggle("hidden")};
 document.addEventListener("click",e=>{if(!dd.contains(e.target))dd.classList.add("hidden")});
 dd.innerHTML=`<h4 class="mx-3 mb-1 mt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notifications</h4>`+NOTIFS.map(n=>`<div class="flex items-start gap-3 rounded-[11px] p-2.5 text-[13.5px] hover:bg-muted"><div class="inline-flex h-[30px] w-[30px] flex-none items-center justify-center rounded-full text-[11px] font-bold text-white" style="${avbg(n[0])}">•</div><div><b>@</b>${n[0]}<br><small class="text-muted-foreground">${n[1]} ago</small></div></div>`).join("");
 /* mobile drawer */
@@ -499,7 +548,8 @@ function metCard(m,seed){return `<div class="met anim rounded-2xl border border-
 function views(r){
 document.querySelectorAll(".nitem").forEach(a=>a.classList.toggle("on",a.dataset.r===("#/"+r.split("/")[0]+(r.startsWith("ctx/")?"/"+r.split("/")[1]:""))||a.dataset.r===r));
 if(r==="feed"||r===""){
-const list=FEED.map((f,i)=>({f,i})).filter(({f})=>feedFilter==="all"||(feedFilter==="lanes"?!!(f.lane||f.sys):!f.lane&&!f.sys));
+const laneMine=f=>!f.lane||ME.role==="super"||ME.role===(OWNER[f.ctx]||"__none__");
+const list=FEED.map((f,i)=>({f,i})).filter(({f})=>feedFilter==="all"||(feedFilter==="lanes"?!!(f.lane||f.sys)&&laneMine(f):!f.lane&&!f.sys));
 col.innerHTML=page("Good morning, Acme","Acme Holding · Bangkok branch · newest first",
 `<span class="inline-flex items-center gap-1.5 rounded-[11px] border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-soft"><i data-lucide="building-2" class="h-3.5 w-3.5"></i> Acme Holding / Bangkok</span><a class="btn-primary" href="#/ctx/sales"><i data-lucide="plus" class="h-4 w-4"></i> Create quote</a>`,
 `<div class="anim anim-d1 grid grid-cols-4 gap-4 max-lg:grid-cols-2">${[["Open quotes","128"],["Orders to fulfill","56"],["Overdue approvals","7"],["Period close","Mar 2026"]].map(m=>metCard(m,"feed")).join("")}</div>
@@ -512,9 +562,11 @@ rail.innerHTML=`<div class="card anim"><h3 class="mb-1 flex items-center gap-2 t
 <div class="flex justify-end gap-2.5"><button class="btn-sec btn-sm" data-t>Reject</button><button class="btn-primary btn-sm" data-t>Apply</button></div></div>
 <div class="card anim"><h3 class="mb-2 text-[15.5px] font-semibold tracking-tight">Trending in Holding</h3><div class="flex flex-wrap gap-2">${["#month-close|24","#win|18","#sla|11","#po|9"].map(t=>{const p=t.split("|");return `<a class="rounded-xl border border-border bg-card px-3.5 py-2 text-[13px] transition hover:-translate-y-0.5 hover:border-primary hover:shadow-soft" href="#/tags"><b class="text-primary">${p[0]}</b> · ${p[1]}</a>`}).join("")}</div></div>`;
 bindCommon();bindFeed();icons();return}
-if(r==="today"){const lanes=LANES.filter(l=>!DONE_LANE[l.ctx+l.id]);
+if(r==="today"){const mine=l=>ME.role==="super"||ME.role===(OWNER[l.ctx]||"__none__");
+const lanes=LANES.filter(l=>!DONE_LANE[l.ctx+l.id]&&mine(l));
+const hidden=LANES.filter(l=>!DONE_LANE[l.ctx+l.id]&&!mine(l)).length;
 col.innerHTML=page("Today","Your digest · lanes first, then follows",`<button class="btn-sec" data-t>Mark all read</button>`,
-`<div class="anim"><b class="text-[13px]">Needs your role · ${lanes.length}</b><p class="mb-0 mt-1.5 text-[13.5px] text-muted-foreground">Act inline — every decision needs proof and lands in audit.</p></div>
+`<div class="anim"><b class="text-[13px]">Needs your role · ${lanes.length}</b><p class="mb-0 mt-1.5 text-[13.5px] text-muted-foreground">Act inline — every decision needs proof and lands in audit.${hidden?` ${hidden} more lane${hidden>1?"s":""} need${hidden>1?"":"s"} a different role.`:""}</p></div>
 <div class="flex flex-col gap-3">${lanes.length?lanes.map(l=>`<div class="anim rounded-2xl border border-border bg-card p-4 shadow-soft" style="border-left:4px solid hsl(var(--warning))">
 <div class="flex flex-wrap items-center gap-3"><div><b class="text-[14px]">${l.t}</b><div class="text-xs text-muted-foreground">${l.why} · <a class="chip" href="#/rec/${l.ctx}/${encodeURIComponent(l.id)}">@${l.ctx}/${l.id}</a></div></div>
 <div class="ml-auto flex items-center gap-2"><span class="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-700 dark:text-amber-400">${l.sla?`<span data-sla="${l.sla}">${l.due}</span>`:l.due}</span>
@@ -577,7 +629,9 @@ document.querySelectorAll("[data-sug]").forEach(b=>b.onclick=()=>{const[key,op]=
   if(op==="rerun"){SUG[key]={st:"Running"};views((location.hash||"").replace("#/",""));icons();
     setTimeout(()=>{SUG[key]={st:"Ready",d:Math.floor(Math.random()*65536).toString(16)};views((location.hash||"#/feed").replace("#/",""));icons()},900);return}
   if(op==="drift"){SUG[key]={st:"Conflicted"};say("Source drifted — suggestion Conflicted, nothing applied")}
-  else if(op==="apply"){SUG[key]={st:"Applied",d:"a1b2"};const[k,id]=key.split("#")[0].split("/");audit(k,id).unshift({by:"You",t:"Applied AI suggestion · version re-validated, digest a1b2.",time:"now"});say("Applied — version re-validated")}
+  else if(op==="apply"){const[k,id]=key.split("#")[0].split("/");
+  if(!canAct(k,1)){say(`Requires ${needRole(k)} — you are ${roleLabel(ME.role)}. Switch role via avatar.`);return}
+  SUG[key]={st:"Applied",d:"a1b2"};audit(k,id).unshift({by:"You",t:"Applied AI suggestion · version re-validated, digest a1b2.",time:"now"});say("Applied — version re-validated")}
   else{SUG[key]={st:"Rejected"};say("Rejected — nothing written")}
   views((location.hash||"#/feed").replace("#/",""));icons()});
 document.querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>{const[k,id]=b.dataset.save.split("|");const o=formVal(k);if(!o)return;
@@ -587,6 +641,7 @@ document.querySelectorAll("[data-rpost]").forEach(b=>b.onclick=()=>{const[k,id]=
   const i=document.querySelector(`[data-rci="${k}|${id}"]`);if(i&&i.value.trim()){audit(k,id).unshift({by:"You",t:i.value.trim()+" (typed @, audited)",time:"now"});say("Comment posted (typed @, audited)");views((location.hash||"").replace("#/",""));icons()}});
 document.querySelectorAll("[data-new]").forEach(b=>b.onclick=()=>openForm(b.dataset.new));
 document.querySelectorAll("[data-lane]").forEach(b=>b.onclick=()=>{const[ctx,id,label,proof]=b.dataset.lane.split("|");
+  if(!canAct(ctx,proof==="1")){say(`Requires ${needRole(ctx)} — you are ${roleLabel(ME.role)}. Switch role via avatar.`);return}
   DONE_LANE[ctx+id]=label;audit(ctx,id).unshift({by:"You",t:`${label} from Today lane${proof==="1"?" · HumanDecisionProof attached":""}.`,time:"now"});
   say(proof==="1"?"Proof attached — done":"Done — removed from lane");views("today");icons()});
 bindAt(document)}
