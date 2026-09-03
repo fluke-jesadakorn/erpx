@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `REQ-… · {lines} · {total} · {state}` — requisitions invite discussion before approval.
+- **Hashtags:** `#procurement #po #receipt` (holding scope).
+- **Follow:** requisitions/POs; **Lane:** pending approvals for `procurement-approver` (flow: `_journeys.md` Journey 2).
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/procurement`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/procurement.md`.

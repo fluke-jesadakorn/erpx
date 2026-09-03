@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `{campaign} · {channel} · {window} · {state}` — provider-scoped, abuse windows visible.
+- **Hashtags:** `#campaign #lead` (holding scope).
+- **Follow:** campaigns; **Lane:** verification/domain + scheduler claims for `marketing-ops`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/marketing`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/marketing.md`.

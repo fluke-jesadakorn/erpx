@@ -47,6 +47,11 @@ Generic 3 (holding-isolation / time-bounded / append-only) — see `_shared-cont
 2. **Exception:** see original deep — validates invariants + degraded `Stale/Degraded`.
 3. **AI-assisted:** see `_shared-contract.md` (pins ≥3 refs → ghost → Apply/Conflicted).
 
+## Feed mapping (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Emit:** threads ARE posts; `ShareFeedItem`→re-post with provenance; hashtag topics scoped per `CreateHashtagTopic`.
+- **Comments:** canonical infra (`RecordActivityRail`); moderation tombstones propagate to feeds.
+
 ## Route & UI delta
 
 - **Route:** `/work (threads) + /reference/item/:id` + `/work + /reference/item/:id`

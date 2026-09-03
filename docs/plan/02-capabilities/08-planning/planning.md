@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `SCN-… · {horizon} · {shortages} · {state}` — projections discussed, never edited in feed.
+- **Hashtags:** `#plan #shortage #scenario` (holding scope).
+- **Follow:** scenarios; **Lane:** released recommendations for `planner`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/planning`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/planning.md`.

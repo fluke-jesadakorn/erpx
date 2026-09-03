@@ -17,6 +17,10 @@ Designed/MainDesign.pen 15M (Pencil) · audits/ stub→archive · src/app/ (layo
 
 `README.md` → `docs/TOC.md` → `MAP.md` search `sales` → `02/sales.md`+`03/sales.md`+`_shared-contract.md`
 
+## Feed — 0 hops
+
+`/feed` → Role Lane (needs-your-role) → Following (newest-first) → post → canonical record. Paradigm: `docs/plan/04-social-paradigm.md` (ADR-021).
+
 ## Walk (3 paths)
 
 1. Newcomer: `README.md`→`docs/plan/01-vision`→`MAP.md` 31→`CONTEXT.md`→`src/app/page.tsx`→history `CUTOVER.md`+`ARCHIVE.md`→`git checkout backup/rust-2026-09-02`

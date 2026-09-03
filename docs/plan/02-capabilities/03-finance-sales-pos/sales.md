@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `QT-… · {customer} · {total} · {status}` — status changes are post updates.
+- **Hashtags:** `#quote #win #fulfillment` (holding scope).
+- **Follow:** quote/order status changes; **Lane:** expiring <3d for `sales-approver` role.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/sales`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/sales.md`.

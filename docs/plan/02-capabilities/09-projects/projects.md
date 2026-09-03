@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `PROJ-… · {wbs-node} · {progress} · {state}` — WBS nodes post progress; the chain is a followable story.
+- **Hashtags:** `#project #milestone #blocked` (holding scope).
+- **Follow:** projects/nodes; **Lane:** blocked nodes + dependency decisions for `pm`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/projects`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/projects.md`.

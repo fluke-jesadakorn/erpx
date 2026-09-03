@@ -47,6 +47,11 @@ Generic 3 (holding-isolation / time-bounded / append-only) — see `_shared-cont
 2. **Exception:** see original deep — validates invariants + degraded `Stale/Degraded`.
 3. **AI-assisted:** see `_shared-contract.md` (pins ≥3 refs → ghost → Apply/Conflicted).
 
+## Feed mapping (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Emit:** node progress→post updates; `ProposeDependency`→discussion post; `DecideDependency`→post update with proof.
+- **Comments:** open; WBS chain renders as story card (flow: `_journeys.md` spine).
+
 ## Route & UI delta
 
 - **Route:** `/project + /work` + `/work + /reference/item/:id`

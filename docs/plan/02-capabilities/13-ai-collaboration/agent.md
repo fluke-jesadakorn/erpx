@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `ASSIGN-… · {agent} · {task} · {state}`; agent comments attributed, `proposed` until human publishes.
+- **Hashtags:** `#agent #assignment` (team scope); private sessions never feed.
+- **Follow:** assignments; **Lane:** version/output approvals for owner roles.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/agent`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/agent.md`.

@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `MFG-… · {spec} · {stage} · {yield}` — stage moves are post updates.
+- **Hashtags:** `#workorder #bom #yield` (branch scope).
+- **Follow:** orders; **Lane:** blocked/disposition for `shop-lead`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/manufacturing`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/manufacturing.md`.

@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `SALE-… · {register} · {total} · {status}`.
+- **Hashtags:** `#sale #refund #shift` (branch scope).
+- **Follow:** sales + refunds; **Lane:** refund approvals for `store-manager` (bounded by settlement).
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/pos`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/pos.md`.

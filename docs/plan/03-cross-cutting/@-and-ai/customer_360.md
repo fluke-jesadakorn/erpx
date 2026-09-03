@@ -38,6 +38,11 @@ Generic 3 (holding-isolation / time-bounded / append-only) — see `_shared-cont
 2. **Exception:** see original deep — validates invariants + degraded `Stale/Degraded`.
 3. **AI-assisted:** see `_shared-contract.md` (pins ≥3 refs → ghost → Apply/Conflicted).
 
+## Feed mapping (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Emit:** read-cards only (federated projection); `AddCustomerNote`→comment on owning record.
+- **Comments:** open; no lane (alerts live in owning contexts).
+
 ## Route & UI delta
 
 - **Route:** `/work (Customer 360) + /reference/item/:id` + `/work + /reference/item/:id`

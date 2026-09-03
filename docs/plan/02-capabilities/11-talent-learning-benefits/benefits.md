@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `{plan} · enrollment {window} · {state}` — windows announced as posts.
+- **Hashtags:** `#benefits #enrollment` (holding scope).
+- **Follow:** plans; **Lane:** window closing <7d for enrolled staff.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/benefits`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/benefits.md`.

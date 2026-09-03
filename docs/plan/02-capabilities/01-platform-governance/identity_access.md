@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `{principal} · {role} · expires {date}` — directory internals stay private; grants are the post.
+- **Hashtags:** `#access #roles` (restricted audience).
+- **Follow:** own grants + reviews; **Lane:** expiring <7d + break-glass for `security` role.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/identity_access`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/identity_access.md`.

@@ -39,6 +39,11 @@
 2. **Exception:** Void + inventory reservation release — validates refund bounded.
 3. **AI-assisted:** see `_shared-contract.md` (pins ≥3 refs → ghost → Apply/Conflicted).
 
+## Feed mapping (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Emit:** `CreateSale`→post; `RequestRefund`→lane (`store-manager`, bounded); `CompleteSale`→post update; shift-close→System section.
+- **Comments:** open; refunds show bound (`≤ settlement`).
+
 ## Route & UI delta
 
 - **Route:** `/pos + /sales` + `/work + /reference/item/:id` — terminal sale flow

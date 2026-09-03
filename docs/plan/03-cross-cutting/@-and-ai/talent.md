@@ -47,6 +47,11 @@ Generic 3 (holding-isolation / time-bounded / append-only) — see `_shared-cont
 2. **Exception:** see original deep — validates invariants + degraded `Stale/Degraded`.
 3. **AI-assisted:** see `_shared-contract.md` (pins ≥3 refs → ghost → Apply/Conflicted).
 
+## Feed mapping (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Emit:** requisitions/offers→restricted-audience posts; erasures→tombstones honored in feed; offers→lane (`hiring-manager`).
+- **Comments:** hiring team only; candidate PII never in text.
+
 ## Route & UI delta
 
 - **Route:** `/talent + /people` + `/work + /reference/item/:id`

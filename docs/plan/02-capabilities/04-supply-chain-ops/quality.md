@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `CHECK-… · {lot} · {result} · {gate}` — gates block ops completion visibly.
+- **Hashtags:** `#quality #gate` (branch scope).
+- **Follow:** lots in your area; **Lane:** failed checks for `quality-lead`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/quality`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/quality.md`.

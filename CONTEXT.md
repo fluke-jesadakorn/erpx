@@ -32,6 +32,17 @@ Business language for ERPX. Code-derived, implementation-free.
 - **Provenance** — Provider/model/prompt digest describing how a suggestion was produced.
 - **Conflicted** — Patch state when host or source version/digest drifted since the suggestion was computed; requires re-request or explicit conflict acceptance.
 
+## Social engagement (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post** — A record rendered as a feed card; the record stays truth, the post is its projection.
+- **Feed** — Newest-first stream: Role Lane → Following → Hashtags → System. No engagement ranking.
+- **Role Lane** — Pinned feed section for items needing your role (approvals, SLA breaches, period gates).
+- **Follow** — Subscribe to record/person/hashtag; drives feed + notifications, never grants access.
+- **Hashtag/Topic** — Scoped classifier (`#tag`); local / holding-moderated / system-reserved; placement-aware visibility.
+- **Reaction** — Append-only signal (ack/seen); explicitly not a decision, never moves workflow.
+- **Notification** — Mention/follow/lane event in the inbox; unread counts on lanes + mentions only.
+- **Composer** — One box to post/comment/mention/tag across contexts; agent output enters as `proposed`.
+
 ## Commercial & platform
 
 - **Commercial Catalog Revision** — Versioned commercial catalog mirrored from Stripe.

@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `{course} · {progress} · {state}` — completions celebrated (reactions welcome).
+- **Hashtags:** `#learning #course` (holding scope).
+- **Follow:** courses; **Lane:** overdue mandatory training for `people-lead`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/learning`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/learning.md`.

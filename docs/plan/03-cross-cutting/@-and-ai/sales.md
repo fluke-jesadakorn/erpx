@@ -49,6 +49,11 @@ Generic 3 (holding-isolation / time-bounded / append-only) — see `_shared-cont
 2. **Exception:** Reject/Expire + credit — validates invariants + degraded `Stale/Degraded`.
 3. **AI-assisted:** pins ≥3 refs (`@projects/proj-…`, `@procurement/req-…`, `@finance/inv-…`) → ghost preview → Apply only on version match else Conflicted — see `_shared-contract.md` for lifecycle.
 
+## Feed mapping (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Emit:** `CreateQuote`→post; `Send/Accept/Reject`→post updates; `ExpireQuote`→lane (`sales-approver`, <3d).
+- **Comments:** open; AI ghost cites `@projects + @crm` (flow: `_journeys.md` Journey 1).
+
 ## Route & UI delta
 
 - **Route:** `/sales + /work + /reference/item/:id`

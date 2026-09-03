@@ -45,6 +45,11 @@ Generic 3 (holding-isolation / time-bounded / append-only) — see `_shared-cont
 2. **Exception:** see original deep — validates invariants + degraded `Stale/Degraded`.
 3. **AI-assisted:** see `_shared-contract.md` (pins ≥3 refs → ghost → Apply/Conflicted).
 
+## Feed mapping (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Emit:** `CreateOpportunity`→post (revenue story start); stage moves→post updates; handoffs→mention-rich posts.
+- **Comments:** open; attribution shown as backlink chips.
+
 ## Route & UI delta
 
 - **Route:** `/sales + /marketing (CRM)` + `/work + /reference/item/:id`

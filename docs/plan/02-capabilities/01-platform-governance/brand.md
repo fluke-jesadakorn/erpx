@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `DRAFT-… · {category} · v{n} · {status}` — drafts visible to brand team only until published.
+- **Hashtags:** `#brand #identity` (holding scope).
+- **Follow:** drafts + publishes; **Lane:** publish approvals for `brand-owner`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/brand`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/brand.md`.

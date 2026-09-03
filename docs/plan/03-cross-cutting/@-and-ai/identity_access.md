@@ -47,6 +47,11 @@ Generic 3 (holding-isolation / time-bounded / append-only) — see `_shared-cont
 2. **Exception:** see original deep — validates invariants + degraded `Stale/Degraded`.
 3. **AI-assisted:** see `_shared-contract.md` (pins ≥3 refs → ghost → Apply/Conflicted).
 
+## Feed mapping (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Emit:** grants→private posts to grantee + lane on expiry <7d; directory sync→System section; break-glass→lane (`security`).
+- **Comments:** restricted; directory internals never in feed text.
+
 ## Route & UI delta
 
 - **Route:** `/identity/principal + /identity/grant + /reference/item/:id` + `/work + /reference/item/:id`

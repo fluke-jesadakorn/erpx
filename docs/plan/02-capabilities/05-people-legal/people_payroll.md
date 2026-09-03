@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `{leave/expense/run} · {person} · {state}` — amounts masked to authorized roles.
+- **Hashtags:** `#leave #expense #payroll` (restricted audience).
+- **Follow:** own requests + team runs; **Lane:** pending decisions for `hr-approver`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/people_payroll`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/people_payroll.md`.

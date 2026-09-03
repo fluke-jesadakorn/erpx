@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `WO-… · {asset} · {state}` — completion requires evidence attachment.
+- **Hashtags:** `#workorder #downtime` (branch scope).
+- **Follow:** assigned orders; **Lane:** blocked/overdue for `maintenance-lead`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/maintenance`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/maintenance.md`.

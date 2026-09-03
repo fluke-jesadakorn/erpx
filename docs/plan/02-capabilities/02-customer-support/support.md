@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `TICKET-… · {customer} · SLA {clock} · {status}`; customer replies are post updates, internal notes never feed.
+- **Hashtags:** `#ticket #sla #incident` (`#incident` system-reserved).
+- **Follow:** tickets + incidents; **Lane:** SLA <2h + `BroadcastIncident` holding-lane.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/support`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/support.md`.

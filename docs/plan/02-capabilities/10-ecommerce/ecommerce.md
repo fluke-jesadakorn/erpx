@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `{listing} · {price} · {state}` — listings publish as posts; checkouts flow to sales.
+- **Hashtags:** `#listing #channel #return` (holding scope).
+- **Follow:** listings/channels; **Lane:** returns + fulfillment exceptions for `store-ops`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/ecommerce`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/ecommerce.md`.

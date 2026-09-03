@@ -10,6 +10,11 @@
 | `POST /api/finance/journals` | POST | finance | `docs/plan/02/.../finance.md:9` → `03/finance.md:15` | `finance/service.proto:CreateJournal` | TBD |
 | `POST /api/pos/sales` | POST | pos | `docs/plan/02/.../pos.md:9` → `03/pos.md:15` | `pos/service.proto:CreateSale` | TBD |
 | `GET /api/customer360/:id` | GET | customer_360 | `docs/plan/02/.../customer_360.md` | `customer_360/service.proto` | TBD |
+| `GET /feed` | GET | collaboration | `docs/plan/04-social-paradigm.md` Feed | `collaboration/service.proto:ListFeed` | TBD |
+| `GET /today` | GET | collaboration | `docs/plan/04-social-paradigm.md` digest | `collaboration/service.proto:ListMyDay` | TBD |
+| `GET /tags/:tag` | GET | collaboration | `docs/plan/04-social-paradigm.md` hashtags | `collaboration/service.proto:ListHashtagTopics` | TBD |
+| `GET /posts/:id` | GET | collaboration | `docs/plan/04-social-paradigm.md` Post | `collaboration/service.proto:GetFeedItem` | TBD |
+| `GET /notifications` | GET | collaboration | `docs/plan/04-social-paradigm.md` inbox | `collaboration/service.proto:ListMentionInbox` | TBD |
 
 See `docs/contracts/next/route-table.md` for full living table.
 

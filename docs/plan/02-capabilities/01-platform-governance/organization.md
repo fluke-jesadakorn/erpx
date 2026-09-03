@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `{node} · {kind} · {status}` — nodes ARE the audience circles others see.
+- **Hashtags:** `#org #holding #branch` (placement-scoped).
+- **Follow:** node changes in your lineage; **Lane:** suspend/archive for `platform` role.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/organization`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/organization.md`.

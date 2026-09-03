@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `MOVE-… · {sku} · {qty} · {from→to}` — moves post on commit.
+- **Hashtags:** `#stock #shortage` (branch scope).
+- **Follow:** watched SKUs; **Lane:** shortages/blocked reservations for `warehouse` role.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/inventory`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/inventory.md`.

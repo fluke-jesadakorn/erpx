@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `EXC-… · {area} · {severity} · {state}` — exceptions are first-class posts.
+- **Hashtags:** `#ops #exception` (branch scope).
+- **Follow:** area queues; **Lane:** escalations + approval decisions for `ops-lead`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/operations`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/operations.md`.

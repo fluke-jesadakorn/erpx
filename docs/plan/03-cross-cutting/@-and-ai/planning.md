@@ -47,6 +47,11 @@ Generic 3 (holding-isolation / time-bounded / append-only) — see `_shared-cont
 2. **Exception:** see original deep — validates invariants + degraded `Stale/Degraded`.
 3. **AI-assisted:** see `_shared-contract.md` (pins ≥3 refs → ghost → Apply/Conflicted).
 
+## Feed mapping (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Emit:** `RunScenario`→post with shortage summary; `ReleaseRecommendation`→lane (`planner`); overrides→post updates with reason.
+- **Comments:** open; numbers are projection truth.
+
 ## Route & UI delta
 
 - **Route:** `/planning + /operations` + `/work + /reference/item/:id`

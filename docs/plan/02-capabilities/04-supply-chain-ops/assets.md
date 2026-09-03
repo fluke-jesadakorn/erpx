@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `ASSET-… · {name} · {state}` — lifecycle events are post updates.
+- **Hashtags:** `#asset #maintenance` (branch scope).
+- **Follow:** assigned assets; **Lane:** degraded/under-maintenance for `ops` role.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/assets`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/assets.md`.

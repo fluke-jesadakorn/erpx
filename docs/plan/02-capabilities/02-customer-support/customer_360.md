@@ -21,6 +21,12 @@
 
 **Gaps:** code-thin area (e.g., no service yet or projection-only); business intent preserved, implementation follows.
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** federated profile card `{customer} · {open tickets} · {last touch}` (read-only projection, no composer).
+- **Hashtags:** `#customer` (holding scope).
+- **Follow:** profile changes; **Lane:** none (read-only; alerts surface in owning contexts).
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/customer_360`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/customer_360.md`.

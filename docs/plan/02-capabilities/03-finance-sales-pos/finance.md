@@ -29,6 +29,12 @@
 
 **Console routes under `/finance`:** `Overview` (KPI strip, TB health), `Chart`, `Journals`, `Subledgers`, `AP` (`/finance/ap`), `AR` (`/finance/ar`), `Cash`, `Bank → Import CSV → Match → Reconcile`, `Periods → Close/Reopen` (human-proof dialog), `Reports → TB/BS/PL/Aging`, `Budgets` (deferred). Reuses `FinanceShellStatus` (Fresh/Stale/Offline/Denied) + typed `@` chips.
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `J-… · {period} · balanced={yes/no} · {status}` — solemn tone, finance roles audience.
+- **Hashtags:** `#month-close #journal #treasury` (`#month-close` holding-moderated).
+- **Follow:** period + postings; **Lane:** period-gate for `finance-approver` (`HumanDecisionProof`); `ClosePeriod` posts to followers + lane only, never global.
+
 **Verification:** `cargo xtask check-affected --dry-run` → `cargo xtask check-affected`; `cargo xtask test-affected` (owns `crates/contexts/finance` + console feature); final `cargo xtask verify` (format, clippy warnings-denied, workspace tests, Dioxus build, SQLx acceptance, runtime smoke). Acceptance: 2-company holding, import chart CSV (50 accounts), post 20 mixed-currency journals, hybrid vendor/customer invoices (with/without PO), CSV bank import (100 tx) → match → reconcile, run TB/BS/PL/aging, `BeginPeriodClose` → `ClosePeriod` with proof, assert closed-period posting fails, `ReopenPeriod` succeeds, parallel TB-match report equals fixture legacy TB.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/finance.md`. Traceability: `docs/plan/traceability.md`. Cutover: `CUTOVER.md` + `ops/`.

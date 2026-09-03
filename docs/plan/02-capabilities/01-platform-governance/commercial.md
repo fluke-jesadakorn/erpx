@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `PLAN-… · {catalog} · {price} · {status}` — mirrors Stripe state, never edits billing.
+- **Hashtags:** `#billing #plan #entitlement` (holding scope).
+- **Follow:** catalog publishes + grace extensions; **Lane:** grace/overdue for `billing-owner`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/commercial`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/commercial.md`.

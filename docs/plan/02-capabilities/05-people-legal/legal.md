@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `{contract/doc} · v{n} · {state}` — holds propagate visibly; deletions respect holds.
+- **Hashtags:** `#contract #hold` (restricted audience).
+- **Follow:** matters you counsel; **Lane:** approvals + hold conflicts for `legal-approver`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/legal`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/legal.md`.

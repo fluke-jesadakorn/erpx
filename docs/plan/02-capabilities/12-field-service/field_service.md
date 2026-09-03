@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `JOB-… · {site} · {visit} · {state}` — visits post evidence on completion.
+- **Hashtags:** `#field #visit #dispatch` (branch scope).
+- **Follow:** orders/dispatches; **Lane:** exceptions + billing release for `dispatcher`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/field_service`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/field_service.md`.

@@ -1,4 +1,4 @@
-# ADR — Index (20 decisions, 2026-09-02 era)
+# ADR — Index (21 decisions, 2026-09-03 era)
 
 > **Single index for `docs/adr/`.** `docs/TOC.md:25` + `AGENTS.md:61` + `README.md:41` all count here.
 
@@ -7,11 +7,11 @@
 - **Reconfirmed 15 ✅ — still authoritative on `development` (Next.js era):** `001 holding-isolation`, `003 no-long-term-dual-writes`, `004 expiring-rbac`, `005 global-read-auditing`, `006 support-capabilities`, `007 stripe-authority`, `008 operations-boundaries`, `009 marketing-crm-boundaries`, `011 customer-data-plane-agent`, `012 three-layer-corporate-identity`, `013 holding-branch-database-and-directory-authority`, `015 retire-n8n`, `017 universal-record-collaboration-and-human-approved-ai` (475L), `018 open-source-modular-ai-and-hosted-stepper-pricing`, `019 universal-record-mentions-and-per-module-field-ai`
 - **Deprecated 3 — Archived (Dioxus/Rust era, see `backup/rust-2026-09-02`):** `010 dioxus-target-strategy`, `014 cqrs-bounded-context-modular-monolith`, `016 dioxus-native-atomic-cutover`
 - **Superseded 1 → 020:** `002 cqrs and replaceable read models` → `ADR-020 nextjs-stack`
-- **Living 1:** `020 nextjs-stack` (Next.js 16 App Router, React 19, Tailwind 4, Prisma/Drizzle TBD, REST/tRPC `src/app/api/**` replaces Tonic `:50051`)
+- **Living 2:** `020 nextjs-stack` (Next.js 16 App Router, React 19, Tailwind 4, Prisma/Drizzle TBD, REST/tRPC `src/app/api/**` replaces Tonic `:50051`) + `021 social-engagement-layer` (ERP-as-social-network: posts/feed/hashtags/follow, reactions signal-only)
 
 All 20 have banners `> **Next.js era: Reconfirmed (2026-09-02)` / `> **Deprecated — Archived` / `> **Superseded by ADR-020` (added `fe6c286e`).
 
-## Files (20)
+## Files (21)
 
 ```
 ADR-001-holding-isolation.md (13L) — DB-per-Holding, opaque bindings
@@ -34,6 +34,7 @@ ADR-017-universal-record-collaboration-and-human-approved-ai.md (475L) — @ typ
 ADR-018-open-source-modular-ai-and-hosted-stepper-pricing.md (72L)
 ADR-019-universal-record-mentions-and-per-module-field-ai.md (25L)
 ADR-020-nextjs-stack.md (30L) — living (2026-09-02)
+ADR-021-social-engagement-layer.md — living (2026-09-03, speculative plan)
 ```
 
 ## Change rule

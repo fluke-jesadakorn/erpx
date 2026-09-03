@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `REQ-… · {role} · {pipeline} · {state}` — pipeline moves post updates; candidate PII never in feed.
+- **Hashtags:** `#hiring #offer` (restricted audience; erasures honored).
+- **Follow:** requisitions; **Lane:** offer approvals for `hiring-manager`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/talent`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/talent.md`.

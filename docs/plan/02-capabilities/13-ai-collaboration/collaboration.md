@@ -21,6 +21,11 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Home of the paradigm:** threads ARE posts; feed/hashtag RPCs (`ListFeed`, `ShareFeedItem`, `CreateHashtagTopic`, `FollowHashtag`) are canonical infrastructure for all 31 contexts.
+- **Hashtags:** topic registry per scope; **Follow:** threads; **Lane:** mention inbox (`ListMentionInbox`).
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/collaboration`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/collaboration.md`.

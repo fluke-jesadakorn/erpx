@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `OPP-… · {account} · {stage} · {value}` — the start of the revenue story (`_journeys.md` Journey 1).
+- **Hashtags:** `#opportunity #account` (holding scope).
+- **Follow:** owned opportunities; **Lane:** stalled stage >14d for `sales-lead`.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/crm`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/crm.md`.

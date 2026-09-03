@@ -44,6 +44,11 @@ Generic 3 (holding-isolation / time-bounded / append-only) — see `_shared-cont
 2. **Exception:** see original deep — validates invariants + degraded `Stale/Degraded`.
 3. **AI-assisted:** see `_shared-contract.md` (pins ≥3 refs → ghost → Apply/Conflicted).
 
+## Feed mapping (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Emit:** node create/rename/reparent→lineage-audience posts; suspend/archive→lane (`platform`).
+- **Comments:** open within lineage; sibling branches see only shared nodes.
+
 ## Route & UI delta
 
 - **Route:** `/platform/holdings (PlatformHoldings) + /operations` + `/work + /reference/item/:id`

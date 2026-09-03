@@ -42,6 +42,11 @@ Generic 3 (holding-isolation / time-bounded / append-only) — see `_shared-cont
 2. **Exception:** see original deep — validates invariants + degraded `Stale/Degraded`.
 3. **AI-assisted:** see `_shared-contract.md` (pins ≥3 refs → ghost → Apply/Conflicted).
 
+## Feed mapping (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Emit:** `Create`→post; failed `RecordResult`→lane (`quality-lead`) + blocks ops visibly; `Release`→post update.
+- **Comments:** open; gate state on the card.
+
 ## Route & UI delta
 
 - **Route:** `/quality + /operations` + `/work + /reference/item/:id`

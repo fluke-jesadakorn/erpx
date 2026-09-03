@@ -52,6 +52,10 @@ No aspirational contexts added.
 **Canonical cross-module spine (deep specs):** `projects/proj-2026-001` —dependsOn→ `procurement/req-2026-014` —fulfills→ `inventory/move-2026-883` —billedBy→ `finance/journal-2026-117` —authoredWith→ `people_payroll/assign-2026-042` —blocks→ `support/ticket-2026-509` (and `field_service`/`assets`/`operations` legs). This chain is the E2E smoke for search/resolve/backlinks and for AI multi-ref read-and-fill; every deep file references it.
 Implementation ships sequentially (Q14=A) but spec covers all 31; see `docs/plan/03-cross-cutting/@-and-ai/<context>.md` per module.
 
+## Engagement paradigm (social)
+
+ERPX reads like a social network and audits like an ERP: every record is a **Post** in a newest-first **Feed** (Role Lane → Following → Hashtags → System), classified by scoped **#hashtags**, linked by typed **@**, followed without access change. Canonical: `docs/plan/04-social-paradigm.md` (ADR-021). Reactions are signals only; decisions stay human-proofed (ADR-017 §4).
+
 ## Architecture appendix
 
 For deep technical detail (DDD/Clean/Hex, CQRS/outbox, holding isolation, RBAC, PITR) see `docs/adr/` (20 ADRs — ADR-020 is the Next.js stack) and `docs/plan/LEGACY.md` (pruned baselines archived on `backup/rust-2026-09-02`). Architecture is not duplicated here.

@@ -14,6 +14,11 @@
 | `/api/finance/periods/:id/close` | POST | finance | `02/finance.md:9 ClosePeriod` → `03/finance.md:15` | `finance/service.proto:ClosePeriod` (HumanDecisionProof) | Living (TBD) | — |
 | `/api/pos/sales` | POST | pos | `02/pos.md:9 CreateSale` → `03/pos.md:15` | `pos/service.proto:CreateSale` | Living (TBD) | — |
 | `/api/commercial/catalog-plans` | POST | commercial | `02/commercial.md:9 CreateCatalogPlan` → `03/commercial.md:15` | `commercial/service.proto:CreateCatalogPlan` | Living (TBD) | — |
+| `/feed` | GET | collaboration | `docs/plan/04-social-paradigm.md` Feed (newest-first + lanes) | `collaboration/service.proto:ListFeed` | Living (TBD) | — |
+| `/today` | GET | collaboration | `04-social-paradigm.md` digest | `collaboration/service.proto:ListMyDay` | Living (TBD) | — |
+| `/tags/:tag` | GET | collaboration | `04-social-paradigm.md` hashtags | `collaboration/service.proto:ListHashtagTopics` | Living (TBD) | — |
+| `/posts/:id` | GET | collaboration | `04-social-paradigm.md` Post | `collaboration/service.proto:GetFeedItem` | Living (TBD) | — |
+| `/notifications` | GET | collaboration | `04-social-paradigm.md` inbox | `collaboration/service.proto:ListMentionInbox` | Living (TBD) | — |
 
 Add rows as `src/app/api/<ctx>/*` handlers land. Keep this file in sync with `docs/plan/MAP.md` and `docs/plan/traceability.md` living section.
 

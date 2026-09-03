@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** binding change `{customer} · {grant/revoke} · {scope}` — privacy-role audience only.
+- **Hashtags:** `#access #binding` (restricted audience).
+- **Follow:** bindings; **Lane:** merges + access-audit for `privacy` role.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/customer_authority`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/customer_authority.md`.

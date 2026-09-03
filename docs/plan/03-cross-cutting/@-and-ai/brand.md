@@ -43,6 +43,11 @@ Generic 3 (holding-isolation / time-bounded / append-only) — see `_shared-cont
 2. **Exception:** see original deep — validates invariants + degraded `Stale/Degraded`.
 3. **AI-assisted:** see `_shared-contract.md` (pins ≥3 refs → ghost → Apply/Conflicted).
 
+## Feed mapping (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Emit:** `CreateDraft`→team-only post; `PublishDraft`→holding post; `Rollback`→post update with reason.
+- **Comments:** brand team; category locks shown on the card.
+
 ## Route & UI delta
 
 - **Route:** `/platform (corporate identity) + /marketing` + `/work + /reference/item/:id`

@@ -51,6 +51,11 @@
 2. **Exception:** Posting to Closed rejected `InvalidPeriodTransition`/`CloseApprovalSeparation`/`HumanDecisionRequired`.
 3. **AI-assisted:** see `_shared-contract.md` (pins ≥3 refs → ghost → Apply/Conflicted).
 
+## Feed mapping (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Emit:** `CreateJournal`→draft post; `PostJournal`→post update; `ClosePeriod`→`#month-close` + finance lane only; bank CSV import→System section.
+- **Comments:** finance roles only; amounts are record truth, never feed-computed.
+
 ## Route & UI delta
 
 - **Route:** `/finance` Overview(KPI/TB health), Chart, Journals, Subledgers, AP `/finance/ap`, AR `/finance/ar`, Cash, Bank Import CSV→Match→Reconcile, Periods Close/Reopen (human-proof dialog), Reports TB/BS/PL/Aging, Budgets(deferred) + `/work + /reference/item/:id` (light `finance.md:30` canonical, not generic `/finance`)

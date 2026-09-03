@@ -21,6 +21,12 @@
 
 
 
+## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Post template:** `{holding} · {provisioning/backup} · {state}` — platform-role audience only.
+- **Hashtags:** `#platform #provisioning #backup` (`#platform` system-reserved).
+- **Follow:** holdings you operate; **Lane:** failed provisioning/PITR for `platform` role.
+
 **Verification:** `cargo xtask test-affected` (owns `crates/contexts/platform_administration`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
 
 ASCII: see `docs/plan/03-cross-cutting/@-and-ai/platform_administration.md`.

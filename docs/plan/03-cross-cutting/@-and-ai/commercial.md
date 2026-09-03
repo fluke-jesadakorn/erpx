@@ -39,6 +39,11 @@
 2. **Exception:** ApplyBillingEvent failure → dead-letter replay (CQRS DLQ).
 3. **AI-assisted:** see `_shared-contract.md`.
 
+## Feed mapping (paradigm: `docs/plan/04-social-paradigm.md`)
+
+- **Emit:** `PublishCatalogPlan`→post; `GrantGraceExtension`→lane (`billing-owner`); billing events→post updates (mirror only).
+- **Comments:** open; amounts mirror Stripe, never edited in feed.
+
 ## Route & UI delta
 
 - **Route:** `/settings/billing + /platform/holdings` + `/work + /reference/item/:id`
