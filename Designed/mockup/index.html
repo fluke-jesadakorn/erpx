@@ -113,6 +113,47 @@ body{font-family:Inter,-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-ser
 .jedge{flex:none;align-self:center;text-align:center;color:hsl(var(--muted-foreground));font-size:11px;min-width:64px;white-space:nowrap}
 .fresh{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:hsl(var(--muted-foreground))}
 .fresh::before{content:"";width:7px;height:7px;border-radius:50%;background:hsl(150 55% 40%)}
+/* ---- FB-inspired enterprise layer (demo-only additions, logic untouched) ---- */
+:root{--fb-blue:199 89% 40%}
+.dark{--fb-blue:199 89% 60%}
+h1,h2{letter-spacing:-.02em}
+.fbtabs{display:flex;align-items:stretch;gap:2px;height:100%}
+.fbtabs a{position:relative;display:inline-flex;align-items:center;gap:7px;padding:0 16px;color:hsl(var(--muted-foreground));font-weight:600;font-size:13.5px;border-radius:10px;text-decoration:none}
+.fbtabs a:hover{background:hsl(var(--muted));color:hsl(var(--foreground))}
+.fbtabs a.on{color:hsl(var(--primary))}
+.fbtabs a.on::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:hsl(var(--primary))}
+.fbtabs .cnt{font-size:11px;font-weight:700;background:hsl(var(--destructive));color:#fff;border-radius:99px;padding:1px 7px}
+.storyrow{display:flex;gap:12px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:thin}
+.story{flex:none;width:118px;border-radius:14px;border:1px solid hsl(var(--border));background:hsl(var(--card));padding:10px;cursor:pointer;transition:.15s;box-shadow:0 1px 2px rgba(28,20,12,.06)}
+.story:hover{transform:translateY(-2px);box-shadow:0 2px 8px rgba(28,20,12,.10);border-color:hsl(var(--primary))}
+.story .ring{width:44px;height:44px;border-radius:50%;padding:2.5px;background:conic-gradient(hsl(var(--primary)),hsl(var(--warning)),hsl(var(--primary)));margin-bottom:8px}
+.story .ring>span{display:flex;width:100%;height:100%;border-radius:50%;background:hsl(var(--card));align-items:center;justify-content:center;border:2px solid hsl(var(--card))}
+.story.ok .ring{background:hsl(var(--border))}
+.post{border-radius:18px;border:1px solid hsl(var(--border));background:hsl(var(--card));box-shadow:0 1px 2px rgba(28,20,12,.06)}
+.post:hover{box-shadow:0 2px 8px rgba(28,20,12,.10)}
+.pact{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex:1;border-radius:9px;padding:8px 6px;font-size:13px;font-weight:600;color:hsl(var(--muted-foreground));border:0;background:none;transition:.13s}
+.pact:hover{background:hsl(var(--muted));color:hsl(var(--primary))}
+.pact.on{color:hsl(var(--primary))}
+.cover{display:flex;align-items:center;gap:14px;border-radius:18px;border:1px solid hsl(var(--border));background:hsl(var(--card));padding:18px 20px;box-shadow:0 1px 2px rgba(28,20,12,.06)}
+.cicon{width:52px;height:52px;flex:none;border-radius:15px;display:flex;align-items:center;justify-content:center;background:hsl(var(--primary));color:hsl(var(--primary-foreground));box-shadow:0 1px 2px rgba(28,20,12,.25)}
+.contact{display:flex;align-items:center;gap:10px;border-radius:10px;padding:7px 9px;transition:.13s;cursor:pointer;border:0;background:none;width:100%;text-align:left;font:inherit;color:inherit}
+.contact:hover{background:hsl(var(--muted))}
+.dot{width:9px;height:9px;border-radius:50%;background:#31a24c;border:2.5px solid hsl(var(--card));margin-left:-16px;margin-top:20px;flex:none}
+#dock{position:fixed;right:18px;bottom:18px;z-index:65;display:flex;flex-direction:column;gap:10px;align-items:flex-end}
+#chatpanel{position:fixed;right:18px;bottom:86px;z-index:66;width:330px;max-width:calc(100vw - 36px);border-radius:16px;border:1px solid hsl(var(--border));background:hsl(var(--card));box-shadow:0 30px 80px -20px rgba(0,0,0,.5);overflow:hidden}
+.chathead{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;box-shadow:0 4px 14px rgba(0,0,0,.3);cursor:pointer;border:2.5px solid hsl(var(--card))}
+#bottombar{position:fixed;left:0;right:0;bottom:0;z-index:40;display:none;border-top:1px solid hsl(var(--border));background:hsl(var(--card)/.92);backdrop-filter:blur(14px);padding:6px 4px calc(6px + env(safe-area-inset-bottom))}
+#bottombar a{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 2px;border-radius:10px;font-size:10.5px;font-weight:600;color:hsl(var(--muted-foreground));text-decoration:none}
+#bottombar a.on{color:hsl(var(--primary))}
+.skel{position:relative;overflow:hidden;background:hsl(var(--muted));border-radius:10px;min-height:14px}
+.skel::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,hsl(var(--card)/.7),transparent);animation:sh 1.1s infinite}
+@keyframes sh{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+.prog{height:6px;border-radius:99px;background:hsl(var(--muted));overflow:hidden}
+.prog>i{display:block;height:100%;border-radius:99px;background:hsl(var(--primary))}
+@media(max-width:1100px){.fbtabs a{padding:0 10px}.fbtabs a span.lbl{display:none}}
+@media(max-width:820px){#bottombar{display:flex}#dock{bottom:76px}}
+@media(prefers-reduced-motion:reduce){.anim{animation:none}.skel::after{animation:none}}
+:focus-visible{outline:2px solid hsl(var(--ring));outline-offset:2px}
 </style>
 <style>
 .btn-primary{display:inline-flex;align-items:center;gap:8px;border-radius:11px;padding:10px 18px;
@@ -142,27 +183,35 @@ a.chip:hover{transform:translateY(-1px);border-color:hsl(var(--primary))}
 <div class="flex min-h-screen">
   <aside id="side" class="side-ink sticky top-0 flex h-screen w-72 flex-none flex-col overflow-auto border-r border-white/10 text-[#e8e6fa]"></aside>
   <div class="flex min-w-0 flex-1 flex-col">
-    <div class="sticky top-0 z-10 flex h-[66px] items-center gap-2.5 border-b border-border bg-card/80 px-6 backdrop-blur-xl">
+    <div class="sticky top-0 z-30 border-b border-border bg-card/85 backdrop-blur-xl">
+    <div class="flex h-[62px] items-center gap-2.5 px-6">
       <button id="menuBtn" aria-label="menu" class="hidden h-[38px] w-[38px] items-center justify-center rounded-[11px] border border-border bg-card max-md:inline-flex"><i data-lucide="menu" class="h-5 w-5"></i></button>
-      <div id="searchBox" class="flex w-[360px] max-w-[38vw] cursor-pointer items-center gap-2.5 rounded-[11px] bg-muted px-3.5 py-2.5 text-muted-foreground max-md:max-w-none">
+      <a href="#/feed" class="flex h-9 w-9 flex-none items-center justify-center rounded-[9px] text-[17px] font-extrabold text-white md:hidden" style="background:#B3402A">E</a>
+      <div id="searchBox" class="flex w-[340px] max-w-[36vw] cursor-pointer items-center gap-2.5 rounded-full bg-muted px-4 py-2.5 text-muted-foreground max-md:max-w-none max-md:flex-1">
         <i data-lucide="search" class="h-4 w-4"></i>
-        <input id="q" placeholder="Search or type @…  (filters this view)" class="w-full bg-transparent text-foreground outline-none placeholder:text-muted-foreground">
+        <input id="q" placeholder="Search ERPX" class="w-full bg-transparent text-foreground outline-none placeholder:text-muted-foreground">
         <kbd class="hidden flex-none rounded-md border border-border border-b-2 bg-card px-1.5 py-px font-mono text-[11px] text-muted-foreground md:block">⌘K</kbd>
       </div>
-      <div class="flex-1"></div>
-      <button id="themeBtn" aria-label="theme" class="inline-flex h-[38px] w-[38px] items-center justify-center rounded-[11px] border border-border bg-card transition hover:-translate-y-px hover:border-primary hover:text-primary"></button>
-      <button id="bellBtn" aria-label="notifications" class="relative inline-flex h-[38px] w-[38px] items-center justify-center rounded-[11px] border border-border bg-card transition hover:-translate-y-px hover:border-primary hover:text-primary"><i data-lucide="bell" class="h-[19px] w-[19px]"></i><span class="absolute right-[7px] top-[7px] h-2 w-2 rounded-full bg-destructive ring-2 ring-card"></span></button>
-      <button id="roleChip" class="hidden items-center gap-1.5 rounded-[11px] border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary sm:inline-flex"></button>
+      <nav class="fbtabs mx-auto max-lg:hidden" id="fbtabs" aria-label="primary"></nav>
+      <div class="flex-1 lg:hidden"></div>
+      <button id="themeBtn" aria-label="theme" class="inline-flex h-[38px] w-[38px] items-center justify-center rounded-full border border-border bg-card transition hover:-translate-y-px hover:border-primary hover:text-primary"></button>
+      <button id="bellBtn" aria-label="notifications" class="relative inline-flex h-[38px] w-[38px] items-center justify-center rounded-full border border-border bg-card transition hover:-translate-y-px hover:border-primary hover:text-primary"><i data-lucide="bell" class="h-[19px] w-[19px]"></i><span class="absolute right-[7px] top-[7px] h-2 w-2 rounded-full bg-destructive ring-2 ring-card"></span></button>
+      <button id="roleChip" class="hidden items-center gap-1.5 rounded-full border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary sm:inline-flex"></button>
       <button id="meAv" class="inline-flex h-[34px] w-[34px] flex-none items-center justify-center rounded-full text-xs font-bold text-white ring-2 ring-white/40">HA</button>
-      <div id="roledd" class="absolute right-6 top-[62px] z-20 hidden w-[330px] rounded-2xl border border-border bg-card p-2 shadow-lift"></div>
-      <div id="dd" class="absolute right-6 top-[62px] z-20 hidden w-[360px] rounded-2xl border border-border bg-card p-2 shadow-lift"></div>
+      <div id="roledd" class="absolute right-6 top-[58px] z-20 hidden w-[340px] rounded-2xl border border-border bg-card p-2 shadow-lift"></div>
+      <div id="dd" class="absolute right-6 top-[58px] z-20 hidden w-[360px] rounded-2xl border border-border bg-card p-2 shadow-lift"></div>
     </div>
-    <div class="mx-auto flex w-full max-w-[1280px] items-start gap-6 px-7 pb-16 pt-8 max-md:px-3.5">
+    <nav class="fbtabs hidden h-[46px] items-stretch justify-center px-4 max-lg:flex" id="fbtabsM" aria-label="primary mobile"></nav>
+    </div>
+    <div class="mx-auto flex w-full max-w-[1280px] items-start gap-6 px-7 pb-24 pt-6 max-md:px-3.5">
       <div id="col" class="flex min-w-0 flex-1 flex-col gap-[18px]"></div>
-      <div id="rail" class="sticky top-[92px] flex w-[348px] flex-none flex-col gap-4 max-lg:hidden"></div>
+      <div id="rail" class="sticky top-[132px] flex w-[348px] flex-none flex-col gap-4 max-lg:hidden"></div>
     </div>
   </div>
 </div>
+<nav id="bottombar" aria-label="mobile"></nav>
+<div id="dock"></div>
+<div id="chatpanel" class="hidden"></div>
 <div id="toast" class="fixed bottom-6 left-1/2 z-[60] hidden max-w-[90vw] -translate-x-1/2 rounded-[10px] border border-white/10 bg-[#1e1a15] px-5 py-3 text-[13.5px] font-medium text-[#f5f1e9] shadow-2xl transition"></div>
 <div id="pal" class="fixed inset-0 z-[70] hidden bg-[#0a0919]/50 px-5 pb-5 pt-[14vh] backdrop-blur-[3px]">
   <div class="mx-auto max-w-[620px] overflow-hidden rounded-[18px] border border-border bg-card shadow-2xl">
@@ -486,11 +535,18 @@ setTheme((()=>{try{return localStorage.getItem("erpx-theme")||"light"}catch(e){r
 $("themeBtn").onclick=()=>{const d=!document.documentElement.classList.contains("dark");setTheme(d?"dark":"light");say(d?"Dark mode on":"Light mode on")};
 renderRole();
 /* ---------- shell ---------- */
-let nav=`<div class="flex items-center gap-3 px-5 pb-3.5 pt-[22px]"><div class="flex h-9 w-9 items-center justify-center rounded-[9px] text-[17px] font-extrabold text-white" style="background:#B3402A">E</div><div><b class="text-[16.5px] tracking-tight text-white">ERPX</b><small class="block text-[11px] font-medium text-[#857d6f]">Social ERP · Acme</small></div></div><div class="flex flex-col gap-0.5 px-3 pb-3.5">`;
+let nav=`<div class="flex items-center gap-3 px-5 pb-3.5 pt-[22px]"><div class="flex h-9 w-9 items-center justify-center rounded-[9px] text-[17px] font-extrabold text-white" style="background:#B3402A">E</div><div><b class="text-[16.5px] tracking-tight text-white">ERPX</b><small class="block text-[11px] font-medium text-[#857d6f]">Social ERP · Acme</small></div></div>
+<div class="mx-3 mb-3 flex items-center gap-3 rounded-2xl bg-white/[.06] p-3" id="meCard"><div id="meCardAv" class="inline-flex h-[40px] w-[40px] flex-none items-center justify-center rounded-full text-[13px] font-bold text-white">HA</div><div class="min-w-0"><b id="meCardName" class="block truncate text-[14px] text-white">Holding Admin</b><small id="meCardRole" class="block truncate text-[11.5px] text-[#a89f8f]">Super Admin · switch via avatar</small></div></div>
+<div class="flex flex-col gap-0.5 px-3 pb-3.5">`;
 nav+=`<a class="nitem flex items-center gap-3 rounded-[9px] border border-transparent px-3 py-2 font-medium text-[#c9c2b6] hover:bg-white/10 hover:text-white" data-r="#/feed" href="#/feed"><i data-lucide="home" class="h-[18px] w-[18px] opacity-75"></i><span>Feed</span></a>`;
 nav+=`<a class="nitem flex items-center gap-3 rounded-[9px] border border-transparent px-3 py-2 font-medium text-[#c9c2b6] hover:bg-white/10 hover:text-white" data-r="#/today" href="#/today"><i data-lucide="calendar-days" class="h-[18px] w-[18px] opacity-75"></i><span>Today</span></a>`;
+nav+=`<a class="nitem flex items-center gap-3 rounded-[9px] border border-transparent px-3 py-2 font-medium text-[#c9c2b6] hover:bg-white/10 hover:text-white" data-r="#/events" href="#/events"><i data-lucide="calendar-heart" class="h-[18px] w-[18px] opacity-75"></i><span>Events</span></a>`;
 nav+=`<a class="nitem flex items-center gap-3 rounded-[9px] border border-transparent px-3 py-2 font-medium text-[#c9c2b6] hover:bg-white/10 hover:text-white" data-r="#/tags" href="#/tags"><i data-lucide="tag" class="h-[18px] w-[18px] opacity-75"></i><span>Tags</span></a>`;
 nav+=`<a class="nitem flex items-center gap-3 rounded-[9px] border border-transparent px-3 py-2 font-medium text-[#c9c2b6] hover:bg-white/10 hover:text-white" data-r="#/journeys" href="#/journeys"><i data-lucide="route" class="h-[18px] w-[18px] opacity-75"></i><span>Journeys</span></a>`;
+nav+=`<div class="px-3 pb-1 pt-3.5 text-[10.5px] font-bold uppercase tracking-[.1em] text-[#857d6f]">Shortcuts</div>`;
+nav+=`<a class="nitem flex items-center gap-3 rounded-[9px] border border-transparent px-3 py-2 font-medium text-[#c9c2b6] hover:bg-white/10 hover:text-white" data-r="#/ctx/sales" href="#/ctx/sales"><i data-lucide="file-text" class="h-[18px] w-[18px] opacity-75"></i><span>Sales group</span></a>`;
+nav+=`<a class="nitem flex items-center gap-3 rounded-[9px] border border-transparent px-3 py-2 font-medium text-[#c9c2b6] hover:bg-white/10 hover:text-white" data-r="#/ctx/support" href="#/ctx/support"><i data-lucide="life-buoy" class="h-[18px] w-[18px] opacity-75"></i><span>Support group</span></a>`;
+nav+=`<a class="nitem flex items-center gap-3 rounded-[9px] border border-transparent px-3 py-2 font-medium text-[#c9c2b6] hover:bg-white/10 hover:text-white" data-r="#/tags" href="#/tags"><i data-lucide="hash" class="h-[18px] w-[18px] opacity-75"></i><span>#month-close</span></a>`;
 for(const [g,ctxs] of GROUPS){nav+=`<div class="px-3 pb-1 pt-3.5 text-[10.5px] font-bold uppercase tracking-[.1em] text-[#857d6f]">${g}</div>`;
 for(const c of ctxs){nav+=`<a class="nitem flex items-center gap-3 rounded-[9px] border border-transparent px-3 py-2 font-medium text-[#c9c2b6] hover:bg-white/10 hover:text-white" data-r="#/ctx/${c}" href="#/ctx/${c}"><i data-lucide="${LICON[c]}" class="h-[18px] w-[18px] opacity-75"></i><span>${CTX[c].n}</span></a>`}}
 nav+=`</div><div class="mt-auto flex items-center gap-2.5 border-t border-white/10 p-4 px-5 text-xs text-[#857d6f]"><span class="pulse"></span><span>Acme Holding · Bangkok<br>Projection Fresh · audited<br><b id="meRole" class="text-white"></b></span></div>`;
@@ -503,12 +559,26 @@ document.addEventListener("click",e=>{if(!dd.contains(e.target))dd.classList.add
 function renderRole(){$("meAv").textContent=ME.av;$("meAv").style.cssText=avbg(ME.name);
   $("roleChip").innerHTML=(ME.role==="super"?'<i data-lucide="shield-check" class="h-3.5 w-3.5"></i> ':"")+roleLabel(ME.role);
   const mr=$("meRole");if(mr)mr.textContent=ME.name+" · "+roleLabel(ME.role);
-  const rd=$("roledd");rd.innerHTML=`<h4 class="mx-3 mb-1 mt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Act as role</h4>`+
-  ROLES.map(r=>`<button class="flex w-full items-center gap-3 rounded-[11px] p-2.5 text-left text-sm hover:bg-muted" data-role="${r[0]}">
+  const mcA=$("meCardAv"),mcN=$("meCardName"),mcR=$("meCardRole");
+  if(mcA){mcA.textContent=ME.av;mcA.style.cssText=avbg(ME.name)}
+  if(mcN)mcN.textContent=ME.name; if(mcR)mcR.textContent=roleLabel(ME.role)+" · tap avatar to switch";
+  renderTabs();
+  const rd=$("roledd");rd.innerHTML=`<div class="px-2 pt-1"><input id="roleQ" class="input" placeholder="Search roles…"></div><h4 class="mx-3 mb-1 mt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Act as role</h4><div id="roleList"></div>`;
+  const paintRoles=q=>{const list=$("roleList");if(!list)return;const qq=(q||"").toLowerCase();
+    list.innerHTML=ROLES.filter(r=>!qq||(r[1]+r[2]+r[0]).toLowerCase().includes(qq)).map(r=>`<button class="flex w-full items-center gap-3 rounded-[11px] p-2.5 text-left text-sm hover:bg-muted" data-role="${r[0]}">
   <span class="inline-flex h-[30px] w-[30px] flex-none items-center justify-center rounded-full text-[11px] font-bold text-white" style="${avbg((PERSONAS[r[0]]||["?","?"])[0])}">${(PERSONAS[r[0]]||["?","?"])[1]}</span>
   <span><b>${r[1]}</b>${r[0]==="super"?' <span class="ml-1 rounded bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">ALL ACCESS</span>':""}<br><small class="text-muted-foreground">${r[2]}</small></span>
-  ${ME.role===r[0]?'<i data-lucide="check" class="ml-auto h-4 w-4 text-primary"></i>':""}</button>`).join("");
+  ${ME.role===r[0]?'<i data-lucide="check" class="ml-auto h-4 w-4 text-primary"></i>':""}</button>`).join("")||'<p class="px-3 py-2 text-sm text-muted-foreground">No roles match.</p>';
+    list.querySelectorAll("[data-role]").forEach(b=>b.onclick=()=>setRole(b.dataset.role))};
+  paintRoles("");const rq=$("roleQ");if(rq)rq.oninput=()=>paintRoles(rq.value);
   rd.querySelectorAll("[data-role]").forEach(b=>b.onclick=()=>setRole(b.dataset.role));icons()}
+function renderTabs(){const r=(location.hash||"#/feed").replace("#/","");
+  const laneN=LANES.filter(l=>!DONE_LANE[l.ctx+l.id]&&(ME.role==="super"||ME.role===(OWNER[l.ctx]||"__none__"))).length;
+  const tabs=[["#/feed","home","Home"],["#/today","calendar-days","Today",laneN||""],["#/journeys","route","Journeys"],["#/events","calendar-heart","Events"],["#/tags","tag","Tags"]];
+  const html=tabs.map(t=>{const on=(t[0]==="#/"+r.split("/")[0])||(t[0]==="#/feed"&&(r===""||r==="feed"));return `<a href="${t[0]}" class="${on?"on":""}"><i data-lucide="${t[1]}" class="h-[19px] w-[19px]"></i><span class="lbl">${t[2]}</span>${t[3]?`<span class="cnt">${t[3]}</span>`:""}</a>`}).join("");
+  const a=$("fbtabs"),b=$("fbtabsM");if(a)a.innerHTML=html;if(b)b.innerHTML=html;
+  const bb=$("bottombar");if(bb)bb.innerHTML=[["#/feed","home","Feed"],["#/today","calendar-days","Today"],["#/events","calendar-heart","Events"],["#/tags","tag","Tags"],["#/journeys","route","Walks"]].map(t=>{const on=(t[0]==="#/"+r.split("/")[0])||(t[0]==="#/feed"&&(r===""||r==="feed"));return `<a href="${t[0]}" class="${on?"on":""}"><i data-lucide="${t[1]}" class="h-5 w-5"></i>${t[2]}${t[0]==="#/today"&&laneN?` · ${laneN}`:""}</a>`}).join("");
+  icons()}
 function setRole(r){const p=PERSONAS[r]||["Someone","?"];ME={role:r,name:p[0],av:p[1]};
   try{localStorage.setItem("erpx-me",JSON.stringify(ME))}catch(e){}
   renderRole();$("roledd").classList.add("hidden");
@@ -517,7 +587,7 @@ function setRole(r){const p=PERSONAS[r]||["Someone","?"];ME={role:r,name:p[0],av
 $("meAv").onclick=e=>{e.stopPropagation();dd.classList.add("hidden");$("roledd").classList.toggle("hidden")};
 $("roleChip").onclick=e=>{e.stopPropagation();dd.classList.add("hidden");$("roledd").classList.toggle("hidden")};
 document.addEventListener("click",e=>{if(!dd.contains(e.target))dd.classList.add("hidden")});
-dd.innerHTML=`<h4 class="mx-3 mb-1 mt-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Notifications</h4>`+NOTIFS.map(n=>`<div class="flex items-start gap-3 rounded-[11px] p-2.5 text-[13.5px] hover:bg-muted"><div class="inline-flex h-[30px] w-[30px] flex-none items-center justify-center rounded-full text-[11px] font-bold text-white" style="${avbg(n[0])}">•</div><div><b>@</b>${n[0]}<br><small class="text-muted-foreground">${n[1]} ago</small></div></div>`).join("");
+dd.innerHTML=`<div class="mx-1 mb-1 flex items-center justify-between"><h4 class="mx-2 mt-2 text-[15px] font-bold">Notifications</h4><button class="rounded-full px-2.5 py-1 text-xs font-semibold text-primary hover:bg-muted" data-t>Mark all read</button></div>`+NOTIFS.map(n=>`<div class="flex items-start gap-3 rounded-[11px] p-2.5 text-[13.5px] hover:bg-muted"><div class="relative flex-none"><div class="inline-flex h-[38px] w-[38px] items-center justify-center rounded-full text-[12px] font-bold text-white" style="${avbg(n[0])}">${(n[0].match(/\b\w/g)||["N"]).join("").slice(0,2).toUpperCase()}</div><span class="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full bg-green-500 ring-2 ring-card"></span></div><div class="min-w-0"><div>${n[0]}</div><small class="text-xs text-primary font-semibold">${n[1]} ago</small></div><span class="ml-auto mt-2 h-2.5 w-2.5 flex-none rounded-full bg-primary"></span></div>`).join("")+`<p class="px-3 py-2 text-[11px] text-muted-foreground">Unread on lanes + mentions only · demo data</p>`;
 /* mobile drawer */
 const mstyle=document.createElement("style");
 mstyle.textContent="@media(max-width:820px){#side{position:fixed;left:0;top:0;bottom:0;z-index:20;width:272px;transform:translateX(-105%);transition:.25s;box-shadow:0 0 60px rgba(0,0,0,.4)}body.navopen #side{transform:none}}";
@@ -525,15 +595,22 @@ document.head.appendChild(mstyle);
 /* ---------- views ---------- */
 let feedFilter="all";
 function page(title,sub,actions,body){return `<div class="anim flex flex-wrap items-end justify-between gap-3.5"><div><h1 class="m-0 text-[27px] font-bold tracking-tight">${title}</h1><p class="mb-0 mt-1.5 text-[13.5px] text-muted-foreground">${sub}</p></div><div class="flex flex-wrap gap-2.5">${actions}</div></div>`+body}
-function laneCard(f){const sys=!!f.sys;return `<div class="anim flex items-start gap-3 rounded-2xl border border-border bg-card p-4 shadow-soft" style="border-left:4px solid ${sys?"hsl(var(--info))":"hsl(var(--warning))"}"><div class="flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] ${sys?"bg-sky-500/10 text-sky-600":"bg-amber-500/10 text-amber-600"}"><i data-lucide="${sys?"megaphone":"flag"}" class="h-[17px] w-[17px]"></i></div><div><b class="text-[13.5px]">${f.lane||"System broadcast"}</b><div class="text-xs text-muted-foreground">${f.why||f.sys}</div></div></div>`}
+function laneCard(f){const sys=!!f.sys;return `<div class="anim mb-3 flex items-start gap-3 rounded-2xl border border-border bg-muted/60 p-3.5" style="border-left:4px solid ${sys?"hsl(var(--info))":"hsl(var(--warning))"}"><div class="flex h-[36px] w-[36px] flex-none items-center justify-center rounded-full ${sys?"bg-sky-500/15 text-sky-600":"bg-amber-500/15 text-amber-600"}"><i data-lucide="${sys?"megaphone":"flag"}" class="h-[17px] w-[17px]"></i></div><div class="min-w-0"><b class="text-[13.5px]">${f.lane||"System broadcast"}</b><div class="text-xs text-muted-foreground">${f.why||f.sys}</div></div></div>`}
+function storyRowHTML(){const items=[
+ {t:"Close gate",s:"4d left",ctx:"finance",id:"J-2026-119",urg:1,ic:"flag"},
+ {t:"REQ $6.8K",s:"due today",ctx:"procurement",id:"REQ-2026-014",urg:1,ic:"clipboard-list"},
+ {t:"SLA 1h12m",s:"TICKET-509",ctx:"support",id:"TICKET-509",urg:1,ic:"life-buoy"},
+ {t:"Revenue",s:"crm→finance",ctx:"",id:"",urg:0,ic:"route"},
+ {t:"Month-close",s:"#month-close",ctx:"",id:"",urg:0,ic:"party-popper"}];
+ return `<div class="anim anim-d1"><div class="mb-2 flex items-center justify-between"><b class="text-[13.5px]">Needs attention</b><a href="#/today" class="text-xs font-semibold text-primary">See all in Today</a></div><div class="storyrow">`+items.map(s=>`<div class="story ${s.urg?"":"ok"}" ${s.ctx?`data-href="#/rec/${s.ctx}/${s.id}"`:`data-href="#/today"`}><div class="ring"><span><i data-lucide="${s.ic}" class="h-5 w-5 text-primary"></i></span></div><b class="block text-[12.5px] leading-tight">${s.t}</b><small class="text-[11.5px] text-muted-foreground">${s.s}</small></div>`).join("")+`</div><p class="mt-1 text-[11px] text-muted-foreground">Demo-only status row — lanes live in Today, no ephemeral stories stored.</p></div>`}
 function feedCard(f,i){
 const c=CTX[f.ctx];
-return `<div class="anim rounded-[18px] border border-border bg-card p-5 shadow-soft transition hover:shadow-lift">${f.lane||f.sys?laneCard(f):""}
-<div class="mb-1.5 mt-1 flex items-center gap-3"><div class="inline-flex h-[34px] w-[34px] flex-none items-center justify-center rounded-[10px] text-xs font-bold text-white ring-2 ring-white/40" style="${avbg(f.by)}">${f.av}</div><div><div class="text-sm font-semibold">${f.by}</div><div class="mt-px text-xs text-muted-foreground">${c?c.n:"System"} · ${f.time} ago &nbsp;${f.tags.map(t=>`<span class="chip">${t}</span>`).join("")}</div></div></div>
-<div class="my-2.5 text-[14.5px]">${f.t} ${f.rr?`<a class="chip" href="#/rec/${f.ctx}/${encodeURIComponent(f.rr)}">@${f.ctx}/${f.rr}</a>`:""}</div>
-<div class="mt-3 flex flex-wrap items-center gap-2"><button class="react inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-[13px] font-semibold text-muted-foreground transition hover:-translate-y-px hover:border-primary hover:text-primary" data-like="${i}"><i data-lucide="heart" class="h-[15px] w-[15px]"></i><span>${f.likes}</span></button><button class="react inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-[13px] font-semibold text-muted-foreground transition hover:-translate-y-px hover:border-primary hover:text-primary" data-c="${i}"><i data-lucide="message-circle" class="h-[15px] w-[15px]"></i> ${f.cm.length}</button><button class="react inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3.5 py-1.5 text-[13px] font-semibold text-muted-foreground transition hover:-translate-y-px hover:border-primary hover:text-primary" data-f="${i}"><i data-lucide="plus" class="h-[15px] w-[15px]"></i> Follow</button></div>
-<div class="cmt mt-3.5 hidden flex-col gap-2 border-t border-border pt-3" id="cm${i}">${f.cm.map(m=>`<div class="rounded-[11px] bg-muted px-3.5 py-2 text-[13px]"><b class="text-[13px]">${m[0]}</b> ${m[1]}</div>`).join("")}
-<div class="flex gap-2"><input class="input" data-ci="${i}" placeholder="Comment… (typed @, audited)"><button class="btn-sec btn-sm" data-post="${i}">Post</button></div></div></div>`}
+return `<article class="post anim p-0 transition hover:shadow-lift">${f.lane||f.sys?`<div class="px-4 pt-4">`+laneCard(f)+`</div>`:""}
+<div class="flex items-center gap-3 px-4 pt-4"><div class="inline-flex h-[40px] w-[40px] flex-none items-center justify-center rounded-full text-xs font-bold text-white" style="${avbg(f.by)}">${f.av}</div><div class="min-w-0 flex-1"><div class="truncate text-[14px] font-semibold">${f.by}</div><div class="mt-px flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground"><span>${c?c.n:"System"}</span><span>·</span><span>${f.time} ago</span><span>·</span><span class="inline-flex items-center gap-1"><i data-lucide="globe" class="h-3 w-3"></i>Holding</span><span class="fresh ml-1">Fresh</span></div></div><button class="rounded-full p-2 text-muted-foreground hover:bg-muted" data-t aria-label="more"><i data-lucide="ellipsis" class="h-4 w-4"></i></button></div>
+<div class="px-4 pb-1 pt-2.5 text-[14.5px] leading-relaxed">${f.t} ${f.rr?`<a class="chip" href="#/rec/${f.ctx}/${encodeURIComponent(f.rr)}">@${f.ctx}/${f.rr}</a>`:""} <span class="ml-1">${f.tags.map(t=>`<a href="#/tags" class="font-semibold text-primary hover:underline">${t}</a>`).join(" ")}</span></div>
+<div class="flex items-center gap-1 border-t border-border/70 px-2 py-1.5"><button class="pact react" data-like="${i}"><i data-lucide="thumbs-up" class="h-[16px] w-[16px]"></i><span>${f.likes}</span><span class="max-sm:hidden">Like</span></button><button class="pact react" data-c="${i}"><i data-lucide="message-circle" class="h-[16px] w-[16px]"></i><span>${f.cm.length}</span><span class="max-sm:hidden">Comment</span></button><button class="pact react" data-f="${i}"><i data-lucide="plus" class="h-[16px] w-[16px]"></i><span class="max-sm:hidden">Follow</span><span class="sm:hidden">Follow</span></button><button class="pact react" data-t><i data-lucide="share-2" class="h-[16px] w-[16px]"></i><span class="max-sm:hidden">Share</span></button></div>
+<div class="cmt hidden flex-col gap-2 border-t border-border/70 px-4 py-3" id="cm${i}">${f.cm.map(m=>`<div class="flex gap-2.5"><div class="inline-flex h-[30px] w-[30px] flex-none items-center justify-center rounded-full text-[10px] font-bold text-white" style="${avbg(m[0])}">${m[0].slice(0,1)}</div><div class="flex-1 rounded-2xl bg-muted px-3.5 py-2 text-[13px]"><b class="text-[13px]">${m[0]}</b> ${m[1]}</div></div>`).join("")}
+<div class="flex gap-2"><input class="input !rounded-full" data-ci="${i}" placeholder="Write a comment…"><button class="btn-sec btn-sm !rounded-full" data-post="${i}">Post</button></div></div></article>`}
 function kanbanHTML(k,rows){const f=flowOf(k);const cols=[...f.stages,...f.neg.filter(n=>rows.some(x=>stageOf(k,x)===n))];
   return `<div class="anim anim-d2 grid gap-3" style="grid-template-columns:repeat(${cols.length},minmax(0,1fr))">`+cols.map(s=>{
     const items=rows.filter(x=>stageOf(k,x)===s);
@@ -544,8 +621,29 @@ organization:[["ACME","Acme Holding · 3 companies","Active","b-ok",[["ACME-BKK 
 function treeHTML(k,rows){const t=TREES[k]||rows.map(x=>[x[0],x[1],x[3],x[4],[]]);
   return `<div class="card anim anim-d2 flex flex-col gap-2.5">`+t.map(n=>`<div><div class="tnode flex items-center gap-2.5" ${CTX[k].rows.some(x=>x[0]===n[0])?`data-href="#/rec/${k}/${encodeURIComponent(n[0])}" style="cursor:pointer"`:""}><i data-lucide="${k==="organization"?"building-2":"kanban"}" class="h-4 w-4 text-muted-foreground"></i><b class="font-mono text-[12.5px]">${n[0]}</b><span class="text-[13px]">${n[1]}</span><span class="ml-auto">${badge([n[2],n[3]])}</span></div>
   ${(n[4]||[]).map(ch=>`<div class="ml-8 mt-2 border-l-2 border-border pl-3"><div class="tnode text-[12.5px] text-muted-foreground">${ch[0]} <span class="ml-1 rounded-md bg-secondary px-1.5 py-0.5 font-mono text-[11px]">${ch[1]}</span></div></div>`).join("")}</div>`).join("")+`</div>`}
-function metCard(m,seed){return `<div class="met anim rounded-2xl border border-border bg-card px-[18px] pb-3 pt-4 shadow-soft transition hover:-translate-y-[3px] hover:shadow-lift"><small class="text-[12.5px] font-medium text-muted-foreground">${m[0]}</small><b class="mb-0 mt-0.5 block text-[25px] font-bold tracking-tight" data-count="${m[1]}">${m[1]}</b>${spark(seed+m[0])}</div>`}
+function metCard(m,seed){return `<div class="met anim rounded-2xl border border-border bg-card px-[18px] pb-3 pt-4 shadow-soft transition hover:-translate-y-[3px] hover:shadow-lift"><small class="text-[12.5px] font-medium text-muted-foreground">${m[0]}</small><b class="mb-0 mt-0.5 block text-[22px] font-bold tracking-tight" data-count="${m[1]}">${m[1]}</b>${spark(seed+m[0])}</div>`}
+const EVENTS=[["Month-close party","#month-close · Apr 2 18:00 · Bangkok","24 going · holding-moderated","party-popper"],["PITR drill review","#platform · Apr 4 10:00 · Platform","12 going · owner contexts","server"],["Spring campaign retro","#campaign · Apr 8","8 going","megaphone"],["WH slotting walkthrough","#project · Apr 9 · WH2","6 going","boxes"]];
+function paintContacts(){const el=$("contactList");if(!el)return;
+ el.innerHTML=Object.keys(PERSONAS).slice(0,7).map(k=>{const p=PERSONAS[k];return `<button class="contact" data-contact="${k}"><span class="inline-flex h-[32px] w-[32px] flex-none items-center justify-center rounded-full text-[11px] font-bold text-white" style="${avbg(p[0])}">${p[1]}</span><span class="text-[13px] font-medium">${p[0]}</span><small class="ml-auto text-[11px] text-muted-foreground">${roleLabel(k).split(" ")[0]}</small><span class="dot"></span></button>`}).join("")}
+function openComposer(){mOpen("Create post",`<textarea id="composerText" class="input" rows="4" data-at placeholder="Share an update… @mention records, #tag topics (human-published, audited)"></textarea><p class="mt-2 text-xs text-muted-foreground">Posts to Following · newest-first · audited. Reactions stay signal-only.</p>`,"Post",()=>{
+ const t=$("composerText");if(t&&t.value.trim()){FEED.unshift({ctx:"sales",t:t.value.trim(),tags:["#note"],time:"0m",likes:0,by:ME.name+" ("+roleLabel(ME.role)+")",av:ME.av,rr:null,cm:[]});mClose();views("feed");say("Posted to Following (human-published, audited)")}else say("Write something first")});bindAt($("modal"))}
+let chatWith=null;const CHAT={};
+function renderDock(){const d=$("dock");if(!d)return;
+ d.innerHTML=Object.keys(PERSONAS).slice(1,5).map(k=>{const p=PERSONAS[k];return `<div class="chathead" data-chat="${k}" title="${p[0]} (demo)" style="${avbg(p[0])}">${p[1]}</div>`}).join("");
+ d.querySelectorAll("[data-chat]").forEach(b=>b.onclick=()=>openChat(b.dataset.chat));icons()}
+function openChat(k){chatWith=k;const p=PERSONAS[k];const cp=$("chatpanel");
+ const log=(CHAT[k]||[{me:0,t:"Hey! Quick check on today's lane — anything you need from me?"}]);
+ CHAT[k]=log;
+ cp.innerHTML=`<div class="flex items-center gap-2.5 border-b border-border p-3"><span class="inline-flex h-[34px] w-[34px] items-center justify-center rounded-full text-xs font-bold text-white" style="${avbg(p[0])}">${p[1]}</span><div><b class="block text-sm">${p[0]}</b><small class="text-xs text-green-600">Active now · demo</small></div><button class="ml-auto rounded-full p-2 hover:bg-muted" id="chatX"><i data-lucide="x" class="h-4 w-4"></i></button></div>
+ <div class="flex max-h-[300px] flex-col gap-2 overflow-auto p-3" id="chatLog">${log.map(m=>`<div class="max-w-[85%] rounded-2xl px-3.5 py-2 text-[13px] ${m.me?"ml-auto bg-primary text-primary-foreground":"bg-muted"}">${m.t}</div>`).join("")}</div>
+ <p class="px-3 text-[11px] text-muted-foreground">Demo-only — reuses support/agent sessions, no new DM aggregate.</p>
+ <div class="flex gap-2 border-t border-border p-2.5"><input id="chatIn" class="input !rounded-full" placeholder="Message ${p[0]}… (demo)"><button class="btn-primary btn-sm !rounded-full" id="chatSend">Send</button></div>`;
+ cp.classList.remove("hidden");icons();
+ $("chatX").onclick=()=>cp.classList.add("hidden");
+ const send=()=>{const i=$("chatIn");if(i&&i.value.trim()){CHAT[k].push({me:1,t:i.value.trim()});openChat(k);say("Sent (demo — no new aggregate)")}};
+ $("chatSend").onclick=send;$("chatIn").onkeydown=e=>{if(e.key==="Enter")send()}}
 function views(r){
+renderTabs();
 document.querySelectorAll(".nitem").forEach(a=>a.classList.toggle("on",a.dataset.r===("#/"+r.split("/")[0]+(r.startsWith("ctx/")?"/"+r.split("/")[1]:""))||a.dataset.r===r));
 if(r==="feed"||r===""){
 const laneMine=f=>!f.lane||ME.role==="super"||ME.role===(OWNER[f.ctx]||"__none__");
@@ -553,24 +651,27 @@ const list=FEED.map((f,i)=>({f,i})).filter(({f})=>feedFilter==="all"||(feedFilte
 col.innerHTML=page("Good morning, Acme","Acme Holding · Bangkok branch · newest first",
 `<span class="inline-flex items-center gap-1.5 rounded-[11px] border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-soft"><i data-lucide="building-2" class="h-3.5 w-3.5"></i> Acme Holding / Bangkok</span><a class="btn-primary" href="#/ctx/sales"><i data-lucide="plus" class="h-4 w-4"></i> Create quote</a>`,
 `<div class="anim anim-d1 grid grid-cols-4 gap-4 max-lg:grid-cols-2">${[["Open quotes","128"],["Orders to fulfill","56"],["Overdue approvals","7"],["Period close","Mar 2026"]].map(m=>metCard(m,"feed")).join("")}</div>
-<div class="composer-glow anim anim-d2 flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5 pl-4 shadow-soft transition"><div class="inline-flex h-[34px] w-[34px] flex-none items-center justify-center rounded-full text-xs font-bold text-white" style="${avbg("You")}">YO</div><input id="composer" placeholder="Post an update… @mention records, #tag topics (human-published, audited)" class="w-full flex-1 border-0 bg-transparent py-1 outline-none placeholder:text-muted-foreground"><button class="btn-primary btn-sm" id="composerBtn">Post</button></div>
+${storyRowHTML()}
+<div class="post anim anim-d2 p-4"><div class="flex items-center gap-3"><div class="inline-flex h-[40px] w-[40px] flex-none items-center justify-center rounded-full text-xs font-bold text-white" style="${avbg(ME.name)}">${ME.av}</div><button id="composer" class="flex-1 rounded-full bg-muted px-4 py-2.5 text-left text-[13.5px] text-muted-foreground transition hover:bg-secondary">Share an update… @mention records, #tag topics</button></div><div class="mt-2 flex items-center gap-1 border-t border-border/70 pt-2"><button class="pact" data-t><i data-lucide="image" class="h-4 w-4 text-green-600"></i>Photo</button><button class="pact" data-t><i data-lucide="at-sign" class="h-4 w-4 text-primary"></i>Mention</button><button class="pact" data-t><i data-lucide="hash" class="h-4 w-4 text-amber-600"></i>Tag</button><button class="btn-primary btn-sm ml-auto !rounded-full" id="composerBtn">Post</button></div></div>
 <div class="anim anim-d3 flex gap-2">${[["all","All"],["lanes","Needs you"],["updates","Updates"]].map(p=>`<button class="rounded-full border px-4 py-[7px] text-[13px] font-semibold transition ${feedFilter===p[0]?"border-foreground bg-foreground text-background":"border-border bg-card text-muted-foreground hover:border-primary hover:text-primary"}" data-pill="${p[0]}">${p[1]}</button>`).join("")}</div>
 <div class="flex flex-col gap-4">${list.length?list.map(({f,i})=>feedCard(f,i)).join(""):'<div class="card anim"><b>All caught up.</b><p class="mb-0 mt-1 text-muted-foreground">Nothing in this lane — new posts land here newest-first.</p></div>'}</div>`);
-rail.innerHTML=`<div class="card anim"><h3 class="mb-1 flex items-center gap-2 text-[15.5px] font-semibold tracking-tight"><i data-lucide="sparkles" class="h-4 w-4"></i> AI assistant · Ready</h3><p class="text-[13px] text-muted-foreground">Draft follow-up from 2 pinned refs: $18,400, Net 30. Ghost preview — review before Apply.</p>
+rail.innerHTML=`<div class="card anim !p-4"><h3 class="mb-1 flex items-center gap-2 text-[15px] font-bold tracking-tight"><i data-lucide="sparkles" class="h-4 w-4"></i> AI assistant · Ready</h3><p class="text-[13px] text-muted-foreground">Draft follow-up from 2 pinned refs: $18,400, Net 30. Ghost preview — review before Apply.</p>
 <div><span class="chip">@sales/quote-2026-042</span><span class="chip">@finance/journal-2026-117</span></div>
 <p class="font-mono text-xs text-muted-foreground">mistral · digest a1b2 · Apply re-validates version</p>
-<div class="flex justify-end gap-2.5"><button class="btn-sec btn-sm" data-t>Reject</button><button class="btn-primary btn-sm" data-t>Apply</button></div></div>
+<div class="flex justify-end gap-2.5"><button class="btn-sec btn-sm !rounded-full" data-t>Reject</button><button class="btn-primary btn-sm !rounded-full" data-t>Apply</button></div></div>
+<div class="card anim !p-4"><h3 class="mb-1 text-[15px] font-bold">Upcoming events</h3><button class="contact" data-href="#/events"><span class="inline-flex h-[36px] w-[36px] flex-none items-center justify-center rounded-[10px] bg-muted"><i data-lucide="party-popper" class="h-4 w-4 text-primary"></i></span><span><b class="block text-[13px]">Month-close party</b><small class="text-xs text-muted-foreground">#month-close · Apr 2 · 24 going</small></span></button><button class="contact" data-href="#/events"><span class="inline-flex h-[36px] w-[36px] flex-none items-center justify-center rounded-[10px] bg-muted"><i data-lucide="server" class="h-4 w-4 text-primary"></i></span><span><b class="block text-[13px]">PITR drill review</b><small class="text-xs text-muted-foreground">#platform · Apr 4</small></span></button><a href="#/events" class="mt-1 block text-xs font-semibold text-primary">See all events</a></div>
+<div class="card anim !p-4"><h3 class="mb-1 text-[15px] font-bold">Contacts · switch role to act</h3><div class="flex flex-col" id="contactList"></div><p class="mt-1 text-[11px] text-muted-foreground">Demo presence — clicking switches your act-as role.</p></div>
 <div class="card anim"><h3 class="mb-2 text-[15.5px] font-semibold tracking-tight">Trending in Holding</h3><div class="flex flex-wrap gap-2">${["#month-close|24","#win|18","#sla|11","#po|9"].map(t=>{const p=t.split("|");return `<a class="rounded-xl border border-border bg-card px-3.5 py-2 text-[13px] transition hover:-translate-y-0.5 hover:border-primary hover:shadow-soft" href="#/tags"><b class="text-primary">${p[0]}</b> · ${p[1]}</a>`}).join("")}</div></div>`;
-bindCommon();bindFeed();icons();return}
+bindCommon();bindFeed();paintContacts();renderDock();icons();return}
 if(r==="today"){const mine=l=>ME.role==="super"||ME.role===(OWNER[l.ctx]||"__none__");
 const lanes=LANES.filter(l=>!DONE_LANE[l.ctx+l.id]&&mine(l));
 const hidden=LANES.filter(l=>!DONE_LANE[l.ctx+l.id]&&!mine(l)).length;
-col.innerHTML=page("Today","Your digest · lanes first, then follows",`<button class="btn-sec" data-t>Mark all read</button>`,
-`<div class="anim"><b class="text-[13px]">Needs your role · ${lanes.length}</b><p class="mb-0 mt-1.5 text-[13.5px] text-muted-foreground">Act inline — every decision needs proof and lands in audit.${hidden?` ${hidden} more lane${hidden>1?"s":""} need${hidden>1?"":"s"} a different role.`:""}</p></div>
+col.innerHTML=page("Today","Your digest · "+new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})+" · acting as "+ME.name,`<button class="btn-sec !rounded-full" data-t>Mark all read</button>`,
+`<div class="cover anim"><div class="cicon"><i data-lucide="calendar-days" class="h-6 w-6"></i></div><div><b class="text-[15px]">Needs your role · ${lanes.length}</b><p class="mb-0 mt-0.5 text-[13px] text-muted-foreground">Act inline — every decision needs proof and lands in audit.${hidden?` ${hidden} more lane${hidden>1?"s":""} need${hidden>1?"":"s"} a different role — switch via avatar.`:""}</p></div><a class="btn-sec btn-sm ml-auto !rounded-full" href="#/events">Events</a></div>
 <div class="flex flex-col gap-3">${lanes.length?lanes.map(l=>`<div class="anim rounded-2xl border border-border bg-card p-4 shadow-soft" style="border-left:4px solid hsl(var(--warning))">
-<div class="flex flex-wrap items-center gap-3"><div><b class="text-[14px]">${l.t}</b><div class="text-xs text-muted-foreground">${l.why} · <a class="chip" href="#/rec/${l.ctx}/${encodeURIComponent(l.id)}">@${l.ctx}/${l.id}</a></div></div>
+<div class="flex flex-wrap items-center gap-3"><div class="min-w-0"><b class="text-[14px]">${l.t}</b><div class="text-xs text-muted-foreground">${l.why} · <a class="chip" href="#/rec/${l.ctx}/${encodeURIComponent(l.id)}">@${l.ctx}/${l.id}</a></div><div class="mt-1 text-[11.5px] text-muted-foreground">Proof needed: ${l.proof||"HumanDecisionProof"} · posts to audit + feed</div></div>
 <div class="ml-auto flex items-center gap-2"><span class="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-700 dark:text-amber-400">${l.sla?`<span data-sla="${l.sla}">${l.due}</span>`:l.due}</span>
-<button class="btn-sec btn-sm" data-lane="${l.ctx}|${l.id}|Rejected|0">Reject</button><button class="btn-primary btn-sm" data-lane="${l.ctx}|${l.id}|Approved|1"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i> Approve</button></div></div></div>`).join(""):'<div class="card anim"><b>Lane clear.</b><p class="mb-0 mt-1 text-muted-foreground">Nothing needs your role right now.</p></div>'}</div>
+<button class="btn-sec btn-sm !rounded-full" data-lane="${l.ctx}|${l.id}|Rejected|0">Reject</button><button class="btn-primary btn-sm !rounded-full" data-lane="${l.ctx}|${l.id}|Approved|1"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i> Approve</button></div></div></div>`).join(""):'<div class="card anim"><b>Lane clear.</b><p class="mb-0 mt-1 text-muted-foreground">Nothing needs your role right now.</p></div>'}</div>
 <div class="anim"><b class="text-[13px]">Latest follows</b></div>
 <div class="flex flex-col gap-4">${FEED.slice(0,2).map(feedCard).join("")}</div>`);rail.innerHTML="";bindCommon();bindFeed();icons();return}
 if(r==="tags"){col.innerHTML=page("Tags","Scoped vocabularies · trends stay inside your placement",
@@ -581,12 +682,13 @@ if(r.startsWith("ctx/")){const k=r.split("/")[1],c=CTX[k];if(!c){location.hash="
 const q=($("q").value||"").toLowerCase();
 const rows=c.rows.filter(x=>!q||x.join(" ").toLowerCase().includes(q));
 col.innerHTML=page(c.n,`${c.lane} · tags ${c.tags.join(" ")}`,
-`<button class="btn-sec" data-t><i data-lucide="plus" class="h-3.5 w-3.5"></i> Follow</button><button class="btn-primary" data-new="${k}"><i data-lucide="plus" class="h-[15px] w-[15px]"></i> New</button>`,
-`<div class="anim anim-d1 grid grid-cols-4 gap-4 max-lg:grid-cols-2">${c.m.map(m=>metCard(m,k)).join("")}</div>
+`<button class="btn-sec !rounded-full" data-t><i data-lucide="plus" class="h-3.5 w-3.5"></i> Follow</button><button class="btn-primary !rounded-full" data-new="${k}"><i data-lucide="plus" class="h-[15px] w-[15px]"></i> New</button>`,
+`<div class="cover anim"><div class="cicon"><i data-lucide="${LICON[k]}" class="h-6 w-6"></i></div><div class="min-w-0"><b class="block text-[16px] tracking-tight">${c.n} group</b><small class="text-[12.5px] text-muted-foreground">${c.lane} · every row is a post · ${c.tags.join(" ")}</small></div><span class="ml-auto hidden sm:block">${badge([rows.length+" rows","b-def"])}</span></div>
+<div class="anim anim-d1 grid grid-cols-4 gap-4 max-lg:grid-cols-2">${c.m.map(m=>metCard(m,k)).join("")}</div>
 ${WIDGET[k]==="kanban"?kanbanHTML(k,rows):WIDGET[k]==="tree"?treeHTML(k,rows):
 `<div class="card anim anim-d2 overflow-hidden !p-1.5"><table class="w-full border-collapse text-[13.5px]"><tr>${["ID","Subject","Detail","Status"].map(h=>`<th class="px-4 py-3 text-left text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">${h}</th>`).join("")}</tr>
 ${rows.length?rows.map(x=>`<tr class="tblrow" data-href="#/rec/${k}/${encodeURIComponent(x[0])}"><td class="border-t border-border px-4 py-3"><b>${x[0]}</b></td><td class="border-t border-border px-4 py-3">${x[1]}</td><td class="border-t border-border px-4 py-3 text-muted-foreground">${x[2]}</td><td class="border-t border-border px-4 py-3">${badge([x[3],x[4]])}</td></tr>`).join(""):'<tr><td colspan="4" class="border-t border-border px-4 py-6 text-center text-muted-foreground">No rows match — clear search.</td></tr>'}</table></div>`}`);
-rail.innerHTML=`<div class="card anim"><h3 class="mb-1 text-[15.5px] font-semibold">About ${c.n}</h3><p class="text-[13px] text-muted-foreground">Group home · every row is a post · ${c.lane}.</p><div>${c.tags.map(t=>`<a class="chip" href="#/tags">${t}</a>`).join("")}</div></div>`;bindCommon();bindFeed();icons();return}
+rail.innerHTML=`<div class="card anim !p-4"><h3 class="mb-1 text-[15px] font-bold">About ${c.n}</h3><p class="text-[13px] text-muted-foreground">Group home · every row is a post · ${c.lane}.</p><div>${c.tags.map(t=>`<a class="chip" href="#/tags">${t}</a>`).join("")}</div><a href="#/journeys" class="mt-2 block text-xs font-semibold text-primary">See in Journeys</a></div>`;bindCommon();bindFeed();icons();return}
 if(r.startsWith("rec/")){const[,k,id]=r.split("/").map(decodeURIComponent);const c=CTX[k];
 const row=(c?c.rows.find(x=>x[0]===id):null)||["—","—","—","Open","b-def"];
 const ro=k==="customer_360",cur=stageOf(k,row),f=flowOf(k);
@@ -596,7 +698,7 @@ col.innerHTML=`<div class="anim"><a class="mb-2 inline-flex items-center gap-1.5
 <div class="flex flex-wrap items-end justify-between gap-3.5"><div><h1 class="m-0 text-[27px] font-bold tracking-tight">${id}</h1><p class="mb-0 mt-1.5 text-[13.5px] text-muted-foreground">${row[1]} · ${row[2]}</p></div><div class="flex items-center gap-2.5">${badge([row[3],row[4]])}<span class="fresh">Fresh</span></div></div></div>
 ${ro?'<div class="card anim !border-info/50 !py-3 text-[13px]"><b>Read-only</b> <span class="text-muted-foreground">— federated 360 view, no lane, no writes. Authority lives in source contexts.</span></div>':""}
 <div class="anim anim-d1 grid grid-cols-4 gap-3 max-lg:grid-cols-2">${[["Company","Acme Co."],["Period","Mar 2026"],["Owner",c?c.n:"—"],["Scope","Holding / Bangkok"]].map(x=>`<div class="rounded-xl border border-border bg-card px-3.5 py-2.5 shadow-soft"><small class="block text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">${x[0]}</small><b class="text-sm font-semibold">${x[1]}</b></div>`).join("")}</div>
-${ro?"":`<div class="card anim anim-d2"><h3 class="mb-3 text-[15.5px] font-semibold">Lifecycle · ${cur}</h3>${stepHTML(k,cur)}<div class="mt-4">${actBarHTML(k,id,cur)}</div></div>
+${ro?"":`<div class="card anim anim-d2"><div class="mb-2 flex items-center justify-between"><h3 class="mb-0 text-[15px] font-bold">Lifecycle · ${cur}</h3><small class="text-xs text-muted-foreground">${f.stages.includes(cur)?(f.stages.indexOf(cur)+1)+"/"+f.stages.length+" · "+Math.round((f.stages.indexOf(cur)+1)/f.stages.length*100)+"%":"terminal"}</small></div><div class="prog mb-3"><i style="width:${f.stages.includes(cur)?Math.round((f.stages.indexOf(cur)+1)/f.stages.length*100):100}%"></i></div>${stepHTML(k,cur)}<div class="mt-4">${actBarHTML(k,id,cur)}</div></div>
 <div class="card anim anim-d2"><h3 class="mb-1 text-[15.5px] font-semibold">Fields</h3><p class="mt-0 text-xs text-muted-foreground">${(k==="sales"||k==="procurement")?"OwnerPublished — agents may propose patches.":"Spec-ahead — agents cannot patch yet."} Kind-validated per EditableFieldDefinition.</p>${formFor(k)}<div class="mt-4 flex justify-end"><button class="btn-primary btn-sm" data-save="${k}|${id}">Save fields</button></div></div>
 <div class="card anim anim-d3"><h3 class="mb-2 text-[15.5px] font-semibold">References · typed edges</h3>${edgeHTML(k,id)}</div>
 ${(k==="sales"||k==="procurement")&&FIELDS[k]?sugHTML(k,id,FIELDS[k][0][2]):""}
@@ -606,15 +708,18 @@ ${au.map(a=>`<div class="rounded-[11px] bg-muted px-3.5 py-2 text-[13px]"><b cla
 <div class="flex gap-2"><input class="input" data-at data-rci="${k}|${id}" placeholder="Comment… @ to mention, # to tag"><button class="btn-primary btn-sm" data-rpost="${k}|${id}">Post</button></div></div></div>`;
 rail.innerHTML=`<div class="card anim"><h3 class="mb-2 text-[15.5px] font-semibold">Backlinks · ${backs.length}</h3>${backs.length?backs.map(b=>`<div class="mb-1"><a class="chip" href="#/ctx/${b[0]}">@${b[0]}</a> <span class="text-xs text-muted-foreground">${b[1]}</span></div>`).join(""):'<p class="text-[13px] text-muted-foreground">Nothing links here yet.</p>'}<p class="mt-2 text-xs text-muted-foreground">Paginated after 50 · ordered · deduped</p></div>
 <div class="card anim"><h3 class="mb-2 text-[15.5px] font-semibold">Mentioned with</h3><div>${(EDGES[k]||[]).slice(0,4).map(e=>refHref(e[0])).join("")}</div></div>`;bindCommon();bindFeed();icons();return}
-if(r==="journeys"){col.innerHTML=page("Journeys","Cross-context walks · every arrow a typed edge",`<span class="scope">4 journeys · spine audited</span>`,
-JOURNEYS.map(j=>`<div class="card anim"><h3 class="mb-0.5 text-[15.5px] font-semibold">${j.name}</h3><p class="mb-3 mt-0 text-[13px] text-muted-foreground">${j.flow}</p>
-<div class="flex items-stretch gap-1 overflow-x-auto pb-1">${j.steps.map((s,i)=>{const[ref,role]=s;let href,label;
+if(r==="journeys"){col.innerHTML=page("Journeys","Cross-context walks · every arrow a typed edge",`<a class="btn-sec btn-sm !rounded-full" href="#/events">Events</a>`,
+JOURNEYS.map(j=>`<div class="card anim"><div class="mb-1 flex items-center gap-2.5"><span class="inline-flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-muted"><i data-lucide="route" class="h-4 w-4 text-primary"></i></span><div><h3 class="mb-0 text-[15px] font-bold">${j.name}</h3><p class="mb-0 mt-0 text-[12.5px] text-muted-foreground">${j.flow} · ${j.steps.length} stops</p></div></div>
+<div class="mt-2 flex items-stretch gap-1 overflow-x-auto pb-1">${j.steps.map((s,i)=>{const[ref,role]=s;let href,label;
   if(ref.includes("/")){const[ck,rid]=ref.split("/");const cc=CTX[ck];const ok=cc&&rid&&cc.rows.some(x=>x[0]===rid);
     href=ok?`#/rec/${ck}/${encodeURIComponent(rid)}`:(cc?`#/ctx/${ck}`:"#/journeys");label=ref}
   else{href=CTX[ref]?`#/ctx/${ref}`:"#/journeys";label=ref+"/*"}
   return `${i?`<div class="jedge">──${role||"→"}──▶</div>`:""}<a class="jnode" href="${href}"><b class="font-mono text-[12.5px]">${label}</b></a>`}).join("")}</div>
 <p class="mb-0 mt-3 flex items-start gap-2 text-[13px] text-muted-foreground"><i data-lucide="sparkles" class="mt-0.5 h-4 w-4 flex-none"></i> AI: ${j.ai}</p></div>`).join(""));
-rail.innerHTML=`<div class="card anim"><h3 class="mb-1 text-[15.5px] font-semibold">How to read</h3><p class="text-[13px] text-muted-foreground">Each box is a host record. Arrows are ordered typed edges (cap 50, deduped). Click any box to open it.</p></div>`;bindCommon();bindFeed();icons();return}
+rail.innerHTML=`<div class="card anim !p-4"><h3 class="mb-1 text-[15px] font-bold">How to read</h3><p class="text-[13px] text-muted-foreground">Each box is a host record. Arrows are ordered typed edges (cap 50, deduped). Click any box to open it.</p><a href="#/events" class="text-xs font-semibold text-primary">Related events</a></div>`;bindCommon();bindFeed();icons();return}
+if(r==="events"){col.innerHTML=page("Events","Holding gatherings · demo RSVPs post to feed",`<button class="btn-primary btn-sm !rounded-full" data-t><i data-lucide="plus" class="h-3.5 w-3.5"></i> Create event</button>`,
+EVENTS.map(e=>`<div class="card anim"><div class="flex items-center gap-3.5"><span class="inline-flex h-[46px] w-[46px] flex-none items-center justify-center rounded-2xl bg-muted"><i data-lucide="${e[3]}" class="h-5 w-5 text-primary"></i></span><div class="min-w-0"><b class="block text-[15px]">${e[0]}</b><small class="text-[12.5px] text-muted-foreground">${e[1]} · ${e[2]}</small></div><div class="ml-auto flex gap-2"><button class="btn-sec btn-sm !rounded-full" data-t>Maybe</button><button class="btn-primary btn-sm !rounded-full" data-ev>Going</button></div></div></div>`).join("")+`<p class="text-xs text-muted-foreground">Demo-only — RSVPs toast + post locally, no aggregate behind them.</p>`);
+rail.innerHTML=`<div class="card anim !p-4"><h3 class="mb-1 text-[15px] font-bold">Your events</h3><p class="text-[13px] text-muted-foreground">2 going · 1 maybe · invites from followed groups land here.</p></div>`;bindCommon();bindFeed();icons();return}
 location.hash="#/feed"}
 function bindCommon(){
 document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>say("Demo — wired to owner command + HumanDecisionProof in production"));
@@ -644,14 +749,15 @@ document.querySelectorAll("[data-lane]").forEach(b=>b.onclick=()=>{const[ctx,id,
   if(!canAct(ctx,proof==="1")){say(`Requires ${needRole(ctx)} — you are ${roleLabel(ME.role)}. Switch role via avatar.`);return}
   DONE_LANE[ctx+id]=label;audit(ctx,id).unshift({by:"You",t:`${label} from Today lane${proof==="1"?" · HumanDecisionProof attached":""}.`,time:"now"});
   say(proof==="1"?"Proof attached — done":"Done — removed from lane");views("today");icons()});
+document.querySelectorAll("[data-contact]").forEach(b=>b.onclick=()=>{setRole(b.dataset.contact)});
+document.querySelectorAll("[data-ev]").forEach(b=>b.onclick=()=>say("You're going (demo) — posted to feed"));
 bindAt(document)}
 function bindFeed(){
 document.querySelectorAll("[data-like]").forEach(b=>b.onclick=()=>{const s=b.querySelector("span");let n=parseInt(s.textContent);const on=b.classList.toggle("on");s.textContent=n+(on?1:-1);b.classList.remove("pop");void b.offsetWidth;b.classList.add("pop");say(on?"Reaction recorded (signal only — moves no workflow)":"Reaction removed")});
 document.querySelectorAll("[data-c]").forEach(b=>b.onclick=()=>{const d=document.getElementById("cm"+b.dataset.c);d.classList.toggle("hidden");d.classList.toggle("flex")});
 document.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{const on=b.classList.toggle("on");b.innerHTML=on?'<i data-lucide="check" class="h-[15px] w-[15px]"></i> Following':'<i data-lucide="plus" class="h-[15px] w-[15px]"></i> Follow';icons();say(on?"Following — feed + notifications on":"Unfollowed")});
 document.querySelectorAll("[data-post]").forEach(b=>b.onclick=()=>{const i=document.querySelector(`[data-ci="${b.dataset.post}"]`);if(i&&i.value.trim()){say("Comment posted (typed @, audited)");i.value=""}});
-const post=()=>{const cp=$("composer");if(cp&&cp.value.trim()){FEED.unshift({ctx:"sales",t:cp.value.trim(),tags:["#note"],time:"0m",likes:0,by:"You",av:"YO",rr:null,cm:[]});views("feed");say("Posted to Following (human-published, audited)")}};
-const cp=$("composer");if(cp){cp.onkeydown=e=>{if(e.key==="Enter")post()};const btn=$("composerBtn");if(btn)btn.onclick=post}}
+const cp=$("composer");if(cp){if(cp.tagName==="BUTTON"){cp.onclick=openComposer;const btn=$("composerBtn");if(btn)btn.onclick=openComposer}else{const post=()=>{if(cp.value.trim()){FEED.unshift({ctx:"sales",t:cp.value.trim(),tags:["#note"],time:"0m",likes:0,by:ME.name,av:ME.av,rr:null,cm:[]});views("feed");say("Posted to Following (human-published, audited)")}};cp.onkeydown=e=>{if(e.key==="Enter")post()};const btn=$("composerBtn");if(btn)btn.onclick=post}}}
 /* ---------- command palette ---------- */
 const pal=$("pal"),palQ=$("palQ"),palRes=$("palRes");let palSel=0,palItems=[];
 function palAll(q){
@@ -660,6 +766,7 @@ const push=(g,label,sub,href)=>{if(!q||label.toLowerCase().includes(q)||(sub||""
 push("Actions","Go to Feed","newest first","#/feed");push("Actions","Go to Today","your digest","#/today");
 push("Actions","Browse Tags","scoped vocabularies","#/tags");
 push("Actions","Walk Journeys","cross-context edges","#/journeys");
+push("Actions","Browse Events","demo RSVPs","#/events");
 push("Actions","Toggle theme",document.documentElement.classList.contains("dark")?"switch to light":"switch to dark","!theme");
 for(const k in CTX)push("Contexts",CTX[k].n,CTX[k].lane,"#/ctx/"+k);
 for(const k in CTX)for(const x of CTX[k].rows)push("Records",x[0],x[1]+" · "+CTX[k].n,"#/rec/"+k+"/"+encodeURIComponent(x[0]));
@@ -687,6 +794,7 @@ icons();
 $("q").oninput=()=>{const h=(location.hash||"").replace("#/","");if(h.startsWith("ctx/"))views(h)};
 window.onhashchange=()=>{document.body.classList.remove("navopen");views((location.hash||"#/feed").replace("#/",""))};
 views((location.hash||"#/feed").replace("#/",""));
+renderDock();
 icons();
 </script>
 </body>
