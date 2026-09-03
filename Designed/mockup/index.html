@@ -433,7 +433,7 @@ function doAct(k,id,label,to,proof){const c=CTX[k];if(!c)return;const r=c.rows.f
   r[3]=to;r[4]=badgeFor(k,to);audit(k,id).unshift({by:"You",t:`${label}${proof?" · HumanDecisionProof attached":""} → ${to}.`,time:"now"});
   FEED.unshift({ctx:k,t:`${id}: ${label} → ${to}.`,tags:c.tags.slice(0,1),time:"0m",likes:0,by:"You",av:"YO",rr:id,cm:[]});
   say(proof?`Proof attached — ${label} done, posted to feed`:`${label} done, posted to feed`);
-  views((location.hash||"#/feed").replace("#/",""));icons()}
+  views((location.hash||"#/today").replace("#/",""));icons()}
 /* ---------- helpers ---------- */
 const $=id=>document.getElementById(id);
 const side=$("side"),col=$("col"),rail=$("rail"),dd=$("dd"),toast=$("toast");
@@ -546,32 +546,35 @@ function ctxOfRoute(r){if(!r)return null;const p=r.split("/");
 function renderNav(r){
  const cur=ctxOfRoute(r);const gi=cur?groupOf(cur):-1;
  if(gi!==lastGi){lastGi=gi;if(gi>=0&&NAVCOL[GROUPS[gi][0]]){delete NAVCOL[GROUPS[gi][0]];saveNav()}}
+ const nW=waitN();
  let nav=`<div class="flex items-center gap-3 px-5 pb-3.5 pt-[22px]"><div class="flex h-9 w-9 items-center justify-center rounded-[9px] text-[17px] font-extrabold text-white" style="background:#B3402A">E</div><div><b class="text-[16.5px] tracking-tight text-white">ERPX</b><small class="block text-[11px] font-medium text-[#857d6f]">Social ERP · Acme</small></div></div>
 <div class="mx-3 mb-3 flex items-center gap-3 rounded-2xl bg-white/[.06] p-3" id="meCard"><div id="meCardAv" class="inline-flex h-[40px] w-[40px] flex-none items-center justify-center rounded-full text-[13px] font-bold text-white">HA</div><div class="min-w-0"><b id="meCardName" class="block truncate text-[14px] text-white">Holding Admin</b><small id="meCardRole" class="block truncate text-[11.5px] text-[#a89f8f]">Super Admin · switch via avatar</small></div></div>
 <div class="flex flex-col gap-0.5 px-3 pb-3.5">`;
+ nav+=`<a class="${NITEM}" data-r="#/today" href="#/today"><i data-lucide="shield-check" class="h-[18px] w-[18px] opacity-75"></i><span>Approvals</span>${nW?`<span class="ml-auto rounded-full bg-destructive px-2 py-0.5 text-[11px] font-bold text-white">${nW}</span>`:""}</a>`;
  nav+=`<a class="${NITEM}" data-r="#/feed" href="#/feed"><i data-lucide="home" class="h-[18px] w-[18px] opacity-75"></i><span>Feed</span></a>`;
- nav+=`<a class="${NITEM}" data-r="#/today" href="#/today"><i data-lucide="calendar-days" class="h-[18px] w-[18px] opacity-75"></i><span>Today</span></a>`;
  nav+=`<a class="${NITEM}" data-r="#/events" href="#/events"><i data-lucide="calendar-heart" class="h-[18px] w-[18px] opacity-75"></i><span>Events</span></a>`;
  nav+=`<a class="${NITEM}" data-r="#/tags" href="#/tags"><i data-lucide="tag" class="h-[18px] w-[18px] opacity-75"></i><span>Tags</span></a>`;
  nav+=`<a class="${NITEM}" data-r="#/journeys" href="#/journeys"><i data-lucide="route" class="h-[18px] w-[18px] opacity-75"></i><span>Journeys</span></a>`;
- nav+=`<div class="px-3 pb-1 pt-3.5 text-[10.5px] font-bold uppercase tracking-[.1em] text-[#857d6f]">Shortcuts · sell first</div>`;
+ nav+=`<div class="px-3 pb-1 pt-3.5 text-[10.5px] font-bold uppercase tracking-[.1em] text-[#857d6f]">Shortcuts · decide first</div>`;
+ nav+=`<a class="${NITEM}" data-r="#/today" href="#/today"><i data-lucide="shield-check" class="h-[18px] w-[18px] opacity-75"></i><span>Review approvals</span></a>`;
  nav+=`<a class="${NITEM}" data-r="#/ctx/pos" href="#/ctx/pos"><i data-lucide="shopping-cart" class="h-[18px] w-[18px] opacity-75"></i><span>POS terminal</span></a>`;
  nav+=`<a class="${NITEM}" data-r="#/ctx/sales" href="#/ctx/sales"><i data-lucide="file-text" class="h-[18px] w-[18px] opacity-75"></i><span>Sales quotes</span></a>`;
  nav+=`<a class="${NITEM}" data-r="#/ctx/crm" href="#/ctx/crm"><i data-lucide="heart" class="h-[18px] w-[18px] opacity-75"></i><span>CRM pipeline</span></a>`;
  nav+=`<div class="px-3 pb-1 pt-3.5 text-[10.5px] font-bold uppercase tracking-[.1em] text-[#857d6f]">Departments · tap to fold</div>`;
  GROUPS.forEach((gr,i)=>{const[g,ctxs,gic]=gr;const open=!NAVCOL[g];const hasCur=ctxs.includes(cur);
-  nav+=`<button class="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[10.5px] font-bold uppercase tracking-[.1em] text-[#857d6f] hover:bg-white/10 hover:text-white" data-g="${i}" aria-expanded="${open}"><i data-lucide="${gic||"building-2"}" class="h-[15px] w-[15px] opacity-75"></i><span class="truncate">${g}</span><span class="ml-auto flex items-center gap-1.5"><small class="font-semibold normal-case tracking-normal opacity-70">${ctxs.length}</small><i data-lucide="${open?"chevron-down":"chevron-right"}" class="h-3.5 w-3.5"></i></span></button>`;
+  const warn=ctxs.reduce((n,c)=>n+((CTX[c].rows||[]).filter(x=>x[4]==="b-warn"&&!DONE_LANE[c+x[0]]).length),0);
+  nav+=`<button class="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[10.5px] font-bold uppercase tracking-[.1em] text-[#857d6f] hover:bg-white/10 hover:text-white" data-g="${i}" aria-expanded="${open}"><i data-lucide="${gic||"building-2"}" class="h-[15px] w-[15px] opacity-75"></i><span class="truncate">${g}</span><span class="ml-auto flex items-center gap-1.5">${warn?`<small class="rounded-full bg-amber-500/20 px-1.5 py-px font-bold normal-case tracking-normal text-amber-400">${warn}</small>`:""}<small class="font-semibold normal-case tracking-normal opacity-70">${ctxs.length}</small><i data-lucide="${open?"chevron-down":"chevron-right"}" class="h-3.5 w-3.5"></i></span></button>`;
   if(open)for(const c of ctxs){nav+=`<a class="${NITEM} !py-[7px] pl-[38px] text-[13.5px] ${c===cur?"!border-transparent":""}" data-r="#/ctx/${c}" href="#/ctx/${c}"><i data-lucide="${LICON[c]}" class="h-[17px] w-[17px] opacity-75"></i><span class="truncate">${CTX[c].n}</span>${c===cur?'<span class="ml-auto h-1.5 w-1.5 flex-none rounded-full bg-[#d0603a]"></span>':""}</a>`}});
  nav+=`</div><div class="mt-auto flex items-center gap-2.5 border-t border-white/10 p-4 px-5 text-xs text-[#857d6f]"><span class="pulse"></span><span>Acme Holding · Bangkok<br>Projection Fresh · audited<br><b id="meRole" class="text-white"></b></span></div>`;
  side.innerHTML=nav;
  side.querySelectorAll("[data-g]").forEach(b=>b.onclick=e=>{e.preventDefault();const gr=GROUPS[+b.dataset.g][0];
   if(NAVCOL[gr])delete NAVCOL[gr];else NAVCOL[gr]=1;saveNav();
-  renderNav((location.hash||"#/feed").replace("#/",""));renderRole();
-  document.querySelectorAll(".nitem").forEach(a=>a.classList.toggle("on",a.dataset.r===("#/"+((location.hash||"#/feed").replace("#/","")).split("/")[0]+(((location.hash||"").replace("#/","")).startsWith("ctx/")?"/"+((location.hash||"").replace("#/","")).split("/")[1]:""))));icons()});
+  renderNav((location.hash||"#/today").replace("#/",""));renderRole();
+  document.querySelectorAll(".nitem").forEach(a=>a.classList.toggle("on",a.dataset.r===("#/"+((location.hash||"#/today").replace("#/","")).split("/")[0]+(((location.hash||"").replace("#/","")).startsWith("ctx/")?"/"+((location.hash||"").replace("#/","")).split("/")[1]:""))));icons()});
  renderRole();
  document.querySelectorAll(".nitem").forEach(a=>a.classList.toggle("on",a.dataset.r===("#/"+r.split("/")[0]+(r.startsWith("ctx/")?"/"+r.split("/")[1]:""))||a.dataset.r===r));
  icons()}
-renderNav((location.hash||"#/feed").replace("#/",""));
+renderNav((location.hash||"#/today").replace("#/",""));
 $("menuBtn").onclick=()=>document.body.classList.toggle("navopen");
 $("bellBtn").onclick=e=>{e.stopPropagation();dd.classList.toggle("hidden");const rd=$("roledd");if(rd)rd.classList.add("hidden")};
 document.addEventListener("click",e=>{if(!dd.contains(e.target))dd.classList.add("hidden");const rd2=$("roledd");if(rd2&&!rd2.contains(e.target)&&e.target.id!=="meAv"&&e.target.id!=="roleChip"&&!e.target.closest("#meAv")&&!e.target.closest("#roleChip"))rd2.classList.add("hidden")});
@@ -592,37 +595,39 @@ function renderRole(){$("meAv").textContent=ME.av;$("meAv").style.cssText=avbg(M
     list.querySelectorAll("[data-role]").forEach(b=>b.onclick=()=>setRole(b.dataset.role))};
   paintRoles("");const rq=$("roleQ");if(rq)rq.oninput=()=>paintRoles(rq.value);
   rd.querySelectorAll("[data-role]").forEach(b=>b.onclick=()=>setRole(b.dataset.role));icons()}
-function renderTabs(){const r=(location.hash||"#/feed").replace("#/","");
-  const laneN=LANES.filter(l=>!DONE_LANE[l.ctx+l.id]&&(ME.role==="super"||ME.role===(OWNER[l.ctx]||"__none__"))).length;
-  const tabs=[["#/feed","home","Home"],["#/today","calendar-days","Today",laneN||""],["#/journeys","route","Journeys"],["#/events","calendar-heart","Events"],["#/tags","tag","Tags"]];
-  const html=tabs.map(t=>{const on=(t[0]==="#/"+r.split("/")[0])||(t[0]==="#/feed"&&(r===""||r==="feed"));return `<a href="${t[0]}" class="${on?"on":""}"><i data-lucide="${t[1]}" class="h-[19px] w-[19px]"></i><span class="lbl">${t[2]}</span>${t[3]?`<span class="cnt">${t[3]}</span>`:""}</a>`}).join("");
+function renderTabs(){const r=(location.hash||"#/today").replace("#/","");
+  const laneN=waitN();
+  const tabs=[["#/today","shield-check","Approvals",laneN||""],["#/feed","home","Home"],["#/journeys","route","Journeys"],["#/events","calendar-heart","Events"],["#/tags","tag","Tags"]];
+  const html=tabs.map(t=>{const on=(t[0]==="#/"+r.split("/")[0])||(t[0]==="#/today"&&r==="");return `<a href="${t[0]}" class="${on?"on":""}"><i data-lucide="${t[1]}" class="h-[19px] w-[19px]"></i><span class="lbl">${t[2]}</span>${t[3]?`<span class="cnt">${t[3]}</span>`:""}</a>`}).join("");
   const a=$("fbtabs"),b=$("fbtabsM");if(a)a.innerHTML=html;if(b)b.innerHTML=html;
-  const bb=$("bottombar");if(bb)bb.innerHTML=[["#/feed","home","Feed"],["#/today","calendar-days","Today"],["#/events","calendar-heart","Events"],["#/tags","tag","Tags"],["#/journeys","route","Walks"]].map(t=>{const on=(t[0]==="#/"+r.split("/")[0])||(t[0]==="#/feed"&&(r===""||r==="feed"));return `<a href="${t[0]}" class="${on?"on":""}"><i data-lucide="${t[1]}" class="h-5 w-5"></i>${t[2]}${t[0]==="#/today"&&laneN?` · ${laneN}`:""}</a>`}).join("");
+  const bb=$("bottombar");if(bb)bb.innerHTML=[["#/today","shield-check","Approvals"],["#/feed","home","Feed"],["#/events","calendar-heart","Events"],["#/tags","tag","Tags"],["#/journeys","route","Walks"]].map(t=>{const on=(t[0]==="#/"+r.split("/")[0])||(t[0]==="#/today"&&r==="");return `<a href="${t[0]}" class="${on?"on":""}"><i data-lucide="${t[1]}" class="h-5 w-5"></i>${t[2]}${t[0]==="#/today"&&laneN?` · ${laneN}`:""}</a>`}).join("");
   icons()}
 function setRole(r){const p=PERSONAS[r]||["Someone","?"];ME={role:r,name:p[0],av:p[1]};
   try{localStorage.setItem("erpx-me",JSON.stringify(ME))}catch(e){}
   renderRole();$("roledd").classList.add("hidden");
-  say(`Now acting as ${ME.name} · ${roleLabel(r)}${r==="super"?" — all lanes, all approvals":""}`);
-  views((location.hash||"#/feed").replace("#/",""));icons()}
+  const n=waitN();
+  say(`Now acting as ${ME.name} · ${roleLabel(r)} — ${n?`${n} approval${n===1?"":"s"} waiting`:"queue clear"}`);
+  if((location.hash||"")==="#/today")views("today");else location.hash="#/today";icons()}
 $("meAv").onclick=e=>{e.stopPropagation();dd.classList.add("hidden");$("roledd").classList.toggle("hidden")};
 $("roleChip").onclick=e=>{e.stopPropagation();dd.classList.add("hidden");$("roledd").classList.toggle("hidden")};
 document.addEventListener("click",e=>{if(!dd.contains(e.target))dd.classList.add("hidden")});
-dd.innerHTML=`<div class="mx-1 mb-1 flex items-center justify-between"><h4 class="mx-2 mt-2 text-[15px] font-bold">Notifications</h4><button class="rounded-full px-2.5 py-1 text-xs font-semibold text-primary hover:bg-muted" data-t>Mark all read</button></div>`+NOTIFS.map(n=>`<div class="flex items-start gap-3 rounded-[11px] p-2.5 text-[13.5px] hover:bg-muted"><div class="relative flex-none"><div class="inline-flex h-[38px] w-[38px] items-center justify-center rounded-full text-[12px] font-bold text-white" style="${avbg(n[0])}">${(n[0].match(/\b\w/g)||["N"]).join("").slice(0,2).toUpperCase()}</div><span class="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full bg-green-500 ring-2 ring-card"></span></div><div class="min-w-0"><div>${n[0]}</div><small class="text-xs text-primary font-semibold">${n[1]} ago</small></div><span class="ml-auto mt-2 h-2.5 w-2.5 flex-none rounded-full bg-primary"></span></div>`).join("")+`<p class="px-3 py-2 text-[11px] text-muted-foreground">Unread on lanes + mentions only · demo data</p>`;
+dd.innerHTML=`<div class="mx-1 mb-1 flex items-center justify-between"><h4 class="mx-2 mt-2 text-[15px] font-bold">Needs decision</h4><button class="rounded-full px-2.5 py-1 text-xs font-semibold text-primary hover:bg-muted" data-t>Mark all read</button></div>`+NOTIFS.map((n,ix)=>{const href=["#/rec/sales/QT-2026-042","#/rec/procurement/REQ-2026-014","#/rec/support/TICKET-509","#/tags"][ix]||"#/today";return `<button data-href="${href}" class="flex w-full items-start gap-3 rounded-[11px] p-2.5 text-left text-[13.5px] hover:bg-muted"><div class="relative flex-none"><div class="inline-flex h-[38px] w-[38px] items-center justify-center rounded-full text-[12px] font-bold text-white" style="${avbg(n[0])}">${(n[0].match(/\b\w/g)||["N"]).join("").slice(0,2).toUpperCase()}</div><span class="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full bg-green-500 ring-2 ring-card"></span></div><div class="min-w-0"><div>${n[0]}</div><small class="text-xs text-primary font-semibold">${n[1]} ago · tap to review</small></div><span class="ml-auto mt-2 h-2.5 w-2.5 flex-none rounded-full bg-primary"></span></button>`}).join("")+`<p class="px-3 py-2 text-[11px] text-muted-foreground">Unread on lanes + mentions only · demo data</p>`;
 /* mobile drawer */
 const mstyle=document.createElement("style");
 mstyle.textContent="@media(max-width:820px){#side{position:fixed;left:0;top:0;bottom:0;z-index:20;width:272px;transform:translateX(-105%);transition:.25s;box-shadow:0 0 60px rgba(0,0,0,.4)}body.navopen #side{transform:none}}";
 document.head.appendChild(mstyle);
 /* ---------- views ---------- */
-let feedFilter="all";
+let feedFilter="lanes";
 function page(title,sub,actions,body){return `<div class="anim flex flex-wrap items-end justify-between gap-3.5"><div><h1 class="m-0 text-[27px] font-bold tracking-tight">${title}</h1><p class="mb-0 mt-1.5 text-[13.5px] text-muted-foreground">${sub}</p></div><div class="flex flex-wrap gap-2.5">${actions}</div></div>`+body}
-function laneCard(f){const sys=!!f.sys;return `<div class="anim mb-3 flex items-start gap-3 rounded-2xl border border-border bg-muted/60 p-3.5" style="border-left:4px solid ${sys?"hsl(var(--info))":"hsl(var(--warning))"}"><div class="flex h-[36px] w-[36px] flex-none items-center justify-center rounded-full ${sys?"bg-sky-500/15 text-sky-600":"bg-amber-500/15 text-amber-600"}"><i data-lucide="${sys?"megaphone":"flag"}" class="h-[17px] w-[17px]"></i></div><div class="min-w-0"><b class="text-[13.5px]">${f.lane||"System broadcast"}</b><div class="text-xs text-muted-foreground">${f.why||f.sys}</div></div></div>`}
+function laneCard(f){const sys=!!f.sys;const L=!sys?(LANES||[]).find(l=>l.ctx===f.ctx&&l.id===f.rr):null;const done=L&&DONE_LANE[L.ctx+L.id];
+return `<div class="anim mb-3 flex items-start gap-3 rounded-2xl border border-border bg-muted/60 p-3.5" style="border-left:4px solid ${sys?"hsl(var(--info))":"hsl(var(--warning))"}"><div class="flex h-[36px] w-[36px] flex-none items-center justify-center rounded-full ${sys?"bg-sky-500/15 text-sky-600":"bg-amber-500/15 text-amber-600"}"><i data-lucide="${sys?"megaphone":"flag"}" class="h-[17px] w-[17px]"></i></div><div class="min-w-0 flex-1"><b class="text-[13.5px]">${f.lane||"System broadcast"}</b><div class="text-xs text-muted-foreground">${f.why||f.sys}</div>${L?(done?`<div class="mt-2 text-xs font-bold text-green-700 dark:text-green-400">Approved · proof in audit</div>`:`<div class="mt-2.5 flex flex-wrap items-center gap-2"><span class="rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-700 dark:text-amber-400">${L.sla?`<span data-sla="${L.sla}">${L.due}</span>`:L.due}</span><button class="btn-sec btn-sm !rounded-full" data-lane="${L.ctx}|${L.id}|Rejected|0">Reject</button><button class="btn-primary btn-sm !rounded-full" data-lane="${L.ctx}|${L.id}|Approved|1"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i> Approve</button><a class="text-xs font-semibold text-primary hover:underline" href="#/rec/${L.ctx}/${encodeURIComponent(L.id)}">Open record</a></div>`):""}</div></div>`}
 function storyRowHTML(){const items=[
  {t:"Close gate",s:"4d left",ctx:"finance",id:"J-2026-119",urg:1,ic:"flag"},
  {t:"REQ $6.8K",s:"due today",ctx:"procurement",id:"REQ-2026-014",urg:1,ic:"clipboard-list"},
  {t:"SLA 1h12m",s:"TICKET-509",ctx:"support",id:"TICKET-509",urg:1,ic:"life-buoy"},
  {t:"Revenue",s:"crm→finance",ctx:"",id:"",urg:0,ic:"route"},
  {t:"Month-close",s:"#month-close",ctx:"",id:"",urg:0,ic:"party-popper"}];
- return `<div class="anim anim-d1"><div class="mb-2 flex items-center justify-between"><b class="text-[13.5px]">Needs attention</b><a href="#/today" class="text-xs font-semibold text-primary">See all in Today</a></div><div class="storyrow">`+items.map(s=>`<div class="story ${s.urg?"":"ok"}" ${s.ctx?`data-href="#/rec/${s.ctx}/${s.id}"`:`data-href="#/today"`}><div class="ring"><span><i data-lucide="${s.ic}" class="h-5 w-5 text-primary"></i></span></div><b class="block text-[12.5px] leading-tight">${s.t}</b><small class="text-[11.5px] text-muted-foreground">${s.s}</small></div>`).join("")+`</div><p class="mt-1 text-[11px] text-muted-foreground">Demo-only status row — lanes live in Today, no ephemeral stories stored.</p></div>`}
+ return `<div class="anim anim-d1"><div class="mb-2 flex items-center justify-between"><b class="text-[13.5px]">Approve first · ${waitN()} waiting for ${ME.role==="super"?"you (all roles)":roleLabel(ME.role)}</b><a href="#/today" class="btn-primary btn-sm !rounded-full">Review all</a></div><div class="storyrow">`+items.map(s=>`<div class="story ${s.urg?"":"ok"}" ${s.ctx?`data-href="#/rec/${s.ctx}/${s.id}"`:`data-href="#/today"`}><div class="ring"><span><i data-lucide="${s.ic}" class="h-5 w-5 text-primary"></i></span></div><b class="block text-[12.5px] leading-tight">${s.t}</b><small class="text-[11.5px] text-muted-foreground">${s.s}</small></div>`).join("")+`</div><p class="mt-1 text-[11px] text-muted-foreground">Tap a card to open its record and approve — or decide inline below. Lanes also clear from Today.</p></div>`}
 function feedCard(f,i){
 const c=CTX[f.ctx];
 return `<article class="post anim p-0 transition hover:shadow-lift">${f.lane||f.sys?`<div class="px-4 pt-4">`+laneCard(f)+`</div>`:""}
@@ -641,7 +646,10 @@ organization:[["ACME","Acme Holding · 3 companies","Active","b-ok",[["ACME-BKK 
 function treeHTML(k,rows){const t=TREES[k]||rows.map(x=>[x[0],x[1],x[3],x[4],[]]);
   return `<div class="card anim anim-d2 flex flex-col gap-2.5">`+t.map(n=>`<div><div class="tnode flex items-center gap-2.5" ${CTX[k].rows.some(x=>x[0]===n[0])?`data-href="#/rec/${k}/${encodeURIComponent(n[0])}" style="cursor:pointer"`:""}><i data-lucide="${k==="organization"?"building-2":"kanban"}" class="h-4 w-4 text-muted-foreground"></i><b class="font-mono text-[12.5px]">${n[0]}</b><span class="text-[13px]">${n[1]}</span><span class="ml-auto">${badge([n[2],n[3]])}</span></div>
   ${(n[4]||[]).map(ch=>`<div class="ml-8 mt-2 border-l-2 border-border pl-3"><div class="tnode text-[12.5px] text-muted-foreground">${ch[0]} <span class="ml-1 rounded-md bg-secondary px-1.5 py-0.5 font-mono text-[11px]">${ch[1]}</span></div></div>`).join("")}</div>`).join("")+`</div>`}
-function metCard(m,seed){return `<div class="met anim rounded-2xl border border-border bg-card px-[18px] pb-3 pt-4 shadow-soft transition hover:-translate-y-[3px] hover:shadow-lift"><small class="text-[12.5px] font-medium text-muted-foreground">${m[0]}</small><b class="mb-0 mt-0.5 block text-[22px] font-bold tracking-tight" data-count="${m[1]}">${m[1]}</b>${spark(seed+m[0])}</div>`}
+function metCard(m,seed,href){return `<div class="met anim rounded-2xl border border-border bg-card px-[18px] pb-3 pt-4 shadow-soft transition hover:-translate-y-[3px] hover:shadow-lift" ${href?`data-href="${href}" style="cursor:pointer" role="link" title="Open approval queue"`:""}><small class="text-[12.5px] font-medium text-muted-foreground">${m[0]}</small><b class="mb-0 mt-0.5 block text-[22px] font-bold tracking-tight" data-count="${m[1]}">${m[1]}</b>${spark(seed+m[0])}</div>`}
+/* approve-first queue helpers */
+function myLanes(){return LANES.filter(l=>!DONE_LANE[l.ctx+l.id]&&(ME.role==="super"||ME.role===(OWNER[l.ctx]||"__none__")))}
+function waitN(){return myLanes().length}
 const EVENTS=[["Month-close party","#month-close · Apr 2 18:00 · Bangkok","24 going · holding-moderated","party-popper"],["PITR drill review","#platform · Apr 4 10:00 · Platform","12 going · owner contexts","server"],["Spring campaign retro","#campaign · Apr 8","8 going","megaphone"],["WH slotting walkthrough","#project · Apr 9 · WH2","6 going","boxes"]];
 function paintContacts(){const el=$("contactList");if(!el)return;
  el.innerHTML=Object.keys(PERSONAS).slice(0,7).map(k=>{const p=PERSONAS[k];return `<button class="contact" data-contact="${k}"><span class="inline-flex h-[32px] w-[32px] flex-none items-center justify-center rounded-full text-[11px] font-bold text-white" style="${avbg(p[0])}">${p[1]}</span><span class="text-[13px] font-medium">${p[0]}</span><small class="ml-auto text-[11px] text-muted-foreground">${roleLabel(k).split(" ")[0]}</small><span class="dot"></span></button>`}).join("")}
@@ -663,17 +671,18 @@ function openChat(k){chatWith=k;const p=PERSONAS[k];const cp=$("chatpanel");
  const send=()=>{const i=$("chatIn");if(i&&i.value.trim()){CHAT[k].push({me:1,t:i.value.trim()});openChat(k);say("Sent (demo — no new aggregate)")}};
  $("chatSend").onclick=send;$("chatIn").onkeydown=e=>{if(e.key==="Enter")send()}}
 function views(r){
+r=r||"today";
 renderTabs();renderNav(r);
 document.querySelectorAll(".nitem").forEach(a=>a.classList.toggle("on",a.dataset.r===("#/"+r.split("/")[0]+(r.startsWith("ctx/")?"/"+r.split("/")[1]:""))||a.dataset.r===r));
-if(r==="feed"||r===""){
+if(r==="feed"){
 const laneMine=f=>!f.lane||ME.role==="super"||ME.role===(OWNER[f.ctx]||"__none__");
 const list=FEED.map((f,i)=>({f,i})).filter(({f})=>feedFilter==="all"||(feedFilter==="lanes"?!!(f.lane||f.sys)&&laneMine(f):!f.lane&&!f.sys));
-col.innerHTML=page("Good morning, Acme","Acme Holding · Bangkok branch · newest first",
-`<span class="inline-flex items-center gap-1.5 rounded-[11px] border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-soft"><i data-lucide="building-2" class="h-3.5 w-3.5"></i> Acme Holding / Bangkok</span><a class="btn-primary" href="#/ctx/sales"><i data-lucide="plus" class="h-4 w-4"></i> Create quote</a>`,
-`<div class="anim anim-d1 grid grid-cols-4 gap-4 max-lg:grid-cols-2">${[["Open quotes","128"],["Orders to fulfill","56"],["Overdue approvals","7"],["Period close","Mar 2026"]].map(m=>metCard(m,"feed")).join("")}</div>
-${storyRowHTML()}
+col.innerHTML=page("Good morning, Acme",`${waitN()} approval${waitN()===1?"":"s"} waiting · newest first — decide, then catch up`,
+`<span class="inline-flex items-center gap-1.5 rounded-[11px] border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-soft"><i data-lucide="building-2" class="h-3.5 w-3.5"></i> Acme Holding / Bangkok</span><a class="btn-primary !rounded-full" href="#/today"><i data-lucide="shield-check" class="h-4 w-4"></i> Review approvals${waitN()?` · ${waitN()}`:""}</a>`,
+`${storyRowHTML()}
+<div class="anim anim-d1 grid grid-cols-4 gap-4 max-lg:grid-cols-2">${[["Open quotes","128"],["Orders to fulfill","56"],["Overdue approvals","7","#/today"],["Period close","Mar 2026"]].map(m=>metCard(m,"feed",m[2])).join("")}</div>
 <div class="post anim anim-d2 p-4"><div class="flex items-center gap-3"><div class="inline-flex h-[40px] w-[40px] flex-none items-center justify-center rounded-full text-xs font-bold text-white" style="${avbg(ME.name)}">${ME.av}</div><button id="composer" class="flex-1 rounded-full bg-muted px-4 py-2.5 text-left text-[13.5px] text-muted-foreground transition hover:bg-secondary">Share an update… @mention records, #tag topics</button></div><div class="mt-2 flex items-center gap-1 border-t border-border/70 pt-2"><button class="pact" data-t><i data-lucide="image" class="h-4 w-4 text-green-600"></i>Photo</button><button class="pact" data-t><i data-lucide="at-sign" class="h-4 w-4 text-primary"></i>Mention</button><button class="pact" data-t><i data-lucide="hash" class="h-4 w-4 text-amber-600"></i>Tag</button><button class="btn-primary btn-sm ml-auto !rounded-full" id="composerBtn">Post</button></div></div>
-<div class="anim anim-d3 flex gap-2">${[["all","All"],["lanes","Needs you"],["updates","Updates"]].map(p=>`<button class="rounded-full border px-4 py-[7px] text-[13px] font-semibold transition ${feedFilter===p[0]?"border-foreground bg-foreground text-background":"border-border bg-card text-muted-foreground hover:border-primary hover:text-primary"}" data-pill="${p[0]}">${p[1]}</button>`).join("")}</div>
+<div class="anim anim-d3 flex gap-2">${[["lanes","Needs you"],["all","All"],["updates","Updates"]].map(p=>`<button class="rounded-full border px-4 py-[7px] text-[13px] font-semibold transition ${feedFilter===p[0]?"border-foreground bg-foreground text-background":"border-border bg-card text-muted-foreground hover:border-primary hover:text-primary"}" data-pill="${p[0]}">${p[1]}${p[0]==="lanes"&&waitN()?` · ${waitN()}`:""}</button>`).join("")}</div>
 <div class="flex flex-col gap-4">${list.length?list.map(({f,i})=>feedCard(f,i)).join(""):'<div class="card anim"><b>All caught up.</b><p class="mb-0 mt-1 text-muted-foreground">Nothing in this lane — new posts land here newest-first.</p></div>'}</div>`);
 rail.innerHTML=`<div class="card anim !p-4"><h3 class="mb-1 flex items-center gap-2 text-[15px] font-bold tracking-tight"><i data-lucide="sparkles" class="h-4 w-4"></i> AI assistant · Ready</h3><p class="text-[13px] text-muted-foreground">Draft follow-up from 2 pinned refs: $18,400, Net 30. Ghost preview — review before Apply.</p>
 <div><span class="chip">@sales/quote-2026-042</span><span class="chip">@finance/journal-2026-117</span></div>
@@ -683,15 +692,14 @@ rail.innerHTML=`<div class="card anim !p-4"><h3 class="mb-1 flex items-center ga
 <div class="card anim !p-4"><h3 class="mb-1 text-[15px] font-bold">Contacts · switch role to act</h3><div class="flex flex-col" id="contactList"></div><p class="mt-1 text-[11px] text-muted-foreground">Demo presence — clicking switches your act-as role.</p></div>
 <div class="card anim"><h3 class="mb-2 text-[15.5px] font-semibold tracking-tight">Trending in Holding</h3><div class="flex flex-wrap gap-2">${["#month-close|24","#win|18","#sla|11","#po|9"].map(t=>{const p=t.split("|");return `<a class="rounded-xl border border-border bg-card px-3.5 py-2 text-[13px] transition hover:-translate-y-0.5 hover:border-primary hover:shadow-soft" href="#/tags"><b class="text-primary">${p[0]}</b> · ${p[1]}</a>`}).join("")}</div></div>`;
 bindCommon();bindFeed();paintContacts();renderDock();icons();return}
-if(r==="today"){const mine=l=>ME.role==="super"||ME.role===(OWNER[l.ctx]||"__none__");
-const lanes=LANES.filter(l=>!DONE_LANE[l.ctx+l.id]&&mine(l));
-const hidden=LANES.filter(l=>!DONE_LANE[l.ctx+l.id]&&!mine(l)).length;
-col.innerHTML=page("Today","Your digest · "+new Date().toLocaleDateString("en-GB",{weekday:"long",day:"numeric",month:"long"})+" · acting as "+ME.name,`<button class="btn-sec !rounded-full" data-t>Mark all read</button>`,
-`<div class="cover anim"><div class="cicon"><i data-lucide="calendar-days" class="h-6 w-6"></i></div><div><b class="text-[15px]">Needs your role · ${lanes.length}</b><p class="mb-0 mt-0.5 text-[13px] text-muted-foreground">Act inline — every decision needs proof and lands in audit.${hidden?` ${hidden} more lane${hidden>1?"s":""} need${hidden>1?"":"s"} a different role — switch via avatar.`:""}</p></div><a class="btn-sec btn-sm ml-auto !rounded-full" href="#/events">Events</a></div>
+if(r==="today"||r===""){const lanes=myLanes().sort((a,b)=>(a.sla||1e12)-(b.sla||1e12));
+const hidden=LANES.filter(l=>!DONE_LANE[l.ctx+l.id]&&!(ME.role==="super"||ME.role===(OWNER[l.ctx]||"__none__"))).length;
+col.innerHTML=page("Approvals",`${lanes.length} waiting · oldest first · acting as ${ME.name}`,`${lanes.length>1?`<button class="btn-primary !rounded-full" data-lane-all><i data-lucide="shield-check" class="h-3.5 w-3.5"></i> Approve all · ${lanes.length}</button>`:""}<button class="btn-sec !rounded-full" data-t>Mark all read</button>`,
+`<div class="cover anim"><div class="cicon"><i data-lucide="shield-check" class="h-6 w-6"></i></div><div><b class="text-[15px]">Needs decision · ${lanes.length}</b><p class="mb-0 mt-0.5 text-[13px] text-muted-foreground">Approve inline — every decision needs proof and lands in audit.${hidden?` ${hidden} more lane${hidden>1?"s":""} need${hidden>1?"":"s"} a different role — switch via avatar.`:""}</p></div><a class="btn-sec btn-sm ml-auto !rounded-full" href="#/events">Events</a></div>
 <div class="flex flex-col gap-3">${lanes.length?lanes.map(l=>`<div class="anim rounded-2xl border border-border bg-card p-4 shadow-soft" style="border-left:4px solid hsl(var(--warning))">
 <div class="flex flex-wrap items-center gap-3"><div class="min-w-0"><b class="text-[14px]">${l.t}</b><div class="text-xs text-muted-foreground">${l.why} · <a class="chip" href="#/rec/${l.ctx}/${encodeURIComponent(l.id)}">@${l.ctx}/${l.id}</a></div><div class="mt-1 text-[11.5px] text-muted-foreground">Proof needed: ${l.proof||"HumanDecisionProof"} · posts to audit + feed</div></div>
 <div class="ml-auto flex items-center gap-2"><span class="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-700 dark:text-amber-400">${l.sla?`<span data-sla="${l.sla}">${l.due}</span>`:l.due}</span>
-<button class="btn-sec btn-sm !rounded-full" data-lane="${l.ctx}|${l.id}|Rejected|0">Reject</button><button class="btn-primary btn-sm !rounded-full" data-lane="${l.ctx}|${l.id}|Approved|1"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i> Approve</button></div></div></div>`).join(""):'<div class="card anim"><b>Lane clear.</b><p class="mb-0 mt-1 text-muted-foreground">Nothing needs your role right now.</p></div>'}</div>
+<button class="btn-sec btn-sm !rounded-full" data-lane="${l.ctx}|${l.id}|Rejected|0">Reject</button><button class="btn-primary btn-sm !rounded-full" data-lane="${l.ctx}|${l.id}|Approved|1"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i> Approve</button></div></div></div>`).join(""): '<div class="card anim"><b>Queue clear — nothing waiting.</b><p class="mb-3 mt-1 text-muted-foreground">Every decision has proof. Nice work.</p><a class="btn-sec btn-sm !rounded-full" href="#/feed">Back to feed</a></div>'}</div>
 <div class="anim"><b class="text-[13px]">Latest follows</b></div>
 <div class="flex flex-col gap-4">${FEED.slice(0,2).map(feedCard).join("")}</div>`);rail.innerHTML="";bindCommon();bindFeed();icons();return}
 if(r==="tags"){col.innerHTML=page("Tags","Scoped vocabularies · trends stay inside your placement",
@@ -718,7 +726,7 @@ col.innerHTML=`<div class="anim"><a class="mb-2 inline-flex items-center gap-1.5
 <div class="flex flex-wrap items-end justify-between gap-3.5"><div><h1 class="m-0 text-[27px] font-bold tracking-tight">${id}</h1><p class="mb-0 mt-1.5 text-[13.5px] text-muted-foreground">${row[1]} · ${row[2]}</p></div><div class="flex items-center gap-2.5">${badge([row[3],row[4]])}<span class="fresh">Fresh</span></div></div></div>
 ${ro?'<div class="card anim !border-info/50 !py-3 text-[13px]"><b>Read-only</b> <span class="text-muted-foreground">— federated 360 view, no lane, no writes. Authority lives in source contexts.</span></div>':""}
 <div class="anim anim-d1 grid grid-cols-4 gap-3 max-lg:grid-cols-2">${[["Company","Acme Co."],["Period","Mar 2026"],["Owner",c?c.n:"—"],["Scope","Holding / Bangkok"]].map(x=>`<div class="rounded-xl border border-border bg-card px-3.5 py-2.5 shadow-soft"><small class="block text-[11.5px] font-semibold uppercase tracking-wider text-muted-foreground">${x[0]}</small><b class="text-sm font-semibold">${x[1]}</b></div>`).join("")}</div>
-${ro?"":`<div class="card anim anim-d2"><div class="mb-2 flex items-center justify-between"><h3 class="mb-0 text-[15px] font-bold">Lifecycle · ${cur}</h3><small class="text-xs text-muted-foreground">${f.stages.includes(cur)?(f.stages.indexOf(cur)+1)+"/"+f.stages.length+" · "+Math.round((f.stages.indexOf(cur)+1)/f.stages.length*100)+"%":"terminal"}</small></div><div class="prog mb-3"><i style="width:${f.stages.includes(cur)?Math.round((f.stages.indexOf(cur)+1)/f.stages.length*100):100}%"></i></div>${stepHTML(k,cur)}<div class="mt-4">${actBarHTML(k,id,cur)}</div></div>
+${ro?"":`<div class="card anim anim-d2"><div class="mb-2 flex items-center justify-between"><h3 class="mb-0 text-[15px] font-bold">Lifecycle · ${cur}</h3><small class="text-xs text-muted-foreground">${f.stages.includes(cur)?(f.stages.indexOf(cur)+1)+"/"+f.stages.length+" · "+Math.round((f.stages.indexOf(cur)+1)/f.stages.length*100)+"%":"terminal"}</small></div><div class="prog mb-3"><i style="width:${f.stages.includes(cur)?Math.round((f.stages.indexOf(cur)+1)/f.stages.length*100):100}%"></i></div>${stepHTML(k,cur)}<div class="mt-4">${actBarHTML(k,id,cur)}</div>${(()=>{const nx=myLanes().find(l=>!(l.ctx===k&&l.id===id));return nx?`<div class="mt-3 flex flex-wrap items-center gap-2 border-t border-border/70 pt-3 text-[13px]"><span class="text-muted-foreground">Next approval:</span><a class="chip" href="#/rec/${nx.ctx}/${encodeURIComponent(nx.id)}">@${nx.ctx}/${nx.id}</a><span class="text-xs text-muted-foreground">${nx.t}</span></div>`:`<div class="mt-3 border-t border-border/70 pt-3 text-[13px] font-bold text-green-700 dark:text-green-400">Queue clear after this — nice.</div>`})()}</div>
 <div class="card anim anim-d2"><h3 class="mb-1 text-[15.5px] font-semibold">Fields</h3><p class="mt-0 text-xs text-muted-foreground">${(k==="sales"||k==="procurement")?"OwnerPublished — agents may propose patches.":"Spec-ahead — agents cannot patch yet."} Kind-validated per EditableFieldDefinition.</p>${formFor(k)}<div class="mt-4 flex justify-end"><button class="btn-primary btn-sm" data-save="${k}|${id}">Save fields</button></div></div>
 <div class="card anim anim-d3"><h3 class="mb-2 text-[15.5px] font-semibold">References · typed edges</h3>${edgeHTML(k,id)}</div>
 ${(k==="sales"||k==="procurement")&&FIELDS[k]?sugHTML(k,id,FIELDS[k][0][2]):""}
@@ -740,11 +748,11 @@ rail.innerHTML=`<div class="card anim !p-4"><h3 class="mb-1 text-[15px] font-bol
 if(r==="events"){col.innerHTML=page("Events","Holding gatherings · demo RSVPs post to feed",`<button class="btn-primary btn-sm !rounded-full" data-t><i data-lucide="plus" class="h-3.5 w-3.5"></i> Create event</button>`,
 EVENTS.map(e=>`<div class="card anim"><div class="flex items-center gap-3.5"><span class="inline-flex h-[46px] w-[46px] flex-none items-center justify-center rounded-2xl bg-muted"><i data-lucide="${e[3]}" class="h-5 w-5 text-primary"></i></span><div class="min-w-0"><b class="block text-[15px]">${e[0]}</b><small class="text-[12.5px] text-muted-foreground">${e[1]} · ${e[2]}</small></div><div class="ml-auto flex gap-2"><button class="btn-sec btn-sm !rounded-full" data-t>Maybe</button><button class="btn-primary btn-sm !rounded-full" data-ev>Going</button></div></div></div>`).join("")+`<p class="text-xs text-muted-foreground">Demo-only — RSVPs toast + post locally, no aggregate behind them.</p>`);
 rail.innerHTML=`<div class="card anim !p-4"><h3 class="mb-1 text-[15px] font-bold">Your events</h3><p class="text-[13px] text-muted-foreground">2 going · 1 maybe · invites from followed groups land here.</p></div>`;bindCommon();bindFeed();icons();return}
-location.hash="#/feed"}
+location.hash="#/today"}
 function bindCommon(){
 document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>say("Demo — wired to owner command + HumanDecisionProof in production"));
 document.querySelectorAll("[data-proof]").forEach(b=>b.onclick=()=>say("HumanDecisionProof required — demo only"));
-document.querySelectorAll("[data-href]").forEach(tr=>tr.onclick=()=>location.hash=tr.dataset.href);
+document.querySelectorAll("[data-href]").forEach(tr=>tr.onclick=()=>{dd.classList.add("hidden");const rd=$("roledd");if(rd)rd.classList.add("hidden");location.hash=tr.dataset.href});
 document.querySelectorAll("[data-pill]").forEach(p=>p.onclick=()=>{feedFilter=p.dataset.pill;views("feed")});
 document.querySelectorAll("[data-count]").forEach(el=>countUp(el,el.dataset.count));
 document.querySelectorAll("[data-act]").forEach(b=>b.onclick=()=>{const[k,id,label,to,proof]=b.dataset.act.split("|");doAct(k,id,label,to,proof==="1")});
@@ -752,13 +760,13 @@ document.querySelectorAll("[data-emv]").forEach(b=>b.onclick=()=>{const[k,id,i,d
   if(j>=0&&j<es.length){const t=es[i];es[i]=es[j];es[j]=t;audit(k,id).unshift({by:"You",t:"Reordered reference chips (explicit).",time:"now"});views((location.hash||"").replace("#/",""));icons()}});
 document.querySelectorAll("[data-sug]").forEach(b=>b.onclick=()=>{const[key,op]=b.dataset.sug.split(/\|(?=[^|]*$)/);
   if(op==="rerun"){SUG[key]={st:"Running"};views((location.hash||"").replace("#/",""));icons();
-    setTimeout(()=>{SUG[key]={st:"Ready",d:Math.floor(Math.random()*65536).toString(16)};views((location.hash||"#/feed").replace("#/",""));icons()},900);return}
+    setTimeout(()=>{SUG[key]={st:"Ready",d:Math.floor(Math.random()*65536).toString(16)};views((location.hash||"#/today").replace("#/",""));icons()},900);return}
   if(op==="drift"){SUG[key]={st:"Conflicted"};say("Source drifted — suggestion Conflicted, nothing applied")}
   else if(op==="apply"){const[k,id]=key.split("#")[0].split("/");
   if(!canAct(k,1)){say(`Requires ${needRole(k)} — you are ${roleLabel(ME.role)}. Switch role via avatar.`);return}
   SUG[key]={st:"Applied",d:"a1b2"};audit(k,id).unshift({by:"You",t:"Applied AI suggestion · version re-validated, digest a1b2.",time:"now"});say("Applied — version re-validated")}
   else{SUG[key]={st:"Rejected"};say("Rejected — nothing written")}
-  views((location.hash||"#/feed").replace("#/",""));icons()});
+  views((location.hash||"#/today").replace("#/",""));icons()});
 document.querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>{const[k,id]=b.dataset.save.split("|");const o=formVal(k);if(!o)return;
   audit(k,id).unshift({by:"You",t:`Fields saved (${Object.keys(o).length} per schema, digested).`,time:"now"});say("Fields saved — audited");views((location.hash||"").replace("#/",""));icons()});
 document.querySelectorAll("[data-bool]").forEach(b=>b.onclick=()=>{b.textContent=b.textContent==="On"?"Off":"On"});
@@ -767,8 +775,14 @@ document.querySelectorAll("[data-rpost]").forEach(b=>b.onclick=()=>{const[k,id]=
 document.querySelectorAll("[data-new]").forEach(b=>b.onclick=()=>openForm(b.dataset.new));
 document.querySelectorAll("[data-lane]").forEach(b=>b.onclick=()=>{const[ctx,id,label,proof]=b.dataset.lane.split("|");
   if(!canAct(ctx,proof==="1")){say(`Requires ${needRole(ctx)} — you are ${roleLabel(ME.role)}. Switch role via avatar.`);return}
-  DONE_LANE[ctx+id]=label;audit(ctx,id).unshift({by:"You",t:`${label} from Today lane${proof==="1"?" · HumanDecisionProof attached":""}.`,time:"now"});
-  say(proof==="1"?"Proof attached — done":"Done — removed from lane");views("today");icons()});
+  DONE_LANE[ctx+id]=label;audit(ctx,id).unshift({by:"You",t:`${label} from approval lane${proof==="1"?" · HumanDecisionProof attached":""}.`,time:"now"});
+  FEED.unshift({ctx,t:`${id} ${label.toLowerCase()} — proof attached.`,tags:CTX[ctx].tags.slice(0,1),time:"0m",likes:0,by:"You",av:"YO",rr:id,cm:[]});
+  const left=myLanes().length;say((proof==="1"?"Proof attached — approved":"Done")+(left?` · ${left} more waiting`:" · queue clear"));views((location.hash||"#/today").replace("#/",""));icons()});
+document.querySelectorAll("[data-lane-all]").forEach(b=>b.onclick=()=>{const ls=myLanes();if(!ls.length)return;let n=0;
+  for(const l of ls){if(!canAct(l.ctx,1))continue;DONE_LANE[l.ctx+l.id]="Approved";audit(l.ctx,l.id).unshift({by:"You",t:"Approved from Approve-all · HumanDecisionProof attached.",time:"now"});n++}
+  if(!n){say(`Requires decision roles — you are ${roleLabel(ME.role)}. Switch role via avatar.`);return}
+  FEED.unshift({ctx:"collaboration",t:`${n} approval${n===1?"":"s"} cleared in one go — proofs attached.`,tags:["#win"],time:"0m",likes:0,by:"You",av:"YO",rr:null,cm:[]});
+  say(`Proof attached — ${n} approved${myLanes().length?` · ${myLanes().length} more waiting`:" · queue clear"}`);views((location.hash||"#/today").replace("#/",""));icons()});
 document.querySelectorAll("[data-contact]").forEach(b=>b.onclick=()=>{setRole(b.dataset.contact)});
 document.querySelectorAll("[data-ev]").forEach(b=>b.onclick=()=>say("You're going (demo) — posted to feed"));
 bindAt(document)}
@@ -783,7 +797,7 @@ const pal=$("pal"),palQ=$("palQ"),palRes=$("palRes");let palSel=0,palItems=[];
 function palAll(q){
 q=(q||"").toLowerCase();const out=[];
 const push=(g,label,sub,href)=>{if(!q||label.toLowerCase().includes(q)||(sub||"").toLowerCase().includes(q))out.push({g,label,sub,href})};
-push("Actions","Go to Feed","newest first","#/feed");push("Actions","Go to Today","your digest","#/today");
+push("Approvals","Review approvals","decision queue","#/today");push("Actions","Go to Feed","newest first","#/feed");
 push("Actions","Browse Tags","scoped vocabularies","#/tags");
 push("Actions","Walk Journeys","cross-context edges","#/journeys");
 push("Actions","Browse Events","demo RSVPs","#/events");
@@ -794,7 +808,7 @@ for(const k in CTX)for(const x of CTX[k].rows)push("Records",x[0],x[1]+" · "+CT
 return out.slice(0,40)}
 function palRender(){const q=palQ.value;palItems=palAll(q);palSel=0;
 let g="",h="";palItems.forEach((it,i)=>{if(it.g!==g){g=it.g;h+=`<div class="px-3 pb-1 pt-2.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">${g}</div>`}
-h+=`<button class="flex w-full items-center gap-3 rounded-[11px] p-2.5 text-left text-sm ${i===0?"bg-accent":""}" data-pi="${i}"><i data-lucide="${it.g==="Contexts"?"package":it.g==="Records"?"file-text":it.g==="Tags"?"tag":"sparkles"}" class="h-4 w-4"></i><span>${it.label}</span><small class="ml-auto text-xs text-muted-foreground">${it.sub||""}</small></button>`});
+h+=`<button class="flex w-full items-center gap-3 rounded-[11px] p-2.5 text-left text-sm ${i===0?"bg-accent":""}" data-pi="${i}"><i data-lucide="${it.g==="Approvals"?"shield-check":it.g==="Contexts"?"package":it.g==="Records"?"file-text":it.g==="Tags"?"tag":"sparkles"}" class="h-4 w-4"></i><span>${it.label}</span><small class="ml-auto text-xs text-muted-foreground">${it.sub||""}</small></button>`});
 palRes.innerHTML=h||'<div class="p-3 text-muted-foreground">No matches</div>';icons();
 palRes.querySelectorAll("[data-pi]").forEach(b=>b.onclick=()=>palGo(+b.dataset.pi))}
 function palGo(i){const it=palItems[i];if(!it)return;pal.classList.add("hidden");
@@ -812,8 +826,8 @@ $("searchBox").onclick=e=>{if(e.target.tagName!=="INPUT")palOpen()};
 document.body.insertAdjacentHTML("beforeend",'<div id="pick"></div><div id="modal"></div>');
 icons();
 $("q").oninput=()=>{const h=(location.hash||"").replace("#/","");if(h.startsWith("ctx/"))views(h)};
-window.onhashchange=()=>{document.body.classList.remove("navopen");views((location.hash||"#/feed").replace("#/",""))};
-views((location.hash||"#/feed").replace("#/",""));
+window.onhashchange=()=>{document.body.classList.remove("navopen");views((location.hash||"#/today").replace("#/",""))};
+views((location.hash||"#/today").replace("#/",""));
 renderDock();
 icons();
 </script>
