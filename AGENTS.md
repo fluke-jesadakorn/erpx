@@ -38,8 +38,8 @@ Env `.env/.env.local` ignored (see `.env.example`). Legacy `.runtime/target/.car
 > Map: `docs/TOC.md` (single hub).
 
 - `src/app/` Next.js App Router, `public/` assets
-- `docs/` → `TOC.md` hub + `plan/` 31 contexts (`ARCHIVE.md` canonical) + `adr/` 20 (ADR-020 living) + `contracts/next/` + `archive/` · `audits/` stub → `docs/archive/dioxus-2026-08-evidence/`
-- `Designed/MainDesign.pen` (Pencil MCP) · `fixtures/` `ops/` (runbooks `nextjs-incident/recovery.md`) · `.agents/skills/` 6
+- `docs/` → `TOC.md` hub + `plan/` 31 contexts (`ARCHIVE.md` canonical) + `adr/` 21 (ADR-021 living) + `contracts/next/` + `archive/` · `audits/` stub → `docs/archive/dioxus-2026-08-evidence/`
+- `Designed/mockup/` clickable prototype · `fixtures/` `ops/` (runbooks `nextjs-incident/recovery.md`) · `.agents/skills/` 6
 
 ## Recovery
 

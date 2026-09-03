@@ -20,7 +20,7 @@ npm run lint; npm run build
 
 ## Structure
 
-`src/app/` (layout/page/route handlers) · `public/` · `docs/` hub (`docs/TOC.md` → `docs/plan/MAP.md` 31 contexts) · `docs/plan/` (31) + `docs/adr/` (20, ADR-020 living) · `audits/` stub → `docs/archive/dioxus-2026-08-evidence/` · `Designed/MainDesign.pen` (Pencil MCP) · `fixtures/` `ops/` (living runbooks) · `.agents/skills/`
+`src/app/` (layout/page/route handlers) · `public/` · `docs/` hub (`docs/TOC.md` → `docs/plan/MAP.md` 31 contexts) · `docs/plan/` (31) + `docs/adr/` (21, ADR-021 living) · `audits/` stub → `docs/archive/dioxus-2026-08-evidence/` · `Designed/mockup/` (clickable prototype) · `fixtures/` `ops/` (living runbooks) · `.agents/skills/`
 
 ## Business context
 

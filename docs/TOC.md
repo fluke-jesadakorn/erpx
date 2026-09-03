@@ -8,7 +8,7 @@
 README.md · AGENTS.md+CLAUDE.md · CUTOVER.md (2026-09-02 + 2026-07-31) · CONTEXT.md (46 terms) · CONTRACT_POLICY.md
 docs/plan/ 31 contexts: README · 01-vision · MAP 31 flat · 02/<group>/<ctx>.md 31 one-pagers · 03/@-and-ai/ 31 deep 60L+_shared 109L · traceability 552 <details>+living route-table · ARCHIVE canonical
 docs/adr/ 20 (15 Reconfirmed 3 Deprecated 1 Superseded 020 Next.js) · docs/TOC.md ←here · docs/README → ARCHIVE · docs/contracts/next/route-table.md living · docs/agents/ · docs/archive/ (delivery 768L + wayfinder 10 tickets + dioxus 22 dirs 3.9M + ops 68K)
-Designed/MainDesign.pen 15M (Pencil) · audits/ stub→archive · src/app/ (layout/page) · .agents/skills/ 6 · .github/nextjs.yml living · fixtures/ops/ runbooks
+Designed/mockup/ clickable prototype (feed+31 contexts, from docs) · audits/ stub→archive · src/app/ (layout/page) · .agents/skills/ 6 · .github/nextjs.yml living · fixtures/ops/ runbooks
 ```
 
 ## Sales — 1 hop

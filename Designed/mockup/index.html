@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ERPX — Social ERP Mockup</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236758e5'/%3E%3Ctext x='16' y='22' font-size='16' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'%3EE%3C/text%3E%3C/svg%3E">
+<style>
+:root{--background:#fff;--foreground:#09090b;--card:#fff;--primary:#6758e5;--primary-fg:#fff;
+--secondary:#f4f4f5;--muted:#f4f4f5;--muted-fg:#71717a;--accent:#eeeafe;--destructive:#ef4444;
+--border:#e4e4e7;--success:#16a34a;--warning:#d97706;--info:#0284c7;--radius:10px}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;font-family:Inter,-apple-system,"Segoe UI",Roboto,"Noto Sans Thai",sans-serif;
+background:var(--background);color:var(--foreground);font-size:14px}
+a{color:inherit;text-decoration:none}button{font:inherit;cursor:pointer}
+.app{display:flex;min-height:100vh}
+/* sidebar */
+.side{width:280px;flex:none;background:var(--card);border-right:1px solid var(--border);
+display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow:auto}
+.brand{display:flex;align-items:center;gap:10px;padding:20px}
+.logo{width:32px;height:32px;border-radius:8px;background:var(--primary);color:#fff;
+display:flex;align-items:center;justify-content:center;font-weight:700}
+.brand b{font-size:16px}.nav{padding:0 12px 12px;display:flex;flex-direction:column;gap:2px}
+.nav .g{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted-fg);
+padding:12px 12px 4px}
+.nitem{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:8px;color:var(--muted-fg);font-weight:500}
+.nitem svg{flex:none}.nitem:hover{background:var(--secondary)}
+.nitem.on{background:var(--accent);color:var(--foreground)}
+.nitem.on svg{color:var(--primary)}
+.side .ft{margin-top:auto;padding:16px;border-top:1px solid var(--border);color:var(--muted-fg);font-size:13px}
+/* main */
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.top{height:64px;background:var(--card);border-bottom:1px solid var(--border);
+display:flex;align-items:center;gap:12px;padding:0 24px;position:sticky;top:0;z-index:5}
+.search{display:flex;align-items:center;gap:8px;background:var(--muted);border-radius:8px;
+padding:8px 14px;width:360px;max-width:40vw;color:var(--muted-fg)}
+.search input{border:0;background:none;outline:none;width:100%;font:inherit;color:var(--foreground)}
+.top .sp{flex:1}.iconbtn{position:relative;border:1px solid var(--border);background:var(--card);
+border-radius:8px;width:36px;height:36px;display:flex;align-items:center;justify-content:center}
+.iconbtn .dot{position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--destructive)}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--primary);color:#fff;
+display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+.dd{position:absolute;top:60px;right:24px;width:340px;background:var(--card);border:1px solid var(--border);
+border-radius:var(--radius);box-shadow:0 12px 32px rgba(0,0,0,.12);padding:8px;display:none;z-index:9}
+.dd.open{display:block}.dd h4{margin:6px 10px;font-size:13px;color:var(--muted-fg)}
+.nrow{display:flex;gap:10px;padding:10px;border-radius:8px;align-items:flex-start}
+.nrow:hover{background:var(--muted)}.nrow small{color:var(--muted-fg)}
+.content{padding:28px;display:flex;gap:24px;align-items:flex-start;max-width:1240px;width:100%;margin:0 auto}
+.col{flex:1;min-width:0;display:flex;flex-direction:column;gap:18px}
+.rail{width:340px;flex:none;display:flex;flex-direction:column;gap:16px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.card h3{margin:0 0 4px;font-size:16px}.muted{color:var(--muted-fg)}
+h1{font-size:24px;margin:0}.sub{color:var(--muted-fg);margin:6px 0 0}
+.hrow{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+/* buttons/badges/chips */
+.btn{display:inline-flex;align-items:center;gap:8px;border:0;border-radius:10px;padding:10px 16px;
+font-weight:500;background:var(--primary);color:var(--primary-fg)}
+.btn.sec{background:var(--secondary);color:var(--foreground)}
+.btn.gho{background:none;color:var(--muted-fg)}
+.btn.dan{background:var(--destructive);color:#fff}
+.btn.sm{padding:7px 12px;font-size:13px}
+.badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:500}
+.b-ok{background:var(--success);color:#fff}.b-warn{background:var(--warning);color:#fff}
+.b-def{background:var(--secondary);color:var(--foreground)}
+.b-out{background:var(--card);border:1px solid var(--border);color:var(--muted-fg)}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:var(--primary);
+border-radius:8px;padding:4px 10px;font-family:ui-monospace,Menlo,monospace;font-size:12px;margin:2px 4px 2px 0}
+.scope{display:inline-flex;align-items:center;gap:6px;background:var(--muted);color:var(--muted-fg);
+border-radius:8px;padding:6px 10px;font-size:12px}
+/* metrics */
+.mets{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.met{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px}
+.met small{color:var(--muted-fg);font-size:13px}.met b{display:block;font-size:26px;margin-top:4px}
+/* tables */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{text-align:left;font-size:13px;color:var(--muted-fg);background:var(--muted);padding:10px 16px}
+.tbl td{padding:12px 16px;border-bottom:1px solid var(--border);font-size:14px}
+.tbl tr:last-child td{border-bottom:0}.tbl tr[data-href]{cursor:pointer}
+.tbl tr[data-href]:hover td{background:var(--muted)}
+/* feed */
+.lane{border:1px solid var(--border);border-left:4px solid var(--warning);border-radius:var(--radius);
+background:var(--card);padding:14px 16px}
+.lane b{font-size:13px}.lane .why{font-size:12px;color:var(--muted-fg)}
+.post{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px}
+.post .ph{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+.post .ph .avatar{border-radius:8px}
+.post .pt{font-weight:600}.post .pm{font-size:12px;color:var(--muted-fg)}
+.post .pb{margin:8px 0}.post .pf{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.react{border:1px solid var(--border);background:var(--card);border-radius:999px;padding:5px 12px;
+font-size:13px;color:var(--muted-fg);display:inline-flex;gap:6px;align-items:center}
+.react.on{background:var(--accent);color:var(--primary);border-color:var(--primary)}
+.cmt{border-top:1px solid var(--border);margin-top:12px;padding-top:10px;display:flex;flex-direction:column;gap:8px}
+.cmt .c{background:var(--muted);border-radius:8px;padding:8px 12px;font-size:13px}
+.cmt .c b{font-size:13px}
+.composer{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--border);
+border-radius:var(--radius);padding:12px 16px}
+.composer input{flex:1;border:0;outline:none;font:inherit}
+.ai{border:1px dashed var(--primary)}
+.ai .prov{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--muted-fg)}
+.kv{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:14px 0}
+.kv small{color:var(--muted-fg);font-size:12px;display:block}.kv b{font-size:14px;font-weight:500}
+.tagrow{display:flex;flex-wrap:wrap;gap:8px}
+.tag{border:1px solid var(--border);border-radius:999px;padding:8px 14px;font-size:13px;background:var(--card)}
+.tag b{color:var(--primary)}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#09090b;color:#fff;
+padding:12px 20px;border-radius:10px;display:none;z-index:50;font-size:14px}
+.menu{display:none}
+@media(max-width:1100px){.rail{display:none}.mets{grid-template-columns:repeat(2,1fr)}.kv{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:820px){.side{position:fixed;left:0;top:0;bottom:0;z-index:20;transform:translateX(-100%);transition:.2s}
+body.navopen .side{transform:none}.menu{display:inline-flex}.content{padding:16px}.mets{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side"></aside>
+  <div class="main">
+    <div class="top">
+      <button class="iconbtn menu" id="menuBtn" aria-label="menu"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="q" placeholder="Search or type @…  (filters this view)"></div>
+      <div class="sp"></div>
+      <button class="iconbtn" id="bellBtn" aria-label="notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="dot"></span></button>
+      <div class="avatar">HA</div>
+      <div class="dd" id="dd"></div>
+    </div>
+    <div class="content"><div class="col" id="col"></div><div class="rail" id="rail"></div></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+"use strict";
+/* ---------- data (from docs/plan/MAP.md + 02/03 specs + 04-social-paradigm.md) ---------- */
+const GROUPS=[
+["Platform & Governance",["brand","commercial","identity_access","organization","platform_administration"]],
+["Customer & Support",["customer_360","customer_authority","support"]],
+["Finance · Sales · POS",["finance","sales","pos"]],
+["Supply Chain & Ops",["assets","inventory","maintenance","operations","procurement","quality"]],
+["People & Legal",["legal","people_payroll"]],
+["Marketing & CRM",["crm","marketing"]],
+["Manufacturing",["manufacturing"]],["Planning",["planning"]],["Projects",["projects"]],
+["E-commerce",["ecommerce"]],["Talent · Learning · Benefits",["benefits","learning","talent"]],
+["Field Service",["field_service"]],["AI & Collaboration",["agent","collaboration"]]];
+const CTX={
+brand:{n:"Brand",i:"palette",lane:"publish approvals · brand-owner",tags:["#brand","#identity"],m:[["Open drafts","4"],["Published","27"],["Pending review","2"],["Locales","th/en"]],rows:[["DRAFT-118","Signup hero refresh","identity · v3","Draft","b-def"],["DRAFT-117","Invoice logo lockup","billing · v1","In review","b-warn"],["BRD-102","Core mark v2","identity · published","Posted","b-ok"]]},
+commercial:{n:"Commercial",i:"card",lane:"grace/overdue · billing-owner",tags:["#billing","#plan"],m:[["Active plans","6"],["Subscriptions","1,204"],["Grace","3"],["MRR","$48.2K"]],rows:[["PLAN-pro-26","Pro annual","$29/seat · Stripe","Posted","b-ok"],["SUB-8841","Acme Holding","grace +2d","Pending","b-warn"],["PLAN-team-26","Team monthly","$12/seat · draft","Draft","b-def"]]},
+identity_access:{n:"Identity & Access",i:"shield",lane:"expiry <7d · security",tags:["#access","#roles"],m:[["Principals","312"],["Expiring <7d","5"],["Break-glass","0"],["Reviews due","2"]],rows:[["GRANT-441"," Mali · finance-approver","expires Apr 6","Active","b-ok"],["GRANT-439","Somchai · warehouse","expires Mar 30","Expiring","b-warn"],["AUDIT-Q1","Access review","8 scopes","Pending","b-warn"]]},
+organization:{n:"Organization",i:"building",lane:"suspend/archive · platform",tags:["#org","#holding"],m:[["Holdings","3"],["Companies","11"],["Branches","9"],["Teams","42"]],rows:[["ACME","Acme Holding","3 companies","Active","b-ok"],["ACME-BKK","Bangkok branch","5 teams","Active","b-ok"],["ACME-CNX","Chiang Mai branch","suspended","Suspended","b-def"]]},
+platform_administration:{n:"Platform Admin",i:"server",lane:"failed jobs · platform",tags:["#platform"],m:[["Holdings live","3"],["Backups OK","3/3"],["Workers","12"],["PITR drill","pass"]],rows:[["PROV-77","Acme Holding","completed","Posted","b-ok"],["PITR-mar","Point-in-time drill","passed","Posted","b-ok"],["BKUP-310","Nightly backup","verified","Posted","b-ok"]]},
+customer_360:{n:"Customer 360",i:"users",lane:"none (read-only)",tags:["#customer"],m:[["Profiles","8,412"],["Touched 7d","1,204"],["Open tickets","56"],["At risk","7"]],rows:[["CUST-acme","Acme Holding","3 open · $18.4K pipe","Active","b-ok"],["CUST-siam","Siam Retail","1 open · $9.2K pipe","Active","b-ok"],["CUST-bkkf","Bangkok Foods","0 open","Quiet","b-def"]]},
+customer_authority:{n:"Customer Authority",i:"key",lane:"merges · privacy",tags:["#access"],m:[["Bindings","212"],["Pending merge","1"],["Audits 30d","14"],["Restricted","6"]],rows:[["BIND-901","Acme portal access","company scope","Active","b-ok"],["MERGE-12","Siam duplicate","awaiting privacy","Pending","b-warn"],["AUD-331","Q1 access audit","complete","Posted","b-ok"]]},
+support:{n:"Support",i:"help",lane:"SLA <2h · support",tags:["#ticket","#sla","#incident"],m:[["Open","56"],["SLA risk","7"],["Incidents","1"],["CSAT","4.6"]],rows:[["TICKET-509","Stock mismatch at BKK","SLA 1h12m","Open","b-warn"],["TICKET-508","VAT on receipt","SLA 6h","Open","b-def"],["INC-014","Bank import delay","broadcast","Posted","b-ok"]]},
+finance:{n:"Finance",i:"wallet",lane:"period-gate · finance-approver",tags:["#month-close","#journal"],m:[["Trial balance","Balanced"],["Open period","Mar 2026"],["Unposted","12"],["FX reval","Pending"]],rows:[["J-2026-117","Sales posting Mar 28","$18,400 = $18,400","Posted","b-ok"],["J-2026-118","Accrual Mar 29","$9,200 draft","Draft","b-def"],["J-2026-119","FX revaluation","$4,150 pending","Pending","b-warn"]]},
+sales:{n:"Sales",i:"file",lane:"expiring <3d · sales-approver",tags:["#quote","#win"],m:[["Open quotes","128"],["Sent","84"],["Accepted","31"],["Expiring","4"]],rows:[["QT-2026-042","Acme Holding","$18,400 · Net 30","Sent","b-warn"],["QT-2026-041","Siam Retail","$9,200 · Net 15","Accepted","b-ok"],["QT-2026-040","Bangkok Foods","$4,150 · draft","Draft","b-def"]]},
+pos:{n:"Point of Sale",i:"cart",lane:"refunds · store-manager",tags:["#sale","#refund"],m:[["Today","$12,480"],["Sales","214"],["Refunds","2"],["Shift","open"]],rows:[["SALE-9921","Register 2","$184.00 · card","Posted","b-ok"],["SALE-9920","Register 1","$62.50 · cash","Posted","b-ok"],["REF-118","SALE-9904","$24.00 bounded","Pending","b-warn"]]},
+assets:{n:"Assets",i:"box",lane:"degraded · ops",tags:["#asset"],m:[["In service","342"],["Degraded","3"],["In maintenance","5"],["Retired YTD","11"]],rows:[["ASSET-042","Forklift FL-02","degraded","Degraded","b-warn"],["ASSET-107","HVAC rooftop","in service","Active","b-ok"],["ASSET-098","Van V-11","maintenance","Pending","b-warn"]]},
+inventory:{n:"Inventory",i:"boxes",lane:"shortages · warehouse",tags:["#stock"],m:[["SKUs","4,120"],["Shortages","6"],["Reserved","312"],["Moves today","48"]],rows:[["MOVE-883","WIDGET-A ×200","WH1→WH2","Posted","b-ok"],["MOVE-884","WIDGET-B ×50","reserved","Pending","b-warn"],["MOVE-885","GADGET-C ×12","shortage","Blocked","b-def"]]},
+maintenance:{n:"Maintenance",i:"wrench",lane:"blocked · maintenance-lead",tags:["#workorder"],m:[["Open WO","18"],["Blocked","2"],["Due today","5"],["Done 7d","22"]],rows:[["WO-771","FL-02 hydraulics","blocked on parts","Blocked","b-def"],["WO-772","HVAC filter","scheduled","Pending","b-warn"],["WO-770","Dock light","complete + evidence","Posted","b-ok"]]},
+operations:{n:"Operations",i:"activity",lane:"escalations · ops-lead",tags:["#ops"],m:[["Exceptions","9"],["Escalated","2"],["Work queue","34"],["Resolved 7d","41"]],rows:[["EXC-301","Pick shortfall WH2","escalated","Pending","b-warn"],["EXC-299","Carrier delay","acknowledged","Open","b-def"],["EXC-295","Cycle count gap","resolved","Posted","b-ok"]]},
+procurement:{n:"Procurement",i:"clipboard",lane:"approvals · procurement-approver",tags:["#po","#receipt"],m:[["Open REQ","23"],["Pending approval","6"],["POs","41"],["Receipts","35"]],rows:[["REQ-2026-014","MRO spares · $6.8K","pending approval","Pending","b-warn"],["PO-7731","REQ-2026-011 · issued","awaiting receipt","Sent","b-def"],["GR-552","PO-7719 · 3-way match","accepted","Posted","b-ok"]]},
+quality:{n:"Quality",i:"check",lane:"failed checks · quality-lead",tags:["#quality"],m:[["Open checks","12"],["Failed","1"],["Released","30"],["Holds","2"]],rows:[["LOT-331","Resin batch · fail","blocks ops","Blocked","b-def"],["LOT-332","Resin batch · pass","released","Posted","b-ok"],["LOT-330","Steel coil","in check","Pending","b-warn"]]},
+legal:{n:"Legal",i:"scale",lane:"approvals · legal-approver",tags:["#contract"],m:[["Matters","17"],["Contracts","64"],["Holds","3"],["Pending sign","4"]],rows:[["CTR-2201","MSA Acme · v4","awaiting sign","Pending","b-warn"],["CTR-2198","DPA Siam · signed","active","Posted","b-ok"],["HOLD-09","Litigation hold","3 docs frozen","Active","b-def"]]},
+people_payroll:{n:"People & Payroll",i:"user",lane:"decisions · hr-approver",tags:["#leave","#payroll"],m:[["Headcount","186"],["Leave open","9"],["Expense open","14"],["Payroll run","Mar · draft"]],rows:[["LEAVE-881","Mali · Apr 3–5","pending","Pending","b-warn"],["EXP-1204","Somchai · $182","pending","Pending","b-warn"],["RUN-mar","Payroll Mar 2026","draft","Draft","b-def"]]},
+crm:{n:"CRM",i:"heart",lane:"stalled >14d · sales-lead",tags:["#opportunity"],m:[["Open opps","64"],["Pipeline","$1.2M"],["Stalled","5"],["New 7d","9"]],rows:[["OPP-2026-011","Acme expansion","$180K · negotiation","Open","b-warn"],["OPP-2026-014","Siam rollout","$96K · qualified","Open","b-def"],["OPP-2026-009","BKK Foods","$44K · won","Posted","b-ok"]]},
+marketing:{n:"Marketing",i:"mega",lane:"verify · marketing-ops",tags:["#campaign"],m:[["Campaigns","8"],["Leads 30d","312"],["Journeys","5"],["Domains","3 verified"]],rows:[["CMP-spring","Spring push · email","scheduled","Pending","b-warn"],["CMP-q1rev","Q1 review","sent 12.4K","Posted","b-ok"],["LEAD-990","Trade-show batch","312 captured","Open","b-def"]]},
+manufacturing:{n:"Manufacturing",i:"factory",lane:"disposition · shop-lead",tags:["#workorder"],m:[["Orders","26"],["In stage","8"],["Blocked","1"],["Yield","98.2%"]],rows:[["MFG-551","Bracket run ×5K","in stage 3/5","Open","b-def"],["MFG-549","Housing run","blocked QA","Blocked","b-def"],["MFG-548","Gasket run","complete","Posted","b-ok"]]},
+planning:{n:"Planning",i:"cal",lane:"releases · planner",tags:["#plan"],m:[["Scenarios","4"],["Shortages","6"],["Released","2"],["Horizon","12w"]],rows:[["SCN-apr","April plan · 6 shortages","frozen","Posted","b-ok"],["SCN-may","May draft","2 shortages","Draft","b-def"],["REC-77"," expedite resin","released","Pending","b-warn"]]},
+projects:{n:"Projects",i:"kanban",lane:"blocked · pm",tags:["#project"],m:[["Active","14"],["Milestones 7d","6"],["Blocked","2"],["On track","86%"]],rows:[["PROJ-2026-001","ERP rollout · WBS-01","dependsOn REQ-014","Open","b-warn"],["PROJ-2026-004","WH slotting v2","on track","Open","b-def"],["PROJ-2026-002","POS pilot","complete","Posted","b-ok"]]},
+ecommerce:{n:"E-commerce",i:"store",lane:"returns · store-ops",tags:["#listing"],m:[["Listings","128"],["Carts active","46"],["Orders 7d","210"],["Returns","4"]],rows:[["LST-771","Widget Pro","published","Posted","b-ok"],["ORD-5521","Cart checkout","to sales","Sent","b-def"],["RET-44","Defective unit","pending","Pending","b-warn"]]},
+benefits:{n:"Benefits",i:"gift",lane:"closing <7d",tags:["#benefits"],m:[["Plans","5"],["Enrolled","172"],["Window","open to Apr 7"],["Pending","9"]],rows:[["PLAN-hplus","Health+ 2026","enrollment open","Open","b-warn"],["ENR-881","Mali · family","elected","Posted","b-ok"],["ENR-879","Somchai · single","pending docs","Pending","b-warn"]]},
+learning:{n:"Learning",i:"book",lane:"overdue · people-lead",tags:["#learning"],m:[["Courses","24"],["Assigned","86"],["Completed","61"],["Overdue","5"]],rows:[["CRS-safety","Safety 101","assigned","Pending","b-warn"],["CRS-erp","ERP basics","completed 🎉","Posted","b-ok"],["CRS-tax","WHT advanced","overdue","Blocked","b-def"]]},
+talent:{n:"Talent",i:"hire",lane:"offers · hiring-manager",tags:["#hiring"],m:[["Requisitions","7"],["Pipeline","43"],["Offers","2"],["Erasure req","0"]],rows:[["REQ-009","Ops lead","interviews","Open","b-warn"],["OFFER-21","Ops lead · candidate A","pending sign","Pending","b-warn"],["REQ-007","QA tech","filled","Posted","b-ok"]]},
+field_service:{n:"Field Service",i:"tool",lane:"exceptions · dispatcher",tags:["#field"],m:[["Orders","19"],["Dispatched","8"],["Exceptions","2"],["Billed","11"]],rows:[["JOB-018","Acme HVAC visit","complete + evidence","Posted","b-ok"],["JOB-019","Siam POS install","dispatched","Sent","b-def"],["JOB-020","BKK dock door","part exception","Blocked","b-def"]]},
+agent:{n:"Agents",i:"bot",lane:"approvals · owners",tags:["#agent"],m:[["Agents","12"],["Pools","4"],["Assignments","23"],["Proposed","3"]],rows:[["ASN-301","fill-payment-terms","ready for review","Pending","b-warn"],["ASN-299","triage-tickets","running","Open","b-def"],["AGV-pay-3","payment-assistant v3","approved","Posted","b-ok"]]},
+collaboration:{n:"Collaboration",i:"chat",lane:"mentions inbox",tags:["#thread"],m:[["Threads","148"],["Mentions","12"],["Following","34"],["Tags followed","6"]],rows:[["THR-771","Month-close party","24 replies","Open","b-warn"],["THR-769","Quote review QT-042","resolved","Posted","b-ok"],["THR-765","Vendor onboarding","7 replies","Open","b-def"]]}};
+const FEED=[
+{lane:"ClosePeriod needs HumanDecisionProof · finance-approver",why:"Role lane · period gate · Mar 2026 closes in 4 days",ctx:"finance",t:"QT · J-2026-119 FX revaluation is pending — approve the close checklist.",tags:["#month-close"],time:"4m",likes:3,by:"Nisa (Controller)",av:"NC",rr:"J-2026-119",cm:[["Somchai","Bank rec is green on my side."],["Nisa","Proof attached, one more approver needed."]]},
+{ctx:"sales",t:"QT-2026-042 sent to Acme Holding — $18,400, Net 30, valid to Mar 31.",tags:["#quote"],time:"18m",likes:12,by:"Mali (Sales)",av:"MS",rr:"QT-2026-042",cm:[["Beam","Customer asked about volume discount tiers."],["Mali","Added as note, AI drafted the follow-up."]]},
+{ctx:"support",t:"TICKET-509 stock mismatch at BKK — SLA 1h12m left.",tags:["#ticket","#sla"],time:"32m",likes:5,by:"Ops Bot",av:"OB",rr:"TICKET-509",cm:[["Dao","Cycle count team dispatched."]]},
+{lane:"REQ-2026-014 waiting on procurement-approver · $6.8K MRO",why:"Role lane · requisition approval",ctx:"procurement",t:"MRO spares requisition with justification from @projects.",tags:["#po"],time:"1h",likes:7,by:"Noon (WH)",av:"NW",rr:"REQ-2026-014",cm:[["Noon","3 vendors quoted, picking fastest."]]},
+{ctx:"projects",t:"PROJ-2026-001 WBS-01 unblocked — dependsOn REQ-2026-014 fulfilled.",tags:["#project"],time:"2h",likes:15,by:"Top (PM)",av:"TP",rr:"PROJ-2026-001",cm:[]},
+{sys:"Period Mar 2026 closes in 4 days — post only in #month-close.",ctx:"finance",t:"System broadcast.",tags:["#month-close"],time:"3h",likes:2,by:"ERPX System",av:"ES",rr:null,cm:[]}];
+const NOTIFS=[["@sales/quote-2026-042 mentioned you in QT-042 review","12m"],["REQ-2026-014 needs procurement-approver","44m"],["TICKET-509 SLA at 1h12m","1h"],["#month-close digest: 3 new posts","3h"]];
+const ICONS={
+home:'<rect x="3" y="10" width="18" height="11" rx="2"/><path d="m9 21 3-3 3 3M12 3 3 10"/>',
+file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>',
+wallet:'<path d="M21 7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16V7"/><circle cx="16.5" cy="14" r="1.2"/>',
+cart:'<circle cx="9" cy="20" r="1.5"/><circle cx="17" cy="20" r="1.5"/><path d="M2 3h3l2.6 12.5H18L21 7H6"/>',
+users:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5"/><circle cx="17.5" cy="9" r="2.5"/><path d="M16 15.2c2.6.3 4.7 1.9 5.5 4.8"/>',
+help:'<circle cx="12" cy="12" r="9"/><path d="M9.2 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4M12 17.5h.01"/>',
+wrench:'<path d="M14.7 6.3a4.5 4.5 0 0 0-6 6L3 18l3 3 5.7-5.7a4.5 4.5 0 0 0 6-6L14 13l-3-3z"/>',
+box:'<path d="m12 2 9 5v10l-9 5-9-5V7z"/><path d="m3.5 7.5 8.5 4.7 8.5-4.7M12 22V12"/>',
+shield:'<path d="M12 2 4 6v6c0 5 3.4 8.4 8 10 4.6-1.6 8-5 8-10V6z"/><path d="m9 12 2 2 4-4"/>',
+building:'<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 21v-4h6v4M8 7h2m4 0h2M8 11h2m4 0h2M8 15h2m4 0h2"/>',
+user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/>',
+bot:'<rect x="5" y="9" width="14" height="10" rx="2"/><path d="M12 9V4M8 4h8"/><circle cx="9.5" cy="13.5" r="1"/><circle cx="14.5" cy="13.5" r="1"/><path d="M9.5 16.5h5"/>',
+chat:'<path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z"/>',
+tag:'<path d="m12 2 9 9-9 9H3V11z"/><circle cx="8" cy="9" r="1.4"/>',
+bell:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
+card:'<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
+key:'<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9m-4 4 3 3"/>',
+server:'<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
+boxes:'<path d="m12 2 9 5v10l-9 5-9-5V7z"/><path d="m3.5 7.5 8.5 4.7 8.5-4.7M12 22V12"/><path d="M2 12h20"/>',
+clipboard:'<rect x="6" y="4" width="12" height="17" rx="2"/><rect x="9" y="2" width="6" height="4" rx="1"/><path d="m10 14 2 2 4-4"/>',
+check:'<path d="m4 12 5 5L20 6"/>',
+scale:'<path d="M12 3v18M5 7l7-4 7 4M5 7l-2 7a3 3 0 0 0 6 0L7 7m10 0-2 7a3 3 0 0 0 6 0l-2-7"/>',
+heart:'<path d="M12 20s-7-4.3-9-9c-1.2-2.8.5-6 3.7-6 2 0 3.6 1.2 5.3 3.4C13.7 6.2 15.3 5 17.3 5c3.2 0 4.9 3.2 3.7 6-2 4.7-9 9-9 9z"/>',
+mega:'<path d="m3 11 18-7-7 18-2.5-7.5z"/>',
+factory:'<path d="M2 20V10l5 3V10l5 3V6h6v14z"/><path d="M2 20h20"/>',
+cal:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4m8-4v4M3 10h18"/>',
+kanban:'<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 4v16M16 4v8"/>',
+store:'<path d="M4 7 6 3h12l2 4M4 7v13h16V7M4 7h16M9 20v-6h6v6"/>',
+gift:'<rect x="3" y="8" width="18" height="4"/><path d="M5 12v9h14v-9M12 8v13M12 8S7 8 5 6a2 2 0 0 1 3-2.5C10 5 12 8 12 8s2-3 4-4.5A2 2 0 0 1 19 6c-2 2-7 2-7 2z"/>',
+book:'<path d="M4 19V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zm0 0a2 2 0 0 0 2 2h13"/>',
+hire:'<circle cx="10" cy="8" r="3.5"/><path d="M3.5 20c.7-3 3-4.5 6.5-4.5 1.5 0 2.8.3 3.9 1M18 14v6m3-3h-6"/>',
+tool:'<path d="M14.7 6.3a4.5 4.5 0 0 0-6 6L3 18l3 3 5.7-5.7a4.5 4.5 0 0 0 6-6L14 13l-3-3z"/>',
+activity:'<path d="M3 12h4l3 8 4-16 3 8h4"/>',
+palette:'<circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1.2"/><circle cx="14" cy="9" r="1.2"/><circle cx="15" cy="14" r="1.2"/><path d="M12 3a9 9 0 0 0 0 18c1.5 0 2-.8 2-1.8 0-1.4-1.2-1.7-1.2-3 0-1.2 1-2.2 2.4-2.2H17a4 4 0 0 0 4-4c0-3.9-4-7-9-7z"/>',
+atsign:'<circle cx="12" cy="12" r="4"/><path d="M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7"/>',
+spark:'<path d="M12 3v4m0 10v4M3 12h4m10 0h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/>',
+plus:'<path d="M12 5v14M5 12h14"/>',
+x:'<path d="M6 6l12 12M18 6 6 18"/>'};
+const ic=(n,s=18)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]||ICONS.box}</svg>`;
+/* ---------- shell ---------- */
+const $=id=>document.getElementById(id);
+const side=$("side"),col=$("col"),rail=$("rail"),dd=$("dd"),toast=$("toast");
+function say(m){toast.textContent=m;toast.style.display="block";clearTimeout(say.t);say.t=setTimeout(()=>toast.style.display="none",2200)}
+let nav=`<div class="brand"><div class="logo">E</div><b>ERPX</b></div><div class="nav">`;
+nav+=`<a class="nitem" data-r="#/feed" href="#/feed">${ic("home")}<span>Feed</span></a>`;
+nav+=`<a class="nitem" data-r="#/today" href="#/today">${ic("cal")}<span>Today</span></a>`;
+nav+=`<a class="nitem" data-r="#/tags" href="#/tags">${ic("tag")}<span>Tags</span></a>`;
+for(const [g,ctxs] of GROUPS){nav+=`<div class="g">${g}</div>`;
+for(const c of ctxs){nav+=`<a class="nitem" data-r="#/ctx/${c}" href="#/ctx/${c}">${ic(CTX[c].i)}<span>${CTX[c].n}</span></a>`}}
+nav+=`</div><div class="ft">Holding Acme · Bangkok<br>Projection Fresh · audited</div>`;
+side.innerHTML=nav;
+$("menuBtn").onclick=()=>document.body.classList.toggle("navopen");
+$("bellBtn").onclick=e=>{e.stopPropagation();dd.classList.toggle("open")};
+document.addEventListener("click",e=>{if(!dd.contains(e.target))dd.classList.remove("open")});
+dd.innerHTML=`<h4>Notifications</h4>`+NOTIFS.map(n=>`<div class="nrow"><div class="avatar" style="width:28px;height:28px;font-size:11px">•</div><div>${n[0]}<br><small>${n[1]} ago</small></div></div>`).join("");
+/* ---------- views ---------- */
+const badge=s=>`<span class="badge ${s[1]}">${s[0]}</span>`;
+function page(title,sub,actions,body,wide){return `<div class="hrow"><div><h1>${title}</h1><p class="sub">${sub}</p></div><div style="display:flex;gap:10px">${actions}</div></div>`+body}
+function feedCard(f,i){
+const c=CTX[f.ctx];
+return `<div class="post">${f.lane?`<div class="lane" style="margin:-4px -4px 12px"><b>⚑ ${f.lane}</b><div class="why">${f.why}</div></div>`:""}
+${f.sys?`<div class="lane" style="border-left-color:var(--info)"><b>📣 System broadcast</b></div>`:""}
+<div class="ph"><div class="avatar">${f.av}</div><div><div class="pt">${f.by}</div><div class="pm">${c?c.n:"System"} · ${f.time} ago ${f.tags.map(t=>`<span class="chip">${t}</span>`).join("")}</div></div></div>
+<div class="pb">${f.t} ${f.rr?`<a class="chip" href="#/rec/${f.ctx}/${encodeURIComponent(f.rr)}">@${f.ctx}/${f.rr}</a>`:""}</div>
+<div class="pf"><button class="react" data-like="${i}">♡ <span>${f.likes}</span></button><button class="react" data-c="${i}">💬 ${f.cm.length}</button><button class="react" data-f="${i}">＋ Follow</button></div>
+<div class="cmt" id="cm${i}" style="display:none">${f.cm.map(m=>`<div class="c"><b>${m[0]}</b> ${m[1]}</div>`).join("")}
+<div style="display:flex;gap:8px"><input data-ci="${i}" placeholder="Comment… (typed @, audited)" style="flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font:inherit"><button class="btn sm sec" data-post="${i}">Post</button></div></div></div>`}
+function views(r){
+document.querySelectorAll(".nitem").forEach(a=>a.classList.toggle("on",a.dataset.r===("#/"+r.split("/")[0]+(r.startsWith("ctx/")?"/"+r.split("/")[1]:""))||a.dataset.r===r));
+if(r==="feed"||r===""){
+col.innerHTML=page("Good morning, Acme","Acme Holding · Bangkok branch · newest first",
+`<span class="scope">${ic("building",14)} Acme Holding / Bangkok</span><a class="btn" href="#/ctx/sales">${ic("plus",16)} Create quote</a>`,
+`<div class="mets">${[["Open quotes","128"],["Orders to fulfill","56"],["Overdue approvals","7"],["Period close","Mar 2026"]].map(m=>`<div class="met"><small>${m[0]}</small><b>${m[1]}</b></div>`).join("")}</div>
+<div class="composer">${ic("atsign")}<input id="composer" placeholder="Post an update… @mention records, #tag topics (human-published, audited)"></div>
+<div id="feedlist" style="display:flex;flex-direction:column;gap:14px">${FEED.map(feedCard).join("")}</div>`);
+rail.innerHTML=`<div class="card"><h3>${ic("spark",16)} AI assistant · Ready</h3><p class="muted" style="font-size:13px">Draft follow-up from 2 pinned refs: $18,400, Net 30. Ghost preview — review before Apply.</p>
+<div><span class="chip">@sales/quote-2026-042</span><span class="chip">@finance/journal-2026-117</span></div>
+<p class="prov muted" style="font-size:12px">mistral · digest a1b2 · Apply re-validates version</p>
+<div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn sm sec" data-t>Reject</button><button class="btn sm" data-t>Apply</button></div></div>
+<div class="card"><h3>Trending in Holding</h3><div class="tagrow">${["#month-close|24","#win|18","#sla|11","#po|9"].map(t=>{const p=t.split("|");return `<a class="tag" href="#/tags"><b>${p[0]}</b> · ${p[1]}</a>`}).join("")}</div></div>`;
+bindFeed();return}
+if(r==="today"){col.innerHTML=page("Today","Your digest · lanes first, then follows",`<button class="btn sec" data-t>Mark all read</button>`,
+`<div class="lane"><b>⚑ 3 need your role</b><div class="why">ClosePeriod proof · REQ-2026-014 approval · TICKET-509 SLA 1h12m</div></div>
+<div id="feedlist" style="display:flex;flex-direction:column;gap:14px">${FEED.slice(0,3).map(feedCard).join("")}</div>`);rail.innerHTML="";bindFeed();return}
+if(r==="tags"){col.innerHTML=page("Tags","Scoped vocabularies · trends stay inside your placement",
+`<button class="btn sec" data-t>Follow tag</button>`,
+`<div class="card"><h3>Holding-moderated</h3><div class="tagrow">${["#month-close","#win","#po","#sla","#quote","#incident","#project","#hiring"].map(t=>`<a class="tag" href="#/feed"><b>${t}</b></a>`).join("")}</div></div>
+<div class="card"><h3>System-reserved</h3><div class="tagrow">${["#incident","#period-gate"].map(t=>`<span class="tag"><b>${t}</b> owner-only</span>`).join("")}</div></div>`);rail.innerHTML="";bindFeed();return}
+if(r.startsWith("ctx/")){const k=r.split("/")[1],c=CTX[k];if(!c){location.hash="#/feed";return}
+const q=($("q").value||"").toLowerCase();
+const rows=c.rows.filter(x=>!q||x.join(" ").toLowerCase().includes(q));
+col.innerHTML=page(c.n,`${c.lane} · tags ${c.tags.join(" ")}`,
+`<button class="btn sec" data-t>＋ Follow</button><button class="btn" data-t>＋ New</button>`,
+`<div class="mets">${c.m.map(m=>`<div class="met"><small>${m[0]}</small><b>${m[1]}</b></div>`).join("")}</div>
+<div class="card" style="padding:0;overflow:hidden"><table class="tbl"><tr><th>ID</th><th>Subject</th><th>Detail</th><th>Status</th></tr>
+${rows.map(x=>`<tr data-href="#/rec/${k}/${encodeURIComponent(x[0])}"><td><b>${x[0]}</b></td><td>${x[1]}</td><td class="muted">${x[2]}</td><td>${badge([x[3],x[4]])}</td></tr>`).join("")}</table></div>`);
+rail.innerHTML=`<div class="card"><h3>About ${c.n}</h3><p class="muted" style="font-size:13px">Group home · every row is a post · ${c.lane}.</p><div>${c.tags.map(t=>`<a class="chip" href="#/tags">${t}</a>`).join("")}</div></div>`;bindFeed();return}
+if(r.startsWith("rec/")){const[,k,id]=r.split("/").map(decodeURIComponent);const c=CTX[k];
+const row=(c?c.rows.find(x=>x[0]===id):null)||["—","—","—","Open","b-def"];
+col.innerHTML=`<div class="hrow"><div><a href="#/ctx/${k}" style="color:var(--muted-fg)">← ${c?c.n:k}</a><h1 style="margin-top:6px">${id}</h1><p class="sub">${row[1]} · ${row[2]}</p></div><div>${badge([row[3],row[4]])}</div></div>
+<div class="kv">${[["Company","Acme Co."],["Period","Mar 2026"],["Owner",c?c.n:"—"],["Freshness","Fresh"]].map(x=>`<div><small>${x[0]}</small><b>${x[1]}</b></div>`).join("")}</div>
+<div><span class="chip">@${k}/${id}</span>${c?c.tags.map(t=>`<span class="chip">${t}</span>`).join(""):""}</div>
+<div class="card"><h3>Activity</h3><div class="cmt" style="border:0;margin:0;padding:0">
+<div class="c"><b>Nisa</b> Status moved to ${row[3]} — proof attached, audited.</div>
+<div class="c"><b>You</b> Following this record · notifications on.</div>
+<div style="display:flex;gap:8px"><input placeholder="Comment… @ to mention, # to tag" style="flex:1;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font:inherit"><button class="btn sm" data-t>Post</button></div></div></div>
+<div class="card ai"><h3>${ic("spark",16)} Suggested follow-up</h3><p class="muted" style="font-size:13px">Ghost preview from pinned refs · digest c3d4 · Apply re-validates version.</p>
+<div style="display:flex;gap:10px;justify-content:flex-end"><button class="btn sm sec" data-t>Reject</button><button class="btn sm" data-proof>Apply (proof)</button></div></div>`;
+rail.innerHTML=`<div class="card"><h3>Referenced by · 2</h3><div><span class="chip">@crm/opportunity-2026-011</span><span class="chip">@projects/proj-2026-001</span></div></div>`;bindFeed();return}
+location.hash="#/feed"}
+function bindFeed(){
+document.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>say("Demo — wired to owner command + HumanDecisionProof in production"));
+document.querySelectorAll("[data-proof]").forEach(b=>b.onclick=()=>say("HumanDecisionProof required — demo only"));
+document.querySelectorAll("[data-href]").forEach(tr=>tr.onclick=()=>location.hash=tr.dataset.href);
+document.querySelectorAll("[data-like]").forEach(b=>b.onclick=()=>{const s=b.querySelector("span");let n=parseInt(s.textContent);const on=b.classList.toggle("on");s.textContent=n+(on?1:-1);b.firstChild.textContent=on?"♥ ":"♡ ";say(on?"Reaction recorded (signal only — moves no workflow)":"Reaction removed")});
+document.querySelectorAll("[data-c]").forEach(b=>b.onclick=()=>{const d=document.getElementById("cm"+b.dataset.c);d.style.display=d.style.display==="none"?"flex":"none"});
+document.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{const on=b.textContent.includes("✓");b.textContent=on?"＋ Follow":"✓ Following";say(on?"Unfollowed":"Following — feed + notifications on")});
+document.querySelectorAll("[data-post]").forEach(b=>b.onclick=()=>{const i=document.querySelector(`[data-ci="${b.dataset.post}"]`);if(i&&i.value.trim()){say("Comment posted (typed @, audited)");i.value=""}});
+const cp=$("composer");if(cp)cp.onkeydown=e=>{if(e.key==="Enter"&&cp.value.trim()){FEED.unshift({ctx:"sales",t:cp.value.trim(),tags:["#note"],time:"0m",likes:0,by:"You",av:"YO",rr:null,cm:[]});views("feed");say("Posted to Following (human-published, audited)")}}}
+$("q").oninput=()=>{const h=(location.hash||"").replace("#/","");if(h.startsWith("ctx/"))views(h)};
+window.onhashchange=()=>{document.body.classList.remove("navopen");views((location.hash||"#/feed").replace("#/",""))};
+views((location.hash||"#/feed").replace("#/",""));
+</script>
+</body>
+</html>
