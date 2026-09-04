@@ -216,21 +216,6 @@ a.chip:hover{transform:translateY(-1px);border-color:hsl(var(--primary))}
 <script>
 "use strict";
 /* ---------- data (from docs/plan/MAP.md + 02/03 specs + 04-social-paradigm.md) ---------- */
-const GROUPS=[
-/* Real business departments, ordered by daily-use priority (money-in first, systems last).
-   Contexts inside each dept follow the real workflow order (e.g. Sales: POS checkout → quote → online → pipeline). */
-["Sales & Revenue",["pos","sales","ecommerce","crm"],"shopping-cart"],
-["Marketing & Brand",["marketing","brand"],"megaphone"],
-["Customer & Service",["customer_360","support","field_service","customer_authority"],"life-buoy"],
-["Operations & Supply",["planning","procurement","inventory","operations","manufacturing","projects"],"boxes"],
-["Quality & Assets",["quality","maintenance","assets"],"badge-check"],
-["Finance & Legal",["commercial","finance","legal"],"wallet"],
-["People & Talent",["talent","people_payroll","learning","benefits"],"users"],
-["Platform & IT",["organization","identity_access","platform_administration","agent","collaboration"],"server"]];
-function groupOf(ctx){return GROUPS.findIndex(g=>g[1].includes(ctx))}
-let NAVCOL={};try{NAVCOL=JSON.parse(localStorage.getItem("erpx-nav")||"{}")||{}}catch(e){NAVCOL={}}
-let lastGi=-1;
-function saveNav(){try{localStorage.setItem("erpx-nav",JSON.stringify(NAVCOL))}catch(e){}}
 /* lucide icon per context (lucide@latest UMD) */
 const LICON={brand:"palette",commercial:"credit-card",identity_access:"shield-check",organization:"building-2",
 platform_administration:"server",customer_360:"users",customer_authority:"key-round",support:"life-buoy",
@@ -533,36 +518,16 @@ function setTheme(t){document.documentElement.classList.toggle("dark",t==="dark"
 setTheme((()=>{try{return localStorage.getItem("erpx-theme")||"light"}catch(e){return"light"}})());
 $("themeBtn").onclick=()=>{const d=!document.documentElement.classList.contains("dark");setTheme(d?"dark":"light");say(d?"Dark mode on":"Light mode on")};
 renderRole();
-/* ---------- shell: department nav (collapsible, auto-expands active dept) ---------- */
+/* ---------- shell: sidebar is just Home ---------- */
 const NITEM="nitem flex items-center gap-3 rounded-[9px] border border-transparent px-3 py-2 font-medium text-[#c9c2b6] hover:bg-white/10 hover:text-white";
-function ctxOfRoute(r){if(!r)return null;const p=r.split("/");
- if(p[0]==="ctx"&&p[1])return p[1];if(p[0]==="rec"&&p[1])return p[1];return null}
 function renderNav(r){
- const cur=ctxOfRoute(r);const gi=cur?groupOf(cur):-1;
- if(gi!==lastGi){lastGi=gi;if(gi>=0&&NAVCOL[GROUPS[gi][0]]){delete NAVCOL[GROUPS[gi][0]];saveNav()}}
  const nW=waitN();
  let nav=`<div class="flex items-center gap-3 px-5 pb-3.5 pt-[22px]"><div class="flex h-9 w-9 items-center justify-center rounded-[9px] text-[17px] font-extrabold text-white" style="background:#B3402A">E</div><div><b class="text-[16.5px] tracking-tight text-white">ERPX</b><small class="block text-[11px] font-medium text-[#857d6f]">Social ERP · Acme</small></div></div>
 <div class="mx-3 mb-3 flex items-center gap-3 rounded-2xl bg-white/[.06] p-3" id="meCard"><div id="meCardAv" class="inline-flex h-[40px] w-[40px] flex-none items-center justify-center rounded-full text-[13px] font-bold text-white">HA</div><div class="min-w-0"><b id="meCardName" class="block truncate text-[14px] text-white">Holding Admin</b><small id="meCardRole" class="block truncate text-[11.5px] text-[#a89f8f]">Super Admin · switch via avatar</small></div></div>
 <div class="flex flex-col gap-0.5 px-3 pb-3.5">`;
- nav+=`<a class="${NITEM}" data-r="#/feed" href="#/feed"><i data-lucide="home" class="h-[18px] w-[18px] opacity-75"></i><span>Home · decide + play</span>${nW?`<span class="ml-auto rounded-full bg-destructive px-2 py-0.5 text-[11px] font-bold text-white">${nW}</span>`:""}</a>`;
- nav+=`<a class="${NITEM}" data-r="#/events" href="#/events"><i data-lucide="calendar-heart" class="h-[18px] w-[18px] opacity-75"></i><span>Events</span></a>`;
- nav+=`<a class="${NITEM}" data-r="#/tags" href="#/tags"><i data-lucide="tag" class="h-[18px] w-[18px] opacity-75"></i><span>Tags</span></a>`;
- nav+=`<a class="${NITEM}" data-r="#/journeys" href="#/journeys"><i data-lucide="route" class="h-[18px] w-[18px] opacity-75"></i><span>Journeys</span></a>`;
- nav+=`<div class="px-3 pb-1 pt-3.5 text-[10.5px] font-bold uppercase tracking-[.1em] text-[#857d6f]">Shortcuts · sell first</div>`;
- nav+=`<a class="${NITEM}" data-r="#/ctx/pos" href="#/ctx/pos"><i data-lucide="shopping-cart" class="h-[18px] w-[18px] opacity-75"></i><span>POS terminal</span></a>`;
- nav+=`<a class="${NITEM}" data-r="#/ctx/sales" href="#/ctx/sales"><i data-lucide="file-text" class="h-[18px] w-[18px] opacity-75"></i><span>Sales quotes</span></a>`;
- nav+=`<a class="${NITEM}" data-r="#/ctx/crm" href="#/ctx/crm"><i data-lucide="heart" class="h-[18px] w-[18px] opacity-75"></i><span>CRM pipeline</span></a>`;
- nav+=`<div class="px-3 pb-1 pt-3.5 text-[10.5px] font-bold uppercase tracking-[.1em] text-[#857d6f]">Departments · tap to fold</div>`;
- GROUPS.forEach((gr,i)=>{const[g,ctxs,gic]=gr;const open=!NAVCOL[g];const hasCur=ctxs.includes(cur);
-  const warn=ctxs.reduce((n,c)=>n+((CTX[c].rows||[]).filter(x=>x[4]==="b-warn"&&!DONE_LANE[c+x[0]]).length),0);
-  nav+=`<button class="flex w-full items-center gap-2.5 rounded-[9px] px-3 py-2 text-left text-[10.5px] font-bold uppercase tracking-[.1em] text-[#857d6f] hover:bg-white/10 hover:text-white" data-g="${i}" aria-expanded="${open}"><i data-lucide="${gic||"building-2"}" class="h-[15px] w-[15px] opacity-75"></i><span class="truncate">${g}</span><span class="ml-auto flex items-center gap-1.5">${warn?`<small class="rounded-full bg-amber-500/20 px-1.5 py-px font-bold normal-case tracking-normal text-amber-400">${warn}</small>`:""}<small class="font-semibold normal-case tracking-normal opacity-70">${ctxs.length}</small><i data-lucide="${open?"chevron-down":"chevron-right"}" class="h-3.5 w-3.5"></i></span></button>`;
-  if(open)for(const c of ctxs){nav+=`<a class="${NITEM} !py-[7px] pl-[38px] text-[13.5px] ${c===cur?"!border-transparent":""}" data-r="#/ctx/${c}" href="#/ctx/${c}"><i data-lucide="${LICON[c]}" class="h-[17px] w-[17px] opacity-75"></i><span class="truncate">${CTX[c].n}</span>${c===cur?'<span class="ml-auto h-1.5 w-1.5 flex-none rounded-full bg-[#d0603a]"></span>':""}</a>`}});
+ nav+=`<a class="${NITEM}" data-r="#/feed" href="#/feed"><i data-lucide="home" class="h-[18px] w-[18px] opacity-75"></i><span>Home</span>${nW?`<span class="ml-auto rounded-full bg-destructive px-2 py-0.5 text-[11px] font-bold text-white">${nW}</span>`:""}</a>`;
  nav+=`</div><div class="mt-auto flex items-center gap-2.5 border-t border-white/10 p-4 px-5 text-xs text-[#857d6f]"><span class="pulse"></span><span>Acme Holding · Bangkok<br>Projection Fresh · audited<br><b id="meRole" class="text-white"></b></span></div>`;
  side.innerHTML=nav;
- side.querySelectorAll("[data-g]").forEach(b=>b.onclick=e=>{e.preventDefault();const gr=GROUPS[+b.dataset.g][0];
-  if(NAVCOL[gr])delete NAVCOL[gr];else NAVCOL[gr]=1;saveNav();
-  renderNav((location.hash||"#/feed").replace("#/",""));renderRole();
-  document.querySelectorAll(".nitem").forEach(a=>a.classList.toggle("on",a.dataset.r===("#/"+((location.hash||"#/feed").replace("#/","")).split("/")[0]+(((location.hash||"").replace("#/","")).startsWith("ctx/")?"/"+((location.hash||"").replace("#/","")).split("/")[1]:""))));icons()});
  renderRole();
  document.querySelectorAll(".nitem").forEach(a=>a.classList.toggle("on",a.dataset.r===("#/"+r.split("/")[0]+(r.startsWith("ctx/")?"/"+r.split("/")[1]:""))||a.dataset.r===r));
  icons()}
