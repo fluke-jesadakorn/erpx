@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title"><title id="title">ERPX — E Modules — monochrome</title><g fill="#176B50">
+    <path d="M144 96H368C385.673 96 400 110.327 400 128S385.673 160 368 160H184V192H112V128C112 110.327 126.327 96 144 96Z"/>
+    <path d="M112 224H320C337.673 224 352 238.327 352 256S337.673 288 320 288H184V320H112V224Z"/>
+    <path d="M112 352H368C385.673 352 400 366.327 400 384S385.673 416 368 416H144C126.327 416 112 401.673 112 384V352Z"/>
+  </g></svg>

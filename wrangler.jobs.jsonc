@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "erpx-jobs",
+  "main": "src/workers/jobs.ts",
+  "compatibility_date": "2026-09-05",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "triggers": { "crons": ["*/2 * * * *"] },
+  "r2_buckets": [
+    { "binding": "H001_FILES", "bucket_name": "erpx-h001-files-local" },
+    { "binding": "H002_FILES", "bucket_name": "erpx-h002-files-local" }
+  ],
+  "d1_databases": [
+    { "binding": "H001_DB", "database_name": "erpx-h001-write", "database_id": "00000000-0000-0000-0000-000000000003" },
+    { "binding": "H001_READ_DB", "database_name": "erpx-h001-read", "database_id": "00000000-0000-0000-0000-000000000004" },
+    { "binding": "H002_DB", "database_name": "erpx-h002-write", "database_id": "00000000-0000-0000-0000-000000000005" },
+    { "binding": "H002_READ_DB", "database_name": "erpx-h002-read", "database_id": "00000000-0000-0000-0000-000000000006" }
+  ],
+  "queues": {
+    "producers": [{ "binding": "ERPX_EVENTS", "queue": "erpx-events-local" }],
+    "consumers": [{ "queue": "erpx-events-local", "max_batch_size": 20, "max_retries": 5, "dead_letter_queue": "erpx-events-dlq-local" }]
+  },
+  "env": {
+    "dev": {
+      "name": "erpx-jobs-dev",
+      "triggers": { "crons": ["*/2 * * * *"] },
+      "r2_buckets": [
+        { "binding": "H001_FILES", "bucket_name": "erpx-h001-files-dev" },
+        { "binding": "H002_FILES", "bucket_name": "erpx-h002-files-dev" }
+      ],
+      "d1_databases": [
+        { "binding": "H001_DB", "database_name": "erpx-h001-write", "database_id": "00000000-0000-0000-0000-000000000003" },
+        { "binding": "H001_READ_DB", "database_name": "erpx-h001-read", "database_id": "00000000-0000-0000-0000-000000000004" },
+        { "binding": "H002_DB", "database_name": "erpx-h002-write", "database_id": "00000000-0000-0000-0000-000000000005" },
+        { "binding": "H002_READ_DB", "database_name": "erpx-h002-read", "database_id": "00000000-0000-0000-0000-000000000006" }
+      ],
+      "queues": {
+        "producers": [{ "binding": "ERPX_EVENTS", "queue": "erpx-events-dev" }],
+        "consumers": [{ "queue": "erpx-events-dev", "max_batch_size": 20, "max_retries": 5, "dead_letter_queue": "erpx-events-dlq-dev" }]
+      }
+    }
+  }
+}

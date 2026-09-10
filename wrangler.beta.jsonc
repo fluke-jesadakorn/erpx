@@ -1,0 +1,365 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "compatibility_date": "2026-09-05",
+  "compatibility_flags": [
+    "nodejs_compat",
+    "global_fetch_strictly_public"
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "ERPX_ENVIRONMENT": "beta",
+    "BETTER_AUTH_URL": "https://configure-your-beta-domain.example",
+    "ERPX_PUBLIC_BETA": "false",
+    "ERPX_RESOURCE_SLOTS": "[{\"id\":\"beta001\",\"write\":\"B001_DB\",\"read\":\"B001_READ_DB\",\"files\":\"B001_FILES\",\"beta\":true},{\"id\":\"beta002\",\"write\":\"B002_DB\",\"read\":\"B002_READ_DB\",\"files\":\"B002_FILES\",\"beta\":true},{\"id\":\"beta003\",\"write\":\"B003_DB\",\"read\":\"B003_READ_DB\",\"files\":\"B003_FILES\",\"beta\":true},{\"id\":\"beta004\",\"write\":\"B004_DB\",\"read\":\"B004_READ_DB\",\"files\":\"B004_FILES\",\"beta\":true},{\"id\":\"beta005\",\"write\":\"B005_DB\",\"read\":\"B005_READ_DB\",\"files\":\"B005_FILES\",\"beta\":true},{\"id\":\"beta006\",\"write\":\"B006_DB\",\"read\":\"B006_READ_DB\",\"files\":\"B006_FILES\",\"beta\":true},{\"id\":\"beta007\",\"write\":\"B007_DB\",\"read\":\"B007_READ_DB\",\"files\":\"B007_FILES\",\"beta\":true},{\"id\":\"beta008\",\"write\":\"B008_DB\",\"read\":\"B008_READ_DB\",\"files\":\"B008_FILES\",\"beta\":true},{\"id\":\"beta009\",\"write\":\"B009_DB\",\"read\":\"B009_READ_DB\",\"files\":\"B009_FILES\",\"beta\":true},{\"id\":\"beta010\",\"write\":\"B010_DB\",\"read\":\"B010_READ_DB\",\"files\":\"B010_FILES\",\"beta\":true},{\"id\":\"beta011\",\"write\":\"B011_DB\",\"read\":\"B011_READ_DB\",\"files\":\"B011_FILES\",\"beta\":true},{\"id\":\"beta012\",\"write\":\"B012_DB\",\"read\":\"B012_READ_DB\",\"files\":\"B012_FILES\",\"beta\":true},{\"id\":\"beta013\",\"write\":\"B013_DB\",\"read\":\"B013_READ_DB\",\"files\":\"B013_FILES\",\"beta\":true},{\"id\":\"beta014\",\"write\":\"B014_DB\",\"read\":\"B014_READ_DB\",\"files\":\"B014_FILES\",\"beta\":true},{\"id\":\"beta015\",\"write\":\"B015_DB\",\"read\":\"B015_READ_DB\",\"files\":\"B015_FILES\",\"beta\":true},{\"id\":\"beta016\",\"write\":\"B016_DB\",\"read\":\"B016_READ_DB\",\"files\":\"B016_FILES\",\"beta\":true},{\"id\":\"beta017\",\"write\":\"B017_DB\",\"read\":\"B017_READ_DB\",\"files\":\"B017_FILES\",\"beta\":true},{\"id\":\"beta018\",\"write\":\"B018_DB\",\"read\":\"B018_READ_DB\",\"files\":\"B018_FILES\",\"beta\":true},{\"id\":\"beta019\",\"write\":\"B019_DB\",\"read\":\"B019_READ_DB\",\"files\":\"B019_FILES\",\"beta\":true},{\"id\":\"beta020\",\"write\":\"B020_DB\",\"read\":\"B020_READ_DB\",\"files\":\"B020_FILES\",\"beta\":true}]",
+    "BETA_MEMBER_LIMIT": "20",
+    "BETA_BRANCH_LIMIT": "5",
+    "BETA_AI_LIMIT": "100",
+    "BETA_STORAGE_BYTES": "1073741824"
+  },
+  "d1_databases": [
+    {
+      "binding": "CONTROL_DB",
+      "database_name": "erpx-beta-control",
+      "migrations_dir": "migrations/control",
+      "database_id": "00000000-0000-0000-0000-000000000100"
+    },
+    {
+      "binding": "B001_DB",
+      "database_name": "erpx-beta001-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000101"
+    },
+    {
+      "binding": "B001_READ_DB",
+      "database_name": "erpx-beta001-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000102"
+    },
+    {
+      "binding": "B002_DB",
+      "database_name": "erpx-beta002-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000103"
+    },
+    {
+      "binding": "B002_READ_DB",
+      "database_name": "erpx-beta002-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000104"
+    },
+    {
+      "binding": "B003_DB",
+      "database_name": "erpx-beta003-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000105"
+    },
+    {
+      "binding": "B003_READ_DB",
+      "database_name": "erpx-beta003-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000106"
+    },
+    {
+      "binding": "B004_DB",
+      "database_name": "erpx-beta004-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000107"
+    },
+    {
+      "binding": "B004_READ_DB",
+      "database_name": "erpx-beta004-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000108"
+    },
+    {
+      "binding": "B005_DB",
+      "database_name": "erpx-beta005-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000109"
+    },
+    {
+      "binding": "B005_READ_DB",
+      "database_name": "erpx-beta005-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000110"
+    },
+    {
+      "binding": "B006_DB",
+      "database_name": "erpx-beta006-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000111"
+    },
+    {
+      "binding": "B006_READ_DB",
+      "database_name": "erpx-beta006-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000112"
+    },
+    {
+      "binding": "B007_DB",
+      "database_name": "erpx-beta007-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000113"
+    },
+    {
+      "binding": "B007_READ_DB",
+      "database_name": "erpx-beta007-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000114"
+    },
+    {
+      "binding": "B008_DB",
+      "database_name": "erpx-beta008-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000115"
+    },
+    {
+      "binding": "B008_READ_DB",
+      "database_name": "erpx-beta008-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000116"
+    },
+    {
+      "binding": "B009_DB",
+      "database_name": "erpx-beta009-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000117"
+    },
+    {
+      "binding": "B009_READ_DB",
+      "database_name": "erpx-beta009-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000118"
+    },
+    {
+      "binding": "B010_DB",
+      "database_name": "erpx-beta010-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000119"
+    },
+    {
+      "binding": "B010_READ_DB",
+      "database_name": "erpx-beta010-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000120"
+    },
+    {
+      "binding": "B011_DB",
+      "database_name": "erpx-beta011-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000121"
+    },
+    {
+      "binding": "B011_READ_DB",
+      "database_name": "erpx-beta011-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000122"
+    },
+    {
+      "binding": "B012_DB",
+      "database_name": "erpx-beta012-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000123"
+    },
+    {
+      "binding": "B012_READ_DB",
+      "database_name": "erpx-beta012-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000124"
+    },
+    {
+      "binding": "B013_DB",
+      "database_name": "erpx-beta013-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000125"
+    },
+    {
+      "binding": "B013_READ_DB",
+      "database_name": "erpx-beta013-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000126"
+    },
+    {
+      "binding": "B014_DB",
+      "database_name": "erpx-beta014-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000127"
+    },
+    {
+      "binding": "B014_READ_DB",
+      "database_name": "erpx-beta014-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000128"
+    },
+    {
+      "binding": "B015_DB",
+      "database_name": "erpx-beta015-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000129"
+    },
+    {
+      "binding": "B015_READ_DB",
+      "database_name": "erpx-beta015-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000130"
+    },
+    {
+      "binding": "B016_DB",
+      "database_name": "erpx-beta016-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000131"
+    },
+    {
+      "binding": "B016_READ_DB",
+      "database_name": "erpx-beta016-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000132"
+    },
+    {
+      "binding": "B017_DB",
+      "database_name": "erpx-beta017-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000133"
+    },
+    {
+      "binding": "B017_READ_DB",
+      "database_name": "erpx-beta017-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000134"
+    },
+    {
+      "binding": "B018_DB",
+      "database_name": "erpx-beta018-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000135"
+    },
+    {
+      "binding": "B018_READ_DB",
+      "database_name": "erpx-beta018-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000136"
+    },
+    {
+      "binding": "B019_DB",
+      "database_name": "erpx-beta019-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000137"
+    },
+    {
+      "binding": "B019_READ_DB",
+      "database_name": "erpx-beta019-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000138"
+    },
+    {
+      "binding": "B020_DB",
+      "database_name": "erpx-beta020-write",
+      "migrations_dir": "migrations/holding-write",
+      "database_id": "00000000-0000-0000-0000-000000000139"
+    },
+    {
+      "binding": "B020_READ_DB",
+      "database_name": "erpx-beta020-read",
+      "migrations_dir": "migrations/holding-read",
+      "database_id": "00000000-0000-0000-0000-000000000140"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "B001_FILES",
+      "bucket_name": "erpx-beta001-files"
+    },
+    {
+      "binding": "B002_FILES",
+      "bucket_name": "erpx-beta002-files"
+    },
+    {
+      "binding": "B003_FILES",
+      "bucket_name": "erpx-beta003-files"
+    },
+    {
+      "binding": "B004_FILES",
+      "bucket_name": "erpx-beta004-files"
+    },
+    {
+      "binding": "B005_FILES",
+      "bucket_name": "erpx-beta005-files"
+    },
+    {
+      "binding": "B006_FILES",
+      "bucket_name": "erpx-beta006-files"
+    },
+    {
+      "binding": "B007_FILES",
+      "bucket_name": "erpx-beta007-files"
+    },
+    {
+      "binding": "B008_FILES",
+      "bucket_name": "erpx-beta008-files"
+    },
+    {
+      "binding": "B009_FILES",
+      "bucket_name": "erpx-beta009-files"
+    },
+    {
+      "binding": "B010_FILES",
+      "bucket_name": "erpx-beta010-files"
+    },
+    {
+      "binding": "B011_FILES",
+      "bucket_name": "erpx-beta011-files"
+    },
+    {
+      "binding": "B012_FILES",
+      "bucket_name": "erpx-beta012-files"
+    },
+    {
+      "binding": "B013_FILES",
+      "bucket_name": "erpx-beta013-files"
+    },
+    {
+      "binding": "B014_FILES",
+      "bucket_name": "erpx-beta014-files"
+    },
+    {
+      "binding": "B015_FILES",
+      "bucket_name": "erpx-beta015-files"
+    },
+    {
+      "binding": "B016_FILES",
+      "bucket_name": "erpx-beta016-files"
+    },
+    {
+      "binding": "B017_FILES",
+      "bucket_name": "erpx-beta017-files"
+    },
+    {
+      "binding": "B018_FILES",
+      "bucket_name": "erpx-beta018-files"
+    },
+    {
+      "binding": "B019_FILES",
+      "bucket_name": "erpx-beta019-files"
+    },
+    {
+      "binding": "B020_FILES",
+      "bucket_name": "erpx-beta020-files"
+    }
+  ],
+  "name": "erpx-beta",
+  "main": ".open-next/worker.js",
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "queues": {
+    "producers": [
+      {
+        "binding": "ERPX_EVENTS",
+        "queue": "erpx-beta-events"
+      }
+    ]
+  }
+}

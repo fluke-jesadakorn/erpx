@@ -20,7 +20,7 @@ No aspirational contexts added.
 ## Licensing & deployment tiers
 
 - License: see repo `LICENSE` (open-source).
-- Tiers on this branch: **Local dev** (`npm run dev` on `http://localhost:3000`) → **Self-hosted** (Next.js + Postgres/Prisma) → **Hosted** (operator-managed + Stripe). Rust tiers (`cargo xtask dev --detach`, `reconfigure-local`, `reset-dev --confirm RESET_ERPX_DEV`) are archived on `backup/rust-2026-09-02`.
+- Tiers on this branch: **Local dev** (`bun run dev` on `http://localhost:3100`) → **Cloudflare dev** (OpenNext Workers + D1 + R2 + Queues) → **Hosted** (operator-managed providers). Rust tiers are archived on `backup/rust-2026-09-02`.
 
 ## Ownership & change control
 

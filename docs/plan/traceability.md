@@ -4,13 +4,29 @@
 
 ## Living — Next.js routes (TBD, grows as `src/app/api` lands)
 
+### Mockup implementation — 2026-09-06
+
+Baseline code SHA: `f6c8f9049466d8071c6f1b1b8ede584fadf69656`. The inspected mockup includes pre-existing uncommitted working-tree changes; the SHA alone does not identify that mockup snapshot.
+
+| Requirement | Planning evidence | Implementation status |
+|---|---|---|
+| Convert the 31-module mockup to Next.js, Bun and Cloudflare | [Implementation plan](2026-09-06-mockup-to-fullstack.md), [ADR-022](../adr/ADR-022-cloudflare-runtime.md) | P0/local P1 foundation implemented; module depth remains phased |
+| Preserve Holding isolation and independent human decisions | `src/server/authorization.ts`, `src/server/leave.ts`, D1 migrations | Local Workers flow verified for Mali submit and Nisa approve |
+| Store recoverable private evidence | upload/attachment route handlers, Holding R2 bindings | Intent, byte/type/checksum validation, immutable key and scoped download implemented locally |
+| Durable projections and handoffs | `src/workers/jobs.ts`, outbox/read migrations | Dispatcher and idempotent consumer implemented; remote replay gate pending |
+| Scoped workplace social feed | `src/server/social.ts`, `/holdings/[holdingId]/feed`, collaboration API routes, `0003_social.sql` | Posts, topics, comments, appreciation, post follows and persistent Stories implemented locally |
+| Multi-account and role switching | Better Auth multi-session, `account-switcher.tsx`, `POST /api/v1/holdings/{holdingSlug}/assignments/active` | Up to five verified device accounts; each account can select only its current D1 assignments |
+| Finance-first production vertical | [Implementation plan](2026-09-06-mockup-to-fullstack.md#finance-acceptance) | P4 backlog |
+
+The routes below remain historical backlog unless the living route table marks an App Router handler implemented.
+
 | Route | Method | Context | Spec (light → deep) | Proto (archived) | Status |
 |---|---|---|---|---|---|
 | `POST /api/sales/quotes` | POST | sales | `docs/plan/02/.../sales.md:9` → `03/sales.md:15` | `sales/service.proto:CreateQuote` | TBD |
 | `POST /api/finance/journals` | POST | finance | `docs/plan/02/.../finance.md:9` → `03/finance.md:15` | `finance/service.proto:CreateJournal` | TBD |
 | `POST /api/pos/sales` | POST | pos | `docs/plan/02/.../pos.md:9` → `03/pos.md:15` | `pos/service.proto:CreateSale` | TBD |
 | `GET /api/customer360/:id` | GET | customer_360 | `docs/plan/02/.../customer_360.md` | `customer_360/service.proto` | TBD |
-| `GET /feed` | GET | collaboration | `docs/plan/04-social-paradigm.md` Feed | `collaboration/service.proto:ListFeed` | TBD |
+| `GET /api/v1/holdings/{holdingSlug}/feed` | GET | collaboration | `docs/plan/04-social-paradigm.md` Feed | `collaboration/service.proto:ListFeed` | Implemented |
 | `GET /today` | GET | collaboration | `docs/plan/04-social-paradigm.md` digest | `collaboration/service.proto:ListMyDay` | TBD |
 | `GET /tags/:tag` | GET | collaboration | `docs/plan/04-social-paradigm.md` hashtags | `collaboration/service.proto:ListHashtagTopics` | TBD |
 | `GET /posts/:id` | GET | collaboration | `docs/plan/04-social-paradigm.md` Post | `collaboration/service.proto:GetFeedItem` | TBD |

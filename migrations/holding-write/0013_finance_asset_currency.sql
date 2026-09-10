@@ -1,0 +1,1 @@
+ALTER TABLE finance_assets ADD COLUMN currency TEXT NOT NULL DEFAULT 'USD';

@@ -1,4 +1,4 @@
-# ADR — Index (21 decisions, 2026-09-03 era)
+# ADR — Index (23 decisions, 2026-09-06 era)
 
 > **Single index for `docs/adr/`.** `docs/TOC.md:25` + `AGENTS.md:61` + `README.md:41` all count here.
 
@@ -7,11 +7,11 @@
 - **Reconfirmed 15 ✅ — still authoritative on `development` (Next.js era):** `001 holding-isolation`, `003 no-long-term-dual-writes`, `004 expiring-rbac`, `005 global-read-auditing`, `006 support-capabilities`, `007 stripe-authority`, `008 operations-boundaries`, `009 marketing-crm-boundaries`, `011 customer-data-plane-agent`, `012 three-layer-corporate-identity`, `013 holding-branch-database-and-directory-authority`, `015 retire-n8n`, `017 universal-record-collaboration-and-human-approved-ai` (475L), `018 open-source-modular-ai-and-hosted-stepper-pricing`, `019 universal-record-mentions-and-per-module-field-ai`
 - **Deprecated 3 — Archived (Dioxus/Rust era, see `backup/rust-2026-09-02`):** `010 dioxus-target-strategy`, `014 cqrs-bounded-context-modular-monolith`, `016 dioxus-native-atomic-cutover`
 - **Superseded 1 → 020:** `002 cqrs and replaceable read models` → `ADR-020 nextjs-stack`
-- **Living 2:** `020 nextjs-stack` (Next.js 16 App Router, React 19, Tailwind 4, Prisma/Drizzle TBD, REST/tRPC `src/app/api/**` replaces Tonic `:50051`) + `021 social-engagement-layer` (ERP-as-social-network: posts/feed/hashtags/follow, reactions signal-only)
+- **Living 4:** `020 nextjs-stack` (Next.js 16 App Router and React 19) + `021 social-engagement-layer` (posts/feed/hashtags/follow, reactions signal-only) + `022 cloudflare-runtime` (Bun, OpenNext Workers, D1, R2, Queues) + `023 three-level-workspace-routing` (Platform/Holding/Local authorization and immutable slug routes)
 
 All 20 have banners `> **Next.js era: Reconfirmed (2026-09-02)` / `> **Deprecated — Archived` / `> **Superseded by ADR-020` (added `fe6c286e`).
 
-## Files (21)
+## Files (23)
 
 ```
 ADR-001-holding-isolation.md (13L) — DB-per-Holding, opaque bindings
@@ -35,6 +35,8 @@ ADR-018-open-source-modular-ai-and-hosted-stepper-pricing.md (72L)
 ADR-019-universal-record-mentions-and-per-module-field-ai.md (25L)
 ADR-020-nextjs-stack.md (30L) — living (2026-09-02)
 ADR-021-social-engagement-layer.md — living (2026-09-03, speculative plan)
+ADR-022-cloudflare-runtime.md — accepted (2026-09-06)
+ADR-023-three-level-workspace-routing.md — accepted (2026-09-06)
 ```
 
 ## Change rule
@@ -44,3 +46,5 @@ ADR-021-social-engagement-layer.md — living (2026-09-03, speculative plan)
 ## Recovery
 
 `git checkout backup/rust-2026-09-02 -- docs/adr/` (19 files, no 020, no banners) vs `development` 20 files with banners at `f97b74d6`/`rust-archive-2026-09-02`/`cc0887d`
+
+- [ADR-024: Local PostgreSQL runtime](ADR-024-local-postgresql-runtime.md) — supersedes ADR-022 runtime/deployment.

@@ -1,44 +1,45 @@
 name: nextjs
-
 on:
   push:
-    paths:
-      - "src/**"
-      - "public/**"
-      - "next.config.ts"
-      - "next-env.d.ts"
-      - "tsconfig.json"
-      - "eslint.config.mjs"
-      - "postcss.config.mjs"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/nextjs.yml"
+    paths: ['src/**', 'public/**', 'scripts/**', 'migrations/**', 'tests/**', 'ops/macos/**', '*.json', '*.ts', '*.mts', '*.mjs', 'bun.lock', '.github/workflows/nextjs.yml']
   pull_request:
-    paths:
-      - "src/**"
-      - "public/**"
-      - "next.config.ts"
-      - "next-env.d.ts"
-      - "tsconfig.json"
-      - "eslint.config.mjs"
-      - "postcss.config.mjs"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/nextjs.yml"
-
+    paths: ['src/**', 'public/**', 'scripts/**', 'migrations/**', 'tests/**', 'ops/macos/**', '*.json', '*.ts', '*.mts', '*.mjs', 'bun.lock', '.github/workflows/nextjs.yml']
 permissions:
   contents: read
-
 jobs:
-  lint-build:
+  native:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_USER: erpx_test
+          POSTGRES_PASSWORD: erpx-ci-only
+          POSTGRES_DB: postgres
+        ports: ['5434:5432']
+        options: >-
+          --health-cmd 'pg_isready -U erpx_test -d postgres'
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    env:
+      ERPX_TEST_ADMIN_URL: postgresql://erpx_test:erpx-ci-only@127.0.0.1:5434/postgres
+      ERPX_TEST_PG_BIN: /usr/lib/postgresql/18/bin
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
-      - run: npm ci --ignore-scripts
-      - run: npm run lint
-      - run: npm run build
+          node-version: 24.20.0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.17
+      - name: Install PostgreSQL 18 recovery tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-18
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      - run: bun run typecheck
+      - run: bun run test:integration
+      - run: bun run build

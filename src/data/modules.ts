@@ -1,0 +1,5 @@
+export const modules = [
+  ["brand","Brand"],["commercial","Commercial"],["identity_access","Identity & access"],["organization","Organization"],["platform_administration","Platform administration"],["customer_360","Customer 360"],["customer_authority","Customer authority"],["support","Support"],["finance","Finance"],["pos","Point of sale"],["sales","Sales"],["assets","Assets"],["inventory","Inventory"],["maintenance","Maintenance"],["operations","Operations"],["procurement","Procurement"],["quality","Quality"],["legal","Legal"],["people_payroll","People & payroll"],["crm","CRM"],["marketing","Marketing"],["manufacturing","Manufacturing"],["planning","Planning"],["projects","Projects"],["ecommerce","E-commerce"],["benefits","Benefits"],["learning","Learning"],["talent","Talent"],["field_service","Field service"],["agent","Agents"],["collaboration","Collaboration"],
+] as const;
+
+export const activeModules = new Set(["identity_access","organization","platform_administration","collaboration","people_payroll"]);

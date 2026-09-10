@@ -1,0 +1,401 @@
+.home {
+  :global(.beta-heading) {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    align-items: center;
+    margin-bottom: 26px;
+  }
+  :global(.beta-heading) h1 {
+    font-size: 32px;
+    letter-spacing: -0.9px;
+    margin: 7px 0;
+  }
+  :global(.beta-heading) p {
+    color: var(--muted, #6c756f);
+  }
+  :global(.beta-priorities) {
+    padding: 18px 22px;
+    background: var(--card-2);
+    border: 1px solid var(--line, #dce4da);
+    border-radius: 13px;
+    margin-bottom: 24px;
+  }
+  :global(.beta-priorities) > div {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  :global(.beta-priorities) > a {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 10px 0;
+    border-top: 1px solid var(--line, #dce4da);
+  }
+  :global(.beta-priorities) small {
+    color: var(--muted, #68776c);
+  }
+  :global(.beta-composer),
+  :global(.beta-post) {
+    padding: 24px !important;
+  }
+  :global(.beta-person) {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  :global(.beta-person) p {
+    font-size: 12px;
+    color: var(--muted, #748077);
+    margin: 5px 0 0;
+  }
+  :global(.beta-composer) > textarea {
+    width: 100%;
+    min-height: 108px;
+    resize: vertical;
+    border: 0;
+    padding: 20px 0;
+  }
+  :global(.beta-composer-actions) {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    border-top: 1px solid var(--line, #e4e8e2);
+    padding-top: 16px;
+  }
+  :global(.beta-composer-actions) > label:first-child {
+    display: grid;
+    gap: 5px;
+    font-size: 11px;
+    margin-right: auto;
+  }
+  :global(.beta-composer-actions) input[type="file"] {
+    max-width: 160px;
+    font-size: 11px;
+    border: 0;
+    padding: 0;
+  }
+  :global(.beta-composer) details {
+    margin-top: 16px;
+  }
+  :global(.beta-draft) {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px;
+    background: none;
+    border: 0;
+    color: inherit;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  :global(.beta-status) {
+    min-height: 18px;
+    margin: 12px 0;
+    color: #866139;
+  }
+  :global(.beta-filters) {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  :global(.beta-filters) button,
+  :global(.beta-post-actions) button,
+  :global(.beta-follow) {
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    padding: 9px 12px;
+    border-radius: 8px;
+  }
+  :global(.beta-filters) button[aria-pressed="true"] {
+    background: var(--brand-soft);
+    color: var(--brand);
+    font-weight: 600;
+  }
+  :global(.beta-filters) select {
+    margin-left: auto;
+    max-width: 230px;
+  }
+  :global(.beta-feed) {
+    display: grid;
+    gap: 20px;
+  }
+  :global(.beta-follow) {
+    margin-left: auto;
+  }
+  :global(.beta-follow)[aria-pressed="true"] {
+    color: var(--brand);
+    background: var(--brand-soft);
+  }
+  :global(.beta-post-body) {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 15px;
+    line-height: 1.8;
+    margin: 22px 0;
+  }
+  :global(.beta-images) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 8px;
+  }
+  :global(.beta-images) img {
+    max-width: 100%;
+    width: 100%;
+    max-height: 360px;
+    object-fit: cover;
+    border-radius: 10px;
+  }
+  :global(.beta-post-actions) {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 5px;
+    border-top: 1px solid var(--line, #e4e8e2);
+    padding: 10px 0;
+    margin-top: 18px;
+  }
+  :global(.beta-post-actions) button,
+  :global(.beta-post-actions) > span {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    font-size: 12px;
+  }
+  :global(.beta-post-actions) button[aria-pressed="true"] {
+    color: var(--red);
+    background: var(--red-soft);
+  }
+  :global(.beta-comments) {
+    border-top: 1px solid var(--line, #e4e8e2);
+    padding-top: 14px;
+  }
+  :global(.beta-comment) {
+    display: flex;
+    gap: 9px;
+    padding: 10px 0;
+  }
+  :global(.beta-comment) > div {
+    background: var(--card-2);
+    padding: 12px 16px;
+    border-radius: 0 12px 12px 12px;
+    flex: 1;
+  }
+  :global(.beta-comment) strong {
+    font-size: 12px;
+  }
+  :global(.beta-comment) p {
+    margin: 5px 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  :global(.beta-comment) label {
+    padding-top: 14px;
+  }
+  :global(.beta-comments) form {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  :global(.beta-comments) form > input {
+    flex: 1;
+    min-width: 160px;
+  }
+  :global(.beta-comments) select {
+    max-width: 150px;
+    font-size: 12px;
+  }
+  :global(.beta-comments) button,
+  :global(.beta-report) button {
+    border: 1px solid var(--line, #dce3db);
+    background: var(--card);
+    color: inherit;
+    border-radius: 8px;
+    padding: 8px 14px;
+    cursor: pointer;
+  }
+  :global(.beta-task-link) {
+    display: flex;
+    justify-content: space-between;
+    background: var(--card-2);
+    padding: 14px;
+    border-radius: 9px;
+    color: var(--brand);
+    font-size: 13px;
+  }
+  :global(.beta-report) {
+    margin-top: 20px;
+    font-size: 11px;
+    color: var(--muted, #747e74);
+  }
+  :global(.beta-report) form {
+    display: flex;
+    gap: 8px;
+    margin: 10px 0;
+  }
+  :global(.beta-report) input {
+    flex: 1;
+    min-width: 0;
+  }
+  :global(.beta-empty) {
+    text-align: center;
+    padding: 55px !important;
+    color: var(--muted, #667267);
+  }
+  :global(.beta-task-draft) {
+    max-height: 75vh;
+    overflow-y: auto;
+    padding: 0 4px;
+  }
+  :global(.beta-ai-result) {
+    background: var(--card-2);
+    padding: 18px;
+    border-radius: 10px;
+    margin: 18px 0;
+    white-space: pre-wrap;
+  }
+  :global(.beta-ai-result) a {
+    font-size: 12px;
+  }
+}
+
+.home {
+  max-width: 900px;
+  margin: auto;
+}
+.home :global(.beta-composer) > summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--muted);
+}
+.home :global(.beta-composer[open]) > summary {
+  margin-bottom: 16px;
+  color: var(--ink);
+}
+.home :global(.beta-composer) textarea {
+  width: 100%;
+  min-height: 108px;
+  background: var(--card);
+  color: var(--ink);
+}
+.home :global(.beta-feed) {
+  gap: 16px;
+}
+.home :global(.beta-post) {
+  min-width: 0;
+}
+.home :global(.post-more) {
+  margin-left: auto;
+  position: relative;
+}
+.home :global(.post-more) > summary {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  cursor: pointer;
+}
+.home :global(.post-more-menu) {
+  position: absolute;
+  right: 0;
+  top: 44px;
+  z-index: 5;
+  min-width: 190px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  box-shadow: var(--shadow-md);
+}
+.home :global(.post-more-menu) button {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  padding: 10px;
+}
+.home :global(.source-comments) label {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+}
+.home :global(.source-comments) input {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
+.home button {
+  min-height: 44px;
+}
+.home input,
+.home select,
+.home textarea {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  min-width: 0;
+}
+@media (max-width: 650px) {
+  .home :global(.beta-heading) {
+    margin-bottom: 16px;
+  }
+  .home :global(.beta-composer),
+  .home :global(.beta-post) {
+    padding: 16px !important;
+  }
+  .home :global(.beta-filters) {
+    flex-wrap: wrap;
+  }
+  .home :global(.beta-filters) select {
+    max-width: none;
+    width: 100%;
+  }
+  .home :global(.beta-comments) form > input {
+    width: 100%;
+  }
+}
+.home :global(.beta-form) {
+  display: grid;
+  gap: 16px;
+  margin: 20px 0;
+}
+.home :global(.beta-form) label {
+  display: grid;
+  gap: 7px;
+  font-weight: 550;
+}
+.home :global(.beta-form) textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+.home :global(.beta-task-draft) p {
+  overflow-wrap: anywhere;
+}
+.home :global(.beta-person) > div {
+  min-width: 0;
+}
+.home :global(.beta-post-body) {
+  overflow-wrap: anywhere;
+}
+.home :global(.beta-status):empty,
+.home p[role="status"]:empty {
+  display: none;
+}

@@ -9,8 +9,17 @@ const eslintConfig = defineConfig([
   globalIgnores([
     // Default ignores of eslint-config-next:
     ".next/**",
+    ".open-next/**",
+    ".wrangler/**",
+    ".scratch/**",
+    ".runtime/**",
+    "scripts/legacy-cloudflare/**",
+    "tests/legacy-cloudflare/**",
+    "public/vendor/**",
+    "beta-cloudflare-env.d.ts",
     "out/**",
     "build/**",
+    "cloudflare-env.d.ts",
     "next-env.d.ts",
   ]),
 ]);

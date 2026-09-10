@@ -1,11 +1,10 @@
 # ADR-001: Holding isolation
 
-> **Next.js era: Reconfirmed (2026-09-02) — still authoritative**
-> See `CUTOVER.md` (2026-09-02) and `ADR-020-nextjs-stack.md`.
+> **Partially superseded by ADR-023 (2026-09-06).** Physical Holding isolation remains authoritative; the clause making `HoldingId` canonical in public routing is superseded by immutable public slugs and server-side binding resolution.
 
 
 **Status:** Accepted for implementation  
-**Decision:** Business data is physically separated per Holding into one opaque authoritative write database, one replaceable read database, and one object-storage namespace. A Holding chooses `ErpxManaged` or the opt-in `CustomerDataPlane` mode. In either mode the Holding remains the physical isolation boundary and its business units are logical contexts inside the same database pair. The control plane stores only opaque database/storage/key references and redacted health metadata. Holding credentials never enter a browser, Dioxus client, customer-facing response, log, support diagnostic, or the ERPX broker. `HoldingId` is the canonical organization-root identifier throughout routing, authorization, storage, and infrastructure.
+**Decision:** Business data is physically separated per Holding into one opaque authoritative write database, one replaceable read database, and one object-storage namespace. A Holding chooses `ErpxManaged` or the opt-in `CustomerDataPlane` mode. In either mode the Holding remains the physical isolation boundary and its business units are logical contexts inside the same database pair. The control plane stores only opaque database/storage/key references and redacted health metadata. Holding credentials never enter a browser, client, customer-facing response, log, support diagnostic, or the ERPX broker. Opaque `HoldingId` remains canonical for storage, queues, audit, bindings, and infrastructure; ADR-023 defines public routing.
 
 **Rationale:** A Holding is the isolation boundary for business aggregates. Database-per-Holding limits blast radius and makes recovery independently testable. Opaque provider bindings avoid leaking organization names or IDs in routing paths.
 

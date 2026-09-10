@@ -1,71 +1,61 @@
-import Image from "next/image";
+import { headers } from "next/headers";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { createAuth } from "@/server/auth";
+import {
+  requirePlatformContext,
+  requireWorkContext,
+  firstAuthorizedWorkspace,
+} from "@/server/authorization";
+import { activeHoldingBindings } from "@/server/runtime";
+import { parseHoldingWorkspace, workspaceHref } from "@/lib/workspace";
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            ERPX — Next.js Rebuild
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Rust monorepo archived to{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              backup/rust-2026-09-02
-            </code>
-            . Docs live in{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              Plan/
-            </code>
-            ,{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              adr/
-            </code>
-            ,{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              docs/
-            </code>
-            . Edit{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              src/app/page.tsx
-            </code>{" "}
-            to start.
-          </p>
-          <p className="max-w-md text-sm leading-6 text-zinc-500 dark:text-zinc-500">
-            Backup:{" "}
-            <code className="font-mono">rust-archive-2026-09-02</code> · Baseline{" "}
-            <code className="font-mono">cc0887d</code> · See{" "}
-            <code className="font-mono">CUTOVER.md</code> +{" "}
-            <code className="font-mono">docs/README.md</code>
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://nextjs.org/docs"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Next.js Docs
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://github.com/fluke-jesadakorn/erpx/tree/backup/rust-2026-09-02"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            View Rust Backup
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+export const dynamic = "force-dynamic";
+
+export default async function RootPage({
+  searchParams,
+}: PageProps<"/">) {
+  const session = await (await createAuth()).api.getSession({ headers: await headers() });
+  if (!session) redirect("/login");
+
+  const query = await searchParams;
+  // Account switches must resolve to a clean holding home. The last page can
+  // be a branch or inbox in the previous account, and reusing it can send a
+  // valid account into a different scope (or an intentional 404).
+  const accountSwitch = query?.account === "switch";
+  const switchSource =
+    accountSwitch &&
+    typeof query?.from === "string" &&
+    query.from.startsWith("/holdings/")
+      ? query.from
+      : undefined;
+  const preferred = accountSwitch
+    ? switchSource
+    : (await cookies()).get("erpx_last_workspace")?.value;
+  if (preferred?.startsWith("/platform/")) {
+    try {
+      await requirePlatformContext();
+      redirect(preferred);
+    } catch (error) {
+      if ((error as { digest?: string }).digest) throw error;
+    }
+  }
+  if (preferred?.startsWith("/holdings/")) {
+    const parts = preferred.split("/").filter(Boolean);
+    const parsed = parseHoldingWorkspace(parts[1] ?? "", parts.slice(2));
+    if (parsed) {
+      try {
+        await requireWorkContext(parsed.scope);
+        redirect(preferred);
+      } catch (error) {
+        if ((error as { digest?: string }).digest) throw error;
+      }
+    }
+  }
+  for (const binding of await activeHoldingBindings()) {
+    const workspace = await firstAuthorizedWorkspace(binding.slug);
+    if (workspace) redirect(workspaceHref(workspace));
+  }
+  try { await requirePlatformContext(); } catch { redirect("/onboarding"); }
+  redirect("/platform/home");
 }

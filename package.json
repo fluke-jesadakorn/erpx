@@ -3,24 +3,62 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "dev": "bun scripts/prepare-pdf-assets.ts && next dev -p 3100",
+    "build": "bun scripts/prepare-pdf-assets.ts && next build",
+    "start": "node .next/standalone/server.js",
+    "lint": "eslint",
+    "db:migrate:local": "bun scripts/local/provision.ts --development",
+    "db:seed:local": "bun run seed:local",
+    "seed:local": "bun run db:migrate:local && bun scripts/seed-local.ts && bun scripts/repair-seed-identity.ts && bun scripts/seed-commerce.ts && bun scripts/seed-staff-work.ts",
+    "seed:verify:local": "bun scripts/verify-seed-local.ts",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.config.mts",
+    "test:e2e:local": "playwright test",
+    "test:e2e:dev": "playwright test",
+    "test:business:local": "bun scripts/verify-business-workflows.ts && bun scripts/verify-identity-workflows.ts && bun scripts/verify-ledger-payroll.ts && bun scripts/verify-expense-workflows.ts && bun scripts/verify-inventory-counts.ts && bun scripts/verify-inventory-transfers.ts",
+    "test:staff:local": "playwright test tests/e2e/staff-work.spec.ts",
+    "beta:eval:ai": "bun scripts/eval-social-ai.ts",
+    "typecheck": "tsc --noEmit",
+    "preview": "bun run deploy:build",
+    "deploy:build": "bun scripts/prepare-pdf-assets.ts && bun scripts/local/build-release.ts",
+    "deploy:provision": "bun scripts/local/provision.ts",
+    "deploy:doctor": "bun scripts/local/doctor.ts",
+    "deploy:bootstrap-admin": "bun scripts/local/bootstrap-admin.ts",
+    "dev:jobs": "bun scripts/local/dev-jobs.ts"
   },
+  "packageManager": "bun@1.2.17",
   "dependencies": {
+    "better-auth": "1.7.2",
+    "drizzle-orm": "0.45.2",
+    "lucide-react": "1.41.0",
     "next": "16.3.4",
+    "pdfjs-dist": "6.3.289",
+    "pg": "8.23.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "zod": "4.5.4"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.1.4",
+    "@cloudflare/workers-types": "5.20260905.1",
+    "@opennextjs/cloudflare": "1.20.6",
+    "@playwright/test": "1.63.0",
     "@tailwindcss/postcss": "^4",
+    "@types/bun": "1.4.1",
     "@types/node": "^20",
+    "@types/pg": "8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "drizzle-kit": "0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "4.1.11",
+    "wrangler": "4.129.0"
+  },
+  "engines": {
+    "node": "24.20.0",
+    "bun": "1.2.17"
   }
 }

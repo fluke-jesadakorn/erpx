@@ -1,0 +1,54 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "erpx",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-09-05",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  "observability": { "enabled": true },
+  "vars": {
+    "ERPX_ENVIRONMENT": "local",
+    "BETTER_AUTH_URL": "http://localhost:3100",
+    "BETTER_AUTH_SECRET": "local-development-secret-change-before-sharing"
+  },
+  "d1_databases": [
+    { "binding": "CONTROL_DB", "database_name": "erpx-control-write", "database_id": "00000000-0000-0000-0000-000000000001", "migrations_dir": "migrations/control" },
+    { "binding": "CONTROL_READ_DB", "database_name": "erpx-control-read", "database_id": "00000000-0000-0000-0000-000000000002", "migrations_dir": "migrations/control-read" },
+    { "binding": "H001_DB", "database_name": "erpx-h001-write", "database_id": "00000000-0000-0000-0000-000000000003", "migrations_dir": "migrations/holding-write" },
+    { "binding": "H001_READ_DB", "database_name": "erpx-h001-read", "database_id": "00000000-0000-0000-0000-000000000004", "migrations_dir": "migrations/holding-read" },
+    { "binding": "H002_DB", "database_name": "erpx-h002-write", "database_id": "00000000-0000-0000-0000-000000000005", "migrations_dir": "migrations/holding-write" },
+    { "binding": "H002_READ_DB", "database_name": "erpx-h002-read", "database_id": "00000000-0000-0000-0000-000000000006", "migrations_dir": "migrations/holding-read" }
+  ],
+  "r2_buckets": [
+    { "binding": "H001_FILES", "bucket_name": "erpx-h001-files-local" },
+    { "binding": "H002_FILES", "bucket_name": "erpx-h002-files-local" },
+    { "binding": "BACKUP_FILES", "bucket_name": "erpx-backups-local" }
+  ],
+  "queues": {
+    "producers": [{ "binding": "ERPX_EVENTS", "queue": "erpx-events-local" }]
+  },
+  "env": {
+    "dev": {
+      "name": "erpx-dev",
+      "vars": {
+        "ERPX_ENVIRONMENT": "dev",
+        "BETTER_AUTH_URL": "https://erpx-dev.workers.dev"
+      },
+      "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+      "d1_databases": [
+        { "binding": "CONTROL_DB", "database_name": "erpx-control-write", "database_id": "00000000-0000-0000-0000-000000000001", "migrations_dir": "migrations/control" },
+        { "binding": "CONTROL_READ_DB", "database_name": "erpx-control-read", "database_id": "00000000-0000-0000-0000-000000000002", "migrations_dir": "migrations/control-read" },
+        { "binding": "H001_DB", "database_name": "erpx-h001-write", "database_id": "00000000-0000-0000-0000-000000000003", "migrations_dir": "migrations/holding-write" },
+        { "binding": "H001_READ_DB", "database_name": "erpx-h001-read", "database_id": "00000000-0000-0000-0000-000000000004", "migrations_dir": "migrations/holding-read" },
+        { "binding": "H002_DB", "database_name": "erpx-h002-write", "database_id": "00000000-0000-0000-0000-000000000005", "migrations_dir": "migrations/holding-write" },
+        { "binding": "H002_READ_DB", "database_name": "erpx-h002-read", "database_id": "00000000-0000-0000-0000-000000000006", "migrations_dir": "migrations/holding-read" }
+      ],
+      "r2_buckets": [
+        { "binding": "H001_FILES", "bucket_name": "erpx-h001-files-dev" },
+        { "binding": "H002_FILES", "bucket_name": "erpx-h002-files-dev" },
+        { "binding": "BACKUP_FILES", "bucket_name": "erpx-backups-dev" }
+      ],
+      "queues": { "producers": [{ "binding": "ERPX_EVENTS", "queue": "erpx-events-dev" }] }
+    }
+  }
+}

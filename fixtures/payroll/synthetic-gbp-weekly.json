@@ -1,0 +1,16 @@
+{
+  "countryCode": "ZY",
+  "version": "synthetic-gbp-weekly-1",
+  "status": "testing",
+  "currency": "GBP",
+  "calendar": "weekly",
+  "rules": {
+    "description": "Synthetic test pack only; never activate for production payroll.",
+    "gross": "hourly_plus_overtime",
+    "overtimeMultiplier": "1.5",
+    "deductions": [],
+    "employerContributions": [],
+    "precision": 2
+  },
+  "exportFormats": ["generic-csv"]
+}

@@ -1,0 +1,285 @@
+import { requestPublicOrigin } from "@/server/public-origin";
+import { employeeRequestUpload, requestVersionGuard } from "@/server/employee-requests";
+import { serviceAuthoritySnapshot } from "@/server/service-access";
+import { socialUploadOwner } from "@/server/social-home";
+import { getTask, canAttachTask, taskVersionGuard } from "@/server/staff-tasks";
+import { getLeave } from "@/server/leave";
+import { requireWorkContext } from "@/server/authorization";
+import { holdingResources } from "@/server/runtime";
+import { sha256 } from "@/server/crypto";
+import { canEditExpense, getExpense } from "@/server/expenses";
+import { assertion, executeCommand, replayCommand } from "@/server/commands";
+import { ApiError, errorResponse } from "@/server/http";
+import { paymentDraft, paymentGuards } from "@/server/expense-payments";
+
+function matchesSignature(type: string, bytes: Uint8Array) {
+  if (type === "application/pdf")
+    return new TextDecoder().decode(bytes.slice(0, 5)) === "%PDF-";
+  if (type === "image/png")
+    return (
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47
+    );
+  if (type === "image/jpeg") return bytes[0] === 0xff && bytes[1] === 0xd8;
+  if (type === "image/webp")
+    return (
+      new TextDecoder().decode(bytes.slice(0, 4)) === "RIFF" &&
+      new TextDecoder().decode(bytes.slice(8, 12)) === "WEBP"
+    );
+  return type === "text/csv";
+}
+
+export async function PUT(
+  request: Request,
+  context: RouteContext<"/api/v1/holdings/[holdingSlug]/uploads/[id]/content">,
+) {
+  try {
+    const origin = request.headers.get("origin");
+    if (origin && origin !== requestPublicOrigin(request))
+      throw new ApiError(
+        403,
+        "ORIGIN_FORBIDDEN",
+        "Use the application origin.",
+      );
+    const { holdingSlug, id } = await context.params;
+    const actor = await requireWorkContext(holdingSlug);
+    const { write, files } = await holdingResources(actor.holdingId);
+    const intent = await write
+      .prepare(
+        `SELECT * FROM upload_intents WHERE id=? AND created_by=? AND (status='ready' OR (status='pending' AND expires_at>?))`,
+      )
+      .bind(id, actor.userId, Date.now())
+      .first<{
+        staging_key: string;
+        declared_bytes: number;
+        media_type: string;
+        original_name: string;
+        owner_type: string;
+        owner_id: string;
+        purpose: string;
+        revision: number;
+      }>();
+    if (!intent)
+      throw new ApiError(
+        404,
+        "UPLOAD_NOT_FOUND",
+        "Upload intent not found or expired.",
+      );
+    const declaredLength = Number(request.headers.get("content-length"));
+    if (
+      !Number.isFinite(declaredLength) ||
+      declaredLength < 1 ||
+      declaredLength > intent.declared_bytes ||
+      declaredLength > 10 * 1024 * 1024
+    ) {
+      throw new ApiError(
+        422,
+        "UPLOAD_SIZE",
+        "The uploaded file size does not match its intent.",
+      );
+    }
+    const buffer = await request.arrayBuffer();
+    if (
+      buffer.byteLength !== declaredLength ||
+      buffer.byteLength > intent.declared_bytes
+    )
+      throw new ApiError(
+        422,
+        "UPLOAD_SIZE",
+        "The uploaded file size does not match its intent.",
+      );
+    const bytes = new Uint8Array(buffer);
+    if (!matchesSignature(intent.media_type, bytes))
+      throw new ApiError(
+        422,
+        "UPLOAD_TYPE",
+        "The file contents do not match the selected type.",
+      );
+    const checksum = await sha256(buffer);
+    const input = { uploadId: id, checksum, bytes: buffer.byteLength },
+      commandId = `upload-${id}`;
+    const prior = await replayCommand(
+      write,
+      actor,
+      commandId,
+      "attachment.add",
+      intent.owner_id,
+      input,
+    );
+    if (prior) return Response.json({ data: prior }, { status: 201 });
+    const requestSnapshot = intent.owner_type === "employee_request" ? await serviceAuthoritySnapshot(write, actor.companyId) : null;
+    const employeeRequest = intent.owner_type === "employee_request" ? await employeeRequestUpload(write, actor, intent.owner_id, intent.purpose) : null;
+    const social =
+      intent.owner_type === "social_draft"
+        ? {
+            ...(await socialUploadOwner(write, actor, intent.owner_id, true)),
+            department_id: null,
+          }
+        : null;
+    const expense =
+      intent.owner_type === "expense_claim"
+        ? await getExpense(actor, intent.owner_id)
+        : null;
+    const payment =
+      intent.owner_type === "expense_payment"
+        ? await paymentDraft(actor, intent.owner_id, true)
+        : null;
+    if (expense && !canEditExpense(actor, expense))
+      throw new ApiError(
+        403,
+        "EXPENSE_LOCKED",
+        "Receipts require an editable claim.",
+      );
+    const task =
+      intent.owner_type === "staff_task"
+        ? await getTask(write, actor, intent.owner_id)
+        : null;
+    if (task && !canAttachTask(actor, task))
+      throw new ApiError(
+        403,
+        "TASK_LOCKED",
+        "Evidence changes require editable work.",
+      );
+    const leave =
+      intent.owner_type === "leave_request"
+        ? await getLeave(actor.holdingId, intent.owner_id, actor)
+        : null;
+    if (
+      leave &&
+      (leave.created_by !== actor.userId ||
+        !["draft", "rejected"].includes(leave.state))
+    )
+      throw new ApiError(
+        403,
+        "LEAVE_LOCKED",
+        "Evidence changes require your editable request.",
+      );
+    if (!expense && !task && !leave && !social && !payment && !employeeRequest)
+      throw new ApiError(404, "OWNER_NOT_FOUND", "Attachment owner not found.");
+    const ownerScope = payment
+      ? { ...payment.expense, ...payment.draft }
+      : (employeeRequest ?? social ?? expense ?? task ?? leave!);
+    const finalKey = `${actor.holdingId}/objects/${id}/r${intent.revision}`;
+    const stored = await files.put(finalKey, buffer, {
+      onlyIf: { etagDoesNotMatch: "*" },
+      httpMetadata: { contentType: intent.media_type },
+      customMetadata: { sha256: checksum },
+    });
+    if (!stored) {
+      const existing = await files.head(finalKey);
+      if (existing?.customMetadata?.sha256 !== checksum)
+        throw new ApiError(
+          409,
+          "UPLOAD_CONFLICT",
+          "This upload already contains different bytes. Create a new upload.",
+        );
+    }
+    const attachmentId = `attachment-${id}`,
+      now = Date.now();
+    const steps = [
+      ...(requestSnapshot ? requestSnapshot(commandId) : []),
+      ...(payment
+        ? paymentGuards(write, actor, commandId, payment.expense)
+        : []),
+      employeeRequest ? requestVersionGuard(write, commandId, employeeRequest) : payment
+        ? assertion(
+            write,
+            commandId,
+            "payment-editable",
+            "EXISTS(SELECT 1 FROM expense_payment_drafts WHERE id=? AND company_id=? AND version=? AND status='draft')",
+            [intent.owner_id, actor.companyId, Number(payment.draft.version)],
+          )
+        : social
+          ? assertion(
+              write,
+              commandId,
+              "social-draft",
+              "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND version=? AND published_post_id IS NULL)",
+              [social.id, actor.userId, social.version],
+            )
+          : task
+            ? taskVersionGuard(write, commandId, task.id, task.version, [
+                task.state,
+              ])
+            : expense
+              ? assertion(
+                  write,
+                  commandId,
+                  "owner-editable",
+                  "EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND status IN ('draft','rejected') AND cancelled_at IS NULL)",
+                  [intent.owner_id, actor.companyId, Number(expense.version)],
+                )
+              : assertion(
+                  write,
+                  commandId,
+                  "owner-draft",
+                  "EXISTS(SELECT 1 FROM leave_requests WHERE id=? AND company_id=? AND created_by=? AND state IN ('draft','rejected') AND version=?)",
+                  [
+                    intent.owner_id,
+                    actor.companyId,
+                    actor.userId,
+                    leave!.version,
+                  ],
+                ),
+      assertion(
+        write,
+        commandId,
+        "intent",
+        "EXISTS(SELECT 1 FROM upload_intents WHERE id=? AND status='pending' AND expires_at>?)",
+        [id, now],
+      ),
+      write
+        .prepare(
+          "UPDATE upload_intents SET status='ready',actual_bytes=?,checksum_sha256=?,final_key=?,updated_at=? WHERE id=?",
+        )
+        .bind(buffer.byteLength, checksum, finalKey, now, id),
+      write
+        .prepare(
+          `INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        )
+        .bind(
+          attachmentId,
+          id,
+          intent.owner_type,
+          intent.owner_id,
+          intent.purpose,
+          finalKey,
+          intent.revision,
+          intent.original_name,
+          intent.media_type,
+          buffer.byteLength,
+          checksum,
+          actor.userId,
+          now,
+        ),
+      write
+        .prepare(
+          `UPDATE ${employeeRequest ? "employee_requests" : payment ? "expense_payment_drafts" : social ? "social_post_drafts" : expense ? "finance_expenses" : task ? "staff_tasks" : "leave_requests"} SET version=version+1,${employeeRequest ? "evidence_version=evidence_version+1," : ""}updated_at=? WHERE id=?`,
+        )
+        .bind(now, intent.owner_id),
+    ];
+    const result = await executeCommand(
+      write,
+      actor,
+      commandId,
+      "attachment.add",
+      input,
+      intent.owner_id,
+      Number(ownerScope.version) + 1,
+      { id: attachmentId, bytes: buffer.byteLength, checksum },
+      steps,
+      {
+        companyId: String(ownerScope.company_id),
+        branchId: ownerScope.branch_id ? String(ownerScope.branch_id) : null,
+        departmentId: ownerScope.department_id
+          ? String(ownerScope.department_id)
+          : null,
+      },
+    );
+    return Response.json({ data: result }, { status: 201 });
+  } catch (error) {
+    return errorResponse(error);
+  }
+}

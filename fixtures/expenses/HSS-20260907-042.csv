@@ -1,0 +1,10 @@
+record_type,development_example
+merchant,Harbor Stationery Supply
+receipt,HSS-20260907-042
+employee,Olivia Grant
+date,2026-09-07
+currency,EUR
+description,Workshop stationery for Harbor Office Solutions
+net_amount,48.00
+recoverable_tax,0.00
+total,48.00

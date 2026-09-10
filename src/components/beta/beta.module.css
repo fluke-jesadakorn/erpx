@@ -1,0 +1,77 @@
+.surface:global(.beta-entry) {
+  max-width: 580px;
+  margin: 8vh auto;
+  padding: 32px;
+}
+.surface:global(.beta-entry) h1 {
+  font-size: 32px;
+  letter-spacing: -0.7px;
+  line-height: 1.2;
+}
+.surface:global(.beta-form),
+.surface :global(.beta-form) {
+  display: grid;
+  gap: 16px;
+  margin: 20px 0;
+}
+.surface label {
+  display: grid;
+  gap: 7px;
+  font-weight: 550;
+}
+.surface input,
+.surface select,
+.surface textarea {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink);
+  padding: 10px 12px;
+  font: inherit;
+  min-width: 0;
+  width: 100%;
+}
+.surface textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+.surface button {
+  background: var(--brand);
+  color: var(--card);
+  border: 0;
+  padding: 12px 18px;
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+  min-height: 44px;
+}
+.surface button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.surface:global(.beta-settings) {
+  max-width: 860px;
+}
+.surface:global(.beta-settings) > :global(.card) {
+  padding: 24px;
+  margin: 20px 0;
+}
+.surface h2 {
+  font-size: 18px;
+}
+.surface :global(.button) {
+  margin-right: 10px;
+}
+.surface :global(.beta-form) p {
+  font-weight: 400;
+  color: var(--muted);
+}
+@media (max-width: 640px) {
+  .surface:global(.beta-entry) {
+    margin: 24px auto;
+    padding: 22px;
+  }
+  .surface:global(.beta-settings) > :global(.card) {
+    padding: 18px;
+  }
+}

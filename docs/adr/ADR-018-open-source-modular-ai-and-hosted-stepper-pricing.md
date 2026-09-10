@@ -68,6 +68,27 @@ AI Flow add-on: **$29 / Holding / mo flat** (unlimited seats/flows) OR **Topup $
 
 ## Alternatives rejected
 
+### Accepted hosted-beta exception — 2026-09-07
+
+The owner explicitly approved a one-month implementation targeting an operator-funded,
+free hosted beta for at most 20 companies. This deployment supplies one operator-managed
+OpenAI-compatible provider and defaults to 100 requests per company per UTC calendar
+month, 20 members, 5 branches and 1 GiB files. Failed provider requests count toward the
+allowance because a timed-out call can still be billed. This exception applies to the
+hosted beta; it does not change the community/BYOK direction above.
+
+No card is required and beta access never automatically becomes paid. Stripe integration
+is restricted to test mode. Prices, paid packaging, live payment enablement and the
+existing commercial grace/read-only rules remain decisions for the paid launch.
+The beta AI actions are private summaries and reviewed task drafts, with source access
+checked again before task creation. They do not execute cross-module Flow transactions.
+
+Implementation scope, primary research, acceptance criteria and evidence are recorded in
+[the Social + AI public beta plan](../plan/2026-09-07-social-ai-public-beta.md).
+
+The alternatives below describe the original long-term business model; the bounded,
+operator-funded pilot allowance is the explicit exception recorded here.
+
 - Per-seat flat price (unfair to small holdings) — stepper is fair.
 - Quota on free AI (against requirement, customer pays own API).
 - Central `Ai` workspace chat only — rejected, AI must be per-field everywhere.

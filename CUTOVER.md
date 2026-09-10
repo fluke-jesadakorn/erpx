@@ -1,5 +1,9 @@
 # ERPX Cutover Record
 
+## 2026-09-06 Three-level workspace URL hard cut
+
+The opaque-ID browser/API namespace was removed without redirects. Canonical immutable-slug routes now express Platform, Holding, Branch, Holding Department, and Branch Department workspaces. Company remains an internal selected or lineage-derived policy boundary. ADR-023 supersedes the public-routing clause of ADR-001; opaque Holding IDs remain authoritative for bindings, storage, queues, and audit.
+
 ## 2026-09-02 Rust → Next.js (hard cut)
 
 Rust/Dioxus/Tonic/SQLx 137 crates 1321 rs 37 proto 28 SQL 8 apps removed and replaced by Next.js 16 App Router (`src/app/`, React19, Tailwind4, TS). Docs preserved, code not migrated.

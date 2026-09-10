@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">ERPX — Forward</title>
+  <desc id="desc">People, conversations and records converge toward one direction of progress.</desc>
+  <g id="mark">
+    <path d="M80 80H208L432 256H328L176 152H80Z" fill="#4A7FE8"/>
+    <path d="M80 220H224L272 256L224 292H80Z" fill="#1E4FCC"/>
+    <path d="M80 360H176L328 256H432L208 432H80Z" fill="#102A56"/>
+  </g>
+</svg>

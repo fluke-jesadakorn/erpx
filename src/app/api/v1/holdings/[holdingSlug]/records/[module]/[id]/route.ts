@@ -1,0 +1,17 @@
+import { requireWorkContext } from "@/server/authorization";
+import { errorResponse, ApiError } from "@/server/http";
+import { archiveRecord, getRecord, recordContext, updateRecord, updateRecordSchema } from "@/server/records";
+
+export const dynamic = "force-dynamic";
+export async function GET(_request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/records/[module]/[id]">) {
+  try { const {holdingSlug,module,id}=await context.params; return Response.json({data:await recordContext(await requireWorkContext(holdingSlug),module,id)}); }
+  catch(error){return errorResponse(error);}
+}
+export async function DELETE(request:Request,context:RouteContext<"/api/v1/holdings/[holdingSlug]/records/[module]/[id]">){try{const {holdingSlug,module,id}=await context.params;const expectedVersion=Number(new URL(request.url).searchParams.get("expectedVersion"));if(!Number.isInteger(expectedVersion)||expectedVersion<1)throw new ApiError(422,"VERSION_REQUIRED","Current record version is required.");return Response.json({data:await archiveRecord(await requireWorkContext(holdingSlug),module,id,expectedVersion)});}catch(error){return errorResponse(error);}}
+export async function PATCH(request: Request, context: RouteContext<"/api/v1/holdings/[holdingSlug]/records/[module]/[id]">) {
+  try { const {holdingSlug,module,id}=await context.params; const parsed=updateRecordSchema.safeParse(await request.json());
+    if(!parsed.success) throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid fields.");
+    const actor=await requireWorkContext(holdingSlug); await getRecord(actor,module,id);
+    return Response.json({data:await updateRecord(actor,module,id,parsed.data)});
+  } catch(error){return errorResponse(error);}
+}

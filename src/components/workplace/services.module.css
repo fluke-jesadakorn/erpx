@@ -1,0 +1,145 @@
+.stack {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.form {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.form label {
+  display: grid;
+  gap: 6px;
+  font-weight: 500;
+  min-width: 0;
+}
+.form input,
+.form select,
+.form textarea {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+}
+.form textarea {
+  min-height: 112px;
+  resize: vertical;
+}
+.form button,
+.actions button,
+.actions a {
+  min-height: 44px;
+}
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 100px 140px auto;
+  gap: 12px;
+  align-items: end;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.catalog {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.template {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+}
+.template h3,
+.template p {
+  margin: 0;
+}
+.status {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.status small {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--muted);
+}
+.article {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.75;
+}
+.history {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.history p {
+  white-space: pre-wrap;
+}
+.members {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px auto;
+  gap: 10px;
+  align-items: end;
+}
+.quiet {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.details summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}
+.details[open] summary {
+  margin-bottom: 16px;
+}
+@media (max-width: 600px) {
+  .pair,
+  .catalog,
+  .status {
+    grid-template-columns: 1fr;
+  }
+  .item {
+    grid-template-columns: 1fr 1fr;
+  }
+  .item label:first-child {
+    grid-column: 1/-1;
+  }
+  .members {
+    grid-template-columns: minmax(0, 1fr) 110px;
+  }
+  .members button {
+    justify-self: start;
+  }
+  .actions {
+    align-items: stretch;
+  }
+  .actions > * {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+}

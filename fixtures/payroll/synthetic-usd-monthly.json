@@ -1,0 +1,15 @@
+{
+  "countryCode": "ZZ",
+  "version": "synthetic-usd-monthly-1",
+  "status": "testing",
+  "currency": "USD",
+  "calendar": "monthly",
+  "rules": {
+    "description": "Synthetic test pack only; never activate for production payroll.",
+    "gross": "base_plus_approved_hours",
+    "deductions": ["flat_test_deduction"],
+    "employerContributions": ["flat_test_employer_contribution"],
+    "precision": 2
+  },
+  "exportFormats": ["generic-csv"]
+}

@@ -1,0 +1,14 @@
+.editor { position:relative; min-width:0; flex:1; }
+.editor textarea { width:100%; resize:vertical; min-height:90px; }
+.hint { display:block; color:var(--muted, #a8b4c9); margin:6px 0; font-size:12px; }
+.suggestions { position:absolute; z-index:30; left:0; right:0; top:calc(100% - 20px); max-width:560px; max-height:360px; overflow:auto; background:var(--card, #1b2638); color:var(--ink, #edf2ff); border:1px solid var(--line, #46536a); border-radius:12px; box-shadow:0 14px 40px #0005; padding:8px; }
+.caption,.group { padding:6px 10px; font-size:12px; color:var(--muted, #abb8d0); }
+.group { text-transform:uppercase; letter-spacing:.06em; font-weight:700; }
+.suggestions button { display:flex; flex-direction:column; width:100%; text-align:left; padding:10px; border:0; border-radius:8px; background:transparent; color:inherit; cursor:pointer; }
+.suggestions button.active,.suggestions button:hover { background:#779afa30; }
+.suggestions small { opacity:.75; overflow-wrap:anywhere; }
+.suggestions p { font-size:12px; margin:8px 10px; }
+.body { white-space:pre-wrap; overflow-wrap:anywhere; }
+.token { color:var(--brand, #a9bfff); background:#789cff18; border:0; border-radius:4px; padding:0 3px; font:inherit; cursor:pointer; text-decoration:none; }
+.identity { border:1px solid var(--line, #46536a); border-radius:10px; padding:12px; margin:8px 0; }
+.identity p { margin:6px 0; }
