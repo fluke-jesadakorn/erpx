@@ -109,6 +109,57 @@ describe("Workplace discovery", () => {
       expect(group.items.every((child) => child.icon !== group.icon)).toBe(true);
     }
   });
+  it("keeps Local workspaces operational and removes Company-only navigation", () => {
+    const branch = workplaceNavigation({
+      workspaceBase: "/holdings/acme/branches/bangkok",
+      scopeKind: "branch",
+      role: "holding_owner",
+      adminSections: [
+        "people",
+        "organization",
+        "approvals",
+        "usage",
+        "ai",
+        "feedback",
+      ],
+    });
+    const people = branch.groups.find((group) => group.id === "people");
+    expect(people?.items.some((item) => item.id === "people-payroll")).toBe(
+      false,
+    );
+    expect(people?.items.some((item) => item.id === "people-access")).toBe(
+      true,
+    );
+    expect(
+      branch.groups
+        .filter((group) => group.placement === "business")
+        .map((group) => group.id),
+    ).toEqual(["people", "operations", "finance", "projects"]);
+    expect(
+      branch.search.some((item) =>
+        ["approvals", "usage", "ai"].some((section) =>
+          item.href.includes(`section=${section}`),
+        ),
+      ),
+    ).toBe(false);
+    expect(branch.search.some((item) => item.href.endsWith("/iam"))).toBe(true);
+
+    const department = workplaceNavigation({
+      workspaceBase:
+        "/holdings/acme/branches/bangkok/departments/operations",
+      scopeKind: "department",
+      role: "holding_owner",
+      adminSections: ["people", "organization", "usage", "feedback"],
+    });
+    const operations = department.groups.find(
+      (group) => group.id === "operations",
+    );
+    expect(
+      operations?.items.some((item) =>
+        ["operations-counts", "operations-transfers"].includes(item.id),
+      ),
+    ).toBe(false);
+  });
   it("keeps beta and platform discovery inside their supported surfaces", () => {
     const beta = workplaceNavigation({
       workspaceBase: "/holdings/beta",

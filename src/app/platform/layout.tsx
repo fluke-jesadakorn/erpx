@@ -61,7 +61,11 @@ export default async function PlatformLayout({
       <div className={styles.main}>
         <header className={styles.topbar}>
           <div className={styles.workspace}>
-            <WorkspaceMenu base="/platform" label="Platform administration" choices={await workspaceChoices()} />
+            <WorkspaceMenu
+              label="Platform administration"
+              choices={await workspaceChoices()}
+              current={{ kind: "platform" }}
+            />
             <div className={styles.workspaceDetails}>
               <strong>Platform</strong>
               <span className={styles.workspaceScope}>

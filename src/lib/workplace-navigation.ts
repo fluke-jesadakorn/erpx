@@ -147,6 +147,12 @@ export function workplaceNavigation(
   const scopeKind =
     context.scopeKind ?? (base === "/platform" ? "platform" : "holding");
   const platform = scopeKind === "platform";
+  const visibleAdminSections =
+    scopeKind === "holding" || platform
+      ? allowedAdminSections
+      : allowedAdminSections.filter((section) =>
+          ["people", "organization", "feedback"].includes(section),
+        );
   const actor = { role, permissions: context.permissions };
   const item = (
     id: string,
@@ -456,7 +462,7 @@ export function workplaceNavigation(
   const settingsItems = adminSections
     .filter(
       ([section]) =>
-        section !== "feedback" && allowedAdminSections.includes(section),
+        section !== "feedback" && visibleAdminSections.includes(section),
     )
     .map(([section, label]) =>
       item(

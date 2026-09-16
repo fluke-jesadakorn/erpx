@@ -15,12 +15,31 @@ export default async function PlatformDestinationPage({ params }: PageProps<"/pl
   const content = destinations[destination];
   if (!content) notFound();
   if (destination === "home") {
-    const choices = (await workspaceChoices()).filter(choice => choice.kind === "business");
-    return <main className="content">
-      <PageHeader eyebrow="Platform" title="Platform administration" description="Choose a company workspace to use your business roles." />
-      <h2>Business workspaces</h2>
-      {choices.length ? <ul>{choices.map(choice => <li key={choice.destination}><a className="button secondary" href={choice.destination}>{choice.label}</a></li>)}</ul> : <p>No business workspaces assigned.</p>}
-    </main>;
+    const choices = (await workspaceChoices()).filter(
+      (choice) => choice.kind === "holding",
+    );
+    return (
+      <main className="content">
+        <PageHeader
+          eyebrow="Platform"
+          title="Platform administration"
+          description="Use Switch workspace to choose a Company or an authorized Branch."
+        />
+        <h2>Business workspaces</h2>
+        {choices.length ? (
+          <ul>
+            {choices.map((choice) => (
+              <li key={choice.holdingSlug}>
+                <strong>{choice.label}</strong> ·{" "}
+                {choice.companies.map((company) => company.label).join(", ")}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>No business workspaces assigned.</p>
+        )}
+      </main>
+    );
   }
   return <main className="content" data-source="sample">
     <PageHeader eyebrow="Platform preview" title={content[0]} description={content[1]} />

@@ -1,5 +1,4 @@
-import {CompanySwitcher} from "@/components/workplace/company-switcher";
-import {assignmentApplies,listWorkspaceCompanies} from "@/server/authorization";
+import { assignmentApplies } from "@/server/authorization";
 import { WorkspaceMenu } from "@/components/workplace/workspace-menu";
 import { workspaceChoices } from "@/server/workspace-choices";
 import { redirect } from 'next/navigation';
@@ -15,6 +14,36 @@ export default async function WorkRolePage({searchParams}:PageProps<'/work-role'
  const parsed=parseHoldingWorkspace(parts[1],parts.slice(2));if(!parsed)redirect('/');
  const {access,options,selection,selected}=await workRoleOptions(parsed.scope).catch(error=>pageError(error,parts[1]));
  if(selected && assignmentApplies(selected,access.scope))redirect(from);
- const companies=parsed.scope.kind==="holding" ? await listWorkspaceCompanies(access.scope.holdingId) : [];
- return <main className="content"><section style={{maxWidth:520,margin:'48px auto'}}><h1>Choose your work role</h1><p>Each role uses only its own permissions. Select the company and team scope you need.</p><p>{access.email}</p>{companies.length>1 && <CompanySwitcher workspaceBase={workspaceBase(parsed.scope)} activeCompanyId={access.scope.companyId} companies={companies}/>}<WorkRolePicker base={workspaceBase(parsed.scope)} options={options} revision={selection?.revision??0} /><WorkspaceMenu base={workspaceBase(parsed.scope)} label={access.scope.holdingSlug} choices={await workspaceChoices()} /></section></main>;
+ const current =
+  access.scope.kind === "holding"
+   ? {
+      kind: "holding" as const,
+      holdingSlug: access.scope.holdingSlug,
+      companyId: access.scope.companyId,
+     }
+   : access.scope.kind === "branch"
+    ? {
+       kind: "branch" as const,
+       holdingSlug: access.scope.holdingSlug,
+       companyId: access.scope.companyId,
+       branchId: access.scope.branchId,
+      }
+    : {
+       kind: "department" as const,
+       holdingSlug: access.scope.holdingSlug,
+       companyId: access.scope.companyId,
+       branchId: access.scope.branchId,
+       departmentId: access.scope.departmentId,
+      };
+ return (
+  <main className="content">
+   <section style={{maxWidth:520,margin:"48px auto"}}>
+    <h1>Choose your work role</h1>
+    <p>Each role uses only its own permissions. Select the company and team scope you need.</p>
+    <p>{access.email}</p>
+    <WorkRolePicker base={workspaceBase(parsed.scope)} options={options} revision={selection?.revision??0} />
+    <WorkspaceMenu label={access.scope.holdingSlug} choices={await workspaceChoices()} current={current} />
+   </section>
+  </main>
+ );
 }

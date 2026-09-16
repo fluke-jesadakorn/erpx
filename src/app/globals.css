@@ -433,15 +433,6 @@ svg {
   border: 0;
 }
 
-.company-switcher select {
-  max-width: 12rem;
-  border: 1px solid var(--control-border);
-  border-radius: 0.65rem;
-  background: var(--card);
-  color: var(--ink);
-  padding: 0.45rem 0.6rem;
-  font: inherit;
-}
 .skip-link {
   position: fixed;
   left: 16px;

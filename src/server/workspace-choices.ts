@@ -127,8 +127,10 @@ export const workspaceChoices = cache(async (): Promise<WorkspaceChoice[]> => {
     )
   )
     .filter((choice): choice is NonNullable<typeof choice> => !!choice)
-    .sort((a, b) =>
-      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+    .sort(
+      (a, b) =>
+        a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) ||
+        a.holdingSlug.localeCompare(b.holdingSlug),
     );
   const choices: WorkspaceChoice[] = [...business];
   try {

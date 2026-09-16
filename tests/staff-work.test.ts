@@ -875,20 +875,16 @@ describe("Projects, task phases and evidence boundaries", () => {
 describe("Reusable levels and routine scheduling", () => {
   it("scopes Administration sections without granting staff approval management or beta ERP tools", async () => {
     const staffAccess = await administrationAccess(worker);
-    expect(staffAccess.sections).toEqual(["approvals", "feedback"]);
+    expect(staffAccess.sections).toEqual(["feedback"]);
     expect(staffAccess.manageOrganization).toBe(false);
     expect((await administrationAccess(hr)).sections).toEqual([
       "people",
       "organization",
-      "approvals",
       "feedback",
     ]);
     expect((await administrationAccess(owner)).sections).toEqual([
       "people",
       "organization",
-      "approvals",
-      "usage",
-      "ai",
       "feedback",
     ]);
     expect(
@@ -896,6 +892,26 @@ describe("Reusable levels and routine scheduling", () => {
     ).toEqual(["feedback"]);
     expect(
       (await administrationAccess({ ...owner, beta: true })).sections,
+    ).toEqual([
+      "people",
+      "organization",
+      "feedback",
+    ]);
+    expect(
+      (
+        await administrationAccess({
+          ...owner,
+          branchId: null,
+          departmentId: null,
+          scope: {
+            kind: "holding",
+            holdingId: "h001",
+            holdingSlug: "test",
+            holdingName: "Test",
+            companyId: company,
+          },
+        })
+      ).sections,
     ).toEqual([
       "people",
       "organization",

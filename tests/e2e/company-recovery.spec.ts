@@ -10,7 +10,7 @@ test('stale company preference recovers holding access without allowing unauthor
   await expect(page).toHaveURL(/\/holdings\/acme\/home$/);
   const denied = await context.request.post('/api/v1/holdings/acme/companies/active', {data:{companyId:'beacon-co'}});
   expect(denied.status()).toBe(403);
-  await page.getByRole('button',{name:'Workspace menu',exact:true}).click();
+  await page.getByRole('button',{name:'Switch workspace',exact:true}).click();
   await expect(page.getByRole('dialog')).not.toContainText('Beacon Labs');
   await expect(page.getByRole('dialog')).not.toContainText('Expense test');
 });

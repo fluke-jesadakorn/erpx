@@ -129,15 +129,15 @@ test("a profile owns level, activation and distinct access commands", async ({
     data: { email: "mali@erpx.dev", password: "Mali-ERPX-2026!" },
   });
   await page.goto(`${base}/home`);
-  await page.getByRole("button", { name: "Workspace menu" }).click();
+  await page.getByRole("button", { name: "Switch workspace" }).click();
   await expect(
     page
-      .getByRole("dialog", { name: "Workspace", exact: true })
-      .getByText(/holding owner/i, { exact: true }),
+      .getByRole("dialog", { name: "Switch workspace", exact: true })
+      .getByRole("button", { name: /Acme Corporation/ }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(
-    page.getByRole("dialog", { name: "Workspace", exact: true }),
+    page.getByRole("dialog", { name: "Switch workspace", exact: true }),
   ).not.toBeVisible();
   async function command(path: string, data: unknown) {
     const response = await page.request.post(`/api/v1${base}/${path}`, {

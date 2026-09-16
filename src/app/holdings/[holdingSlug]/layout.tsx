@@ -117,11 +117,30 @@ export default async function WorkplaceLayout({
         <header className={styles.topbar}>
           <div className={styles.workspace}>
             <WorkspaceMenu
-              base={base}
               label={workspaceLabel}
-              companyId={context.companyId}
-              companies={companies}
               choices={await workspaceChoices()}
+              current={
+                context.scope.kind === "holding"
+                  ? {
+                      kind: "holding",
+                      holdingSlug,
+                      companyId: context.companyId,
+                    }
+                  : context.scope.kind === "branch"
+                    ? {
+                        kind: "branch",
+                        holdingSlug,
+                        companyId: context.companyId,
+                        branchId: context.scope.branchId,
+                      }
+                    : {
+                        kind: "department",
+                        holdingSlug,
+                        companyId: context.companyId,
+                        branchId: context.scope.branchId,
+                        departmentId: context.scope.departmentId,
+                      }
+              }
             />
 
             <Suspense

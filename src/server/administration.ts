@@ -16,15 +16,17 @@ export async function administrationAccess(
   ]);
   const managePeople = actor.beta ? owner : canManagePeople(actor);
   const manageOrganization = companyManager;
+  const holdingWorkspace = actor.scope.kind === "holding";
   const sections: AdminSection[] = [];
   if (managePeople) sections.push("people");
   if (manageOrganization || (actor.beta && owner))
     sections.push("organization");
   // Published routines were already readable by every ERP workspace member.
   // Access to this section does not grant access to the approval queue.
-  if (!actor.beta || companyManager) sections.push("approvals");
-  if (owner) sections.push("usage");
-  if (manageAiProviders) {
+  if (holdingWorkspace && (!actor.beta || companyManager))
+    sections.push("approvals");
+  if (holdingWorkspace && owner) sections.push("usage");
+  if (holdingWorkspace && manageAiProviders) {
     if (owner) sections.push("ai");
     else sections.unshift("ai");
   }

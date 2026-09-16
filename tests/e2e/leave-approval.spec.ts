@@ -89,16 +89,16 @@ test("a device can add accounts and each account sees its combined responsibilit
   await login(page, "mali@erpx.dev", "Mali-ERPX-2026!");
   await page.goto("/holdings/acme/branches/bangkok/home");
 
-  await page.getByRole("button", { name: "Workspace menu" }).click();
+  await page.getByRole("button", { name: "Switch workspace" }).click();
   await expect(
     page
-      .getByRole("dialog", { name: "Workspace", exact: true })
-      .getByText(/holding owner/i, { exact: true }),
+      .getByRole("dialog", { name: "Switch workspace", exact: true })
+      .getByRole("heading", { name: "Acme Group", exact: true }),
   ).toBeVisible();
   await expect(
     page
-      .getByRole("dialog", { name: "Workspace", exact: true })
-      .getByRole("link", { name: "All responsibilities", exact: true }),
+      .getByRole("dialog", { name: "Switch workspace", exact: true })
+      .getByRole("button", { name: /Acme Corporation/ }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
 
@@ -118,16 +118,16 @@ test("a device can add accounts and each account sees its combined responsibilit
     page.getByRole("heading", { name: "Hello, Nisa" }),
   ).toBeVisible();
 
-  await page.getByRole("button", { name: "Workspace menu" }).click();
+  await page.getByRole("button", { name: "Switch workspace" }).click();
   await expect(
     page
-      .getByRole("dialog", { name: "Workspace", exact: true })
-      .getByText(/finance approver/i, { exact: true }),
+      .getByRole("dialog", { name: "Switch workspace", exact: true })
+      .getByRole("button", { name: /Acme Corporation/ }),
   ).toBeVisible();
   await expect(
     page
-      .getByRole("dialog", { name: "Workspace", exact: true })
-      .getByText(/holding owner/i, { exact: true }),
+      .getByRole("dialog", { name: "Switch workspace", exact: true })
+      .getByText("Northstar Supply", { exact: true }),
   ).toHaveCount(0);
   await page.keyboard.press("Escape");
   await page.locator(".account-trigger").click();
@@ -137,11 +137,11 @@ test("a device can add accounts and each account sees its combined responsibilit
   await expect(page.getByRole("heading", { name: "Hello, Mali" })).toBeVisible({
     timeout: 15000,
   });
-  await page.getByRole("button", { name: "Workspace menu" }).click();
+  await page.getByRole("button", { name: "Switch workspace" }).click();
   await expect(
     page
-      .getByRole("dialog", { name: "Workspace", exact: true })
-      .getByText(/holding owner/i, { exact: true }),
+      .getByRole("dialog", { name: "Switch workspace", exact: true })
+      .getByRole("button", { name: /Acme Corporation/ }),
   ).toBeVisible();
   await page.keyboard.press("Escape");
 

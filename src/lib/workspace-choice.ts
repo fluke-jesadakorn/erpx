@@ -39,6 +39,27 @@ export type WorkspacePlatformChoice = {
 
 export type WorkspaceChoice = WorkspaceHoldingChoice | WorkspacePlatformChoice;
 
+export type CurrentWorkspaceChoice =
+  | { kind: "platform" }
+  | {
+      kind: "holding";
+      holdingSlug: string;
+      companyId: string;
+    }
+  | {
+      kind: "branch";
+      holdingSlug: string;
+      companyId: string;
+      branchId: string;
+    }
+  | {
+      kind: "department";
+      holdingSlug: string;
+      companyId: string;
+      branchId: string | null;
+      departmentId: string;
+    };
+
 export type WorkspaceChoiceAssignment = {
   companyId: string;
   companyName: string;

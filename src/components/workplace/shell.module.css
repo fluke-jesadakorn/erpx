@@ -781,8 +781,111 @@
   margin: 0 0 24px;
 }
 .workspaceSection h3 {
+  margin: 0 0 10px;
   font-size: 13px;
   color: var(--muted);
+}
+.workspaceTree {
+  display: grid;
+  gap: 8px;
+}
+.workspaceHolding {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--card-2) 55%, transparent);
+}
+.workspaceHolding h4 {
+  margin: 0 4px 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.workspaceCompany {
+  display: grid;
+  gap: 3px;
+}
+.workspaceChoice {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  gap: 9px;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  text-align: left;
+  text-decoration: none;
+}
+button.workspaceChoice,
+a.workspaceChoice {
+  cursor: pointer;
+}
+button.workspaceChoice:hover,
+a.workspaceChoice:hover {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+.workspaceChoice:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.workspaceChoice[aria-current="location"] {
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: 650;
+}
+.workspaceChoice:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.workspaceCompanyChoice {
+  font-weight: 600;
+}
+.workspaceCompanyLabel,
+.workspaceBranchLabel {
+  color: var(--muted);
+}
+.workspaceLocations {
+  display: grid;
+  gap: 2px;
+  margin-left: 20px;
+  padding-left: 13px;
+  border-left: 1px solid var(--line);
+}
+.workspaceDepartments {
+  display: grid;
+  gap: 2px;
+  margin-left: 20px;
+  padding-left: 13px;
+  border-left: 1px solid var(--line);
+}
+.workspaceDepartmentChoice {
+  color: var(--muted);
+}
+.workspaceCurrent {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--brand) 12%, var(--card));
+  color: var(--brand);
+  font-size: 10px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.workspaceError {
+  margin: 10px 0 0;
+  color: var(--red);
+  font-size: 12px;
 }
 .workspaceRole {
   display: flex;
