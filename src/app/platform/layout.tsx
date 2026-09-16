@@ -1,6 +1,9 @@
+import { RememberWorkspace } from "@/components/workplace/remember-workspace";
+import { WorkspaceMenu } from "@/components/workplace/workspace-menu";
+import { workspaceChoices } from "@/server/workspace-choices";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { notFound, redirect } from "next/navigation";
+import { pageError } from "@/server/page-error";
 import { Suspense } from "react";
 import { ShieldCheck } from "lucide-react";
 import { requirePlatformContext } from "@/server/authorization";
@@ -21,13 +24,12 @@ export default async function PlatformLayout({
   try {
     context = await requirePlatformContext();
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHENTICATED")
-      redirect("/login");
-    notFound();
+    return pageError(error);
   }
   const theme = (await cookies()).get("erpx_appearance")?.value ?? "light";
   return (
     <div className={styles.shell}>
+      <RememberWorkspace base="/platform" />
       <a href="#workspace-content" className="skip-link">
         Skip to content
       </a>
@@ -42,7 +44,7 @@ export default async function PlatformLayout({
         <Suspense>
           <WorkplaceNavigation
             workspaceBase="/platform"
-            allowedModules={context.modules}
+            scopeKind="platform"
           />
         </Suspense>
         <div className={styles.sidebarBottom}>
@@ -59,7 +61,7 @@ export default async function PlatformLayout({
       <div className={styles.main}>
         <header className={styles.topbar}>
           <div className={styles.workspace}>
-            <span className={styles.workspaceSymbol}>P</span>
+            <WorkspaceMenu base="/platform" label="Platform administration" choices={await workspaceChoices()} />
             <div className={styles.workspaceDetails}>
               <strong>Platform</strong>
               <span className={styles.workspaceScope}>
@@ -70,7 +72,7 @@ export default async function PlatformLayout({
           <div className={styles.actions}>
             <CommandSearch
               workspaceBase="/platform"
-              allowedModules={context.modules}
+              scopeKind="platform"
             />
             <PlatformRoleSwitcher
               activeAssignmentId={context.assignmentId}
@@ -85,7 +87,7 @@ export default async function PlatformLayout({
       <Suspense>
         <WorkplaceNavigation
           workspaceBase="/platform"
-          allowedModules={context.modules}
+          scopeKind="platform"
           mobile
         />
       </Suspense>

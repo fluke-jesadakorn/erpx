@@ -16,6 +16,8 @@ const optionalMoney = z
   .union([z.literal(""), z.string().regex(/^\d+(\.\d{1,2})?$/)])
   .optional();
 export const expenseDraftSchema = z.object({
+  payeePartyId: optionalText(160),
+  requestKind: z.enum(["expense","payment"]).optional(),
   personId: optionalText(160),
   expenseDate: z.union([z.literal(""), z.iso.date()]).optional(),
   merchant: optionalText(200),
@@ -38,8 +40,6 @@ export async function expenseRequirements(db: SqlDatabase, row: ExpenseRow) {
       String(row.company_id),
       String(row.claimant_user_id),
     );
-    if (!staff.department_id)
-      missing.push("Ask an administrator to set your department in People.");
     const level =
       staff.level_id &&
       (await db
@@ -79,7 +79,7 @@ export async function expenseRequirements(db: SqlDatabase, row: ExpenseRow) {
       .bind(row.id)
       .first())
   )
-    missing.push("Attach the receipt before submitting.");
+    missing.push(row.request_kind === "payment" ? "Attach the payment request’s supporting document before submitting." : "Attach the receipt before submitting.");
   return missing;
 }
 
@@ -203,6 +203,8 @@ export async function saveExpenseDraft(
       [claimant, actor.companyId, now, now],
     ),
   ];
+  const requestKind=input.requestKind??current?.request_kind??"expense",payeePartyId=requestKind==="payment"?(input.payeePartyId??current?.payee_party_id??null):null;
+  if(payeePartyId)steps.push(assertion(write,key,"supplier-payee","EXISTS(SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND kind='supplier' AND status='active' AND currency=?)",[payeePartyId,actor.companyId,currency]));
   if (category)
     steps.push(
       assertion(
@@ -224,6 +226,8 @@ export async function saveExpenseDraft(
       ),
     );
   const values = [
+    requestKind,
+    payeePartyId || null,
     personId,
     staff?.engagement_id ?? null,
     staff?.branch_id ?? null,
@@ -245,12 +249,12 @@ export async function saveExpenseDraft(
     current
       ? write
           .prepare(
-            "UPDATE finance_expenses SET employee_id=?,engagement_id=?,branch_id=?,department_id=?,claimant_user_id=?,claimant_name=?,expense_date=?,merchant=?,currency=?,amount_minor=?,tax_minor=?,category_account_id=?,receipt_reference=?,business_purpose=?,prepared_by=?,updated_at=?,status='draft',workflow_version=2,workflow_stage='draft',version=version+1 WHERE id=?",
+            "UPDATE finance_expenses SET request_kind=?,payee_party_id=?,employee_id=?,engagement_id=?,branch_id=?,department_id=?,claimant_user_id=?,claimant_name=?,expense_date=?,merchant=?,currency=?,amount_minor=?,tax_minor=?,category_account_id=?,receipt_reference=?,business_purpose=?,prepared_by=?,updated_at=?,status='draft',workflow_version=2,workflow_stage='draft',version=version+1 WHERE id=?",
           )
           .bind(...values, recordId)
       : write
           .prepare(
-            "INSERT INTO finance_expenses(employee_id,engagement_id,branch_id,department_id,claimant_user_id,claimant_name,expense_date,merchant,currency,amount_minor,tax_minor,category_account_id,receipt_reference,business_purpose,prepared_by,updated_at,id,company_id,created_by,created_at,workflow_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,2)",
+            "INSERT INTO finance_expenses(request_kind,payee_party_id,employee_id,engagement_id,branch_id,department_id,claimant_user_id,claimant_name,expense_date,merchant,currency,amount_minor,tax_minor,category_account_id,receipt_reference,business_purpose,prepared_by,updated_at,id,company_id,created_by,created_at,workflow_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,2)",
           )
           .bind(...values, recordId, actor.companyId, actor.userId, now),
   );

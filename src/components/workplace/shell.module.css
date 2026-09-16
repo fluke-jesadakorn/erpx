@@ -26,7 +26,7 @@
   display: grid;
   place-items: center;
   background: var(--brand);
-  color: var(--card);
+  color: var(--on-brand);
   border-radius: 9px;
   font-size: 17px;
   font-weight: 700;
@@ -47,7 +47,11 @@
 }
 .nav {
   display: grid;
+  flex: 1 1 auto;
+  align-content: start;
   gap: 5px;
+  min-height: 0;
+  overflow-y: auto;
 }
 .navLabel {
   font-size: 9px;
@@ -72,18 +76,137 @@
   background: var(--card-2);
   color: var(--ink);
 }
+.navBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 25px;
+  padding: 2px 7px;
+  margin-left: auto;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 11px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+}
 .nav a[aria-current="page"] {
   background: var(--brand-soft);
   color: var(--brand);
   font-weight: 600;
 }
-.nav a[aria-current="page"]:after {
-  content: "";
-  width: 5px;
-  height: 5px;
-  background: var(--brand);
-  border-radius: 50%;
-  margin-left: auto;
+.navGroup {
+  display: grid;
+  min-width: 0;
+}
+.navGroupHead {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  align-items: center;
+  border-radius: 10px;
+}
+.navGroupHead:has(.navGroupLink[aria-current="page"]),
+.navGroup[data-active="true"] > .navGroupHead {
+  background: var(--card);
+  color: var(--ink-strong);
+}
+.navGroupHead .navGroupLink,
+.navGroupLabel {
+  min-width: 0;
+  min-height: 43px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 4px 10px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 550;
+  text-align: left;
+}
+.navGroupLabel {
+  cursor: pointer;
+}
+.navGroupHead .navGroupLink:hover,
+.navGroupLabel:hover {
+  background: transparent;
+  color: var(--ink);
+}
+.navGroupHead .navGroupLink[aria-current="page"] {
+  background: transparent;
+  box-shadow: none;
+  color: var(--brand);
+}
+.navGroup[data-active="true"] > .navGroupHead svg:first-child {
+  color: var(--brand);
+}
+.navGroupToggle {
+  width: 36px;
+  min-height: 43px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.navGroupToggle:hover {
+  background: var(--card-2);
+  color: var(--ink);
+}
+.navGroupToggle svg {
+  transition: transform 160ms ease;
+}
+.navGroupToggle[aria-expanded="false"] svg {
+  transform: rotate(-90deg);
+}
+.navChildren {
+  display: grid;
+  gap: 2px;
+  margin: 2px 0 5px 21px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+}
+.nav .navChildLink,
+.mobileTree .navChildLink {
+  min-height: 36px;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+.navChildIcon {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  color: color-mix(in srgb, var(--muted) 82%, transparent);
+  transition: color 140ms ease;
+}
+.navChildIcon svg {
+  display: block;
+}
+.nav .navChildLink:hover .navChildIcon,
+.nav .navChildLink:focus-visible .navChildIcon,
+.mobileTree .navChildLink:hover .navChildIcon,
+.mobileTree .navChildLink:focus-visible .navChildIcon {
+  color: var(--ink);
+}
+.nav .navChildLink[aria-current="page"],
+.mobileTree .navChildLink[aria-current="page"] {
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-weight: 650;
+}
+.nav .navChildLink[aria-current="page"] .navChildIcon,
+.mobileTree .navChildLink[aria-current="page"] .navChildIcon {
+  color: color-mix(in srgb, var(--brand) 78%, var(--muted));
 }
 .sidebarBottom {
   margin-top: auto;
@@ -120,7 +243,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 28px;
   padding: 0 40px;
   border-bottom: 1px solid var(--line);
   background: var(--card);
@@ -128,7 +251,7 @@
 .workspace {
   display: flex;
   flex: 1;
-  gap: 10px;
+  gap: 16px;
   align-items: center;
   min-width: 0;
 }
@@ -153,11 +276,10 @@
   font-weight: 550;
 }
 .breadcrumb {
+  flex: 1 1 auto;
   min-width: 0;
-  overflow-x: auto;
   padding: 4px 2px;
   font-size: 13px;
-  scrollbar-width: thin;
 }
 .breadcrumb ol {
   display: flex;
@@ -174,6 +296,65 @@
   align-items: center;
   flex: 0 0 auto;
   gap: 2px;
+}
+.breadcrumb .breadcrumbCompactOverflow,
+.breadcrumb .breadcrumbCompactCurrent {
+  display: none;
+}
+.breadcrumbCompactOverflow {
+  position: relative;
+}
+.breadcrumbOverflowButton {
+  display: grid;
+  width: 36px;
+  min-height: 36px;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.breadcrumbOverflowButton:hover,
+.breadcrumbOverflowButton[aria-expanded="true"] {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+.breadcrumbOverflowButton:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 3px;
+}
+.breadcrumbOverflowMenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 40;
+  display: grid;
+  min-width: 180px;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: var(--shadow-md);
+}
+.breadcrumbOverflowMenu a,
+.breadcrumbOverflowMenu span {
+  min-height: 40px;
+  padding: 10px;
+  overflow: hidden;
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 20px;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.breadcrumbOverflowMenu a:hover,
+.breadcrumbOverflowMenu a:focus-visible {
+  background: var(--brand-soft);
+  color: var(--brand);
 }
 .breadcrumb a,
 .breadcrumbItem > span {
@@ -352,19 +533,17 @@
 }
 @media (max-width: 1100px) {
   .shell {
-    grid-template-columns: 76px minmax(0, 1fr);
+    grid-template-columns: 210px minmax(0, 1fr);
   }
   .sidebar {
-    width: 76px;
+    width: 210px;
     padding: 24px 12px;
   }
   .brand {
     padding: 0 10px 22px;
   }
-  .brand strong,
   .brand small,
   .navLabel,
-  .nav a > span,
   .sidebarBottom {
     display: none;
   }
@@ -372,7 +551,7 @@
     flex-shrink: 0;
   }
   .nav a {
-    justify-content: center;
+    justify-content: flex-start;
     padding: 12px;
   }
   .nav a[aria-current="page"]:after {
@@ -401,6 +580,30 @@
     gap: 8px;
   }
 }
+@media (max-width: 900px) {
+  .topbar {
+    gap: 14px;
+  }
+  .workspace {
+    gap: 10px;
+  }
+  .breadcrumb .breadcrumbFullItem {
+    display: none;
+  }
+  .breadcrumb .breadcrumbCompactOverflow,
+  .breadcrumb .breadcrumbCompactCurrent {
+    display: flex;
+  }
+  .breadcrumbCompactCurrent {
+    min-width: 0;
+  }
+  .breadcrumbCompactCurrent > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
 @media (max-width: 650px) {
   .shell {
     display: block;
@@ -412,6 +615,10 @@
     height: 62px;
     padding: 0 18px;
     gap: 8px;
+  }
+  .workspaceTrigger > span,
+  .workspaceTrigger > svg:last-child {
+    display: none;
   }
   .workspaceSymbol {
     display: none;
@@ -460,6 +667,15 @@
     background: var(--brand-soft);
     border-radius: 8px;
   }
+  .mobileNav a { position: relative; }
+  .mobileNav .navBadge {
+    position: absolute;
+    top: 0;
+    left: calc(50% + 5px);
+    min-width: 20px;
+    padding: 0 5px;
+    font-size: 10px;
+  }
   .mobileNav a[aria-current="page"]:after {
     display: none;
   }
@@ -484,6 +700,58 @@
 .moreButton[aria-current="page"] {
   background: var(--brand-soft);
   color: var(--brand);
+}
+.moreChevron {
+  margin-left: auto;
+  transition: transform 160ms ease;
+}
+.moreButton[aria-expanded="true"] .moreChevron {
+  transform: rotate(180deg);
+}
+.secondaryNav {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  min-height: 0;
+}
+.secondaryNav[data-expanded="false"] {
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+.secondaryNav a {
+  font-size: 12px;
+}
+.mobileTree {
+  display: grid;
+  gap: 8px;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.mobileTree .navGroupHead {
+  background: var(--card-2);
+}
+.mobileTree .navGroupLink,
+.mobileTree .navGroupLabel {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 48px;
+  padding: 11px 8px 11px 14px;
+  color: var(--ink);
+}
+.mobileTree .navChildren {
+  margin-left: 24px;
+}
+.mobileTree > a {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 48px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  background: var(--card-2);
+  color: var(--ink);
 }
 .workspaceTrigger {
   display: flex;
@@ -551,10 +819,7 @@
 }
 @media (max-width: 1100px) {
   .nav .moreButton {
-    justify-content: center;
-  }
-  .nav .moreButton > span {
-    display: none;
+    justify-content: flex-start;
   }
 }
 @media (max-width: 750px) {
@@ -644,3 +909,22 @@
     flex-wrap: wrap;
   }
 }
+
+/* A quiet frame leaves the work as the strongest surface. */
+.sidebar { background: var(--paper); border-right-color: var(--line); }
+.topbar { background: var(--paper); }
+.brandMark { border-radius: 10px; }
+.nav a, .moreButton { font-size: 14px; border-radius: 10px; }
+.nav a[aria-current="page"] { background: var(--card); color: var(--ink-strong); box-shadow: var(--shadow-sm); }
+.nav a[aria-current="page"] svg { color: var(--brand); }
+.searchButton { background: var(--card); font-size: 12px; border-radius: 10px; }
+.sidebarBottom strong, .sidebarBottom small { font-size: 12px; }
+.main :global(.work-filters) { margin: 12px 0 16px; }
+.main :global(.work-filters) > select { flex-basis: 190px; }
+@media (max-width: 650px) {
+  .main :global(.work-filters) > select { flex-basis: 100%; }
+}
+.appearanceCompact { flex: 0 0 auto; gap: 0; }
+.appearanceCompact button { flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; }
+.appearanceCompact button[aria-pressed="true"] { background: transparent; color: var(--brand); box-shadow: inset 0 -2px var(--brand); border-radius: 0; }
+.appearanceCompact button svg { width: 16px; height: 16px; }

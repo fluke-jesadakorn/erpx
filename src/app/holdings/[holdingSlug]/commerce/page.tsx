@@ -8,13 +8,14 @@ import { commerceOverview,commercePermissions } from "@/server/commerce";
 import { MasterEditor,OrderEditor } from "@/components/modules/commerce-controls";
 import { StatusBadge } from "@/components/ui/primitives";
 import { minorToDecimal } from "@/lib/finance-money";
+import { commerceNavigationViews } from "@/lib/workplace-navigation";
 export const dynamic="force-dynamic";
 export default async function CommercePage({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<{view?:string;q?:string;request?:string}>}) {
   const {holdingSlug}=await params;const actor=await requireWorkContext(holdingSlug);const base=workspaceBase(publicScope(actor));const data=await commerceOverview(actor);const permissions=commercePermissions(actor);const search=await searchParams;const view=["sales","quote","purchase","stock","products","parties","warehouses"].includes(search.view??"")?search.view!:"sales";
   const requestData=search.request?await employeeRequestDetail((await holdingResources(actor.holdingId)).write,actor,search.request):null;
   const sourceRequest=requestData?.request.kind==="purchase"&&requestData.actions.includes("link-order")&&!requestData.request.purchase_order_id?{id:requestData.request.id,version:requestData.request.version,neededDate:requestData.request.needed_date,note:`${requestData.request.title} · ${requestData.request.description}`.slice(0,2000)}:undefined;
   const orderOptions=requestData?{...data,warehouses:data.warehouses.filter(w=>w.branch_id===requestData.request.branch_id)}:data;
-  const tabs=[["sales","Sales orders"],["quote","Quotations"],["purchase","Purchase orders"],["stock","Stock & movements"],["products","Products"],["parties","Customers & suppliers"],["warehouses","Warehouses"]];
+  const tabs=commerceNavigationViews;
   const orders=data.orders.filter(o=>o.kind===view&&(!search.q||`${o.number} ${o.party_name} ${o.state}`.toLowerCase().includes(search.q.toLowerCase())));
   return <main className="content-stack" data-source="live"><header className="section-head"><div><p className="eyebrow">Sales · purchasing · inventory</p><h1>Business operations</h1><p className="muted">Orders, stock movements and financial obligations for this company · {data.currency}</p></div>{permissions.finance&&<Link className="button secondary" href={`${base}/finance`}>Finance</Link>}</header>
     {requestData&&<section className="card"><h2>Approved request</h2><Link href={`${base}/requests/${requestData.request.id}`}>{requestData.request.title}</Link>{requestData.items.map((item,i)=><p key={i}>{item.description} · {item.quantity}{item.estimatedCost?` · Estimate ${requestData.request.currency} ${item.estimatedCost}`:""}</p>)}<p className="muted">{sourceRequest?"Match the requested items to products and review supplier prices. Saving creates the linked purchase order.":"Return to the request to see its current handoff and next action."}</p></section>}

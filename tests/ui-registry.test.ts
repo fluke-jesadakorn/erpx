@@ -2,13 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   moduleRegistry,
   moduleAvailability,
-  moduleHref,
   capabilitySupport,
   liveDestination,
 } from "../src/data/module-registry";
-import { capabilitySamples } from "../src/data/preview/capability-samples";
 import { queueFor, type WorkRow } from "../src/lib/work-queue";
-import samples from "../src/data/preview/module-samples.json";
 import { modulesForRole } from "../src/lib/business-roles";
 import { hasModuleAccess } from "../src/data/module-access";
 
@@ -47,12 +44,6 @@ describe("Enterprise UI coverage and routing", () => {
         expect(
           definition.sections.some((section) => section.id === primary),
         ).toBe(true);
-      expect(moduleHref("/holdings/northstar", definition)).toMatch(
-        /^\/holdings\/northstar\/modules\//,
-      );
-      expect(
-        samples[definition.id as keyof typeof samples].rows.length,
-      ).toBeGreaterThan(0);
     }
   });
   it("does not advertise unwired foundation modules as live", () => {
@@ -71,33 +62,16 @@ describe("Enterprise UI coverage and routing", () => {
     expect(liveDestination("crm", "leads")).toBeUndefined();
     expect(liveDestination("inventory", "reservations")).toBeUndefined();
   });
-  it("provides distinct sample fields for every capability and action-level availability", () => {
+  it("retains action-level capability metadata for IAM and backend compatibility", () => {
     for (const definition of moduleRegistry) {
       for (const section of definition.sections.filter(
         (item) => item.capability,
       )) {
-        const sample = capabilitySamples(definition, section);
-        expect(sample.records).toHaveLength(3);
-        for (const record of sample.records) {
-          expect(record.source).toBe("sample");
-          expect(record.id).toContain(`sample--${section.id}--`);
-          expect(new Set(record.fields.map((field) => field.key)).size).toBe(
-            record.fields.length,
-          );
-          expect(record.fields.length).toBeGreaterThanOrEqual(4);
-        }
         expect(
           capabilitySupport(definition.id, section.id).actions.length,
         ).toBeGreaterThan(0);
       }
     }
-    const finance = moduleRegistry.find((item) => item.id === "finance")!;
-    const payables = finance.sections.find((item) =>
-      /payables/i.test(item.label),
-    )!;
-    expect(
-      capabilitySamples(finance, payables).fields.map((item) => item.label),
-    ).toContain("Supplier");
     expect(
       capabilitySupport("collaboration", "feature-comments-moderation").actions,
     ).toContainEqual({

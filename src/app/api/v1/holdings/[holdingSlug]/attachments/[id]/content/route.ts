@@ -1,3 +1,4 @@
+import { invoicePaymentOwner } from "@/server/invoice-payment-evidence";
 import { getEmployeeRequest } from "@/server/employee-requests";
 import { socialUploadOwner } from "@/server/social-home";
 import { getTask } from "@/server/staff-tasks";
@@ -35,6 +36,8 @@ export async function GET(
       await socialUploadOwner(write, actor, attachment.owner_id);
     else if (attachment.owner_type === "expense_claim")
       await getExpense(actor, attachment.owner_id);
+    else if (attachment.owner_type === "invoice_payment")
+      await invoicePaymentOwner(write,actor,attachment.owner_id);
     else if (attachment.owner_type === "expense_payment")
       await paymentDraft(actor, attachment.owner_id);
     else if (attachment.owner_type === "leave_request")

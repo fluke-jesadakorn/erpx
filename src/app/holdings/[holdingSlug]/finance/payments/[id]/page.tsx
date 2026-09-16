@@ -1,5 +1,5 @@
+import { pageError } from "@/server/page-error";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowUpRight } from "lucide-react";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { getPayment } from "@/server/finance";
@@ -13,7 +13,7 @@ export default async function PaymentDetail({ params }: { params: Promise<{ hold
   const { holdingSlug, id } = await params;
   const actor = await requireWorkContext(holdingSlug);
   let data;
-  try { data = await getPayment(actor, id); } catch { notFound(); }
+  try { data = await getPayment(actor, id); } catch (error) { return pageError(error, actor.holdingSlug); }
   const base = workspaceBase(publicScope(actor));
   const payment = data.payment;
   return (

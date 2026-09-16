@@ -7,6 +7,9 @@ import { publicScope, requireWorkContext } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import styles from "@/components/workplace/pages.module.css";
 import { MessagingInbox } from "@/components/messaging/inbox";
+import { notificationDays } from "@/lib/notification-days";
+import { CalendarDays, ClipboardList, MessageSquare, Receipt, FileText } from "lucide-react";
+import updateStyles from "@/components/workplace/inbox-updates.module.css";
 export default async function Inbox({
   params,
   searchParams,
@@ -27,7 +30,9 @@ export default async function Inbox({
       <MessagingInbox
         base={base}
         userId={actor.userId}
-        initialTab={query.view || query.tab === "updates" ? "updates" : "chats"}
+        initialTab={query.view || query.tab === "updates" ? "updates" : query.tab === "teams" ? "teams" : "chats"}
+        initialPerson={typeof query.person === "string"?query.person:undefined}
+        initialRoom={typeof query.room === "string"?query.room:undefined}
         updates={
           <>
             <nav className={styles.tabs} aria-label="Inbox views">
@@ -45,7 +50,7 @@ export default async function Inbox({
                 All
               </Link>
             </nav>
-            <section className="card">
+            <section className={updateStyles.updates} aria-label="Work updates">
               {!visible.length ? (
                 <EmptyState
                   title={
@@ -56,21 +61,19 @@ export default async function Inbox({
                   description="Updates will appear here when there is something to follow up."
                 />
               ) : (
-                visible.map((n) => (
-                  <article className="row" key={n.id}>
-                    <div className="row-main">
-                      <Link href={`${base}${n.href}`}>
-                        <strong>{n.message}</strong>
-                      </Link>
-                      <p className="muted">
-                        {new Date(n.created_at).toLocaleString("en-GB", {
-                          timeZone: "Asia/Bangkok",
-                        })}
-                      </p>
-                    </div>
-                    {!n.read_at && <ReadNotification base={base} id={n.id} />}
-                  </article>
-                ))
+                notificationDays(visible).map(day => <section className={updateStyles.day} key={day.key} aria-label={day.label}>
+                  <h2>{day.label}</h2><div className={updateStyles.group}>{day.items.map(n => {
+                    const Icon = n.record_type === "expense" ? Receipt : n.record_type === "leave" ? CalendarDays : n.record_type === "post" ? MessageSquare : n.record_type === "task" ? ClipboardList : FileText;
+                    return <article className={updateStyles.row} key={n.id} data-unread={!n.read_at}>
+                      <Icon size={20} aria-hidden />
+                      <div className={updateStyles.body}>
+                        <Link href={`${base}${n.href}`}>{n.message}</Link>
+                        <time dateTime={new Date(n.created_at).toISOString()}>{new Date(n.created_at).toLocaleTimeString("en-GB", { timeZone: "Asia/Bangkok", hour: "2-digit", minute: "2-digit" })}</time>
+                      </div>
+                      {!n.read_at && <ReadNotification base={base} id={n.id} />}
+                    </article>;
+                  })}</div>
+                </section>)
               )}
             </section>
           </>

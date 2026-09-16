@@ -423,7 +423,7 @@ test("cards fit 390, 768 and 1440px in both themes and retain keyboard focus", a
         ),
       ).toBe(true);
       if (width === 390) {
-        await expect(region.locator("article:visible")).toHaveCount(3);
+        await expect(region.locator("article:visible")).toHaveCount(4);
         await region
           .getByRole("button", { name: /Show all .* shortcuts/ })
           .click();

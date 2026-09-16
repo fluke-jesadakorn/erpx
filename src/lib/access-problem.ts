@@ -1,0 +1,50 @@
+export const accessProblems = {
+  available: { label: "Access available", title: "Your workspace is available", description: "Your account now has access to the requested workspace.", next: "Open the requested page to continue. Individual records and actions may still require their own permissions." },
+  sign_in: { label: "Sign-in required", title: "Sign in to continue", description: "You are signed out, or your session has expired. Sign in again to open this page.", next: "Use your work account. Your workspace permissions will be checked after sign-in." },
+  scope: { label: "Workspace access", title: "This link opens a different workspace", description: "Your account has access to a different company, branch or department. This link asks for a workspace outside that access.", next: "Open your available workspace, or ask HR or your workspace administrator to review your scope." },
+  expired: { label: "Access expired", title: "Your workspace access has expired", description: "The access assignment for this workspace is past its end date.", next: "Ask HR or your workspace administrator to renew your access. Signing in again does not extend it." },
+  revoked: { label: "Access removed", title: "Your workspace access was removed", description: "The access assignments for this workspace have been revoked.", next: "Ask HR or your workspace administrator to review your access, or use another available workspace." },
+  scheduled: { label: "Access scheduled", title: "Your access has not started yet", description: "Your access assignment for this workspace starts in the future.", next: "Try again when the assignment starts, or ask HR to check its start date." },
+  no_access: { label: "Access required", title: "No access is assigned to this workspace", description: "You are signed in, but your account has no usable access assignment for this workspace.", next: "Ask HR or your workspace administrator to assign the role and scope you need." },
+  role: { label: "Role unavailable", title: "Your assigned role needs review", description: "The role or scope on your access assignment is no longer supported.", next: "Ask your workspace administrator to update the assignment." },
+  permission: { label: "Permission required", title: "Your role cannot open this view", description: "Your current access does not include this page or action.", next: "Use an available workspace or ask your administrator to review your business role. A staff level or job title alone does not grant access." },
+  platform: { label: "Platform access", title: "Platform administration requires separate access", description: "A company or HR role does not grant platform administration access.", next: "Open your business workspace, or sign in with an account assigned to platform administration." },
+  company: { label: "Company selection", title: "Your selected company is unavailable", description: "ERPX could not select an active company. A saved choice may be outdated, or company setup may be incomplete.", next: "Open an available workspace to continue. Ask your administrator to check the company setup if the problem remains." },
+  suspended: { label: "Workspace inactive", title: "This workspace is currently inactive", description: "This company, branch, department or holding is not currently active.", next: "Ask your workspace administrator to check its status, or open another available workspace." },
+  workspace: { label: "Workspace unavailable", title: "We couldn’t find an available workspace for this link", description: "The workspace address may be incorrect, outdated or unavailable to your account.", next: "Check the link with its sender, or open one of your available workspaces." },
+  setup: { label: "Setup needs attention", title: "The workspace structure needs attention", description: "ERPX could not resolve a valid company, branch and department structure for this page.", next: "Ask your workspace administrator to review the organization settings." },
+  capability: { label: "Feature unavailable", title: "This feature is not available in this workspace", description: "This feature is not included in the current workspace release.", next: "Return to your workspace and choose one of the available features." },
+  not_found: { label: "404 · Not found", title: "We couldn’t find this page", description: "The link may be incorrect, the item may have been removed, or it may not be visible in your current workspace.", next: "Check the address or ask the sender for an updated link. You can also open your workspace and find the item there." },
+  conflict: { label: "Update needed", title: "This page needs up-to-date information", description: "The item or its setup changed while this page was being opened.", next: "Reload the page. If it still cannot open, ask the person responsible for the item to review its status." },
+  invalid: { label: "Invalid link", title: "This link contains invalid information", description: "The page could not use one or more values in this link.", next: "Open the item from your workspace, or ask the sender for a new link." },
+  rate_limited: { label: "Please wait", title: "Too many requests right now", description: "ERPX is temporarily limiting requests from this session.", next: "Wait a moment before trying again. Repeatedly reloading may delay recovery." },
+  offline: { label: "Connection lost", title: "You appear to be offline", description: "Your browser reports that it has no network connection.", next: "Reconnect to the internet, then try again. Do not resubmit a payment or other action until you have checked its latest status." },
+  unavailable: { label: "Temporarily unavailable", title: "ERPX couldn’t load this page", description: "A service or connection needed for this page is temporarily unavailable.", next: "Try again shortly. If the problem continues, share the reference below with your administrator." },
+} as const;
+export type AccessProblem = keyof typeof accessProblems;
+export function isAccessProblem(value: string): value is AccessProblem { return Object.hasOwn(accessProblems, value); }
+
+/** Only application pages can be used as a return destination, never external URLs or API actions. */
+export function safeReturnPath(value: unknown): string | null {
+  if (typeof value !== "string" || value.length > 2000 || /[\\\u0000-\u0020]/.test(value) || /%(?:2f|5c|0[0-9a-f]|1[0-9a-f])/i.test(value)) return null;
+  if (!/^\/(?:holdings\/|platform\/)/.test(value)) return null;
+  try {
+    const url = new URL(value, "https://erpx.invalid");
+    return url.origin === "https://erpx.invalid" && /^\/(?:holdings\/[^/]+(?:\/.*)?|platform\/[^/]+(?:\/.*)?)$/.test(url.pathname) ? url.pathname + url.search : null;
+  } catch { return null; }
+}
+
+export type AccessAssignment = { applies: boolean; validRole: boolean; valid_from: number; valid_until: number; revoked_at: number | null };
+/** Classify the user's own failed access; a usable alternative takes priority over historical rows. */
+export function assignmentProblem(rows: AccessAssignment[], now: number): AccessProblem {
+  const matching = rows.filter(r => r.applies);
+  const valid = matching.filter(r => r.validRole);
+  const unrevoked = valid.filter(r => r.revoked_at === null);
+  if (unrevoked.some(r => r.valid_from <= now && r.valid_until > now)) return "permission";
+  if (unrevoked.some(r => r.valid_from > now && r.valid_until > r.valid_from)) return "scheduled";
+  if (unrevoked.some(r => r.valid_until <= now)) return "expired";
+  if (valid.length && valid.every(r => r.revoked_at !== null)) return "revoked";
+  if (matching.some(r => !r.validRole)) return "role";
+  if (rows.some(r => r.validRole && r.revoked_at === null && r.valid_from <= now && r.valid_until > now)) return "scope";
+  return "no_access";
+}

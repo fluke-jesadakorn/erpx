@@ -1,0 +1,145 @@
+import "server-only";
+
+import { cache } from "react";
+import {
+  buildWorkspaceHoldingChoice,
+  type WorkspaceChoice,
+  type WorkspaceChoiceAssignment,
+  type WorkspaceChoiceNode,
+} from "@/lib/workspace-choice";
+import { currentSession, requirePlatformContext } from "./authorization";
+import { iamRole } from "./iam-store";
+import {
+  activeHoldingBindings,
+  holdingResources,
+  type HoldingBinding,
+} from "./runtime";
+
+type AssignmentRow = {
+  role: string;
+  company_id: string;
+  company_name: string;
+  scope_kind: "holding" | "branch" | "department";
+  scope_node_id: string | null;
+};
+
+type NodeRow = {
+  id: string;
+  kind: "branch" | "department";
+  slug: string;
+  display_name: string;
+  company_id: string;
+  branch_id: string | null;
+  branch_slug: string | null;
+};
+
+async function businessWorkspaceChoice(
+  holding: HoldingBinding,
+  userId: string,
+) {
+  const { write } = await holdingResources(holding.id);
+  const now = Date.now();
+  const rows = (
+    await write
+      .prepare(
+        `SELECT a.role,a.company_id,c.display_name AS company_name,a.scope_kind,a.scope_node_id
+         FROM assignments a
+         JOIN organization_nodes c ON c.id=a.company_id AND c.kind='company' AND c.status='active'
+         LEFT JOIN organization_nodes n ON n.id=a.scope_node_id
+         WHERE a.user_id=? AND a.revoked_at IS NULL
+           AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
+           AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
+           AND a.valid_from<=? AND a.valid_until>?
+           AND (
+             a.scope_kind='holding'
+             OR (
+               n.company_id=a.company_id AND n.status='active'
+               AND n.kind=a.scope_kind
+               AND (
+                 n.branch_id IS NULL
+                 OR n.kind='branch'
+                 OR EXISTS(
+                   SELECT 1 FROM organization_nodes b
+                   WHERE b.id=n.branch_id AND b.kind='branch'
+                     AND b.company_id=a.company_id AND b.status='active'
+                 )
+               )
+             )
+           )
+         ORDER BY c.display_name,c.id,a.scope_kind,a.scope_node_id,a.id`,
+      )
+      .bind(userId, now, now)
+      .all<AssignmentRow>()
+  ).results;
+
+  const assignments: WorkspaceChoiceAssignment[] = [];
+  for (const row of rows) {
+    const role = await iamRole(write, row.company_id, row.role);
+    if (!role?.scopes.includes(row.scope_kind)) continue;
+    assignments.push({
+      companyId: row.company_id,
+      companyName: row.company_name,
+      scopeKind: row.scope_kind,
+      scopeNodeId: row.scope_node_id,
+    });
+  }
+  const companyIds = [...new Set(assignments.map((row) => row.companyId))];
+  if (!companyIds.length) return null;
+  const placeholders = companyIds.map(() => "?").join(",");
+  const nodeRows = (
+    await write
+      .prepare(
+        `SELECT n.id,n.kind,n.slug,n.display_name,n.company_id,n.branch_id,b.slug AS branch_slug
+         FROM organization_nodes n
+         LEFT JOIN organization_nodes b
+           ON b.id=n.branch_id AND b.kind='branch' AND b.status='active'
+         WHERE n.company_id IN (${placeholders})
+           AND n.kind IN ('branch','department') AND n.status='active'
+         ORDER BY n.display_name,n.id`,
+      )
+      .bind(...companyIds)
+      .all<NodeRow>()
+  ).results;
+  const nodes: WorkspaceChoiceNode[] = nodeRows.map((row) => ({
+    id: row.id,
+    kind: row.kind,
+    slug: row.slug,
+    label: row.display_name,
+    companyId: row.company_id,
+    branchId: row.kind === "department" ? row.branch_id : null,
+    branchSlug: row.kind === "department" ? row.branch_slug : null,
+  }));
+  return buildWorkspaceHoldingChoice(
+    holding.slug,
+    holding.displayName,
+    assignments,
+    nodes,
+  );
+}
+
+export const workspaceChoices = cache(async (): Promise<WorkspaceChoice[]> => {
+  const { session } = await currentSession();
+  const business = (
+    await Promise.all(
+      (await activeHoldingBindings()).map((holding) =>
+        businessWorkspaceChoice(holding, session.user.id),
+      ),
+    )
+  )
+    .filter((choice): choice is NonNullable<typeof choice> => !!choice)
+    .sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+    );
+  const choices: WorkspaceChoice[] = [...business];
+  try {
+    await requirePlatformContext();
+    choices.push({
+      kind: "platform",
+      label: "Platform administration",
+      destination: "/platform/home",
+    });
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "FORBIDDEN") throw error;
+  }
+  return choices;
+});

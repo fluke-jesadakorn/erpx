@@ -1,0 +1,91 @@
+.directory {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.directory > :global(.card) > :global(.section-head) {
+  margin: 0;
+}
+
+.directory > :global(.card):has(> :global(.section-head)) {
+  padding: 16px 22px;
+}
+
+.setup {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  padding: 16px 22px;
+}
+
+.setup h2 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.setup :global(.row) {
+  padding: 4px 0;
+  border: 0;
+  color: var(--brand);
+  font-size: 13px;
+}
+
+.directory .search {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px 16px;
+  padding: 20px 22px;
+}
+
+.search > label {
+  min-width: 0;
+}
+
+.searchButton {
+  grid-column: 2;
+  grid-row: 1;
+  min-height: 42px;
+}
+
+.filters {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.filters summary {
+  width: fit-content;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.filterFields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.directory :global(.row-main) {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .directory .search,
+  .filterFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .searchButton {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .setup {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

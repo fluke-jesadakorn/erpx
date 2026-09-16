@@ -1,3 +1,5 @@
+import { FlowPanel } from "@/components/workplace/flow-panel";
+import { ExpensePostingPreview } from "./expense-posting-preview";
 import styles from "./expense.module.css";
 import { administrationAccess } from "@/server/administration";
 import Link from "next/link";
@@ -64,7 +66,7 @@ export async function ExpenseWorkflowPage({
       </Link>
       <header className="section-head">
         <div>
-          <p className="eyebrow">Expense claim</p>
+          <p className="eyebrow">{expense.request_kind==="payment"?"Payment request":"Expense claim"}</p>
           <h1>{String(expense.merchant || "New expense claim")}</h1>
           <p className="muted">
             {String(expense.legal_name)}
@@ -73,6 +75,9 @@ export async function ExpenseWorkflowPage({
         </div>
         <StatusBadge status={String(expense.status)} />
       </header>
+      {!!expense.spending_template_version&&<p className="muted">Submitted with company spending template version {String(expense.spending_template_version)}.</p>}
+      <FlowPanel actor={actor} kind="expense" id={String(expense.id)} base={base}/>
+      {["accounts_approval","gl_posting","payment","completed"].includes(stage) && <ExpensePostingPreview actor={actor} expense={expense} base={base}/>}
       {stage !== "draft" && <section className="card">
         <p className="eyebrow">Current stage</p>
         <h2>{expenseStageLabels[stage]}</h2>

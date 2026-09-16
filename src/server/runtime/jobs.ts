@@ -1,3 +1,5 @@
+import { drainDirectoryJobs } from "../iam-directories";
+import type { PostgresDatabase } from "./postgres";
 import { drainSocialAgent } from "../social-agent";
 import { randomUUID } from 'node:crypto';
 import { access } from 'node:fs/promises';
@@ -43,6 +45,14 @@ export async function activeSlots(env: JobEnv) {
   const active=[];
   for (const slot of resourceSlots(env)) if (!slot.beta || await env.CONTROL_DB?.prepare("SELECT 1 FROM beta_slots WHERE holding_id=? AND state='active'").bind(slot.id).first()) active.push(slot);
   return active;
+}
+export async function directoryWork(env: JobEnv) {
+  if(env.CONTROL_DB) await drainDirectoryJobs(env.CONTROL_DB as PostgresDatabase);
+  for(const slot of await activeSlots(env)) {
+    const db=registeredResources(env,slot.id).write as PostgresDatabase;
+    await drainDirectoryJobs(db);
+    await (await import("../user-management")).managementWork(db);
+  }
 }
 export async function scheduledWork(env: JobEnv) {
   for (const slot of await activeSlots(env)) {

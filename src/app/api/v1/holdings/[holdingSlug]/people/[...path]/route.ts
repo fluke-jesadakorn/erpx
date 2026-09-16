@@ -1,4 +1,8 @@
+import { saveSpendingTemplate, spendingTemplateSchema } from "@/server/spending-templates";
+import { expenseRoute } from "@/server/expense-routing";
 import { requestPublicOrigin } from "@/server/public-origin";
+import { holdingResources } from "@/server/runtime";
+import { organizationOverview, positionSchema, savePosition, organizationTemplateSchema, saveOrganizationTemplate, applyOrganizationTemplateSchema, applyOrganizationTemplate, installStaffLevels } from "@/server/organization";
 import { grantSchema,grantPersonAccess,revokePersonAccess,invitePerson } from "@/server/account-access";
 import { directorySchema, directoryUpdateSchema, directoryStatusSchema, saveDirectoryPerson, setDirectoryStatus } from "@/server/people-directory";
 import { z } from "zod";
@@ -61,6 +65,8 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request, context: Context) {
   try {
     const { holdingSlug, path } = await context.params; const actor = await requireWorkContext(holdingSlug); const p = parts(path);
+    if(p[0]==="organization" && p.length===1){const {write}=await holdingResources(actor.holdingId);return Response.json({data:await organizationOverview(write,actor)},{headers:{"Cache-Control":"private, no-store"}});}
+    if(p[0]==="organization" && p[1]==="readiness") {const {write}=await holdingResources(actor.holdingId);const kind=new URL(request.url).searchParams.get("kind");const route=await expenseRoute(write,actor.companyId,actor.userId,[],false,kind==="purchase"||kind==="payment"?kind:"expense");return Response.json({data:{ready:!route.blockedReason,blockedReason:route.blockedReason,steps:route.steps}});}
     if (p.length === 0 || (p[0] === "people" && !p[1])) return Response.json({ data: await listPeople(actor) });
     if (p[0] === "people" && p[1]) return Response.json({ data: await getPerson(actor, p[1]) });
     if (p[0] === "pay-groups") return Response.json({data:await payrollOptions(actor)});
@@ -77,7 +83,15 @@ export async function POST(request: Request, context: Context) {
   try {
     const origin=request.headers.get("origin"); if(origin && origin!==requestPublicOrigin(request)) throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin for this action.");
     const { holdingSlug, path } = await context.params; const actor = await requireWorkContext(holdingSlug); const p = parts(path); const input = await json(request); const id = command(request);
-    if(p[0]==="directory"&&p[2]==="invite")return Response.json({data:await invitePerson(actor,p[1],parsed(grantSchema.safeParse(input)))});
+    if(p[0]==="organization") {
+      const {write}=await holdingResources(actor.holdingId);
+      if(p[1]==="spending-template")return Response.json({data:await saveSpendingTemplate(write,actor,parsed(spendingTemplateSchema.safeParse(input)),id)});
+      if(p[1]==="levels" && p.length===2)return Response.json({data:await installStaffLevels(write,actor,id)});
+      if(p[1]==="positions" && p.length<=3)return Response.json({data:await savePosition(write,actor,p[2]??null,parsed(positionSchema.safeParse(input)),id)});
+      if(p[1]==="templates" && p[3]==="apply")return Response.json({data:await applyOrganizationTemplate(write,actor,p[2],parsed(applyOrganizationTemplateSchema.safeParse(input)),id)});
+      if(p[1]==="templates" && p.length<=3)return Response.json({data:await saveOrganizationTemplate(write,actor,p[2]??null,parsed(organizationTemplateSchema.safeParse(input)),id)});
+    }
+    if(p[0]==="directory"&&p[2]==="invite")return Response.json({data:await invitePerson(actor,p[1],parsed(grantSchema.safeParse(input)),id)});
     if(p[0]==="directory"&&p[2]==="grant")return Response.json({data:await grantPersonAccess(actor,p[1],parsed(grantSchema.safeParse(input)),id)});
     if(p[0]==="directory"&&p[2]==="revoke"){const data=parsed(z.object({assignmentId:z.string().min(1)}).safeParse(input));return Response.json({data:await revokePersonAccess(actor,p[1],data.assignmentId,id)});}
     if (p[0] === "directory" && p.length === 1) return Response.json({data:await saveDirectoryPerson(actor,null,{...parsed(directorySchema.safeParse(input)),expectedVersion:1},id)},{status:201});

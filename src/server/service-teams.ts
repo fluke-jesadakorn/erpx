@@ -254,7 +254,12 @@ export async function teamHandlers(
         name: string;
       }>()
   ).results;
-  const unique = [...new Map(members.map((m) => [m.user_id, m])).values()];
+  const { currentPersonPrincipals } = await import("./iam-person");
+  const current = await currentPersonPrincipals(db, scope.company_id, members.map(m => m.user_id));
+  const unique = [...new Map(members.map((m) => {
+    const userId = current.get(m.user_id) ?? m.user_id;
+    return [userId, {...m, user_id:userId}] as const;
+  })).values()];
   const eligible = [];
   for (const m of unique)
     if (await serviceMember(db, scope, m.user_id)) eligible.push(m);

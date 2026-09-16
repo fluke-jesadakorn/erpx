@@ -1,8 +1,9 @@
+import { pageError } from "@/server/page-error";
+import { FlowPanel, documentFlow } from "@/components/workplace/flow-panel";
 import betaStyles from "@/components/beta/beta.module.css";
 import { ApprovalAdminLink } from "@/components/modules/approval-admin-link";
 import { readablePost } from "@/server/social-source";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import {
   TaskEditor,
   TaskActions,
@@ -22,8 +23,7 @@ export default async function Task({
   const { holdingSlug, id } = await params,
     { actor, write, base, options, projects } = await staffPage(holdingSlug),
     detail = await taskDetail(write, actor, id).catch((e) => {
-      if (e instanceof ApiError && e.status === 404) notFound();
-      throw e;
+      return pageError(e, holdingSlug);
     }),
     t = detail.task;
   const origin = await write
@@ -45,6 +45,7 @@ export default async function Task({
   );
   for (const key of [...returnQuery.keys()])
     if (!["queue", "type", "q"].includes(key)) returnQuery.delete(key);
+  const flow = await documentFlow(actor,"staff_task",id);
   return (
     <main className="content-stack" data-source="live">
       <Link className="back-link" href={`${base}/work?${returnQuery}`}>
@@ -79,7 +80,7 @@ export default async function Task({
           </>
         )}
       </section>
-      <TaskActions key={t.id} base={base} detail={detail} />
+      <TaskActions key={t.id} base={base} detail={{...detail,permittedActions:detail.permittedActions.filter(a=>flow.canAct||["edit","revise","cancel"].includes(a))}} />
       {t.description && (
         <details className="card" open={t.description.length <= 500}>
           <summary>Task instructions</summary>
@@ -126,6 +127,6 @@ export default async function Task({
           canRevise
         />
       )}
-    </main>
+    <FlowPanel flow={flow} actor={actor} kind="staff_task" id={id} base={base}/></main>
   );
 }

@@ -49,10 +49,11 @@ test("staff project and task approvals work across roles, departments and viewpo
         .getByRole("link", { name: "Leave request", exact: true }),
     ).toBeVisible();
     await page.keyboard.press("Escape");
-    await page
-      .getByRole("button", { name: "More navigation" })
-      .filter({ visible: true })
-      .click();
+    if (testInfo.project.name === "mobile")
+      await page
+        .getByRole("button", { name: "More navigation" })
+        .filter({ visible: true })
+        .click();
     await page.getByRole("link", { name: "Projects", exact: true }).click();
     await page.getByText("New project", { exact: true }).click();
     await page.getByLabel("Project title", { exact: true }).fill(name);

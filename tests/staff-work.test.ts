@@ -235,7 +235,7 @@ beforeEach(async () => {
     department,
     "contractor",
   );
-  head = await staff("head", "warehouse_manager", otherDepartment);
+  head = await staff("head", "people_manager", otherDepartment);
   hr = await staff("hr", "hr_admin", otherDepartment);
   owner = await staff("owner", "holding_owner");
   worker = await staff("worker", "treasury", otherDepartment);
@@ -697,6 +697,8 @@ describe("Staff request routing and approval transactions", () => {
       },
       key(),
     );
+    await db.prepare("UPDATE assignments SET role='people_manager' WHERE id=?").bind(worker.assignmentId).run();
+    worker.role = "people_manager";
     await approveLeave(
       "h001",
       id,
@@ -851,7 +853,8 @@ describe("Projects, task phases and evidence boundaries", () => {
       }),
       key(),
     );
-    await action(requester, String(created.id), "submit");
+    await expect(action(requester, String(created.id), "submit")).rejects.toMatchObject({code:"FLOW_PRIMARY_REQUIRED"});
+    await action(worker, String(created.id), "submit");
     await expect(
       getTask(db, outsider, String(created.id)),
     ).rejects.toMatchObject({ status: 404 });

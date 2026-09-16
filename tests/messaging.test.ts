@@ -83,10 +83,10 @@ it("uses real company accounts, reuses direct pairs, persists messages and track
   });
   let history = await messagingHistory(db, f.head, a.id);
   expect(history.messages.map((m) => m.body)).toEqual(["Hello"]);
-  expect((await messagingOverview(db, f.head)).rooms[0].unread).toBe(1);
+  expect((await messagingOverview(db, f.head)).rooms.find(r=>r.id===a.id)?.unread).toBe(1);
   await readMessaging(db, f.head, a.id, 1);
   await readMessaging(db, f.head, a.id, 0);
-  expect((await messagingOverview(db, f.head)).rooms[0].unread).toBe(0);
+  expect((await messagingOverview(db, f.head)).rooms.find(r=>r.id===a.id)?.unread).toBe(0);
   await send(a.id, "Hi back", f.head);
   history = await messagingHistory(db, f.claimant, a.id, undefined, 1);
   expect(history.messages[0].body).toBe("Hi back");

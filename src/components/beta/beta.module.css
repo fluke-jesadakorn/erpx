@@ -22,7 +22,7 @@
 .surface input,
 .surface select,
 .surface textarea {
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-border);
   border-radius: 8px;
   background: var(--card);
   color: var(--ink);

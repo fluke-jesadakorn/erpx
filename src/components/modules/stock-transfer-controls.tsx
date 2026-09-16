@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { TransferRow as Row } from "@/server/inventory-transfers";
@@ -17,7 +19,7 @@ function useTransferCommand(base: string) {
     setPending(true);
     setError("");
     try {
-      const r = await fetch(`/api/v1${base}/stock-transfers${path}`, {
+      const r = await workFetch(`/api/v1${base}/stock-transfers${path}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

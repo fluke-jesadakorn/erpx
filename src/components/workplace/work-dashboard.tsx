@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorkSummary } from "@/server/work-summary";
@@ -8,6 +10,8 @@ import { PageHeader } from "@/components/ui/primitives";
 import { WorkList } from "./work-list";
 import { NewWork } from "./new-work";
 import { WorkShortcuts } from "./work-shortcuts";
+import { workAttention } from "@/lib/work-attention";
+import { WorkAttention } from "./work-attention";
 import styles from "./pages.module.css";
 
 export function WorkDashboard({
@@ -40,7 +44,7 @@ export function WorkDashboard({
     controller.current = abort;
     pending.current = (async () => {
       try {
-        const response = await fetch(`/api/v1${base}/work/summary`, {
+        const response = await workFetch(`/api/v1${base}/work/summary`, {
           cache: "no-store",
           signal: abort.signal,
         });
@@ -118,11 +122,9 @@ export function WorkDashboard({
       {error && (
         <p role="status">
           {error} Updates may be out of date.{" "}
-          <button className="button ghost" onClick={() => void refresh()}>
-            Retry work
-          </button>
         </p>
       )}
+      <WorkAttention base={base} attention={workAttention(items, !!error || !!unavailable.length)} compact retry={() => void refresh()} returnTo={current} />
       <WorkShortcuts
         base={base}
         current={current}
@@ -222,13 +224,13 @@ export function WorkDashboard({
               ))}
           </select>
           <button className="button secondary">Search</button>
-          {(q || type !== "all") && (
+          {(q || type !== "all" || responsibility !== "all") && (
             <Link className="button ghost" href={`?queue=${queue}`}>
               Clear filters
             </Link>
           )}
         </form>
-        <WorkList base={base} items={selected} returnTo={current} />
+        <WorkList base={base} items={selected} returnTo={current} queue={queue} filtered={!!q || type !== "all" || responsibility !== "all"} waiting={items.filter(item => item.queue === "waiting").length} incomplete={!!error || !!unavailable.length} />
       </div>
     </>
   );

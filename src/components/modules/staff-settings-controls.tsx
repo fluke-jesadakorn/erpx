@@ -24,14 +24,13 @@ export function StaffSettingsControls({
       <section className="card">
         <h2>Company level catalog</h2>
         <p className="muted">
-          Higher ranks indicate higher levels. Levels do not grant application
-          access or approval authority.
+          Level 1 is most senior; Level 6 is staff. Explicitly map staff in People. Legacy ranks remain for historical workflows. Levels do not grant access.
         </p>
         {[...options.levels, null].map((level) => (
           <details key={level?.id ?? "new"}>
             <summary>
               {level
-                ? `${level.code} · ${level.name} · rank ${level.rank} · ${level.active ? "active" : "inactive"}`
+                ? `${level.code} · ${level.name} · ${level.level_number ? `Level ${level.level_number}` : `legacy rank ${level.rank}`} · ${level.active ? "active" : "inactive"}`
                 : "Add staff level"}
             </summary>
             <form
@@ -43,6 +42,7 @@ export function StaffSettingsControls({
                   code: f.get("code"),
                   name: f.get("name"),
                   rank: Number(f.get("rank")),
+                  ...(level?.level_number?{levelNumber:level.level_number}:{}),
                   active: f.get("active") === "on",
                   expectedVersion: level?.version ?? 0,
                 });
@@ -67,7 +67,7 @@ export function StaffSettingsControls({
                 />
               </label>
               <label>
-                Rank
+                Legacy rank (historical workflows)
                 <input
                   name="rank"
                   type="number"

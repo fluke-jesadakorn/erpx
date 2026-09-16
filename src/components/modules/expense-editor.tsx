@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import Link from "next/link";
 import { UploadCloud, Sparkles } from "lucide-react";
 import { createReceiptUploader, validateReceipt } from "@/lib/expense-upload";
@@ -15,6 +17,8 @@ import type { ExpenseAiSuggestionEvent } from "@/lib/expense-ai";
 
 type Fields = {
   personId: string;
+  requestKind: string;
+  payeePartyId: string;
   expenseDate: string;
   merchant: string;
   receiptReference: string;
@@ -34,6 +38,7 @@ export function ExpenseEditor({
   base: string;
   options: {
     people: Row[];
+    payees?:Row[];
     accounts: Row[];
     periods: Row[];
     selfUserId?: string;
@@ -47,6 +52,8 @@ export function ExpenseEditor({
     attempt = useRef<{ body: string; key: string } | null>(null);
   const initial: Fields = {
     personId: String(expense?.employee_id ?? ""),
+    payeePartyId: String(expense?.payee_party_id??""),
+    requestKind: String(expense?.request_kind ?? "expense"),
     expenseDate: String(expense?.expense_date ?? ""),
     merchant: String(expense?.merchant ?? ""),
     receiptReference: String(expense?.receipt_reference ?? ""),
@@ -146,7 +153,7 @@ export function ExpenseEditor({
     setPending(true);
     setError("");
     try {
-      const response = await fetch(
+      const response = await workFetch(
         `/api/v1${base}/expenses${expense ? `/${expense.id}` : ""}`,
         {
           method: "POST",
@@ -218,7 +225,8 @@ export function ExpenseEditor({
                 ))}
               </select>
             </label>
-            <label>
+            <label>Request type<select value={fields.requestKind} onChange={e=>change("requestKind",e.target.value)}><option value="expense">Expense claim</option><option value="payment">Payment request</option></select></label>{fields.requestKind==="payment"&&<label>Payee<select value={fields.payeePartyId} onChange={e=>change("payeePartyId",e.target.value)}><option value="">Requester (employee payment)</option>{options.payees?.filter(p=>p.currency===fields.currency).map(p=><option key={String(p.id)} value={String(p.id)}>{String(p.name)}</option>)}</select></label>}
+              <label>
               Expense date
               <input
                 type="date"
@@ -237,7 +245,7 @@ export function ExpenseEditor({
               {aiSource("merchant")}
             </label>
             <label>
-              Receipt number
+              Receipt / supporting document number
               <input
                 maxLength={100}
                 value={fields.receiptReference}

@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import vm from "node:vm";
 const context = vm.createContext({ window: {} });
-for (const name of ["data", "modules"])
+for (const name of ["modules"])
   vm.runInContext(
     fs.readFileSync(`Designed/mockup/${name}.js`, "utf8"),
     context,
@@ -19,7 +19,6 @@ vm.runInContext(
   context,
 );
 const {
-  ERPX_SEED: seed,
   ERPX_MODULES: { MODULES: specs },
   manifest,
 } = context.window;
@@ -119,17 +118,6 @@ const registry = Object.keys(manifest).map((id) => {
     sections,
   };
 });
-const preview = Object.fromEntries(
-  Object.keys(manifest).map((id) => [
-    id,
-    {
-      fields: specs[id].fields,
-      steps: specs[id].steps,
-      rows: seed.CTX[id].rows,
-      relations: seed.EDGES[id] || [],
-    },
-  ]),
-);
 if (
   registry.length !== 31 ||
   registry.flatMap((item) => item.sections).filter((item) => item.capability)
@@ -140,8 +128,4 @@ fs.writeFileSync(
   "src/data/module-registry.json",
   JSON.stringify(registry, null, 2) + "\n",
 );
-fs.writeFileSync(
-  "src/data/preview/module-samples.json",
-  JSON.stringify(preview, null, 2) + "\n",
-);
-console.log("Generated 31 modules and 171 capability groups.");
+console.log("Generated the 31-module IAM and backend registry.");

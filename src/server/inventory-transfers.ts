@@ -1,5 +1,7 @@
+import { requirePermission } from "@/server/iam-permissions";
+import { hasPermission } from "@/lib/permissions";
+import { samePerson } from "@/lib/iam";
 import type { SqlDatabase } from "./runtime/types";
-import { hasBusinessRole } from "@/lib/responsibilities";
 import { requireBusinessRole } from "./responsibilities";
 import "server-only";
 import { z } from "zod";
@@ -14,16 +16,16 @@ import { ApiError } from "./http";
 export type TransferRow=Record<string,string|number|null>;
 export const transferSchema=z.object({sourceWarehouseId:z.string().min(1),targetWarehouseId:z.string().min(1),transferDate:z.iso.date(),reason:z.string().trim().min(5).max(2000),expectedVersion:z.number().int().positive().optional(),lines:z.array(z.object({productId:z.string().min(1),quantity:z.string().regex(/^\d{1,12}(\.\d{1,3})?$/)})).min(1).max(20)});
 export const transferActionSchema=z.object({expectedVersion:z.number().int().positive(),reason:z.string().trim().min(3).max(2000).optional()});
-export function canPrepareTransfers(actor:WorkContext){return !actor.departmentId&&hasBusinessRole(actor, ["holding_owner","warehouse_manager","operations_manager"]);}
-export function canEditTransfer(actor:WorkContext,row:TransferRow){return canPrepareTransfers(actor)&&(!actor.branchId||actor.branchId===row.source_branch_id)&&["draft","rejected"].includes(String(row.status))&&[row.created_by,row.prepared_by].includes(actor.userId);}
-export function canReviewTransfer(actor:WorkContext,row:TransferRow){return !actor.departmentId&&hasBusinessRole(actor, ["holding_owner","warehouse_manager","operations_manager","finance_approver"])&&(!actor.branchId||hasBusinessRole(actor,["holding_owner","warehouse_manager","operations_manager"])&&actor.branchId===row.target_branch_id)&&row.status==="submitted"&&![row.created_by,row.prepared_by].includes(actor.userId);}
+export function canPrepareTransfers(actor:WorkContext){return !actor.departmentId&&hasPermission(actor,"inventory.prepare");}
+export function canEditTransfer(actor:WorkContext,row:TransferRow){return canPrepareTransfers(actor)&&(!actor.branchId||actor.branchId===row.source_branch_id)&&["draft","rejected"].includes(String(row.status))&&[row.created_by,row.prepared_by].some(id=>samePerson(actor,id));}
+export function canReviewTransfer(actor:WorkContext,row:TransferRow){return !actor.departmentId&&hasPermission(actor,"inventory.transfer.review")&&(!actor.branchId||hasPermission(actor,"inventory.prepare")&&actor.branchId===row.target_branch_id)&&row.status==="submitted"&&![row.created_by,row.prepared_by].some(id=>samePerson(actor,id));}
 function readable(actor:WorkContext){if(!canReadCounts(actor))throw new ApiError(403,"INVENTORY_SCOPE_REQUIRED","An inventory or finance assignment is required.");}
 const select="SELECT t.*,s.name source_warehouse_name,d.name target_warehouse_name,c.currency FROM inventory_transfers t JOIN commerce_warehouses s ON s.id=t.source_warehouse_id JOIN commerce_warehouses d ON d.id=t.target_warehouse_id JOIN commerce_settings c ON c.company_id=t.company_id";
 function scope(actor:WorkContext){return {sql:"t.company_id=? AND (?::text IS NULL OR t.source_branch_id=? OR t.target_branch_id=?)",args:[actor.companyId,actor.branchId,actor.branchId,actor.branchId]};}
 export async function listTransfers(actor:WorkContext){readable(actor);const {write}=await holdingResources(actor.holdingId),s=scope(actor);return (await write.prepare(`${select} WHERE ${s.sql} ORDER BY t.updated_at DESC LIMIT 250`).bind(...s.args).all<TransferRow>()).results;}
 export async function getTransfer(actor:WorkContext,id:string){readable(actor);const {write}=await holdingResources(actor.holdingId),s=scope(actor);const row=await write.prepare(`${select} WHERE t.id=? AND ${s.sql}`).bind(id,...s.args).first<TransferRow>();if(!row)throw new ApiError(404,"TRANSFER_NOT_FOUND","Transfer not found in this workspace.");return row;}
 export async function transferOptions(actor:WorkContext){
-  actor = requireBusinessRole(actor, ["holding_owner","warehouse_manager","operations_manager"]);
+  actor = requirePermission(actor,"inventory.prepare");
 readable(actor);const {write}=await holdingResources(actor.holdingId);const [warehouses,stock]=await Promise.all([
  write.prepare("SELECT id,name,branch_id FROM commerce_warehouses WHERE company_id=? AND status='active' ORDER BY name").bind(actor.companyId).all<TransferRow>(),
  write.prepare("SELECT s.*,p.sku,p.name,p.unit FROM commerce_stock s JOIN commerce_products p ON p.id=s.product_id JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=? AND w.status='active' AND p.status='active' AND s.quantity_milli>0 AND (?::text IS NULL OR w.branch_id=?) ORDER BY p.sku").bind(actor.companyId,actor.branchId,actor.branchId).all<TransferRow>(),
@@ -38,7 +40,7 @@ function sourceGuard(db:SqlDatabase,key:string,index:number,warehouse:TransferRo
 function dateGuard(db:SqlDatabase,key:string,index:number,from:TransferRow[string],to:TransferRow[string],product:TransferRow[string],date:TransferRow[string]){return assertion(db,key,`date-${index}`,"NOT EXISTS(SELECT 1 FROM inventory_ledger WHERE warehouse_id IN (?,?) AND product_id=? AND movement_date>?)",[from,to,product,date]);}
 function warehouseGuards(db:SqlDatabase,key:string,row:TransferRow){return ["source","target"].map(side=>assertion(db,key,`${side}-warehouse`,"EXISTS(SELECT 1 FROM commerce_warehouses WHERE id=? AND company_id=? AND branch_id=? AND version=? AND status='active')",[row[`${side}_warehouse_id`],row.company_id,row[`${side}_branch_id`],row[`${side}_warehouse_version`]]));}
 export async function saveTransfer(actor:WorkContext,id:string|null,input:z.infer<typeof transferSchema>,key:string){
-  actor = requireBusinessRole(actor, ["holding_owner","warehouse_manager","operations_manager"]);
+  actor = requirePermission(actor,"inventory.prepare");
 
  if(!canPrepareTransfers(actor))throw new ApiError(403,"TRANSFER_PREPARER_REQUIRED","An inventory operator must prepare a warehouse transfer.");const {write}=await holdingResources(actor.holdingId),record=id??`transfer-${key}`,operation=id?"inventory.transfer.update":"inventory.transfer.create",prior=await replayCommand(write,actor,key,operation,record,input);if(prior)return prior;
  const current=id?await getTransfer(actor,id):null;if(current&&!canEditTransfer(actor,current))throw new ApiError(403,"TRANSFER_LOCKED","Only the source preparer can edit an unsubmitted transfer.");

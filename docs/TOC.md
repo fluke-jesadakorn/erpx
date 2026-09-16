@@ -2,11 +2,37 @@
 
 > Start at `README.md` → here. Replaces `.scratch/docs-seamless/prototype/TOC-seamless.md`.
 
+## Identity and access — 2026-09-15
+
+- [IAM implementation and operations](contracts/next/identity-access.md): local accounts, AD, Entra ID, UCS, scoped custom roles, matrix, independent review and selective migration.
+- [ADR-025](adr/ADR-025-multiple-identity-providers-and-scoped-replacement.md): multiple providers and Company-scoped identity replacement.
+- [IAM acceptance](testing/identity-access.md): verification and live-provider prerequisites.
+- [Local user management](contracts/next/user-management.md): custom attributes, manual/automatic groups, policy attachments and independently reviewed derived grants.
+- [ADR-026](adr/ADR-026-reviewed-local-access-policies.md): local policy ownership and the per-beneficiary review boundary.
+
+## Active business roles — 2026-09-14
+
+- [Active work context implementation](contracts/next/active-work-context.md): one effective assignment, PostgreSQL revisions, atomic writes, role recovery, audit/job provenance and browser acceptance. Supersedes combined business-role permissions.
+
+## People and spending requirements — 2026-09-14
+
+- [People management, organization structure, messaging, and spending approvals](plan/2026-09-14-spending-approval-requirements.md): approved requirements for HR onboarding, six staff levels, required managers, reusable positions, an organization chart, placement-based channels, and spending approval templates. Application implementation includes organization setup, scoped HR access, live organization channels and versioned spending routes. Existing staff require explicit HR mapping.
+
+## Browser acceptance
+
+- [WCAG 2.2 AA color audit](plan/2026-09-15-wcag-color-audit.md): light/dark contrast findings, exact recommended corrections, browser coverage and remaining verification limits.
+
+- [Access and error feedback](testing/access-feedback.md): reason-specific workspace, session, permission and recovery UI, with security and browser acceptance coverage.
+
+- [Workplace design acceptance](testing/workplace-design.md): Home, Work, Inbox, shared themes and responsive regression verification.
+- [E2E specification and test cases](testing/e2e-specification.md): source-based Work/authentication cases, existing business coverage, fixture prerequisites and remaining browser gaps.
+
 ## Workplace simplification — 2026-09-08
 
 - [Work Cards](plan/2026-09-08-work-cards.md): permitted shortcuts, personal pin order, shared summaries, scoped preferences and verification.
 - [Shared workspace and employee services](plan/2026-09-08-shared-workspace.md): combined responsibilities, service teams, requests, purchasing handoff, handbook, AI preparation and verification.
 
+- [Named workflow handoffs](plan/2026-09-10-flow-handoffs.md): route defaults, responsible staff, separate GL and settlement, compatibility and verification.
 - [Expense workflow, AI providers and IT access](plan/2026-09-08-expenses-ai-it.md): v2 routing, draft recovery, provider encryption, document preparation, rollout and verification.
 - [Navigation, Administration and daily-work delivery](plan/2026-09-08-workplace-simplification.md): canonical management surfaces, role boundaries, compatibility and verification artifacts.
 
@@ -14,6 +40,7 @@
 
 - [Implementation status and full module inventory](plan/2026-09-07-global-core-status.md): implemented flows, test evidence and remaining production work.
 - [Local data, accounts and acceptance journeys](local-seed.md): realistic fictional roster and connected development scenarios.
+- [Acme organization test data](testing/acme-organization-data.md): 112 staff, 92 new logins, department coverage and independent spending participants.
 - [ERP workflow research](plan/2026-09-06-production-workflows-research.md): primary sources and acceptance requirements.
 
 ## Mockup implementation plan — 2026-09-06

@@ -1,11 +1,13 @@
 export type MessagingPerson = { id: string; name: string; email: string };
 export type MessagingTeam = {
+  organization_managed?: boolean;
   id: string;
   name: string;
   owner_id: string;
   version: number;
 };
 export type MessagingRoom = {
+  organization_node_id?: string | null;
   id: string;
   name: string;
   kind: "direct" | "group" | "channel";

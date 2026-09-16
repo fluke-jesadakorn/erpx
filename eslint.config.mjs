@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     ".wrangler/**",
     ".scratch/**",
     ".runtime/**",
+    "playwright-report/**",
+    "test-results/**",
     "scripts/legacy-cloudflare/**",
     "tests/legacy-cloudflare/**",
     "public/vendor/**",

@@ -1,3 +1,5 @@
+import {captureJobAuthority,requireJobAuthority} from "./iam-jobs";
+import { iamMutationGuards } from "./iam-store";
 import { sha256 as aiSessionHash } from "./crypto";
 import type { SqlDatabase } from "./runtime/types";
 // Database-only domain code shared by the Next.js server and jobs Worker.
@@ -114,6 +116,7 @@ export async function queueRequestAi(
   input: z.infer<typeof requestAiInput>,
   key: string,
 ) {
+  actor=await captureJobAuthority(db,actor);
   const snap = await serviceAuthoritySnapshot(db, actor.companyId),
     detail = await allowed(db, actor, id),
     row = detail.request,
@@ -278,11 +281,12 @@ export async function runRequestAi(
   let provider: Awaited<ReturnType<typeof resolveAiProvider>> | null = null;
   try {
     const actor = JSON.parse(claimed.actor_json) as WorkContext;
+    requireJobAuthority(actor);
     const grant = await db
       .prepare(
-        "SELECT role FROM assignments WHERE id=? AND user_id=? AND company_id=? AND revoked_at IS NULL AND valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint)",
+        "SELECT role FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=? AND (?::bigint IS NULL OR version=?) AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint)",
       )
-      .bind(actor.assignmentId, actor.userId, actor.companyId)
+      .bind(actor.assignmentId, actor.userId, actor.companyId, actor.role, actor.authority?.assignmentVersion ?? null, actor.authority?.assignmentVersion ?? null)
       .first<{ role: string }>();
     if (!grant)
       throw new ApiError(
@@ -290,7 +294,8 @@ export async function runRequestAi(
         "AI_STALE",
         "Your access changed. Review the request before retrying.",
       );
-    actor.role = grant.role;
+
+    const authorizationKey=crypto.randomUUID();await db.batch([...iamMutationGuards(db,actor,authorizationKey),db.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(authorizationKey)]);
     const before = await allowed(db, actor, claimed.request_id);
     await validateServiceScope(db, actor, before.request);
     provider = await resolveAiProvider(db, actor.companyId, env, "text");
@@ -344,6 +349,7 @@ export async function runRequestAi(
       );
     const command = `request-ai-result-${token}`;
     await db.batch([
+      ...iamMutationGuards(db,actor,command),assertion(db,command,"queued-assignment","EXISTS(SELECT 1 FROM assignments WHERE id=? AND user_id=? AND role=? AND (?::bigint IS NULL OR version=?) AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>?)",[actor.assignmentId,actor.userId,actor.role,actor.authority?.assignmentVersion??null,actor.authority?.assignmentVersion??null,Date.now(),Date.now()]),
       ...snap(command),
       requestVersionGuard(db, command, current.request),
       aiSnapshotGuard(db, command, latest.snapshot),

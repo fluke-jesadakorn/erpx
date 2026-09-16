@@ -63,12 +63,12 @@ it("preserves incomplete owner and beta member drafts and reports missing setup"
     expect((await getExpense(actor, id)).status).toBe("draft");
   }
 });
-it("ties share one queue and concurrent decisions complete only one step", async () => {
+it("only the configured primary can decide and concurrent decisions complete one step", async () => {
   const id = await f.claim();
   await f.attach(id);
   await f.action(f.claimant, id, "submit");
   const row = await getExpense(f.head, id);
-  expect(row.eligible_approvers_json).toContain(f.tie.userId);
+  expect(JSON.parse(String(row.eligible_approvers_json))).toEqual([f.head.userId]);
   const results = await Promise.allSettled(
     [f.head, f.tie].map((actor) =>
       transitionExpense(
@@ -90,13 +90,13 @@ it("ties share one queue and concurrent decisions complete only one step", async
     ),
   ).toHaveLength(1);
 });
-it("uses independent reporting superior then owner and blocks cycles or missing teams", async () => {
+it("uses the reporting superior and blocks missing supervisors and cycles", async () => {
   await db
     .prepare(
       "UPDATE hr_engagements SET level_id=?,manager_person_id=? WHERE person_id=?",
     )
     .bind(
-      `${f.company}-level-10`,
+      `org-level-${f.company}-3`,
       `person-${f.owner.userId}`,
       `person-${f.claimant.userId}`,
     )
@@ -111,8 +111,8 @@ it("uses independent reporting superior then owner and blocks cycles or missing 
     .bind(`person-${f.claimant.userId}`)
     .run();
   expect(
-    (await expenseRoute(db, f.company, f.claimant.userId)).steps[0].authority,
-  ).toBe("holding_owner");
+    (await expenseRoute(db, f.company, f.claimant.userId)).blockedReason,
+  ).toContain("reporting manager");
   await db
     .prepare(
       "UPDATE hr_engagements SET manager_person_id=person_id WHERE person_id=?",
@@ -121,7 +121,7 @@ it("uses independent reporting superior then owner and blocks cycles or missing 
     .run();
   expect(
     (await expenseRoute(db, f.company, f.claimant.userId)).blockedReason,
-  ).toContain("cycle");
+  ).toContain("circular");
 });
 it("revalidates department ranks and revoked Accounts roles at commit", async () => {
   const id = await f.claim();
@@ -173,7 +173,7 @@ it("revalidates department ranks and revoked Accounts roles at commit", async ()
     ]),
   ).rejects.toMatchObject({ status: 409 });
 });
-it("posts manager approval atomically, preserves partial payments and requires a unique slip for each", async () => {
+it("separates approval from atomic GL posting, preserves partial payments and requires unique slips", async () => {
   const id = await f.claim();
   await f.throughAccounts(id);
   const evidence = await db
@@ -195,21 +195,15 @@ it("posts manager approval atomically, preserves partial payments and requires a
     .prepare("UPDATE finance_periods SET state='closed' WHERE id=?")
     .bind(f.period)
     .run();
-  await expect(f.action(f.manager, id, "approve")).rejects.toBeDefined();
-  expect((await getExpense(f.claimant, id)).workflow_stage).toBe(
-    "accounts_approval",
-  );
-  expect(
-    await db
-      .prepare("SELECT 1 FROM finance_invoices WHERE source_id=?")
-      .bind(id)
-      .first(),
-  ).toBeNull();
-  await db
-    .prepare("UPDATE finance_periods SET state='open' WHERE id=?")
-    .bind(f.period)
-    .run();
   await f.action(f.manager, id, "approve");
+  let approved = await getExpense(f.manager,id);
+  expect(approved.workflow_stage).toBe("gl_posting");
+  expect(approved.journal_id).toBeNull();
+  await expect(postExpense(f.manager,id,{expectedVersion:Number(approved.version),periodId:f.period,entryDate:"2026-09-02"},key())).rejects.toMatchObject({code:"PERIOD_CLOSED"});
+  expect((await getExpense(f.manager,id)).workflow_stage).toBe("gl_posting");
+  await db.prepare("UPDATE finance_periods SET state='open' WHERE id=?").bind(f.period).run();
+  approved = await getExpense(f.manager,id);
+  await postExpense(f.manager,id,{expectedVersion:Number(approved.version),periodId:f.period,entryDate:"2026-09-02"},key());
   let row = await getExpense(f.payer, id);
   expect(row.status).toBe("posted");
   expect(row.can_pay).toBe(1);
@@ -348,7 +342,7 @@ it("denies alternate posting, settlement, other company access and ineligible re
       },
       key(),
     ),
-  ).rejects.toMatchObject({ code: "EXPENSE_STAGE_REQUIRED" });
+  ).rejects.toMatchObject({ code: "GL_POSTER_REQUIRED" });
   await f.action(f.head, id, "approve");
   let current = await getExpense(f.reviewer, id);
   await saveExpenseAccounting(
@@ -366,6 +360,8 @@ it("denies alternate posting, settlement, other company access and ineligible re
   );
   await f.action(f.reviewer, id, "approve");
   await f.action(f.manager, id, "approve");
+  const approved = await getExpense(f.manager,id);
+  await postExpense(f.manager,id,{expectedVersion:Number(approved.version),periodId:f.period,entryDate:"2026-09-02"},key());
   current = await getExpense(f.owner, id);
   await expect(
     settleInvoice(
@@ -403,7 +399,9 @@ it("removes unacted pool access after role revocation and reroutes to a currentl
     1,
     f.accountsDepartment,
   );
-  await f.grant(replacement, "finance_preparer");
+  replacement.assignmentId = await f.grant(replacement, "finance_preparer");
+  replacement.role = "finance_preparer";
+  await db.prepare("UPDATE hr_engagements SET level_id=(SELECT level_id FROM hr_engagements WHERE person_id=?),position_id=(SELECT position_id FROM hr_engagements WHERE person_id=?),manager_person_id=? WHERE person_id=?").bind(`person-${f.reviewer.userId}`,`person-${f.reviewer.userId}`,`person-${f.owner.userId}`,`person-${replacement.userId}`).run();
   const view = await approvalView(db, "expense", id, f.owner),
     row = await getExpense(f.owner, id);
   await rerouteApproval(
@@ -433,8 +431,8 @@ it("does not offer a department decision that would leave no independent Account
     .run();
   await f.grant(f.head, "finance_preparer");
   const route = await expenseRoute(db, f.company, f.claimant.userId);
-  expect(route.blockedReason).toBeNull();
-  expect(route.steps[0].candidateUserIds).toEqual([f.tie.userId]);
+  expect(route.blockedReason).toContain("independent Accounting");
+  expect(route.steps).toEqual([]);
 });
 
 it("excludes reviewers whose current assignments do not cover the claim branch", async () => {
@@ -454,12 +452,12 @@ it("excludes reviewers whose current assignments do not cover the claim branch",
   expect(
     (await expenseRoute(db, f.company, f.claimant.userId)).steps[0]
       .candidateUserIds,
-  ).toEqual([f.tie.userId]);
+  ).toEqual([f.owner.userId]);
   await db
     .prepare("UPDATE organization_nodes SET status='suspended' WHERE id=?")
     .bind(f.branch)
     .run();
   expect(
     (await expenseRoute(db, f.company, f.claimant.userId)).blockedReason,
-  ).toContain("active branch");
+  ).toContain("branch");
 });

@@ -1,6 +1,7 @@
+import { samePerson } from "@/lib/iam";
+import { hasPermission } from "@/lib/permissions";
 import type { SqlDatabase, SqlStatement } from "./runtime/types";
-import { hasBusinessRole } from "@/lib/responsibilities";
-import { requireBusinessRole } from "./responsibilities";
+import { requirePermission } from "./iam-permissions";
 import { z } from "zod";
 import { sha256 } from "./crypto";
 import type { WorkContext } from "./authorization";
@@ -63,6 +64,7 @@ export const invoiceFromDeliverySchema = z.object({
   dueDate: z.iso.date(),
 });
 export const settlementSchema = z.object({
+  paymentSlipId: z.string().min(1).optional(),
   expectedVersion: z.number().int().positive(),
   date: z.iso.date(),
   amount,
@@ -92,42 +94,19 @@ export const warehouseSchema = z.object({
   status: z.enum(["active", "archived"]).default("active"),
   expectedVersion: z.number().int().positive().optional(),
 });
-const roles = {
-  sales: ["holding_owner", "sales_manager", "sales_operator"],
-  purchase: ["holding_owner", "purchasing_manager", "purchasing_operator"],
-  stock: ["holding_owner", "warehouse_manager", "operations_manager"],
-  finance: [
-    "holding_owner",
-    "finance_approver",
-    "treasury",
-    "finance_preparer",
-  ],
-  read: [
-    "holding_owner",
-    "sales_manager",
-    "sales_operator",
-    "purchasing_manager",
-    "purchasing_operator",
-    "warehouse_manager",
-    "operations_manager",
-    "finance_approver",
-    "treasury",
-    "finance_preparer",
-    "auditor",
-  ],
-};
+const roles = {sales:"commerce.sales",purchase:"commerce.purchase",stock:"inventory.prepare",finance:"finance.write",read:"commerce.read"} as const;
 export function commercePermissions(actor: WorkContext) {
   return {
-    sales: hasBusinessRole(actor, roles.sales),
-    purchase: hasBusinessRole(actor, roles.purchase),
-    stock: hasBusinessRole(actor, roles.stock),
-    finance: hasBusinessRole(actor, roles.finance),
-    read: hasBusinessRole(actor, roles.read),
-    approve: hasBusinessRole(actor, ["holding_owner", "sales_manager", "purchasing_manager"]),
+    sales: hasPermission(actor, roles.sales),
+    purchase: hasPermission(actor, roles.purchase),
+    stock: hasPermission(actor, roles.stock),
+    finance: hasPermission(actor, roles.finance),
+    read: hasPermission(actor, roles.read),
+    approve: hasPermission(actor,"commerce.approve"),
   };
 }
 function allowed(actor: WorkContext, kind: keyof typeof roles) {
-  return requireBusinessRole(actor, roles[kind]);
+  return requirePermission(actor, roles[kind]);
 }
 
 function scope(actor: WorkContext, alias = "o") {
@@ -525,7 +504,7 @@ export async function transitionOrder(
   actor = allowed(actor, row.kind === "purchase" ? "purchase" : "sales");
   if (
     input.action === "approve" &&
-    (!commercePermissions(actor).approve || row.created_by === actor.userId)
+    (!commercePermissions(actor).approve || samePerson(actor,row.created_by))
   )
     throw new ApiError(
       403,
@@ -624,6 +603,7 @@ function journalSteps(
   source: string,
   sourceId: string,
   lines: Posting[],
+  status: "draft" | "posted" = "posted",
 ) {
   const debit = lines.reduce((s, l) => s + l.debit, 0),
     credit = lines.reduce((s, l) => s + l.credit, 0);
@@ -644,7 +624,7 @@ function journalSteps(
     ),
     db
       .prepare(
-        "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,source_id,memo,status,version,created_by,posted_by,posted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,'posted',1,?,?,?,?,?)",
+        "INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,source_id,memo,status,version,created_by,posted_by,posted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?)",
       )
       .bind(
         journalId,
@@ -657,9 +637,10 @@ function journalSteps(
         source,
         sourceId,
         `${source} ${sourceId}`,
+        status,
         actor.userId,
-        actor.userId,
-        now,
+        status === "posted" ? actor.userId : null,
+        status === "posted" ? now : null,
         now,
         now,
       ),
@@ -909,6 +890,7 @@ export async function fulfillOrder(
           credit: value,
         },
       ],
+      "draft",
     ),
   );
   steps.push(
@@ -963,6 +945,8 @@ export async function invoiceFulfillment(
       "Receipt or delivery not found.",
     );
   const order = await orderRow(write, actor, String(f.order_id));
+  if (!await write.prepare("SELECT 1 FROM finance_journals WHERE id=? AND company_id=? AND status='posted'").bind(f.journal_id,actor.companyId).first())
+    throw new ApiError(409,"STOCK_GL_REQUIRED","An accountant must review and post the goods movement GL before invoicing.");
   if (input.dueDate < input.date || input.date < String(f.fulfillment_date))
     throw new ApiError(
       422,
@@ -977,43 +961,10 @@ export async function invoiceFulfillment(
     .first<{ subtotal: number; tax: number }>();
   if (!totals || !totals.subtotal)
     throw new ApiError(422, "EMPTY_DELIVERY", "There are no billable lines.");
-  const config = await settings(write, actor),
-    periodId = await period(write, actor, input.date);
-  const invoice = `invoice-${key}`,
-    journal = `journal-${key}`;
+  const config = await settings(write, actor);
+  const invoice = `invoice-${key}`;
   const payable = order.kind === "purchase";
   const total = totals.subtotal + totals.tax;
-  const lines: Posting[] = payable
-    ? [
-        {
-          account: String(config.clearing_account_id),
-          debit: totals.subtotal,
-          credit: 0,
-        },
-        {
-          account: String(config.input_tax_account_id),
-          debit: totals.tax,
-          credit: 0,
-        },
-        { account: String(config.payable_account_id), debit: 0, credit: total },
-      ]
-    : [
-        {
-          account: String(config.receivable_account_id),
-          debit: total,
-          credit: 0,
-        },
-        {
-          account: String(config.revenue_account_id),
-          debit: 0,
-          credit: totals.subtotal,
-        },
-        {
-          account: String(config.output_tax_account_id),
-          debit: 0,
-          credit: totals.tax,
-        },
-      ];
   const steps = [
     assertion(
       write,
@@ -1022,21 +973,9 @@ export async function invoiceFulfillment(
       "EXISTS(SELECT 1 FROM commerce_fulfillments WHERE id=? AND version=? AND invoice_id IS NULL)",
       [fulfillmentId, input.expectedVersion],
     ),
-    ...journalSteps(
-      write,
-      actor,
-      key,
-      journal,
-      config,
-      periodId,
-      input.date,
-      "commerce_invoice",
-      invoice,
-      lines,
-    ),
     write
       .prepare(
-        "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,tax_account_id,source_type,source_id,status,journal_id,created_by,posted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'commerce_fulfillment',?,'posted',?,?,?,?,?)",
+        "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,tax_account_id,source_type,source_id,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'commerce_fulfillment',?,'draft',?,?,?)",
       )
       .bind(
         invoice,
@@ -1055,9 +994,7 @@ export async function invoiceFulfillment(
         payable ? config.payable_account_id : config.revenue_account_id,
         payable ? config.input_tax_account_id : config.output_tax_account_id,
         fulfillmentId,
-        journal,
         actor.userId,
-        Date.now(),
         Date.now(),
         Date.now(),
       ),
@@ -1124,8 +1061,8 @@ export async function settleInvoice(
     );
   if (
     invoice.kind === "payable" &&
-    (!["holding_owner", "finance_approver", "treasury"].includes(actor.role) ||
-      invoice.created_by === actor.userId)
+    (!hasPermission(actor,"finance.pay") ||
+      samePerson(actor,invoice.created_by))
   )
     throw new ApiError(
       403,
@@ -1161,6 +1098,7 @@ export async function settleInvoice(
       "EXPENSE_PAYMENT_REQUIRED",
       "Record payment from the expense claim and attach its bank slip.",
     );
+  if(invoice.kind==="payable"&&!input.paymentSlipId)throw new ApiError(422,"PAYMENT_SLIP_REQUIRED","Upload the bank payment slip before recording payment.");
   const prepared = await prepareInvoiceSettlement(
     write,
     actor,
@@ -1169,6 +1107,11 @@ export async function settleInvoice(
     input,
     key,
   );
+  if(invoice.kind==="payable")prepared.steps.unshift(
+    assertion(write,key,"payment-slip","EXISTS(SELECT 1 FROM attachments WHERE id=? AND owner_type='invoice_payment' AND owner_id=? AND revoked_at IS NULL AND media_type IN ('image/jpeg','image/png','image/webp','application/pdf'))",[input.paymentSlipId ?? null,invoiceId]),
+    assertion(write,key,"unique-payment-slip","NOT EXISTS(SELECT 1 FROM finance_payments p JOIN attachments used ON used.id=p.payment_slip_id JOIN attachments proposed ON proposed.id=? WHERE p.company_id=? AND used.checksum_sha256=proposed.checksum_sha256)",[input.paymentSlipId ?? null,actor.companyId]),
+  );
+
   return executeCommand(
     write,
     actor,
@@ -1260,7 +1203,7 @@ export async function prepareInvoiceSettlement(
     ),
     write
       .prepare(
-        "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,0,?,'settled',?,?,?,?,?)",
+        "INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at,payment_slip_id) VALUES(?,?,?,?,?,?,?,?,0,?,'settled',?,?,?,?,?,?)",
       )
       .bind(
         payment,
@@ -1277,6 +1220,7 @@ export async function prepareInvoiceSettlement(
         payable ? actor.userId : null,
         Date.now(),
         Date.now(),
+        input.paymentSlipId ?? null,
       ),
     write
       .prepare(

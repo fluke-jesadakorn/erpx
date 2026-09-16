@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import Link from "next/link";
 import { LoaderCircle, Sparkles } from "lucide-react";
 import styles from "./expense.module.css";
@@ -68,7 +70,7 @@ export function ExpenseAiPanel({
     );
   }
   const refresh = useCallback(async () => {
-    const response = await fetch(path + query, { cache: "no-store" }),
+    const response = await workFetch(path + query, { cache: "no-store" }),
       body = (await response.json()) as {
         data: Status;
         error?: { message: string };
@@ -87,7 +89,7 @@ export function ExpenseAiPanel({
       try {
         for (const attachment of current.incomplete) {
           setProgress(`Preparing ${attachment.name}…`);
-          const response = await fetch(
+          const response = await workFetch(
             `/api/v1${base}/attachments/${attachment.id}/content`,
           );
           if (!response.ok)
@@ -99,7 +101,7 @@ export function ExpenseAiPanel({
             setProgress(
               `Preparing ${attachment.name}: page ${page} of ${total}`,
             );
-            const response = await fetch(
+            const response = await workFetch(
               `/api/v1${base}/attachments/${attachment.id}/derivatives?page=${page}&total=${total}&original=${attachment.checksum}`,
               {
                 method: "POST",
@@ -126,7 +128,7 @@ export function ExpenseAiPanel({
         });
         if (key.current?.body !== body)
           key.current = { body, id: crypto.randomUUID() };
-        const response = await fetch(path, {
+        const response = await workFetch(path, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

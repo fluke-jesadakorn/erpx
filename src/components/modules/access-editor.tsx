@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { businessRoles, businessRoleLabel } from "@/lib/business-roles";
@@ -34,7 +36,7 @@ export function AccessEditor({
     setPending(true);
     setError("");
     try {
-      const r = await fetch(
+      const r = await workFetch(
         `/api/v1${base}/people/directory/${personId}/${action}`,
         {
           method: "POST",
@@ -46,12 +48,13 @@ export function AccessEditor({
         },
       );
       const v = (await r.json()) as {
-        data: { token?: string };
+        data: { token?: string;message?:string };
         error?: { message: string };
       };
       if (!r.ok) throw Error(v.error?.message ?? "Unable to update access.");
       if (v.data.token)
         setLink(`${window.location.origin}/activate?token=${v.data.token}`);
+      if(v.data.message)setError(v.data.message);
       attempt.current = null;
       router.refresh();
     } catch (e) {
@@ -62,7 +65,7 @@ export function AccessEditor({
   }
   return (
     <section className="card">
-      <h2>Login & access</h2>
+      <h2>Login & access</h2><a className="button secondary" href={`${base}/iam/users`}>Open Identity & access</a>
       <p>
         {hasAccount
           ? "Login account linked. Roles below control access to this workspace."
@@ -131,6 +134,7 @@ export function AccessEditor({
                 defaultValue={role === "it_admin" ? "holding" : "branch"}
               >
                 <option value="branch">Employee’s branch</option>
+                <option value="department">Employee’s department</option>
                 <option value="holding">All branches in this company</option>
               </select>
             </label>

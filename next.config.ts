@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
-  // Version asset URLs so browsers and the CDN do not retain the previous theme.
-  deploymentId: process.env.NEXT_DEPLOYMENT_ID ?? "expense-ai-extract-20260910",
+  // Version asset URLs so browsers and the CDN load the matching UI bundle.
+  deploymentId:
+    process.env.NEXT_DEPLOYMENT_ID ?? "navigation-more-20260916-v1",
   turbopack: { root: process.cwd() },
   outputFileTracingRoot: process.cwd(),
   output: "standalone",

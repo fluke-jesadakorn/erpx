@@ -1,16 +1,16 @@
+import { pageError } from "@/server/page-error";
+import { FlowPanel, documentFlow } from "@/components/workplace/flow-panel";
 import { ApprovalHistory } from "@/components/modules/approval-history";
 import { ApprovalAdminLink } from "@/components/modules/approval-admin-link";
 import { staffSettings } from "@/server/staff-settings";
 import { holdingResources } from "@/server/runtime";
 import Link from "next/link";
 import { LeaveControls } from "@/components/modules/leave-controls";
-import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { getLeave } from "@/server/leave";
 import { getLeaveEvidence } from "@/server/work";
-import { ApiError } from "@/server/http";
 import { StatusBadge } from "@/components/ui/primitives";
 import { LeaveTaskForm } from "./task-form";
 import styles from "@/components/workplace/pages.module.css";
@@ -24,8 +24,7 @@ export default async function LeaveTaskPage({
   const base = workspaceBase(publicScope(context));
   const request = await getLeave(context.holdingId, id, context).catch(
     (error) => {
-      if (error instanceof ApiError && error.status === 404) notFound();
-      throw error;
+      return pageError(error, holdingSlug);
     },
   );
   const { write } = await holdingResources(context.holdingId);
@@ -35,6 +34,7 @@ export default async function LeaveTaskPage({
     search.from === "home"
       ? `${base}/home`
       : `${base}/work${typeof search.return === "string" ? `?${new URLSearchParams(search.return).toString()}` : ""}`;
+  const flow = await documentFlow(context,"leave",id);
   return (
     <main className="content" data-source="live">
       <Link href={back} className="back-link">
@@ -108,7 +108,7 @@ export default async function LeaveTaskPage({
             key={request.id}
             workspaceBase={base}
             request={request}
-            canApprove={request.permittedActions.includes("approve")}
+            canApprove={flow.canAct&&request.permittedActions.includes("approve")}
             canSubmit={request.created_by === context.userId}
             blockedReason={request.approval.blockedReason}
           />
@@ -119,7 +119,7 @@ export default async function LeaveTaskPage({
               recordId={id}
               version={request.version}
               canCancel={request.permittedActions.includes("cancel")}
-              canReject={request.permittedActions.includes("reject")}
+              canReject={flow.canAct&&request.permittedActions.includes("reject")}
             />
           )}
         </div>
@@ -144,6 +144,6 @@ export default async function LeaveTaskPage({
           </p>
         </aside>
       </div>
-    </main>
+    <FlowPanel flow={flow} actor={context} kind="leave" id={id} base={base}/></main>
   );
 }

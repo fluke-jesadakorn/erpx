@@ -1,11 +1,10 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { holdingResources } from "@/server/runtime";
 import { workspaceBase } from "@/lib/workspace";
 import { handbookArticle, handbookAccess } from "@/server/handbook";
 import { HandbookEditor } from "@/components/workplace/handbook-controls";
-import { ApiError } from "@/server/http";
+import { pageError, accessPage } from "@/server/page-error";
 import { PageHeader } from "@/components/ui/primitives";
 import styles from "@/components/workplace/services.module.css";
 export default async function Article({
@@ -23,7 +22,7 @@ export default async function Article({
     editing = query.edit === "1",
     historyView = query.revision !== undefined;
   if (id === "new") {
-    if (!(await handbookAccess(write, actor)).editor) notFound();
+    if (!(await handbookAccess(write, actor)).editor) return accessPage("permission", actor.holdingSlug);
     return (
       <main className={`content ${styles.stack}`}>
         <Link href={`${base}/handbook?edit=1`}>← Company handbook</Link>
@@ -45,8 +44,7 @@ export default async function Article({
       historyView ? Number(query.revision) : undefined,
     );
   } catch (e) {
-    if (e instanceof ApiError && [403, 404].includes(e.status)) notFound();
-    throw e;
+    return pageError(e, actor.holdingSlug);
   }
   return (
     <main className={`content ${styles.stack}`} data-source="live">

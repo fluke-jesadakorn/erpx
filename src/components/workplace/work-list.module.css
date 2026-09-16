@@ -1,0 +1,23 @@
+.list { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.row { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 18px 20px; }
+.row + .row { border-top: 1px solid var(--line); }
+.row:hover { background: color-mix(in srgb,var(--brand-soft) 45%,var(--card)); }
+.row:focus-visible { outline-offset: -3px; }
+.body { min-width: 0; flex: 1; }
+.type { display: block; color: var(--muted); font-size: 12px; margin-bottom: 3px; }
+.title { display: block; color: var(--ink-strong); font-size: 15px; overflow-wrap: anywhere; }
+.action { color: var(--muted); font-size: 14px; margin: 4px 0 10px; overflow-wrap: anywhere; }
+.flow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.owner { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.owner small, .next small { display: block; font-size: 12px; }
+.owner strong { color: var(--ink); font-size: 13px; font-weight: 550; overflow-wrap: anywhere; }
+.current { color: var(--brand); background: var(--brand-soft); padding: 4px 8px; border-radius: 6px; overflow-wrap: anywhere; }
+.next { display: inline-flex; gap: 8px; align-items: center; overflow-wrap: anywhere; }
+.due { display: block; margin-top: 10px; font-size: 13px; color: var(--muted); }
+.blocker { margin: 10px 0 0; color: var(--amber); font-size: 13px; overflow-wrap: anywhere; }
+.row > :global(.badge) { margin-top: 2px; font-size: 12px; max-width: 35%; white-space: normal; overflow-wrap: anywhere; }
+@media (max-width:650px) {
+  .row { gap: 10px; padding: 16px; flex-wrap: wrap; }
+  .body { flex-basis: 100%; }
+  .row > :global(.badge) { max-width: 100%; }
+}

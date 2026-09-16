@@ -8,7 +8,9 @@
 .suggestions button.active,.suggestions button:hover { background:#779afa30; }
 .suggestions small { opacity:.75; overflow-wrap:anywhere; }
 .suggestions p { font-size:12px; margin:8px 10px; }
-.body { white-space:pre-wrap; overflow-wrap:anywhere; }
+.body { white-space:pre-wrap; overflow-wrap:anywhere; font-size:14px; line-height:1.75; margin:16px 0; color:var(--ink); }
 .token { color:var(--brand, #a9bfff); background:#789cff18; border:0; border-radius:4px; padding:0 3px; font:inherit; cursor:pointer; text-decoration:none; }
 .identity { border:1px solid var(--line, #46536a); border-radius:10px; padding:12px; margin:8px 0; }
 .identity p { margin:6px 0; }
+
+.body .token { display:inline; min-height:0; vertical-align:baseline; line-height:inherit; padding:2px 3px; }

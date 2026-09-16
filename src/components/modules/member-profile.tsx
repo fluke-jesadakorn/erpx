@@ -1,4 +1,5 @@
-import { hasBusinessRole } from "@/lib/responsibilities";
+import { hasPermission } from "@/lib/permissions";
+import { organizationOverview } from "@/server/organization";
 import { MemberPanel } from "@/components/beta/member-panel";
 import { PeopleEditor } from "./people-editor";
 import { AccessEditor } from "./access-editor";
@@ -71,6 +72,7 @@ export async function MemberProfile({
           nodes={await directoryOptions(actor)}
           levels={options.levels}
           people={options.people}
+          organization={await organizationOverview(write,actor)}
           levelManagedSeparately={options.canManage}
         />
       )}
@@ -101,10 +103,10 @@ export async function MemberProfile({
           userId={String(person.user_id ?? "")}
           assignments={access.assignments}
           canManage={
-            hasBusinessRole(actor, ["holding_owner"]) && member.id !== actor.userId
+            hasPermission(actor,"iam.manage") && member.id !== actor.userId
           }
           canRevokeCompany={
-            hasBusinessRole(actor, ["holding_owner"]) && member.id !== actor.userId
+            hasPermission(actor,"iam.roles.manage") && member.id !== actor.userId
           }
         />
       )}

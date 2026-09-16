@@ -1,10 +1,10 @@
+import { pageError } from "@/server/page-error";
+import { FlowPanel } from "@/components/workplace/flow-panel";
 import { ApprovalHistory } from "@/components/modules/approval-history";
 import { ApprovalAdminLink } from "@/components/modules/approval-admin-link";
 import { staffSettings } from "@/server/staff-settings";
 import { holdingResources } from "@/server/runtime";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { ApiError } from "@/server/http";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import {
   expenseDetail,
@@ -34,8 +34,7 @@ export default async function Expense({
     base = workspaceBase(publicScope(actor));
   const [data, options] = await Promise.all([
     expenseDetail(actor, id).catch((e) => {
-      if (e instanceof ApiError && e.status === 404) notFound();
-      throw e;
+      return pageError(e, holdingSlug);
     }),
     expenseOptions(actor),
   ]);
@@ -243,6 +242,7 @@ export default async function Expense({
           </div>
         ))}
       </section>
+      <FlowPanel actor={actor} kind="expense" id={id} base={base}/>
     </main>
   );
 }

@@ -1,9 +1,8 @@
+import { pageError } from "@/server/page-error";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { ProjectEditor } from "@/components/modules/staff-work-controls";
 import { staffPage } from "@/server/staff-page";
 import { getProject, listTasks } from "@/server/staff-tasks";
-import { ApiError } from "@/server/http";
 export default async function Project({
   params,
 }: {
@@ -12,8 +11,7 @@ export default async function Project({
   const { holdingSlug, id } = await params,
     { actor, write, base, options } = await staffPage(holdingSlug),
     project = await getProject(write, actor, id).catch((e) => {
-      if (e instanceof ApiError && e.status === 404) notFound();
-      throw e;
+      return pageError(e, holdingSlug);
     }),
     tasks = await listTasks(write, actor, id),
     members = (

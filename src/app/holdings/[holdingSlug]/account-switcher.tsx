@@ -1,4 +1,8 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
+import { RoleSelect } from "@/components/workplace/role-select";
+import { PersonAvatar } from "@/components/ui/person-avatar";
 import { useHydrated } from "@/components/ui/use-hydrated";
 
 import { useEffect, useRef, useState } from "react";
@@ -21,19 +25,13 @@ type DeviceSession = {
 };
 
 type Props = {
+  assignments?: import("@/server/authorization").WorkAssignment[];
+  preferredAssignmentId?: string | null;
+  contextRevision?: number;
   workspaceBase: string;
   activeUser: { id: string; name: string; email: string };
   theme: string;
 };
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
 
 function accountSwitchDestination(workspaceBase: string) {
   const destination = new URL("/", window.location.origin);
@@ -42,7 +40,7 @@ function accountSwitchDestination(workspaceBase: string) {
   return destination;
 }
 
-export function AccountSwitcher({ workspaceBase, activeUser, theme }: Props) {
+export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments = [], preferredAssignmentId = null, contextRevision = 0 }: Props) {
   const ready = useHydrated();
   const root = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -138,6 +136,21 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme }: Props) {
     window.location.replace(accountSwitchDestination(workspaceBase));
   }
 
+  async function chooseRole(assignmentId: string) {
+    if(document.querySelector<HTMLElement>("[data-work-dirty=true]") && !window.confirm("Change role and discard unsaved changes?"))return;
+    setPending("role"); setError("");
+    try {
+      const response = await workFetch(`/api/v1${workspaceBase}/assignments/active`, {
+        method: "POST", headers: { "content-type": "application/json", "x-erpx-context-company": assignments.find(option=>option.id===assignmentId)?.companyId??"" },
+        body: JSON.stringify({ assignmentId, revision: contextRevision }),
+      });
+      if (!response.ok) throw new Error("Role could not be selected. Refresh to check your current access.");
+      const {data}=await response.json();
+      const channel=new BroadcastChannel("erpx-work-context");channel.postMessage({changed:true});channel.close();
+      window.location.assign(data.href);
+    } catch (error) { setError(error instanceof Error ? error.message : "Role could not be selected."); setPending(""); }
+  }
+
   async function signOut() {
     setPending("logout");
     await authClient.signOut();
@@ -169,10 +182,10 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme }: Props) {
           if (next) void loadAccounts();
         }}
       >
-        <span className="avatar user-avatar">{initials(activeUser.name)}</span>
+        <PersonAvatar name={activeUser.name} small />
         <span className="user-copy">
           <strong>{activeUser.name}</strong>
-          <span>{activeUser.email}</span>
+          <span className="active-work-role" title={assignments.find(a=>a.id===preferredAssignmentId)?.label}>{assignments.find(a=>a.id===preferredAssignmentId)?.label ?? activeUser.email}</span>
         </span>
         <ChevronDown size={15} />
       </button>
@@ -185,7 +198,7 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme }: Props) {
           <div className="account-menu-head">
             <div>
               <span className="eyebrow">Signed in accounts</span>
-              <strong>Choose your work identity</strong>
+              <strong>Account & work role</strong>
             </div>
             <span className="session-count">{accounts.length}/5</span>
           </div>
@@ -202,7 +215,7 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme }: Props) {
                       disabled={Boolean(pending)}
                       onClick={() => void chooseAccount(item)}
                     >
-                      <span className="avatar">{initials(item.user.name)}</span>
+                      <PersonAvatar name={item.user.name} />
                       <span>
                         <strong>{item.user.name}</strong>
                         <small>{item.user.email}</small>
@@ -218,8 +231,13 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme }: Props) {
                   );
                 })}
               </div>
+              <Link className="button ghost" href={`${workspaceBase}/iam/my-access`} onClick={() => setOpen(false)}>My access & security</Link>
               {workspaceBase !== "/platform" && <Link className="button ghost" href={`${workspaceBase}/people?member=${activeUser.id}`} onClick={() => setOpen(false)}>My profile</Link>}
-              <Appearance initialTheme={theme} />
+              {assignments.length > 0 && <section className="role-section">
+                <RoleSelect assignments={assignments} value={preferredAssignmentId ?? ""} disabled={Boolean(pending)} onChange={value => void chooseRole(value)} />
+                <p className="role-hint">Only this role is used for actions and approvals. Self-approval rules still apply.</p>
+              </section>}
+              <div className="appearance-row"><span>Appearance</span><Appearance initialTheme={theme} compact /></div>
               <div className="account-actions">
                 <button
                   type="button"

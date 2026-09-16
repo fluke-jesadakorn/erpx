@@ -43,5 +43,5 @@ export function isRoleValidAtScope(
   scopeKind: AssignmentScopeKind,
 ) {
   if (scopeKind === "platform") return role.startsWith("platform_");
-  return businessRoleScopes[role]?.includes(scopeKind) ?? false;
+  return businessRoleScopes[role]?.includes(scopeKind) ?? (role.startsWith("custom_") && ["holding","branch","department"].includes(scopeKind));
 }

@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -528,7 +530,7 @@ export function RequestFiles({
     try {
       if (file.size > 10 * 1024 * 1024)
         throw Error("Choose a file smaller than 10 MB.");
-      const r = await fetch(`/api/v1${base}/uploads`, {
+      const r = await workFetch(`/api/v1${base}/uploads`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -550,7 +552,7 @@ export function RequestFiles({
         error?: { message: string };
       };
       if (!r.ok) throw Error(b.error?.message ?? "Unable to prepare upload.");
-      const put = await fetch(b.data.uploadUrl, {
+      const put = await workFetch(b.data.uploadUrl, {
         method: "PUT",
         headers: { "Content-Type": file.type },
         body: file,

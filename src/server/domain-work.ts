@@ -1,4 +1,5 @@
-import { hasBusinessRole } from "@/lib/responsibilities";
+import { hasPermission } from "@/lib/permissions";
+import { samePerson } from "@/lib/iam";
 import "server-only";
 import { holdingResources } from "./runtime";
 import { listTasks, taskDetail } from "./staff-tasks";
@@ -45,7 +46,7 @@ export async function getDomainWork(
     ].includes(actor.userId);
     const financeScope = !actor.branchId && !actor.departmentId;
     const post =
-      x.workflow_version !== 2 &&
+      x.can_post === 1 || x.workflow_version !== 2 &&
       financeScope &&
       independent &&
       canPostExpenses(actor) &&
@@ -55,11 +56,7 @@ export async function getDomainWork(
         ? x.can_pay === 1
         : financeScope &&
           independent &&
-          hasBusinessRole(actor, [
-            "holding_owner",
-            "finance_approver",
-            "treasury",
-          ]) &&
+          hasPermission(actor,"finance.pay") &&
           x.status === "posted";
     const actionable =
       canEditExpense(actor, x) ||
@@ -72,6 +69,7 @@ export async function getDomainWork(
     if (
       !actionable &&
       !own &&
+      !(x.approval_blocked_reason && hasPermission(actor,"iam.manage")) &&
       !(
         x.approved_by === actor.userId &&
         ["reimbursed", "cancelled"].includes(String(x.status))
@@ -86,8 +84,10 @@ export async function getDomainWork(
         ? "Complete and submit claim"
         : stage === "accounts_review"
           ? "Verify documents and prepare accounting details"
+          : stage === "gl_posting"
+            ? "Review Debit / Credit and post GL"
           : stage === "accounts_approval"
-            ? "Review accounting and approve posting"
+            ? "Approve accounting for GL review"
             : stage === "payment" || reimburse
               ? "Record payment with a bank slip"
               : reviewLabel();
@@ -130,7 +130,7 @@ export async function getDomainWork(
   for (const x of counts) {
     const editable = canEditCount(actor, x),
       review = canReviewCount(actor, x),
-      own = [x.created_by, x.prepared_by].includes(actor.userId);
+      own = [x.created_by, x.prepared_by].some(id=>samePerson(actor,id));
     if (
       !editable &&
       !review &&
@@ -166,7 +166,7 @@ export async function getDomainWork(
   for (const x of transfers) {
     const editable = canEditTransfer(actor, x),
       review = canReviewTransfer(actor, x),
-      own = [x.created_by, x.prepared_by].includes(actor.userId),
+      own = [x.created_by, x.prepared_by].some(id=>samePerson(actor,id)),
       status = String(x.status),
       terminal = ["posted", "cancelled"].includes(status);
     if (

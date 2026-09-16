@@ -41,7 +41,9 @@ export async function provision(options: { adminUrl: string; dataDir: string; pr
           }
           if (!(await admin.query('SELECT 1 FROM pg_roles WHERE rolname=$1',[role])).rowCount) await admin.query(`CREATE ROLE ${quote(role)} LOGIN`);
           // Password is generated hexadecimal, never supplied as SQL or logged.
-          await admin.query(`ALTER ROLE ${quote(role)} PASSWORD '${credentials[role]}' NOSUPERUSER NOCREATEDB NOCREATEROLE`);
+          // The provisioning role is intentionally NOSUPERUSER. New roles already
+          // default to NOSUPERUSER; repeating that clause requires superuser rights.
+          await admin.query(`ALTER ROLE ${quote(role)} PASSWORD '${credentials[role]}' NOCREATEDB NOCREATEROLE`);
           await admin.query(`GRANT CONNECT ON DATABASE ${quote(entry.name)} TO ${quote(role)}`);
           await db.pool.query(`GRANT USAGE ON SCHEMA public TO ${quote(role)}`);
           const readOnly = entry.track.endsWith('-read') && processRole === 'app';

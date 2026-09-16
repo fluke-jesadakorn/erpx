@@ -1,3 +1,4 @@
+import { workspaceChoices } from "@/server/workspace-choices";
 import { notFound } from "next/navigation";
 import { PageHeader, PreviewBanner } from "@/components/ui/primitives";
 
@@ -13,8 +14,16 @@ export default async function PlatformDestinationPage({ params }: PageProps<"/pl
   const { destination } = await params;
   const content = destinations[destination];
   if (!content) notFound();
+  if (destination === "home") {
+    const choices = (await workspaceChoices()).filter(choice => choice.kind === "business");
+    return <main className="content">
+      <PageHeader eyebrow="Platform" title="Platform administration" description="Choose a company workspace to use your business roles." />
+      <h2>Business workspaces</h2>
+      {choices.length ? <ul>{choices.map(choice => <li key={choice.destination}><a className="button secondary" href={choice.destination}>{choice.label}</a></li>)}</ul> : <p>No business workspaces assigned.</p>}
+    </main>;
+  }
   return <main className="content" data-source="sample">
-    <PageHeader eyebrow="Platform" title={content[0]} description={content[1]} />
+    <PageHeader eyebrow="Platform preview" title={content[0]} description={content[1]} />
     <PreviewBanner />
   </main>;
 }

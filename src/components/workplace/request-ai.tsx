@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import { useEffect, useState } from "react";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useStaffCommand } from "@/components/modules/staff-work-controls";
@@ -28,7 +30,7 @@ export function RequestAi({
       timer: ReturnType<typeof setTimeout> | undefined;
     async function load() {
       try {
-        const r = await fetch(url),
+        const r = await workFetch(url),
           body = (await r.json()) as {
             data: Status;
             error?: { message: string };
@@ -64,7 +66,7 @@ export function RequestAi({
   }, [url, id, version, command.busy]);
   async function apply(name: "title" | "description" | "category") {
     try {
-      const r = await fetch(url),
+      const r = await workFetch(url),
         body = (await r.json()) as {
           data: Status;
           error?: { message: string };

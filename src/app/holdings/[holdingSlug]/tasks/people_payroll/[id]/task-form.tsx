@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
@@ -62,7 +64,7 @@ export function LeaveTaskForm({
     if (attempt.current?.signature !== signature)
       attempt.current = { signature, key: crypto.randomUUID() };
     try {
-      const response = await fetch(url, {
+      const response = await workFetch(url, {
         method: approval ? "POST" : "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -104,7 +106,7 @@ export function LeaveTaskForm({
     setError("");
     setUpload(`Uploading ${file.name}…`);
     try {
-      const intentResponse = await fetch(`${base}/uploads`, {
+      const intentResponse = await workFetch(`${base}/uploads`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -122,7 +124,7 @@ export function LeaveTaskForm({
       };
       if (!intentResponse.ok || !intent.data)
         throw new Error(intent.error?.message ?? "The upload could not start.");
-      const response = await fetch(intent.data.uploadUrl, {
+      const response = await workFetch(intent.data.uploadUrl, {
         method: "PUT",
         headers: { "Content-Type": file.type },
         body: file,
@@ -305,7 +307,7 @@ export function LeaveTaskForm({
                     const signature = "save" + body;
                     if (attempt.current?.signature !== signature)
                       attempt.current = { signature, key: crypto.randomUUID() };
-                    const r = await fetch(
+                    const r = await workFetch(
                       `${base}/leave-requests/${request.id}`,
                       {
                         method: "PATCH",

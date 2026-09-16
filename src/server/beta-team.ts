@@ -1,3 +1,9 @@
+import { iamDb } from "./iam-db";
+import { iamCommand } from "./iam-transactions";
+import { grantInput, validateIamGrant, proposeIamReview } from "./iam-service";
+import { requireFreshMfa } from "./iam-mfa";
+import type { IamActor } from "./iam-context";
+import type { PostgresDatabase } from "./runtime/postgres";
 import type { SqlDatabase } from "./runtime/types";
 import { z } from "zod";
 import { assertion, executeCommand } from "./commands";
@@ -28,57 +34,120 @@ export async function inviteMember(
 ) {
   const input = invitationSchema.parse(rawInput);
   await requireCompanyAuthority(db, actor, ["holding_owner"]);
-  const now = Date.now(),
-    id = `invite-${key}`;
-  return executeCommand(db, actor, key, "beta.invite", input, id, 1, { id }, [
-    authorityGuard(db, key, actor, ["holding_owner"]),
-    db
-      .prepare(
-        "UPDATE beta_team_invitations SET revoked_at=? WHERE expires_at<=? AND accepted_at IS NULL AND revoked_at IS NULL",
+  if (!actor.authority)
+    throw new ApiError(
+      403,
+      "FRESH_MFA_REQUIRED",
+      "Sign in and verify MFA before inviting a member.",
+    );
+  const iam = {
+    ...actor,
+    sessionId: actor.authority.sessionId,
+    holdingId: null,
+    scopeKind: "holding",
+    scopeNodeId: null,
+    platform: false,
+  } satisfies IamActor;
+  await requireFreshMfa(iam);
+  return iamCommand(
+    db as PostgresDatabase,
+    iam,
+    key,
+    "beta.invite",
+    input,
+    "iam.manage",
+    async (c) => {
+      const now = Date.now(),
+        id = `invite-${key}`;
+      const capacity = (
+        await c.query(
+          "SELECT (SELECT count(*) FROM beta_members m JOIN hr_people p ON p.user_id=m.user_id WHERE p.company_id=$1)+(SELECT count(*) FROM beta_team_invitations i JOIN organization_nodes b ON b.id=i.branch_id WHERE b.company_id=$1 AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at>$2)<member_limit ok FROM beta_policy WHERE company_id=$1",
+          [actor.companyId, now],
+        )
+      ).rows[0];
+      if (!capacity?.ok)
+        throw new ApiError(
+          409,
+          "MEMBER_CAPACITY",
+          "This company has reached its member limit.",
+        );
+      if (
+        !(
+          await c.query(
+            "SELECT 1 FROM organization_nodes WHERE id=$1 AND company_id=$2 AND kind='branch' AND status='active'",
+            [input.branchId, actor.companyId],
+          )
+        ).rowCount
       )
-      .bind(now, now),
-    assertion(
-      db,
-      key,
-      "member-capacity",
-      `(SELECT count(*) FROM beta_members m JOIN hr_people p ON p.user_id=m.user_id WHERE p.company_id=?)+(SELECT count(*) FROM beta_team_invitations i JOIN organization_nodes b ON b.id=i.branch_id WHERE b.company_id=? AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at>?) < (SELECT member_limit FROM beta_policy WHERE company_id=?)`,
-      [actor.companyId, actor.companyId, now, actor.companyId],
-    ),
-    assertion(
-      db,
-      key,
-      "invite-branch",
-      "EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active')",
-      [input.branchId, actor.companyId],
-    ),
-    assertion(
-      db,
-      key,
-      "existing-member",
-      "NOT EXISTS(SELECT 1 FROM hr_people WHERE lower(email)=? AND user_id IS NOT NULL)",
-      [input.email],
-    ),
-    db
-      .prepare(
-        "INSERT INTO beta_team_invitations(id,email,branch_id,invited_by,token_hash,expires_at,created_at,role) VALUES(?,?,?,?,?,?,?,?)",
+        throw new ApiError(
+          409,
+          "BRANCH_UNAVAILABLE",
+          "Choose an active company branch.",
+        );
+      if (
+        (
+          await c.query(
+            "SELECT 1 FROM hr_people WHERE company_id=$1 AND lower(email)=$2 AND user_id IS NOT NULL",
+            [actor.companyId, input.email],
+          )
+        ).rowCount
       )
-      .bind(
-        id,
-        input.email,
-        input.branchId,
-        actor.userId,
-        await sha256(token),
-        now + 7 * 86400000,
-        now,
-        input.role,
-      ),
-  ]);
+        throw new ApiError(
+          409,
+          "MEMBER_EXISTS",
+          "This person already has access. Use IAM to change assignments.",
+        );
+      const grants = [
+        grantInput.parse({
+          userId: `invite:${id}`,
+          roleId: "employee",
+          scopeKind: "branch",
+          scopeNodeId: input.branchId,
+          reason: "Reviewed employee invitation",
+        }),
+      ];
+      if (input.role === "it_admin")
+        grants.push(
+          grantInput.parse({
+            userId: `invite:${id}`,
+            roleId: "it_admin",
+            scopeKind: "holding",
+            reason: "Reviewed IT administration invitation",
+          }),
+        );
+      for (const grant of grants) await validateIamGrant(c, iam, grant);
+      await c.query(
+        "INSERT INTO beta_team_invitations(id,email,branch_id,invited_by,token_hash,expires_at,created_at,role) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+        [
+          id,
+          input.email,
+          input.branchId,
+          actor.userId,
+          await sha256(token),
+          now + 7 * 86400000,
+          now,
+          input.role,
+        ],
+      );
+      return {
+        ...(await proposeIamReview(
+          c,
+          iam,
+          "beta.invitation",
+          { invitationId: id, grants, parentId: actor.assignmentId },
+          "Authorize initial employee access.",
+        )),
+        invitationId: id,
+      };
+    },
+  );
 }
 export async function acceptMember(
   db: SqlDatabase,
   user: BetaUser,
   token: string,
 ) {
+  db = iamDb(db);
   requireVerified(user);
   const row = await db
     .prepare("SELECT * FROM beta_team_invitations WHERE token_hash=?")
@@ -130,15 +199,40 @@ export async function acceptMember(
     .first<{ company_id: string }>();
   if (!branch)
     throw new ApiError(409, "BRANCH_UNAVAILABLE", "Branch unavailable.");
+  const reviewed = await db
+    .prepare(
+      "SELECT payload FROM iam_reviews WHERE company_id=? AND kind='beta.invitation' AND payload->>'invitationId'=? AND status='approved'",
+    )
+    .bind(branch.company_id, row.id)
+    .first<{
+      payload: {
+        parentId: string;
+        grants: {
+          roleId: string;
+          expectedRoleRevision: number;
+          scopeKind: string;
+          scopeNodeId: string | null;
+          validUntil: number;
+        }[];
+      };
+    }>();
+  if (!reviewed)
+    throw new ApiError(
+      409,
+      "INVITATION_REVIEW_REQUIRED",
+      "An independent administrator must approve the initial grants before joining.",
+    );
+  const authorization = reviewed.payload;
   const key = `accept-${row.id}`,
     now = Date.now();
   try {
     await db.batch([
-      authorityGuard(
+      assertion(
         db,
         key,
-        { userId: row.invited_by, companyId: branch.company_id },
-        ["holding_owner"],
+        "inviter-still-authorized",
+        "EXISTS(SELECT 1 FROM assignments WHERE user_id=? AND company_id=? AND iam_role_allows(role,company_id,'company.owner') AND scope_kind='holding' AND revoked_at IS NULL AND valid_from<=? AND valid_until>?)",
+        [row.invited_by, branch.company_id, now, now],
       ),
       assertion(
         db,
@@ -154,6 +248,22 @@ export async function acceptMember(
         "(SELECT count(*) FROM beta_members m JOIN hr_people p ON p.user_id=m.user_id WHERE p.company_id=?)<(SELECT member_limit FROM beta_policy WHERE company_id=?)",
         [branch.company_id, branch.company_id],
       ),
+      assertion(
+        db,
+        key,
+        "reviewed-parent",
+        "iam_assignment_active(?,?) AND iam_principal_active(?,?,?)",
+        [authorization.parentId, now, user.id, branch.company_id, now],
+      ),
+      ...authorization.grants.map((grant, index) =>
+        assertion(
+          db,
+          key,
+          "reviewed-role-" + index,
+          "EXISTS(SELECT 1 FROM iam_roles WHERE id=? AND company_id IN ('*',?) AND published_revision=?)",
+          [grant.roleId, branch.company_id, grant.expectedRoleRevision],
+        ),
+      ),
       ...memberStatements(
         db,
         branch.company_id,
@@ -161,19 +271,25 @@ export async function acceptMember(
         user,
         false,
         row.id,
+        {
+          parentId: authorization.parentId,
+          validUntil: authorization.grants[0].validUntil,
+        },
       ),
       ...(row.role === "it_admin"
         ? [
             db
               .prepare(
-                "INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,scope_kind) VALUES(?,?,'it_admin','[\"collaboration\"]',?,?,?,'holding')",
+                "INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,scope_kind,parent_id,source) VALUES(?,?,'it_admin','[\"collaboration\"]',?,?,?,'holding',?,'manual')",
               )
               .bind(
                 `beta-it-${row.id}`,
                 user.id,
                 branch.company_id,
                 now,
-                now + 10 * 365 * 86400000,
+                authorization.grants.find((g) => g.roleId === "it_admin")!
+                  .validUntil,
+                authorization.parentId,
               ),
           ]
         : []),

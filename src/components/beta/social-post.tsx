@@ -1,4 +1,5 @@
 "use client";
+import { PersonAvatar } from "@/components/ui/person-avatar";
 import { SocialTextBody } from "./social-text-body";
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -49,13 +50,14 @@ export function SocialPost({
     <article id={post.id} key={post.id} className="card beta-post">
       {post.agentReplies.filter(r=>r.state!=="completed").map(r=><div key={r.id} role="status">{r.state==="failed"?r.error:"ERPX assistant is preparing a reply…"}{r.state==="failed"&&r.actor_id===userId&&<button disabled={busy} onClick={()=>run(async()=>{await send(`/api/v1${base}/beta/agent-replies/${r.id}`,{});await refresh();})}>Retry assistant</button>}</div>)}
       <header className="beta-person">
-        <span className="avatar">{post.author_name.slice(0, 1)}</span>
+        <PersonAvatar name={post.author_name} />
         <div>
           <strong>{post.author_name}</strong>
           <p>
             <Link href={`${base}/posts/${post.id}`}>
               {new Date(post.created_at).toLocaleString("en-GB", {
                 timeZone: "Asia/Bangkok",
+                day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
               })}
             </Link>{" "}
             ·{" "}

@@ -198,7 +198,7 @@ export async function publishPost(
           draft.department_id,
           JSON.stringify(mentions),
         ),
-      ...textStatements(db, actor, postId, "post", postId, draft.body, mentions),
+      ...await textStatements(db, actor, postId, "post", postId, draft.body, mentions),
       db
         .prepare(
           "UPDATE social_post_drafts SET published_post_id=?,version=version+1,updated_at=? WHERE id=?",
@@ -289,12 +289,14 @@ export async function homePosts(
     branchId?: string;
     before?: number;
     beforeId?: string;
+    limit?: number;
   } = {},
 ) {
   const now = Date.now();
+  const limit = Math.max(1, Math.min(filter.limit ?? 20, 20));
   const result = await db
     .prepare(
-      `SELECT p.id FROM social_posts p WHERE p.company_id=? AND p.state='published' AND p.linked_module IS NULL AND ${sourceAccessSql()} AND (?::text IS NULL OR p.branch_id=? OR p.branch_id IS NULL) AND (?::text IS NULL OR p.branch_id=?) AND (p.created_at<? OR (p.created_at=? AND p.id<?)) AND (?=0 OR EXISTS(SELECT 1 FROM social_follows f WHERE f.principal_id=? AND f.target_type='post' AND f.target_id=p.id)) AND (?::text IS NULL OR EXISTS(SELECT 1 FROM social_post_topics pt WHERE pt.post_id=p.id AND pt.tag=?) OR EXISTS(SELECT 1 FROM social_comment_topics ct JOIN social_comments c ON c.id=ct.comment_id WHERE c.post_id=p.id AND c.state='published' AND ct.tag=?)) ORDER BY p.created_at DESC,p.id DESC LIMIT 20`,
+      `SELECT p.id FROM social_posts p WHERE p.company_id=? AND p.state='published' AND p.linked_module IS NULL AND ${sourceAccessSql()} AND (?::text IS NULL OR p.branch_id=? OR p.branch_id IS NULL) AND (?::text IS NULL OR p.branch_id=?) AND (p.created_at<? OR (p.created_at=? AND p.id<?)) AND (?=0 OR EXISTS(SELECT 1 FROM social_follows f WHERE f.principal_id=? AND f.target_type='post' AND f.target_id=p.id)) AND (?::text IS NULL OR EXISTS(SELECT 1 FROM social_post_topics pt WHERE pt.post_id=p.id AND pt.tag=?) OR EXISTS(SELECT 1 FROM social_comment_topics ct JOIN social_comments c ON c.id=ct.comment_id WHERE c.post_id=p.id AND c.state='published' AND ct.tag=?)) ORDER BY p.created_at DESC,p.id DESC LIMIT ?`,
     )
     .bind(
       actor.companyId,
@@ -311,6 +313,7 @@ export async function homePosts(
       filter.following ? 1 : 0,
       actor.userId,
       filter.tag ?? null, filter.tag ?? null, filter.tag ?? null,
+      limit,
     )
     .all<{ id: string }>();
   const posts = [];
@@ -358,7 +361,7 @@ export async function postAction(
           now,
           JSON.stringify(mentions),
         ),
-      ...textStatements(db, actor, id, "comment", `comment-${key}`, body, mentions),
+      ...await textStatements(db, actor, id, "comment", `comment-${key}`, body, mentions),
     );
     for (const [i, user] of [...new Set(input.mentionUserIds ?? [])]
       .slice(0, 10)

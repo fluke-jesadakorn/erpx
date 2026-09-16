@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 export function LeaveControls({
@@ -40,7 +42,7 @@ export function LeaveControls({
     setBusy(true);
     setError("");
     try {
-      const r = await fetch(
+      const r = await workFetch(
         `/api/v1${base}/leave-requests${recordId ? `/${recordId}/transition` : ""}`,
         {
           method: "POST",

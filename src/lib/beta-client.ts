@@ -1,9 +1,11 @@
+
+import { workFetch } from "@/lib/work-fetch";
 export async function betaFetch<T>(
   url: string,
   input?: unknown,
   key: string = crypto.randomUUID(),
 ): Promise<T> {
-  const r = await fetch(url, {
+  const r = await workFetch(url, {
     method: input === undefined ? "GET" : "POST",
     headers:
       input === undefined

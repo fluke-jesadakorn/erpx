@@ -2,7 +2,7 @@ import type { SqlDatabase } from "./runtime/types";
 import { sha256 } from "./crypto";
 import { z } from "zod";
 import { ApiError } from "./http";
-import { assertion } from "./commands";
+import { assertion, workContextGuards } from "./commands";
 import { sourceSnapshot, sourceGuard, readablePost } from "./social-source";
 import { staffPeople, type StaffActor } from "./staff-policy";
 import type { BetaEnvironment } from "./beta-config";
@@ -101,10 +101,11 @@ export async function createAiDraft(
     month = new Date(now).toISOString().slice(0, 7);
   const prior = await db
     .prepare(
-      "SELECT post_id,kind,source_hash,result_json,state,source_version,comment_ids_json,expires_at,provider_json FROM social_ai_drafts WHERE id=? AND actor_id=?",
+      "SELECT actor_json,post_id,kind,source_hash,result_json,state,source_version,comment_ids_json,expires_at,provider_json FROM social_ai_drafts WHERE id=? AND actor_id=?",
     )
     .bind(id, actor.userId)
     .first<{
+      actor_json: string|null;
       post_id: string;
       kind: string;
       source_hash: string;
@@ -116,6 +117,7 @@ export async function createAiDraft(
       provider_json: string | null;
     }>();
   if (prior) {
+    if(prior.actor_json!==JSON.stringify({assignmentId:actor.assignmentId,role:actor.role,authority:actor.authority}))throw new ApiError(409,"IDEMPOTENCY_CONFLICT","This AI request belongs to another work context. Review the current role before starting a new request.");
     if (
       prior.post_id !== postId ||
       prior.kind !== input.kind ||
@@ -162,6 +164,7 @@ export async function createAiDraft(
   // Reserve before the external request. Failed requests count because the provider may have billed them.
   try {
     await db.batch([
+      ...workContextGuards(db,actor,id),
       sourceGuard(db, id, source.post, actor.userId, "source"),
       assertion(
         db,
@@ -210,6 +213,7 @@ export async function createAiDraft(
               .bind(JSON.stringify(configured.snapshot), id),
           ]
         : []),
+      db.prepare("UPDATE social_ai_drafts SET actor_json=? WHERE id=?").bind(JSON.stringify({assignmentId:actor.assignmentId,role:actor.role,authority:actor.authority}),id),
     ]);
   } catch {
     throw new ApiError(
@@ -258,6 +262,7 @@ export async function createAiDraft(
     )
       throw new Error("PROVIDER_CHANGED");
     await db.batch([
+      ...workContextGuards(db,actor,id),
       sourceGuard(db, id, source.post, actor.userId, "source-finish"),
       ...(configured
         ? [

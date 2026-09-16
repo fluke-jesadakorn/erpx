@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import Image from "next/image";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -19,7 +21,7 @@ export function useExpenseCommand(base: string) {
     setPending(true);
     setError("");
     try {
-      const r = await fetch(`/api/v1${base}/expenses${path}`, {
+      const r = await workFetch(`/api/v1${base}/expenses${path}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

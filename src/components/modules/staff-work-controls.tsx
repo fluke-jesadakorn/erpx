@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import Link from "next/link";
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
@@ -13,6 +15,7 @@ export type StaffOptions = {
     id: string;
     name: string;
     rank: number;
+    level_number?: number | null;
     active: number;
     version: number;
     code: string;
@@ -39,7 +42,7 @@ export function useStaffCommand(base: string) {
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(`/api/v1${base}/${path}`, {
+      const response = await workFetch(`/api/v1${base}/${path}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -486,7 +489,7 @@ export function TaskActions({
     setUploading(true);
     setUploadError("");
     try {
-      const intent = await fetch(`/api/v1${base}/uploads`, {
+      const intent = await workFetch(`/api/v1${base}/uploads`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -504,7 +507,7 @@ export function TaskActions({
       };
       if (!intent.ok)
         throw new Error(prepared.error?.message ?? "Upload could not start.");
-      const response = await fetch(prepared.data.uploadUrl, {
+      const response = await workFetch(prepared.data.uploadUrl, {
         method: "PUT",
         headers: { "Content-Type": file.type || "text/csv" },
         body: file,

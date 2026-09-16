@@ -18,9 +18,9 @@ export async function getWork(holdingId: string, context: WorkContext) {
     await approvalView(write, "leave", row.id, context);
   const result = await write
     .prepare(
-      `SELECT l.id,l.number,l.state,l.start_date,l.days,l.created_by,l.updated_at,l.handover_note FROM leave_requests l WHERE l.company_id=? AND (l.created_by=? OR l.decided_by=? OR ${participantSql("leave", "l")}) ORDER BY l.updated_at DESC,l.id LIMIT 250`,
+      `SELECT l.id,l.number,l.state,l.start_date,l.days,l.created_by,l.updated_at,l.handover_note FROM leave_requests l WHERE l.company_id=? AND (l.created_by=? OR l.decided_by=? OR ${participantSql("leave", "l", "?", "?")}) ORDER BY l.updated_at DESC,l.id LIMIT 250`,
     )
-    .bind(context.companyId, context.userId, context.userId, context.userId)
+    .bind(context.companyId, context.userId, context.userId, context.userId, context.assignmentId)
     .all<WorkRow>();
   const rows = await Promise.all(
     result.results.map(async (row) => {

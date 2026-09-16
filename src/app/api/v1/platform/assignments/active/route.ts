@@ -1,3 +1,5 @@
+import { rememberPlatformRole } from "@/server/workspace-preferences";
+import { runtimeEnv } from "@/server/runtime";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requirePlatformContext } from "@/server/authorization";
@@ -16,6 +18,7 @@ export async function POST(request: Request) {
     );
     if (!selected)
       throw new ApiError(403, "ASSIGNMENT_UNAVAILABLE", "That Platform assignment is unavailable.");
+    await rememberPlatformRole((await runtimeEnv()).CONTROL_DB,actor.userId,selected.id);
     const response = NextResponse.json({ data: selected });
     response.cookies.set("erpx_assignment_platform", selected.id, {
       httpOnly: true,

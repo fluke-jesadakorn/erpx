@@ -117,9 +117,9 @@ export function paymentGuards(
       db,
       key,
       "treasury-authority",
-      "EXISTS(SELECT 1 FROM assignments WHERE user_id=? AND company_id=? AND role='treasury' AND revoked_at IS NULL AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?) OR (scope_kind='department' AND scope_node_id=?)))",
+      "EXISTS(SELECT 1 FROM assignments WHERE id=? AND company_id=? AND iam_role_allows(role,company_id,'expense.pay') AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?) OR (scope_kind='department' AND scope_node_id=?)))",
       [
-        actor.userId,
+        actor.assignmentId,
         actor.companyId,
         now,
         now,

@@ -9,7 +9,7 @@ it('restores the same database and file snapshot and refuses corrupted backups',
  const home=await mkdtemp(resolve('.runtime/tests/recovery-'));
  try{
   for(const directory of ['config','data/config','data/files','runtime','releases/2026-09-08T00-00-00-000Z'])await mkdir(join(home,directory),{recursive:true});
-  const admin=new URL(process.env.ERPX_TEST_ADMIN_URL??'postgresql://erpx_test@127.0.0.1:5434/postgres');
+  const admin=new URL(process.env.ERPX_TEST_ADMIN_URL??'postgresql://erpx_test_admin@127.0.0.1:5432/postgres');
   await writeFile(join(home,'config/admin.json'),JSON.stringify({host:admin.hostname,port:Number(admin.port),user:admin.username,password:admin.password}));
   await writeFile(join(home,'config/production.env'),'BETTER_AUTH_SECRET=snapshot-auth-secret\n');
   const release=join(home,'releases/2026-09-08T00-00-00-000Z');

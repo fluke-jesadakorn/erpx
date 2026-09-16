@@ -1,8 +1,11 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
+import { PersonAvatar } from "@/components/ui/person-avatar";
 import { SocialTextInput } from "./social-text-input";
 import type { Mention } from "@/lib/social-text";
 import { useState, useSyncExternalStore } from "react";
-import { ImagePlus } from "lucide-react";
+import { ImagePlus, PenLine, ChevronDown } from "lucide-react";
 import { betaFetch } from "@/lib/beta-client";
 import { useSocialCommand } from "./social-command";
 import type { Meta, Draft } from "./social-types";
@@ -13,6 +16,7 @@ export function SocialComposer({
   branchId,
   meta,
   setMeta,
+  loadMeta,
   onPublished,
 }: {
   api: string;
@@ -20,6 +24,7 @@ export function SocialComposer({
   branchId: string | null;
   meta: Meta;
   setMeta: (meta: Meta) => void;
+  loadMeta: () => void;
   onPublished: () => Promise<void>;
 }) {
   const ready = useSyncExternalStore(
@@ -55,7 +60,7 @@ export function SocialComposer({
           mediaType: file.type,
           bytes: file.size,
         });
-        const r = await fetch(intent.uploadUrl, { method: "PUT", body: file });
+        const r = await workFetch(intent.uploadUrl, { method: "PUT", body: file });
         const result = (await r.json()) as { error?: { message: string } };
         if (!r.ok)
           throw new Error(result.error?.message ?? "Image upload failed.");
@@ -80,10 +85,17 @@ export function SocialComposer({
   }
   return (
     <>
-      <details className="card beta-composer">
-        <summary>Share an update</summary>
+      <details className="card beta-composer" onToggle={(event) => {
+        if (event.currentTarget.open) loadMeta();
+      }}>
+        <summary>
+          <PersonAvatar name={name} />
+          <span className="beta-composer-prompt"><strong>Share an update</strong><small>Ask a question or share progress with your team</small></span>
+          <PenLine className="beta-compose-icon" size={18} aria-hidden="true" />
+          <ChevronDown className="beta-compose-chevron" size={16} aria-hidden="true" />
+        </summary>
         <div className="beta-person">
-          <span className="avatar">{name.slice(0, 1)}</span>
+          <PersonAvatar name={name} />
           <strong>What’s happening with your team?</strong>
         </div>
         <SocialTextInput api={api} label="Post message" disabled={!ready || busy} value={body} mentions={mentions} onChange={(body,mentions)=>{setBody(body);setMentions(mentions);}} placeholder="Share a win, ask for help, or mention @ERPX assistant…" maxLength={3000}/>

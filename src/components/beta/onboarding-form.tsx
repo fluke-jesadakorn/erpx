@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import betaStyles from "@/components/beta/beta.module.css";
 import { useState } from "react";
 export function OnboardingForm({
@@ -16,7 +18,7 @@ export function OnboardingForm({
         const form = new FormData(e.currentTarget);
         setBusy(true);
         try {
-          const response = await fetch("/api/v1/onboarding", {
+          const response = await workFetch("/api/v1/onboarding", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(Object.fromEntries(form)),

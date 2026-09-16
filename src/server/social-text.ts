@@ -1,3 +1,4 @@
+import {captureJobAuthority} from "./iam-jobs";
 import { z } from "zod";
 import { ASSISTANT_ID, hashtags, validMentionSpan, type Mention, type Suggestion } from "@/lib/social-text";
 import type { SqlDatabase } from "./runtime/types";
@@ -41,12 +42,13 @@ export async function validateMentions(db: SqlDatabase, actor: WorkContext, body
   }
   return mentions;
 }
-export function textStatements(db:SqlDatabase, actor:WorkContext, postId:string, ownerType:"post"|"comment", ownerId:string, body:string, mentions:Mention[]) {
+export async function textStatements(db:SqlDatabase, actor:WorkContext, postId:string, ownerType:"post"|"comment", ownerId:string, body:string, mentions:Mention[]) {
   const now=Date.now(), steps=[];
+  if(mentions.some(m=>m.kind==="agent"))actor=await captureJobAuthority(db,actor);
   for(const m of new Map(mentions.map(m=>[`${m.kind}:${m.targetId}`,m])).values()) {
     steps.push(db.prepare("INSERT INTO social_mentions(owner_type,owner_id,target_kind,target_id,target_label,created_by,created_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(ownerType,ownerId,m.kind,m.targetId,m.label,actor.userId,now));
     if(m.kind==="person" && m.targetId!==actor.userId) steps.push(db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,p.company_id,?,'post',p.id,p.version,'You were mentioned in a conversation',? FROM social_posts p WHERE p.id=? AND ${sourceAccessSql()}`).bind(crypto.randomUUID(),m.targetId,now,postId,m.targetId,now,now));
-    if(m.kind==="agent") steps.push(db.prepare("INSERT INTO social_agent_replies(id,post_id,owner_type,owner_id,company_id,actor_id,actor_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(`agent-${ownerId}`,postId,ownerType,ownerId,actor.companyId,actor.userId,JSON.stringify({userId:actor.userId,assignmentId:actor.assignmentId,role:actor.role,companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId}),now,now));
+    if(m.kind==="agent") steps.push(db.prepare("INSERT INTO social_agent_replies(id,post_id,owner_type,owner_id,company_id,actor_id,actor_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(`agent-${ownerId}`,postId,ownerType,ownerId,actor.companyId,actor.userId,JSON.stringify({userId:actor.userId,assignmentId:actor.assignmentId,role:actor.role,companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId,iam:actor.iam,authority:actor.authority}),now,now));
   }
   for(const tag of new Set(hashtags(body).filter(t=>!mentions.some(m=>t.start<m.end&&t.end>m.start)).map(t=>t.tag))) {
     steps.push(db.prepare("INSERT INTO social_topics(tag,created_by,created_at) VALUES(?,?,?) ON CONFLICT DO NOTHING").bind(tag,actor.userId,now));

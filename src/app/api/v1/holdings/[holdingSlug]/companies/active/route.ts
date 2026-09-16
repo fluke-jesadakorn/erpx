@@ -1,8 +1,10 @@
+import { rememberWorkspace } from "@/server/workspace-preferences";
+import { runtimeEnv } from "@/server/runtime";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
   listWorkspaceCompanies,
-  requireWorkContext,
+  requireAccountAccess,
 } from "@/server/authorization";
 import { ApiError, errorResponse } from "@/server/http";
 
@@ -14,7 +16,7 @@ export async function POST(
 ) {
   try {
     const { holdingSlug } = await context.params;
-    const actor = await requireWorkContext(holdingSlug);
+    const actor = await requireAccountAccess(holdingSlug);
     if (actor.scope.kind !== "holding")
       throw new ApiError(
         409,
@@ -24,11 +26,12 @@ export async function POST(
     const parsed = schema.safeParse(await request.json());
     if (!parsed.success)
       throw new ApiError(422, "VALIDATION_FAILED", "Choose a valid Company.");
-    const companies = await listWorkspaceCompanies(actor.holdingId);
+    const companies = await listWorkspaceCompanies(actor.scope.holdingId);
     if (!companies.some((company) => company.id === parsed.data.companyId))
       throw new ApiError(403, "COMPANY_UNAVAILABLE", "That Company is not available in this Holding.");
+    await rememberWorkspace((await runtimeEnv()).CONTROL_DB,actor.userId,`/holdings/${holdingSlug}/home`,{holdingId:actor.scope.holdingId,companyId:parsed.data.companyId});
     const response = NextResponse.json({ data: { companyId: parsed.data.companyId } });
-    response.cookies.set(`erpx_company_${actor.holdingId}`, parsed.data.companyId, {
+    response.cookies.set(`erpx_company_${actor.scope.holdingId}`, parsed.data.companyId, {
       httpOnly: true,
       sameSite: "lax",
       secure: new URL(request.url).protocol === "https:",

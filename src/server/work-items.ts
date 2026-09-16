@@ -1,3 +1,5 @@
+import {withPolicyReadSnapshot} from "./iam-read-snapshot";
+import { enrichFlowWork, otherFlowWork } from "./flow-work";
 import "server-only";
 import type { WorkContext } from "./authorization";
 import { getDomainWork } from "./domain-work";
@@ -9,6 +11,20 @@ import { employeeRequestWork } from "./employee-requests";
 import { ApiError } from "./http";
 
 export type WorkSnapshot = { items: WorkItem[]; unavailableSources: string[] };
+const activeSnapshots = new Map<string, Promise<WorkSnapshot>>();
+
+function snapshotKey(actor: WorkContext) {
+  return [
+    actor.holdingId,
+    actor.companyId,
+    actor.userId,
+    actor.assignmentId,
+    actor.authority?.revision ?? 0,
+    actor.scope.kind,
+    actor.branchId ?? "",
+    actor.departmentId ?? "",
+  ].join(":");
+}
 export function mergeWorkItems(rows: WorkItem[]) {
   const merged = new Map<string, WorkItem>();
   for (const item of rows) {
@@ -58,7 +74,18 @@ export function nextWorkSteps(items: WorkItem[], now = Date.now()) {
     })
     .slice(0, 3);
 }
-export async function workSnapshot(actor: WorkContext): Promise<WorkSnapshot> {
+export async function workSnapshot(actor:WorkContext):Promise<WorkSnapshot>{
+ const key = snapshotKey(actor);
+ const existing = activeSnapshots.get(key);
+ if (existing) return existing;
+ const snapshot = withPolicyReadSnapshot(()=>readWorkSnapshot(actor));
+ activeSnapshots.set(key, snapshot);
+ void snapshot.finally(() => {
+   if (activeSnapshots.get(key) === snapshot) activeSnapshots.delete(key);
+ }).catch(() => {});
+ return snapshot;
+}
+async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot> {
   const jobs: { label: string; load: () => Promise<WorkItem[]> }[] = [];
   // Each domain adapter resolves a complete applicable grant from all responsibilities.
   // Load each source once; repeating the same query for every role adds latency.
@@ -119,7 +146,8 @@ export async function workSnapshot(actor: WorkContext): Promise<WorkSnapshot> {
         actor,
       ),
   });
-  const settled = await Promise.allSettled(jobs.map((j) => j.load())),
+  jobs.push({label:"Commercial and financial workflows",load:() => otherFlowWork(actor)});
+  const settled = await Promise.allSettled(jobs.map(async (j) => enrichFlowWork(actor,await j.load()))),
     rows: WorkItem[] = [],
     unavailable = new Set<string>();
   settled.forEach((result, i) => {

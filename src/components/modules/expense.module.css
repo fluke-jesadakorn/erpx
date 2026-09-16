@@ -16,7 +16,7 @@
 .claimGrid > * { min-width:0; }
 .evidenceColumn { display:grid; gap:20px; min-width:0; }
 .claimGrid :global(.business-form) { grid-template-columns:repeat(2,minmax(0,1fr)); }
-.claimGrid textarea { width:100%; min-height:90px; padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); }
+.claimGrid textarea { width:100%; min-height:90px; padding:12px; border:1px solid var(--control-border); border-radius:8px; background:var(--card); color:var(--ink); }
 .aiSource { display:flex; flex-wrap:wrap; align-items:center; gap:5px; color:var(--brand); font-size:11px; }
 .aiSource a { color:inherit; text-decoration:underline; text-underline-offset:3px; }
 .receiptPreview { display:block; width:100%; margin:16px 0; }
@@ -28,7 +28,7 @@
 .editor > p { color:var(--muted); font-size:13px; }
 .editor :global(.business-form) { grid-template-columns:repeat(3,minmax(0,1fr)); }
 .claimGrid .editor :global(.business-form) { grid-template-columns:repeat(2,minmax(0,1fr)); }
-.editor textarea { display:block; box-sizing:border-box; width:100%; min-height:90px; margin-top:8px; padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); font:inherit; }
+.editor textarea { display:block; box-sizing:border-box; width:100%; min-height:90px; margin-top:8px; padding:12px; border:1px solid var(--control-border); border-radius:8px; background:var(--card); color:var(--ink); font:inherit; }
 .editor .fields > label { display:block; font-size:13px; color:var(--muted); margin:12px 0; }
 @media(max-width:580px) { .editor :global(.business-form),.claimGrid .editor :global(.business-form) { grid-template-columns:1fr; } }
 .aiExtract { border:1px solid var(--brand); border-radius:12px; background:var(--brand-glow); padding:18px; margin:20px 0 24px; }
@@ -66,6 +66,6 @@
 .checklistActions span { font-size:12px; color:var(--muted); }
 .reason { display:grid; gap:8px; font-size:13px; }
 .reason small { color:var(--muted); font-weight:400; }
-.reason textarea { width:100%; min-height:84px; padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--card); color:var(--ink); font:inherit; }
+.reason textarea { width:100%; min-height:84px; padding:12px; border:1px solid var(--control-border); border-radius:8px; background:var(--card); color:var(--ink); font:inherit; }
 .hint { color:var(--muted); font-size:12px; }
 @media(max-width:640px) { .nextHead { flex-direction:column; } .nextTotal { text-align:left; width:100%; } }

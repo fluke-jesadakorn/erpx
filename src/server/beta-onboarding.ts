@@ -39,6 +39,7 @@ export function memberStatements(
   user: BetaUser,
   owner: boolean,
   invitation: string | null,
+  grant?: { parentId: string; validUntil: number },
 ) {
   const now = Date.now(),
     person = `person-${user.id}`,
@@ -84,7 +85,7 @@ export function memberStatements(
       ),
     db
       .prepare(
-        "INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,valid_until,scope_kind,scope_node_id) VALUES(?,?,?,'[]',?,?,?,? ,?,?) ON CONFLICT DO NOTHING",
+        "INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,valid_until,scope_kind,scope_node_id,parent_id,source) VALUES(?,?,?,'[]',?,?,?,? ,?,?,?,?) ON CONFLICT DO NOTHING",
       )
       .bind(
         `beta-assignment-${user.id}`,
@@ -93,9 +94,11 @@ export function memberStatements(
         company,
         owner ? null : branch,
         now,
-        now + 10 * 365 * 86400000,
+        grant?.validUntil ?? now + 90 * 86400000,
         owner ? "holding" : "branch",
         owner ? null : branch,
+        grant?.parentId ?? null,
+        grant ? "manual" : "legacy",
       ),
   ];
 }

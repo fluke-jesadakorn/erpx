@@ -1,10 +1,12 @@
-import { hasBusinessRole } from "@/lib/responsibilities";
+import { hasPermission } from "@/lib/permissions";
+import { organizationOverview } from "@/server/organization";
 import { BetaPeople } from "@/components/beta/people-page";
 import { holdingResources } from "@/server/runtime";
 import { staffSettings } from "@/server/staff-settings";
 import { canManagePeople, directoryOptions } from "@/server/people-directory";
 import { PeopleEditor } from "@/components/modules/people-editor";
 import Link from "next/link";
+import { PeopleNavigation } from "@/components/modules/people-navigation";
 import { ArrowUpRight } from "lucide-react";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
@@ -23,6 +25,8 @@ import styles from "@/components/workplace/pages.module.css";
 import { companyMembers } from "@/server/member-directory";
 import { MemberProfile } from "@/components/modules/member-profile";
 
+import directory from "./directory.module.css";
+
 export const dynamic = "force-dynamic";
 
 export default async function PeoplePage({
@@ -37,6 +41,7 @@ export default async function PeoplePage({
     department?: string;
     view?: string;
     member?: string;
+    position?:string;
   }>;
 }) {
   const { holdingSlug } = await params;
@@ -54,6 +59,7 @@ export default async function PeoplePage({
   const { write } = await holdingResources(actor.holdingId),
     staffOptions = await staffSettings(write, actor);
   const nodes = canManagePeople(actor) ? await directoryOptions(actor) : [];
+  const organization = canManagePeople(actor) ? await organizationOverview(write,actor) : undefined;
   const filtered = people.filter(
     (p) =>
       (!search.level ||
@@ -88,31 +94,16 @@ export default async function PeoplePage({
         title="People"
         description="Find a teammate or manage their profile."
       />
-      <nav className={styles.tabs} aria-label="People views">
-        <Link
-          href={`${base}/people`}
-          aria-current={!payroll ? "page" : undefined}
-        >
-          Directory
-        </Link>
-        {canPayroll && (
-          <Link
-            href={`${base}/people?view=payroll`}
-            aria-current={payroll ? "page" : undefined}
-          >
-            Payroll
-          </Link>
-        )}
-      </nav>
+      <PeopleNavigation base={base} actor={actor} scopeKind={actor.scope.kind} active={payroll ? "payroll" : "directory"} canPayroll={canPayroll}/>
       {!payroll && (
-        <>
+        <div className={directory.directory}>
           {selectedMember && (
             <MemberProfile actor={actor} base={base} member={selectedMember} />
           )}
           {members.some((m) => !m.personId) &&
             (canManagePeople(actor) ||
               members.some((m) => m.id === actor.userId && !m.personId)) && (
-              <section className="card">
+              <section className={`card ${directory.setup}`}>
                 <h2>Member profile setup</h2>
                 {members
                   .filter(
@@ -133,13 +124,15 @@ export default async function PeoplePage({
             )}
           {canManagePeople(actor) && (
             <PeopleEditor
+              initialPositionId={organization?.positions.some(p=>p.id===search.position)?search.position:undefined}
               base={base}
               nodes={nodes}
               levels={staffOptions.levels}
               people={staffOptions.people}
+              organization={organization}
             />
           )}
-          <form className="business-form card" action={`${base}/people`}>
+          <form className={`business-form card ${directory.search}`} action={`${base}/people`}>
             <label>
               Search people
               <input
@@ -148,8 +141,9 @@ export default async function PeoplePage({
                 placeholder="Name, email or job title"
               />
             </label>
-            <details>
+            <details className={directory.filters} open={Boolean(search.status === "archived" || search.level || search.department)}>
               <summary>More filters</summary>
+              <div className={directory.filterFields}>
               <label>
                 Directory status
                 <select name="status" defaultValue={search.status ?? "current"}>
@@ -164,7 +158,7 @@ export default async function PeoplePage({
                   <option value="unset">Not set</option>
                   {staffOptions.levels.map((l) => (
                     <option key={l.id} value={l.id}>
-                      {l.name} · rank {l.rank}
+                      {l.name} · {l.level_number?`Level ${l.level_number}`:"Legacy level"}
                     </option>
                   ))}
                 </select>
@@ -183,8 +177,9 @@ export default async function PeoplePage({
                   ))}
                 </select>
               </label>
+              </div>
             </details>
-            <button className="button secondary" type="submit">
+            <button className={`button secondary ${directory.searchButton}`} type="submit">
               Search people
             </button>
           </form>
@@ -235,7 +230,7 @@ export default async function PeoplePage({
               )}
             </section>
           </div>
-        </>
+        </div>
       )}
       {payroll && (
         <>
@@ -243,7 +238,7 @@ export default async function PeoplePage({
             Gross-pay preview only. Statutory calculations and payment adapters
             are not yet available.
           </p>
-          {hasBusinessRole(actor, ["holding_owner", "hr_admin", "payroll_preparer"]) &&
+          {hasPermission(actor,"payroll.prepare") &&
             !actor.branchId && (
               <PayrollRunEditor
                 base={base}

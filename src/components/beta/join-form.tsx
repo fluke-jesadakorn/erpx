@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 export function JoinForm({
@@ -18,7 +20,7 @@ export function JoinForm({
         onClick={async () => {
           setBusy(true);
           try {
-            const r = await fetch("/api/v1/join", {
+            const r = await workFetch("/api/v1/join", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ holding, token }),

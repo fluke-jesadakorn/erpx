@@ -106,6 +106,7 @@ async function assigned(kind = "service") {
   const r = await request(kind);
   await act(f.claimant, r.id, "submit");
   if (kind !== "service") await act(f.head, r.id, "approve");
+  if(kind === "purchase"){await act(f.reviewer,r.id,"approve");await act(f.manager,r.id,"approve");}
   await act(f.it, r.id, "assign", { assigneeUserId: f.it.userId });
   await act(f.it, r.id, "start");
   return r;
@@ -442,7 +443,7 @@ it("requires purchasing authority and an approved unchanged request for an atomi
   ).rejects.toMatchObject({ code: "BETA_CAPABILITY_UNAVAILABLE" });
   await expect(
     act(f.it, r.id, "link-order", { purchaseOrderId: "fake" }),
-  ).rejects.toMatchObject({ code: "BUSINESS_ROLE_REQUIRED" });
+  ).rejects.toMatchObject({ code: "PERMISSION_REQUIRED" });
   const grantId = await f.grant(f.it, "purchasing_operator");
   const purchasing = {
     ...f.it,
@@ -476,7 +477,7 @@ it("requires purchasing authority and an approved unchanged request for an atomi
     (await getEmployeeRequest(db, f.it, r.id)).purchase_order_id,
   ).toBeNull();
 });
-it("combines complete applicable responsibility grants without combining unrelated scopes", async () => {
+it("uses only the active responsibility even when other grants exist", async () => {
   const grant = (
     role: string,
     scopeKind = "holding",
@@ -500,15 +501,17 @@ it("combines complete applicable responsibility grants without combining unrelat
       grant("holding_owner", "holding", null, "other-company"),
     ],
   };
-  expect(responsibilityRoles(actor)).toContain("purchasing_operator");
+  expect(responsibilityRoles(actor)).toEqual(["it_admin"]);
   expect(responsibilityRoles(actor)).not.toContain("finance_approver");
-  expect(commercePermissions(actor).purchase).toBe(true);
+  expect(commercePermissions(actor).purchase).toBe(false);
   expect(
     responsibilityContext(actor, ["holding_owner", "finance_approver"]),
   ).toBeNull();
   expect(
-    responsibilityContext(actor, ["purchasing_operator"])?.assignmentId,
-  ).toBe(actor.assignments[1].id);
+    responsibilityContext(actor, ["purchasing_operator"]),
+  ).toBeNull();
+  const purchasing={...actor,role:"purchasing_operator",assignmentId:actor.assignments[1].id};
+  expect(commercePermissions(purchasing).purchase).toBe(true);
 });
 it("keeps handbook drafts, published revisions and search strictly separate", async () => {
   await setHandbookEditor(

@@ -1,3 +1,11 @@
+import { refreshDirectoryMember } from "./iam-directories";
+import type { PostgresDatabase } from "./runtime/postgres";
+import { loadIamAuthority, iamRole } from "./iam-store";
+import type { PermissionActor } from "@/lib/iam";
+import { readCompanyPreference, readWorkspacePreference } from "./workspace-preferences";
+import {cache} from "react";
+import { ApiError } from "./http";
+import { readWorkSelection, restoreWorkSelection, selectWorkRole, type WorkAuthority } from "./work-role-store";
 import type { SqlDatabase } from "./runtime/types";
 import { betaAccess } from "./beta-access";
 import "server-only";
@@ -58,6 +66,10 @@ export type ResolvedWorkspaceScope =
     };
 
 export type WorkContext = {
+  inspection?: true;
+  iam?: PermissionActor["iam"];
+  authority?: WorkAuthority;
+  availableAssignments?: WorkAssignment[];
   beta?: boolean;
   userId: string;
   name: string;
@@ -87,6 +99,7 @@ export type AuthorizedWorkspace = {
 };
 
 export type PlatformContext = {
+  iam?: PermissionActor["iam"];
   userId: string;
   name: string;
   email: string;
@@ -98,6 +111,9 @@ export type PlatformContext = {
 };
 
 export type WorkAssignment = {
+  version?: number;
+  label?: string;
+  validUntil?: number;
   id: string;
   role: string;
   companyId: string | null;
@@ -130,7 +146,7 @@ function cookieValue(cookieHeader: string | null, name: string) {
   }
 }
 
-async function currentSession() {
+export async function currentSession() {
   const requestHeaders = await headers();
   const host = requestHeaders.get("host");
   const localHost =
@@ -190,16 +206,18 @@ export type WorkspaceCompany = { id: string; name: string };
 
 export async function listWorkspaceCompanies(holdingId: HoldingId) {
   const { write } = await holdingResources(holdingId);
-  const result = await write
-    .prepare(
-      `SELECT id,display_name FROM organization_nodes
-       WHERE kind='company' AND status='active' ORDER BY display_name,id`,
-    )
-    .all<{ id: string; display_name: string }>();
-  return result.results.map((company) => ({
-    id: company.id,
-    name: company.display_name,
-  }));
+  const { session } = await currentSession();
+  const now = Date.now();
+  const rows = (await write.prepare(
+    `SELECT n.id,n.display_name,a.role FROM organization_nodes n
+     JOIN assignments a ON a.company_id=n.id
+     WHERE n.kind='company' AND n.status='active' AND a.user_id=?
+       AND a.scope_kind='holding' AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
+       AND a.valid_from<=? AND a.valid_until>?
+     ORDER BY n.display_name,n.id`,
+  ).bind(session.user.id, now, now).all<{id:string;display_name:string;role:string}>()).results;
+  return [...new Map(rows.filter(row => isRoleValidAtScope(row.role, "holding"))
+    .map(row => [row.id, { id: row.id, name: row.display_name }])).values()];
 }
 
 export async function resolveWorkspaceScope(
@@ -209,11 +227,14 @@ export async function resolveWorkspaceScope(
   const { write } = await holdingResources(binding.id);
   if (requested.kind === "holding") {
     const requestHeaders = await headers();
-    const preferred = cookieValue(
+    const contextCompany = requestHeaders.get("x-erpx-context-company");
+    const { session } = await currentSession();
+    const savedCompany = await readCompanyPreference((await runtimeEnv()).CONTROL_DB,session.user.id,binding.id);
+    const preferred = contextCompany ?? savedCompany?.company_id ?? cookieValue(
       requestHeaders.get("cookie"),
       `erpx_company_${binding.id}`,
     );
-    const company = preferred
+    let company = preferred
       ? await write
           .prepare(
             `SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
@@ -228,7 +249,17 @@ export async function resolveWorkspaceScope(
              ORDER BY display_name,id LIMIT 1`,
           )
           .first<OrganizationNode>();
+    if (!company && !contextCompany) {
+      const available=await listWorkspaceCompanies(binding.id);
+      if(available[0]) company=await write.prepare("SELECT id,kind,slug,display_name,parent_id,company_id,branch_id FROM organization_nodes WHERE id=? AND status='active'").bind(available[0].id).first<OrganizationNode>();
+    }
     if (!company) throw new Error("COMPANY_REQUIRED");
+    // Company preference is browser-local and may belong to a previous account.
+    // Recover only to a company this account can actually open at holding scope.
+    const available = await listWorkspaceCompanies(binding.id);
+    if (!contextCompany && available.length && !available.some(item => item.id === company!.id)) {
+      company = { ...company, id: available[0].id };
+    }
     return {
       kind: "holding",
       holdingId: binding.id,
@@ -304,12 +335,6 @@ export async function requestedHoldingScope(
   return { kind: "holding", holdingSlug };
 }
 
-function specificity(assignment: WorkAssignment) {
-  if (assignment.scopeKind === "department") return 3;
-  if (assignment.scopeKind === "branch") return 2;
-  return 1;
-}
-
 async function listAuthorizedWorkspaces(
   database: SqlDatabase,
   holdingSlug: string,
@@ -376,80 +401,56 @@ async function listAuthorizedWorkspaces(
   return workspaces;
 }
 
-export async function requireWorkContext(
-  requested: HoldingWorkspaceScope | string,
-): Promise<WorkContext> {
-  const scope = await resolveWorkspaceScope(
-    typeof requested === "string"
-      ? await requestedHoldingScope(requested)
-      : requested,
-  );
-  const { session, requestHeaders } = await currentSession();
-  const { write } = await holdingResources(scope.holdingId);
-  const now = Date.now();
-  const result = await write
-    .prepare(
-      `SELECT id,role,company_id,branch_id,modules_json,scope_kind,scope_node_id
-       FROM assignments
-       WHERE user_id=? AND revoked_at IS NULL AND valid_from<=? AND valid_until>?
-       ORDER BY valid_until ASC,id ASC`,
-    )
-    .bind(session.user.id, now, now)
-    .all<{
-      id: string;
-      role: string;
-      company_id: string | null;
-      branch_id: string | null;
-      modules_json: string;
-      scope_kind: "holding" | "branch" | "department";
-      scope_node_id: string | null;
-    }>();
-  const assignments: WorkAssignment[] = result.results.map((assignment) => ({
-    id: assignment.id,
-    role: assignment.role,
-    companyId: assignment.company_id,
-    branchId: assignment.branch_id,
-    modules: JSON.parse(assignment.modules_json) as string[],
-    scopeKind: assignment.scope_kind,
-    scopeNodeId: assignment.scope_node_id,
-  })).filter((assignment) => isRoleValidAtScope(assignment.role, assignment.scopeKind));
-  const eligible = assignments
-    .filter((assignment) => assignmentApplies(assignment, scope))
-    .sort((left, right) => specificity(right) - specificity(left));
-  const selectedId = cookieValue(
-    requestHeaders.get("cookie"),
-    `erpx_assignment_${scope.holdingId}`,
-  );
-  const assignment =
-    eligible.find((item) => item.id === selectedId) ?? eligible[0];
-  if (!assignment) throw new Error("FORBIDDEN");
-  const beta = await betaAccess(write,scope.companyId,requestHeaders);
-  const workspaces = await listAuthorizedWorkspaces(
-    write,
-    scope.holdingSlug,
-    assignments.filter((a) => a.companyId === scope.companyId),
-  );
-  return {
-    userId: session.user.id,
-    name: session.user.name,
-    email: session.user.email,
-    assignmentId: assignment.id,
-    role: assignment.role,
-    companyId: scope.companyId,
-    branchId: scope.kind === "holding" ? null : scope.branchId,
-    departmentId: scope.kind === "department" ? scope.departmentId : null,
-    holdingId: scope.holdingId,
-    holdingSlug: scope.holdingSlug,
-    holdingName: scope.holdingName,
-    beta,
-    scope,
-    assignmentScope: assignment.scopeKind,
-    inherited: assignment.scopeKind !== scope.kind,
-    modules: beta ? [] : [...new Set(eligible.flatMap((a) => modulesForRole(a.role, a.modules)))],
-    assignments: eligible,
-    workspaces,
-  };
+export type AccountAccessContext = {
+ sessionId:string; expiresAt:number; userId:string; name:string; email:string;
+ scope:Exclude<ResolvedWorkspaceScope,{kind:"platform"}>; assignments:WorkAssignment[]; requestHeaders:Headers;
+};
+export async function requireAccountAccess(requested:HoldingWorkspaceScope|string):Promise<AccountAccessContext> {
+ const {session,requestHeaders}=await currentSession();
+ const scope=await resolveWorkspaceScope(typeof requested==="string"?await requestedHoldingScope(requested):requested);
+ const {write}=await holdingResources(scope.holdingId),now=Date.now();
+ if(await write.prepare('SELECT 1 FROM iam_revoked_sessions WHERE session_id=? AND company_id=? AND user_id=?').bind(session.session.id,scope.companyId,session.user.id).first())throw new ApiError(401,'SESSION_REVOKED','Sign in again to access this company.');
+ await refreshDirectoryMember(write as PostgresDatabase,scope.companyId,session.user.id);
+ const rows=(await write.prepare(`SELECT a.*,c.display_name company_name,n.display_name scope_name,b.display_name branch_name FROM assignments a
+ JOIN organization_nodes c ON c.id=a.company_id AND c.kind='company' AND c.status='active'
+ LEFT JOIN organization_nodes n ON n.id=a.scope_node_id LEFT JOIN organization_nodes b ON b.id=n.branch_id AND b.id!=n.id
+ WHERE a.user_id=? AND a.company_id=? AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_from<=? AND a.valid_until>?
+ AND (a.scope_kind='holding' OR (n.company_id=a.company_id AND n.status='active' AND (n.branch_id IS NULL OR EXISTS(SELECT 1 FROM organization_nodes b WHERE b.id=n.branch_id AND b.company_id=a.company_id AND b.status='active')))) ORDER BY a.role,a.id`).bind(session.user.id,scope.companyId,now,now).all<{
+ id:string;role:string;company_id:string;branch_id:string|null;modules_json:string;scope_kind:"holding"|"branch"|"department";scope_node_id:string|null;version:number;valid_until:number;company_name:string;scope_name:string|null;branch_name:string|null;
+ }>()).results;
+ const validRows=[]; for(const a of rows){const definition=await iamRole(write,scope.companyId,a.role);if(definition?.scopes.includes(a.scope_kind))validRows.push({...a,roleName:definition.name});}
+ const assignments=validRows.map(a=>({id:a.id,role:a.role,companyId:a.company_id,branchId:a.branch_id,modules:JSON.parse(a.modules_json) as string[],scopeKind:a.scope_kind,scopeNodeId:a.scope_node_id,version:a.version,validUntil:a.valid_until,label:[a.roleName,a.company_name,a.branch_name,a.scope_name].filter(Boolean).join(" · ")}));
+ return {sessionId:session.session.id,expiresAt:new Date(session.session.expiresAt).getTime(),userId:session.user.id,name:session.user.name,email:session.user.email,scope,assignments,requestHeaders};
 }
+export async function requireWorkContext(requested:HoldingWorkspaceScope|string):Promise<WorkContext> {
+ return cachedWorkContext(JSON.stringify(typeof requested==="string"?await requestedHoldingScope(requested):requested));
+}
+const cachedWorkContext=cache(async (key:string):Promise<WorkContext>=>{
+ const requested=JSON.parse(key) as HoldingWorkspaceScope;
+ const access=await requireAccountAccess(requested),{scope}=access;
+ const {write}=await holdingResources(scope.holdingId);
+ let selection=await restoreWorkSelection(write,{sessionId:access.sessionId,userId:access.userId,companyId:scope.companyId,expiresAt:access.expiresAt},access.assignments);
+ const eligible=access.assignments.filter(a=>assignmentApplies(a,scope));
+ if(!selection && access.assignments.length===1 && eligible.length===1) {
+  const a=eligible[0];
+  try {selection=await selectWorkRole(write,{sessionId:access.sessionId,userId:access.userId,companyId:scope.companyId,assignmentId:a.id,assignmentVersion:a.version!,revision:0,expiresAt:access.expiresAt});}
+  catch(error){selection=await readWorkSelection(write,access.sessionId,access.userId,scope.companyId);if(!selection)throw error;}
+ }
+ if(!selection) throw new ApiError(409,"WORK_ROLE_REQUIRED","Choose a work role to continue.");
+ const assignment=eligible.find(a=>a.id===selection.assignment_id && a.version===selection.assignment_version);
+ if(!assignment || selection.expires_at<=Date.now()) throw new ApiError(409,"WORK_ROLE_UNAVAILABLE","Your selected role no longer covers this workspace. Choose an available role.");
+ const method=access.requestHeaders.get("x-erpx-method");
+ if((access.requestHeaders.has("x-erpx-context-revision") || method && !["GET","HEAD","OPTIONS"].includes(method)) && (access.requestHeaders.get("x-erpx-context-revision")!==String(selection.revision) || access.requestHeaders.get("x-erpx-context-company")!==scope.companyId || access.requestHeaders.get("x-erpx-context-assignment")!==assignment.id))
+  throw new ApiError(409,"WORK_CONTEXT_CHANGED","Your work role changed. Reload and review before submitting.");
+ const beta=await betaAccess(write,scope.companyId,access.requestHeaders);
+ const iam=await loadIamAuthority(write,scope.companyId,access.userId,assignment.role,access.sessionId);
+ return {iam,userId:access.userId,name:access.name,email:access.email,assignmentId:assignment.id,role:assignment.role,
+ companyId:scope.companyId,branchId:scope.kind==="holding"?null:scope.branchId,departmentId:scope.kind==="department"?scope.departmentId:null,
+ holdingId:scope.holdingId,holdingSlug:scope.holdingSlug,holdingName:scope.holdingName,beta,scope,assignmentScope:assignment.scopeKind,
+ inherited:assignment.scopeKind!==scope.kind,modules:beta?[]:assignment.role.startsWith("custom_")?[...new Set(iam.permissions.filter(p=>p.startsWith("module.")).map(p=>p.split(".")[1]))]:modulesForRole(assignment.role,assignment.modules),assignments:[assignment],availableAssignments:access.assignments,
+ authority:{sessionId:access.sessionId,revision:selection.revision,assignmentVersion:assignment.version!},
+ workspaces:await listAuthorizedWorkspaces(write,scope.holdingSlug,access.assignments)};
+});
 
 export async function requirePlatformContext(): Promise<PlatformContext> {
   const { session, requestHeaders } = await currentSession();
@@ -457,7 +458,7 @@ export async function requirePlatformContext(): Promise<PlatformContext> {
   const now = Date.now();
   const result = await env.CONTROL_DB.prepare(
     `SELECT id,role,modules_json FROM platform_assignments
-     WHERE user_id=? AND revoked_at IS NULL AND valid_from<=? AND valid_until>?
+     WHERE user_id=? AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,'platform',floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND revoked_at IS NULL AND valid_from<=? AND valid_until>?
      ORDER BY valid_until ASC,id ASC`,
   )
     .bind(session.user.id, now, now)
@@ -471,14 +472,17 @@ export async function requirePlatformContext(): Promise<PlatformContext> {
     scopeKind: "platform" as const,
     scopeNodeId: null,
   })).filter((assignment) => isRoleValidAtScope(assignment.role, "platform"));
+  if(await env.CONTROL_DB.prepare("SELECT 1 FROM iam_revoked_sessions WHERE session_id=? AND company_id='platform' AND user_id=?").bind(session.session.id,session.user.id).first())throw new ApiError(401,'SESSION_REVOKED','Sign in again to continue.');
+  const savedPlatform=await readWorkspacePreference(env.CONTROL_DB,session.user.id);
   const selectedId = cookieValue(
     requestHeaders.get("cookie"),
     "erpx_assignment_platform",
-  );
+  ) ?? savedPlatform?.platform_assignment_id;
   const assignment =
     assignments.find((item) => item.id === selectedId) ?? assignments[0];
   if (!assignment) throw new Error("FORBIDDEN");
   return {
+    iam: await loadIamAuthority(env.CONTROL_DB,"platform",session.user.id,assignment.role,session.session.id),
     userId: session.user.id,
     name: session.user.name,
     email: session.user.email,
@@ -544,8 +548,8 @@ export async function firstAuthorizedWorkspace(
   ];
   for (const candidate of candidates) {
     try {
-      await requireWorkContext(candidate);
-      return candidate;
+      const account=await requireAccountAccess(candidate);
+      if(account.assignments.some(assignment=>assignmentApplies(assignment,account.scope)))return candidate;
     } catch {
       // Continue to the next active workspace candidate.
     }

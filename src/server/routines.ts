@@ -142,8 +142,8 @@ function templateAuthorityGuard(
     db,
     key,
     "template-authority",
-    "EXISTS(SELECT 1 FROM routine_templates t WHERE t.id=? AND t.company_id=? AND (t.creator_user_id=? OR EXISTS(SELECT 1 FROM assignments a WHERE a.user_id=? AND a.company_id=t.company_id AND a.role='holding_owner' AND a.scope_kind='holding' AND a.revoked_at IS NULL AND a.valid_from<=? AND a.valid_until>?)))",
-    [id, actor.companyId, actor.userId, actor.userId, now, now],
+    "EXISTS(SELECT 1 FROM routine_templates t WHERE t.id=? AND t.company_id=? AND (t.creator_user_id=? OR EXISTS(SELECT 1 FROM assignments a WHERE a.id=? AND a.company_id=t.company_id AND iam_role_allows(a.role,a.company_id,'company.owner') AND a.scope_kind='holding' AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_from<=? AND a.valid_until>?)))",
+    [id, actor.companyId, actor.userId, actor.assignmentId, now, now],
   );
 }
 export async function saveTemplate(

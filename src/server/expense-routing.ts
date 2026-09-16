@@ -1,3 +1,9 @@
+import {policyRead} from "./iam-read-snapshot";
+import {personIdentityIds} from "./iam-person";
+import { organizationRoster } from "./organization";
+import { reportingIssues } from "@/lib/organization";
+import { spendingTemplate } from "./spending-templates";
+import type { SpendingKind } from "@/lib/spending";
 import type { SqlDatabase } from "./runtime/types";
 import { ApiError } from "./http";
 import {
@@ -16,15 +22,17 @@ import { assertion } from "./commands";
 const authoritySnapshotSql = `SELECT jsonb_build_object(
  'organization',(SELECT erpx_json_array_agg(jsonb_build_object('id',id,'status',status,'parent',parent_id,'branch',branch_id)) FROM (SELECT * FROM organization_nodes WHERE company_id=? ORDER BY id)),
  'people',(SELECT erpx_json_array_agg(jsonb_build_object('id',id,'user',user_id,'status',status,'merged',merged_into_id)) FROM (SELECT * FROM hr_people WHERE company_id=? ORDER BY id)),
- 'engagements',(SELECT erpx_json_array_agg(jsonb_build_object('id',id,'person',person_id,'version',version,'status',status,'branch',branch_id,'department',department_id,'level',level_id,'manager',manager_person_id,'start',start_date,'end',end_date)) FROM (SELECT * FROM hr_engagements WHERE company_id=? ORDER BY id)),
- 'levels',(SELECT erpx_json_array_agg(jsonb_build_object('id',id,'rank',rank,'active',active)) FROM (SELECT * FROM staff_levels WHERE company_id=? ORDER BY id)),
- 'assignments',(SELECT erpx_json_array_agg(jsonb_build_object('id',id,'user',user_id,'role',role,'scope',scope_kind,'node',scope_node_id)) FROM (SELECT * FROM assignments WHERE company_id=? AND revoked_at IS NULL AND valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) ORDER BY id))
+ 'engagements',(SELECT erpx_json_array_agg(jsonb_build_object('id',id,'person',person_id,'version',version,'status',status,'branch',branch_id,'department',department_id,'level',level_id,'manager',manager_person_id,'start',start_date,'end',end_date,'position',position_id)) FROM (SELECT * FROM hr_engagements WHERE company_id=? ORDER BY id)),
+ 'levels',(SELECT erpx_json_array_agg(jsonb_build_object('id',id,'rank',rank,'number',level_number,'active',active)) FROM (SELECT * FROM staff_levels WHERE company_id=? ORDER BY id)),
+ 'positions',(SELECT erpx_json_array_agg(to_jsonb(p)) FROM (SELECT * FROM organization_positions WHERE company_id=? ORDER BY id) p),
+ 'template',(SELECT to_jsonb(t) FROM spending_approval_templates t WHERE company_id=?),
+ 'assignments',(SELECT erpx_json_array_agg(jsonb_build_object('id',id,'user',user_id,'role',role,'scope',scope_kind,'node',scope_node_id)) FROM (SELECT * FROM assignments WHERE company_id=? AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) ORDER BY id))
 ) snapshot`;
 export async function expenseAuthoritySnapshot(
   db: SqlDatabase,
   companyId: string,
 ) {
-  const args = [companyId, companyId, companyId, companyId, companyId];
+  const args = Array(7).fill(companyId) as string[];
   const row = await db
     .prepare(authoritySnapshotSql)
     .bind(...args)
@@ -46,7 +54,10 @@ export {
   type ExpenseStage,
 } from "@/lib/expense-workflow";
 
-export async function expenseRoleUsers(
+export async function expenseRoleUsers(db:SqlDatabase,scope:RecordScope,role:string|null){
+ return (await policyRead(db,JSON.stringify(["role-users",scope.company_id,scope.branch_id,scope.department_id,role]),()=>readExpenseRoleUsers(db,scope,role))).slice();
+}
+async function readExpenseRoleUsers(
   db: SqlDatabase,
   scope: RecordScope,
   role: string | null,
@@ -55,7 +66,7 @@ export async function expenseRoleUsers(
   const rows = await db
     .prepare(
       `SELECT staff.user_id FROM (${activeStaffSelect}) staff WHERE EXISTS (
-    SELECT 1 FROM assignments a WHERE a.user_id=staff.user_id AND a.company_id=? AND (?::text IS NULL OR a.role=?) AND a.revoked_at IS NULL AND a.valid_from<=? AND a.valid_until>?
+    SELECT 1 FROM assignments a WHERE a.user_id=staff.user_id AND a.company_id=? AND (?::text IS NULL OR iam_role_allows(a.role,a.company_id,'workflow.'||?)) AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_from<=? AND a.valid_until>?
     AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=?) OR (a.scope_kind='department' AND a.scope_node_id=?)))
     AND (?::text IS NULL OR EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=staff.company_id AND kind='branch' AND status='active'))
     AND (?::text IS NULL OR EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=staff.company_id AND kind='department' AND status='active'))
@@ -81,7 +92,7 @@ export async function expenseRoleUsers(
   return rows.results.map((row) => row.user_id);
 }
 
-export async function expenseRoute(
+export async function legacyExpenseRoute(
   db: SqlDatabase,
   companyId: string,
   userId: string,
@@ -278,22 +289,29 @@ export async function expensePoolCandidates(
       accounting_json: string;
     }>();
   if (!claim) return [];
-  const forbidden = new Set([
+  const snapshot = JSON.parse(step.route_snapshot_json ?? "{}") as {spendingPolicy?:number};
+  if (snapshot.spendingPolicy) return spendingStepCandidates(db,instance,claim.claimant_user_id,[claim.prepared_by],{
+    snapshot:JSON.parse(step.route_snapshot_json??"{}"),
+    stage:step.stage ?? undefined, requiredRole:step.required_role ?? undefined,
+    candidateUserIds:JSON.parse(step.approver_pool_json ?? "[]"),
+  }, steps.filter(s=>s.ordinal<step.ordinal && s.state==="approved").map(s=>s.approver_user_id));
+
+  const forbidden = new Set(await personIdentityIds(db,instance.company_id,[
     claim.claimant_user_id,
     claim.prepared_by,
     ...steps
       .filter((s) => s.ordinal < step.ordinal && s.state === "approved")
       .map((s) => s.approver_user_id),
-  ]);
+  ]));
   if (step.stage === "accounts_approval") {
     const accounting = JSON.parse(claim.accounting_json) as {
       preparedBy?: string;
     };
-    if (accounting.preparedBy) forbidden.add(accounting.preparedBy);
+    if(accounting.preparedBy)for(const id of await personIdentityIds(db,instance.company_id,[accounting.preparedBy]))forbidden.add(id);
   }
   let current: string[] = [];
   if (step.stage === "department_approval") {
-    const route = await expenseRoute(
+    const route = await legacyExpenseRoute(
       db,
       instance.company_id,
       claim.claimant_user_id,
@@ -302,7 +320,7 @@ export async function expensePoolCandidates(
     current = route.steps[0]?.candidateUserIds ?? [];
   } else if (step.required_role)
     current = await expenseRoleUsers(db, instance, step.required_role);
-  const saved = JSON.parse(step.approver_pool_json ?? "[]") as string[];
+  const saved = await personIdentityIds(db,instance.company_id,JSON.parse(step.approver_pool_json ?? "[]") as string[]);
   const candidates = current.filter(
     (id) => saved.includes(id) && !forbidden.has(id),
   );
@@ -322,5 +340,86 @@ export async function expensePoolCandidates(
 
 /** Employee resource requests reuse department eligibility, without expense finance stages. */
 export function resourceRequestRoute(db: SqlDatabase, companyId: string, requester: string, preparer: string) {
-  return expenseRoute(db, companyId, requester, [preparer], true);
+  return legacyExpenseRoute(db, companyId, requester, [preparer], true);
+}
+
+/** Current employment, mapped level and valid reporting data, evaluated per participant. */
+export async function spendingUsers(db:SqlDatabase,scope:RecordScope,role:string|null){
+ return (await policyRead(db,JSON.stringify(["spending-users",scope.company_id,scope.branch_id,scope.department_id,role]),()=>readSpendingUsers(db,scope,role))).slice();
+}
+async function readSpendingUsers(db:SqlDatabase, scope:RecordScope, role:string|null) {
+  const roster=await organizationRoster(db,scope.company_id);
+  const accounts=new Set(await expenseRoleUsers(db,scope,role));
+  const today=new Date().toISOString().slice(0,10);
+  return roster.people.filter(p=>p.user_id && accounts.has(p.user_id) && p.status==="active" && p.person_status==="active" && p.start_date<=today && (!p.end_date||p.end_date>=today)
+    && !reportingIssues(p,roster.people,roster.positions).length
+    && (role!=="finance_approver" || (p.level_number!==null && p.level_number<=4)));
+}
+
+export async function expenseRoute(db:SqlDatabase, companyId:string, userId:string, excluded:string[]=[], departmentOnly=false, kind:SpendingKind="expense"):Promise<ApprovalRoute> {
+  if(departmentOnly)return legacyExpenseRoute(db,companyId,userId,excluded,true);
+  let scope:RecordScope={company_id:companyId,branch_id:null,department_id:null};
+  try {
+    const guard=await expenseAuthoritySnapshot(db,companyId);
+    const staff=await activeStaff(db,companyId,userId); scope=staff;
+    const roster=await organizationRoster(db,companyId), person=roster.people.find(p=>p.engagement_id===staff.engagement_id);
+    if(!person)throw new ApiError(409,"STAFF_LINK_REQUIRED","Complete the requester’s People profile.");
+    const issues=reportingIssues(person,roster.people,roster.positions);
+    // Explicit missing-supervisor exceptions are considered after base profile validation.
+    const template=await spendingTemplate(db,companyId);
+    const exception=template.exceptions.filter(e=>(!e.positionId||e.positionId===person.position_id)&&(!e.requestKind||e.requestKind===kind))
+      .sort((a,b)=>(Number(!!b.positionId)*2+Number(!!b.requestKind))-(Number(!!a.positionId)*2+Number(!!a.requestKind)))[0];
+    const remaining=issues.filter(i=>!exception || i!=="Assign a reporting manager.");
+    if(remaining.length)throw new ApiError(409,"REQUESTER_SETUP_REQUIRED",remaining.join(" "));
+    const forbidden=new Set([userId,...excluded]);
+    const eligible=await spendingUsers(db,scope,"people_manager"), eligibleByPerson=new Map(eligible.map(p=>[p.person_id,p]));
+    // The exception may exempt a missing manager, but never requester account/scope access.
+    if(!(await expenseRoleUsers(db,scope,null)).includes(userId))throw new ApiError(409,"REQUESTER_SCOPE_REQUIRED","The requester’s account must cover this branch and department.");
+    const ceo=roster.positions.some(p=>p.id===person.position_id&&p.active===1&&p.is_ceo===1);
+    let supervisor:string|null=null;
+    const skip=ceo||exception?.action==="skip_supervisor";
+    if(!skip){
+      let manager=person.manager_person_id;
+      const seen=new Set<string>([person.person_id]);
+      while(manager){
+        if(seen.has(manager))throw new ApiError(409,"REPORTING_CYCLE","Repair the reporting cycle in People.");seen.add(manager);
+        const candidate=eligibleByPerson.get(manager);
+        if(candidate?.user_id&&!forbidden.has(candidate.user_id)&&candidate.level_number!<person.level_number!){supervisor=candidate.user_id;break;}
+        manager=roster.people.find(p=>p.person_id===manager)?.manager_person_id??null;
+      }
+      if(exception?.action==="named_supervisor"){
+        const candidate=eligible.find(p=>p.user_id===exception.supervisorUserId&&p.level_number!<person.level_number!&&!forbidden.has(p.user_id!));
+        supervisor=candidate?.user_id??null;
+      }
+      if(!supervisor)throw new ApiError(409,"SUPERVISOR_REQUIRED","Assign an active People Manager role covering this request to an eligible, strictly more senior reporting supervisor, or configure an explicit company exception.");
+    }
+    const pools=await Promise.all(["finance_preparer","finance_approver","treasury"].map(async role=>(await spendingUsers(db,scope,role)).map(p=>p.user_id!).filter(id=>!forbidden.has(id)&&id!==supervisor)));
+    const [preparers,reviewers,payers]=pools;
+    const feasible=preparers.some(p=>reviewers.some(r=>r!==p&&payers.some(t=>t!==p&&t!==r)));
+    if(!feasible)throw new ApiError(409,"SPENDING_TEAM_REQUIRED","Complete independent Accounting preparer, Accounting approver (Level 1–4), and Finance/Treasury payer profiles and scoped access.");
+    const snapshot={spendingPolicy:1,templateVersion:template.version,requestKind:kind,positionId:person.position_id,requesterLevel:person.level_number,exception:exception??(ceo?{reason:"Designated CEO skips organizational approval only."}:null),excluded};
+    return {scope,blockedReason:null,checks:[guard],steps:[
+      ...(supervisor?[{userId:supervisor,authority:"named" as const,candidateUserIds:[supervisor],requiredRole:"people_manager",stage:"department_approval",snapshot}]:[]),
+      {userId:preparers[0],authority:"named",candidateUserIds:preparers,requiredRole:"finance_preparer",stage:"accounts_review",snapshot},
+      {userId:reviewers[0],authority:"named",candidateUserIds:reviewers,requiredRole:"finance_approver",stage:"accounts_approval",snapshot},
+    ]};
+  } catch(error){if(!(error instanceof ApiError))throw error;return {scope,steps:[],blockedReason:error.message};}
+}
+
+/** Revalidate saved participants; never resolve a new reporting chain behind an existing decision. */
+export async function spendingStepCandidates(db:SqlDatabase, scope:RecordScope, requester:string, preparers:string[], step:{stage?:string;requiredRole?:string;candidateUserIds?:string[];snapshot?:Record<string,unknown>}, decisions:string[]) {
+  const forbidden=new Set(await personIdentityIds(db,scope.company_id,[requester,...preparers,...decisions]));
+  const saved=await personIdentityIds(db,scope.company_id,step.candidateUserIds??[]);
+  const members=await spendingUsers(db,scope,step.requiredRole??(step.stage==="department_approval"?"people_manager":null));
+  const claimant=await activeStaff(db,scope.company_id,requester).catch(()=>null);
+  if(!claimant?.level_number)return [];
+  const roster=await organizationRoster(db,scope.company_id),person=roster.people.find(p=>p.engagement_id===claimant.engagement_id);
+  const exception=step.snapshot?.exception as {action?:string}|undefined;
+  if(!person||reportingIssues(person,roster.people,roster.positions).some(i=>!(i==="Assign a reporting manager."&&exception?.action)))return [];
+  const candidates=members.filter(p=>saved.includes(p.user_id!)&&!forbidden.has(p.user_id!)&&(step.stage!=="department_approval"||p.level_number!<claimant.level_number!)).map(p=>p.user_id!);
+  const payers=(await spendingUsers(db,scope,"treasury")).map(p=>p.user_id!).filter(id=>!forbidden.has(id));
+  if(step.stage==="accounts_approval")return candidates.filter(id=>payers.some(p=>p!==id));
+  const reviewers=(await spendingUsers(db,scope,"finance_approver")).map(p=>p.user_id!).filter(id=>!forbidden.has(id));
+  if(step.stage==="accounts_review")return candidates.filter(id=>reviewers.some(r=>r!==id&&payers.some(p=>p!==id&&p!==r)));
+  return candidates;
 }

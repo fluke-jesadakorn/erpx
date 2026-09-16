@@ -1,5 +1,7 @@
+import { requirePermission } from "@/server/iam-permissions";
+import { samePerson } from "@/lib/iam";
+import { hasWorkflowPermission } from "@/lib/permissions";
 import type { SqlDatabase, SqlStatement } from "./runtime/types";
-import { requireBusinessRole } from "./responsibilities";
 // Database-only domain code shared by the Next.js server and jobs Worker.
 import { z } from "zod";
 import type { WorkContext } from "./authorization";
@@ -7,7 +9,7 @@ import type { RecordScope, ApprovalRoute } from "./staff-policy";
 import { activeStaff, notification } from "./staff-policy";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
-import { resourceRequestRoute } from "./expense-routing";
+import { resourceRequestRoute, expenseRoute, spendingStepCandidates, expenseAuthoritySnapshot } from "./expense-routing";
 import {
   serviceCategories,
   categoryLabel,
@@ -111,7 +113,9 @@ export type EmployeeRequest = RecordScope & {
   created_at: number;
   updated_at: number;
 };
-type SavedApproval = {
+export type SavedApproval = {
+  currentStep?: number;
+  decisions?: {stage:string;userId:string;note:string;at:number;version:number}[];
   pool?: string[];
   decision?: string;
   decidedBy?: string;
@@ -136,7 +140,7 @@ export function requestVersionGuard(
   );
 }
 export function requestOwn(actor: WorkContext, row: EmployeeRequest) {
-  return [row.requester_user_id, row.created_by].includes(actor.userId);
+  return [row.requester_user_id, row.created_by].some(id=>samePerson(actor,id));
 }
 async function requestAccess(
   db: SqlDatabase,
@@ -159,24 +163,23 @@ async function requestAccess(
   let route: ApprovalRoute | null = null,
     pool: string[] = [];
   if (row.state === "awaiting_approval") {
-    route = await resourceRequestRoute(
-      db,
-      row.company_id,
-      row.requester_user_id,
-      row.created_by,
-    );
-    pool = (route.steps[0]?.candidateUserIds ?? []).filter((id) =>
-      saved.pool?.includes(id),
-    );
+    if(saved.route?.steps.some(s=>s.snapshot?.spendingPolicy)) {
+      route=saved.route;
+      const step=route.steps[saved.currentStep??0];
+      pool=step?await spendingStepCandidates(db,row,row.requester_user_id,[row.created_by],{...step,candidateUserIds:saved.pool},(saved.decisions??[]).map(d=>d.userId)):[];
+    } else {
+      route = await resourceRequestRoute(db,row.company_id,row.requester_user_id,row.created_by);
+      pool = (route.steps[0]?.candidateUserIds ?? []).filter(id=>saved.pool?.includes(id));
+    }
   }
   const own = requestOwn(actor, row),
-    approver = pool.includes(actor.userId);
+    approver = pool.some(id=>samePerson(actor,id)) && hasWorkflowPermission(actor,route?.steps[saved.currentStep ?? 0]?.requiredRole ?? "people_manager");
   if (
     !own &&
     !owner &&
     !member &&
     !approver &&
-    saved.decidedBy !== actor.userId
+    !saved.decisions?.some(d=>samePerson(actor,d.userId)) && !samePerson(actor,saved.decidedBy)
   )
     throw new ApiError(
       404,
@@ -257,7 +260,7 @@ export async function employeeRequestDetail(
     actions.push("assign");
   if (!terminal.includes(row.state) && !editable.includes(row.state))
     actions.push("comment");
-  const handler = !!access.member && row.assignee_user_id === actor.userId;
+  const handler = !!access.member && samePerson(actor,row.assignee_user_id);
   if (handler && row.state === "queued") actions.push("start");
   if (handler && row.state === "in_progress")
     actions.push(
@@ -323,9 +326,11 @@ export async function employeeRequestDetail(
       if (!(e instanceof ApiError) || e.status !== 404) throw e;
     }
   }
+  const approvalStage=access.saved.route?.steps[access.saved.currentStep??0]?.stage;
+  const approvalLabel=approvalStage==="accounts_review"?"Accounting preparation":approvalStage==="accounts_approval"?"Accounting approval (Level 1–4)":"Supervisor approval";
   const responsible =
     row.state === "awaiting_approval"
-      ? "Department approval"
+      ? approvalLabel
       : row.state === "waiting_requester" ||
           ["resolved", "fulfilled"].includes(row.state)
         ? "Requester"
@@ -335,7 +340,7 @@ export async function employeeRequestDetail(
   const next = blocked
     ? "Resolve routing issue"
     : row.state === "awaiting_approval"
-      ? "Review purpose and requested resources"
+      ? approvalStage==="accounts_review"?"Prepare planned spending details":approvalStage==="accounts_approval"?"Approve planned spending before ordering":"Review purpose and requested resources"
       : row.state === "queued"
         ? row.assignee_user_id
           ? "Start work"
@@ -615,12 +620,7 @@ async function submittedRoute(db: SqlDatabase, row: EmployeeRequest) {
       "REQUESTER_LOCATION_REQUIRED",
       "Use the requester’s active branch and department. Review their People profile.",
     );
-  return resourceRequestRoute(
-    db,
-    row.company_id,
-    row.requester_user_id,
-    row.created_by,
-  );
+  return row.kind === "purchase" ? expenseRoute(db,row.company_id,row.requester_user_id,[row.created_by],false,"purchase") : resourceRequestRoute(db,row.company_id,row.requester_user_id,row.created_by);
 }
 export async function actOnEmployeeRequest(
   db: SqlDatabase,
@@ -630,6 +630,7 @@ export async function actOnEmployeeRequest(
   key: string,
 ) {
   const snapshot = await serviceAuthoritySnapshot(db, actor.companyId);
+  const spendingSnapshot = await expenseAuthoritySnapshot(db, actor.companyId);
   const current = await getEmployeeRequest(db, actor, id),
     detail = await employeeRequestDetail(db, actor, id),
     operation = `employee.request.${input.action}`;
@@ -662,6 +663,7 @@ export async function actOnEmployeeRequest(
   const statements: SqlStatement[] = [
     ...snapshot(key),
     requestVersionGuard(db, key, current),
+    spendingSnapshot.guard(key,"purchase-approval-authority"),
   ];
   const requiredNote = [
     "approve",
@@ -721,7 +723,8 @@ export async function actOnEmployeeRequest(
       row.blocked_reason = route.blockedReason;
       row.approval_json = JSON.stringify({
         pool: route.steps[0]?.candidateUserIds ?? [],
-        route,
+        route: {...route,checks:undefined},
+        currentStep:0, decisions:[],
         version: row.version,
         evidenceVersion: row.evidence_version,
       });
@@ -733,23 +736,20 @@ export async function actOnEmployeeRequest(
     } else await routeTeam();
   } else if (input.action === "approve") {
     const access = await requestAccess(db, actor, current);
-    if (!access.pool.includes(actor.userId))
+    if (!access.pool.some(id=>samePerson(actor,id)))
       throw new ApiError(
         403,
         "APPROVER_UNAVAILABLE",
         "Current independent department authority is required.",
       );
-    row.approval_json = JSON.stringify({
-      ...access.saved,
-      decision: "approved",
-      decidedBy: actor.userId,
-      reviewedVersion: current.version,
-      evidenceVersion: current.evidence_version,
-      decisionAt: Date.now(),
-    });
-    evidence.approval = JSON.parse(row.approval_json);
-    evidence.attachments = await requestAttachments(db, id);
-    await routeTeam();
+    const strict=access.saved.route?.steps.some(s=>s.snapshot?.spendingPolicy);
+    const currentStep=access.saved.currentStep??0;
+    const decisions=[...(access.saved.decisions??[]),{stage:access.saved.route?.steps[currentStep]?.stage??"department_approval",userId:actor.userId,note:input.note,at:Date.now(),version:current.version}];
+    const next=strict?access.saved.route?.steps[currentStep+1]:null;
+    row.approval_json=JSON.stringify({...access.saved,decisions,currentStep:currentStep+1,pool:next?.candidateUserIds??[],decision:next?"pending":"approved",decidedBy:actor.userId,reviewedVersion:current.version,evidenceVersion:current.evidence_version,decisionAt:Date.now()});
+    evidence.approval=JSON.parse(row.approval_json);
+    evidence.attachments=await requestAttachments(db,id);
+    if(next){row.state="awaiting_approval";extra.push(...(next.candidateUserIds??[]));}else await routeTeam();
   } else if (input.action === "return" || input.action === "reject") {
     row.state = input.action === "return" ? "returned" : "rejected";
     row.team_id = null;
@@ -870,11 +870,13 @@ export async function actOnEmployeeRequest(
         );
       row.approval_json = JSON.stringify({
         pool: input.approverUserId ? [input.approverUserId] : pool,
-        route,
+        route: {...route,checks:undefined},
+        currentStep:0,decisions:[],
         repairedBy: actor.userId,
         version: row.version,
         evidenceVersion: row.evidence_version,
       });
+      for(const [i,c] of (route?.checks??[]).entries()) statements.push(assertion(db,key,`request-repair-${i}`,c.query,c.args));
       row.state = "awaiting_approval";
       row.blocked_reason = null;
       extra.push(...(input.approverUserId ? [input.approverUserId] : pool));
@@ -886,7 +888,7 @@ export async function actOnEmployeeRequest(
         "BETA_CAPABILITY_UNAVAILABLE",
         "Purchasing execution is unavailable in this beta workspace.",
       );
-    actor = requireBusinessRole(actor, ["holding_owner","purchasing_manager","purchasing_operator"]);
+    actor = requirePermission(actor,"commerce.purchase");
     if (!input.purchaseOrderId)
       throw new ApiError(422, "ORDER_REQUIRED", "Choose a purchase order.");
     const order=await db.prepare("SELECT kind,company_id,branch_id,department_id,state,version FROM commerce_orders WHERE id=? AND company_id=?").bind(input.purchaseOrderId,row.company_id).first<{kind:string;company_id:string;branch_id:string;department_id:string|null;state:string;version:number}>();
@@ -938,7 +940,7 @@ export async function actOnEmployeeRequest(
       ...(
         await db
           .prepare(
-            "SELECT DISTINCT user_id FROM assignments WHERE company_id=? AND role='holding_owner' AND scope_kind='holding' AND revoked_at IS NULL AND valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint)",
+            "SELECT DISTINCT user_id FROM assignments WHERE company_id=? AND iam_role_allows(role,company_id,'company.owner') AND scope_kind='holding' AND revoked_at IS NULL AND valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint)",
           )
           .bind(row.company_id)
           .all<{ user_id: string }>()
@@ -1001,7 +1003,7 @@ export async function listEmployeeRequests(db: SqlDatabase, actor: WorkContext) 
     await db
       .prepare(
         `SELECT r.* FROM employee_requests r WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) AND
-    (?=1 OR requester_user_id=? OR created_by=? OR EXISTS(SELECT 1 FROM service_team_members m WHERE m.team_id=r.team_id AND m.company_id=r.company_id AND m.user_id=?) OR EXISTS(SELECT 1 FROM erpx_json_each(r.approval_json,'$.pool') WHERE value=?) OR erpx_json_extract(r.approval_json,'$.decidedBy')=?) ORDER BY updated_at DESC,id LIMIT 150`,
+    (?=1 OR iam_same_person(requester_user_id,?,r.company_id) OR iam_same_person(created_by,?,r.company_id) OR EXISTS(SELECT 1 FROM service_team_members m WHERE m.team_id=r.team_id AND m.company_id=r.company_id AND m.user_id=?) OR EXISTS(SELECT 1 FROM erpx_json_each(r.approval_json,'$.pool') WHERE value=?) OR erpx_json_extract(r.approval_json,'$.decidedBy')=? OR EXISTS(SELECT 1 FROM jsonb_array_elements(COALESCE(r.approval_json::jsonb -> 'decisions','[]')) decision WHERE decision ->> 'userId'=?)) ORDER BY updated_at DESC,id LIMIT 150`,
       )
       .bind(
         actor.companyId,
@@ -1010,6 +1012,7 @@ export async function listEmployeeRequests(db: SqlDatabase, actor: WorkContext) 
         actor.departmentId,
         actor.departmentId,
         owner ? 1 : 0,
+        actor.userId,
         actor.userId,
         actor.userId,
         actor.userId,
@@ -1129,11 +1132,7 @@ export async function prepareRequestOrderHandoff(
       "BETA_CAPABILITY_UNAVAILABLE",
       "Purchasing execution is unavailable in beta.",
     );
-  actor = requireBusinessRole(actor, [
-    "holding_owner",
-    "purchasing_manager",
-    "purchasing_operator",
-  ]);
+  actor = requirePermission(actor,"commerce.purchase");
   const snap = await serviceAuthoritySnapshot(db, actor.companyId),
     detail = await employeeRequestDetail(db, actor, requestId),
     row = detail.request;

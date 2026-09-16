@@ -11,7 +11,7 @@ for (const connection of Object.values(manifest.databases)) {
   const url = new URL(connection as string);
   if (
     url.hostname !== "127.0.0.1" ||
-    url.port !== "5434" ||
+    url.port !== "5432" ||
     !url.pathname.startsWith("/erpx_dev_")
   )
     throw new Error("LOCAL_DEV_DATABASE_REQUIRED");

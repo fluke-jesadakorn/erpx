@@ -1,30 +1,31 @@
 import { test, expect, type Page } from "@playwright/test";
-import {
-  moduleRegistry,
-  moduleHref,
-  liveDestination,
-  type WorkspaceKind,
-} from "../../src/data/module-registry";
-import samples from "../../src/data/preview/module-samples.json";
 test.use({ actionTimeout: 15000 });
-async function verifyResponsibility(page: Page, role: RegExp) {
-  await page
-    .getByRole("button", { name: "Workspace menu", exact: true })
-    .click();
-  const menu = page.getByRole("dialog", { name: "Workspace", exact: true });
-  await expect(menu.getByText(role, { exact: true })).toBeVisible();
-  await expect(
-    menu.getByRole("link", { name: "All responsibilities", exact: true }),
-  ).toBeVisible();
-  await page.keyboard.press("Escape");
-}
-async function login(page: Page, owner = true) {
+async function login(page: Page) {
   await page.goto("/login");
-  await page.getByLabel("Work email").fill("mali@erpx.dev");
-  await page.getByLabel("Password", { exact: true }).fill("Mali-ERPX-2026!");
+  await page.getByLabel("Work email").fill(
+    process.env.ERPX_E2E_ADMIN_EMAIL ?? "jesadakorn.kirtnu@gmail.com",
+  );
+  await page.getByLabel("Password", { exact: true }).fill(
+    process.env.ERPX_E2E_ADMIN_PASSWORD ?? "12345678",
+  );
+  const signIn = page.waitForResponse((response) =>
+    response.url().endsWith("/api/auth/sign-in/email"),
+  );
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  expect((await signIn).ok()).toBe(true);
+  await page.goto("/holdings/acme/home");
   await expect(page).toHaveURL(/\/holdings\/acme\/home$/);
-  if (owner) await verifyResponsibility(page, /holding owner/i);
+  if (!(await page.getByText(/Working as holding owner/i).count())) {
+    await page.getByRole("button", { name: /Account menu for/ }).click();
+    const role = page.getByRole("combobox", {
+      name: "Role for actions & approvals",
+    });
+    await role.fill("holding owner");
+    await Promise.all([
+      page.waitForEvent("load"),
+      page.getByRole("listbox").getByRole("option").click(),
+    ]);
+  }
 }
 test("canonical workspace routes and legacy aliases retain their scope", async ({
   page,
@@ -38,7 +39,8 @@ test("canonical workspace routes and legacy aliases retain their scope", async (
     "/platform/home",
     "/holdings/acme/home",
     "/holdings/acme/branches/bangkok/home",
-    "/holdings/acme/departments/finance/home",
+    // The current local roster places Finance inside Bangkok Operations.
+    "/holdings/acme/branches/bangkok/departments/finance/home",
     "/holdings/acme/branches/bangkok/departments/people/home",
   ])
     expect((await page.request.get(path)).status(), path).toBe(200);
@@ -52,94 +54,114 @@ test("canonical workspace routes and legacy aliases retain their scope", async (
   await expect(page).toHaveURL(/settings\?section=organization$/);
   expect((await page.request.get("/h/h001/home")).status()).toBe(404);
 });
-test("all 31 module entry points, live capabilities and sample records resolve", async ({
+test("development module and generic record UI routes are unavailable without redirects", async ({
   page,
 }, info) => {
   test.skip(
     info.project.name !== "desktop",
     "Route coverage is independent of viewport.",
   );
-  test.setTimeout(300000);
   await login(page);
-  for (const tool of moduleRegistry) {
-    expect(
-      (await page.request.get(`/holdings/acme/modules/${tool.id}`)).ok(),
-      tool.id,
-    ).toBeTruthy();
-    for (const section of tool.sections.filter((s) => s.capability)) {
-      const response = await page.request.get(
-        moduleHref("/holdings/acme", tool, section.id),
-      );
-      expect(response.ok(), `${tool.id}/${section.id}`).toBeTruthy();
-      if (!liveDestination(tool.id, section.id)) {
-        const html = await response.text();
-        expect(html).toContain(`data-section="${section.id}"`);
-        expect(html).toContain('data-source="live"');
-        expect(html).not.toContain("Persisted in local D1");
-      }
-    }
-    const record = samples[tool.id as keyof typeof samples].rows[0][0];
-    for (const view of ["details", "form", "review"]) {
-      const response = await page.request.get(
-        `/holdings/acme/preview/records/${tool.id}/${encodeURIComponent(record)}?view=${view}`,
-      );
-      expect(response.ok()).toBeTruthy();
-      expect(await response.text()).toContain('data-source="sample"');
-    }
+  for (const path of [
+    "/holdings/acme/modules",
+    "/holdings/acme/modules/finance/ledger",
+    "/platform/modules",
+    "/platform/modules/finance/ledger",
+    "/holdings/acme/preview/records/finance/sample-record",
+    "/holdings/acme/records/finance/new",
+    "/holdings/acme/records/finance/record-1",
+  ]) {
+    const response = await page.request.get(path, { maxRedirects: 0 });
+    expect(response.status(), path).toBe(404);
+    expect(response.headers().location, path).toBeUndefined();
   }
-  await page.goto("/holdings/acme/modules/missing/unknown");
-  await expect(
-    page.getByRole("heading", { name: "This view isn’t available" }),
-  ).toBeVisible();
 });
-test("browsing filters and preview pages do not issue business mutations", async ({
+test("desktop and mobile navigation place live business destinations correctly", async ({
   page,
-}) => {
-  await login(page);
-  const writes: string[] = [];
-  page.on("request", (r) => {
-    if (r.url().includes("/api/v1/") && !["GET", "HEAD"].includes(r.method()))
-      writes.push(r.url());
-  });
-  const tool = moduleRegistry.find((m) => m.id === "organization")!,
-    section = tool.sections[0];
-  await page.goto(moduleHref("/holdings/acme", tool, section.id));
-  await page.getByRole("searchbox").fill("no-such-record");
-  await page.getByRole("button", { name: "Apply", exact: true }).click();
-  await expect(page).toHaveURL(/q=no-such-record/);
-  await page.goBack();
-  await page.goto(
-    `/holdings/acme/preview/records/finance/${encodeURIComponent(samples.finance.rows[0][0])}?view=form`,
-  );
-  await expect(page.locator('main[data-source="sample"]')).toBeVisible();
-  expect(writes).toEqual([]);
-});
-test("four primary destinations, More, search and account appearance work with keyboard", async ({
-  page,
-}) => {
+}, info) => {
+  if (info.project.name === "desktop")
+    await page.setViewportSize({ width: 1440, height: 650 });
   await login(page);
   const nav = page
     .getByRole("navigation", { name: /^(Primary|Mobile navigation)$/ })
     .filter({ visible: true });
-  await expect(nav.getByRole("link")).toHaveCount(3);
+  for (const destination of ["Home", "Work", "Inbox"])
+    await expect(
+      nav.getByRole("link", { name: new RegExp(`^${destination}(?:\\s|$)`) }),
+    ).toBeVisible();
+  for (const destination of ["People", "Operations", "Finance", "Projects"])
+    await expect(nav.getByRole("link", { name: destination, exact: true })).toHaveCount(info.project.name === "desktop" ? 1 : 0);
   await expect(
     nav.getByRole("link", { name: "Inbox", exact: true }),
   ).toBeVisible();
-  await nav.getByRole("button", { name: "More navigation" }).click();
-  const more = page.getByRole("dialog", { name: "More", exact: true });
+  const moreButton = nav.getByRole("button", { name: "More navigation" });
+  if (info.project.name === "desktop")
+    await expect(moreButton).toHaveAttribute("aria-expanded", "true");
+  else await moreButton.click();
+  const more =
+    info.project.name === "desktop"
+      ? nav
+      : page.getByRole("dialog", { name: "More", exact: true });
+  for (const destination of ["People", "Operations", "Finance", "Projects"])
+    await expect(
+      more.getByRole("link", { name: destination, exact: true }),
+    ).toHaveCount(1);
+  await expect(
+    more.getByRole("button", { name: "Collapse People" }),
+  ).toHaveAttribute("aria-expanded", "true");
+  const peopleParentIcon = more
+    .getByRole("link", { name: "People", exact: true })
+    .locator("svg")
+    .first();
+  const organizationChildIcon = more
+    .getByRole("link", { name: "Organization", exact: true })
+    .locator("svg")
+    .first();
+  await expect(peopleParentIcon).toHaveAttribute("width", "18");
+  await expect(organizationChildIcon).toHaveAttribute("width", "15");
+  await expect(organizationChildIcon).toHaveAttribute("stroke-width", "1.7");
+  await more.getByRole("button", { name: "Collapse People" }).click();
+  await expect(
+    more.getByRole("button", { name: "Expand People" }),
+  ).toHaveAttribute("aria-expanded", "false");
+  await more.getByRole("button", { name: "Expand People" }).click();
   await expect(
     more.getByRole("link", { name: "Administration" }),
   ).toBeVisible();
   await expect(
     more.getByRole("link", { name: "Updates", exact: true }),
   ).toHaveCount(0);
-  await page.keyboard.press("Escape");
-  await expect(nav.getByRole("button")).toBeFocused();
+  if (info.project.name === "desktop") {
+    await moreButton.click();
+    await expect(moreButton).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      nav.getByRole("link", { name: "Administration" }),
+    ).toHaveCount(0);
+    await page.waitForTimeout(300);
+    await expect(moreButton).toHaveCount(1);
+    await expect(moreButton).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      nav.getByRole("link", { name: "Administration" }),
+    ).toHaveCount(0);
+    await moreButton.click();
+    await expect(moreButton).toHaveAttribute("aria-expanded", "true");
+    await expect(
+      nav.getByRole("link", { name: "Administration" }),
+    ).toBeVisible();
+    await page.setViewportSize({ width: 1440, height: 2200 });
+    await expect(moreButton).toHaveCount(0);
+    await expect(
+      nav.getByRole("link", { name: "Administration" }),
+    ).toBeVisible();
+  } else {
+    await page.keyboard.press("Escape");
+    await expect(moreButton).toBeFocused();
+  }
   await page.getByRole("button", { name: "Search workspace" }).click();
   const dialog = page.getByRole("dialog", { name: "Go to…" });
-  await dialog.getByRole("textbox").fill("bank reconciliation");
+  await dialog.getByRole("textbox").fill("Finance");
   await dialog.getByRole("link").first().click();
-  await expect(page).toHaveURL(/finance\/bank/);
+  await expect(page).toHaveURL(/\/finance$/);
   await page.keyboard.press("ControlOrMeta+k");
   await expect(dialog).toBeVisible();
   await page.keyboard.press("Escape");
@@ -155,20 +177,18 @@ test("four primary destinations, More, search and account appearance work with k
     .click();
   await expect(page.getByRole("heading", { name: "Your inbox" })).toBeVisible();
 });
-test("breadcrumb returns to module parents", async ({ page }, info) => {
+test("breadcrumb returns to live business parents", async ({ page }, info) => {
   test.skip(
     info.project.name !== "desktop",
     "Mobile uses the compact workspace menu.",
   );
   await login(page);
-  const m = moduleRegistry.find((m) => m.id === "organization")!;
-  await page.goto(moduleHref("/holdings/acme", m, m.primary[0]));
+  await page.goto("/holdings/acme/people/organization");
   const crumb = page.getByRole("navigation", { name: "Breadcrumb" });
-  await expect(crumb).toContainText(m.name);
-  await crumb.getByRole("link", { name: "Modules", exact: true }).click();
-  await expect(page).toHaveURL(/\/modules$/);
+  await expect(crumb).toContainText("People");
+  await expect(crumb).toContainText("Organization");
 });
-test("nine workspace layouts and daily administration pages fit three widths and both themes", async ({
+test("live workspace pages fit three widths and both themes", async ({
   page,
 }, info) => {
   test.skip(
@@ -177,29 +197,17 @@ test("nine workspace layouts and daily administration pages fit three widths and
   );
   test.setTimeout(300000);
   await login(page);
-  const representatives = new Map<WorkspaceKind, string>();
-  for (const m of moduleRegistry)
-    for (const section of m.sections)
-      if (
-        !liveDestination(m.id, section.id) &&
-        !representatives.has(section.kind)
-      )
-        representatives.set(
-          section.kind,
-          moduleHref("/holdings/acme", m, section.id),
-        );
-  expect(representatives.size).toBe(9);
   const routes = [
-    ...representatives.entries(),
-    ...[
-      "home",
-      "work",
-      "people",
-      "inbox",
-      "settings?section=organization",
-      "settings?section=approvals",
-    ].map((x) => [x, `/holdings/acme/${x}`]),
-  ];
+    "home",
+    "work",
+    "inbox",
+    "people",
+    "commerce",
+    "finance",
+    "projects",
+    "settings?section=organization",
+    "settings?section=approvals",
+  ].map((route) => [route, `/holdings/acme/${route}`]);
   for (const theme of ["light", "dark"])
     for (const width of [390, 768, 1440]) {
       await page.context().addCookies([
@@ -237,32 +245,34 @@ test("learn retains captioned lessons", async ({ page }) => {
   const source = await video.locator("source").getAttribute("src");
   expect((await page.request.get(source!)).ok()).toBeTruthy();
 });
-test("module directory filters are shareable and inaccessible tools are absent", async ({
+test("restricted staff sees only authorized live destinations", async ({
   page,
-}) => {
+}, info) => {
   await login(page);
-  await page.goto("/holdings/acme/modules");
-  await page.getByLabel("Search modules").fill("finance");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page).toHaveURL(/q=finance/);
-  await expect(
-    page.getByRole("heading", { name: "Finance", exact: true }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Inventory", exact: true }),
-  ).toHaveCount(0);
-  await page.context().clearCookies();
-  const memberLogin = await page.request.post("/api/auth/sign-in/email", {
-    data: { email: "ava@erpx.dev", password: "Ava-ERPX-2026!" },
+  await page.getByRole("button", { name: /Account menu for/ }).click();
+  const role = page.getByRole("combobox", {
+    name: "Role for actions & approvals",
   });
-  expect(memberLogin.status(), await memberLogin.text()).toBe(200);
-  await page.goto("/holdings/acme/branches/bangkok/modules");
-  await expect(page.getByRole("button", { name: /Account menu for Ava/ })).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: /People & Payroll/ }),
-  ).toBeVisible();
-  await expect(page.getByRole("link", { name: /Finance/ })).toHaveCount(0);
-  await expect(page.getByText("No access", { exact: false })).toHaveCount(0);
+  await role.fill("operations manager");
+  await Promise.all([
+    page.waitForEvent("load"),
+    page.getByRole("listbox").getByRole("option").click(),
+  ]);
+  const nav = page
+    .getByRole("navigation", { name: /^(Primary|Mobile navigation)$/ })
+    .filter({ visible: true });
+  if (info.project.name === "desktop") {
+    await expect(nav.getByRole("link", { name: "People", exact: true })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Operations", exact: true })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Finance", exact: true })).toHaveCount(0);
+  } else {
+    await nav.getByRole("button", { name: "More navigation" }).click();
+    const more = page.getByRole("dialog", { name: "More", exact: true });
+    await expect(more.getByRole("link", { name: "People", exact: true })).toBeVisible();
+    await expect(more.getByRole("link", { name: "Operations", exact: true })).toBeVisible();
+    await expect(more.getByRole("link", { name: "Finance", exact: true })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+  }
   await page.getByRole("button", { name: "Search workspace" }).click();
   const search = page.getByRole("dialog", { name: "Go to…" });
   await search.getByRole("textbox").fill("Finance");
@@ -273,7 +283,7 @@ test("module directory filters are shareable and inaccessible tools are absent",
     page.getByRole("heading", { name: "Live work notifications" }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("navigation", { name: "Inbox views" }),
+    page.getByRole("navigation", { name: "Inbox sections" }),
   ).toBeVisible();
 });
 test("post drafts survive failures and collapsed UI; dialogs retain keyboard focus", async ({
@@ -337,6 +347,10 @@ test("Administration consolidates tools without granting staff approval manageme
   page,
   browser,
 }, info) => {
+  test.skip(
+    info.project.name !== "desktop",
+    "Administration policy is viewport-independent; mobile hierarchy is covered separately.",
+  );
   await login(page);
   await page.goto("/holdings/acme/settings?section=organization");
   await expect(
@@ -349,13 +363,16 @@ test("Administration consolidates tools without granting staff approval manageme
     page.getByRole("heading", { name: "Approval routing administration" }),
   ).toHaveCount(0);
   await page
+    .getByRole("navigation", { name: "Administration sections" })
     .getByRole("link", { name: "Approvals & routines", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: "Approval issues", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Routine templates", exact: true }),
+    page
+      .locator("#workspace-content")
+      .getByRole("link", { name: "Routine templates", exact: true }),
   ).toBeVisible();
   await page.goto("/holdings/acme/settings?section=people");
   await expect(
@@ -370,19 +387,25 @@ test("Administration consolidates tools without granting staff approval manageme
     const p = await c.newPage();
     await p.goto("/");
     await expect(p).toHaveURL(/branches\/new-york\/home$/);
-    await p
-      .getByRole("button", { name: "More navigation" })
-      .filter({ visible: true })
-      .click();
+    const primaryNavigation = p
+      .getByRole("navigation", { name: /^(Primary|Mobile navigation)$/ })
+      .filter({ visible: true });
+    const secondaryToggle = primaryNavigation.getByRole("button", {
+      name: "More navigation",
+    });
+    if (info.project.name !== "desktop") await secondaryToggle.click();
+    const secondaryNavigation =
+      info.project.name === "desktop"
+        ? primaryNavigation
+        : p.getByRole("dialog", { name: "More", exact: true });
     await expect(
-      p
-        .getByRole("dialog", { name: "More", exact: true })
-        .getByRole("link", { name: "Administration", exact: true }),
+      secondaryNavigation.getByRole("link", {
+        name: "Administration",
+        exact: true,
+      }),
     ).toBeVisible();
     await expect(
-      p
-        .getByRole("dialog", { name: "More", exact: true })
-        .getByRole("link", { name: "Help & feedback" }),
+      secondaryNavigation.getByRole("link", { name: "Help & feedback" }),
     ).toBeVisible();
     await p.getByRole("link", { name: "Administration", exact: true }).click();
     await expect(

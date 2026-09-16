@@ -1,3 +1,5 @@
+
+import { workFetch } from "@/lib/work-fetch";
 import { prepareDocumentPages } from "./document-pages";
 
 export const receiptTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
@@ -14,7 +16,7 @@ export function createReceiptUploader() {
     let attempt = attempts.get(file);
     if (!attempt) {
       progress(`Uploading ${file.name}…`);
-      const response = await fetch(`/api/v1${base}/uploads`, {
+      const response = await workFetch(`/api/v1${base}/uploads`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ownerType: payment ? "expense_payment" : "expense_claim", ownerId,
           purpose: payment ? "payment_slip" : "merchant_receipt", filename: file.name, mediaType: file.type, bytes: file.size }),
@@ -24,7 +26,7 @@ export function createReceiptUploader() {
       attempt = { url: result.data.uploadUrl }; attempts.set(file, attempt);
     }
     if (!attempt.original) {
-      const response = await fetch(attempt.url, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
+      const response = await workFetch(attempt.url, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
       const result = await response.json();
       if (!response.ok) throw Error(result.error?.message ?? "Unable to upload receipt.");
       attempt.original = { id: result.data.id, checksum: result.data.checksum };
@@ -34,7 +36,7 @@ export function createReceiptUploader() {
       try {
         await prepareDocumentPages(file, async (page, total, image) => {
           progress(`Preparing ${file.name} · page ${page} of ${total}…`);
-          const response = await fetch(`/api/v1${base}/attachments/${original.id}/derivatives?page=${page}&total=${total}&original=${original.checksum}`, {
+          const response = await workFetch(`/api/v1${base}/attachments/${original.id}/derivatives?page=${page}&total=${total}&original=${original.checksum}`, {
             method: "POST", headers: { "Content-Type": "image/jpeg", "Idempotency-Key": `render-${original.id}-${page}` }, body: image,
           });
           const result = await response.json();

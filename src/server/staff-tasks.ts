@@ -1,3 +1,4 @@
+import {samePerson} from "@/lib/iam";
 import type { SqlDatabase, SqlStatement } from "./runtime/types";
 import { readablePost } from "./social-source";
 import { taskSourceStatements, type TaskSource } from "./social-task";
@@ -110,7 +111,7 @@ const scope = (r: RecordScope) => ({
   departmentId: r.department_id,
 });
 const taskSelect = `SELECT t.*,o.post_id source_post_id,p.title project_title,p.owner_user_id project_owner_id,COALESCE(a.legal_name,t.assignee_user_id) assignee_name,COALESCE(c.legal_name,t.creator_user_id) creator_name FROM staff_tasks t LEFT JOIN social_task_origins o ON o.task_id=t.id LEFT JOIN staff_projects p ON p.id=t.project_id AND p.company_id=t.company_id LEFT JOIN hr_people a ON a.user_id=t.assignee_user_id AND a.company_id=t.company_id AND a.merged_into_id IS NULL LEFT JOIN hr_people c ON c.user_id=t.creator_user_id AND c.company_id=t.company_id AND c.merged_into_id IS NULL`;
-const taskAccess = `(t.creator_user_id=? OR t.assignee_user_id=? OR p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members pm WHERE pm.project_id=t.project_id AND pm.user_id=?) OR EXISTS(SELECT 1 FROM erpx_json_each(t.start_approvers_json) WHERE value=?) OR EXISTS(SELECT 1 FROM erpx_json_each(t.completion_approvers_json) WHERE value=?) OR ${participantSql("task", "t")})`;
+const taskAccess = `(iam_same_person(t.creator_user_id,?,t.company_id) OR iam_same_person(t.assignee_user_id,?,t.company_id) OR iam_same_person(p.owner_user_id,?,t.company_id) OR EXISTS(SELECT 1 FROM staff_project_members pm WHERE pm.project_id=t.project_id AND pm.user_id=?) OR EXISTS(SELECT 1 FROM erpx_json_each(t.start_approvers_json) WHERE value=?) OR EXISTS(SELECT 1 FROM erpx_json_each(t.completion_approvers_json) WHERE value=?) OR ${participantSql("task", "t")})`;
 export async function listTasks(
   db: SqlDatabase,
   actor: StaffActor,
@@ -157,8 +158,8 @@ export async function getTask(db: SqlDatabase, actor: StaffActor, id: string) {
 }
 export function canConfigureTask(actor: StaffActor, task: TaskRow) {
   return (
-    task.creator_user_id === actor.userId ||
-    task.project_owner_id === actor.userId
+    samePerson(actor,task.creator_user_id) ||
+    samePerson(actor,task.project_owner_id)
   );
 }
 function configurationGuard(
@@ -171,7 +172,7 @@ function configurationGuard(
     db,
     key,
     "task-configure",
-    "EXISTS(SELECT 1 FROM staff_tasks t LEFT JOIN staff_projects p ON p.id=t.project_id AND p.company_id=t.company_id WHERE t.id=? AND t.company_id=? AND (t.creator_user_id=? OR p.owner_user_id=?))",
+    "EXISTS(SELECT 1 FROM staff_tasks t LEFT JOIN staff_projects p ON p.id=t.project_id AND p.company_id=t.company_id WHERE t.id=? AND t.company_id=? AND (iam_same_person(t.creator_user_id,?,t.company_id) OR iam_same_person(p.owner_user_id,?,t.company_id)))",
     [task.id, actor.companyId, actor.userId, actor.userId],
   );
 }
@@ -227,7 +228,7 @@ export async function saveProject(
   if (prior) return prior;
   const staff = await activeStaff(db, actor.companyId, actor.userId),
     current = id ? await getProject(db, actor, id) : null;
-  if (current && current.owner_user_id !== actor.userId)
+  if (current && !samePerson(actor,current.owner_user_id))
     throw new ApiError(
       403,
       "PROJECT_OWNER_REQUIRED",
@@ -494,7 +495,7 @@ export async function taskDetail(
   const task = await getTask(db, actor, id),
     approval = await approvalView(db, "task", id, actor),
     manage = canConfigureTask(actor, task),
-    assigned = task.assignee_user_id === actor.userId;
+    assigned = samePerson(actor,task.assignee_user_id);
   let blockedReason = approval.blockedReason ?? task.blocked_reason;
   if (!["completed", "cancelled"].includes(task.state)) {
     const phases: ("start" | "completion")[] =
@@ -712,6 +713,6 @@ export function canAttachTask(actor: StaffActor, task: TaskRow) {
   return (
     (task.state === "draft" && canConfigureTask(actor, task)) ||
     (["in_progress", "rework"].includes(task.state) &&
-      task.assignee_user_id === actor.userId)
+      samePerson(actor,task.assignee_user_id))
   );
 }

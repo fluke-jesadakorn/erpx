@@ -1,0 +1,17 @@
+.updates { display: grid; gap: 24px; }
+.day h2 { font-size: 13px; color: var(--muted); font-weight: 550; margin: 0 0 10px; }
+.group { border: 1px solid var(--line); border-radius: 14px; background: var(--card); overflow: hidden; }
+.row { display: flex; align-items: center; gap: 16px; padding: 14px 18px; }
+.row + .row { border-top: 1px solid var(--line); }
+.row > svg { color: var(--muted); }
+.body { min-width: 0; flex: 1; }
+.body a { display: flex; align-items: center; min-height: 44px; font-size: 14px; overflow-wrap: anywhere; color: var(--ink-strong); }
+.body a:hover { color: var(--brand); }
+.body time { color: var(--muted); font-size: 12px; }
+.row[data-unread="true"] { box-shadow: inset 3px 0 var(--brand); }
+.row[data-unread="true"] .body a { font-weight: 600; }
+@media (max-width:650px) {
+  .row { padding: 12px; gap: 10px; flex-wrap: wrap; }
+  .body { flex-basis: calc(100% - 36px); }
+  .row > button { margin-left: 30px; }
+}

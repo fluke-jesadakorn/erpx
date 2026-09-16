@@ -66,6 +66,9 @@ export function betaHandler(resource = "beta") {
                       .positive()
                       .parse(query.get("before"))
                   : undefined,
+                limit: query.has("limit")
+                  ? z.coerce.number().int().min(1).max(20).parse(query.get("limit"))
+                  : undefined,
               });
         else if (path[0] === "meta")
           data = {

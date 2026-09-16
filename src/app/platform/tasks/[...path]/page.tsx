@@ -6,7 +6,7 @@ export default async function PlatformTaskPage() {
   return (
     <main className="content" data-source="sample">
       <PageHeader
-        eyebrow="Platform task"
+        eyebrow="Platform preview"
         title="Control-plane work item"
         description="Platform tasks remain isolated from every customer Holding."
       />

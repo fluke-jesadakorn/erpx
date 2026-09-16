@@ -4,6 +4,7 @@
   grid-template-columns: 1fr 1fr;
   background: var(--card);
 }
+.formPanel .notice { padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--brand-soft); color: var(--ink); line-height: 1.6; }
 .story {
   display: flex;
   flex-direction: column;

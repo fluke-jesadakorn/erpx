@@ -1,3 +1,8 @@
+import { sealSecret } from "../src/server/iam-mfa";
+import { loadIamAuthority } from "../src/server/iam-store";
+import { selectWorkRole } from "../src/server/work-role-store";
+import { decideIamReview,validateIamGrant,grantInput } from "../src/server/iam-service";
+import { iamActorFromWork } from "../src/server/iam-context";
 import { drainSocialAgent, retryAgentReply } from "../src/server/social-agent";
 import { textSuggestions } from "../src/server/social-text";
 import type { Mention } from "../src/lib/social-text";
@@ -72,6 +77,22 @@ beforeAll(async () => {
     env.CONTROL_TEST_MIGRATIONS as TestMigration[],
   );
 });
+async function freshIam(actor:WorkContext){
+ const now=Date.now(),sessionId=key();
+ await control.prepare('INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(?,?,?,1,?,?) ON CONFLICT DO NOTHING').bind(actor.userId,actor.name,actor.email,now,now).run();
+ await control.prepare('INSERT INTO session(id,"expiresAt",token,"createdAt","updatedAt","userId") VALUES(?,?,?,?,?,?)').bind(sessionId,new Date(now+86400000).toISOString(),key(),new Date().toISOString(),new Date().toISOString(),actor.userId).run();
+ await control.prepare('INSERT INTO iam_mfa(user_id,secret,enabled) VALUES(?,?,true) ON CONFLICT DO NOTHING').bind(actor.userId,await sealSecret('JBSWY3DPEHPK3PXP')).run();
+ await control.prepare('INSERT INTO iam_mfa_sessions VALUES(?,?,?)').bind(sessionId,actor.userId,now).run();
+ await selectWorkRole(db,{sessionId,userId:actor.userId,companyId:actor.companyId,assignmentId:actor.assignmentId,assignmentVersion:1,revision:0,expiresAt:now+86400000});
+ actor.authority={sessionId,assignmentVersion:1,revision:1};actor.iam=await loadIamAuthority(db,actor.companyId,actor.userId,actor.role);return actor;
+}
+async function approveInvitation(){
+ const id=key(),assignmentId=key(),second={...owner,userId:id,name:'Independent reviewer',email:id+'@example.test',assignmentId,authority:undefined};
+ await db.prepare("INSERT INTO assignments(id,user_id,role,company_id,scope_kind,modules_json,valid_from,valid_until) VALUES(?,?,'holding_owner',?,'holding','[]',0,?)").bind(assignmentId,id,company,Date.now()+100*86400000).run();
+ await freshIam(second);
+ const pending=await db.prepare("SELECT id FROM iam_reviews WHERE company_id=? AND kind='beta.invitation' AND status='pending'").bind(company).first<{id:string}>();
+ const actor=iamActorFromWork(second);await decideIamReview(db,actor,pending!.id,{expectedVersion:1,decision:'approve',reason:'Verified invitation role and expiry'},key(),async(c,kind,p)=>{expect(kind).toBe('beta.invitation');for(const grant of p.grants as unknown[])await validateIamGrant(c,actor,grantInput.parse(grant),String(p.parentId));});
+}
 beforeEach(async () => {
   company = `co-${key()}`;
   branch = `br-${key()}`;
@@ -129,7 +150,7 @@ beforeEach(async () => {
       workspaces: [],
     };
   };
-  owner = await staff("Owner", "holding_owner");
+  owner = await freshIam(await staff("Owner", "holding_owner"));
   worker = await staff("Worker", "employee");
   reviewer = await staff("Reviewer", "employee");
 });
@@ -616,6 +637,8 @@ describe("tenant admission and verified invitations", () => {
     await expect(
       acceptMember(db, { ...user, emailVerified: false }, token),
     ).rejects.toMatchObject({ code: "VERIFY_EMAIL" });
+    await expect(acceptMember(db,user,token)).rejects.toMatchObject({code:'INVITATION_REVIEW_REQUIRED'});
+    await approveInvitation();
     await acceptMember(db, user, token);
     await acceptMember(db, user, token);
     expect(
@@ -659,6 +682,8 @@ describe("tenant admission and verified invitations", () => {
       key(),
       token,
     );
+    await expect(acceptMember(db,user,token)).rejects.toMatchObject({code:'INVITATION_REVIEW_REQUIRED'});
+    await approveInvitation();
     await acceptMember(db, user, token);
     await acceptMember(db, user, token);
     const assignments = (
@@ -805,7 +830,7 @@ describe("inline mentions, hashtags and assistant replies",()=>{
 
 it("scopes people/record suggestions and notifies only readable mentioned people",async()=>{
  for(const actor of [owner,worker,reviewer]) await control.batch([
-  control.prepare('INSERT INTO "user"(id,name,email,"createdAt","updatedAt") VALUES(?,?,?,1,1)').bind(actor.userId,actor.name,actor.email),
+  control.prepare('INSERT INTO "user"(id,name,email,"createdAt","updatedAt") VALUES(?,?,?,1,1) ON CONFLICT(id) DO NOTHING').bind(actor.userId,actor.name,actor.email),
   control.prepare("INSERT INTO principals(id,user_id,display_name,created_at) VALUES(?,?,?,1)").bind(actor.userId,actor.userId,actor.name),
  ]);
  // Reviewer belongs to another branch and must not receive a branch-post notification.

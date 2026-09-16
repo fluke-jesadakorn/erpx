@@ -4,6 +4,7 @@ import type { SqlDatabase, SqlStatement } from "./runtime/types";
 import { runtimeEnv } from "./runtime";
 import { ApiError } from "./http";
 import { assertion, executeCommand } from "./commands";
+import { ensureOrganizationChannels, organizationMemberSql } from "./organization-channels";
 import type {
   MessagingPerson,
   MessagingRoom,
@@ -45,8 +46,9 @@ export const messageSchema = z
   );
 
 const active = `EXISTS(SELECT 1 FROM assignments a WHERE a.company_id=r.company_id AND a.user_id=? AND a.revoked_at IS NULL AND a.valid_from<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND a.valid_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint)`;
-const access = `${active} AND ((r.kind IN ('direct','group') AND EXISTS(SELECT 1 FROM messaging_room_members m WHERE m.room_id=r.id AND m.user_id=?)) OR (r.kind='channel' AND EXISTS(SELECT 1 FROM messaging_team_members t WHERE t.team_id=r.team_id AND t.user_id=?) AND (NOT r.private OR EXISTS(SELECT 1 FROM messaging_room_members m WHERE m.room_id=r.id AND m.user_id=?))))`;
+const access = `${active} AND ((r.organization_node_id IS NULL AND ((r.kind IN ('direct','group') AND EXISTS(SELECT 1 FROM messaging_room_members m WHERE m.room_id=r.id AND m.user_id=?)) OR (r.kind='channel' AND EXISTS(SELECT 1 FROM messaging_team_members t WHERE t.team_id=r.team_id AND t.user_id=?) AND (NOT r.private OR EXISTS(SELECT 1 FROM messaging_room_members m WHERE m.room_id=r.id AND m.user_id=?))))) OR (r.organization_node_id IS NOT NULL AND EXISTS(SELECT 1 FROM organization_nodes n WHERE n.id=r.organization_node_id AND n.company_id=r.company_id AND n.status='active' AND ${organizationMemberSql("n","?")})))`;
 const accessArgs = (actor: WorkContext) => [
+  actor.userId,
   actor.userId,
   actor.userId,
   actor.userId,
@@ -94,12 +96,12 @@ async function team(
 ) {
   const row = await db
     .prepare(
-      `SELECT t.* FROM messaging_teams t WHERE t.id=? AND t.company_id=? AND EXISTS(SELECT 1 FROM messaging_team_members m WHERE m.team_id=t.id AND m.user_id=?)`,
+      `SELECT t.* FROM messaging_teams t WHERE t.id=? AND t.company_id=? AND ((NOT t.organization_managed AND EXISTS(SELECT 1 FROM messaging_team_members m WHERE m.team_id=t.id AND m.user_id=?)) OR (t.organization_managed AND EXISTS(SELECT 1 FROM organization_nodes n WHERE n.company_id=t.company_id AND n.kind='company' AND n.status='active' AND ${organizationMemberSql("n","?")})))`,
     )
-    .bind(id, actor.companyId, actor.userId)
+    .bind(id, actor.companyId, actor.userId, actor.userId)
     .first<MessagingTeam>();
   if (!row) missing();
-  if (owner && row.owner_id !== actor.userId)
+  if (owner && (row.organization_managed || row.owner_id !== actor.userId))
     throw new ApiError(
       403,
       "OWNER_REQUIRED",
@@ -330,6 +332,10 @@ export async function messagingMembers(
   const row = isTeam
     ? await team(db, actor, id)
     : await messagingRoom(db, actor, id);
+  if ((row as MessagingRoom).organization_node_id || (row as MessagingTeam).organization_managed) {
+    const ids=(await db.prepare(`SELECT DISTINCT p.user_id FROM hr_people p JOIN organization_nodes n ON n.company_id=p.company_id WHERE p.company_id=? AND p.user_id IS NOT NULL AND n.status='active' AND ${isTeam?"n.kind='company'":"n.id=?"} AND ${organizationMemberSql("n","p.user_id")}`).bind(actor.companyId,...(isTeam?[]:[(row as MessagingRoom).organization_node_id])).all<{user_id:string}>()).results.map(p=>p.user_id);
+    return {...row,members:await accountNames(ids)};
+  }
   const channelTeam =
     !isTeam &&
     (row as MessagingRoom).kind === "channel" &&
@@ -425,12 +431,13 @@ export async function manageMessaging(
   );
 }
 export async function messagingOverview(db: SqlDatabase, actor: WorkContext) {
+  await ensureOrganizationChannels(db,actor.companyId);
   const teams = (
     await db
       .prepare(
-        "SELECT t.* FROM messaging_teams t JOIN messaging_team_members m ON m.team_id=t.id WHERE t.company_id=? AND m.user_id=? ORDER BY t.name,t.id",
+        `SELECT t.* FROM messaging_teams t WHERE t.company_id=? AND ((NOT t.organization_managed AND EXISTS(SELECT 1 FROM messaging_team_members m WHERE m.team_id=t.id AND m.user_id=?)) OR (t.organization_managed AND EXISTS(SELECT 1 FROM organization_nodes n WHERE n.company_id=t.company_id AND n.kind='company' AND n.status='active' AND ${organizationMemberSql("n","?")}))) ORDER BY t.name,t.id`,
       )
-      .bind(actor.companyId, actor.userId)
+      .bind(actor.companyId, actor.userId, actor.userId)
       .all<MessagingTeam>()
   ).results;
   const rooms = (

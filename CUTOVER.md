@@ -1,5 +1,9 @@
 # ERPX Cutover Record
 
+## 2026-09-15 IAM policy and identity expansion
+
+[ADR-025](docs/adr/ADR-025-multiple-identity-providers-and-scoped-replacement.md) adds simultaneous optional AD, Entra ID and UCS connections, reviewed Company-scoped identity replacement and immutable custom role revisions. Control 0006/0007 and Holding-write 0020/0021 are additive; existing business data, audit attribution and assignment expiry dates are preserved. Built-in permission revisions invalidate existing selected contexts, requiring users to reselect a work role. Legacy invitations and access writes now require independent review and fresh MFA. Unversioned queued human-authorized jobs must be explicitly retried. Directory configuration does not activate migration; pilot batches require separate review and emergency readiness. See the [IAM operations contract](docs/contracts/next/identity-access.md).
+
 ## 2026-09-06 Three-level workspace URL hard cut
 
 The opaque-ID browser/API namespace was removed without redirects. Canonical immutable-slug routes now express Platform, Holding, Branch, Holding Department, and Branch Department workspaces. Company remains an internal selected or lineage-derived policy boundary. ADR-023 supersedes the public-routing clause of ADR-001; opaque Holding IDs remain authoritative for bindings, storage, queues, and audit.

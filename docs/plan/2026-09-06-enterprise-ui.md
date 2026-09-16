@@ -1,16 +1,16 @@
 # ERPX enterprise UX/UI delivery — 2026-09-06
 
-The live Next.js workplace now shares one responsive design system across login, Home, Work, Updates, Modules, Learn, Inbox, account controls, request review, and the complete module catalog. Delivery is local; deployment, transactional backend expansion, migrations, and dependency changes are outside this redesign.
+The live Next.js workplace now shares one responsive design system across login, Home, Work, Updates, People, Operations, Finance, Projects, Learn, Inbox, account controls, and request review. The former development module catalog is not a supported workspace destination. Delivery is local; deployment, transactional backend expansion, migrations, and dependency changes are outside this redesign.
 
 ## Review locally
 
-Use the existing development server at `http://localhost:3100`. Start it with `bun run dev` only when that port is free. Sign in with an existing development account, then visit `/holdings/h001/home` or `/holdings/h001/modules`.
+Use the existing development server at `http://localhost:3100`. Start it with `bun run dev` only when that port is free. Sign in with an existing development account, then visit `/holdings/h001/home` or an authorized People, Operations, Finance, or Projects destination.
 
-Light is the default. Appearance is saved in a cookie and rendered by the root layout; System follows the OS through CSS. Navigation changes from a 240px sidebar to a compact tablet rail and mobile Home / Work / Updates / More. Search is available from the header and Cmd/Ctrl+K. Mobile request actions take the place of bottom navigation while a request can be acted on.
+Light is the default. Appearance is saved in a cookie and rendered by the root layout; System follows the OS through CSS. Desktop and tablet navigation use authorization-aware parent/child groups; mobile keeps Home / Work / Inbox / More and opens the same hierarchy in a bottom sheet. Search is available from the header and Cmd/Ctrl+K. Mobile request actions take the place of bottom navigation while a request can be acted on.
 
 ## Coverage and availability
 
-`src/data/module-registry.json` preserves the prototype's 31 module identifiers, business groups, section names, and 171 capability groups. Every module entry redirects to its first primary section. Each workspace exposes three primary sections and searchable More navigation. Invalid modules, sections, and preview record identifiers resolve to a useful unavailable view.
+The retained module registry supplies permission metadata and backend compatibility only. Workspace navigation exposes canonical live destinations grouped under People, Operations, Finance, Projects, Resources, and Administration. Removed module, section, and preview-record URLs resolve to the standard unavailable view without redirects.
 
 All nine workspace layouts are implemented: operational tables, boards, ledgers, analytics, timelines, libraries, directories, service status, and conversations. Sample fields and measures are tailored to capability context. Details, forms, reviews, and related record links remain inspectable.
 

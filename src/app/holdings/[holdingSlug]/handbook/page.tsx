@@ -1,5 +1,4 @@
-import { notFound } from "next/navigation";
-import { ApiError } from "@/server/http";
+import { pageError } from "@/server/page-error";
 import Link from "next/link";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { holdingResources } from "@/server/runtime";
@@ -23,8 +22,7 @@ export default async function Handbook({
     editing = query.edit === "1",
     data = await handbookList(write, actor, query.q ?? "", editing).catch(
       (e: unknown) => {
-        if (e instanceof ApiError && [403, 404].includes(e.status)) notFound();
-        throw e;
+        return pageError(e, actor.holdingSlug);
       },
     );
   return (

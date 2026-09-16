@@ -1,7 +1,8 @@
-import { responsibilityRoles } from "@/lib/responsibilities";
+import { RememberWorkspace } from "@/components/workplace/remember-workspace";
+import { workspaceChoices } from "@/server/workspace-choices";
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { notFound, redirect } from "next/navigation";
+import { pageError } from "@/server/page-error";
 import { Suspense } from "react";
 import { Building2 } from "lucide-react";
 import {
@@ -10,6 +11,8 @@ import {
   requireWorkContext,
 } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
+import { WorkContextBoundary } from "@/components/workplace/work-context-boundary";
+import { NavigationCountsProvider } from "@/components/workplace/navigation-counts";
 import { AccountSwitcher } from "./account-switcher";
 import { WorkspaceMenu } from "@/components/workplace/workspace-menu";
 import { administrationAccess } from "@/server/administration";
@@ -32,9 +35,7 @@ export default async function WorkplaceLayout({
   try {
     context = await requireWorkContext(holdingSlug);
   } catch (error) {
-    if (error instanceof Error && error.message === "UNAUTHENTICATED")
-      redirect("/login");
-    notFound();
+    return pageError(error, holdingSlug);
   }
   const theme = (await cookies()).get("erpx_appearance")?.value ?? "light";
   const holdingName = context.holdingName;
@@ -52,10 +53,10 @@ export default async function WorkplaceLayout({
   const admin = await administrationAccess(context);
   const navigation = {
     workspaceBase: base,
+    scopeKind: context.scope.kind,
     beta: context.beta,
     role: context.role,
-    roles: responsibilityRoles(context),
-    allowedModules: context.modules,
+    permissions:context.iam?.permissions,
     adminSections: admin.sections,
   };
   const companyName =
@@ -85,7 +86,9 @@ export default async function WorkplaceLayout({
   if (context.scope.kind === "department")
     ancestors.push(ancestor(context.scope.departmentName, base));
   return (
+    <NavigationCountsProvider key={`${base}:${context.userId}:${context.companyId}:${context.authority!.revision}`} base={base}>
     <div className={styles.shell}>
+      <RememberWorkspace base={base} companyId={context.companyId} assignmentId={context.assignmentId} revision={context.authority!.revision} />
       <a href="#workspace-content" className="skip-link">
         Skip to content
       </a>
@@ -118,9 +121,7 @@ export default async function WorkplaceLayout({
               label={workspaceLabel}
               companyId={context.companyId}
               companies={companies}
-              assignments={context.assignments}
-              activeAssignmentId={context.assignmentId}
-              workspaces={context.workspaces}
+              choices={await workspaceChoices()}
             />
 
             <Suspense
@@ -133,6 +134,7 @@ export default async function WorkplaceLayout({
               <WorkspaceBreadcrumb
                 workspaceBase={base}
                 ancestors={ancestors}
+                navigation={navigation}
               />
             </Suspense>
           </div>
@@ -140,6 +142,9 @@ export default async function WorkplaceLayout({
             <CommandSearch {...navigation} />
             <AccountSwitcher
               workspaceBase={base}
+              assignments={context.availableAssignments ?? context.assignments}
+              preferredAssignmentId={context.assignmentId}
+              contextRevision={context.authority!.revision}
               activeUser={{
                 id: context.userId,
                 name: context.name,
@@ -150,12 +155,21 @@ export default async function WorkplaceLayout({
           </div>
         </header>
         <div id="workspace-content" tabIndex={-1}>
-          {children}
+          <WorkContextBoundary
+            key={`${context.companyId}:${context.assignmentId}:${context.authority!.revision}`}
+            base={base}
+            companyId={context.companyId}
+            assignmentId={context.assignmentId}
+            revision={context.authority!.revision}
+          >
+            {children}
+          </WorkContextBoundary>
         </div>
       </div>
       <Suspense>
         <WorkplaceNavigation {...navigation} mobile />
       </Suspense>
     </div>
+    </NavigationCountsProvider>
   );
 }

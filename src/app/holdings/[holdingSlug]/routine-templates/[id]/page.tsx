@@ -1,5 +1,5 @@
+import { pageError } from "@/server/page-error";
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import {
   TaskEditor,
   RoutineScheduleControls,
@@ -10,7 +10,6 @@ import {
   canEditTemplate,
   type ScheduleRow,
 } from "@/server/routines";
-import { ApiError } from "@/server/http";
 export default async function Routine({
   params,
 }: {
@@ -19,8 +18,7 @@ export default async function Routine({
   const { holdingSlug, id } = await params,
     { actor, write, base, options, projects } = await staffPage(holdingSlug),
     template = await getTemplate(write, actor, id).catch((e) => {
-      if (e instanceof ApiError && e.status === 404) notFound();
-      throw e;
+      return pageError(e, holdingSlug);
     }),
     canEdit = await canEditTemplate(write, actor, template),
     schedules = (

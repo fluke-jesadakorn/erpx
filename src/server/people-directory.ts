@@ -1,6 +1,6 @@
+import { requirePermission } from "@/server/iam-permissions";
+import { hasPermission } from "@/lib/permissions";
 import type { SqlDatabase } from "./runtime/types";
-import { hasBusinessRole } from "@/lib/responsibilities";
-import { requireBusinessRole } from "./responsibilities";
 import { z } from "zod";
 import type { WorkContext } from "./authorization";
 import { runtimeEnv, holdingResources } from "./runtime";
@@ -8,6 +8,7 @@ import { ApiError } from "./http";
 import { levelChangeStatements } from "./staff-settings";
 import { assertion, executeCommand } from "./commands";
 import { requireCompanyAuthority, authorityGuard } from "./staff-policy";
+import { organizationGuard, validateStaffOrganization } from "./organization";
 
 export const directorySchema = z.object({
   legalName: z.string().trim().min(2).max(200),
@@ -24,6 +25,8 @@ export const directorySchema = z.object({
   currency: z.enum(["USD", "EUR", "GBP", "THB", "SGD", "CAD"]),
   managerPersonId: z.string().nullable().default(null),
   levelId: z.string().min(1).nullable().default(null),
+  positionId: z.string().min(1).nullable().optional(),
+  reason: z.string().trim().min(3).max(1000).default("Staff profile updated"),
   linkedMemberUserId: z.string().max(160).optional(),
 });
 export const directoryUpdateSchema = directorySchema.extend({
@@ -34,17 +37,17 @@ export const directoryStatusSchema = z.object({
   expectedVersion: z.number().int().positive(),
 });
 export function canManagePeople(actor: WorkContext) {
-  return hasBusinessRole(actor, ["holding_owner", "hr_admin", "people_manager"]);
+  return hasPermission(actor,"people.manage");
 }
 export function canReadCompensation(actor: WorkContext, userId: unknown) {
   return (
     canManagePeople(actor) ||
-    hasBusinessRole(actor, ["payroll_preparer", "payroll_approver"]) ||
+    hasPermission(actor,"people.compensation.payroll") ||
     userId === actor.userId
   );
 }
 function manage(actor: WorkContext) {
-  return requireBusinessRole(actor, ["holding_owner", "hr_admin", "people_manager"]);
+  return requirePermission(actor,"people.manage");
 }
 export async function directoryOptions(actor: WorkContext) {
   const { write } = await holdingResources(actor.holdingId);
@@ -66,7 +69,7 @@ export async function directoryPerson(actor: WorkContext, personId: string) {
   const { write } = await holdingResources(actor.holdingId);
   const person = await write
     .prepare(
-      `SELECT p.*,e.id AS engagement_id,e.version AS engagement_version,e.branch_id,e.department_id,e.job_title,e.worker_type,e.employment_type,e.start_date,e.end_date,e.currency,e.status AS engagement_status,e.manager_person_id,e.pay_group_id,e.level_id,(SELECT name FROM staff_levels WHERE id=e.level_id) level_name
+      `SELECT p.*,e.id AS engagement_id,e.version AS engagement_version,e.branch_id,e.department_id,e.job_title,e.worker_type,e.employment_type,e.start_date,e.end_date,e.currency,e.status AS engagement_status,e.manager_person_id,e.pay_group_id,e.position_id,e.level_id,(SELECT name FROM staff_levels WHERE id=e.level_id) level_name,(SELECT level_number FROM staff_levels WHERE id=e.level_id) level_number
     FROM hr_people p LEFT JOIN hr_engagements e ON e.id=(SELECT x.id FROM hr_engagements x WHERE x.person_id=p.id AND x.company_id=p.company_id ORDER BY CASE WHEN x.status IN ('active','onboarding','suspended') THEN 0 ELSE 1 END,x.start_date DESC,x.id LIMIT 1)
     WHERE p.id=? AND p.company_id=? AND p.merged_into_id IS NULL AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)`,
     )
@@ -149,7 +152,7 @@ export async function saveDirectoryPerson(
   const engagement = String(current?.engagement_id ?? `eng-${commandId}`);
   const version = current ? input.expectedVersion + 1 : 1;
   const now = Date.now();
-  const steps = placement(write, actor, commandId, input);
+  const steps = [await organizationGuard(write, actor.companyId, commandId), ...placement(write, actor, commandId, input)];
   if (input.linkedMemberUserId) {
     await requireCompanyAuthority(write, actor);
     const env = await runtimeEnv(),
@@ -174,7 +177,7 @@ export async function saveDirectoryPerson(
         write,
         commandId,
         "member-link",
-        "EXISTS(SELECT 1 FROM assignments WHERE user_id=? AND company_id=? AND revoked_at IS NULL AND valid_from<=? AND valid_until>?) AND NOT EXISTS(SELECT 1 FROM hr_people WHERE user_id=? AND company_id=? AND id!=? AND merged_into_id IS NULL)",
+        "EXISTS(SELECT 1 FROM assignments WHERE user_id=? AND company_id=? AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>?) AND NOT EXISTS(SELECT 1 FROM hr_people WHERE user_id=? AND company_id=? AND id!=? AND merged_into_id IS NULL)",
         [
           account.id,
           actor.companyId,
@@ -189,6 +192,8 @@ export async function saveDirectoryPerson(
   }
   const levelId =
     input.levelId ?? (current?.level_id ? String(current.level_id) : null);
+  const positionId = input.positionId === undefined ? (current?.position_id ? String(current.position_id) : null) : input.positionId;
+  await validateStaffOrganization(write, actor.companyId, {person_id:id,branch_id:input.branchId,department_id:input.departmentId,position_id:positionId,level_id:levelId,manager_person_id:input.managerPersonId}, current?.engagement_status === "active");
   if (current?.engagement_status === "active" && !levelId)
     throw new ApiError(
       422,
@@ -352,6 +357,10 @@ export async function saveDirectoryPerson(
         .prepare("UPDATE employees SET user_id=? WHERE person_id=?")
         .bind(input.linkedMemberUserId, id),
     );
+  steps.push(
+    write.prepare("UPDATE hr_engagements SET position_id=? WHERE id=?").bind(positionId,engagement),
+    write.prepare("INSERT INTO staff_organization_history(id,company_id,engagement_id,before_json,after_json,actor_id,reason,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(`org-history-${commandId}`,actor.companyId,engagement,JSON.stringify({positionId:current?.position_id??null,levelId:current?.level_id??null,managerPersonId:current?.manager_person_id??null,branchId:current?.branch_id??null,departmentId:current?.department_id??null}),JSON.stringify({positionId,levelId,managerPersonId:input.managerPersonId,branchId:input.branchId,departmentId:input.departmentId}),actor.userId,input.reason,commandId,now),
+  );
   return executeCommand(
     write,
     actor,
@@ -373,6 +382,8 @@ export async function setDirectoryStatus(
   actor = manage(actor);
   const person = await directoryPerson(actor, personId);
   const { write } = await holdingResources(actor.holdingId);
+  const graphGuard = await organizationGuard(write, actor.companyId, commandId);
+  if(input.status === "active") await validateStaffOrganization(write,actor.companyId,{person_id:personId,branch_id:person.branch_id as string|null,department_id:person.department_id as string|null,position_id:person.position_id as string|null,level_id:person.level_id as string|null,manager_person_id:person.manager_person_id as string|null},true);
   if (person.user_id === actor.userId && input.status !== "active")
     throw new ApiError(
       409,
@@ -389,6 +400,7 @@ export async function setDirectoryStatus(
     input.expectedVersion + 1,
     { id: personId, status: input.status, version: input.expectedVersion + 1 },
     [
+      graphGuard,
       assertion(
         write,
         commandId,

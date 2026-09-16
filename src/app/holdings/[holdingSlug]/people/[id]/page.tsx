@@ -1,4 +1,5 @@
-import { hasBusinessRole } from "@/lib/responsibilities";
+import { hasPermission } from "@/lib/permissions";
+import { organizationOverview } from "@/server/organization";
 import { companyAuthority } from "@/server/staff-policy";
 import { LevelAssignmentEditor } from "@/components/modules/level-assignment-editor";
 import styles from "@/components/workplace/pages.module.css";
@@ -13,6 +14,7 @@ import {
 import { PeopleEditor } from "@/components/modules/people-editor";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { pageError, accessPage } from "@/server/page-error";
 import { ArrowLeft } from "lucide-react";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import {
@@ -38,8 +40,8 @@ export default async function PersonDetail({
   let data;
   try {
     data = await getPerson(actor, id);
-  } catch {
-    notFound();
+  } catch (error) {
+    return pageError(error, holdingSlug);
   }
   const base = workspaceBase(publicScope(actor));
   const person = data.person;
@@ -66,7 +68,10 @@ export default async function PersonDetail({
     ...(access ? [["access", "Login & access"]] : []),
   ];
   const tab = query.tab ?? "profile";
-  if (!tabs.some(([id]) => id === tab)) notFound();
+  if (!tabs.some(([id]) => id === tab)) {
+    if (["pay", "access"].includes(tab)) return accessPage("permission", holdingSlug);
+    notFound();
+  }
   return (
     <main className="content-stack" data-source="live">
       <Link className="back-link" href={`${base}/people`}>
@@ -118,6 +123,7 @@ export default async function PersonDetail({
               nodes={nodes}
               levels={staffOptions.levels}
               people={staffOptions.people}
+              organization={await organizationOverview(write,actor)}
               levelManagedSeparately={staffOptions.canManage}
             />
           )}
@@ -155,7 +161,7 @@ export default async function PersonDetail({
           }
           assignments={access.assignments}
           canManage={
-            hasBusinessRole(actor, ["holding_owner"]) && person.user_id !== actor.userId
+            hasPermission(actor,"iam.manage") && person.user_id !== actor.userId
           }
         />
       )}

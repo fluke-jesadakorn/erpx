@@ -4,6 +4,8 @@
 
 ## Implemented foundation routes
 
+Directory & access at scoped /people/access owns the People, Groups, Access policies and Custom attributes views. Its authorized /people/access/management read and /iam/user-management/{preview|save} commands are specified in [Local user management](user-management.md). No additional sidebar destinations or module catalog routes are introduced.
+
 | Route | Method | Context | Contract | Status |
 |---|---|---|---|---|
 | `/api/auth/[...all]` | GET/POST | identity | Better Auth handler with device multi-session account switching | Implemented |
@@ -91,16 +93,24 @@ Slugs are immutable and unique within their route parent. Opaque IDs do not appe
 | `/holdings/{holdingSlug}/finance` | IFRS finance dashboard with chart, journal, balance and close navigation |
 | `/holdings/{holdingSlug}/tasks/people_payroll/{id}` | Live leave details, evidence, submission review and independent approval |
 | `/holdings/{holdingSlug}/feed` | Live updates, comments, reactions, follows and Stories |
-| `/holdings/{holdingSlug}/modules?q=...&group=...&availability=...` | Complete registry with searchable business-group and availability filters |
-| `/holdings/{holdingSlug}/modules/{module}` | Redirect to the first primary section |
-| `/holdings/{holdingSlug}/modules/{module}/{section}` | 31 modules and 171 capability groups; explicit previews with links to available live actions |
-| `/holdings/{holdingSlug}/preview/records/{module}/{id}?view=details\|form\|review` | Separate, read-only sample record namespace |
-| `/holdings/{holdingSlug}/records/{module}/{id}` | Live record workbench with versioned fields, workflow, typed references/backlinks, and human-approved suggestions |
-| `/holdings/{holdingSlug}/records/{module}/new?section={section}` | Create a live Draft with every field defined for that capability section |
 | `/holdings/{holdingSlug}/learn` | Captioned sample learning videos |
 | `/holdings/{holdingSlug}/inbox` | Explicit notification preview |
 
-Preview routes introduce no transactional API contract. The live record route uses the universal record APIs above. See [enterprise UI delivery](../../plan/2026-09-06-enterprise-ui.md).
+The former holding and platform module catalogs, sample-record previews, and
+generic record workbench were development UI and are intentionally not public
+routes. They return the standard unavailable/not-found response without a
+redirect. The universal record APIs above remain for backend compatibility and
+historical data access.
+
+Authenticated workspace discovery uses one role- and scope-aware navigation
+hierarchy. Home, Work, and Inbox are primary destinations. Holding business
+pages are grouped under People, Operations, Finance, and Projects; Company
+handbook, Learn, and Help & feedback are Resources; authorized settings and IAM
+pages are Administration. Stable overview and collection pages are searchable.
+Redirect aliases, creation states, and individual records inherit their parent
+for active navigation and breadcrumbs but are not separate navigation results.
+Platform uses the same contract as a flat list because it has no Holding
+business groups.
 
 ## Planned business routes
 

@@ -123,6 +123,35 @@
   font-size: 13px;
   color: var(--muted);
 }
+.responsivePanel {
+  position: fixed;
+  inset: 0 0 0 auto;
+  margin: 0;
+  width: min(440px, 100%);
+  height: 100dvh;
+  max-height: 100dvh;
+  border-radius: 18px 0 0 18px;
+}
+.responsivePanel[open], .fullscreenDialog[open] { display: flex; flex-direction: column; }
+.responsivePanel .dialogHead, .fullscreenDialog .dialogHead { flex-shrink: 0; }
+.responsivePanel .dialogHead h2, .fullscreenDialog .dialogHead h2 { overflow-wrap: anywhere; min-width: 0; }
+.responsivePanel .dialogHead button, .fullscreenDialog .dialogHead button { min-width: 44px; min-height: 44px; flex-shrink: 0; }
+.responsivePanel .dialogBody { min-height: 0; padding-bottom: calc(22px + env(safe-area-inset-bottom)); }
+.fullscreenDialog {
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  border: 0;
+  border-radius: 0;
+}
+.fullscreenDialog .dialogBody { display: flex; flex: 1; min-height: 0; padding: 0 0 env(safe-area-inset-bottom); overflow: hidden; }
+@media (max-width: 1023px) {
+  .responsivePanel { inset: auto 0 0; width: 100%; max-width: 100%; height: auto; max-height: 90dvh; border-radius: 18px 18px 0 0; }
+}
 @media (max-width: 650px) {
   .pageHeader {
     align-items: flex-start;

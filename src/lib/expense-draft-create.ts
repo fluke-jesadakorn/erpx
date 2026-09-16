@@ -1,3 +1,5 @@
+
+import { workFetch } from "@/lib/work-fetch";
 type DraftAttempt = { body: string; key: string; touched?: string[] };
 /** Persist before sending so a lost response or refresh replays the same command. */
 export function createExpenseDraftOnce() {
@@ -13,7 +15,7 @@ export function createExpenseDraftOnce() {
     const command = attempt;
     try { sessionStorage.setItem(`${storageKey}:creation`, JSON.stringify(command)); } catch {}
     running = (async () => {
-      const response = await fetch(`/api/v1${base}/expenses`, {
+      const response = await workFetch(`/api/v1${base}/expenses`, {
         method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": command.key }, body: command.body,
       });
       const result = await response.json();

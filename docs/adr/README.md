@@ -48,3 +48,6 @@ ADR-023-three-level-workspace-routing.md — accepted (2026-09-06)
 `git checkout backup/rust-2026-09-02 -- docs/adr/` (19 files, no 020, no banners) vs `development` 20 files with banners at `f97b74d6`/`rust-archive-2026-09-02`/`cc0887d`
 
 - [ADR-024: Local PostgreSQL runtime](ADR-024-local-postgresql-runtime.md) — supersedes ADR-022 runtime/deployment.
+
+- [ADR-025: Multiple identity providers and scoped replacement](ADR-025-multiple-identity-providers-and-scoped-replacement.md) — supersedes ADR-013 single-provider and fallback assumptions.
+- [ADR-026: Reviewed local access policies](ADR-026-reviewed-local-access-policies.md) — Company-owned groups and attributes, independent review for every derived grant, and immediate source-specific invalidation.

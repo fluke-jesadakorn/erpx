@@ -1,5 +1,8 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import Image from "next/image";
+import { PersonAvatar } from "@/components/ui/person-avatar";
 
 import {
   useCallback,
@@ -32,7 +35,7 @@ import type {
 import styles from "./inbox.module.css";
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, cache: "no-store" });
+  const response = await workFetch(url, { ...init, cache: "no-store" });
   const result = await response.json();
   if (!response.ok)
     throw new Error(
@@ -59,11 +62,15 @@ export function MessagingInbox({
   userId,
   updates,
   initialTab,
+  initialPerson,
+  initialRoom,
 }: {
   base: string;
   userId: string;
   updates: ReactNode;
-  initialTab: "updates" | "chats";
+  initialTab: "updates" | "chats" | "teams";
+  initialPerson?: string;
+  initialRoom?: string;
 }) {
   const root = `/api/v1${base}/messaging`;
   const [tab, setTab] = useState<"chats" | "teams" | "updates">(initialTab);
@@ -71,7 +78,7 @@ export function MessagingInbox({
     teams: [],
     rooms: [],
   });
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(initialRoom??null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [error, setError] = useState(""),
     [loading, setLoading] = useState(true);
@@ -84,6 +91,12 @@ export function MessagingInbox({
       current && result.rooms.some((r) => r.id === current) ? current : null,
     );
   }, [root]);
+  useEffect(()=>{
+    if(!initialPerson||initialPerson===userId)return;
+    let stopped=false;
+    void post<{id:string}>(`${root}/rooms`,{kind:"direct",members:[initialPerson]}).then(async result=>{await refresh();if(!stopped)setSelected(result.id);}).catch(e=>{if(!stopped)setError((e as Error).message);});
+    return ()=>{stopped=true;};
+  },[root,initialPerson,userId,refresh]);
   useEffect(() => {
     if (tab === "updates") return;
     let stopped = false,
@@ -139,7 +152,7 @@ export function MessagingInbox({
           ) : r.kind === "group" ? (
             <Users size={19} />
           ) : (
-            <MessageCircle size={19} />
+            <PersonAvatar name={r.name} />
           )}
         </span>
         <span className={styles.roomText}>
@@ -222,7 +235,7 @@ export function MessagingInbox({
                     <div className={styles.emptyList}>
                       <MessageCircle />
                       <p>Your conversations start here.</p>
-                      <button onClick={() => setEditor({ kind: "direct" })}>
+                      <button className={styles.mobileStart} onClick={() => setEditor({ kind: "direct" })}>
                         Start a chat
                       </button>
                     </div>
@@ -234,7 +247,7 @@ export function MessagingInbox({
                     <section key={t.id} className={styles.team}>
                       <div className={styles.teamHeader}>
                         <strong>{t.name}</strong>
-                        {t.owner_id === userId && (
+                        {!t.organization_managed && t.owner_id === userId && (
                           <span>
                             <button
                               aria-label={`Add channel to ${t.name}`}
@@ -580,6 +593,7 @@ function Conversation({
             className={`${styles.message} ${message.sender_id === userId ? styles.mine : ""}`}
           >
             <div className={styles.messageMeta}>
+              <PersonAvatar name={message.sender_name} small />
               <strong>
                 {message.sender_id === userId ? "You" : message.sender_name}
               </strong>

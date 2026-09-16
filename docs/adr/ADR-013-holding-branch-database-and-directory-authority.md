@@ -1,3 +1,5 @@
+> **Directory policy superseded by [ADR-025](ADR-025-multiple-identity-providers-and-scoped-replacement.md), 2026-09-15.** Multiple active providers and Company-scoped reviewed replacement replace the single-connector/fallback rules below. Database isolation remains authoritative.
+
 # ADR-013: Holding-plus-branch database isolation and scoped directory authority
 
 > **Next.js era: Reconfirmed (2026-09-02) — still authoritative**

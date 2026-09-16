@@ -38,3 +38,40 @@ The rich local dataset and demo personas are documented in [docs/local-seed.md](
 ## Verification
 
 `bun run lint`, `bun run typecheck`, `bun run deploy:build`, and `bun run test:integration` must pass. Shared development additionally requires deployed smoke and Playwright journeys.
+
+### Playwright end-to-end tests
+
+Use Node 24.20.0 and Bun 1.2.17. Install Chromium once with
+`bunx playwright install chromium`. Reuse the development server on port 3100,
+or start `bun run dev` after checking that the port is free. Playwright uses
+`http://127.0.0.1:3100` by default and does not manage the server lifecycle.
+
+```bash
+bun run test:e2e:smoke                 # authentication smoke, desktop + mobile
+bun run test:e2e:work                  # Work filters, recovery and request draft lifecycle
+bun run test:e2e:smoke --project=desktop
+bun run test:e2e:ui                    # interactive test runner
+bun run test:e2e:report                # last HTML report
+bun run test:e2e:local                 # all existing business suites
+```
+
+The smoke suite checks health, signed-out route protection, rejected credentials,
+account recovery/signup navigation, and UI sign-in with session persistence.
+Local sign-in uses the existing seeded Mali account; prepare development data
+with `bun run seed:local` if needed. Set `ERPX_E2E_EMAIL` and
+`ERPX_E2E_PASSWORD` to use another account with holding home access.
+It does not create business records or send recovery emails.
+
+The [E2E specification and test cases](docs/testing/e2e-specification.md) maps
+current source behavior to executable cases and records remaining coverage gaps.
+The Work suite uses local seeded Mali, creates uniquely named service drafts,
+and cancels them while preserving audit history. It skips remote targets.
+
+Set `ERPX_E2E_BASE_URL` to test another running deployment. Remote authenticated
+smoke tests require explicit account environment variables; otherwise that test
+is skipped. Existing business suites have separate fixture requirements (see
+each spec and `scripts/seed-*-e2e.ts`), and some still depend on historical
+Cloudflare fixtures; passing smoke tests does not certify those suites.
+Failure screenshots and traces are saved under ignored `test-results/`, with an
+HTML report under `playwright-report/`. Traces can contain session data; keep
+them private.

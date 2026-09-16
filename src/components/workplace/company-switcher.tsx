@@ -1,5 +1,7 @@
 "use client";
 
+import { workFetch } from "@/lib/work-fetch";
+
 import { useState } from "react";
 import type { WorkspaceCompany } from "@/server/authorization";
 
@@ -13,6 +15,7 @@ export function CompanySwitcher({
   companies: WorkspaceCompany[];
 }) {
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
 
   return (
     <label className="company-switcher">
@@ -23,7 +26,9 @@ export function CompanySwitcher({
         disabled={pending}
         onChange={async (event) => {
           setPending(true);
-          const response = await fetch(
+          setError("");
+          try {
+          const response = await workFetch(
             `/api/v1${workspaceBase}/companies/active`,
             {
               method: "POST",
@@ -32,7 +37,14 @@ export function CompanySwitcher({
             },
           );
           if (response.ok) window.location.reload();
-          else setPending(false);
+          else {
+            setError("Company could not be selected. Check your access and try again.");
+            setPending(false);
+          }
+          } catch {
+            setError("Company could not be selected. Check your connection and try again.");
+            setPending(false);
+          }
         }}
       >
         {companies.map((company) => (
@@ -41,6 +53,7 @@ export function CompanySwitcher({
           </option>
         ))}
       </select>
+      {error && <span role="alert">{error}</span>}
     </label>
   );
 }

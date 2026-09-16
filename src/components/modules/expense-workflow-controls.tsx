@@ -111,7 +111,7 @@ export function ExpenseStageActions({
   const stage = String(expense.workflow_stage ?? expense.status) as ExpenseStage;
   const approvalLabel =
     expense.workflow_stage === "accounts_approval"
-      ? "Approve and post payable"
+      ? "Approve accounting → GL review"
       : expense.workflow_stage === "accounts_review"
         ? "Confirm Accounts review"
         : "Approve department review";

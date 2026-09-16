@@ -1,3 +1,6 @@
+import {samePerson} from "@/lib/iam";
+import { iamMutationGuards } from "./iam-store";
+import { hasPermission } from "@/lib/permissions";
 import type { SqlDatabase } from "./runtime/types";
 import { ApiError } from "./http";
 import { assertion } from "./commands";
@@ -48,16 +51,18 @@ export async function aiClaim(db: SqlDatabase, companyId: string, id: string) {
 }
 export async function expenseAiAllowed(
   db: SqlDatabase,
-  actor: Pick<StaffActor, "companyId" | "userId">,
+  actor: Pick<StaffActor, "companyId" | "userId" | "role" | "assignmentId" | "authority" | "iam">,
   claim: AiClaim,
   paymentId: string | null,
 ) {
+  const authorizationKey=crypto.randomUUID();try{await db.batch([...iamMutationGuards(db,actor,authorizationKey),db.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(authorizationKey)]);}catch{return false;}
+
   if (
     !(await db
       .prepare(
-        "SELECT 1 FROM assignments WHERE company_id=? AND user_id=? AND revoked_at IS NULL AND valid_from<=? AND valid_until>?",
+        "SELECT 1 FROM assignments WHERE company_id=? AND id=? AND user_id=? AND role=? AND (?::bigint IS NULL OR version=?) AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>?",
       )
-      .bind(actor.companyId, actor.userId, Date.now(), Date.now())
+      .bind(actor.companyId, actor.assignmentId, actor.userId, actor.role, actor.authority?.assignmentVersion ?? null, actor.authority?.assignmentVersion ?? null, Date.now(), Date.now())
       .first())
   )
     return false;
@@ -65,7 +70,7 @@ export async function expenseAiAllowed(
   if (claim.workflow_stage === "draft")
     return (
       !paymentId &&
-      [claim.claimant_user_id, claim.created_by].includes(actor.userId)
+      [claim.claimant_user_id, claim.created_by].some(id=>samePerson(actor,id))
     );
   if (
     ["department_approval", "accounts_review", "accounts_approval"].includes(
@@ -99,8 +104,8 @@ export async function expenseAiAllowed(
     ...decisions.map((s) => s.approver_user_id),
   ];
   return (
-    !!payment &&
-    !forbidden.includes(actor.userId) &&
+    !!payment && hasPermission(actor,"expense.pay") &&
+    !forbidden.some(id=>samePerson(actor,id)) &&
     (await expenseRoleUsers(db, claim, "treasury")).includes(actor.userId)
   );
 }

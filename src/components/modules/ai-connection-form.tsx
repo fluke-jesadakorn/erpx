@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import { useEffect, useRef, useState } from "react";
 import { aiPresets, supportedModelProtocol, supportedModels, unsupportedModelMessage, presetForUrl, type AiPreset } from "@/lib/ai/providers";
 import type { AiConnectionView } from "@/server/ai-providers";
@@ -42,7 +44,7 @@ export function AiConnectionForm({ edit, base, pending, error, save }: {
     controller.current?.abort(); const abort = new AbortController(); controller.current = abort;
     const requestId = ++generation.current; setLoading(true); setDiscoverError("");
     try {
-      const response = await fetch(`/api/v1${base}/ai-providers/discover`, {
+      const response = await workFetch(`/api/v1${base}/ai-providers/discover`, {
         method: "POST", headers: { "Content-Type": "application/json" }, signal: abort.signal, cache: "no-store",
         body: JSON.stringify({ baseUrl, authMode, apiKey, removeKey, connectionId: row?.id }),
       });

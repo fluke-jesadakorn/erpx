@@ -1,10 +1,11 @@
+import { hasPermission } from "@/lib/permissions";
 import { ServiceTeams } from "@/components/workplace/service-teams";
 import { RequestAdministration } from "@/components/workplace/request-administration";
 import { serviceTeamOptions } from "@/server/service-team-options";
-import { hasBusinessRole } from "@/lib/responsibilities";
 import Link from "next/link";
 import { AccountInvitations } from "@/components/modules/account-invitations";
 import { notFound } from "next/navigation";
+import { accessPage } from "@/server/page-error";
 import { BetaSettings } from "@/components/beta/settings";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { runtimeEnv, holdingResources } from "@/server/runtime";
@@ -36,13 +37,14 @@ export default async function Settings({
   // Preserve the legacy staff-settings read-only organization view.
   const readOnlyOrganization =
     !actor.beta && section === "organization" && !access.manageOrganization;
-  if (!access.sections.includes(section) && !readOnlyOrganization) notFound();
+  if (!adminSections.some(([id]) => id === section)) notFound();
+  if (!access.sections.includes(section) && !readOnlyOrganization) return accessPage("permission", actor.holdingSlug);
   if (
     section === "approvals" &&
     !access.manageOrganization &&
     (query.record || query.kind)
   )
-    notFound();
+    return accessPage("permission", actor.holdingSlug);
   const { write } = await holdingResources(actor.holdingId);
   const options =
     section === "organization" ? await staffSettings(write, actor) : null;
@@ -58,9 +60,9 @@ export default async function Settings({
     <main className="content-stack" data-source="live">
       <PageHeader
         title={
-          access.sections.length > 1 ? "Administration" : "Help & feedback"
+          section === "feedback" ? "Help & feedback" : "Administration"
         }
-        description="Manage your workspace, one place at a time."
+        description={section === "feedback" ? "Get help or tell us what could work better." : "Manage your workspace, one place at a time."}
       />
       {access.sections.length > 1 && (
         <nav className={styles.tabs} aria-label="Administration sections">
@@ -79,7 +81,7 @@ export default async function Settings({
       )}
       {section === "people" && (
         <section className="card">
-          <h2>People & access</h2>
+          <h2>People & access</h2><Link className="button secondary" href={`${base}/iam`}>Identity & access administration</Link>
           <p>
             Manage employee details and individual access from each person’s
             profile.
@@ -105,11 +107,12 @@ export default async function Settings({
       )}
       {section === "people" &&
         !actor.beta &&
-        hasBusinessRole(actor, ["holding_owner"]) && (
+        hasPermission(actor,"iam.roles.manage") && (
           <AccountInvitations actor={actor} base={base} />
         )}
       {section === "organization" && options && (
         <>
+          <section className="card"><h2>Organization chart and positions</h2><p>Manage staff levels, reporting managers, vacancies, and reusable organization templates.</p><Link className="button" href={`${base}/people/organization`}>Open organization</Link></section>
           {access.owner && <ServiceTeams base={base} options={await serviceTeamOptions(write, actor)} companyId={actor.companyId} userId={actor.userId}/>}
           <section className="card">
             <h2>Branches</h2>
@@ -124,7 +127,7 @@ export default async function Settings({
               <h2>Staff levels and department heads</h2>
               {options.levels.map((l) => (
                 <p key={l.id}>
-                  {l.name} · rank {l.rank}
+                  {l.name} · {l.level_number?`Level ${l.level_number}`:"Legacy level"}
                 </p>
               ))}
               {options.departments.map((d) => (

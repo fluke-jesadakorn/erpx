@@ -1,3 +1,4 @@
+import {captureJobAuthority,requireJobAuthority} from "./iam-jobs";
 import { sha256 as aiSessionHash } from "./crypto";
 import type { SqlDatabase, FileStore } from "./runtime/types";
 import { z } from "zod";
@@ -35,6 +36,7 @@ type Proposal = {
   result_json: string | null;
   error: string | null;
   requested_by: string;
+  actor_json: string | null;
   attempts: number;
   claim_until: number | null;
   lease_token: string | null;
@@ -140,6 +142,7 @@ export async function queueExpenseAi(
   input: { paymentId: string | null; expectedVersion: number; retry: boolean },
   key: string,
 ) {
+  actor=await captureJobAuthority(db,actor);
   const operation = "expense.ai.prepare",
     prior = await replayCommand(db, actor, key, operation, id, input);
   if (prior) return prior;
@@ -161,7 +164,7 @@ export async function queueExpenseAi(
     snapshot = JSON.stringify(configuration.snapshot);
   const existing = await db
     .prepare(
-      "SELECT id,state FROM expense_ai_proposals WHERE company_id=? AND expense_id=? AND payment_draft_id IS NOT DISTINCT FROM ? AND stage=? AND source_version=? AND evidence_digest=? AND provider_json=? ORDER BY created_at DESC LIMIT 1",
+      "SELECT id,state FROM expense_ai_proposals WHERE company_id=? AND expense_id=? AND payment_draft_id IS NOT DISTINCT FROM ? AND stage=? AND source_version=? AND evidence_digest=? AND provider_json=? AND actor_json=? ORDER BY created_at DESC LIMIT 1",
     )
     .bind(
       actor.companyId,
@@ -171,6 +174,7 @@ export async function queueExpenseAi(
       source.sourceVersion,
       source.digest,
       snapshot,
+      JSON.stringify(actor),
     )
     .first<{ id: string; state: string }>();
   if (
@@ -253,7 +257,7 @@ export async function queueExpenseAi(
       ).bind(now, existing.id, actor.companyId)] : []),
       db
         .prepare(
-          "INSERT INTO expense_ai_proposals(id,company_id,expense_id,payment_draft_id,stage,source_version,evidence_digest,provider_json,state,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,'queued',?,?,?)",
+          "INSERT INTO expense_ai_proposals(id,company_id,expense_id,payment_draft_id,stage,source_version,evidence_digest,provider_json,state,requested_by,created_at,updated_at,actor_json) VALUES(?,?,?,?,?,?,?,?,'queued',?,?,?,?)",
         )
         .bind(
           proposalId,
@@ -267,6 +271,7 @@ export async function queueExpenseAi(
           actor.userId,
           now,
           now,
+          JSON.stringify(actor),
         ),
       db
         .prepare(
@@ -448,7 +453,7 @@ export async function runExpenseAi(
     .prepare("SELECT * FROM expense_ai_proposals WHERE id=?")
     .bind(id)
     .first<Proposal>())!;
-  const actor = { companyId: row.company_id, userId: row.requested_by },
+  const actor = row.actor_json ? JSON.parse(row.actor_json) as StaffActor : null,
     snapshot = JSON.parse(row.provider_json) as Providers;
   let inputTokens = 0,
     outputTokens = 0;
@@ -477,6 +482,7 @@ export async function runExpenseAi(
       .bind(Date.now() + 120000, id, lease).run().then(() => {}).catch(() => {}).finally(() => { renewing = null; });
   }, 30000);
   try {
+    requireJobAuthority(actor);
     const authority = await expenseAuthoritySnapshot(db, row.company_id),
       source = await expenseAiSource(
         db,
@@ -496,7 +502,7 @@ export async function runExpenseAi(
         "The claim, evidence, or AI configuration changed. Prepare new suggestions.",
       );
     if (
-      !(await expenseAiAllowed(db, actor, source.claim, row.payment_draft_id))
+      !actor || !(await expenseAiAllowed(db, actor, source.claim, row.payment_draft_id))
     )
       throw new ApiError(
         409,

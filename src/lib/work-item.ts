@@ -1,4 +1,5 @@
 export type WorkItem = {
+  flow?: import("./flow").FlowView;
   id: string;
   type:
     | "leave"
@@ -8,7 +9,8 @@ export type WorkItem = {
     | "staff_task"
     | "service_request"
     | "equipment_request"
-    | "purchase_request";
+    | "purchase_request"
+    | "order" | "invoice" | "journal" | "payroll";
   title: string;
   detail: string;
   href: string;
@@ -23,6 +25,10 @@ export type WorkItem = {
 };
 export const workTypes = [
   ["all", "All types"],
+  ["order", "Sales / purchase orders"],
+  ["invoice", "Invoices and settlement"],
+  ["journal", "General ledger"],
+  ["payroll", "Payroll"],
   ["staff_task", "Tasks"],
   ["leave", "Leave requests"],
   ["expense", "Expense claims"],

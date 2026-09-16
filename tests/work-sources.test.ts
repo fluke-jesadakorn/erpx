@@ -1,3 +1,4 @@
+vi.mock("../src/server/flow-work", () => ({enrichFlowWork:async (_actor:unknown,items:WorkItem[])=>items,otherFlowWork:async()=>[]}));
 import { expect, it, vi } from "vitest";
 import {
   mergeWorkItems,

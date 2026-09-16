@@ -158,8 +158,8 @@ export async function seedExpenseCompany(db: SqlDatabase, files: FileStore) {
     } as WorkContext;
   }
   const claimant = await member("claimant"),
-    head = await member("head", "employee", 5),
-    tie = await member("tie", "employee", 5),
+    head = await member("head", "people_manager", 5),
+    tie = await member("tie", "people_manager", 5),
     reviewer = await member("reviewer", "employee", 1, accountsDepartment),
     manager = await member("manager", "employee", 1, accountsDepartment),
     payer = await member("payer", "employee", 1, accountsDepartment),
@@ -180,10 +180,15 @@ export async function seedExpenseCompany(db: SqlDatabase, files: FileStore) {
       .run();
     return id;
   }
-  await grant(reviewer, "finance_preparer");
-  await grant(manager, "finance_approver");
-  await grant(payer, "treasury");
-  await grant(it, "it_admin");
+  reviewer.assignmentId = await grant(reviewer, "finance_preparer");
+  reviewer.role = "finance_preparer";
+  manager.assignmentId = await grant(manager, "finance_approver");
+  manager.role = "finance_approver";
+  payer.assignmentId = await grant(payer, "treasury");
+  payer.role = "treasury";
+  it.assignmentId = await grant(it, "it_admin");
+  it.role = "it_admin";
+  await grant(owner, "people_manager");
   async function attach(
     id: string,
     ownerType = "expense_claim",

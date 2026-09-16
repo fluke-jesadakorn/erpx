@@ -4,10 +4,12 @@ import { redirect } from "next/navigation";
 import { createAuth } from "@/server/auth";
 import {
   requirePlatformContext,
-  requireWorkContext,
+  requireAccountAccess,
+  assignmentApplies,
   firstAuthorizedWorkspace,
 } from "@/server/authorization";
-import { activeHoldingBindings } from "@/server/runtime";
+import { readWorkspacePreference } from "@/server/workspace-preferences";
+import { activeHoldingBindings, runtimeEnv } from "@/server/runtime";
 import { parseHoldingWorkspace, workspaceHref } from "@/lib/workspace";
 
 export const dynamic = "force-dynamic";
@@ -19,9 +21,8 @@ export default async function RootPage({
   if (!session) redirect("/login");
 
   const query = await searchParams;
-  // Account switches must resolve to a clean holding home. The last page can
-  // be a branch or inbox in the previous account, and reusing it can send a
-  // valid account into a different scope (or an intentional 404).
+  // Prefer this account's persisted area, including after an account switch.
+  // Older browser state is only a fallback and is checked against current grants.
   const accountSwitch = query?.account === "switch";
   const switchSource =
     accountSwitch &&
@@ -29,9 +30,8 @@ export default async function RootPage({
     query.from.startsWith("/holdings/")
       ? query.from
       : undefined;
-  const preferred = accountSwitch
-    ? switchSource
-    : (await cookies()).get("erpx_last_workspace")?.value;
+  const saved = await readWorkspacePreference((await runtimeEnv()).CONTROL_DB,session.user.id);
+  const preferred = saved?.workspace_path ?? (accountSwitch ? switchSource : (await cookies()).get("erpx_last_workspace")?.value);
   if (preferred?.startsWith("/platform/")) {
     try {
       await requirePlatformContext();
@@ -45,8 +45,8 @@ export default async function RootPage({
     const parsed = parseHoldingWorkspace(parts[1] ?? "", parts.slice(2));
     if (parsed) {
       try {
-        await requireWorkContext(parsed.scope);
-        redirect(preferred);
+        const account=await requireAccountAccess(parsed.scope);
+        if(account.assignments.some(assignment=>assignmentApplies(assignment,account.scope)))redirect(preferred);
       } catch (error) {
         if ((error as { digest?: string }).digest) throw error;
       }

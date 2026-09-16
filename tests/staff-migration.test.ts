@@ -7,13 +7,20 @@ it("creates a complete, empty PostgreSQL baseline and preserves database invaria
     await env.H001_DB.prepare(
       "SELECT COUNT(*) count FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'",
     ).first(),
-  ).toEqual({ count: 135 });
+  ).toEqual({ count: 173 });
   expect(
     await env.H001_DB.prepare("SELECT count(*) n FROM inventory_ledger").first(
       "n",
     ),
   ).toBe(0);
   for (const table of [
+    "organization_positions",
+    "organization_templates",
+    "staff_organization_history",
+    "spending_approval_templates",
+    "flow_routes",
+    "flow_defaults",
+    "flow_events",
     "organization_nodes",
     "assignments",
     "finance_expenses",
@@ -28,6 +35,14 @@ it("creates a complete, empty PostgreSQL baseline and preserves database invaria
     "messaging_messages",
     "messaging_reads",
     "messaging_files",
+    "um_attributes",
+    "um_values",
+    "um_groups",
+    "um_memberships",
+    "um_policies",
+    "um_attachments",
+    "um_history",
+    "um_candidates",
   ])
     expect(
       await env.H001_DB.prepare(`SELECT COUNT(*) count FROM ${table}`).first(),

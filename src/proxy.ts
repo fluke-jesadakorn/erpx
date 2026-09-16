@@ -78,9 +78,10 @@ export function proxy(request: NextRequest) {
   if (!parsed) return NextResponse.next();
 
   const headers = new Headers(request.headers);
-  for (const key of ["x-erpx-workspace-kind","x-erpx-branch-slug","x-erpx-department-slug","x-erpx-destination","x-erpx-api"]) headers.delete(key);
+  for (const key of ["x-erpx-workspace-kind","x-erpx-branch-slug","x-erpx-department-slug","x-erpx-destination","x-erpx-api","x-erpx-method"]) headers.delete(key);
   headers.set("x-erpx-destination",parsed.destination.join("/") || "home");
   headers.set("x-erpx-api",String(api));
+  headers.set("x-erpx-method",request.method);
   headers.set("x-erpx-workspace-kind", parsed.kind);
   if (parsed.branchSlug)
     headers.set("x-erpx-branch-slug", parsed.branchSlug);

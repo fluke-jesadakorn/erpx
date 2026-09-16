@@ -31,7 +31,6 @@ import { administrationAccess } from "../src/server/administration";
 import {
   grantPersonAccess,
   grantSchema,
-  revokePersonAccess,
 } from "../src/server/account-access";
 import {
   queueExpenseAi,
@@ -97,7 +96,7 @@ async function connection() {
   );
   return row.id;
 }
-it("derives IT authority independently of the selected role without granting billing or role administration", async () => {
+it("uses only the selected IT assignment without granting billing or role administration", async () => {
   const access = await administrationAccess(f.it);
   expect(access.manageAiProviders).toBe(true);
   expect(access.owner).toBe(false);
@@ -138,24 +137,13 @@ it("derives IT authority independently of the selected role without granting bil
       key(),
     ),
   ).rejects.toMatchObject({ status: 403 });
-  const role = await grantPersonAccess(
-    f.owner,
-    `person-${f.claimant.userId}`,
-    grantSchema.parse({
-      role: "it_admin",
-      scope: "holding",
-      expiresAt: "2027-01-01",
-    }),
-    key(),
-  );
-  expect((await administrationAccess(f.claimant)).manageAiProviders).toBe(true);
-  await revokePersonAccess(
-    f.owner,
-    `person-${f.claimant.userId}`,
-    String(role.id),
-    key(),
-  );
-  expect((await administrationAccess(f.claimant)).manageAiProviders).toBe(
+  // Grants are reviewed through IAM; fixture setup isolates role-selection behavior.
+  const role = {id:await f.grant(f.claimant,"it_admin")};
+  expect((await administrationAccess(f.claimant)).manageAiProviders).toBe(false);
+  const selectedIt = {...f.claimant,role:"it_admin",assignmentId:String(role.id)};
+  expect((await administrationAccess(selectedIt)).manageAiProviders).toBe(true);
+  await db.prepare("UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=?").bind(Date.now(),role.id).run();
+  expect((await administrationAccess(selectedIt)).manageAiProviders).toBe(
     false,
   );
 });

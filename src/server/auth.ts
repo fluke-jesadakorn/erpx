@@ -1,3 +1,5 @@
+import { directoryAuthPlugin, directoryOidcConfig, localCredentialAllowed } from "./iam-auth";
+import { genericOAuth } from "better-auth/plugins/generic-oauth";
 import { requestPublicOrigin } from "@/server/public-origin";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -10,7 +12,7 @@ import { multiSession } from "better-auth/plugins";
 import { sendBetaEmail } from "./beta-email";
 import { runtimeEnv } from "./runtime";
 
-export async function createAuth(requestOrigin?: string) {
+export async function createAuth(requestOrigin?: string, directoryId?: string) {
   const env = await runtimeEnv();
   const local = env.ERPX_ENVIRONMENT === "local";
   const baseURL = local ? requestOrigin ?? env.BETTER_AUTH_URL : env.BETTER_AUTH_URL;
@@ -39,7 +41,9 @@ export async function createAuth(requestOrigin?: string) {
       enabled: !local,
       storage: "database",
     },
-    plugins: [multiSession({ maximumSessions: 5 })],
+    account: { encryptOAuthTokens:true, accountLinking: { enabled: false } },
+    databaseHooks: { account: { create: { before: async account => account.providerId === "credential" && !await localCredentialAllowed(account.userId) ? false : undefined } } },
+    plugins: [multiSession({ maximumSessions: 5 }), directoryAuthPlugin(), ...(directoryId ? [genericOAuth({config:[await directoryOidcConfig(directoryId)]})] : [])],
     trustedOrigins: [
       baseURL,
       env.BETTER_AUTH_URL,

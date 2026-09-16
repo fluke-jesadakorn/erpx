@@ -1,6 +1,7 @@
+import { requirePermission } from "@/server/iam-permissions";
+import { hasPermission } from "@/lib/permissions";
+import { samePerson } from "@/lib/iam";
 import type { SqlDatabase } from "./runtime/types";
-import { requireBusinessRole } from "./responsibilities";
-import { hasBusinessRole } from "@/lib/responsibilities";
 import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "./authorization";
@@ -39,37 +40,31 @@ export const expensePostSchema = z.object({
 export const expenseVersionSchema = z.object({
   expectedVersion: z.number().int().positive(),
 });
-const financeRoles = [
-  "finance_preparer",
-  "finance_approver",
-  "treasury",
-  "auditor",
-  "holding_owner",
-];
 export function canAccountExpenses(actor: WorkContext) {
-  return hasBusinessRole(actor,financeRoles);
+  return hasPermission(actor,"expense.read");
 }
 export function canPostExpenses(actor: WorkContext) {
-  return hasBusinessRole(actor,["holding_owner", "finance_approver"]);
+  return hasPermission(actor,"expense.approve");
 }
 
 function visibility(actor: WorkContext) {
   return {
-    sql: `x.company_id=? AND (COALESCE(x.claimant_user_id,p.user_id)=? OR x.created_by=? OR x.approved_by=? OR ${participantSql("expense", "x")} OR
+    sql: `x.company_id=? AND (iam_same_person(COALESCE(x.claimant_user_id,p.user_id),?,x.company_id) OR iam_same_person(x.created_by,?,x.company_id) OR iam_same_person(x.approved_by,?,x.company_id) OR ${participantSql("expense", "x", "?", "?")} OR
       ((?::text IS NULL OR x.branch_id=?) AND (?::text IS NULL OR x.department_id=?) AND ?=1 AND x.status IN ('in_review','approved','posted','reimbursed')) OR
-      (x.workflow_version=2 AND x.status IN ('in_review','posted','reimbursed') AND EXISTS(SELECT 1 FROM assignments access WHERE access.user_id=? AND access.company_id=x.company_id AND access.role IN ('finance_preparer','finance_approver','treasury','holding_owner','hr_admin') AND access.revoked_at IS NULL AND access.valid_from<=? AND access.valid_until>? AND (access.scope_kind='holding' OR (access.scope_kind='branch' AND access.scope_node_id=x.branch_id) OR (access.scope_kind='department' AND access.scope_node_id=x.department_id)))))`,
+      (x.workflow_version=2 AND x.status IN ('in_review','approved','posted','reimbursed') AND EXISTS(SELECT 1 FROM assignments access WHERE access.id=? AND access.company_id=x.company_id AND iam_role_allows(access.role,access.company_id,'expense.review.read') AND access.revoked_at IS NULL AND iam_assignment_active(access.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(access.user_id,access.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND access.valid_from<=? AND access.valid_until>? AND (access.scope_kind='holding' OR (access.scope_kind='branch' AND access.scope_node_id=x.branch_id) OR (access.scope_kind='department' AND access.scope_node_id=x.department_id)))))`,
     args: [
       actor.companyId,
       actor.userId,
       actor.userId,
       actor.userId,
       actor.userId,
+      actor.assignmentId,
       actor.branchId,
       actor.branchId,
       actor.departmentId,
       actor.departmentId,
       canAccountExpenses(actor) ? 1 : 0,
-      actor.userId,
+      actor.assignmentId,
       Date.now(),
       Date.now(),
     ],
@@ -90,11 +85,11 @@ async function currentExpenseReader(
   if (
     await db
       .prepare(
-        "SELECT 1 FROM assignments WHERE company_id=? AND user_id=? AND role IN ('holding_owner','hr_admin','finance_preparer','finance_approver','treasury','auditor') AND revoked_at IS NULL AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?) OR (scope_kind='department' AND scope_node_id=?))",
+        "SELECT 1 FROM assignments WHERE company_id=? AND id=? AND iam_role_allows(role,company_id,'expense.audit.read') AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?) OR (scope_kind='department' AND scope_node_id=?))",
       )
       .bind(
         actor.companyId,
-        actor.userId,
+        actor.assignmentId,
         Date.now(),
         Date.now(),
         row.branch_id,
@@ -222,17 +217,15 @@ export function canEditExpense(actor: WorkContext, row: ExpenseRow) {
   return (
     !row.cancelled_at &&
     ["draft", "rejected"].includes(String(row.status)) &&
-    (row.created_by === actor.userId || row.claimant_user_id === actor.userId)
+    (samePerson(actor,row.created_by) || samePerson(actor,row.claimant_user_id))
   );
 }
 export function canReviewExpense(actor: WorkContext, row: ExpenseRow) {
   return (
     row.can_decide === 1 &&
-    (row.workflow_version === 2 || row.current_approver_id === actor.userId) &&
+    (row.workflow_version === 2 || samePerson(actor,row.current_approver_id)) &&
     row.status === "in_review" &&
-    ![row.created_by, row.prepared_by, row.claimant_user_id].includes(
-      actor.userId,
-    )
+    ![row.created_by,row.prepared_by,row.claimant_user_id].some(id=>samePerson(actor,id))
   );
 }
 export async function expenseDetail(actor: WorkContext, id: string) {
@@ -287,6 +280,7 @@ export async function expenseDetail(actor: WorkContext, id: string) {
         ? ["save", "submit"]
         : []),
       ...(canReviewExpense(actor, expense) ? ["approve", "reject"] : []),
+      ...(expense.can_post === 1 ? ["post", "reject"] : []),
       ...([expense.claimant_user_id, expense.created_by].includes(
         actor.userId,
       ) && ["draft", "rejected", "in_review"].includes(String(expense.status))
@@ -302,7 +296,7 @@ export async function expenseDetail(actor: WorkContext, id: string) {
 }
 export async function expenseOptions(actor: WorkContext) {
   const { write } = await holdingResources(actor.holdingId);
-  const [people, accounts, periods] = await Promise.all([
+  const [people, accounts, periods, payees] = await Promise.all([
     write
       .prepare(
         `SELECT p.id,p.legal_name,p.user_id,e.branch_id FROM hr_people p JOIN hr_engagements e ON e.id=(SELECT id FROM hr_engagements WHERE person_id=p.id AND status='active' ORDER BY start_date DESC LIMIT 1)
@@ -326,21 +320,23 @@ export async function expenseOptions(actor: WorkContext) {
       .all<ExpenseRow>(),
     write
       .prepare(
-        "SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state='open' AND EXISTS(SELECT 1 FROM assignments WHERE company_id=? AND user_id=? AND role IN ('holding_owner','finance_preparer','finance_approver') AND revoked_at IS NULL AND valid_from<=? AND valid_until>?) ORDER BY start_date DESC",
+        "SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state='open' AND EXISTS(SELECT 1 FROM assignments WHERE company_id=? AND id=? AND iam_role_allows(role,company_id,'finance.period.select') AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>?) ORDER BY start_date DESC",
       )
       .bind(
         actor.companyId,
         actor.companyId,
-        actor.userId,
+        actor.assignmentId,
         Date.now(),
         Date.now(),
       )
       .all<ExpenseRow>(),
+    write.prepare("SELECT id,name,currency FROM finance_parties WHERE company_id=? AND kind='supplier' AND status='active' ORDER BY name").bind(actor.companyId).all<ExpenseRow>(),
   ]);
   return {
     people: people.results,
     accounts: accounts.results,
     periods: periods.results,
+    payees:payees.results,
     selfUserId: actor.userId,
   };
 }
@@ -392,7 +388,7 @@ export async function transitionExpense(
   if (
     !review &&
     !(action === "cancel"
-      ? [row.claimant_user_id, row.created_by].includes(actor.userId) &&
+      ? [row.claimant_user_id, row.created_by].some(id=>samePerson(actor,id)) &&
         ["draft", "rejected", "in_review"].includes(String(row.status))
       : canEditExpense(actor, row))
   )
@@ -645,30 +641,22 @@ export async function postExpense(
   input: z.infer<typeof expensePostSchema>,
   key: string,
 ) {
-  actor = requireBusinessRole(actor, ["holding_owner", "finance_approver"]);
-  if (!canPostExpenses(actor) || actor.branchId || actor.departmentId)
-    throw new ApiError(
-      403,
-      "FINANCE_APPROVER_REQUIRED",
-      "A holding-level finance approver must post expense obligations.",
-    );
   const { write } = await holdingResources(actor.holdingId);
-  const prior = await replayCommand(
-    write,
-    actor,
-    key,
-    "expense.post",
-    id,
-    input,
-  );
+  const prior = await replayCommand(write, actor, key, "expense.post", id, input);
   if (prior) return prior;
   const claim = await getExpense(actor, id);
-  if (claim.workflow_version === 2)
-    throw new ApiError(
-      409,
-      "EXPENSE_STAGE_REQUIRED",
-      "Use the Accounts manager approval on this claim to approve and post together.",
-    );
+  if (claim.workflow_version === 2) {
+    if (claim.workflow_stage !== "gl_posting" || claim.status !== "approved" || claim.can_post !== 1)
+      throw new ApiError(403, "GL_POSTER_REQUIRED", "Only the assigned independent accountant can post approved accounting.");
+    const accounting = JSON.parse(String(claim.accounting_json ?? "{}")) as {preparedBy?:string; periodId?:string; entryDate?:string};
+    if (samePerson(actor,accounting.preparedBy)) throw new ApiError(403,"SELF_POST_FORBIDDEN","The accounting preparer cannot post their own preparation.");
+    if (input.periodId !== accounting.periodId || input.entryDate !== accounting.entryDate)
+      throw new ApiError(422,"APPROVED_ACCOUNTING_REQUIRED","Use the approved accounting date and period.");
+  } else {
+    actor = requirePermission(actor,"expense.approve");
+    if (!canPostExpenses(actor) || actor.branchId || actor.departmentId)
+      throw new ApiError(403,"FINANCE_APPROVER_REQUIRED","A holding-level finance approver must post expense obligations.");
+  }
   const prepared = await prepareExpensePosting(write, actor, claim, input, key);
   return executeCommand(
     write,
@@ -721,7 +709,7 @@ export async function prepareExpensePosting(
     );
   const total = Number(claim.amount_minor) + Number(claim.tax_minor),
     invoice = `expense-invoice-${id}`,
-    payee = `expense-payee-${claim.employee_id}`;
+    payee = claim.request_kind==="payment"&&claim.payee_party_id?String(claim.payee_party_id):`expense-payee-${claim.employee_id}`;
   const lines = [
     {
       accountId: String(claim.category_account_id),
@@ -773,7 +761,7 @@ export async function prepareExpensePosting(
         id,
         actor,
         input.expectedVersion,
-        claim.workflow_version === 2 ? ["in_review"] : ["approved"],
+        ["approved"],
       ),
       independentClaimant(write, key, id, actor),
       assertion(
@@ -790,6 +778,7 @@ export async function prepareExpensePosting(
         "EXISTS(SELECT 1 FROM attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL)",
         [id],
       ),
+      ...(claim.request_kind==="payment"&&claim.payee_party_id ? [assertion(write,key,"payee","EXISTS(SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND kind='supplier' AND status='active' AND currency=?)",[payee,actor.companyId,claim.currency])] : [
       write
         .prepare(
           "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,payment_terms_days,person_id,created_at,updated_at) VALUES(?,?,'employee',?,?,?,0,?,?,?) ON CONFLICT(company_id,person_id) WHERE person_id IS NOT NULL DO UPDATE SET name=excluded.name",
@@ -811,6 +800,7 @@ export async function prepareExpensePosting(
         "EXISTS(SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND person_id=? AND currency=? AND status='active')",
         [payee, actor.companyId, claim.employee_id, claim.currency],
       ),
+      ]),
       ...journal.steps,
       write
         .prepare(
@@ -841,9 +831,9 @@ export async function prepareExpensePosting(
         ),
       write
         .prepare(
-          "UPDATE finance_expenses SET status='posted',workflow_stage='payment',approved_by=CASE WHEN workflow_version=2 THEN ? ELSE approved_by END,invoice_id=?,journal_id=?,posted_at=?,version=version+1,updated_at=? WHERE id=?",
+          "UPDATE finance_expenses SET status='posted',workflow_stage='payment',invoice_id=?,journal_id=?,posted_at=?,version=version+1,updated_at=? WHERE id=?",
         )
-        .bind(actor.userId, invoice, journal.result.id, now, now, id),
+        .bind(invoice, journal.result.id, now, now, id),
     ],
   };
 }
@@ -857,7 +847,7 @@ export async function reverseExpense(
   input: z.infer<typeof expenseReversalSchema>,
   key: string,
 ) {
-  actor = requireBusinessRole(actor, ["holding_owner", "finance_approver"]);
+  actor = requirePermission(actor,"expense.approve");
   if (!canPostExpenses(actor) || actor.branchId || actor.departmentId)
     throw new ApiError(
       403,

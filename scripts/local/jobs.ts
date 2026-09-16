@@ -1,5 +1,5 @@
 import { getRuntime, closeRuntime } from '../../src/server/runtime/env';
-import { activeSlots, maintenance, runOne, scheduledWork, expenseAiWork } from '../../src/server/runtime/jobs';
+import { activeSlots, maintenance, runOne, scheduledWork, expenseAiWork, directoryWork } from '../../src/server/runtime/jobs';
 
 let stopping=false;
 for(const signal of ['SIGINT','SIGTERM'] as const) process.on(signal,()=>{stopping=true;});
@@ -9,6 +9,12 @@ async function heartbeat() {
     ON CONFLICT(service) DO UPDATE SET heartbeat_at=excluded.heartbeat_at,details_json=excluded.details_json`)
     .bind(Date.now(),JSON.stringify({maintenance:await maintenance(env.ERPX_DATA_DIR)})).run();
 }
+let directoryRunning: Promise<void> | null = null;
+const directoryPulse = setInterval(() => {
+ if(stopping || directoryRunning)return;
+ directoryRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await directoryWork(env);})()
+  .catch(()=>console.error('{"event":"directory_iteration_failed"}')).finally(()=>{directoryRunning=null;});
+},10000);
 let aiRunning: Promise<void> | null = null;
 const aiPulse = setInterval(() => {
   if (stopping || aiRunning) return;
@@ -28,4 +34,4 @@ try {
     } catch(error) {console.error(JSON.stringify({event:'jobs_iteration_failed',code:error instanceof Error?error.name:'UnknownError'}));}
     if(!stopping)await new Promise(resolve=>setTimeout(resolve,1000));
   }
-} finally {clearInterval(aiPulse);clearInterval(pulse);await aiRunning;await closeRuntime();}
+} finally {clearInterval(directoryPulse);clearInterval(aiPulse);clearInterval(pulse);await directoryRunning;await aiRunning;await closeRuntime();}

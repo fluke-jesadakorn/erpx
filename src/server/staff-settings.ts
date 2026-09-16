@@ -1,3 +1,4 @@
+import { organizationGuard, validateStaffOrganization } from "./organization";
 import type { SqlDatabase } from "./runtime/types";
 import { z } from "zod";
 import { assertion, executeCommand, replayCommand } from "./commands";
@@ -22,6 +23,7 @@ export const levelSchema = z.object({
     .transform((s) => s.toUpperCase()),
   name: z.string().trim().min(1).max(100),
   rank: z.number().int().min(-10000).max(10000),
+  levelNumber: z.number().int().min(1).max(6).optional(),
   active: z.boolean().default(true),
   expectedVersion: z.number().int().min(0).default(0),
 });
@@ -39,7 +41,7 @@ export async function listLevels(db: SqlDatabase, companyId: string) {
   return (
     await db
       .prepare(
-        "SELECT * FROM staff_levels WHERE company_id=? ORDER BY rank DESC,code",
+        "SELECT * FROM staff_levels WHERE company_id=? ORDER BY level_number ASC NULLS LAST,rank DESC,code",
       )
       .bind(companyId)
       .all<{
@@ -48,6 +50,7 @@ export async function listLevels(db: SqlDatabase, companyId: string) {
         code: string;
         name: string;
         rank: number;
+        level_number: number | null;
         active: number;
         version: number;
       }>()
@@ -86,6 +89,10 @@ export async function saveLevel(
     operation = id ? "staff.level.update" : "staff.level.create";
   const prior = await replayCommand(db, actor, key, operation, recordId, input);
   if (prior) return prior;
+  const guard=await organizationGuard(db,actor.companyId,key);
+  const previous=id?await db.prepare("SELECT level_number FROM staff_levels WHERE id=? AND company_id=?").bind(id,actor.companyId).first<{level_number:number|null}>():null;
+  if(previous?.level_number && input.levelNumber && previous.level_number!==input.levelNumber)throw new ApiError(422,"LEVEL_NUMBER_IMMUTABLE","Map staff explicitly to a different level; existing numbered levels keep their meaning.");
+  if(id&&!input.active&&await db.prepare("SELECT 1 FROM hr_engagements WHERE level_id=? AND status='active' UNION ALL SELECT 1 FROM organization_positions WHERE level_id=? AND active=1 LIMIT 1").bind(id,id).first())throw new ApiError(422,"LEVEL_IN_USE","Reassign active staff and positions before deactivating this level.");
   const now = Date.now(),
     version = id ? input.expectedVersion + 1 : 1;
   return executeCommand(
@@ -98,6 +105,7 @@ export async function saveLevel(
     version,
     { id: recordId, version },
     [
+      guard,
       authorityGuard(db, key, actor),
       ...(id
         ? [
@@ -113,19 +121,20 @@ export async function saveLevel(
       id
         ? db
             .prepare(
-              "UPDATE staff_levels SET code=?,name=?,rank=?,active=?,version=version+1,updated_at=? WHERE id=?",
+              "UPDATE staff_levels SET code=?,name=?,rank=?,active=?,level_number=COALESCE(?,level_number),version=version+1,updated_at=? WHERE id=?",
             )
             .bind(
               input.code,
               input.name,
               input.rank,
               input.active ? 1 : 0,
+              input.levelNumber ?? null,
               now,
               id,
             )
         : db
             .prepare(
-              "INSERT INTO staff_levels(id,company_id,code,name,rank,active,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+              "INSERT INTO staff_levels(id,company_id,code,name,rank,active,level_number,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)",
             )
             .bind(
               recordId,
@@ -134,6 +143,7 @@ export async function saveLevel(
               input.name,
               input.rank,
               input.active ? 1 : 0,
+              input.levelNumber ?? null,
               now,
               now,
             ),
@@ -195,16 +205,19 @@ export async function assignLevel(
     input,
   );
   if (prior) return prior;
+  const guard=await organizationGuard(db,actor.companyId,key);
   const engagement = await db
     .prepare("SELECT * FROM hr_engagements WHERE id=? AND company_id=?")
     .bind(id, actor.companyId)
     .first<{
+      person_id:string;position_id:string|null;manager_person_id:string|null;status:string;
       level_id: string | null;
       branch_id: string | null;
       department_id: string | null;
     }>();
   if (!engagement)
     throw new ApiError(404, "ENGAGEMENT_NOT_FOUND", "Engagement not found.");
+  if(engagement.position_id)await validateStaffOrganization(db,actor.companyId,{...engagement,level_id:input.levelId},engagement.status==="active");
   return executeCommand(
     db,
     actor,
@@ -215,6 +228,7 @@ export async function assignLevel(
     input.expectedVersion + 1,
     { id, version: input.expectedVersion + 1 },
     [
+      guard,
       authorityGuard(db, key, actor),
       assertion(
         db,

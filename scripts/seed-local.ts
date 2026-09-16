@@ -5,7 +5,6 @@ import { getLocalProxy } from "./local/fixtures";
 import type { RuntimeEnv } from "../src/server/runtime/env";
 import { hashPassword } from "better-auth/crypto";
 import { moduleRegistry } from "../src/data/module-registry";
-import { capabilitySamples } from "../src/data/preview/capability-samples";
 import { project, type EventMessage, type JobEnv } from "../src/workers/jobs";
 import { calculatePayrollAmounts } from "../src/lib/payroll-math";
 
@@ -361,58 +360,6 @@ function socialStatements(db: Db, holding: string) {
   return statements;
 }
 
-function workspaceStatements(db: Db, holding: string) {
-  const statements: SqlStatement[] = [];
-  const held = companies.filter((company) => company.holding === holding);
-  const actor = holdingActor(holding);
-  for (const company of held) for (const branch of company.branches) for (const mod of moduleRegistry) for (const section of mod.sections) for (let index = 0; index < 3; index += 1) {
-    const sample = capabilitySamples(mod, section).records[0];
-    const id = `seed-${holding}-${company.id}-${mod.id}-${section.id}-${index + 1}`.replaceAll(/[^a-zA-Z0-9_-]/g, "-").slice(0, 180);
-    const status = ["draft", "in_review", "approved"][index];
-    const fields = JSON.stringify(sample.fields.map((field) => ({ ...field, value: index === 0 || typeof field.value !== "string" ? field.value : `${field.value} · ${branch[1]}` })));
-    statements.push(db.prepare("INSERT INTO workspace_records(module_id,id,section_id,title,description,status,fields_json,company_id,branch_id,department_id,version,created_by,updated_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,1,?,?,?,?) ON CONFLICT DO NOTHING")
-      .bind(mod.id, id, section.id, `${sample.title} · ${branch[1]} ${index + 1}`, `${sample.description} Seeded business record for ${company.name}, ${branch[1]}.`, status, fields, company.id, branch[0], `dept:${branch[0]}:operations`, actor, actor, now - index * 86_400_000, now));
-  }
-  return statements;
-}
-
-function workspaceRelationStatements(db: Db, holding: string) {
-  const statements: SqlStatement[] = [];
-  const actor = holdingActor(holding);
-  const reviewer = holdingReviewer(holding);
-  const held = companies.filter((company) => company.holding === holding);
-  for (const company of held) for (const mod of moduleRegistry) for (const section of mod.sections) {
-    const base = `seed-${holding}-${company.id}-${mod.id}-${section.id}`.replaceAll(/[^a-zA-Z0-9_-]/g, "-").slice(0, 170);
-    const first = `${base}-1`, second = `${base}-2`, third = `${base}-3`;
-    statements.push(db.prepare("INSERT INTO record_reference_edges(host_module,host_id,target_module,target_id,kind,ordinal,created_by,created_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
-      .bind(mod.id, third, mod.id, first, "dependsOn", 0, actor, now));
-    statements.push(db.prepare("INSERT INTO workspace_record_transitions(id,module_id,record_id,from_status,to_status,action,note,actor_id,assignment_id,record_version,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
-      .bind(`transition-${holding}-${company.id}-${mod.id}-${section.id}-2`, mod.id, second, "draft", "in_review", "submit", "Seeded review handoff", actor, `seed_${actor}`, 2, now));
-    statements.push(db.prepare("INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
-      .bind(`audit-${holding}-${company.id}-${mod.id}-${section.id}-submit`, `seed-command-${holding}-${company.id}-${mod.id}-${section.id}-submit`, actor, `seed_${actor}`, "record.submit", mod.id, second, 2, "seed workflow submission", now));
-    statements.push(db.prepare("INSERT INTO workspace_record_transitions(id,module_id,record_id,from_status,to_status,action,note,actor_id,assignment_id,record_version,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
-      .bind(`transition-${holding}-${company.id}-${mod.id}-${section.id}-3`, mod.id, third, "in_review", "approved", "approve", "Seeded independent approval", reviewer, `seed_${reviewer}`, 2, now));
-    statements.push(db.prepare("INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
-      .bind(`audit-${holding}-${company.id}-${mod.id}-${section.id}-approve`, `seed-command-${holding}-${company.id}-${mod.id}-${section.id}-approve`, reviewer, `seed_${reviewer}`, "record.approve", mod.id, third, 2, "independent seed workflow approval", now));
-  }
-  // Cross-module links make the seeded sales, purchasing, project, service, and
-  // finance scenarios navigable from any participating record.
-  const links: Array<[string, string, string, string, string, number]> = [
-    ["sales", "quotes", "crm", "pipeline", "authoredWith", 0],
-    ["sales", "orders", "procurement", "requisitions", "fulfills", 1],
-    ["projects", "work-breakdown", "sales", "orders", "billedBy", 2],
-    ["field_service", "service-orders", "projects", "work-breakdown", "dependsOn", 3],
-    ["support", "tickets", "finance", "receivables", "billedBy", 4],
-  ];
-  for (const company of held) for (const [hostModule, hostSection, targetModule, targetSection, kind, ordinal] of links) {
-    const host = `seed-${holding}-${company.id}-${hostModule}-${hostSection}-1`;
-    const target = `seed-${holding}-${company.id}-${targetModule}-${targetSection}-1`;
-    statements.push(db.prepare("INSERT INTO record_reference_edges(host_module,host_id,target_module,target_id,kind,ordinal,created_by,created_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
-      .bind(hostModule, host, targetModule, target, kind, ordinal, actor, now));
-  }
-  return statements;
-}
-
 function pdfBytes(title: string, details: string) {
   const safe = (value: string) => value.replaceAll(/[()\\]/g, "");
   const stream = `BT /F1 16 Tf 72 720 Td (${safe(title)}) Tj /F1 10 Tf 0 -28 Td (${safe(details)}) Tj ET`;
@@ -522,9 +469,6 @@ async function seedHolding(env: SeedEnv, holding: "h001" | "h002") {
   await batch(db, financeStatements(db, holding));
   console.log(`[seed:${holding}] social and workflows`);
   await batch(db, socialStatements(db, holding));
-  console.log(`[seed:${holding}] workspace records`);
-  await batch(db, workspaceStatements(db, holding));
-  await batch(db, workspaceRelationStatements(db, holding));
   console.log(`[seed:${holding}] R2 files`);
   await seedFiles(env, holding, db);
   await seedEvents(env, holding);

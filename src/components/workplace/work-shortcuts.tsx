@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import Link from "next/link";
 import { useLayoutEffect, useRef, useState } from "react";
 import {
@@ -71,7 +73,7 @@ export function WorkShortcuts({
       <div className={styles.header}>
         <div>
           <h2>Your shortcuts</h2>
-          <p>Actions and updates for your workspace.</p>
+          <p>Your everyday actions.</p>
         </div>
         <div className={styles.buttons}>
           <button
@@ -117,7 +119,7 @@ export function WorkShortcuts({
           />
         ))}
       </div>
-      {!all && cards.length > 3 && (
+      {!all && cards.length > 4 && (
         <button
           ref={expandButton}
           className={`button ghost ${styles.mobileMore}`}
@@ -173,12 +175,9 @@ function ShortcutCard({
           <p className={styles.partial}>Summary incomplete</p>
         ) : (
           <p className={styles.counts}>
-            <span>
-              <strong>{card.toDo}</strong> To do
-            </span>
-            <span>
-              <strong>{card.waiting}</strong> Waiting
-            </span>
+            {!!card.toDo && <span><strong>{card.toDo}</strong> To do</span>}
+            {!!card.waiting && <span><strong>{card.waiting}</strong> Waiting</span>}
+            {!card.toDo && !card.waiting && <span>No pending work</span>}
           </p>
         )}
         {card.blocked > 0 && (
@@ -259,7 +258,7 @@ function ShortcutEditor({
     change(next, ids[index]);
   }
   async function readLatest() {
-    const response = await fetch(`/api/v1${base}/work/card-preferences`, {
+    const response = await workFetch(`/api/v1${base}/work/card-preferences`, {
       cache: "no-store",
     });
     const body = (await response.json()) as {
@@ -284,7 +283,7 @@ function ShortcutEditor({
     if (request.current?.body !== body)
       request.current = { body, key: crypto.randomUUID() };
     try {
-      const response = await fetch(`/api/v1${base}/work/card-preferences`, {
+      const response = await workFetch(`/api/v1${base}/work/card-preferences`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

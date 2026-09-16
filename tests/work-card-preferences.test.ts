@@ -181,7 +181,7 @@ it("requires active access on reads and again in the committing transaction", as
     status: 403,
   });
 });
-it("shares creation capabilities across complete grants without allowing department inventory creation", async () => {
+it("requires selecting the warehouse grant and rejects department inventory creation", async () => {
   const missing = await f.member(
     "no-profile",
     "employee",
@@ -211,6 +211,8 @@ it("shares creation capabilities across complete grants without allowing departm
       },
     ],
   };
+  expect((await getWorkCapabilities(db, actor)).creation.some(c=>c.kind==="stock_count")).toBe(false);
+  actor.role="warehouse_manager";actor.assignmentId=actor.assignments[0].id;
   expect(
     (await getWorkCapabilities(db, actor)).creation.some(
       (c) => c.kind === "stock_count",

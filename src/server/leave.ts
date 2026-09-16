@@ -75,9 +75,9 @@ export async function getLeave(
   if (legacy) await approvalView(write, "leave", id, context);
   const row = await write
     .prepare(
-      `SELECT l.* FROM leave_requests l WHERE l.id=? AND l.company_id=? AND (l.created_by=? OR l.decided_by=? OR ${participantSql("leave", "l")})`,
+      `SELECT l.* FROM leave_requests l WHERE l.id=? AND l.company_id=? AND (l.created_by=? OR l.decided_by=? OR ${participantSql("leave", "l", "?", "?")})`,
     )
-    .bind(id, context.companyId, context.userId, context.userId, context.userId)
+    .bind(id, context.companyId, context.userId, context.userId, context.userId, context.assignmentId)
     .first<Omit<LeaveRequest, "approval" | "permittedActions">>();
   if (!row) throw new ApiError(404, "NOT_FOUND", "Leave request not found.");
   const approval = await approvalView(write, "leave", id, context);

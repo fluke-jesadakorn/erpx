@@ -1,0 +1,74 @@
+import {test,expect} from '@playwright/test';
+const endpoint='/api/v1/holdings/acme/assignments/active';
+test('searchable selector has no Automatic option and appearance stays compact',async({page,context})=>{
+ expect((await context.request.post('/api/auth/sign-in/email',{data:{email:'mali@erpx.dev',password:'Mali-ERPX-2026!'}})).ok()).toBe(true);
+ await page.goto('/holdings/acme/home');
+ if(page.url().includes('/work-role')){await page.getByRole('combobox',{name:'Role for actions & approvals'}).fill('people manager');await page.getByRole('listbox').getByRole('option').first().click();}
+ await expect(page.locator('[data-work-revision]')).toBeVisible();
+ await page.getByRole('button',{name:/Account menu for/}).click();
+ const role=page.getByRole('combobox',{name:'Role for actions & approvals'});
+ await role.fill('automatic');await expect(page.getByText('No matching roles. Try another name.')).toBeVisible();
+ await role.fill('people');await expect(page.getByRole('listbox').getByRole('option').first()).toContainText(/people/i);
+ const appearance=page.getByRole('group',{name:'Appearance'});expect((await appearance.boundingBox())!.width).toBeLessThanOrEqual(140);
+});
+test('17-role account selects Employee, cannot use finance or HR APIs, and invalidates another tab',async({page,context,baseURL,browser})=>{
+ const local=['127.0.0.1','localhost'].includes(new URL(baseURL!).hostname);
+ const email=process.env.ERPX_E2E_ADMIN_EMAIL??(local?'jesadakorn.kirtnu@gmail.com':undefined);
+ const password=process.env.ERPX_E2E_ADMIN_PASSWORD??(local?'12345678':undefined);
+ test.skip(!email||!password,'Authorized multi-role dev account required');
+ expect((await context.request.post('/api/auth/sign-in/email',{data:{email,password}})).ok()).toBe(true);
+ await context.request.post('/api/v1/holdings/acme/companies/active',{data:{companyId:'acme-co'}});
+ await page.goto('/holdings/acme/home');
+ await expect(page.locator('[data-work-revision]')).toBeVisible();
+ await page.getByRole('button',{name:/Account menu for/}).click();
+ let data=(await(await context.request.get(endpoint)).json()).data;
+ expect(data.options.length).toBeGreaterThanOrEqual(17);
+ const employee=data.options.find((a:{role:string})=>a.role==='employee'),finance=data.options.find((a:{role:string})=>a.role==='finance_approver');
+ await page.getByRole('combobox',{name:'Role for actions & approvals'}).fill('employee');await page.getByRole('listbox').getByRole('option').click();
+ await expect(page).toHaveURL(/\/holdings\/acme\/home$/);
+ await expect(page.getByText(/Working as employee/i)).toBeVisible();
+ await expect(page.locator('.active-work-role')).toBeVisible();
+ data=(await(await context.request.get(endpoint)).json()).data;
+ const headers={'x-erpx-context-revision':String(data.revision),'x-erpx-context-company':data.companyId,'x-erpx-context-assignment':employee.id,'Idempotency-Key':crypto.randomUUID()};
+ for(const path of ['finance/charts','finance/periods','finance/payments'])expect((await context.request.get(`/api/v1/holdings/acme/${path}`)).status()).toBe(403);
+ for(const path of ['finance/journals/missing/post','finance/payments/missing/approve','finance/payments/missing/release'])expect((await context.request.post(`/api/v1/holdings/acme/${path}`,{headers,data:{expectedVersion:1,proof:'Role denial test'}})).status()).toBe(403);
+ expect((await context.request.post('/api/v1/holdings/acme/people/directory/missing/grant',{headers,data:{role:'employee',scope:'holding',expiresAt:'2027-01-01'}})).status()).toBe(403);
+ const other=await context.newPage();await other.goto('/holdings/acme/work');
+ await page.getByRole('button',{name:/Account menu for/}).click();
+ await page.getByRole('combobox',{name:'Role for actions & approvals'}).fill('finance approver');
+ await page.getByRole('listbox').getByRole('option').click();
+ await expect(page.getByText(/Working as finance approver/i)).toBeVisible();
+ await expect(other.locator('[data-work-stale]')).toHaveAttribute('data-work-stale','true');
+ await expect(other.getByText('Work role changed. Your open form has not been submitted.',{exact:false})).toBeVisible();
+ const stale=await context.request.post('/api/v1/holdings/acme/finance/journals/missing/post',{headers,data:{expectedVersion:1}});
+ expect(stale.status()).toBe(409);expect((await stale.json()).error.code).toBe('WORK_CONTEXT_CHANGED');
+ expect((await context.request.get('/api/v1/holdings/acme/finance/charts')).status()).toBe(200);
+ expect((await context.request.post(endpoint,{data:{assignmentId:employee.id,revision:data.revision}})).status()).toBe(409);
+ const separate=await browser.newContext({baseURL});
+ expect((await separate.request.post('/api/auth/sign-in/email',{data:{email,password}})).ok()).toBe(true);
+ expect((await(await separate.request.get(endpoint)).json()).data.assignmentId).toBe(finance.id);
+ await separate.close();await other.close();
+ expect((await(await context.request.get(endpoint)).json()).data.assignmentId).toBe(finance.id);
+ const acmeHeaders={'x-erpx-context-company':data.companyId};
+ expect((await context.request.post('/api/v1/holdings/acme/companies/active',{data:{companyId:'beacon-co'}})).ok()).toBe(true);
+ const beacon=(await(await context.request.get(endpoint)).json()).data;
+ expect(beacon.companyId).toBe('beacon-co');
+ const beaconChoice=beacon.options.find((a:{role:string})=>a.role==='employee')??beacon.options[0];
+ expect((await context.request.post(endpoint,{headers:{'x-erpx-context-company':'beacon-co'},data:{assignmentId:beaconChoice.id,revision:beacon.revision}})).ok()).toBe(true);
+ expect((await(await context.request.get(endpoint,{headers:acmeHeaders})).json()).data.assignmentId).toBe(finance.id);
+ expect((await context.request.post(endpoint,{headers:acmeHeaders,data:{assignmentId:beaconChoice.id,revision:data.revision+1}})).status()).toBe(403);
+ expect((await context.request.post('/api/v1/holdings/acme/companies/active',{data:{companyId:data.companyId}})).ok()).toBe(true);
+
+});
+
+test('a single-assignment staff account starts automatically and keeps its role on reload',async({page,context,baseURL})=>{
+ test.skip(!['localhost','127.0.0.1'].includes(new URL(baseURL!).hostname),'Local authorized seed account');
+ expect((await context.request.post('/api/auth/sign-in/email',{data:{email:'demo.bangkok.operations.staff@erpx.dev',password:'Elena-ERPX-2026!'}})).ok()).toBe(true);
+ const choices=(await(await context.request.get(endpoint)).json()).data.options;
+ expect(choices).toHaveLength(1);
+ await page.goto('/holdings/acme/branches/bangkok/departments/operations/home');
+ await expect(page.locator('[data-work-revision]')).toBeVisible();
+ const selected=(await(await context.request.get(endpoint)).json()).data;
+ expect(selected.assignmentId).toBe(choices[0].id);
+ await page.reload();await expect(page.locator('[data-work-assignment]')).toHaveAttribute('data-work-assignment',choices[0].id);
+});

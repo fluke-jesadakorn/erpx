@@ -1,3 +1,4 @@
+import { mapSpendingOrganization } from "./spending-organization";
 import { seedExpenseCompany } from "../../fixtures/expenses/company";
 import { env } from "../runtime-env";
 import type { WorkContext } from "../../src/server/authorization";
@@ -10,8 +11,9 @@ import {
 import { saveExpenseAccounting } from "../../src/server/expense-workflow";
 export const expenseDb = env.H001_DB,
   key = () => crypto.randomUUID();
-export async function expenseFixture() {
+export async function expenseFixture(mapped = true) {
   const f = await seedExpenseCompany(expenseDb, env.H001_FILES);
+  if(mapped)await mapSpendingOrganization(f);
   const {
     db,
     company,
@@ -33,6 +35,9 @@ export async function expenseFixture() {
     grant,
     attach,
   } = f;
+  for (const [kind,step,user] of [["expense","department_approval",head.userId],["request","awaiting_approval",head.userId]]) {
+    await db.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,branch_id,department_id,primary_user_id,created_by,reason,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(company,kind,step,branch,department,user,owner.userId,"Fixture primary responsibility",Date.now()).run();
+  }
   async function claim(who = claimant) {
     return String(
       (

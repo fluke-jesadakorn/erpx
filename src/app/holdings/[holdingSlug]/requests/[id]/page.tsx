@@ -1,6 +1,6 @@
+import { FlowPanel, documentFlow } from "@/components/workplace/flow-panel";
 import { commercePermissions } from "@/server/commerce";
-import { notFound } from "next/navigation";
-import { ApiError } from "@/server/http";
+import { pageError } from "@/server/page-error";
 import { RequestAi } from "@/components/workplace/request-ai";
 import Link from "next/link";
 import { publicScope, requireWorkContext } from "@/server/authorization";
@@ -32,8 +32,7 @@ export default async function RequestPage({
     { write } = await holdingResources(actor.holdingId),
     detail = await employeeRequestDetail(write, actor, id).catch(
       (e: unknown) => {
-        if (e instanceof ApiError && [403, 404].includes(e.status)) notFound();
-        throw e;
+        return pageError(e, actor.holdingSlug);
       },
     ),
     row = detail.request,
@@ -43,6 +42,7 @@ export default async function RequestPage({
     if (!["q", "queue", "type", "responsibility"].includes(key))
       back.delete(key);
   const latestMessage = [...detail.events].reverse().find((e) => e.note);
+  const flow = await documentFlow(actor,"request",id);
   return (
     <main className={`content ${styles.stack}`} data-source="live">
       <Link href={`${base}/work${back.size ? `?${back}` : ""}`}>
@@ -136,7 +136,7 @@ export default async function RequestPage({
       />
       <RequestActions
         base={base}
-        detail={detail}
+        detail={{...detail,actions:detail.actions.filter(a=>flow.canAct||["edit","cancel","repair","comment","resource-request"].includes(a))}}
         userId={actor.userId}
         companyId={actor.companyId}
       />
@@ -216,6 +216,6 @@ export default async function RequestPage({
         </section>
       )}
       <RequestHistory detail={detail} />
-    </main>
+    <FlowPanel flow={flow} actor={actor} kind="request" id={id} base={base}/></main>
   );
 }

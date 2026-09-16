@@ -1,3 +1,4 @@
+import { requirePermission } from "@/server/iam-permissions";
 import { requestPublicOrigin } from "@/server/public-origin";
 import { requireWorkContext } from "@/server/authorization";
 import { ApiError, errorResponse } from "@/server/http";
@@ -95,7 +96,7 @@ type FinanceRouteContext = { params: Promise<{ holdingSlug: string; path: string
 export async function GET(request: Request, context: FinanceRouteContext) {
   try {
     const { holdingSlug, path } = await context.params;
-    const actor = await requireWorkContext(holdingSlug);
+    const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
     const parts = segments(path); const search = new URL(request.url).searchParams;
     if (parts[0] === "charts") {
       if (parts[1] && parts[2] === "accounts") return Response.json({ data: await listAccounts(actor, parts[1]) });
@@ -116,7 +117,7 @@ export async function POST(request: Request, context: FinanceRouteContext) {
   try {
     const origin=request.headers.get("origin");if(origin&&origin!==requestPublicOrigin(request))throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin.");
     const { holdingSlug, path } = await context.params;
-    const actor = await requireWorkContext(holdingSlug);
+    const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
     const parts = segments(path); const input = await body(request);
     if (parts[0] === "charts" && parts[1] === "import") {
       const normalized = typeof input === "object" && input !== null && "csv" in input && typeof input.csv === "string" ? { ...(input as Record<string, unknown>), rows: csvRows(input.csv) } : input;
@@ -138,7 +139,7 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     if (parts[0] === "invoices" && parts.length === 1) { const parsed = invoiceSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid invoice."); return Response.json({ data: await createInvoice(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
     if(parts[0]==="invoices"&&parts.length===2){const parsed=invoiceSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0].message);return Response.json({data:await createInvoice(actor,parsed.data,needCommand(request),parts[1])});}
     if(parts[0]==="invoices"&&parts[2]==="void"){const data=z.object({expectedVersion:z.number().int().positive()}).parse(input);return Response.json({data:await voidDraftInvoice(actor,parts[1],data.expectedVersion,needCommand(request))});}
-    if (parts[0] === "invoices" && parts[2] === "post") { const parsed = z.object({ periodId: z.string(), entryDate: z.string().date() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Posting period and date are required."); return Response.json({ data: await postInvoice(actor, parts[1], parsed.data, needCommand(request)) }); }
+    if (parts[0] === "invoices" && parts[2] === "post") { const parsed = z.object({ expectedVersion:z.number().int().positive(), periodId: z.string(), entryDate: z.string().date() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Posting period and date are required."); return Response.json({ data: await postInvoice(actor, parts[1], parsed.data, needCommand(request)) }); }
     if (parts[0] === "payments" && parts.length === 1) { const parsed = z.object({ partyId: z.string().optional(), kind: z.enum(["payment", "receipt", "refund"]), paymentNumber: z.string(), paymentDate: z.string().date(), currency: z.string().length(3), amount: z.string(), bankAccount: z.string().optional() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid payment."); return Response.json({ data: await createPayment(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
     if (parts[0] === "payments" && parts[2] === "approve") { const parsed = z.object({ expectedVersion: z.number().int().positive(), proof: z.string() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Payment approval evidence is required."); return Response.json({ data: await approvePayment(actor, parts[1], parsed.data, needCommand(request)) }); }
     if (parts[0] === "payments" && parts[2] === "release") { const parsed = z.object({ expectedVersion: z.number().int().positive(), proof: z.string() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Payment release evidence is required."); return Response.json({ data: await releasePayment(actor, parts[1], parsed.data, needCommand(request)) }); }

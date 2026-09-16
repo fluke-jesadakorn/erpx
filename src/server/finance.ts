@@ -1,5 +1,7 @@
+import { requirePermission } from "@/server/iam-permissions";
+import { samePerson } from "@/lib/iam";
+import { hasPermission } from "@/lib/permissions";
 import type { SqlDatabase, SqlStatement } from "./runtime/types";
-import { requireBusinessRole } from "./responsibilities";
 import { z } from "zod";
 import { assertion,executeCommand,replayCommand } from "./commands";
 import type { WorkContext } from "@/server/authorization";
@@ -78,34 +80,28 @@ export const closeProofSchema = z.object({
 type FinanceRow = Record<string, string | number | null>;
 
 function requireFinanceRole(actor: WorkContext, approver = false) {
-  const allowed = ["finance_preparer", "finance_approver", "holding_owner", "treasury", "auditor"];
-  if (!allowed.includes(actor.role)) throw new ApiError(403, "FINANCE_FORBIDDEN", "A finance assignment is required.");
-  if (approver && !["finance_approver", "holding_owner"].includes(actor.role))
+  if (!hasPermission(actor,"finance.read")) throw new ApiError(403, "FINANCE_FORBIDDEN", "A finance assignment is required.");
+  if (approver && !hasPermission(actor,"finance.approve"))
     throw new ApiError(403, "FINANCE_APPROVAL_REQUIRED", "An independent finance approver is required.");
 }
 
-async function hash(value: unknown) {
-  const data = new TextEncoder().encode(JSON.stringify(value));
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+async function hash(value:unknown) {
+ const bytes=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(JSON.stringify(value)));
+ return Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,"0")).join("");
 }
-
-async function priorCommand(write: SqlDatabase, id: string, operation: string, input: unknown) {
-  const row = await write.prepare("SELECT operation,request_hash,result_json FROM finance_commands WHERE command_id=?").bind(id).first<{ operation: string; request_hash: string; result_json: string | null }>();
-  if (!row) return null;
-  if (row.operation !== operation || row.request_hash !== await hash(input))
-    throw new ApiError(409, "IDEMPOTENCY_CONFLICT", "That idempotency key was already used for another command.");
-  return row.result_json ? JSON.parse(row.result_json) : { commandId: id };
+async function priorCommand(write:SqlDatabase,actor:WorkContext,id:string,operation:string,input:unknown) {
+  const receipt=await write.prepare("SELECT record_id FROM command_receipts WHERE command_id=?").bind(id).first<{record_id:string}>();
+  if(receipt)return replayCommand(write,actor,id,operation,receipt.record_id,input);
+  if(await write.prepare("SELECT 1 FROM finance_commands WHERE command_id=?").bind(id).first())throw new ApiError(409,"IDEMPOTENCY_CONFLICT","This legacy command has no recorded work context. Review its result before starting a new command.");
+  return null;
 }
-
-async function saveCommand(write: SqlDatabase, actor: WorkContext, id: string, operation: string, input: unknown, result: unknown) {
-  await write.prepare(`INSERT INTO finance_commands(command_id,company_id,operation,request_hash,result_json,created_at) VALUES(?,?,?,?,?,?)`)
-    .bind(id, actor.companyId, operation, await hash(input), JSON.stringify(result), Date.now()).run();
+async function saveCommand(write:SqlDatabase,actor:WorkContext,id:string,operation:string,input:unknown,result:Record<string,unknown>,statements:SqlStatement[]) {
+ return executeCommand(write,actor,id,operation,input,String(result.id??result.chartId??id),Number(result.version??1),result,statements);
 }
 
 async function resources(actor: WorkContext,readOnly=false) {
   requireFinanceRole(actor);
-  if(actor.role==="auditor"&&!readOnly)throw new ApiError(403,"READ_ONLY_ROLE","Auditors have read-only access to finance.");
+  if(!hasPermission(actor,"finance.write")&&!readOnly)throw new ApiError(403,"READ_ONLY_ROLE","Auditors have read-only access to finance.");
   return holdingResources(actor.holdingId);
 }
 
@@ -118,63 +114,62 @@ async function ensurePeriod(write: SqlDatabase, actor: WorkContext, periodId: st
 }
 
 export async function listCharts(actor: WorkContext) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury","auditor"]);
+  actor = requirePermission(actor,"finance.read");
 
   const { write } = await resources(actor,true);
   return (await write.prepare("SELECT * FROM finance_charts WHERE company_id=? ORDER BY name").bind(actor.companyId).all()).results;
 }
 
 export async function createChart(actor: WorkContext, input: z.infer<typeof createChartSchema>, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+  actor = requirePermission(actor,"finance.write");
 
-  const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.chart.create", input); if (previous) return previous;
+  const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.chart.create", input); if (previous) return previous;
   const chartId = `chart-${crypto.randomUUID()}`; const now = Date.now();
-  await write.batch([
+  pendingStatements.push(
     write.prepare("INSERT INTO finance_charts(id,company_id,name,base_currency,accounting_basis,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)").bind(chartId, actor.companyId, input.name, input.baseCurrency, input.accountingBasis, actor.userId, now, now),
-    write.prepare("INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, actor.userId, actor.assignmentId, "finance.chart.create", "finance_chart", chartId, 1, "chart setup", now),
-  ]);
+  );
   const result = { id: chartId, ...input, companyId: actor.companyId, version: 1 };
-  await saveCommand(write, actor, id, "finance.chart.create", input, result); return result;
+  return saveCommand(write, actor, id, "finance.chart.create", input, result, pendingStatements);
 }
 
 export async function listAccounts(actor: WorkContext, chartId: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury","auditor"]);
+  actor = requirePermission(actor,"finance.read");
 
   const { write } = await resources(actor,true);
   return (await write.prepare("SELECT * FROM finance_accounts WHERE company_id=? AND chart_id=? ORDER BY code").bind(actor.companyId, chartId).all()).results;
 }
 
 export async function createAccount(actor: WorkContext, input: z.infer<typeof createAccountSchema>, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+  actor = requirePermission(actor,"finance.write");
 
-  const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.account.create", input); if (previous) return previous;
+  const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.account.create", input); if (previous) return previous;
   const chart = await write.prepare("SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=?").bind(input.chartId, actor.companyId).first<{ id: string; base_currency: string }>();
   if (!chart) throw new ApiError(404, "CHART_NOT_FOUND", "Chart not found.");
   const accountId = `acct-${crypto.randomUUID()}`; const now = Date.now();
-  await write.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,parent_id,currency,is_control,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
-    .bind(accountId, input.chartId, actor.companyId, input.code, input.name, input.category, input.parentId ?? null, input.currency ?? chart.base_currency, input.isControl ? 1 : 0, now, now).run();
+  pendingStatements.push(write.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,parent_id,currency,is_control,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)")
+    .bind(accountId, input.chartId, actor.companyId, input.code, input.name, input.category, input.parentId ?? null, input.currency ?? chart.base_currency, input.isControl ? 1 : 0, now, now));
   const result = { id: accountId, ...input, companyId: actor.companyId, currency: input.currency ?? chart.base_currency, version: 1 };
-  await saveCommand(write, actor, id, "finance.account.create", input, result); return result;
+  return saveCommand(write, actor, id, "finance.account.create", input, result, pendingStatements);
 }
 
 export async function importAccounts(actor: WorkContext, chartId: string, rows: Array<{ code: string; name: string; category: z.infer<typeof createAccountSchema>["category"]; currency?: string }>, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+  actor = requirePermission(actor,"finance.write");
 
-  const { write } = await resources(actor); const input = { chartId, rows }; const previous = await priorCommand(write, id, "finance.account.import", input); if (previous) return previous;
+  const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const input = { chartId, rows }; const previous = await priorCommand(write, actor, id, "finance.account.import", input); if (previous) return previous;
   const chart = await write.prepare("SELECT base_currency FROM finance_charts WHERE id=? AND company_id=?").bind(chartId, actor.companyId).first<{ base_currency: string }>(); if (!chart) throw new ApiError(404, "CHART_NOT_FOUND", "Chart not found.");
   const now = Date.now(); const statements = rows.map((row) => write.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(chart_id,code) DO UPDATE SET name=excluded.name,category=excluded.category,currency=excluded.currency,updated_at=excluded.updated_at").bind(`acct-${crypto.randomUUID()}`, chartId, actor.companyId, row.code, row.name, row.category, row.currency ?? chart.base_currency, now, now));
   if (!rows.length) throw new ApiError(422, "EMPTY_IMPORT", "Provide at least one account.");
-  await write.batch(statements); const result = { imported: rows.length, chartId }; await saveCommand(write, actor, id, "finance.account.import", input, result); return result;
+  pendingStatements.push(...statements); const result = { imported: rows.length, chartId }; return saveCommand(write, actor, id, "finance.account.import", input, result, pendingStatements);
 }
 
 export async function createPeriod(actor: WorkContext, input: z.infer<typeof createPeriodSchema>, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+  actor = requirePermission(actor,"finance.write");
 
-  const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.period.create", input); if (previous) return previous;
+  const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.period.create", input); if (previous) return previous;
   if (input.endDate < input.startDate) throw new ApiError(422, "INVALID_PERIOD", "Period end must be on or after its start.");
   const periodId = `period-${crypto.randomUUID()}`; const now = Date.now();
-  await write.prepare("INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at) VALUES(?,?,?,?,?,?)").bind(periodId, actor.companyId, input.name, input.startDate, input.endDate, now).run();
-  const result = { id: periodId, ...input, state: "open", companyId: actor.companyId, version: 0 }; await saveCommand(write, actor, id, "finance.period.create", input, result); return result;
+  pendingStatements.push(write.prepare("INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at) VALUES(?,?,?,?,?,?)").bind(periodId, actor.companyId, input.name, input.startDate, input.endDate, now));
+  const result = { id: periodId, ...input, state: "open", companyId: actor.companyId, version: 0 }; return saveCommand(write, actor, id, "finance.period.create", input, result, pendingStatements);
 }
 
 export async function prepareJournal(write:SqlDatabase,actor:WorkContext,input:z.infer<typeof createJournalSchema>,key:string,status:"draft"|"posted"="draft") {
@@ -200,7 +195,7 @@ export async function prepareJournal(write:SqlDatabase,actor:WorkContext,input:z
   return {steps,result:{id:journalId,number,status,version:1,debit:minorToDecimal(Number(total("debit"))),credit:minorToDecimal(Number(total("credit")))}};
 }
 export async function createJournal(actor:WorkContext,input:z.infer<typeof createJournalSchema>,id:string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+  actor = requirePermission(actor,"finance.write");
 
   const {write}=await resources(actor),journalId=`journal-${id}`;
   const previous=await replayCommand<{id:string;number:string;status:string;version:number;debit:string;credit:string}>(write,actor,id,"finance.journal.create",journalId,input);if(previous)return previous;
@@ -214,14 +209,14 @@ export async function importOpeningTrialBalance(actor: WorkContext, input: { cha
 }
 
 export async function listJournals(actor: WorkContext, query: { periodId?: string; status?: string }) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury","auditor"]);
+  actor = requirePermission(actor,"finance.read");
 
   const { write } = await resources(actor,true); const clauses = ["company_id=?"]; const args: (string | number)[] = [actor.companyId]; if (query.periodId) { clauses.push("period_id=?"); args.push(query.periodId); } if (query.status) { clauses.push("status=?"); args.push(query.status); }
   return (await write.prepare(`SELECT * FROM finance_journals WHERE ${clauses.join(" AND ")} ORDER BY entry_date DESC,journal_number DESC LIMIT 500`).bind(...args).all()).results;
 }
 
 export async function listInvoices(actor: WorkContext) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury","auditor"]);
+  actor = requirePermission(actor,"finance.read");
 
   const { write } = await resources(actor,true);
   return (await write.prepare(`SELECT i.id,i.invoice_number,i.kind,i.invoice_date,i.due_date,i.currency,i.total_minor,i.outstanding_minor,i.status,p.name AS party_name
@@ -230,21 +225,21 @@ export async function listInvoices(actor: WorkContext) {
 }
 
 export async function getInvoice(actor: WorkContext, invoiceId: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury","auditor"]);
+  actor = requirePermission(actor,"finance.read");
 
   const { write } = await resources(actor,true);
   const invoice = await write.prepare(`SELECT i.*,p.code AS party_code,p.name AS party_name
     FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id
     WHERE i.id=? AND i.company_id=?`).bind(invoiceId, actor.companyId).first<FinanceRow>();
   if (!invoice) throw new ApiError(404, "INVOICE_NOT_FOUND", "Invoice not found in this company.");
-  const allocations = await write.prepare(`SELECT a.id,a.amount_minor,a.created_at,p.payment_number,p.status
+  const allocations = await write.prepare(`SELECT a.id,a.amount_minor,a.created_at,p.payment_number,p.status,p.payment_slip_id
     FROM finance_allocations a JOIN finance_payments p ON p.id=a.payment_id
     WHERE a.invoice_id=? AND a.company_id=? ORDER BY a.created_at`).bind(invoiceId, actor.companyId).all();
   return { invoice, allocations: allocations.results };
 }
 
 export async function listPayments(actor: WorkContext) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury","auditor"]);
+  actor = requirePermission(actor,"finance.read");
 
   const { write } = await resources(actor,true);
   return (await write.prepare(`SELECT p.id,p.payment_number,p.kind,p.payment_date,p.currency,p.amount_minor,p.outstanding_minor,p.status,f.name AS party_name
@@ -253,7 +248,7 @@ export async function listPayments(actor: WorkContext) {
 }
 
 export async function getPayment(actor: WorkContext, paymentId: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury","auditor"]);
+  actor = requirePermission(actor,"finance.read");
 
   const { write } = await resources(actor,true);
   const payment = await write.prepare(`SELECT p.*,f.code AS party_code,f.name AS party_name
@@ -267,21 +262,22 @@ export async function getPayment(actor: WorkContext, paymentId: string) {
 }
 
 export async function postJournal(actor: WorkContext, journalId: string, id: string, input: { expectedVersion: number }) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+  actor = requirePermission(actor,"finance.write");
 
   const {write}=await resources(actor);const previous=await replayCommand(write,actor,id,"finance.journal.post",journalId,input);if(previous)return previous;
   const journal=await write.prepare("SELECT * FROM finance_journals WHERE id=? AND company_id=?").bind(journalId,actor.companyId).first<FinanceRow>();if(!journal)throw new ApiError(404,"JOURNAL_NOT_FOUND","Journal not found.");
-  if(["manual","opening_import"].includes(String(journal.source_type))&&(journal.created_by===actor.userId||!["holding_owner","finance_approver"].includes(actor.role)))throw new ApiError(403,"INDEPENDENT_APPROVER_REQUIRED","A different finance approver must post a manual journal.");
+  if(samePerson(actor,journal.created_by)||!hasPermission(actor,"finance.approve"))throw new ApiError(403,"INDEPENDENT_APPROVER_REQUIRED","A different finance approver must post a manual journal.");
   const now=Date.now();return executeCommand(write,actor,id,"finance.journal.post",input,journalId,input.expectedVersion+1,{id:journalId,status:"posted",version:input.expectedVersion+1},[
     assertion(write,id,"journal","EXISTS(SELECT 1 FROM finance_journals WHERE id=? AND company_id=? AND version=? AND status IN ('draft','in_review'))",[journalId,actor.companyId,input.expectedVersion]),
     assertion(write,id,"period","EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)",[journal.period_id,actor.companyId,journal.entry_date,journal.entry_date]),
+    assertion(write,id,"active-accounts","NOT EXISTS(SELECT 1 FROM finance_journal_lines l LEFT JOIN finance_accounts a ON a.id=l.account_id AND a.company_id=? AND a.chart_id=? WHERE l.journal_id=? AND (a.id IS NULL OR a.status!='active' OR a.currency!=?))",[actor.companyId,journal.chart_id,journalId,journal.currency]),
     assertion(write,id,"balanced","(SELECT COUNT(*)>=2 AND SUM(base_debit_minor)=SUM(base_credit_minor) AND SUM(debit_minor)=SUM(credit_minor) FROM finance_journal_lines WHERE journal_id=?)",[journalId]),
     write.prepare("UPDATE finance_journals SET status='posted',version=version+1,posted_by=?,posted_at=?,updated_at=? WHERE id=?").bind(actor.userId,now,now,journalId),
   ]);
 }
 
 export async function reverseJournal(actor: WorkContext, journalId: string, id: string, input: { periodId: string; entryDate: string; memo?: string }) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+  actor = requirePermission(actor,"finance.write");
 
   requireFinanceRole(actor,true);const {write}=await resources(actor);const previous=await replayCommand(write,actor,id,"finance.journal.reverse",journalId,input);if(previous)return previous;
   const journal=await write.prepare("SELECT * FROM finance_journals WHERE id=? AND company_id=? AND status='posted'").bind(journalId,actor.companyId).first<FinanceRow>();if(!journal)throw new ApiError(404,"POSTED_JOURNAL_NOT_FOUND","Posted journal not found.");
@@ -296,7 +292,7 @@ export async function reverseJournal(actor: WorkContext, journalId: string, id: 
 }
 
 export async function trialBalance(actor: WorkContext, periodId?: string, chartId?: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury","auditor"]);
+  actor = requirePermission(actor,"finance.read");
 
   const { write } = await resources(actor,true); const clauses = ["j.company_id=?", "j.status IN ('posted','reversed')"]; const args: (string | number)[] = [actor.companyId]; if (periodId) { clauses.push("j.period_id=?"); args.push(periodId); }
   if(chartId){clauses.push("j.chart_id=?");args.push(chartId);} else {const currencies=await write.prepare("SELECT DISTINCT base_currency FROM finance_charts WHERE company_id=?").bind(actor.companyId).all();if(currencies.results.length>1)throw new ApiError(422,"CHART_REQUIRED","Select a chart to keep reporting currencies separate.");}
@@ -311,7 +307,7 @@ export async function statements(actor: WorkContext, periodId?: string, chartId?
 }
 
 export async function beginClose(actor: WorkContext, periodId: string, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+  actor = requirePermission(actor,"finance.write");
 
   const { write } = await resources(actor); const previous = await replayCommand(write,actor,id,"finance.period.begin-close",periodId,{periodId}); if (previous) return previous;
   const period = await write.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=?").bind(periodId, actor.companyId).first<FinanceRow>(); if (!period) throw new ApiError(404, "PERIOD_NOT_FOUND", "Accounting period not found."); if (period.state !== "open") throw new ApiError(409, "INVALID_PERIOD_TRANSITION", "Only an open period can begin close.");
@@ -330,7 +326,7 @@ export async function beginClose(actor: WorkContext, periodId: string, id: strin
 }
 
 export async function closePeriod(actor: WorkContext, periodId: string, input: z.infer<typeof closeProofSchema>, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+  actor = requirePermission(actor,"finance.write");
 
   requireFinanceRole(actor, true); const { write } = await resources(actor); const previous = await replayCommand(write,actor,id,"finance.period.close",periodId,input); if (previous) return previous;
   const period = await write.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=?").bind(periodId, actor.companyId).first<FinanceRow>(); if (!period) throw new ApiError(404, "PERIOD_NOT_FOUND", "Accounting period not found."); if (period.state !== "closing") throw new ApiError(409, "INVALID_PERIOD_TRANSITION", "Begin the close before approving it."); if (String(period.close_started_by) === actor.userId) throw new ApiError(409, "CLOSE_APPROVAL_SEPARATION", "A different person must approve the period close."); if (input.expectedVersion !== undefined && input.expectedVersion !== Number(period.close_version)) throw new ApiError(409, "VERSION_CONFLICT", "The close changed. Refresh and review again.");
@@ -342,7 +338,7 @@ export async function closePeriod(actor: WorkContext, periodId: string, input: z
 }
 
 export async function reopenPeriod(actor: WorkContext, periodId: string, input: z.infer<typeof closeProofSchema>, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+  actor = requirePermission(actor,"finance.write");
 
   requireFinanceRole(actor,true);const {write}=await resources(actor);const previous=await replayCommand(write,actor,id,"finance.period.reopen",periodId,input);if(previous)return previous;
   const period=await write.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=? AND state='closed'").bind(periodId,actor.companyId).first<FinanceRow>();if(!period)throw new ApiError(404,"PERIOD_NOT_CLOSED","Closed period not found.");
@@ -356,12 +352,12 @@ export async function reopenPeriod(actor: WorkContext, periodId: string, input: 
 
 export const partySchema = z.object({ kind: z.enum(["customer", "supplier", "employee"]), code: z.string().min(1).max(64), name: z.string().min(1).max(200), currency: z.string().length(3).transform((v) => v.toUpperCase()), taxRegistration: z.string().max(100).optional(), paymentTermsDays: z.number().int().min(0).max(365).default(30), creditLimit: moneySchema.default("0") });
 export async function createParty(actor: WorkContext, input: z.infer<typeof partySchema>, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
- const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.party.create", input); if (previous) return previous; const partyId = `party-${crypto.randomUUID()}`; const now = Date.now(); await write.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,tax_registration,payment_terms_days,credit_limit_minor,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(partyId, actor.companyId, input.kind, input.code, input.name, input.currency, input.taxRegistration ?? null, input.paymentTermsDays, decimalToMinor(input.creditLimit), now, now).run(); const output = { id: partyId, ...input, creditLimitMinor: decimalToMinor(input.creditLimit) }; await saveCommand(write, actor, id, "finance.party.create", input, output); return output; }
+  actor = requirePermission(actor,"finance.write");
+ const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.party.create", input); if (previous) return previous; const partyId = `party-${crypto.randomUUID()}`; const now = Date.now(); pendingStatements.push(write.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,tax_registration,payment_terms_days,credit_limit_minor,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(partyId, actor.companyId, input.kind, input.code, input.name, input.currency, input.taxRegistration ?? null, input.paymentTermsDays, decimalToMinor(input.creditLimit), now, now)); const output = { id: partyId, ...input, creditLimitMinor: decimalToMinor(input.creditLimit) }; return saveCommand(write, actor, id, "finance.party.create", input, output, pendingStatements); }
 
 export const invoiceSchema = z.object({ expectedVersion:z.number().int().positive().optional(), partyId: z.string().min(1), kind: z.enum(["payable", "receivable"]), invoiceNumber: z.string().min(1).max(100), invoiceDate: z.string().date(), dueDate: z.string().date(), currency: z.string().length(3).transform((v) => v.toUpperCase()), subtotal: moneySchema, tax: moneySchema.default("0"), taxCode: z.string().max(64).optional(), taxAccountId:z.string().min(1).optional(), sourceType: z.string().max(64).optional(), sourceId: z.string().max(128).optional(), debitAccountId: z.string().min(1), creditAccountId: z.string().min(1) });
 export async function createInvoice(actor:WorkContext,input:z.infer<typeof invoiceSchema>,id:string,existingId?:string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+  actor = requirePermission(actor,"finance.write");
 
   const {write}=await resources(actor),invoiceId=existingId??`invoice-${id}`;const operation=existingId?"finance.invoice.update":"finance.invoice.create";const previous=await replayCommand(write,actor,id,operation,invoiceId,input);if(previous)return previous;
   const subtotal=decimalToMinor(input.subtotal),tax=decimalToMinor(input.tax),total=subtotal+tax;
@@ -378,26 +374,27 @@ export async function createInvoice(actor:WorkContext,input:z.infer<typeof invoi
   ]);
 }
 export async function voidDraftInvoice(actor:WorkContext,invoiceId:string,expectedVersion:number,key:string){
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+  actor = requirePermission(actor,"finance.write");
 const {write}=await resources(actor);return executeCommand(write,actor,key,"finance.invoice.void",{expectedVersion},invoiceId,expectedVersion+1,{id:invoiceId,status:"voided",version:expectedVersion+1},[
   assertion(write,key,"draft","EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=? AND status='draft' AND source_type='standalone' AND version=?)",[invoiceId,actor.companyId,expectedVersion]),
   write.prepare("UPDATE finance_invoices SET status='voided',outstanding_minor=0,version=version+1,updated_at=? WHERE id=?").bind(Date.now(),invoiceId),
 ]);}
 export async function invoiceWorkspace(actor:WorkContext){
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury","auditor"]);
+  actor = requirePermission(actor,"finance.read");
 const {write}=await resources(actor,true);const [charts,accounts,parties,invoices,periods]=await Promise.all([
   listCharts(actor),write.prepare("SELECT * FROM finance_accounts WHERE company_id=? AND status='active' ORDER BY code").bind(actor.companyId).all<FinanceRow>(),
   write.prepare("SELECT * FROM finance_parties WHERE company_id=? AND status='active' AND kind IN ('customer','supplier') AND person_id IS NULL ORDER BY name").bind(actor.companyId).all<FinanceRow>(),listInvoices(actor),
   write.prepare("SELECT * FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC").bind(actor.companyId).all<FinanceRow>(),
 ]);return {charts:charts as FinanceRow[],accounts:accounts.results,parties:parties.results,invoices,periods:periods.results};}
 
-export async function postInvoice(actor:WorkContext,invoiceId:string,input:{periodId:string;entryDate:string},id:string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+export async function postInvoice(actor:WorkContext,invoiceId:string,input:{periodId:string;entryDate:string;expectedVersion?:number},id:string) {
+  actor = requirePermission(actor,"finance.write");
 
   requireFinanceRole(actor,true);
   const {write}=await resources(actor);const previous=await replayCommand(write,actor,id,"finance.invoice.post",invoiceId,input);if(previous)return previous;
   const invoice=await write.prepare("SELECT * FROM finance_invoices WHERE id=? AND company_id=? AND status='draft'").bind(invoiceId,actor.companyId).first<FinanceRow>();if(!invoice)throw new ApiError(404,"INVOICE_NOT_FOUND","Draft invoice not found.");
-  if(invoice.source_type==="standalone"&&(invoice.created_by===actor.userId||!["holding_owner","finance_approver"].includes(actor.role)))throw new ApiError(403,"INDEPENDENT_APPROVER_REQUIRED","A different finance approver must post a standalone invoice.");
+  if(samePerson(actor,invoice.created_by)||!hasPermission(actor,"finance.approve"))throw new ApiError(403,"INDEPENDENT_APPROVER_REQUIRED","A different finance approver must post a standalone invoice.");
+  if(input.expectedVersion!==undefined && input.expectedVersion!==Number(invoice.version))throw new ApiError(409,"VERSION_CONFLICT","The invoice changed. Refresh its Debit / Credit before posting.");
   const tax=Number(invoice.tax_minor),subtotal=Number(invoice.subtotal_minor),total=Number(invoice.total_minor);if(tax&&!invoice.tax_account_id)throw new ApiError(422,"TAX_ACCOUNT_REQUIRED","This invoice needs a separate tax posting account.");
   const chart=await write.prepare("SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=?").bind(invoice.debit_account_id,actor.companyId).first<{chart_id:string}>();if(!chart)throw new ApiError(422,"ACCOUNT_INVALID","Invoice account is unavailable.");
   const payable=invoice.kind==="payable";
@@ -406,28 +403,28 @@ export async function postInvoice(actor:WorkContext,invoiceId:string,input:{peri
   const journal=await prepareJournal(write,actor,{chartId:chart.chart_id,periodId:input.periodId,entryDate:input.entryDate,currency:String(invoice.currency),memo:`Invoice ${invoice.invoice_number}`,sourceType:"invoice",sourceId:invoiceId,isOpening:false,lines},id,"posted");
   return executeCommand(write,actor,id,"finance.invoice.post",input,invoiceId,Number(invoice.version)+1,{id:invoiceId,status:"posted",journalId:journal.result.id},[
     assertion(write,id,"invoice","EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=? AND status='draft' AND version=?)",[invoiceId,actor.companyId,invoice.version]),...journal.steps,
-    write.prepare("UPDATE finance_invoices SET status='posted',journal_id=?,posted_at=?,version=version+1,updated_at=? WHERE id=?").bind(journal.result.id,Date.now(),Date.now(),invoiceId),
+    write.prepare("UPDATE finance_invoices SET status='posted',journal_id=?,approved_by=?,posted_at=?,version=version+1,updated_at=? WHERE id=?").bind(journal.result.id,actor.userId,Date.now(),Date.now(),invoiceId),
   ]);
 }
 
 export async function aging(actor: WorkContext, kind: "payable" | "receivable", asOf: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury","auditor"]);
+  actor = requirePermission(actor,"finance.read");
  const { write } = await resources(actor,true); const rows = await write.prepare("SELECT i.*,p.code AS party_code,p.name AS party_name FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id WHERE i.company_id=? AND i.kind=? AND i.outstanding_minor>0 AND i.status IN ('posted','partially_paid') ORDER BY i.due_date").bind(actor.companyId, kind).all<FinanceRow>(); return rows.results.map((row) => { const days = Math.max(0, Math.floor((Date.parse(asOf) - Date.parse(String(row.due_date))) / 86400000)); const bucket = days === 0 ? "current" : days <= 30 ? "1-30" : days <= 60 ? "31-60" : days <= 90 ? "61-90" : "90+"; return { ...row, outstanding: minorToDecimal(Number(row.outstanding_minor)), bucket }; }); }
 
 export async function createPayment(actor: WorkContext, input: { partyId?: string; kind: "payment" | "receipt" | "refund"; paymentNumber: string; paymentDate: string; currency: string; amount: string; bankAccount?: string }, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
- const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.payment.create", input); if (previous) return previous; const paymentId = `pay-${crypto.randomUUID()}`; const amount = decimalToMinor(input.amount); if (amount <= 0) throw new ApiError(422, "INVALID_PAYMENT_AMOUNT", "Payment amount must be greater than zero."); const now = Date.now(); await write.prepare("INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(paymentId, actor.companyId, input.partyId ?? null, input.kind, input.paymentNumber, input.paymentDate, input.currency.toUpperCase(), amount, amount, input.bankAccount ?? null, actor.userId, now, now).run(); const output = { id: paymentId, amount: minorToDecimal(amount), outstanding: minorToDecimal(amount), status: "draft" }; await saveCommand(write, actor, id, "finance.payment.create", input, output); return output; }
+  actor = requirePermission(actor,"finance.write");
+ const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.payment.create", input); if (previous) return previous; const paymentId = `pay-${crypto.randomUUID()}`; const amount = decimalToMinor(input.amount); if (amount <= 0) throw new ApiError(422, "INVALID_PAYMENT_AMOUNT", "Payment amount must be greater than zero."); const now = Date.now(); pendingStatements.push(write.prepare("INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(paymentId, actor.companyId, input.partyId ?? null, input.kind, input.paymentNumber, input.paymentDate, input.currency.toUpperCase(), amount, amount, input.bankAccount ?? null, actor.userId, now, now)); const output = { id: paymentId, amount: minorToDecimal(amount), outstanding: minorToDecimal(amount), status: "draft" }; return saveCommand(write, actor, id, "finance.payment.create", input, output, pendingStatements); }
 
 export async function approvePayment(actor: WorkContext, paymentId: string, input: { expectedVersion: number; proof: string }, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
- requireFinanceRole(actor, true); const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.payment.approve", input); if (previous) return previous; if (!input.proof.trim()) throw new ApiError(422, "HUMAN_DECISION_REQUIRED", "Payment approval evidence is required."); const payment = await write.prepare("SELECT * FROM finance_payments WHERE id=? AND company_id=?").bind(paymentId, actor.companyId).first<FinanceRow>(); if (!payment) throw new ApiError(404, "PAYMENT_NOT_FOUND", "Payment not found."); if (Number(payment.version) !== input.expectedVersion) throw new ApiError(409, "VERSION_CONFLICT", "Payment changed. Refresh before approving."); if (payment.created_by === actor.userId) throw new ApiError(409, "SELF_REVIEW_FORBIDDEN", "A different person must approve the payment."); if (payment.status !== "draft" && payment.status !== "in_review") throw new ApiError(409, "PAYMENT_NOT_APPROVABLE", "Payment is not awaiting approval."); await write.prepare("UPDATE finance_payments SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=? AND version=? AND company_id=?").bind(actor.userId, Date.now(), paymentId, input.expectedVersion, actor.companyId).run(); const output = { id: paymentId, status: "approved", version: input.expectedVersion + 1 }; await saveCommand(write, actor, id, "finance.payment.approve", input, output); return output; }
+  actor = requirePermission(actor,"finance.write");
+ requireFinanceRole(actor, true); const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.payment.approve", input); if (previous) return previous; if (!input.proof.trim()) throw new ApiError(422, "HUMAN_DECISION_REQUIRED", "Payment approval evidence is required."); const payment = await write.prepare("SELECT * FROM finance_payments WHERE id=? AND company_id=?").bind(paymentId, actor.companyId).first<FinanceRow>(); if (!payment) throw new ApiError(404, "PAYMENT_NOT_FOUND", "Payment not found."); if (Number(payment.version) !== input.expectedVersion) throw new ApiError(409, "VERSION_CONFLICT", "Payment changed. Refresh before approving."); if (samePerson(actor,payment.created_by)) throw new ApiError(409, "SELF_REVIEW_FORBIDDEN", "A different person must approve the payment."); if (payment.status !== "draft" && payment.status !== "in_review") throw new ApiError(409, "PAYMENT_NOT_APPROVABLE", "Payment is not awaiting approval."); pendingStatements.push(assertion(write,id,"payment-version","EXISTS(SELECT 1 FROM finance_payments WHERE id=? AND company_id=? AND version=?)",[paymentId,actor.companyId,input.expectedVersion])); pendingStatements.push(write.prepare("UPDATE finance_payments SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=? AND version=? AND company_id=?").bind(actor.userId, Date.now(), paymentId, input.expectedVersion, actor.companyId)); const output = { id: paymentId, status: "approved", version: input.expectedVersion + 1 }; return saveCommand(write, actor, id, "finance.payment.approve", input, output, pendingStatements); }
 
 export async function releasePayment(actor: WorkContext, paymentId: string, input: { expectedVersion: number; proof: string }, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
- requireFinanceRole(actor, true); const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.payment.release", input); if (previous) return previous; if (!input.proof.trim()) throw new ApiError(422, "HUMAN_DECISION_REQUIRED", "Payment release evidence is required."); const payment = await write.prepare("SELECT * FROM finance_payments WHERE id=? AND company_id=? AND status='approved'").bind(paymentId, actor.companyId).first<FinanceRow>(); if (!payment) throw new ApiError(404, "PAYMENT_NOT_APPROVED", "Only an approved payment can be released."); if (Number(payment.version) !== input.expectedVersion) throw new ApiError(409, "VERSION_CONFLICT", "Payment changed. Refresh before releasing."); await write.prepare("UPDATE finance_payments SET status='released',released_by=?,version=version+1,updated_at=? WHERE id=? AND version=? AND company_id=?").bind(actor.userId, Date.now(), paymentId, input.expectedVersion, actor.companyId).run(); const output = { id: paymentId, status: "released", version: input.expectedVersion + 1, bankFileRequired: true }; await saveCommand(write, actor, id, "finance.payment.release", input, output); return output; }
+  actor = requirePermission(actor,"finance.write");
+ requireFinanceRole(actor, true); const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.payment.release", input); if (previous) return previous; if (!input.proof.trim()) throw new ApiError(422, "HUMAN_DECISION_REQUIRED", "Payment release evidence is required."); const payment = await write.prepare("SELECT * FROM finance_payments WHERE id=? AND company_id=? AND status='approved'").bind(paymentId, actor.companyId).first<FinanceRow>(); if (!payment) throw new ApiError(404, "PAYMENT_NOT_APPROVED", "Only an approved payment can be released."); if (Number(payment.version) !== input.expectedVersion) throw new ApiError(409, "VERSION_CONFLICT", "Payment changed. Refresh before releasing."); pendingStatements.push(assertion(write,id,"payment-version","EXISTS(SELECT 1 FROM finance_payments WHERE id=? AND company_id=? AND version=?)",[paymentId,actor.companyId,input.expectedVersion])); pendingStatements.push(write.prepare("UPDATE finance_payments SET status='released',released_by=?,version=version+1,updated_at=? WHERE id=? AND version=? AND company_id=?").bind(actor.userId, Date.now(), paymentId, input.expectedVersion, actor.companyId)); const output = { id: paymentId, status: "released", version: input.expectedVersion + 1, bankFileRequired: true }; return saveCommand(write, actor, id, "finance.payment.release", input, output, pendingStatements); }
 
 export async function allocatePayment(actor:WorkContext,paymentId:string,input:{invoiceId:string;amount:string;expectedVersion:number},key:string){
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+  actor = requirePermission(actor,"finance.write");
 
   const {write}=await resources(actor);const previous=await replayCommand(write,actor,key,"finance.payment.allocate",paymentId,input);if(previous)return previous;const amount=decimalToMinor(input.amount);if(amount<=0)throw new ApiError(422,"INVALID_ALLOCATION","Allocation must be positive.");
   return executeCommand(write,actor,key,"finance.payment.allocate",input,paymentId,input.expectedVersion+1,{paymentId,invoiceId:input.invoiceId,allocated:minorToDecimal(amount)},[
@@ -439,11 +436,11 @@ export async function allocatePayment(actor:WorkContext,paymentId:string,input:{
 }
 
 export async function exportPaymentFile(actor: WorkContext, paymentIds: string[], id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
- const { write } = await resources(actor); const input = { paymentIds }; const previous = await priorCommand(write, id, "finance.payment.export", input); if (previous) return previous; if (!paymentIds.length) throw new ApiError(422, "EMPTY_PAYMENT_BATCH", "Select at least one released payment."); const rows = await write.prepare(`SELECT id,payment_number,payment_date,currency,outstanding_minor,bank_account FROM finance_payments WHERE company_id=? AND status='released' AND id IN (${paymentIds.map(() => "?").join(",")}) ORDER BY payment_number`).bind(actor.companyId, ...paymentIds).all<FinanceRow>(); if (rows.results.length !== paymentIds.length) throw new ApiError(409, "PAYMENT_BATCH_INVALID", "Every payment must be released and belong to this company."); const csv = ["payment_id,payment_number,payment_date,currency,amount,bank_account", ...rows.results.map((row) => [row.id, row.payment_number, row.payment_date, row.currency, minorToDecimal(Number(row.outstanding_minor)), row.bank_account ?? ""].map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))].join("\n"); const output = { format: "csv", rows: rows.results.length, sha256: await hash(csv), content: csv, settlementRequired: true }; await saveCommand(write, actor, id, "finance.payment.export", input, output); return output; }
+  actor = requirePermission(actor,"finance.write");
+ const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const input = { paymentIds }; const previous = await priorCommand(write, actor, id, "finance.payment.export", input); if (previous) return previous; if (!paymentIds.length) throw new ApiError(422, "EMPTY_PAYMENT_BATCH", "Select at least one released payment."); const rows = await write.prepare(`SELECT id,payment_number,payment_date,currency,outstanding_minor,bank_account FROM finance_payments WHERE company_id=? AND status='released' AND id IN (${paymentIds.map(() => "?").join(",")}) ORDER BY payment_number`).bind(actor.companyId, ...paymentIds).all<FinanceRow>(); if (rows.results.length !== paymentIds.length) throw new ApiError(409, "PAYMENT_BATCH_INVALID", "Every payment must be released and belong to this company."); const csv = ["payment_id,payment_number,payment_date,currency,amount,bank_account", ...rows.results.map((row) => [row.id, row.payment_number, row.payment_date, row.currency, minorToDecimal(Number(row.outstanding_minor)), row.bank_account ?? ""].map((value) => `"${String(value).replaceAll('"', '""')}"`).join(","))].join("\n"); const output = { format: "csv", rows: rows.results.length, sha256: await hash(csv), content: csv, settlementRequired: true }; return saveCommand(write, actor, id, "finance.payment.export", input, output, pendingStatements); }
 
 export async function bankWorkspace(actor:WorkContext){
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury","auditor"]);
+  actor = requirePermission(actor,"finance.read");
 const {write}=await resources(actor,true);const [accounts,statements,transactions,payments]=await Promise.all([
   write.prepare("SELECT id,code,name,currency FROM finance_accounts WHERE company_id=? AND category='asset' AND status='active' ORDER BY code").bind(actor.companyId).all<FinanceRow>(),
   write.prepare("SELECT * FROM finance_bank_statements WHERE company_id=? ORDER BY statement_date DESC LIMIT 100").bind(actor.companyId).all<FinanceRow>(),
@@ -451,7 +448,7 @@ const {write}=await resources(actor,true);const [accounts,statements,transaction
   write.prepare("SELECT p.* FROM finance_payments p JOIN finance_journals j ON j.id=p.journal_id WHERE p.company_id=? AND p.status IN ('released','settled') AND j.status='posted' AND NOT EXISTS(SELECT 1 FROM finance_bank_transactions t WHERE t.company_id=p.company_id AND t.matched_type='payment' AND t.matched_id=p.id AND t.match_status='matched') ORDER BY p.payment_date DESC").bind(actor.companyId).all<FinanceRow>(),
 ]);return {accounts:accounts.results,statements:statements.results,transactions:transactions.results,payments:payments.results};}
 export async function importBankStatement(actor:WorkContext,input:{bankAccount:string;statementNumber:string;statementDate:string;opening:string;closing:string;sourceHash:string;rows:Array<{externalId:string;transactionDate:string;description?:string;amount:string;currency:string}>},key:string){
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+  actor = requirePermission(actor,"finance.write");
 
   const {write}=await resources(actor),id=`statement-${key}`;const previous=await replayCommand(write,actor,key,"finance.bank.import",id,input);if(previous)return previous;
   if(!input.rows.length||input.rows.length>500)throw new ApiError(422,"STATEMENT_SIZE","Import between 1 and 500 statement rows.");
@@ -469,7 +466,7 @@ export async function importBankStatement(actor:WorkContext,input:{bankAccount:s
   ]);
 }
 export async function reconcileBankTransaction(actor:WorkContext,transactionId:string,input:{expectedVersion:number;matchedType:string;matchedId:string;proof:string},key:string){
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
+  actor = requirePermission(actor,"finance.write");
 
   requireFinanceRole(actor,true);const {write}=await resources(actor);if(input.matchedType!=="payment"||!input.proof.trim())throw new ApiError(422,"MATCH_INPUT_INVALID","Select a posted payment and provide review evidence.");
   return executeCommand(write,actor,key,"finance.bank.reconcile",input,transactionId,input.expectedVersion+1,{id:transactionId,status:"matched",version:input.expectedVersion+1},[
@@ -482,44 +479,44 @@ export async function reconcileBankTransaction(actor:WorkContext,transactionId:s
 
 export const taxCodeSchema = z.object({ code: z.string().min(1).max(40), name: z.string().min(1).max(160), rate: z.string(), recoverable: z.string().default("1"), effectiveFrom: z.string().date(), effectiveTo: z.string().date().optional() });
 export async function createTaxCode(actor: WorkContext, input: z.infer<typeof taxCodeSchema>, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
- const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.tax-code.create", input); if (previous) return previous; const taxId = `tax-${crypto.randomUUID()}`; const rate = decimalToMinor(input.rate, 6); const recoverable = decimalToMinor(input.recoverable, 6); if (rate < 0 || recoverable < 0 || recoverable > 1_000_000) throw new ApiError(422, "INVALID_TAX_RATE", "Tax rates are non-negative and recoverability is between 0 and 1."); await write.prepare("INSERT INTO finance_tax_codes(id,company_id,code,name,rate_micros,recoverable_micros,effective_from,effective_to,status) VALUES(?,?,?,?,?,?,?,?,?)").bind(taxId, actor.companyId, input.code, input.name, rate, recoverable, input.effectiveFrom, input.effectiveTo ?? null, "active").run(); const output = { id: taxId, ...input, rateMicros: rate, recoverableMicros: recoverable }; await saveCommand(write, actor, id, "finance.tax-code.create", input, output); return output; }
+  actor = requirePermission(actor,"finance.write");
+ const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.tax-code.create", input); if (previous) return previous; const taxId = `tax-${crypto.randomUUID()}`; const rate = decimalToMinor(input.rate, 6); const recoverable = decimalToMinor(input.recoverable, 6); if (rate < 0 || recoverable < 0 || recoverable > 1_000_000) throw new ApiError(422, "INVALID_TAX_RATE", "Tax rates are non-negative and recoverability is between 0 and 1."); pendingStatements.push(write.prepare("INSERT INTO finance_tax_codes(id,company_id,code,name,rate_micros,recoverable_micros,effective_from,effective_to,status) VALUES(?,?,?,?,?,?,?,?,?)").bind(taxId, actor.companyId, input.code, input.name, rate, recoverable, input.effectiveFrom, input.effectiveTo ?? null, "active")); const output = { id: taxId, ...input, rateMicros: rate, recoverableMicros: recoverable }; return saveCommand(write, actor, id, "finance.tax-code.create", input, output, pendingStatements); }
 
 export const assetSchema = z.object({ assetNumber: z.string().min(1).max(64), name: z.string().min(1).max(200), accountId: z.string(), depreciationAccountId: z.string().optional(), currency: z.string().length(3).transform((v) => v.toUpperCase()).default("USD"), cost: moneySchema, residual: moneySchema.default("0"), usefulLifeMonths: z.number().int().positive().max(1200), inServiceDate: z.string().date() });
 export async function createAsset(actor: WorkContext, input: z.infer<typeof assetSchema>, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
- const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.asset.create", input); if (previous) return previous; const account = await write.prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=?").bind(input.accountId, actor.companyId).first(); if (!account) throw new ApiError(422, "ACCOUNT_INVALID", "Asset account is not available."); const assetId = `asset-${crypto.randomUUID()}`; const now = Date.now(); await write.prepare("INSERT INTO finance_assets(id,company_id,asset_number,name,account_id,depreciation_account_id,currency,cost_minor,residual_minor,useful_life_months,in_service_date,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?, 'draft',?,?,?)").bind(assetId, actor.companyId, input.assetNumber, input.name, input.accountId, input.depreciationAccountId ?? null, input.currency, decimalToMinor(input.cost), decimalToMinor(input.residual), input.usefulLifeMonths, input.inServiceDate, actor.userId, now, now).run(); const output = { id: assetId, status: "draft", cost: input.cost }; await saveCommand(write, actor, id, "finance.asset.create", input, output); return output; }
+  actor = requirePermission(actor,"finance.write");
+ const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.asset.create", input); if (previous) return previous; const account = await write.prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=?").bind(input.accountId, actor.companyId).first(); if (!account) throw new ApiError(422, "ACCOUNT_INVALID", "Asset account is not available."); const assetId = `asset-${crypto.randomUUID()}`; const now = Date.now(); pendingStatements.push(write.prepare("INSERT INTO finance_assets(id,company_id,asset_number,name,account_id,depreciation_account_id,currency,cost_minor,residual_minor,useful_life_months,in_service_date,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?, 'draft',?,?,?)").bind(assetId, actor.companyId, input.assetNumber, input.name, input.accountId, input.depreciationAccountId ?? null, input.currency, decimalToMinor(input.cost), decimalToMinor(input.residual), input.usefulLifeMonths, input.inServiceDate, actor.userId, now, now)); const output = { id: assetId, status: "draft", cost: input.cost }; return saveCommand(write, actor, id, "finance.asset.create", input, output, pendingStatements); }
 
 export async function depreciateAsset(actor: WorkContext, assetId: string, input: { periodId: string; entryDate: string }, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
- const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.asset.depreciate", input); if (previous) return previous; const asset = await write.prepare("SELECT * FROM finance_assets WHERE id=? AND company_id=?").bind(assetId, actor.companyId).first<FinanceRow>(); if (!asset) throw new ApiError(404, "ASSET_NOT_FOUND", "Asset not found."); if (!asset.depreciation_account_id) throw new ApiError(422, "DEPRECIATION_ACCOUNT_REQUIRED", "Configure the accumulated depreciation account first."); if (asset.status === "retired") throw new ApiError(409, "ASSET_RETIRED", "A retired asset cannot be depreciated."); const remaining = Number(asset.cost_minor) - Number(asset.residual_minor) - Number(asset.accumulated_depreciation_minor); if (remaining <= 0) return { id: assetId, amount: "0.00", status: "complete" }; const monthly = Math.min(Math.ceil((Number(asset.cost_minor) - Number(asset.residual_minor)) / Number(asset.useful_life_months)), remaining); const account = await write.prepare("SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=?").bind(asset.account_id, actor.companyId).first<{ chart_id: string }>(); if (!account) throw new ApiError(422, "ACCOUNT_INVALID", "Asset account is unavailable."); const journal = await createJournal(actor, { chartId: account.chart_id, periodId: input.periodId, entryDate: input.entryDate, currency: String(asset.currency), memo: `Depreciation ${asset.asset_number}`, sourceType: "asset_depreciation", sourceId: assetId, isOpening: false, lines: [{ accountId: String(asset.depreciation_account_id), debit: minorToDecimal(monthly), credit: "0" }, { accountId: String(asset.account_id), debit: "0", credit: minorToDecimal(monthly) }] }, `${id}:journal`); await postJournal(actor, journal.id, `${id}:post`, { expectedVersion: 1 }); await write.prepare("UPDATE finance_assets SET accumulated_depreciation_minor=accumulated_depreciation_minor+?,status='in_service',version=version+1 WHERE id=? AND company_id=?").bind(monthly, assetId, actor.companyId).run(); const output = { id: assetId, journalId: journal.id, amount: minorToDecimal(monthly), status: "posted" }; await saveCommand(write, actor, id, "finance.asset.depreciate", input, output); return output; }
+  actor = requirePermission(actor,"finance.write");
+ const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.asset.depreciate", input); if (previous) return previous; const asset = await write.prepare("SELECT * FROM finance_assets WHERE id=? AND company_id=?").bind(assetId, actor.companyId).first<FinanceRow>(); if (!asset) throw new ApiError(404, "ASSET_NOT_FOUND", "Asset not found."); if (!asset.depreciation_account_id) throw new ApiError(422, "DEPRECIATION_ACCOUNT_REQUIRED", "Configure the accumulated depreciation account first."); if (asset.status === "retired") throw new ApiError(409, "ASSET_RETIRED", "A retired asset cannot be depreciated."); const remaining = Number(asset.cost_minor) - Number(asset.residual_minor) - Number(asset.accumulated_depreciation_minor); if (remaining <= 0) return { id: assetId, amount: "0.00", status: "complete" }; const monthly = Math.min(Math.ceil((Number(asset.cost_minor) - Number(asset.residual_minor)) / Number(asset.useful_life_months)), remaining); const account = await write.prepare("SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=?").bind(asset.account_id, actor.companyId).first<{ chart_id: string }>(); if (!account) throw new ApiError(422, "ACCOUNT_INVALID", "Asset account is unavailable."); const journal = await createJournal(actor, { chartId: account.chart_id, periodId: input.periodId, entryDate: input.entryDate, currency: String(asset.currency), memo: `Depreciation ${asset.asset_number}`, sourceType: "asset_depreciation", sourceId: assetId, isOpening: false, lines: [{ accountId: String(asset.depreciation_account_id), debit: minorToDecimal(monthly), credit: "0" }, { accountId: String(asset.account_id), debit: "0", credit: minorToDecimal(monthly) }] }, `${id}:journal`); await postJournal(actor, journal.id, `${id}:post`, { expectedVersion: 1 }); pendingStatements.push(write.prepare("UPDATE finance_assets SET accumulated_depreciation_minor=accumulated_depreciation_minor+?,status='in_service',version=version+1 WHERE id=? AND company_id=?").bind(monthly, assetId, actor.companyId)); const output = { id: assetId, journalId: journal.id, amount: minorToDecimal(monthly), status: "posted" }; return saveCommand(write, actor, id, "finance.asset.depreciate", input, output, pendingStatements); }
 
 export const budgetSchema = z.object({ name: z.string().min(1).max(160), fiscalYear: z.number().int().min(2000).max(2200), currency: z.string().length(3).transform((v) => v.toUpperCase()) });
 export async function createBudget(actor: WorkContext, input: z.infer<typeof budgetSchema>, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
- const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.budget.create", input); if (previous) return previous; const budgetId = `budget-${crypto.randomUUID()}`; const now = Date.now(); await write.prepare("INSERT INTO finance_budgets(id,company_id,name,fiscal_year,currency,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)").bind(budgetId, actor.companyId, input.name, input.fiscalYear, input.currency, actor.userId, now, now).run(); const output = { id: budgetId, ...input, status: "draft" }; await saveCommand(write, actor, id, "finance.budget.create", input, output); return output; }
+  actor = requirePermission(actor,"finance.write");
+ const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.budget.create", input); if (previous) return previous; const budgetId = `budget-${crypto.randomUUID()}`; const now = Date.now(); pendingStatements.push(write.prepare("INSERT INTO finance_budgets(id,company_id,name,fiscal_year,currency,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)").bind(budgetId, actor.companyId, input.name, input.fiscalYear, input.currency, actor.userId, now, now)); const output = { id: budgetId, ...input, status: "draft" }; return saveCommand(write, actor, id, "finance.budget.create", input, output, pendingStatements); }
 
 
 export const leaseSchema = z.object({ leaseNumber: z.string().min(1).max(64), counterparty: z.string().min(1).max(200), currency: z.string().length(3).transform((v) => v.toUpperCase()), commencementDate: z.string().date(), endDate: z.string().date(), payment: moneySchema, discountRate: z.string().default("0"), paymentFrequency: z.string().default("monthly") });
 export async function createLease(actor: WorkContext, input: z.infer<typeof leaseSchema>, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
- const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.lease.create", input); if (previous) return previous; const leaseId = `lease-${crypto.randomUUID()}`; const now = Date.now(); const payment = decimalToMinor(input.payment); const rate = decimalToMinor(input.discountRate, 6); await write.prepare("INSERT INTO finance_leases(id,company_id,lease_number,counterparty,currency,commencement_date,end_date,payment_frequency,payment_minor,discount_rate_micros,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(leaseId, actor.companyId, input.leaseNumber, input.counterparty, input.currency, input.commencementDate, input.endDate, input.paymentFrequency, payment, rate, actor.userId, now, now).run(); const output = { id: leaseId, status: "draft", payment: input.payment }; await saveCommand(write, actor, id, "finance.lease.create", input, output); return output; }
+  actor = requirePermission(actor,"finance.write");
+ const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.lease.create", input); if (previous) return previous; const leaseId = `lease-${crypto.randomUUID()}`; const now = Date.now(); const payment = decimalToMinor(input.payment); const rate = decimalToMinor(input.discountRate, 6); pendingStatements.push(write.prepare("INSERT INTO finance_leases(id,company_id,lease_number,counterparty,currency,commencement_date,end_date,payment_frequency,payment_minor,discount_rate_micros,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(leaseId, actor.companyId, input.leaseNumber, input.counterparty, input.currency, input.commencementDate, input.endDate, input.paymentFrequency, payment, rate, actor.userId, now, now)); const output = { id: leaseId, status: "draft", payment: input.payment }; return saveCommand(write, actor, id, "finance.lease.create", input, output, pendingStatements); }
 
 export const loanSchema = z.object({ loanNumber: z.string().min(1).max(64), lender: z.string().min(1).max(200), currency: z.string().length(3).transform((v) => v.toUpperCase()), principal: moneySchema, annualRate: z.string().default("0"), commencementDate: z.string().date(), maturityDate: z.string().date() });
 export async function createLoan(actor: WorkContext, input: z.infer<typeof loanSchema>, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
- const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.loan.create", input); if (previous) return previous; const loanId = `loan-${crypto.randomUUID()}`; const now = Date.now(); const principal = decimalToMinor(input.principal); await write.prepare("INSERT INTO finance_loans(id,company_id,loan_number,lender,currency,principal_minor,annual_rate_micros,commencement_date,maturity_date,outstanding_minor,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(loanId, actor.companyId, input.loanNumber, input.lender, input.currency, principal, decimalToMinor(input.annualRate, 6), input.commencementDate, input.maturityDate, principal, actor.userId, now, now).run(); const output = { id: loanId, status: "draft", principal: input.principal }; await saveCommand(write, actor, id, "finance.loan.create", input, output); return output; }
+  actor = requirePermission(actor,"finance.write");
+ const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.loan.create", input); if (previous) return previous; const loanId = `loan-${crypto.randomUUID()}`; const now = Date.now(); const principal = decimalToMinor(input.principal); pendingStatements.push(write.prepare("INSERT INTO finance_loans(id,company_id,loan_number,lender,currency,principal_minor,annual_rate_micros,commencement_date,maturity_date,outstanding_minor,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(loanId, actor.companyId, input.loanNumber, input.lender, input.currency, principal, decimalToMinor(input.annualRate, 6), input.commencementDate, input.maturityDate, principal, actor.userId, now, now)); const output = { id: loanId, status: "draft", principal: input.principal }; return saveCommand(write, actor, id, "finance.loan.create", input, output, pendingStatements); }
 
 export const revenueContractSchema = z.object({ customerId: z.string(), contractNumber: z.string().min(1).max(64), currency: z.string().length(3).transform((v) => v.toUpperCase()), transactionPrice: moneySchema });
 export async function createRevenueContract(actor: WorkContext, input: z.infer<typeof revenueContractSchema>, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
- const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.revenue-contract.create", input); if (previous) return previous; const customer = await write.prepare("SELECT id FROM finance_parties WHERE id=? AND company_id=? AND kind='customer'").bind(input.customerId, actor.companyId).first(); if (!customer) throw new ApiError(404, "CUSTOMER_NOT_FOUND", "Customer not found."); const contractId = `contract-${crypto.randomUUID()}`; const now = Date.now(); await write.prepare("INSERT INTO finance_revenue_contracts(id,company_id,customer_id,contract_number,currency,transaction_price_minor,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(contractId, actor.companyId, input.customerId, input.contractNumber, input.currency, decimalToMinor(input.transactionPrice), actor.userId, now, now).run(); const output = { id: contractId, status: "draft", transactionPrice: input.transactionPrice }; await saveCommand(write, actor, id, "finance.revenue-contract.create", input, output); return output; }
+  actor = requirePermission(actor,"finance.write");
+ const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.revenue-contract.create", input); if (previous) return previous; const customer = await write.prepare("SELECT id FROM finance_parties WHERE id=? AND company_id=? AND kind='customer'").bind(input.customerId, actor.companyId).first(); if (!customer) throw new ApiError(404, "CUSTOMER_NOT_FOUND", "Customer not found."); const contractId = `contract-${crypto.randomUUID()}`; const now = Date.now(); pendingStatements.push(write.prepare("INSERT INTO finance_revenue_contracts(id,company_id,customer_id,contract_number,currency,transaction_price_minor,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(contractId, actor.companyId, input.customerId, input.contractNumber, input.currency, decimalToMinor(input.transactionPrice), actor.userId, now, now)); const output = { id: contractId, status: "draft", transactionPrice: input.transactionPrice }; return saveCommand(write, actor, id, "finance.revenue-contract.create", input, output, pendingStatements); }
 
 export const revenueObligationSchema = z.object({ contractId: z.string(), description: z.string().min(1).max(200), allocated: moneySchema, recognitionMethod: z.enum(["point_in_time", "over_time", "milestone"]), startDate: z.string().date(), endDate: z.string().date().optional(), revenueAccountId: z.string(), deferredAccountId: z.string() });
 export async function createRevenueObligation(actor: WorkContext, input: z.infer<typeof revenueObligationSchema>, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
- const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.revenue-obligation.create", input); if (previous) return previous; const contract = await write.prepare("SELECT id FROM finance_revenue_contracts WHERE id=? AND company_id=?").bind(input.contractId, actor.companyId).first(); if (!contract) throw new ApiError(404, "CONTRACT_NOT_FOUND", "Revenue contract not found."); const obligationId = `obligation-${crypto.randomUUID()}`; await write.prepare("INSERT INTO finance_revenue_obligations(id,contract_id,description,allocated_minor,recognition_method,start_date,end_date,revenue_account_id,deferred_account_id) VALUES(?,?,?,?,?,?,?,?,?)").bind(obligationId, input.contractId, input.description, decimalToMinor(input.allocated), input.recognitionMethod, input.startDate, input.endDate ?? null, input.revenueAccountId, input.deferredAccountId).run(); const output = { id: obligationId, status: "pending", allocated: input.allocated }; await saveCommand(write, actor, id, "finance.revenue-obligation.create", input, output); return output; }
+  actor = requirePermission(actor,"finance.write");
+ const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.revenue-obligation.create", input); if (previous) return previous; const contract = await write.prepare("SELECT id FROM finance_revenue_contracts WHERE id=? AND company_id=?").bind(input.contractId, actor.companyId).first(); if (!contract) throw new ApiError(404, "CONTRACT_NOT_FOUND", "Revenue contract not found."); const obligationId = `obligation-${crypto.randomUUID()}`; pendingStatements.push(write.prepare("INSERT INTO finance_revenue_obligations(id,contract_id,description,allocated_minor,recognition_method,start_date,end_date,revenue_account_id,deferred_account_id) VALUES(?,?,?,?,?,?,?,?,?)").bind(obligationId, input.contractId, input.description, decimalToMinor(input.allocated), input.recognitionMethod, input.startDate, input.endDate ?? null, input.revenueAccountId, input.deferredAccountId)); const output = { id: obligationId, status: "pending", allocated: input.allocated }; return saveCommand(write, actor, id, "finance.revenue-obligation.create", input, output, pendingStatements); }
 
 export async function recognizeRevenue(actor: WorkContext, obligationId: string, input: { amount: string; periodId: string; entryDate: string }, id: string) {
-  actor = requireBusinessRole(actor, ["finance_approver","holding_owner","finance_preparer","treasury"]);
- const { write } = await resources(actor); const previous = await priorCommand(write, id, "finance.revenue.recognize", input); if (previous) return previous; const obligation = await write.prepare("SELECT o.*,c.company_id,c.currency FROM finance_revenue_obligations o JOIN finance_revenue_contracts c ON c.id=o.contract_id WHERE o.id=? AND c.company_id=?").bind(obligationId, actor.companyId).first<FinanceRow>(); if (!obligation) throw new ApiError(404, "OBLIGATION_NOT_FOUND", "Revenue obligation not found."); const amount = decimalToMinor(input.amount); const remaining = Number(obligation.allocated_minor) - Number(obligation.recognized_minor); if (amount <= 0 || amount > remaining) throw new ApiError(422, "REVENUE_EXCEEDS_ALLOCATION", "Recognition exceeds the remaining obligation."); const account = await write.prepare("SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=?").bind(obligation.revenue_account_id, actor.companyId).first<{ chart_id: string }>(); if (!account) throw new ApiError(422, "ACCOUNT_INVALID", "Revenue account is unavailable."); const journal = await createJournal(actor, { chartId: account.chart_id, periodId: input.periodId, entryDate: input.entryDate, currency: String(obligation.currency), memo: `Revenue recognition ${obligation.description}`, sourceType: "revenue_recognition", sourceId: obligationId, isOpening: false, lines: [{ accountId: String(obligation.deferred_account_id), debit: minorToDecimal(amount), credit: "0" }, { accountId: String(obligation.revenue_account_id), debit: "0", credit: minorToDecimal(amount) }] }, `${id}:journal`); await postJournal(actor, journal.id, `${id}:post`, { expectedVersion: 1 }); await write.prepare("UPDATE finance_revenue_obligations SET recognized_minor=recognized_minor+?,status=CASE WHEN recognized_minor+?=allocated_minor THEN 'complete' ELSE 'active' END WHERE id=?").bind(amount, amount, obligationId).run(); const output = { id: obligationId, journalId: journal.id, recognized: minorToDecimal(amount) }; await saveCommand(write, actor, id, "finance.revenue.recognize", input, output); return output; }
+  actor = requirePermission(actor,"finance.write");
+ const { write } = await resources(actor); const pendingStatements:SqlStatement[]=[]; const previous = await priorCommand(write, actor, id, "finance.revenue.recognize", input); if (previous) return previous; const obligation = await write.prepare("SELECT o.*,c.company_id,c.currency FROM finance_revenue_obligations o JOIN finance_revenue_contracts c ON c.id=o.contract_id WHERE o.id=? AND c.company_id=?").bind(obligationId, actor.companyId).first<FinanceRow>(); if (!obligation) throw new ApiError(404, "OBLIGATION_NOT_FOUND", "Revenue obligation not found."); const amount = decimalToMinor(input.amount); const remaining = Number(obligation.allocated_minor) - Number(obligation.recognized_minor); if (amount <= 0 || amount > remaining) throw new ApiError(422, "REVENUE_EXCEEDS_ALLOCATION", "Recognition exceeds the remaining obligation."); const account = await write.prepare("SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=?").bind(obligation.revenue_account_id, actor.companyId).first<{ chart_id: string }>(); if (!account) throw new ApiError(422, "ACCOUNT_INVALID", "Revenue account is unavailable."); const journal = await createJournal(actor, { chartId: account.chart_id, periodId: input.periodId, entryDate: input.entryDate, currency: String(obligation.currency), memo: `Revenue recognition ${obligation.description}`, sourceType: "revenue_recognition", sourceId: obligationId, isOpening: false, lines: [{ accountId: String(obligation.deferred_account_id), debit: minorToDecimal(amount), credit: "0" }, { accountId: String(obligation.revenue_account_id), debit: "0", credit: minorToDecimal(amount) }] }, `${id}:journal`); await postJournal(actor, journal.id, `${id}:post`, { expectedVersion: 1 }); pendingStatements.push(write.prepare("UPDATE finance_revenue_obligations SET recognized_minor=recognized_minor+?,status=CASE WHEN recognized_minor+?=allocated_minor THEN 'complete' ELSE 'active' END WHERE id=?").bind(amount, amount, obligationId)); const output = { id: obligationId, journalId: journal.id, recognized: minorToDecimal(amount) }; return saveCommand(write, actor, id, "finance.revenue.recognize", input, output, pendingStatements); }

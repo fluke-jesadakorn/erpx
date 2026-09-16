@@ -1,3 +1,4 @@
+import { samePerson } from "@/lib/iam";
 import type { SqlDatabase } from "./runtime/types";
 import "server-only";
 import { z } from "zod";
@@ -16,10 +17,11 @@ import {
   expenseAuthoritySnapshot,
 } from "./expense-routing";
 import { expenseRequirements } from "./expense-drafts";
-import { prepareExpensePosting, getExpense, type ExpenseRow } from "./expenses";
+import { getExpense, type ExpenseRow } from "./expenses";
 import { holdingResources } from "./runtime";
 import { decimalToMinor } from "./finance";
 import { ApiError } from "./http";
+import { resolveFlow } from "./flow-routing";
 
 export const expenseAccountingSchema = z.object({
   expectedVersion: z.number().int().positive(),
@@ -76,32 +78,24 @@ export async function expenseWorkflowFields(
   const candidates = view.eligibleApproverIds ?? [];
   const payers =
     row.workflow_stage === "payment" ? await expensePayers(db, row) : [];
+  const flow = await resolveFlow(db, actor, "expense", String(row.id));
   return {
     ...row,
-    can_decide: view.canDecide ? 1 : 0,
+    spending_template_version:JSON.parse(view.steps[0]?.route_snapshot_json??"{}").templateVersion??null,
+    can_post: row.workflow_stage === "gl_posting" && flow.canAct ? 1 : 0,
+    can_decide: view.canDecide && flow.canAct ? 1 : 0,
     current_approver_id: view.canDecide
       ? actor.userId
       : (view.currentApprover?.approver_user_id ?? null),
-    current_approver_name:
-      view.currentApprover?.stage === "accounts_review"
-        ? "Accounts review queue"
-        : view.currentApprover?.stage === "accounts_approval"
-          ? "Accounts manager queue"
-          : view.currentApprover?.approver_pool_json
-            ? view.currentApprover.authority === "holding_owner"
-              ? "Company owner"
-              : view.currentApprover.authority === "named"
-                ? "Reporting superior"
-                : "Highest department level"
-            : (view.currentApprover?.approver_name ?? null),
+    current_approver_name: flow.current?.primary?.name ?? null,
     approval_stage: view.instance?.state ?? null,
     approval_blocked_reason:
-      view.blockedReason ??
+      flow.blocker ?? view.blockedReason ??
       (row.workflow_stage === "payment" && !payers.length
         ? "An independent Treasury operator is required to record payment."
         : null),
     eligible_approvers_json: JSON.stringify(candidates),
-    can_pay: payers.includes(actor.userId) ? 1 : 0,
+    can_pay: payers.includes(actor.userId) && flow.canAct ? 1 : 0,
   };
 }
 export async function saveExpenseAccounting(
@@ -189,10 +183,10 @@ export async function saveExpenseAccounting(
         write,
         key,
         "accounting-authority",
-        "EXISTS(SELECT 1 FROM assignments WHERE company_id=? AND user_id=? AND role='finance_preparer' AND revoked_at IS NULL AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?) OR (scope_kind='department' AND scope_node_id=?)))",
+        "EXISTS(SELECT 1 FROM assignments WHERE company_id=? AND id=? AND iam_role_allows(role,company_id,'expense.prepare') AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?) OR (scope_kind='department' AND scope_node_id=?)))",
         [
           actor.companyId,
-          actor.userId,
+          actor.assignmentId,
           now,
           now,
           row.branch_id,
@@ -241,7 +235,7 @@ export async function transitionExpenseV2(
     operation = `expense.${action}`;
   const prior = await replayCommand(write, actor, key, operation, id, input);
   if (prior) return prior;
-  const own = [row.claimant_user_id, row.created_by].includes(actor.userId),
+  const own = [row.claimant_user_id, row.created_by].some(id=>samePerson(actor,id)),
     now = Date.now();
   if (action !== "submit" && (input.reason?.trim().length ?? 0) < 3)
     throw new ApiError(
@@ -270,7 +264,7 @@ export async function transitionExpenseV2(
     );
     const route = await expenseRoute(write, actor.companyId, staff.user_id, [
       String(row.prepared_by ?? row.created_by),
-    ]);
+    ], false, row.request_kind === "payment" ? "payment" : "expense");
     if (route.blockedReason)
       throw new ApiError(422, "EXPENSE_ROUTE_REQUIRED", route.blockedReason);
     const opened = await openApproval(
@@ -295,7 +289,7 @@ export async function transitionExpenseV2(
       {
         id,
         status: "in_review",
-        stage: "department_approval",
+        stage: route.steps[0].stage,
         version: input.expectedVersion + 1,
       },
       [
@@ -329,13 +323,14 @@ export async function transitionExpenseV2(
         ),
         write
           .prepare(
-            "UPDATE finance_expenses SET employee_id=?,engagement_id=?,branch_id=?,department_id=?,workflow_version=2,workflow_stage='department_approval',status='in_review',accounting_json='{}',approved_by=NULL,rejection_reason=NULL,submitted_at=?,version=version+1,updated_at=? WHERE id=?",
+            "UPDATE finance_expenses SET employee_id=?,engagement_id=?,branch_id=?,department_id=?,workflow_version=2,workflow_stage=?,status='in_review',accounting_json='{}',approved_by=NULL,rejection_reason=NULL,submitted_at=?,version=version+1,updated_at=? WHERE id=?",
           )
           .bind(
             staff.person_id,
             staff.engagement_id,
             staff.branch_id,
             staff.department_id,
+            route.steps[0].stage,
             now,
             now,
             id,
@@ -395,6 +390,13 @@ export async function transitionExpenseV2(
       eventScope(row),
     );
   }
+  if (row.workflow_stage === "gl_posting" && row.status === "approved" && action === "reject") {
+    return executeCommand(write,actor,key,operation,input,id,input.expectedVersion+1,{id,status:"rejected",stage:"draft",version:input.expectedVersion+1},[
+      assertion(write,key,"expense-version","EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND status='approved' AND workflow_stage='gl_posting' AND journal_id IS NULL)",[id,actor.companyId,input.expectedVersion]),
+      write.prepare("UPDATE finance_expenses SET status='rejected',workflow_stage='draft',accounting_json='{}',approved_by=NULL,rejection_reason=?,version=version+1,updated_at=? WHERE id=?").bind(input.reason,now,id),
+      notification(write,scope(row),String(row.created_by),"expense",id,input.expectedVersion+1,"GL reviewer returned this claim for correction."),
+    ],eventScope(row));
+  }
   if (row.status !== "in_review" || row.cancelled_at)
     throw new ApiError(
       409,
@@ -435,45 +437,13 @@ export async function transitionExpenseV2(
         "INDEPENDENT_MANAGER_REQUIRED",
         "A different Accounts manager must approve the accounting preparation.",
       );
-    const posting = await prepareExpensePosting(
-      write,
-      actor,
-      { ...row, approved_by: actor.userId },
-      {
-        expectedVersion: input.expectedVersion,
-        periodId: accounting.periodId!,
-        entryDate: accounting.entryDate!,
-      },
-      key,
-    );
-    return executeCommand(
-      write,
-      actor,
-      key,
-      operation,
-      input,
-      id,
-      input.expectedVersion + 1,
-      posting.result,
-      [
+    return executeCommand(write, actor, key, operation, input, id, input.expectedVersion + 1,
+      { id, status: "approved", stage: "gl_posting", version: input.expectedVersion + 1 }, [
+        assertion(write, key, "expense-version", "EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND status='in_review' AND workflow_stage='accounts_approval' AND cancelled_at IS NULL)", [id, actor.companyId, input.expectedVersion]),
         ...decision.statements,
-        ...posting.steps,
-        ...(await expensePayers(write, row))
-          .filter((userId) => userId !== actor.userId)
-          .map((userId) =>
-            notification(
-              write,
-              scope(row),
-              userId,
-              "expense",
-              id,
-              input.expectedVersion + 1,
-              "Expense approved; record payment with a slip",
-            ),
-          ),
-      ],
-      eventScope(row),
-    );
+        write.prepare("UPDATE finance_expenses SET status='approved',workflow_stage='gl_posting',approved_by=?,version=version+1,updated_at=? WHERE id=?").bind(actor.userId, now, id),
+        notification(write, scope(row), actor.userId, "expense", id, input.expectedVersion + 1, "Accounting approved. Review Debit / Credit and post GL before payment."),
+      ], eventScope(row));
   }
   const stage =
     action === "reject"

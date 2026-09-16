@@ -1,3 +1,4 @@
+import { invoiceEvidenceGuard } from "@/server/invoice-payment-evidence";
 import { requestPublicOrigin } from "@/server/public-origin";
 import { employeeRequestUpload } from "@/server/employee-requests";
 import { serviceAuthoritySnapshot } from "@/server/service-access";
@@ -26,6 +27,7 @@ const schema = z.object({
     "leave_request",
     "expense_claim",
     "expense_payment",
+    "invoice_payment",
     "staff_task",
     "social_draft",
   ]),
@@ -81,6 +83,8 @@ export async function POST(
           "EXPENSE_LOCKED",
           "Only the claimant or preparer can attach receipts to an editable claim.",
         );
+    } else if (parsed.data.ownerType === "invoice_payment") {
+      if(parsed.data.mediaType==="text/csv")throw new ApiError(422,"SLIP_DOCUMENT_REQUIRED","Attach the bank slip as a photo or PDF.");
     } else if (parsed.data.ownerType === "expense_payment") {
       if (parsed.data.mediaType === "text/csv")
         throw new ApiError(
@@ -147,6 +151,7 @@ export async function POST(
       result,
       [
         ...(requestSnapshot ? requestSnapshot(key) : []),
+        ...(parsed.data.ownerType==="invoice_payment"?(await invoiceEvidenceGuard(write,actor,parsed.data.ownerId,key)).guards:[]),
         ...(parsed.data.ownerType === "expense_payment"
           ? paymentGuards(
               write,

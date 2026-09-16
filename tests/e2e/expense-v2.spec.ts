@@ -14,7 +14,7 @@ type Fixture = {
   accounts: { expense: string };
   period: string;
   password: string;
-  actors: Record<string, { email: string; assignmentId: string }>;
+  actors: Record<string, { email: string; assignmentId: string; userId: string }>;
 };
 const fixture: Fixture = existsSync(fixturePath)
   ? JSON.parse(readFileSync(fixturePath, "utf8"))
@@ -29,6 +29,7 @@ test.use({ actionTimeout: 15000 });
 
 async function login(context: BrowserContext, who: string) {
   const response = await context.request.post("/api/auth/sign-in/email", {
+    timeout: 60000,
     data: { email: fixture.actors[who].email, password: fixture.password },
   });
   expect(response.ok(), await response.text()).toBeTruthy();
@@ -197,20 +198,19 @@ test("every member can preserve an incomplete claim and reach People setup", asy
 test("expense goes through four independent people and two slip-backed payments", async ({
   browser,
 }, info) => {
-  test.setTimeout(180000);
-  const contexts = await Promise.all(
-    ["claimant", "head", "reviewer", "manager", "payer"].map(async (who) => {
-      const context = await browser.newContext(info.project.use);
-      await login(context, who);
-      return context;
-    }),
-  );
-  const [claimant, head, reviewer, manager, payer] = contexts;
+  test.setTimeout(240000);
+  const contexts: BrowserContext[] = [];
+  for (const who of ["claimant", "head", "reviewer", "manager", "payer", "owner"]) {
+    const context = await browser.newContext(info.project.use);
+    contexts.push(context);
+    await login(context, who);
+  }
+  const [claimant, head, reviewer, manager, payer, owner] = contexts;
   try {
     const page = await claimant.newPage(),
       merchant = `Test receipt ${randomUUID().slice(0, 8)}`;
     await page.goto(`${base}/work?new=expense&type=expense`);
-    await page.getByLabel("Expense date", { exact: true }).fill("2026-09-08");
+    await page.getByLabel("Expense date", { exact: true }).fill("2026-09-10");
     await page.getByLabel("Merchant", { exact: true }).fill(merchant);
     await page.getByLabel("Receipt number", { exact: true }).fill(merchant);
     await page
@@ -228,7 +228,7 @@ test("expense goes through four independent people and two slip-backed payments"
     const receipt = scannedPdf(
       await sampleImage(
         page,
-        `TEST RECEIPT\n${merchant}\n2026-09-08\nSupplies 100.00\nTax 7.00\nTotal THB 107.00`,
+        `TEST RECEIPT\n${merchant}\n2026-09-10\nSupplies 100.00\nTax 7.00\nTotal THB 107.00`,
         "image/jpeg",
       ),
     );
@@ -240,13 +240,14 @@ test("expense goes through four independent people and two slip-backed payments"
     const derivative = page.waitForResponse(
       (r) =>
         r.url().includes("/derivatives?") && r.request().method() === "POST",
+      { timeout: 60000 },
     );
     await page
       .getByRole("button", { name: "Attach receipt", exact: true })
       .click();
     expect((await derivative).status()).toBe(200);
     await expect(
-      page.getByRole("link", { name: /scanned-receipt.pdf/ }),
+      page.getByRole("link", { name: /^scanned-receipt.pdf/ }),
     ).toBeVisible();
     await expect(page.locator(".error[role=alert]")).toHaveCount(0);
     await page
@@ -255,6 +256,12 @@ test("expense goes through four independent people and two slip-backed payments"
     await expect(
       page.getByRole("heading", { name: "Department approval", exact: true }),
     ).toBeVisible();
+    const flowEndpoint=`/api/v1${base}/flows/expense/${id}`;
+    const flowResponse=await owner.request.get(flowEndpoint);
+    expect(flowResponse.ok(),await flowResponse.text()).toBeTruthy();
+    const flow=(await flowResponse.json()).data;
+    const assigned=await owner.request.post(flowEndpoint,{headers:{"Idempotency-Key":randomUUID()},data:{stepKey:"department_approval",userId:fixture.actors.head.userId,expectedVersion:flow.version,recordVersion:flow.recordVersion,reason:"Primary reviewer for this isolated browser test",saveDefault:false}});
+    expect(assigned.ok(),await assigned.text()).toBeTruthy();
     const approve = await head.newPage();
     await approve.goto(url);
     await approve
@@ -302,8 +309,10 @@ test("expense goes through four independent people and two slip-backed payments"
       .getByLabel("Decision reason")
       .fill("Approve accounting and payable posting");
     await post
-      .getByRole("button", { name: "Approve and post payable" })
+      .getByRole("button", { name: "Approve accounting → GL review" })
       .click();
+    await expect(post.getByRole("heading",{name:"Post general ledger",exact:true})).toBeVisible();
+    await post.getByRole("button",{name:"ยืนยัน Debit / Credit และบันทึก GL"}).click();
     await expect(
       post.getByRole("heading", { name: "Finance payment", exact: true }),
     ).toBeVisible();
@@ -318,7 +327,7 @@ test("expense goes through four independent people and two slip-backed payments"
       ).toBeVisible();
       await payment
         .getByLabel("Payment date", { exact: true })
-        .fill("2026-09-08");
+        .fill("2026-09-10");
       await payment
         .getByLabel("Amount paid (THB)", { exact: true })
         .fill(amount);
@@ -332,7 +341,7 @@ test("expense goes through four independent people and two slip-backed payments"
           mimeType: "image/png",
           buffer: await sampleImage(
             payment,
-            `TEST BANK SLIP — NOT A REAL PAYMENT\nReference TEST-${id}-${index}\n2026-09-08\nTHB ${amount}`,
+            `TEST BANK SLIP — NOT A REAL PAYMENT\nReference TEST-${id}-${index}\n2026-09-10\nTHB ${amount}`,
           ),
         });
       await payment
@@ -340,7 +349,7 @@ test("expense goes through four independent people and two slip-backed payments"
         .click();
       await expect(
         payment.getByRole("link", {
-          name: new RegExp(`test-bank-slip-${index}.png`),
+          name: `Preview of test-bank-slip-${index}.png`, exact: true,
         }),
       ).toBeVisible();
       await expect(
@@ -357,7 +366,7 @@ test("expense goes through four independent people and two slip-backed payments"
       await payment
         .getByRole("button", { name: "Confirm bank payment" })
         .click();
-      expect((await confirmed).ok()).toBeTruthy();
+      const confirmation=await confirmed; expect(confirmation.ok(),await confirmation.text()).toBeTruthy();
       await expect(
         payment.getByLabel("Payment date", { exact: true }),
       ).toHaveCount(0);

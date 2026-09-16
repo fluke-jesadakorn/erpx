@@ -10,7 +10,6 @@ export type WorkspaceKind =
   | "directory"
   | "health"
   | "conversation";
-export type DataSource = "live" | "sample";
 export type CapabilityAvailability = "live" | "preview" | "partial";
 export type ActionAvailability = {
   label: string;
@@ -40,23 +39,15 @@ export type ModuleDefinition = {
   sections: ModuleSection[];
 };
 export const moduleRegistry = registry as ModuleDefinition[];
-export const businessGroups = [
-  ...new Set(moduleRegistry.map((module) => module.group)),
-];
 export function findModule(id: string) {
   return moduleRegistry.find((module) => module.id === id);
-}
-export function moduleHref(
-  workspaceBase: string,
-  module: ModuleDefinition,
-  section = module.primary[0],
-) {
-  return `${workspaceBase}/modules/${module.id}/${section}`;
 }
 export function liveDestination(
   moduleId: string,
   sectionId: string,
+  workspaceBase?: string,
 ): string | undefined {
+  if (workspaceBase === "/platform") return undefined;
   if (
     moduleId === "people_payroll" &&
     [
@@ -106,10 +97,10 @@ export function liveDestination(
       "feature-expense-claims": "expenses",
     },
     identity_access: {
-      people: "people",
-      assignments: "people",
-      "feature-people-principals": "people",
-      "feature-roles-permissions": "people",
+      people: "iam/users",
+      assignments: "iam/users",
+      "feature-people-principals": "iam/users",
+      "feature-roles-permissions": "iam/roles",
     },
     sales: {
       quotes: "commerce?view=quote",
@@ -171,10 +162,11 @@ export function liveDestination(
 }
 export function moduleAvailability(
   module: ModuleDefinition,
+  workspaceBase?: string,
 ): CapabilityAvailability {
   return module.sections.some(
     (section) =>
-      capabilitySupport(module.id, section.id).availability !== "preview",
+      capabilitySupport(module.id, section.id, workspaceBase).availability !== "preview",
   )
     ? "partial"
     : "preview";
@@ -182,7 +174,9 @@ export function moduleAvailability(
 export function capabilitySupport(
   moduleId: string,
   sectionId: string,
+  workspaceBase?: string,
 ): CapabilitySupport {
+  if (workspaceBase === "/platform") return { availability: "preview", actions: [{ label: "Platform actions", availability: "preview" }] };
   const destination = liveDestination(moduleId, sectionId);
   if (destination === "work" || destination === "work?type=leave")
     return {
@@ -324,9 +318,3 @@ export function capabilitySupport(
     actions: [{ label: "Business actions", availability: "preview" }],
   };
 }
-export const previewRecordHref = (
-  workspaceBase: string,
-  moduleId: string,
-  recordId: string,
-) =>
-  `${workspaceBase}/preview/records/${moduleId}/${encodeURIComponent(recordId)}`;

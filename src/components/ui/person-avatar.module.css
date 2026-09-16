@@ -1,0 +1,16 @@
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: 13px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+}
+.avatar[data-tone="1"] { background: var(--card-2); color: var(--ink); }
+.avatar[data-tone="2"] { background: var(--blue-soft); color: var(--blue); }
+.small { width: 28px; height: 28px; border-radius: 9px; font-size: 11px; }

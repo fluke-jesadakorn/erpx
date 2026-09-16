@@ -1,0 +1,26 @@
+.workspace { display:flex; flex-direction:column; gap:24px; min-width:0; }
+.stats { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
+.stats > div { display:flex; flex-wrap:wrap; align-items:center; gap:10px; padding:20px; border:1px solid var(--line); border-radius:14px; background:var(--card); }
+.stats strong { font-size:1.8rem; }
+.stats span { flex-basis:100%; color:var(--muted); font-size:.85rem; }
+.toolbar, .toolbar nav { display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
+.toolbar { min-width:0; }
+.toolbar nav { justify-content:flex-start; }
+.toolbar :is(button,a) { min-height:44px; }
+.tree { padding-left:22px; list-style:none; border-left:1px solid var(--line); margin:16px 0; }
+.tree > li { margin:12px 0; }
+.tree summary { display:flex; align-items:center; gap:12px; cursor:pointer; padding:12px; border-radius:10px; border:1px solid var(--line); }
+.tree details[open] > summary > svg { transform:rotate(90deg); }
+.avatar { display:grid; place-items:center; width:36px; height:36px; flex-shrink:0; border-radius:50%; background:var(--brand-soft); color:var(--ink); font-size:.8rem; }
+.person { display:flex; flex-direction:column; gap:4px; min-width:0; overflow-wrap:anywhere; }
+.person span, .count { font-size:.8rem; color:var(--muted); }
+.count { margin-left:auto; flex-shrink:0; }
+.personActions { display:flex; flex-wrap:wrap; gap:12px; align-items:center; padding:10px 14px; font-size:.85rem; }
+.personActions a { display:inline-flex; align-items:center; gap:6px; }
+.issue { color:var(--amber); flex-basis:100%; }
+.position { border-bottom:1px solid var(--line); padding:18px 0; }
+.position summary { cursor:pointer; }
+.templateGrid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin:20px 0; }
+.templateGrid > div { padding:16px; border:1px solid var(--line); border-radius:10px; display:grid; gap:12px; }
+@media(max-width:700px){ .stats {grid-template-columns:repeat(2,minmax(0,1fr));} .tree {padding-left:8px;} .tree summary {gap:8px;padding:10px;} .count{display:none;} .templateGrid{grid-template-columns:1fr;} }
+@media(max-width:1023px){ .stats {grid-template-columns:repeat(2,minmax(0,1fr));} .stats > div {padding:14px;gap:8px;} .stats strong{font-size:1.4rem;} .stats span{font-size:.75rem;} .toolbar nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;} .toolbar nav button{white-space:normal;font-size:12px;padding:8px;} .toolbar>a{flex:1;font-size:12px;white-space:normal;} }

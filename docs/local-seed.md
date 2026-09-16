@@ -2,11 +2,15 @@
 
 Run `bun run seed:local` (or its alias `bun run db:seed:local`) to apply local migrations, reconcile the international fixtures, repair known legacy identity links, and configure connected commerce. The command uses the configured development PostgreSQL databases and private files, preserves existing business records, and does not reset passwords. Configure `.env.local` from `.env.example` with absolute data/manifest paths and an operator connection to a separate development cluster (5434 on this Mac). Production 5433 is reserved for the deployed application. `scripts/seed-d1.ts --remote` rejects development fixtures; these credentials must never be used for a production tenant.
 
-The roster contains **60 distinct fictional workers and 19 development login accounts** across Acme Corporation, Beacon Labs and Northstar Supply. They are realistic development examples, not actual employees or customers. Additional browser/API acceptance records are preserved with their audit history. Raw table counts can exceed 60 because archived and merged records remain. The directory filters them out of the current view.
+The base roster contains **60 distinct fictional workers and 19 development login accounts** across Acme Corporation, Beacon Labs and Northstar Supply. The optional [Acme organization expansion](testing/acme-organization-data.md) adds **92 staff and login accounts to Acme only**, bringing Acme to 112 profiles with every numbered level and nine department types in both branches. It was applied to this development workspace on 2026-09-14. They are fictional development examples. Additional browser/API acceptance records are preserved with their audit history. Raw table counts also include archived and merged records, which the current directory filters out.
 
 The data has six branches: Bangkok, New York, London, Singapore, Rotterdam and Toronto. Operations ledgers use USD, GBP and EUR respectively. Other historical fixture ledgers also exist; select a chart before reading a financial report. Currency amounts from separate charts are never combined in a trial balance.
 
 ## Login accounts
+
+### Acme credential update — 2026-09-15
+
+The user standardized all 112 current Acme People emails to lowercase `firstname.lastname@erpx.dev` and updated the 102 existing linked login accounts to match. All 102 Acme login passwords are now `12345678` for local testing. The other 10 profiles have no login account. Roles and identity links were preserved. Examples: `mali.srisai@erpx.dev`, `anya.bennett@erpx.dev`, and `elena.suwan@erpx.dev`. This overrides the older short-login examples below for Acme; other companies and the separate all-access account are unchanged. Existing acceptance scripts that hard-code the old Acme credentials must use these updated values when targeting this development database. Fresh database seed defaults remain as defined in the seed scripts.
 
 Most addresses use `@erpx.dev`. Initial passwords follow `<FirstName>-ERPX-2026!`, such as `Henry-ERPX-2026!`. The all-access dev account below uses the listed Gmail address and password. Existing passwords are preserved when seeding again.
 

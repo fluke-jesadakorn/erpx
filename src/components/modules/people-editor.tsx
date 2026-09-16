@@ -1,8 +1,11 @@
 "use client";
 
+import { workFetch } from "@/lib/work-fetch";
+
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import type { OrganizationOverview } from "@/lib/organization";
 type Row = Record<string, unknown>;
 export function PeopleEditor({
   base,
@@ -13,6 +16,8 @@ export function PeopleEditor({
   levelManagedSeparately = false,
   member,
   returnTo,
+  organization,
+  initialPositionId,
 }: {
   base: string;
   person?: Row;
@@ -22,18 +27,25 @@ export function PeopleEditor({
   levelManagedSeparately?: boolean;
   member?: { id: string; name: string; email: string };
   returnTo?: string;
+  organization?: OrganizationOverview;
+  initialPositionId?:string;
 }) {
   const ready = useHydrated();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!initialPositionId);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [branch, setBranch] = useState(
     String(
-      person?.branch_id ?? nodes.find((n) => n.kind === "branch")?.id ?? "",
+      person?.branch_id ?? organization?.positions.find(p=>p.id===initialPositionId)?.branch_id ?? nodes.find((n) => n.kind === "branch")?.id ?? "",
     ),
   );
   const command = useRef<{ payload: string; key: string } | null>(null);
+  const [positionId,setPositionId]=useState(String(person?.position_id??initialPositionId??""));
+  const [levelId,setLevelId]=useState(String(person?.level_id??organization?.positions.find(p=>p.id===initialPositionId)?.level_id??""));
+  const selectedPosition=organization?.positions.find(p=>p.id===positionId);
+  const selectedLevel=organization?.levels.find(l=>l.id===levelId)?.level_number;
+  const managerPeople=[...new Map([...people,...(organization?.people??[])].map(p=>[String(p.person_id),p])).values()];
   async function send(path: string, input: unknown) {
     const payload = JSON.stringify(input);
     if (command.current?.payload !== payload)
@@ -41,7 +53,7 @@ export function PeopleEditor({
     setPending(true);
     setError("");
     try {
-      const response = await fetch(
+      const response = await workFetch(
         `${base.replace("/holdings/", "/api/v1/holdings/")}/people/directory${path}`,
         {
           method: "POST",
@@ -109,6 +121,8 @@ export function PeopleEditor({
               currency: f.get("currency"),
               managerPersonId: f.get("managerPersonId") || null,
               levelId: f.get("levelId") || null,
+              positionId: positionId || null,
+              reason: f.get("reason") || "Staff profile updated",
               ...(member ? { linkedMemberUserId: member.id } : {}),
               ...(person ? { expectedVersion: person.version } : {}),
             });
@@ -182,7 +196,7 @@ export function PeopleEditor({
             <select
               name="departmentId"
               key={branch}
-              defaultValue={String(person?.department_id ?? "")}
+              defaultValue={String(person?.department_id ?? selectedPosition?.department_id ?? "")}
             >
               <option value="">No department</option>
               {nodes
@@ -196,7 +210,8 @@ export function PeopleEditor({
                 ))}
             </select>
           </label>
-          {levelManagedSeparately ? (
+          {organization&&<label>Position<select value={positionId} onChange={e=>{setPositionId(e.target.value);const p=organization.positions.find(p=>p.id===e.target.value);if(p)setLevelId(p.level_id);}}><option value="">Not assigned — onboarding draft</option>{organization.positions.filter(p=>p.active===1&&(!p.branch_id||p.branch_id===branch)).map(p=><option key={p.id} value={p.id}>{p.title} · Level {p.level_number}</option>)}</select><small>Positions supply a default level. Confirm the staff level and actual manager below.</small></label>}
+          {levelManagedSeparately && !organization ? (
             <input
               type="hidden"
               name="levelId"
@@ -207,15 +222,16 @@ export function PeopleEditor({
               Staff level
               <select
                 name="levelId"
-                defaultValue={String(person?.level_id ?? "")}
+                value={levelId}
+                onChange={e=>setLevelId(e.target.value)}
                 required={person?.engagement_status === "active"}
               >
                 <option value="">Not set</option>
                 {levels
-                  .filter((l) => l.active === 1 || l.id === person?.level_id)
+                  .filter((l) => (l.active === 1 && l.level_number != null) || l.id === person?.level_id)
                   .map((l) => (
                     <option key={String(l.id)} value={String(l.id)}>
-                      {String(l.name)} · rank {String(l.rank)}
+                      {String(l.name)} · {l.level_number?`Level ${l.level_number}`:"Legacy level — map to numbered catalog"}
                     </option>
                   ))}
               </select>
@@ -225,17 +241,19 @@ export function PeopleEditor({
             Reporting manager
             <select
               name="managerPersonId"
-              defaultValue={String(person?.manager_person_id ?? "")}
+              key={`${positionId}-${levelId}`}
+              defaultValue={selectedPosition?.is_ceo?"":String(person?.manager_person_id ?? "")}
+              disabled={Boolean(selectedPosition?.is_ceo)}
             >
-              <option value="">No reporting manager</option>
-              {people
-                .filter((p) => p.person_id !== person?.id)
+              <option value="">{selectedPosition?.is_ceo?"CEO — no reporting manager":"Choose a manager before activation"}</option>
+              {managerPeople
+                .filter((p) => p.person_id !== person?.id && (!selectedLevel || (p.level_number != null && Number(p.level_number)<selectedLevel)) && (!p.status || p.status === "active"))
                 .map((p) => (
                   <option
                     key={String(p.engagement_id)}
                     value={String(p.person_id)}
                   >
-                    {String(p.legal_name)}
+                    {String(p.legal_name)}{p.level_number?` · Level ${p.level_number}`:""}
                   </option>
                 ))}
             </select>
@@ -244,9 +262,10 @@ export function PeopleEditor({
             Job title
             <input
               name="jobTitle"
+              key={positionId}
               required
               minLength={2}
-              defaultValue={String(person?.job_title ?? "")}
+              defaultValue={selectedPosition?.title??String(person?.job_title ?? selectedPosition?.title ?? "")}
             />
           </label>
           <label>
@@ -283,6 +302,7 @@ export function PeopleEditor({
               ))}
             </select>
           </label>
+          <label>Change reason<input name="reason" minLength={3} maxLength={1000} defaultValue={person?"":"Initial onboarding"} placeholder="Describe a transfer, promotion or reporting change" required={!!person}/></label>
           <div className="form-actions">
             <button
               className="button"

@@ -1,4 +1,6 @@
 "use client";
+
+import { workFetch } from "@/lib/work-fetch";
 import Link from "next/link";
 import { AiConnectionForm } from "./ai-connection-form";
 import { Sparkles, Plus, ShieldCheck, MessageSquare, ScanLine, Activity, ArrowUpRight, SlidersHorizontal, Plug } from "lucide-react";
@@ -40,7 +42,7 @@ export function AiProviders({
     setError("");
     setMessage("");
     try {
-      const response = await fetch(`/api/v1${base}/ai-providers${path}`, {
+      const response = await workFetch(`/api/v1${base}/ai-providers${path}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

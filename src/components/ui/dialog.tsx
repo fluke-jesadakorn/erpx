@@ -7,11 +7,13 @@ export function Dialog({
   onClose,
   title,
   children,
+  presentation = "default",
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
+  presentation?: "default" | "responsive-panel" | "fullscreen";
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -29,7 +31,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      className={styles.dialog}
+      className={[styles.dialog, presentation === "responsive-panel" ? styles.responsivePanel : "", presentation === "fullscreen" ? styles.fullscreenDialog : ""].filter(Boolean).join(" ")}
       aria-labelledby={titleId}
       onKeyDown={(event) => {
         if (event.key !== "Tab") return;

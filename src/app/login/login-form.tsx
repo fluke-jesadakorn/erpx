@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 
-export function LoginForm() {
+export function LoginForm({ next }: { next?: string }) {
   const router = useRouter();
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -16,14 +16,14 @@ export function LoginForm() {
       const result = await authClient.signIn.email({
         email: String(form.get("email")),
         password: String(form.get("password")),
-        callbackURL: "/",
+        callbackURL: next ?? "/",
       });
       if (result.error) {
         setError(result.error.message ?? "Sign in failed.");
         setPending(false);
         return;
       }
-      router.push("/");
+      router.push(next ?? "/");
       router.refresh();
     } catch {
       setError("Could not connect. Please try signing in again.");

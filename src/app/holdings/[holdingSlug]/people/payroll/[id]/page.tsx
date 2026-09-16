@@ -1,7 +1,8 @@
-import { hasBusinessRole } from "@/lib/responsibilities";
+import { hasPermission } from "@/lib/permissions";
+import { pageError } from "@/server/page-error";
+import { FlowPanel, documentFlow } from "@/components/workplace/flow-panel";
 import Link from "next/link";
 import { PayrollActions } from "@/components/modules/payroll-controls";
-import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { getPayrollRun } from "@/server/people-payroll";
@@ -15,10 +16,11 @@ export default async function PayrollRunDetail({ params }: { params: Promise<{ h
   const { holdingSlug, id } = await params;
   const actor = await requireWorkContext(holdingSlug);
   let data;
-  try { data = await getPayrollRun(actor, id); } catch { notFound(); }
+  try { data = await getPayrollRun(actor, id); } catch (error) { return pageError(error, actor.holdingSlug); }
   const base = workspaceBase(publicScope(actor));
   const run = data.run as Record<string, unknown>;
   const totals = JSON.parse(String(run.totals_json ?? "{}")) as { gross?: number; deductions?: number; employer?: number; net?: number };
+  const flow = await documentFlow(actor,"payroll",id);
   return (
     <main className="content-stack" data-source="live">
       <Link className="back-link" href={`${base}/people`}><ArrowLeft size={14} /> Back to people</Link>
@@ -26,11 +28,11 @@ export default async function PayrollRunDetail({ params }: { params: Promise<{ h
       <section className="card-grid" aria-label="Payroll totals">
         {[["Gross", totals.gross], ["Deductions", totals.deductions], ["Employer cost", totals.employer], ["Net pay", totals.net]].map(([label, value]) => <article className="card" key={String(label)}><span className="eyebrow">{String(label)}</span><strong>{String(run.currency)} {minorToDecimal(Number(value ?? 0))}</strong></article>)}
       </section>
-      <PayrollActions base={base} run={run} canCalculate={hasBusinessRole(actor, ["holding_owner","hr_admin","payroll_preparer"])} canApprove={hasBusinessRole(actor, ["holding_owner","people_manager","payroll_approver"])&&run.created_by!==actor.userId}/>
+      <PayrollActions base={base} run={run} canCalculate={flow.steps.find(s=>s.key==="calculate")?.primary?.userId===actor.userId&&hasPermission(actor,"payroll.prepare")} canApprove={flow.canAct&&hasPermission(actor,"payroll.approve")&&run.created_by!==actor.userId}/>
       <section className="card">
         <div className="section-head"><h2>Calculated items</h2><span className="badge">{data.items.length}</span></div>
         {data.items.map((item) => <div className="row" key={String(item.id)}><div className="row-main"><strong className="row-title">{String(item.legal_name)}</strong><span className="muted">{String(item.worker_type)} · {String(item.status)}</span></div><span>{String(item.currency)} {minorToDecimal(Number(item.net_minor))} net</span></div>)}
       </section>
-    </main>
+    <FlowPanel flow={flow} actor={actor} kind="payroll" id={id} base={base}/></main>
   );
 }

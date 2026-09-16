@@ -1,6 +1,7 @@
+import { requirePermission } from "@/server/iam-permissions";
+import { hasPermission } from "@/lib/permissions";
+import { samePerson } from "@/lib/iam";
 import type { SqlDatabase, SqlStatement } from "./runtime/types";
-import { hasBusinessRole } from "@/lib/responsibilities";
-import { requireBusinessRole } from "./responsibilities";
 import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "./authorization";
@@ -18,12 +19,11 @@ export const countSchema=z.object({
   lines:z.array(z.object({productId:z.string().min(1),countedQuantity:z.string().regex(/^\d{1,12}(\.\d{1,3})?$/),unitCost:z.string().regex(/^\d{1,12}(\.\d{1,2})?$/).optional()})).min(1).max(50),
 });
 export const countActionSchema=z.object({expectedVersion:z.number().int().positive(),reason:z.string().trim().min(3).max(2000).optional()});
-const readers=["holding_owner","warehouse_manager","operations_manager","finance_preparer","finance_approver","treasury","auditor"];
-export function canReadCounts(actor:WorkContext){return !actor.departmentId&&hasBusinessRole(actor, readers);}
-export function canPrepareCounts(actor:WorkContext){return !actor.departmentId&&hasBusinessRole(actor, ["holding_owner","warehouse_manager","operations_manager"]);}
-export function canApproveCounts(actor:WorkContext){return !actor.departmentId&&!actor.branchId&&hasBusinessRole(actor, ["holding_owner","finance_approver"]);}
-export function canEditCount(actor:WorkContext,row:CountRow){return canPrepareCounts(actor)&&["draft","rejected"].includes(String(row.status))&&[row.created_by,row.prepared_by].includes(actor.userId);}
-export function canReviewCount(actor:WorkContext,row:CountRow){return canApproveCounts(actor)&&row.status==="submitted"&&![row.created_by,row.prepared_by].includes(actor.userId);}
+export function canReadCounts(actor:WorkContext){return !actor.departmentId&&hasPermission(actor,"inventory.read");}
+export function canPrepareCounts(actor:WorkContext){return !actor.departmentId&&hasPermission(actor,"inventory.prepare");}
+export function canApproveCounts(actor:WorkContext){return !actor.departmentId&&!actor.branchId&&hasPermission(actor,"inventory.approve");}
+export function canEditCount(actor:WorkContext,row:CountRow){return canPrepareCounts(actor)&&["draft","rejected"].includes(String(row.status))&&[row.created_by,row.prepared_by].some(id=>samePerson(actor,id));}
+export function canReviewCount(actor:WorkContext,row:CountRow){return canApproveCounts(actor)&&["submitted","approved"].includes(String(row.status))&&![row.created_by,row.prepared_by].some(id=>samePerson(actor,id));}
 function readable(actor:WorkContext){if(!canReadCounts(actor))throw new ApiError(403,"INVENTORY_SCOPE_REQUIRED","Use a branch or holding inventory or finance assignment.");}
 export async function listCounts(actor:WorkContext){
   readable(actor);const {write}=await holdingResources(actor.holdingId);
@@ -43,7 +43,7 @@ export async function countDetail(actor:WorkContext,id:string){
   ]);return {count,lines:lines.results,history:history.results,decisions:decisions.results};
 }
 export async function countOptions(actor:WorkContext){
-  actor = requireBusinessRole(actor, ["holding_owner","warehouse_manager","operations_manager"]);
+  actor = requirePermission(actor,"inventory.prepare");
 
   readable(actor);const {write}=await holdingResources(actor.holdingId);
   const [warehouses,products,stock,settings]=await Promise.all([
@@ -58,7 +58,7 @@ function stockGuard(db:SqlDatabase,key:string,index:number,warehouse:CountRow[st
   return Number(line.snapshot_version)===0?assertion(db,key,`stock-${index}`,"NOT EXISTS(SELECT 1 FROM commerce_stock WHERE warehouse_id=? AND product_id=?)",[warehouse,line.product_id]):assertion(db,key,`stock-${index}`,"EXISTS(SELECT 1 FROM commerce_stock WHERE warehouse_id=? AND product_id=? AND version=? AND quantity_milli=? AND value_minor=?)",[warehouse,line.product_id,line.snapshot_version,line.snapshot_quantity_milli,line.snapshot_value_minor]);
 }
 export async function saveCount(actor:WorkContext,id:string|null,input:z.infer<typeof countSchema>,key:string){
-  actor = requireBusinessRole(actor, ["holding_owner","warehouse_manager","operations_manager"]);
+  actor = requirePermission(actor,"inventory.prepare");
 
   if(!canPrepareCounts(actor))throw new ApiError(403,"COUNT_PREPARER_REQUIRED","An inventory operator must prepare the physical count.");
   const {write}=await holdingResources(actor.holdingId),record=id??`count-${key}`,operation=id?"inventory.count.update":"inventory.count.create";
@@ -87,15 +87,15 @@ export async function saveCount(actor:WorkContext,id:string|null,input:z.infer<t
   for(const l of lines)steps.push(write.prepare("INSERT INTO inventory_count_lines(id,count_id,product_id,product_version,description,unit,snapshot_quantity_milli,snapshot_value_minor,snapshot_version,counted_quantity_milli,counted_value_minor,unit_cost_minor,ordinal) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(l.id,record,l.product_id,l.product_version,l.description,l.unit,l.snapshot_quantity_milli,l.snapshot_value_minor,l.snapshot_version,l.counted_quantity_milli,l.counted_value_minor,l.unit_cost_minor,l.ordinal));
   return executeCommand(write,actor,key,operation,input,record,version,{id:record,status:"draft",version},steps);
 }
-export async function transitionCount(actor:WorkContext,id:string,action:"submit"|"reject"|"cancel"|"post",input:z.infer<typeof countActionSchema>,key:string){
-  actor = requireBusinessRole(actor, action === "post" || action === "reject" ? ["holding_owner","finance_approver"] : ["holding_owner","warehouse_manager","operations_manager"]);
+export async function transitionCount(actor:WorkContext,id:string,action:"submit"|"reject"|"cancel"|"approve"|"post",input:z.infer<typeof countActionSchema>,key:string){
+  actor = requirePermission(actor,action === "post" || action === "approve" || action === "reject" ? "inventory.approve" : "inventory.prepare");
   const {write}=await holdingResources(actor.holdingId),operation=`inventory.count.${action}`,prior=await replayCommand(write,actor,key,operation,id,input);if(prior)return prior;
-  const {count,lines}=await countDetail(actor,id),review=action==="post"||action==="reject";
+  const {count,lines}=await countDetail(actor,id),review=action==="post"||action==="approve"||action==="reject";
   if(review?!canReviewCount(actor,count):!canEditCount(actor,count))throw new ApiError(403,"COUNT_ACTION_FORBIDDEN",review?"An independent holding finance approver must review a submitted stock count.":"Only the preparer can submit or cancel an editable count.");
   if(action!=="submit"&&!input.reason)throw new ApiError(422,"REASON_REQUIRED","Record the reason for this decision.");
-  const status=action==="submit"?"submitted":action==="post"?"posted":action==="reject"?"rejected":"cancelled",now=Date.now();
-  const steps=[countGuard(write,key,count,input.expectedVersion,review?["submitted"]:["draft","rejected"])];let journalId:string|null=null;
-  if(action==="submit"||action==="post"){
+  const status=action==="submit"?"submitted":action==="post"?"posted":action==="approve"?"approved":action==="reject"?"rejected":"cancelled",now=Date.now();
+  const steps=[countGuard(write,key,count,input.expectedVersion,action==="post"?["approved"]:action==="approve"?["submitted"]:review?["submitted","approved"]:["draft","rejected"])];let journalId:string|null=null;
+  if(action==="submit"||action==="approve"||action==="post"){
     if(!lines.length)throw new ApiError(409,"EMPTY_COUNT","Enter the counted products first.");
     steps.push(assertion(write,key,"warehouse","EXISTS(SELECT 1 FROM commerce_warehouses WHERE id=? AND company_id=? AND status='active')",[count.warehouse_id,actor.companyId]));
     for(const [index,line] of lines.entries())steps.push(stockGuard(write,key,index,count.warehouse_id,line),assertion(write,key,`product-${index}`,"EXISTS(SELECT 1 FROM commerce_products WHERE id=? AND version=? AND status='active')",[line.product_id,line.product_version]));
@@ -115,7 +115,7 @@ export async function transitionCount(actor:WorkContext,id:string,action:"submit
     steps.push(assertion(write,key,"open-period","EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND state='open')",[periods.results[0].id]));
     if(gains||losses){const journal=await prepareJournal(write,actor,{chartId:String(config.chart_id),periodId:String(periods.results[0].id),entryDate:String(count.count_date),currency:String(config.currency),memo:`${count.number} · ${input.reason}`,sourceType:"stock_count",sourceId:id,isOpening:false,lines:[...(gains?[{accountId:String(config.inventory_account_id),debit:minorToDecimal(gains),credit:"0"},{accountId:String(config.variance_account_id),debit:"0",credit:minorToDecimal(gains)}]:[]),...(losses?[{accountId:String(config.variance_account_id),debit:minorToDecimal(losses),credit:"0"},{accountId:String(config.inventory_account_id),debit:"0",credit:minorToDecimal(losses)}]:[])]},key,"posted");journalId=journal.result.id;steps.push(...journal.steps);}
   }
-  steps.push(write.prepare("UPDATE inventory_counts SET status=?,review_reason=?,approved_by=CASE WHEN ?='post' THEN ? ELSE approved_by END,submitted_at=CASE WHEN ?='submit' THEN ? ELSE submitted_at END,posted_at=CASE WHEN ?='post' THEN ? ELSE posted_at END,journal_id=COALESCE(?,journal_id),version=version+1,updated_at=? WHERE id=?").bind(status,input.reason??null,action,actor.userId,action,now,action,now,journalId,now,id));
+  steps.push(write.prepare("UPDATE inventory_counts SET status=?,review_reason=?,approved_by=CASE WHEN ?='approve' THEN ? ELSE approved_by END,submitted_at=CASE WHEN ?='submit' THEN ? ELSE submitted_at END,posted_at=CASE WHEN ?='post' THEN ? ELSE posted_at END,journal_id=COALESCE(?,journal_id),version=version+1,updated_at=? WHERE id=?").bind(status,input.reason??null,action,actor.userId,action,now,action,now,journalId,now,id));
   if(action!=="submit")steps.push(write.prepare("INSERT INTO inventory_count_decisions(id,count_id,command_id,action,actor_id,reviewed_version,reason,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(),id,key,action,actor.userId,input.expectedVersion,input.reason,now));
   if(review)steps.push(write.prepare("INSERT INTO decision_evidence(id,command_id,record_id,action,actor_id,assignment_id,reviewed_version,input_digest,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(),key,id,operation,actor.userId,actor.assignmentId,input.expectedVersion,await sha256(JSON.stringify({reason:input.reason,lines})),now));
   return executeCommand(write,actor,key,operation,input,id,input.expectedVersion+1,{id,status,version:input.expectedVersion+1,journalId},steps);

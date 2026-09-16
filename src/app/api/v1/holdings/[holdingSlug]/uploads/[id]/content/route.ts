@@ -1,3 +1,4 @@
+import { invoiceEvidenceGuard } from "@/server/invoice-payment-evidence";
 import { requestPublicOrigin } from "@/server/public-origin";
 import { employeeRequestUpload, requestVersionGuard } from "@/server/employee-requests";
 import { serviceAuthoritySnapshot } from "@/server/service-access";
@@ -109,6 +110,7 @@ export async function PUT(
       input,
     );
     if (prior) return Response.json({ data: prior }, { status: 201 });
+    const invoiceEvidence=intent.owner_type==="invoice_payment"?await invoiceEvidenceGuard(write,actor,intent.owner_id,commandId):null;
     const requestSnapshot = intent.owner_type === "employee_request" ? await serviceAuthoritySnapshot(write, actor.companyId) : null;
     const employeeRequest = intent.owner_type === "employee_request" ? await employeeRequestUpload(write, actor, intent.owner_id, intent.purpose) : null;
     const social =
@@ -156,11 +158,11 @@ export async function PUT(
         "LEAVE_LOCKED",
         "Evidence changes require your editable request.",
       );
-    if (!expense && !task && !leave && !social && !payment && !employeeRequest)
+    if (!expense && !task && !leave && !social && !payment && !employeeRequest && !invoiceEvidence)
       throw new ApiError(404, "OWNER_NOT_FOUND", "Attachment owner not found.");
     const ownerScope = payment
       ? { ...payment.expense, ...payment.draft }
-      : (employeeRequest ?? social ?? expense ?? task ?? leave!);
+      : (invoiceEvidence?.invoice ?? employeeRequest ?? social ?? expense ?? task ?? leave!);
     const finalKey = `${actor.holdingId}/objects/${id}/r${intent.revision}`;
     const stored = await files.put(finalKey, buffer, {
       onlyIf: { etagDoesNotMatch: "*" },
@@ -180,10 +182,11 @@ export async function PUT(
       now = Date.now();
     const steps = [
       ...(requestSnapshot ? requestSnapshot(commandId) : []),
+      ...(invoiceEvidence?.guards??[]),
       ...(payment
         ? paymentGuards(write, actor, commandId, payment.expense)
         : []),
-      employeeRequest ? requestVersionGuard(write, commandId, employeeRequest) : payment
+      invoiceEvidence ? assertion(write,commandId,"invoice-slip-type","? IN ('image/jpeg','image/png','image/webp','application/pdf')",[intent.media_type]) : employeeRequest ? requestVersionGuard(write, commandId, employeeRequest) : payment
         ? assertion(
             write,
             commandId,
@@ -256,7 +259,7 @@ export async function PUT(
         ),
       write
         .prepare(
-          `UPDATE ${employeeRequest ? "employee_requests" : payment ? "expense_payment_drafts" : social ? "social_post_drafts" : expense ? "finance_expenses" : task ? "staff_tasks" : "leave_requests"} SET version=version+1,${employeeRequest ? "evidence_version=evidence_version+1," : ""}updated_at=? WHERE id=?`,
+          `UPDATE ${invoiceEvidence ? "finance_invoices" : employeeRequest ? "employee_requests" : payment ? "expense_payment_drafts" : social ? "social_post_drafts" : expense ? "finance_expenses" : task ? "staff_tasks" : "leave_requests"} SET version=version+1,${employeeRequest ? "evidence_version=evidence_version+1," : ""}updated_at=? WHERE id=?`,
         )
         .bind(now, intent.owner_id),
     ];

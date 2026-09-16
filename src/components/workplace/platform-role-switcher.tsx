@@ -1,5 +1,7 @@
 "use client";
 
+import { workFetch } from "@/lib/work-fetch";
+
 import { useState } from "react";
 import type { WorkAssignment } from "@/server/authorization";
 
@@ -20,7 +22,7 @@ export function PlatformRoleSwitcher({
         disabled={pending}
         onChange={async (event) => {
           setPending(true);
-          const response = await fetch("/api/v1/platform/assignments/active", {
+          const response = await workFetch("/api/v1/platform/assignments/active", {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ assignmentId: event.target.value }),
