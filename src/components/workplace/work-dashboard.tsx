@@ -1,24 +1,26 @@
 "use client";
+import { FeatureTabBar,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 
-import { workFetch } from "@/lib/work-fetch";
-import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { WorkSummary } from "@/server/work-summary";
-import { queues } from "@/lib/work-queue";
-import { filterWork, workResponsibilities, workTypes } from "@/lib/work-item";
+import { lastWorkChange,scheduleWorkRefresh } from "@/lib/work-refresh";
+
 import { PageHeader } from "@/components/ui/primitives";
-import { WorkList } from "./work-list";
+import { workFetch } from "@/lib/work-fetch";
+import { workResponsibilities,workTypes,workViews } from "@/lib/work-item";
+import type { WorkPageSummary } from "@/server/work-summary";
+import Link from "next/link";
+import { useCallback,useEffect,useRef,useState } from "react";
+import { useNavigationCounts } from "./navigation-counts";
 import { NewWork } from "./new-work";
+import { WorkList } from "./work-list";
 import { WorkShortcuts } from "./work-shortcuts";
-import { workAttention } from "@/lib/work-attention";
-import { WorkAttention } from "./work-attention";
-import styles from "./pages.module.css";
+import styles from "./work-dashboard.module.css";
 
 export function WorkDashboard({
   base,
   beta,
   initial,
   queue,
+  view,
   type,
   q,
   responsibility,
@@ -26,13 +28,26 @@ export function WorkDashboard({
 }: {
   base: string;
   beta: boolean;
-  initial: WorkSummary;
+  initial: WorkPageSummary;
   queue: string;
+  view: string;
   type: string;
   q: string;
   responsibility: string;
   current: string;
 }) {
+  const { publishWork } = useNavigationCounts();
+  const activeTab = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    const tab = activeTab.current;
+    const bar = tab?.parentElement;
+    if (!tab || !bar) return;
+    const tabBounds = tab.getBoundingClientRect();
+    const barBounds = bar.getBoundingClientRect();
+    // Keep the selected view visible without moving the page vertically.
+    if (tabBounds.right > barBounds.right) bar.scrollLeft += tabBounds.right - barBounds.right;
+    else if (tabBounds.left < barBounds.left) bar.scrollLeft += tabBounds.left - barBounds.left;
+  }, [view]);
   const [summary, setSummary] = useState(initial),
     [error, setError] = useState("");
   const pending = useRef<Promise<void> | null>(null),
@@ -44,20 +59,24 @@ export function WorkDashboard({
     controller.current = abort;
     pending.current = (async () => {
       try {
-        const response = await workFetch(`/api/v1${base}/work/summary`, {
+        const params = new URLSearchParams(current);
+        params.set("paged", "1");
+        params.set("offset", String(initial.list.offset));
+        const response = await workFetch(`/api/v1${base}/work/summary?${params}`, {
           cache: "no-store",
           signal: abort.signal,
         });
         const body = (await response.json()) as {
-          data: WorkSummary;
+          data: WorkPageSummary;
           error?: { message?: string };
         };
         if (!response.ok) {
-          if ([401, 403, 404].includes(response.status))
+          if (!abort.signal.aborted && [401, 403, 404].includes(response.status))
             setSummary((s) => ({
               ...s,
               cards: [],
               items: [],
+              actionCount:null, viewCounts:{},relationships:[],list:{offset:0,total:0,hasMore:false},
               capabilities: { creation: [], teamQueue: false, unavailable: [] },
             }));
           throw Error(body.error?.message ?? "Work could not be refreshed.");
@@ -76,30 +95,24 @@ export function WorkDashboard({
       }
     })();
     return pending.current;
-  }, [base]);
+  }, [base,current,initial.list.offset]);
   useEffect(() => {
-    const visible = () => {
-      if (document.visibilityState === "visible") void refresh();
-    };
-    const restored = (event: PageTransitionEvent) => {
-      if (event.persisted) void refresh();
-    };
-    window.addEventListener("focus", visible);
-    document.addEventListener("visibilitychange", visible);
+    const changed = () => { controller.current?.abort(); void refresh(); };
+    const unsubscribe = scheduleWorkRefresh(changed);
+    const restored = (event: PageTransitionEvent) => { if (event.persisted) changed(); };
     window.addEventListener("pageshow", restored);
-    window.addEventListener("erpx:work-changed", visible);
-    // A restored App Router page can carry an older server snapshot.
-    visible();
-    return () => {
-      controller.current?.abort();
-      window.removeEventListener("focus", visible);
-      document.removeEventListener("visibilitychange", visible);
-      window.removeEventListener("pageshow", restored);
-      window.removeEventListener("erpx:work-changed", visible);
-    };
-  }, [refresh]);
+    // Fresh SSR data is already authoritative; only restored/invalidated snapshots need a read.
+    const timer = Date.now() - initial.generatedAt > 30_000 || initial.generatedAt < lastWorkChange()
+      ? setTimeout(() => void refresh(), 0) : undefined;
+    return () => { clearTimeout(timer); controller.current?.abort(); unsubscribe(); window.removeEventListener("pageshow", restored); };
+  }, [refresh, initial.generatedAt]);
+  useEffect(() => {
+    const timer = setTimeout(() => publishWork(summary.actionCount), 0);
+    return () => clearTimeout(timer);
+  }, [summary, publishWork]);
+  const pageHref=(offset:number)=>{const query=new URLSearchParams(current);query.set("offset",String(offset));return `?${query}`;};
   const items = summary.items,
-    selected = filterWork(items, queue, type, q, responsibility);
+    selected = items;
   const unavailable = [
     ...new Set([
       ...summary.unavailableSources,
@@ -124,36 +137,22 @@ export function WorkDashboard({
           {error} Updates may be out of date.{" "}
         </p>
       )}
-      <WorkAttention base={base} attention={workAttention(items, !!error || !!unavailable.length)} compact retry={() => void refresh()} returnTo={current} />
-      <WorkShortcuts
-        base={base}
-        current={current}
-        summary={summary}
-        refresh={refresh}
-        onSaved={(preferences) => {
-          controller.current?.abort();
-          setSummary((s) => ({
-            ...s,
-            preferences,
-            preferencesUnavailable: false,
-          }));
-        }}
-      />
       <div id="work-results" style={{ scrollMarginTop: "100px" }}>
-        <nav className={styles.tabs} aria-label="Work queues">
-          {queues.map(([id, label]) => (
+        <FeatureTabBar className={styles.tabs} aria-label="Work queues">
+          {workViews.map(([id, label]) => (
             <Link
               key={id}
-              href={`?${new URLSearchParams({ queue: id, ...(responsibility !== "all" ? { responsibility } : {}), ...(type !== "all" ? { type } : {}), ...(q ? { q } : {}) })}`}
-              aria-current={queue === id ? "page" : undefined}
+              ref={view === id ? activeTab : undefined}
+              href={`?${new URLSearchParams({ view: id, ...(responsibility !== "all" ? { responsibility } : {}), ...(type !== "all" ? { type } : {}), ...(q ? { q } : {}) })}`}
+              aria-current={view === id ? "page" : undefined}
             >
-              {label}
-              <span>
-                {filterWork(items, id, type, "", responsibility).length}
-              </span>
+              {label}{" "}
+              {summary.viewCounts[id] != null && (
+                <span className={styles.count}>{summary.viewCounts[id]}</span>
+              )}
             </Link>
           ))}
-        </nav>
+        </FeatureTabBar>
         {!!unavailable.length && (
           <p role="status">
             Temporarily unavailable: {unavailable.join(", ")}. Your other work
@@ -163,8 +162,8 @@ export function WorkDashboard({
             </button>
           </p>
         )}
-        <form className="work-filters" action={`${base}/work`}>
-          <input type="hidden" name="queue" value={queue} />
+        <WidgetGrid pageKey="work"><FeatureWidget id="work-queue" title="Work queue"><form className="work-filters" action={`${base}/work`}>
+          <input type="hidden" name={view === "legacy" ? "queue" : "view"} value={view === "legacy" ? queue : view} />
           <select
             className="input"
             name="responsibility"
@@ -178,11 +177,9 @@ export function WorkDashboard({
                   id === "requested" ||
                   id === responsibility ||
                   (id === "team" && summary.capabilities.teamQueue) ||
-                  items.some((i) =>
-                    i.relationships?.includes(
+                  summary.relationships.includes(
                       id as "assigned" | "approval" | "team",
                     ),
-                  ),
               )
               .map(([id, label]) => (
                 <option key={id} value={id}>
@@ -225,13 +222,35 @@ export function WorkDashboard({
           </select>
           <button className="button secondary">Search</button>
           {(q || type !== "all" || responsibility !== "all") && (
-            <Link className="button ghost" href={`?queue=${queue}`}>
+            <Link className="button ghost" href={`?${view === "legacy" ? "queue=" + queue : "view=" + view}`}>
               Clear filters
             </Link>
           )}
         </form>
-        <WorkList base={base} items={selected} returnTo={current} queue={queue} filtered={!!q || type !== "all" || responsibility !== "all"} waiting={items.filter(item => item.queue === "waiting").length} incomplete={!!error || !!unavailable.length} />
+        {view === "routing" && <p className="muted">These workflows need an eligible responsible person or corrected approval setup. Open the record and review its Flow before reassigning with a reason. Completed decisions stay unchanged. <Link href={`${base}/work/routing`}>Review Company source routing</Link></p>}
+        {view === "team" && <p className="muted">On this page: {selected.filter(i => i.category === "setup").length} setup items · {selected.filter(i => i.category !== "setup").length} team items</p>}
+        {view === "team" ? [...new Set(selected.map(i => i.category === "setup" ? i.setupReason ?? "Setup needs an owner" : "Team operations"))].map(reason => <section key={reason}><h2>{reason}</h2><WorkList base={base} items={selected.filter(i => (i.category === "setup" ? i.setupReason ?? "Setup needs an owner" : "Team operations") === reason)} returnTo={current} /></section>) :
+        <WorkList base={base} items={selected} returnTo={current} queue={queue} filtered={!!q || type !== "all" || responsibility !== "all"} waiting={summary.viewCounts.waiting} incomplete={!!error || !!unavailable.length} />}
+        <nav className="form-actions" aria-label="Work pagination">
+          {summary.list.offset>0&&<Link className="button secondary" href={pageHref(Math.max(0,summary.list.offset-30))} prefetch={false}>Previous</Link>}
+          <span>{summary.list.total} matching items</span>
+          {summary.list.hasMore&&<Link className="button secondary" href={pageHref(summary.list.offset+30)} prefetch={false}>Next</Link>}
+        </nav></FeatureWidget></WidgetGrid>
       </div>
+      <WorkShortcuts
+        base={base}
+        current={current}
+        summary={summary}
+        refresh={refresh}
+        onSaved={(preferences) => {
+          controller.current?.abort();
+          setSummary((s) => ({
+            ...s,
+            preferences,
+            preferencesUnavailable: false,
+          }));
+        }}
+      />
     </>
   );
 }

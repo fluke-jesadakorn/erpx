@@ -4,6 +4,33 @@
   min-width: 0;
 }
 
+.viewTabs {
+  display: inline-flex;
+  justify-self: start;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.viewTabs a {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  border-radius: 7px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.viewTabs a[aria-current="page"] {
+  color: var(--ink);
+  background: var(--card-2);
+}
+
 .directory > :global(.card) > :global(.section-head) {
   margin: 0;
 }

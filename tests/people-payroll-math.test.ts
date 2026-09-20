@@ -37,4 +37,8 @@ describe("payroll calculation boundaries", () => {
     expect(result.gross).toBe(46000);
     expect(result.net).toBe(46000);
   });
+  it("uses the configured overtime multiplier and calendar-day proration",()=>{
+    expect(calculatePayrollAmounts({employmentType:"hourly",baseMinor:0,hourlyMinor:1000,regularHours:40,overtimeHours:4,overtimeMultiplierBps:20000,components:[]}).gross).toBe(48000);
+    expect(calculatePayrollAmounts({employmentType:"salaried",baseMinor:300000,hourlyMinor:0,regularHours:0,overtimeHours:0,prorationNumerator:15,prorationDenominator:30,components:[]}).gross).toBe(150000);
+  });
 });

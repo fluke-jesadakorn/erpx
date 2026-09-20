@@ -1,3 +1,5 @@
+vi.mock("../src/server/overtime", () => ({ overtimeWork: async()=>[] }));
+vi.mock("../src/server/retirement-clearance", () => ({retirementWork:async()=>[]}));
 vi.mock("../src/server/flow-work", () => ({enrichFlowWork:async (_actor:unknown,items:WorkItem[])=>items,otherFlowWork:async()=>[]}));
 import { expect, it, vi } from "vitest";
 import {
@@ -65,15 +67,16 @@ it("retains the workspace when one source fails and reports only that source", a
     companyId: "company",
     holdingId: "h001",
     role: "employee",
+    modules: [],
     assignments: [],
     scope: { kind: "holding", companyId: "company" },
   } as WorkContext;
-  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
   try {
     const snapshot = await workSnapshot(actor);
     expect(snapshot.items.map((i) => i.id).sort()).toEqual(["request", "task"]);
     expect(snapshot.unavailableSources).toEqual(["Expense claims"]);
   } finally {
-    error.mockRestore();
+    warning.mockRestore();
   }
 });

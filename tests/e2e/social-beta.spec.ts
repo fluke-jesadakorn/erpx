@@ -12,6 +12,53 @@ async function login(context: BrowserContext, name: string) {
   });
   expect(r.status(), await r.text()).toBe(200);
 }
+test("composer removes the duplicate avatar and accepts pasted images", async ({
+  browser,
+}, info) => {
+  const context = await browser.newContext(info.project.use);
+  try {
+    const response = await context.request.post("/api/auth/sign-in/email", {
+      data: {
+        email: process.env.ERPX_E2E_ADMIN_EMAIL ?? "jesadakorn.kirtnu@gmail.com",
+        password: process.env.ERPX_E2E_ADMIN_PASSWORD ?? "12345678",
+      },
+    });
+    expect(response.status(), await response.text()).toBe(200);
+    const page = await context.newPage();
+    await page.goto("/holdings/acme/home");
+    await expect(
+      page.getByRole("heading", { name: "Connect your staff profile" }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Connect a staff profile to show your personal schedule."),
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Some information is unavailable/),
+    ).toHaveCount(0);
+    const composer = page.locator("details.beta-composer");
+    await composer.getByText("Share an update", { exact: true }).click();
+    await expect(composer).toHaveAttribute("open", "");
+    await expect(composer.locator(".beta-person")).toHaveCount(0);
+    const editor = composer.getByLabel("Post message", { exact: true });
+    await expect(editor).toBeVisible();
+    await editor.evaluate((element) => {
+      const bytes = Uint8Array.from(
+        atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aG20AAAAASUVORK5CYII="),
+        (character) => character.charCodeAt(0),
+      );
+      const clipboard = new DataTransfer();
+      clipboard.items.add(new File([bytes], "pasted.png", { type: "image/png" }));
+      element.dispatchEvent(
+        new ClipboardEvent("paste", { bubbles: true, clipboardData: clipboard }),
+      );
+    });
+    await expect(composer.getByRole("img", { name: "pasted.png" })).toBeVisible();
+    await expect(composer.getByRole("button", { name: "Remove pasted.png" })).toBeVisible();
+    await expect(page.locator(".beta-status")).toContainText("Image attached.");
+  } finally {
+    await context.close();
+  }
+});
 test("social post → manual task → evidence → independent acceptance, with AI fallback", async ({
   browser,
 }, info) => {

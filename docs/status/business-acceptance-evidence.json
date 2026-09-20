@@ -1,0 +1,1633 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "id": "refund-simulation-20260920",
+      "capabilityIds": [
+        "sales/feature-cancellations",
+        "finance/feature-payments",
+        "finance/feature-bank-reconciliation",
+        "finance/feature-period-close"
+      ],
+      "scenarioIds": [
+        "S04"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Paid customer/supplier returns, partial bank refunds, independent approval, unknown result, source accounting, tax and close guards: 5 integration tests on disposable databases.",
+      "observedAt": "2026-09-20T01:05:11+07:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-refund-tests.txt",
+          "sha256": "605ddc76b5a9af83ae76665aaa8649c0eeb061439bcbe6af9bc6e52e298639e8"
+        }
+      ],
+      "limitations": [
+        "Does not cover the entire linked capabilities.",
+        "No multi-role browser, live provider or production acceptance.",
+        "AP/Payroll payment batches, FX and post-confirmation compensation remain incomplete."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "supplier-simulation-20260920",
+      "capabilityIds": [
+        "finance/payables",
+        "finance/feature-payments",
+        "finance/feature-bank-reconciliation",
+        "finance/feature-period-close"
+      ],
+      "scenarioIds": [
+        "S02"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Invoice-linked supplier payment batch with source reservation, independent review, partial bank results and atomic GL/allocation/reconciliation. Supplier/payroll/work cache regression: 20 passing tests.",
+      "observedAt": "2026-09-20T01:41:45+07:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-supplier-tests.txt",
+          "sha256": "4b7f9ed1ec49541a72f4bd042aa2bfd4dba72284d61cf0146b155c37d4fbf879"
+        }
+      ],
+      "limitations": [
+        "No live bank or multi-role browser acceptance.",
+        "Functional currency and configured cash ledger only.",
+        "Payroll, refunds and supplier batches are not yet unified; post-confirmation compensation remains incomplete."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "supplier-completion-simulation-20260920",
+      "capabilityIds": [
+        "finance/payables",
+        "finance/feature-payments",
+        "finance/feature-bank-reconciliation",
+        "finance/feature-period-close"
+      ],
+      "scenarioIds": [
+        "S02"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Four supplier integration tests cover partial multi-invoice settlement, failed-item retry through final settlement, pending-work visibility, concurrent reservation, source/legacy exporter exclusion, authority and bank/period guards.",
+      "observedAt": "2026-09-20T01:45:50+07:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-supplier-completion-tests.txt",
+          "sha256": "27a83f68c5cf1cb6573bccc2d120efd3ca0f0f4e28d7b478fc6273de397e9bc6"
+        }
+      ],
+      "limitations": [
+        "No live bank or multi-role browser acceptance.",
+        "Functional currency and configured cash ledger only.",
+        "Payroll, refunds and supplier batches are not yet unified; post-confirmation compensation remains incomplete."
+      ],
+      "supersedes": "supplier-simulation-20260920"
+    },
+    {
+      "id": "routing-scan-simulation-20260920",
+      "capabilityIds": [
+        "identity_access/assignments",
+        "identity_access/feature-roles-permissions"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Company named-flow routing scan, visible-blocker pagination, source permissions, audited reassignment and revoked owner recovery, including 251 newer owner-created documents. Routing suites: 14 passing tests.",
+      "observedAt": "2026-09-20T09:55:38+07:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-routing-scan-tests.txt",
+          "sha256": "268fe377f45c3051011a5c1a7dd58c22123c9547767ed0d3aa165cb42fca1c60"
+        }
+      ],
+      "limitations": [
+        "Browser verification blocked by expired authenticated session.",
+        "Owner-specific non-Flow adapters, background scan checkpoints, blocked-since, business calendars and escalation remain incomplete.",
+        "This is not complete acceptance of either capability."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "stock-reservations-simulation-20260920",
+      "capabilityIds": [
+        "inventory/availability",
+        "inventory/reservations",
+        "pos/feature-sales-baskets"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S05"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Sales and POS share stock availability; approved source reservations, partial delivery consumption, expiry, cancellation, replay, scope and last-unit concurrency. Four owner suites: 32 passing tests.",
+      "observedAt": "2026-09-20T03:15:12.814381+00:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-stock-reservations-tests.txt",
+          "sha256": "24f7d2f4914c6ea84903133d775414987768463bb7f02fdc8f15f2d1f7d09e1d"
+        }
+      ],
+      "limitations": [
+        "No multi-role browser or production acceptance.",
+        "Production and Field Service reservation adapters, quality hold and product lot/expiry remain unimplemented.",
+        "Expiry releases availability without a worker; proactive expiry notifications and escalation remain incomplete."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "stock-expiry-simulation-20260920",
+      "capabilityIds": [
+        "inventory/availability",
+        "inventory/reservations",
+        "pos/feature-sales-baskets"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S05"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Sales and POS share stock availability; approved source reservations, partial delivery consumption, expiry, cancellation, replay, scope and last-unit concurrency. Four owner suites: 32 passing tests. Follow-up: expired rows cannot absorb a release intended for a current reservation; stock and navigation suites pass 53 tests.",
+      "observedAt": "2026-09-20T03:27:22.606973+00:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-stock-reservations-tests.txt",
+          "sha256": "24f7d2f4914c6ea84903133d775414987768463bb7f02fdc8f15f2d1f7d09e1d"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-stock-expiry-navigation-tests.txt",
+          "sha256": "7d2080f50ee93f40dec8e0f11e440238069c4be02cf7832f2693da043f56b584"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-aj-source-context.json",
+          "sha256": "378ac416fb122823394b1b2a8866fbb0985d16983b39f6039407daf7b5fc4954"
+        }
+      ],
+      "limitations": [
+        "No multi-role browser or production acceptance.",
+        "Production and Field Service reservation adapters, quality hold and product lot/expiry remain unimplemented.",
+        "Expiry releases availability without a worker; proactive expiry notifications and escalation remain incomplete."
+      ],
+      "supersedes": "stock-reservations-simulation-20260920"
+    },
+    {
+      "id": "recovery-simulation-20260920",
+      "capabilityIds": [
+        "platform_administration/feature-backup-recovery"
+      ],
+      "scenarioIds": [
+        "S19"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Single holding logical backup/restore rehearsal. Owner-created order/reservation/partial delivery restored; all 325 base tables match row counts and digests, and stock reservation trigger remains effective. Restore plus verification: 8687ms on small isolated fixture.",
+      "observedAt": "2026-09-20T03:27:22.607178+00:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-recovery-result.json",
+          "sha256": "f5de4343171c557a7c6ec65eb2030d0bd492f3402c7fc0ba946d4afab21c50ce"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-recovery-tests.txt",
+          "sha256": "6d89434ef9452ad2a1524d554aef9aa03e72d5df80d38a1dd5127562faf44784"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-aj-source-context.json",
+          "sha256": "378ac416fb122823394b1b2a8866fbb0985d16983b39f6039407daf7b5fc4954"
+        }
+      ],
+      "limitations": [
+        "Not production RPO/RTO acceptance.",
+        "Excludes private files, control/read databases, WAL/PITR, remote backup, running jobs and external providers.",
+        "Temporary archive and restore database removed after verification; repeat the test to rehearse again."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "quality-quarantine-simulation-20260920",
+      "capabilityIds": [
+        "quality/inspections",
+        "quality/results",
+        "quality/release-gates"
+      ],
+      "scenarioIds": [
+        "S03",
+        "S04",
+        "S11"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Whole warehouse/product quarantine, independent inspection/release, immutable evidence, scoped Work/Inbox/Calendar, competing reservation, pre-reserved Sales and POS rollback. Owner regression: 7 files, 116 tests passed.",
+      "observedAt": "2026-09-20T11:22:58.843512+07:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-quality-tests.txt",
+          "sha256": "28a1474e39ecd8a8afaed56bb19803cf250f315b41c098a9b2ac9521ca62a47c"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-quality-context.json",
+          "sha256": "840b9d2b009e0c91aa8065799a43a1c29f038f9c72d6023ef04737a149e7bbfb"
+        }
+      ],
+      "limitations": [
+        "Owner regression is not the full repository suite.",
+        "Work date is UTC; Company business-calendar policy snapshot remains missing.",
+        "Lot/serial, measurements, attachments, disposition and cancellation remain incomplete.",
+        "Multi-role browser, provider and production gates are pending."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "quality-stock-projection-simulation-20260920",
+      "capabilityIds": [
+        "quality/inspections",
+        "quality/results",
+        "quality/release-gates"
+      ],
+      "scenarioIds": [
+        "S03",
+        "S04",
+        "S11"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Final Quality owner regression (5 tests) verifies paginated stock quarantine flag and excludes inventory cost from Quality stock selector API; also reruns independent release, immutable evidence, scopes, handoffs and reservation race.",
+      "observedAt": "2026-09-20T11:25:35.666287+07:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-quality-final-projection-tests.txt",
+          "sha256": "ebd69971b99d80219b3cea76de155d040f398bafaeeb137f02dbc5bfd2f40386"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-quality-projection-context.json",
+          "sha256": "3f0c1c28a37bdaf6bb4d4293793e5a7c9009609c08abb16e831c968df5068f99"
+        }
+      ],
+      "limitations": [
+        "Narrow simulation observation; does not close the full linked capabilities.",
+        "Lot/serial, measurements, attachments, disposition and cancellation remain incomplete.",
+        "Multi-role browser/provider/production acceptance and Company SLA calendar policy remain pending."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "inventory-transit-simulation-20260920",
+      "capabilityIds": [
+        "inventory/feature-issues-movements"
+      ],
+      "scenarioIds": [
+        "S14"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Same-company approved transport, physical dispatch, partial receipt, preserved stock/cost, independent loss approval and GL, closed periods, competing receipts, quality hold, revoked receiver and scoped Work/Inbox/Calendar. Seven owner scenarios passed; adjacent regression and corrected navigation results preserved separately.",
+      "observedAt": "2026-09-20T11:56:59.669241+07:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-transit-owner-regression.txt",
+          "sha256": "970a50f421e41a28e2d73a10f73e27e5c063cc6d8109174c587e6620e4dc01f3"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-transit-navigation-correction.txt",
+          "sha256": "c4fc920aa24c851a9e3ca6cbe02d1b0c653118f577ed8ade3699ceef445ce9bb"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-transit-context.json",
+          "sha256": "a82ba9a1c7b619872afb845f372e43bed98bc3f89f3081941cf52cfb2470a735"
+        }
+      ],
+      "limitations": [
+        "Same-company only; not intercompany documents or consolidation.",
+        "No lot/serial, carrier integration or customer proof of delivery.",
+        "Post-confirmation receipt/loss correction requires a separately reviewed compensating workflow; no dedicated reversal action delivered here.",
+        "Named reassignment, business-calendar SLA, multi-role browser, provider and production acceptance remain pending."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "transit-quality-multirole-browser-20260920",
+      "capabilityIds": [
+        "inventory/feature-issues-movements",
+        "quality/inspections",
+        "quality/results",
+        "quality/release-gates"
+      ],
+      "scenarioIds": [
+        "S03",
+        "S14"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Five separate password accounts exercised source transfer, independent approval, dispatch, partial receipt, third-person Finance discrepancy approval, quality quarantine/inspection/release and Work handoffs on isolated databases. Stock and loss allocation reconciled; permission denial corrected and rechecked.",
+      "observedAt": "2026-09-20T05:17:33.265355+00:00",
+      "recordedBy": "Codex execution agent (browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-transit-quality-browser.json",
+          "sha256": "fe46d2db79a42d69e53daa5dcbbeaff79a0f7ce68c0e5efe1eaeca10fe44efe2"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-transit-quality-browser-records.json",
+          "sha256": "e38c06e0eb559fcde8ce21a00140e084b026caf6eef8e7a68e1a4228f9ff133a"
+        }
+      ],
+      "limitations": [
+        "One Company/Branch; not all linked capabilities or scenarios.",
+        "Existing fixture maps inventory to an asset account named cash; opening-stock GL was not rehearsed.",
+        "No live provider/device/customer UAT or production acceptance.",
+        "Cross-scope, races and revocation covered by separate automated tests, not this browser observation."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "full-regression-baseline-20260920",
+      "capabilityIds": [
+        "inventory/feature-issues-movements",
+        "quality/inspections",
+        "quality/results",
+        "quality/release-gates"
+      ],
+      "scenarioIds": [
+        "S03",
+        "S14"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Full discovered integration suite: 88 files, 86 passed, 2 skipped; 760 tests passed and 3 skipped. Run began before supplier-promise work; new supplier tests were not in initial discovery and are verified separately.",
+      "observedAt": "2026-09-20T05:38:03.804228+00:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-full-regression.txt",
+          "sha256": "514bda563297850a33bda262970384a816b60c4d6758a35460fe5c1a93cd1339"
+        }
+      ],
+      "limitations": [
+        "Does not constitute all 183 capabilities or S01-S21 acceptance.",
+        "Skipped provider gates remain pending.",
+        "Supplier promise changes were introduced during this baseline run; subsequent owner regression required for their integrated revision."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "supplier-promises-owner-regression-20260920",
+      "capabilityIds": [
+        "procurement/feature-supplier-history",
+        "procurement/purchase-orders"
+      ],
+      "scenarioIds": [
+        "S03"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Seven files / 33 tests passed: supplier promises, complete/idempotent migrations, business commands, Calendar API, Work cache/views and widget registry. Split commitments, partial receipts, replacement/withdrawal, races, replay, immutable history and authorization covered.",
+      "observedAt": "2026-09-20T05:46:10.786628+00:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-supplier-promises-tests.txt",
+          "sha256": "8732ddd0c060e293c0776eef8e44b13d2af19c0d707aa27bd611a076fc736425"
+        }
+      ],
+      "limitations": [
+        "Initial concurrently running migration test exceeded its 30-second timeout; migration acceptance now has explicit 120-second allowance and passed on serial owner regression.",
+        "RFQ, variance matching, customer delivery promise and supplier email/portal remain incomplete.",
+        "Browser, provider and production acceptance are separate gates."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "supplier-promises-multirole-browser-20260920",
+      "capabilityIds": [
+        "procurement/feature-supplier-history",
+        "procurement/purchase-orders",
+        "procurement/goods-receipts"
+      ],
+      "scenarioIds": [
+        "S03"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Four separate password accounts: create and independently approve PO through Work, split supplier commitments and Calendar, partial receipt, replacement/withdrawal, independent receipt GL posting. Form layout corrected and visually verified.",
+      "observedAt": "2026-09-20T05:54:27.496274+00:00",
+      "recordedBy": "Codex execution agent (browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-supplier-promises-browser.json",
+          "sha256": "7fb6a8479a92abf3eb1db3ed887eb28429eef5a7ab2f50068702cd26ae4e9ec6"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-supplier-promises-browser-records.json",
+          "sha256": "5078237fff8c80baa48df60cbe86b3de747bd63827203570914a31614e659b34"
+        }
+      ],
+      "limitations": [
+        "One Company/Branch and one product; does not close all S03 or procurement capabilities.",
+        "No RFQ, variance matching, supplier/customer portal or email exercised.",
+        "PO intentionally remains partially fulfilled with unconfirmed remainder; full receipt and concurrency covered by owner tests.",
+        "No live providers, real UAT, invoice settlement or production acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "rfq-requisition-owner-20260920",
+      "capabilityIds": [
+        "procurement/requisitions",
+        "procurement/purchase-orders",
+        "procurement/feature-supplier-history"
+      ],
+      "scenarioIds": [
+        "S03"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Immutable RFQ offers, supplier comparison, independent award, atomic draft PO, typed approved requisition mapping, active-award bypass prevention, source waiting/reply, scoped Work/Inbox/Calendar. Final RFQ/employee regression: 26 passed; baseline and adjacent evidence separate.",
+      "observedAt": "2026-09-20T06:25:55.030933+00:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-rfq-owner-tests.txt",
+          "sha256": "b57b5586a0c1cd2c7c3fd457788ce1f9eaf9ba3ffb2f3d34a810b3fb272bbc1f"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-rfq-requisition-tests.txt",
+          "sha256": "81b04cd0191456ce2645cc61b997d1432dad38b9cf2ad58ef0475003f367add5"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-rfq-source-final-tests.txt",
+          "sha256": "5ba5008a92b27ad23cf4882844f23349aa1e5ad49231ab1411fae1b4acf13fb1"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-rfq-context.json",
+          "sha256": "ac81dbf4d86fb6569f8d2e81f8f1776f5846cd5ba5d45d6bd14e84981d6a587f"
+        }
+      ],
+      "limitations": [
+        "No complete A-J or S03 sign-off.",
+        "Partial/split request allocations, UOM conversion, supplier invitations/portal, invoice matching and full browser acceptance remain.",
+        "RFQ quote expiry uses UTC runtime date; business-calendar policy remains pending.",
+        "No real business, provider or production acceptance.",
+        "Not verified: Chrome navigation/focus and tab recovery timed out; no authentication bypass."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "supplier-bill-matching-owner-20260920",
+      "capabilityIds": [
+        "procurement/purchase-orders",
+        "procurement/goods-receipts",
+        "finance/feature-payments"
+      ],
+      "scenarioIds": [
+        "S03"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "PO/receipt matching, independent quantity/price review, original-cost and actual-invoice accounting, partial/final returns, current authority, concurrency, correction history and closed-period protection. Final 4 files / 14 tests passed.",
+      "observedAt": "2026-09-20T06:52:27.647591+00:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-supplier-bill-tests.txt",
+          "sha256": "37409d671466c62c9759f76f76d8845e8e46d1178c4b62cc5717d7901e7b5697"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-supplier-bill-initial-regression.txt",
+          "sha256": "d378f7b223bc627e445fde6252badd0c1c79260e06228aa05a274e67aa2261d6"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-supplier-bill-context.json",
+          "sha256": "4697becb5f58ad1c1f10fdb1afd167802d3ede04f06640181d96b69b8f51ed7d"
+        }
+      ],
+      "limitations": [
+        "No whole capability or scenario sign-off.",
+        "One bill per complete receipt; mandatory Company matching policy, multi-receipt/partial invoices, landed cost and FX remain.",
+        "Price variance expense policy requires Company acceptance.",
+        "Browser acceptance recorded separately; no provider or production acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "rfq-bill-multirole-browser-20260920",
+      "capabilityIds": [
+        "procurement/purchase-orders",
+        "procurement/goods-receipts",
+        "procurement/feature-supplier-history",
+        "finance/feature-payments"
+      ],
+      "scenarioIds": [
+        "S03"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Four normal user accounts complete demand/RFQ award → separately approved PO → warehouse receipt → independent goods GL → supplier invoice price review → named AP preparation → independent posted invoice. Exact source IDs and amounts preserved.",
+      "observedAt": "2026-09-20T07:03:48.333285+00:00",
+      "recordedBy": "Codex execution agent (browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-rfq-bill-browser.json",
+          "sha256": "526906972615a670ada8a6c38fc0f62c9162f59053d1bb1a4377e0f728a28f63"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-rfq-bill-browser-records.json",
+          "sha256": "e54b3d9bf6c4c9fc2160363bbafc4ad208c9d37c1ee82facbc604d25b0d6b7b6"
+        }
+      ],
+      "limitations": [
+        "Scoped browser observation, not complete S03, B/C or A-J acceptance.",
+        "One offer and complete receipt; browser did not exercise all negative cases or typed PR mapping. Automated evidence covers separate exception cases.",
+        "No payment completed: Treasury role absent in this fixture; invoice correctly displays no eligible owner and outstanding THB25.68.",
+        "Browser fixture maps receipt clearing and AP to the same payable account; dedicated clearing/inventory integration fixtures independently verify clearing netting and complete returns.",
+        "Finance account had to be re-added after switching to source. Installed multi-session code counts stale cookie names from previous disposable runs toward its device limit; no authentication bypass used.",
+        "No provider, real customer, device or production sign-off."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "supplier-bill-draft-correction-20260920",
+      "capabilityIds": [
+        "procurement/purchase-orders",
+        "procurement/goods-receipts",
+        "finance/feature-payments"
+      ],
+      "scenarioIds": [
+        "S03"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Independent return of unposted AP draft, corrected supplier reference with distinct internal invoice number, atomic posting/correction race and correction handoff. Matching/returns/payments 15 tests; routing/matching 17 tests. Initial replacement-number conflict retained as failed evidence. Latest implementation owner tests passed 6/6; combined evidence check had 11 passed / 1 stale generated snapshot failure before regeneration.",
+      "observedAt": "2026-09-20T07:12:52.421554+00:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-bill-correction-regression.txt",
+          "sha256": "a0ee60fd1e38706367378e8727a3fe978777d6290eca1278b1d2f636ba50640d"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-bill-correction-routing.txt",
+          "sha256": "bf73aab1c95c3803a60b887edf31aec1df88fd0e7d5df647c36070a89783ca22"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-bill-correction-initial-failure.txt",
+          "sha256": "e91e794f01c16f60e4dbcca44df21dc53fbdeb2d43ae6a819b65d9b43548b518"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-bill-correction-context.json",
+          "sha256": "56f458773bb79325651eec806c1b44c33df35da74a890c0ce5d0b8485b4620bb"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-bill-correction-latest-check.txt",
+          "sha256": "15124a7bdcbe3cfbbc44f73ee44bac37c4728ae1e01bc4e5241a4acc0ffb0831"
+        }
+      ],
+      "limitations": [
+        "Not whole capability acceptance.",
+        "Correction browser acceptance pending.",
+        "Generated evidence snapshot regeneration and validation recorded separately."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "supplier-bill-correction-handoff-20260920",
+      "capabilityIds": [
+        "procurement/purchase-orders",
+        "procurement/goods-receipts",
+        "finance/feature-payments"
+      ],
+      "scenarioIds": [
+        "S03"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Latest supplier matching and Calendar regression 20 passed; returned invoice correction appears in Work and team Calendar and disappears when replacement enters review. Named owner withdrawal blocks action; Inbox messages reflect source status.",
+      "observedAt": "2026-09-20T07:16:33.550717+00:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-bill-correction-calendar.txt",
+          "sha256": "d2c772fddcbb950ea28b3da2c625462ab84e0806626ff1bbe5bd7080922ac10f"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-bill-evidence-validation.txt",
+          "sha256": "767a5772d4649a4da585e4b0db3df8bc2fc9ec4ddfa740558726afaf82b8e356"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-bill-correction-owner-final.txt",
+          "sha256": "16af6d1a88cfe8ba54c2282257ed04caef2a3ce2ca4bc8061cbf618686e81256"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-bill-calendar-context.json",
+          "sha256": "14e5d6c7815bd496185ca2fe19629b94e019f8f7c78e330db0e7821b16424102"
+        }
+      ],
+      "limitations": [
+        "No whole capability sign-off.",
+        "Correction browser acceptance pending.",
+        "Calendar mine uses creator/reviewer; named responsibility is shown in Work."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "customer-contact-notes-20260920",
+      "capabilityIds": [
+        "customer_360/feature-customer-notes"
+      ],
+      "scenarioIds": [
+        "S01"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Internal contact notes on authorized customer order/quotation, corrections/archive with immutable history, source customer/scope immutability, concurrency, author/manager authority and revoked roles. 9 tests including command and schema regression.",
+      "observedAt": "2026-09-20T08:34:26.405356+00:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-notes-tests.txt",
+          "sha256": "d0a6b494f67213475cb6ec1472455647c252c5ae05854f704f5f0195ede5d0c4"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-notes-context.json",
+          "sha256": "0fea726d7d7c4ae4f74e6f3062d9ec03b59a5a29fa3950f0c4bd712dc487729a"
+        }
+      ],
+      "limitations": [
+        "Not full capability sign-off.",
+        "Standalone customer notes, identity merge, consent and cross-domain timeline remain.",
+        "Browser mutations and business UAT pending."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "quality-cancellation-20260920",
+      "capabilityIds": [
+        "quality/feature-cancellation"
+      ],
+      "scenarioIds": [
+        "S03",
+        "S11"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Independent cancellation of uninspected holds, rejection/resubmission, quarantine until approval, overlapping holds, current scope/authority, immutable evidence and inspection race. 50 owner/adjacent tests passed.",
+      "observedAt": "2026-09-20T08:40:53.143795+00:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-notes-quality-regression.txt",
+          "sha256": "7b5153e003d0f0eb04eda49d13661e7905db6be82729cd457e9992cc12b51a91"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-quality-cancellation-context.json",
+          "sha256": "64ef4bbffbb94ce0bde54a97176c2d784d6ec022c419f9dcc640472a8c8a86cd"
+        }
+      ],
+      "limitations": [
+        "No whole capability, browser or production sign-off.",
+        "Whole warehouse/product scope; no lot/serial cancellation."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "customer-followup-20260920",
+      "capabilityIds": [
+        "crm/activities"
+      ],
+      "scenarioIds": [
+        "S01"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Customer follow-up assignment, current employment/role eligibility, scoped Work/Inbox/Calendar, contact outcome, cancellation, reasoned reassignment and concurrency; 28 owner/adjacent tests passed.",
+      "observedAt": "2026-09-20T08:51:39.118870+00:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-followup-tests.txt",
+          "sha256": "c3caffe682589ffab508b759f7bbf57e89599fa7a07ca508ee348dbbebc1a4aa"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-followup-context.json",
+          "sha256": "7fa73df195962414e3c4b0b5beee48eefdfd4108395d66b949032c7cfb03c5b8"
+        }
+      ],
+      "limitations": [
+        "Order/quotation source only; not all CRM activity scenarios.",
+        "No SLA escalation or real communication delivery.",
+        "Browser and business acceptance separate."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "customer-quality-browser-20260920",
+      "capabilityIds": [
+        "customer_360/feature-customer-notes",
+        "crm/activities",
+        "quality/feature-cancellation"
+      ],
+      "scenarioIds": [
+        "S01",
+        "S03",
+        "S11"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Normal browser contact create/correct/archive, self-assigned follow-up from Work, two-person quality cancellation from recipient Home and denied Quality-role access to customer notes. Read-only source/stock verification exported.",
+      "observedAt": "2026-09-20T08:57:30.127602+00:00",
+      "recordedBy": "Codex execution agent (browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-quality-browser.json",
+          "sha256": "f0dd9a668739ef855118134fa6c567931dffcce6bc79b449747fc2eee325f0d6"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-quality-browser-pending.json",
+          "sha256": "b4e97aeac072eba69926947424bac0eeb07374da372c9f718f02f5ac651206d1"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-quality-browser-completed.json",
+          "sha256": "119f3a0c86f6789f349c8b82e8d5503d67392152928af29cdd13557ab8fcea0c"
+        }
+      ],
+      "limitations": [
+        "Follow-up handoff between different actors not browser verified.",
+        "Whole capabilities and business scenarios remain incomplete.",
+        "No provider or production acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "crm-owner-20260920",
+      "capabilityIds": [
+        "crm/feature-leads",
+        "crm/feature-opportunities"
+      ],
+      "scenarioIds": [
+        "S01"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "4 files / 10 tests on isolated databases: lead qualification, approved quote and confirmed source order before won, loss/reopen, immutable evidence, scope/current eligibility, Work/Inbox/Calendar handoff, exact forecast. Capability remains partial.",
+      "observedAt": "2026-09-20T16:16:27.927969+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-crm-tests.txt",
+          "sha256": "5f59541eb922a6b1d0864d251afe4962228fb3dbb50ccf016d0872bff754bd37"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-crm-context.json",
+          "sha256": "74a7025cd0682f9d412ac7595e832a84b5c7387f1d42561644f17bad275c3d34"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-crm-release.txt",
+          "sha256": "de2bad3a6e0cf778df1136388e08539368d502dee65807cf97c4da06b4b48344"
+        }
+      ],
+      "limitations": [
+        "Partial capability implementation; not S01 or production sign-off.",
+        "CRM browser uses one holding_owner account; separate-person handoff covered by automated tests only."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "crm-browser-20260920",
+      "capabilityIds": [
+        "crm/feature-leads",
+        "crm/feature-opportunities"
+      ],
+      "scenarioIds": [
+        "S01"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Single-account disposable browser: create, qualify, lose, reopen, draft quote filtering and forecast. Not multi-role whole-flow acceptance.",
+      "observedAt": "2026-09-20T16:16:27.927969+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-crm-browser.json",
+          "sha256": "132038e387e8a227fc4f149bcffed0e39bc2de29769e42cb98ec0f493dae6cab"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-crm-browser-records.json",
+          "sha256": "4ec863a3f6d21418021d47f5b29e545a02450e1d23ec4433f6cd4a0fe021c962"
+        }
+      ],
+      "limitations": [
+        "Partial capability implementation; not S01 or production sign-off.",
+        "CRM browser uses one holding_owner account; separate-person handoff covered by automated tests only."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "customer-timeline-automated-20260920",
+      "capabilityIds": [
+        "customer_360/service-timeline"
+      ],
+      "scenarioIds": [
+        "S01"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "8 tests: source timeline privacy/pagination and actual customer returns/fulfillments from complete source accounting flows.",
+      "observedAt": "2026-09-20T16:23:53.163832+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-timeline-tests.txt",
+          "sha256": "424085789ffa9d5720c05d67fd39b47b6677e252d7104c201ccfe1bc987d58fa"
+        }
+      ],
+      "limitations": [
+        "Internal staff projection only; Support/Field Service/Legal/Finance/Portal integration remains.",
+        "No whole-scenario or business sign-off."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "customer-timeline-browser-20260920",
+      "capabilityIds": [
+        "customer_360/service-timeline"
+      ],
+      "scenarioIds": [
+        "S01"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Disposable source operator sees CRM/order history and navigates source; Quality manager denied both CRM and timeline.",
+      "observedAt": "2026-09-20T16:23:53.163832+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-timeline-browser.json",
+          "sha256": "ee82e3c319302b712da8faed98d21d08ed68ab5f9aa2733dd7d927b81fa4fe10"
+        }
+      ],
+      "limitations": [
+        "Internal staff projection only; Support/Field Service/Legal/Finance/Portal integration remains.",
+        "No whole-scenario or business sign-off."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "support-tickets-automated-20260920",
+      "capabilityIds": [
+        "support/tickets"
+      ],
+      "scenarioIds": [
+        "S04",
+        "S10"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "63 passed across Support, scoped customer timeline, navigation and Work tests; creator/owner/reviewer handoffs, current eligibility, note/version/independence guards and races. Partial capability.",
+      "observedAt": "2026-09-20T16:42:00.157984+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-tests.txt",
+          "sha256": "cb2753fd8219738197a792f96c9e91d9866e1d6f78e5be5d142ed7eb019ef817"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-context.json",
+          "sha256": "cb69f8cc3ce070cff99df2ed83e2ab164ddfa2937e44bab5840be0f83831057d"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-release.txt",
+          "sha256": "b65f95d9bc15cf3907b6fc979829af1381c97f520183eba7376e1d0e338f1fc1"
+        }
+      ],
+      "limitations": [
+        "Staff-recorded confirmation only; no Portal/customer UAT or provider acceptance.",
+        "SLA, incidents, scoped sessions and attachments remain."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "support-tickets-browser-20260920",
+      "capabilityIds": [
+        "support/tickets"
+      ],
+      "scenarioIds": [
+        "S04",
+        "S10"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Three-account source operator→Support agent→independent Support manager; recipients enter own Work queues, resolve separately from post-resolution contact confirmation, close v4 without source transaction changes.",
+      "observedAt": "2026-09-20T16:42:00.157984+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-browser.json",
+          "sha256": "e009f515aaa2f44f48f96aada3253b424006f362bf20be47783244077cdee5e8"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-browser-records.json",
+          "sha256": "3d324cb93766fdf4faddc7bfc1e7c8167158bdb53b6ad929af81be5669ebf76d"
+        }
+      ],
+      "limitations": [
+        "Staff-recorded confirmation only; no Portal/customer UAT or provider acceptance.",
+        "SLA, incidents, scoped sessions and attachments remain."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "cross-department-full-803-20260920",
+      "capabilityIds": [
+        "customer_360/feature-customer-notes",
+        "quality/feature-cancellation",
+        "crm/activities",
+        "crm/feature-leads",
+        "crm/feature-opportunities",
+        "customer_360/service-timeline",
+        "support/tickets"
+      ],
+      "scenarioIds": [
+        "S01",
+        "S03",
+        "S04",
+        "S10",
+        "S11"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Full regression of owner implementations through migration0216, before SLA integration/migration0217. New business-time/support-clock unit tests are separate. 95 files / 803 tests passed; 2 files / 3 tests skipped.",
+      "observedAt": "2026-09-20T16:54:24.002196+07:00",
+      "recordedBy": "Codex execution agent (regression observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-cross-department-full-803.txt",
+          "sha256": "9f903a394d9860574aaa0ced5098898565442ab3f77fbf417893d85254f4f4f9"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-cross-department-full-803-context.json",
+          "sha256": "ae08d9f0af072c2253c1f33b73d92291e0facd1b8739e5434cfc5e0ba74e0a77"
+        }
+      ],
+      "limitations": [
+        "Skipped tests are not passed gates.",
+        "Does not cover later SLA integration or 73 Deferred capabilities.",
+        "Not provider, UAT or production sign-off."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "support-sla-automated-20260920",
+      "capabilityIds": [
+        "support/sla-watch"
+      ],
+      "scenarioIds": [
+        "S10"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "29 tests cover immutable calendar/independent approval, DST and holiday time, pause/resume/reopen, retired policy, scope, withdrawn reviewer, duplicate/stale/racing attachment, durable sweep concurrency/retry/downtime and late manager coverage.",
+      "observedAt": "2026-09-20T10:12:52.358078+00:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-sla-tests.txt",
+          "sha256": "d255c84eddd1afdabb3f4a46dbe223a9469782c38edb7e909ec3f88a87fbaee7"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-sla-context.json",
+          "sha256": "cdee3f387e63f6d18a7bcf760560c85879e3ed645dc4d36308a42fb42a9a45a4"
+        }
+      ],
+      "limitations": [
+        "Not whole-capability or scenario acceptance.",
+        "First-response targets, default/effective-dated binding, multi-level escalation, acknowledged-owner reassignment and overnight calendars remain implementation gaps.",
+        "No live provider, customer portal/email, actual UAT or production acceptance.",
+        "Browser worker sweep invoked directly on isolated DB; deployment scheduling uptime not established."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "support-sla-browser-20260920",
+      "capabilityIds": [
+        "support/sla-watch"
+      ],
+      "scenarioIds": [
+        "S10"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Three ordinary credential roles: creator draft, independent manager approval from own Work, attach, assigned agent from Work, real-time breach and paused clock, manager acknowledgement from own Work without changing ticket state.",
+      "observedAt": "2026-09-20T10:12:52.358078+00:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-sla-browser.json",
+          "sha256": "8bead69b03e40f4a168974ca55baa458b0859afb29958a163a930991a21ad1b0"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-sla-browser-records.json",
+          "sha256": "8a1f2c0691d767eec9ae7bf6087f59e947cb738749f1fe5773727bcef9ca2207"
+        }
+      ],
+      "limitations": [
+        "Not whole-capability or scenario acceptance.",
+        "First-response targets, default/effective-dated binding, multi-level escalation, acknowledged-owner reassignment and overnight calendars remain implementation gaps.",
+        "No live provider, customer portal/email, actual UAT or production acceptance.",
+        "Browser worker sweep invoked directly on isolated DB; deployment scheduling uptime not established."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "support-incidents-automated-20260920",
+      "capabilityIds": [
+        "support/incidents"
+      ],
+      "scenarioIds": [
+        "S10"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "12 tests across incident/Support/SLA/migration; incident includes two source-created customer cases, link corrections, owner/reviewer routing, reject/rework/reopen, scope/races/revocation, no ticket mutation.",
+      "observedAt": "2026-09-20T10:27:48.160643+00:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-incidents-tests.txt",
+          "sha256": "99d769bbb19aed7e2e7a302010bb595673f56bbae2e039467e4a222bbd857171"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-incidents-context.json",
+          "sha256": "5fea187837b80d88e8396139e73b7082e4056e2da93663eab93ebc485827ee8c"
+        }
+      ],
+      "limitations": [
+        "No whole-capability/scenario acceptance.",
+        "Cross-scope incident coordination, specialist dispatch, severity SLA, public status/email, attachments and postmortem remain implementation gaps.",
+        "No actual customer UAT, provider or production acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "support-incidents-browser-20260920",
+      "capabilityIds": [
+        "support/incidents"
+      ],
+      "scenarioIds": [
+        "S10"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Three ordinary credential roles: source creates ticket/incident, assigned agent acts from Work, independent manager confirms mitigation from Work. Incident closed v4 while ticket remains open v1.",
+      "observedAt": "2026-09-20T10:27:48.160643+00:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-incidents-browser.json",
+          "sha256": "9cad229d900ae126faa831cd3134870a3a6c12982f69178ff5580bc5aa2272a5"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-incidents-browser-records.json",
+          "sha256": "8997b267f7ea476d647dfee9c76b62d748e396825da4bbece015682351a433ee"
+        }
+      ],
+      "limitations": [
+        "No whole-capability/scenario acceptance.",
+        "Cross-scope incident coordination, specialist dispatch, severity SLA, public status/email, attachments and postmortem remain implementation gaps.",
+        "No actual customer UAT, provider or production acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "cross-department-full-817-20260920",
+      "capabilityIds": [
+        "customer_360/feature-customer-notes",
+        "quality/feature-cancellation",
+        "crm/activities",
+        "crm/feature-leads",
+        "crm/feature-opportunities",
+        "customer_360/service-timeline",
+        "support/tickets",
+        "support/sla-watch",
+        "support/incidents"
+      ],
+      "scenarioIds": [
+        "S01",
+        "S03",
+        "S04",
+        "S10",
+        "S11"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Full discovered regression after Support SLA/incidents: 99 files passed / 2 skipped; 817 tests passed / 3 skipped. Partial regression observation, not release or complete capability acceptance.",
+      "observedAt": "2026-09-20T10:36:00.271169+00:00",
+      "recordedBy": "Codex execution agent (regression observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-cross-department-full-817.txt",
+          "sha256": "1fd57111018d4872bd4b945efca266703fd0840e651a3a16decab8cf30a229b7"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-cross-department-full-817-context.json",
+          "sha256": "b06fc405b13e2df07755e41fa4b23a23429f4fdcf519cb01e86393fdf602a6c1"
+        }
+      ],
+      "limitations": [
+        "Workspace remained dirty; Support attachment implementation proceeded while the suite ran. This is not an immutable final release acceptance.",
+        "Support evidence routes and migration0220 need their separate targeted evidence; not included among the 817 discovered tests.",
+        "Skipped Stripe and directory provider tests are not passed gates."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "support-evidence-automated-20260920",
+      "capabilityIds": [
+        "support/feature-attachments"
+      ],
+      "scenarioIds": [
+        "S10"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "27 tests across private evidence APIs, Support, incidents and expense upload compatibility.",
+      "observedAt": "2026-09-20T10:44:23.868190+00:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-evidence-tests.txt",
+          "sha256": "81c313a65c49c1df07e12792b0204950bcd69a95e5575bdeca4e6b57f768d2ec"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-evidence-context.json",
+          "sha256": "a52f0867ca13d124502e8bbd47f6ecc0790f5181f991796bcd1888cc04a8b127"
+        }
+      ],
+      "limitations": [
+        "Private ticket evidence only; incident attachments, customer Portal sharing/revocation and retention workflow remain.",
+        "No full capability/scenario acceptance or provider/production sign-off."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "support-evidence-browser-20260920",
+      "capabilityIds": [
+        "support/feature-attachments"
+      ],
+      "scenarioIds": [
+        "S10"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Single Support agent creates, uploads, withdraws and proposes resolution; frozen evidence and immutable source events observed.",
+      "observedAt": "2026-09-20T10:44:23.868190+00:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-evidence-browser.json",
+          "sha256": "c37e7bb5f5b64188ee21a89829823debf1ac86effd10e6207906ded9482afcab"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-evidence-browser-records.json",
+          "sha256": "1cb28b1690bab47d52b91c611a476139e8de3b77d0ec9f734035a206c5a53d8f"
+        }
+      ],
+      "limitations": [
+        "Private ticket evidence only; incident attachments, customer Portal sharing/revocation and retention workflow remain.",
+        "No full capability/scenario acceptance or provider/production sign-off."
+      ],
+      "supersedes": null
+    },
+    {
+      "capabilityIds": [
+        "customer_authority/feature-authority-bindings",
+        "customer_authority/access-history"
+      ],
+      "scenarioIds": [
+        "S01"
+      ],
+      "environment": "simulation",
+      "outcome": "partial",
+      "observedAt": "2026-09-20T11:02:35.242Z",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "limitations": [
+        "No whole-capability/scenario acceptance.",
+        "Duplicate merge, identity-change review, consent preferences, replies/uploads, email provider and actual customer UAT remain."
+      ],
+      "supersedes": null,
+      "id": "customer-access-automated-20260920",
+      "gate": "automated",
+      "scope": "23 tests across authority owner behavior, portal allowlist/identity/audit, Work views and migration baseline.",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-access-tests.txt",
+          "sha256": "d06fdbe0a5920c6019b7f75615a5a2e582880646e869e585a61b1fea07dc5a32"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-access-context.json",
+          "sha256": "4647d612b4789962c071a996a551922c50d4c789cd82eb5eda82574c9d548827"
+        }
+      ]
+    },
+    {
+      "capabilityIds": [
+        "customer_authority/feature-authority-bindings",
+        "customer_authority/access-history"
+      ],
+      "scenarioIds": [
+        "S01"
+      ],
+      "environment": "simulation",
+      "outcome": "partial",
+      "observedAt": "2026-09-20T11:02:35.242Z",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "limitations": [
+        "No whole-capability/scenario acceptance.",
+        "Duplicate merge, identity-change review, consent preferences, replies/uploads, email provider and actual customer UAT remain."
+      ],
+      "supersedes": null,
+      "id": "customer-access-browser-20260920",
+      "gate": "browser",
+      "scope": "Three ordinary simulation accounts: requester, independent reviewer from Work and verified customer; audited read then immediate revocation.",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-access-browser.json",
+          "sha256": "41dd56bfd614b94638e42957107664ded2dd5993785193e43dafb1e082030339"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-access-browser-records.json",
+          "sha256": "5962d77325c9046e5e455adde2874949e00bebe512d3a7b38a3c66aacc99dddb"
+        }
+      ]
+    },
+    {
+      "id": "customer-duplicates-automated-20260920",
+      "capabilityIds": [
+        "customer_authority/duplicate-review"
+      ],
+      "scenarioIds": [
+        "S01"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "11 tests cover ordered pairs, independent current reviewer, duplicate/distinct/reopen, canonical choice, races, scope, immutable evidence, Work and migration baseline.",
+      "observedAt": "2026-09-20T11:09:32.562Z",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-duplicates-tests.txt",
+          "sha256": "35ef81a96c30c2aba9a9e2c0c42e7b728aacdc92c537634ab5adc82de71bdac4"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-duplicates-context.json",
+          "sha256": "2ce7fd4ec158feacfc50f9d75b6aeaf319df5e243501c343c1f4230be5c156a7"
+        }
+      ],
+      "limitations": [
+        "No whole-capability/scenario acceptance.",
+        "A duplicate decision does not yet merge/repoint/reconcile customer transactions.",
+        "No browser, provider, production or customer UAT."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "customer-identity-automated-20260920",
+      "capabilityIds": [
+        "customer_authority/feature-identity-changes"
+      ],
+      "scenarioIds": [
+        "S01"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "19-test combined regression; identity owner cases cover independent review, apply/reject/resubmit, stale master, ended reviewer, scope and immutable evidence.",
+      "observedAt": "2026-09-20T11:16:23.971Z",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-identity-tests.txt",
+          "sha256": "e031f488b68bbd61a858013530e695cc3c9cadc64b565257e5bb05399cfa2526"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-customer-identity-context.json",
+          "sha256": "bdcc19908cd300270326da6533231deb684f3c835d6e796dc657789cb7597dd0"
+        }
+      ],
+      "limitations": [
+        "No whole-capability/scenario acceptance.",
+        "Address/contact identity, consent, external registry, browser and production acceptance remain."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "support-sessions-automated-20260920",
+      "capabilityIds": [
+        "support/feature-support-sessions",
+        "support/feature-capabilities"
+      ],
+      "scenarioIds": [
+        "S10"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "14-test related regression; four owner cases cover independent session review, explicit capability enforcement, revoke/reissue/cascade, expiry, revoked assignment, stale race, scope and immutable history.",
+      "observedAt": "2026-09-20T15:31:53.784Z",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-sessions-tests.txt",
+          "sha256": "87c24026e04561cd105f4ef982c73d0d07dd30a7b42aa824ced8335fe68dd381"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-20-support-sessions-context.json",
+          "sha256": "2678de8508cff310767f6d56684c312d5f24822a5a74464b245976bc1f02091f"
+        }
+      ],
+      "limitations": [
+        "No whole-capability or S10 acceptance.",
+        "Customer consent, remote control, write/file-byte grants and Calendar remain.",
+        "No browser, provider, production or customer UAT."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "support-sessions-final-automated-20260920",
+      "capabilityIds": [
+        "support/feature-support-sessions",
+        "support/feature-capabilities"
+      ],
+      "scenarioIds": ["S10"],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Final 14-test related regression also verifies an approved session detail remains readable before the first context grant, while direct context access stays denied.",
+      "observedAt": "2026-09-20T15:35:29.000Z",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [{
+        "path": "docs/testing/evidence/2026-09-20-support-sessions-final-tests.txt",
+        "sha256": "38de1f71a77af8e5340957cd6fbae7c911eceda69072199e525f30c3ef41004b"
+      }],
+      "limitations": ["No whole-capability/S10, browser, production or customer acceptance."],
+      "supersedes": "support-sessions-automated-20260920"
+    },
+    {
+      "id": "asset-maintenance-automated-20260920",
+      "capabilityIds": [
+        "assets/asset-register","assets/condition","assets/feature-placement","assets/feature-maintenance-lifecycle","assets/feature-retirement",
+        "maintenance/work-orders","maintenance/downtime","maintenance/feature-blocked-work","maintenance/feature-completion","maintenance/feature-maintenance-history"
+      ],
+      "scenarioIds": ["S10","S12"],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Five-test regression covers register, placement/custody, condition, asset-bound work, schedule/start/downtime, block/resume, evidenced completion, retirement review, revoked-owner recovery, race, scope and immutable history.",
+      "observedAt": "2026-09-20T15:47:28.581Z",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {"path":"docs/testing/evidence/2026-09-20-asset-maintenance-tests.txt","sha256":"195aa10b14978b4b1948574eff166d498c8b643e8d91ae3490dd62e3a5c2a3d8"},
+        {"path":"docs/testing/evidence/2026-09-20-asset-maintenance-context.json","sha256":"fd4522138bdfc6e553a77d128d84379486e1a2463856aa62c2dcb97c2fa6398d"}
+      ],
+      "limitations": [
+        "No whole-capability or scenario acceptance.",
+        "Depreciation, parts/cost, preventive scheduling, Calendar and attachment evidence remain.",
+        "No browser, production or business acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "asset-maintenance-final-automated-20260920",
+      "capabilityIds": [
+        "assets/asset-register","assets/condition","assets/feature-placement","assets/feature-maintenance-lifecycle","assets/feature-retirement",
+        "maintenance/work-orders","maintenance/downtime","maintenance/feature-blocked-work","maintenance/feature-completion","maintenance/feature-maintenance-history"
+      ],
+      "scenarioIds": ["S10","S12"],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Final five-test regression adds a guard against overlapping active work while preserving reviewed owner recovery and the complete asset/maintenance lifecycle.",
+      "observedAt": "2026-09-20T15:50:08.000Z",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [{"path":"docs/testing/evidence/2026-09-20-asset-maintenance-final-tests.txt","sha256":"f67985232d57a7130aad6b44396acd67ef8731ff0b7074b2814c306ca10463c5"}],
+      "limitations": ["No whole-capability/scenario, browser, production or business acceptance."],
+      "supersedes": "asset-maintenance-automated-20260920"
+    },
+    {
+      "id": "field-service-automated-20260920",
+      "capabilityIds": [
+        "field_service/service-orders",
+        "field_service/feature-agreements",
+        "field_service/feature-dispatch",
+        "field_service/feature-visits",
+        "field_service/feature-exceptions",
+        "field_service/feature-billing-release"
+      ],
+      "scenarioIds": ["S10"],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "46 tests across seven related files; three owner cases cover agreement review, Support handoff, dispatch, shared part reservation and issue, exception/resume, customer-confirmed completion, independent billing release, last-unit concurrency, scope, source/version guards, revoked-technician recovery and immutable histories.",
+      "observedAt": "2026-09-20T16:08:40.000Z",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {"path":"docs/testing/evidence/2026-09-20-field-service-tests.txt","sha256":"878056976ca3a969af4545f8cc24956c72f03d2d233c4345f171e3e04370efe7"},
+        {"path":"docs/testing/evidence/2026-09-20-field-service-context.json","sha256":"84842dffcb8bd22d90b14369cb9a5c9e710f30710c5377a9427fa49717ccabd4"}
+      ],
+      "limitations": [
+        "No whole-capability or S10 acceptance.",
+        "Finance invoice creation, warranty pricing, travel/labor costing, Portal, Calendar and attachment bytes remain.",
+        "No multi-role browser, production or customer UAT."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "collaboration-work-automated-20260920",
+      "capabilityIds": ["collaboration/feature-attachments","collaboration/feature-action-cards","collaboration/feature-record-relations"],
+      "scenarioIds": ["S12","S20"],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "34 tests across four related files; owner cases cover typed versioned relations/backlinks, symmetric duplicate prevention, removal history, source action cards, evidence completion, Work/Inbox, current recipient and revoked-owner reassignment. Messaging regression covers private draft files, one-time binding and membership-revoked download.",
+      "observedAt": "2026-09-20T16:17:30.000Z",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {"path":"docs/testing/evidence/2026-09-20-collaboration-work-tests.txt","sha256":"409261df021c96e2cd6e5db4819d5723917a91799138c26deba3fcafab87f999"},
+        {"path":"docs/testing/evidence/2026-09-20-collaboration-work-context.json","sha256":"4f84bfe43bbd4118caef11ccb7670aecda85fc8a736c96bee70d29f2796856ab"}
+      ],
+      "limitations": ["No whole-capability/S12/S20 acceptance.","Source adapters, relation graph, retention/export/legal hold and Calendar remain.","No multi-role browser, production or business acceptance."],
+      "supersedes": null
+    },
+    {
+      "id": "learning-automated-20260920",
+      "capabilityIds": ["learning/course-catalog","learning/feature-assignments","learning/feature-attendance-results","learning/feature-completion","learning/feature-eligibility-handoff"],
+      "scenarioIds": ["S18"],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "56 tests across four related files; three owner cases cover independently published courses, current-worker assignments, learner-only progress, attendance/results, evidenced completion, reviewed waiver, immutable eligibility handoff, revoked learner and source/history guards with Work/Inbox.",
+      "observedAt": "2026-09-20T16:25:25.000Z",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {"path":"docs/testing/evidence/2026-09-20-learning-tests.txt","sha256":"e002027de16249f8fc2c9c5f7d0e9813f54d8ec436c985ab59ee557ec48fa362"},
+        {"path":"docs/testing/evidence/2026-09-20-learning-context.json","sha256":"04fb20f05e4bdd7a82e5298115029f6739eb53bd6a956b60a7a18ee6892cf4c4"}
+      ],
+      "limitations": ["No whole-capability/S18 acceptance.","Provider import, certificate expiry/renewal, classroom roster, Benefits consumption and Calendar remain.","No multi-role browser, provider, production or business acceptance."],
+      "supersedes": null
+    },
+    {
+      "id": "benefits-automated-20260920",
+      "capabilityIds": ["benefits/dependents", "benefits/coverage", "benefits/feature-plans", "benefits/feature-enrollment-windows", "benefits/feature-provider-payroll"],
+      "scenarioIds": ["S18"],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Five tests across Benefits owner flow, Payroll integration and full migration replay cover independently reviewed plans/windows, verified dependents, source-versioned family elections, provider acknowledgement, independent immutable payroll release, exact deductions/employer cost and payroll snapshots.",
+      "observedAt": "2026-09-20T23:43:00+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {"path": "docs/testing/evidence/2026-09-20-benefits-tests.txt", "sha256": "cb5d48816071f8f7e4b0a513d379bea91181f3a4811ec891516aab6ef82a39b7"},
+        {"path": "docs/testing/evidence/2026-09-20-benefits-context.json", "sha256": "735052354cc3e4d2b808ea57778e08dcd7a35f3bd01caee2bb46de012d093b95"}
+      ],
+      "limitations": ["No whole-capability or S18 acceptance.", "Live provider exchange, enrollment migration and Thai payroll expert/shadow validation remain.", "No multi-role browser, production or business acceptance."],
+      "supersedes": null
+    },
+    {
+      "id": "talent-automated-20260920",
+      "capabilityIds": ["talent/requisitions", "talent/applications", "talent/offers", "talent/feature-candidates-privacy", "talent/feature-hire-handoffs", "talent/feature-proposals"],
+      "scenarioIds": ["S17"],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Thirty-eight tests across Talent, People lifecycle, Work views and migration replay; owner cases cover independent requisition/proposal/offer review, candidate consent/privacy/retention, source versions, owner recovery, acceptance evidence and immutable hire handoff.",
+      "observedAt": "2026-09-20T23:52:00+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {"path": "docs/testing/evidence/2026-09-20-talent-tests.txt", "sha256": "a381fdaafa18d4fa3deb846bab8cd8b211ead5fa758adf7066307dc2942f1ccd"},
+        {"path": "docs/testing/evidence/2026-09-20-talent-context.json", "sha256": "eaa1b2a181af22cd2369d500e39889208bd2ff3f05638cfcfb31b59bb21060c4"}
+      ],
+      "limitations": ["No whole-capability or S17 acceptance.", "Candidate portal, verified email, interview Calendar, e-signature/background checks, People handoff consumer and retention erasure remain.", "No multi-role browser, production or business acceptance."],
+      "supersedes": null
+    },
+    {
+      "id": "agent-governance-automated-20260921",
+      "capabilityIds": ["agent/agent-catalog", "agent/versions", "agent/assignments", "agent/feature-pools-routing", "agent/feature-private-sessions", "agent/feature-invocation-evidence"],
+      "scenarioIds": ["S20"],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Nine tests across governance, workspace assistant and migration replay cover independent catalog/version approval, immutable authority prohibitions, user/pool routing, private scoped sessions and immutable success/failure invocation evidence.",
+      "observedAt": "2026-09-21T00:01:30+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {"path": "docs/testing/evidence/2026-09-21-agent-governance-tests.txt", "sha256": "99e6c509fd958f99d280a494f6c8c48a4336a0c7acfb964611cfdd0c45bc4026"},
+        {"path": "docs/testing/evidence/2026-09-21-agent-governance-context.json", "sha256": "d4e15f856cd58199b2fe59a0f540df766e9f8e189e08c6400be476c9d78199bc"}
+      ],
+      "limitations": ["No whole-capability or S20 acceptance.", "Full source adapters, evaluation/monitoring, pool balancing and retention/export remain.", "No multi-role browser, provider, production or business acceptance."],
+      "supersedes": null
+    },
+    {
+      "id": "marketing-automated-20260921",
+      "capabilityIds": ["marketing/feature-forms-profiles", "marketing/feature-content-previews", "marketing/feature-domains", "marketing/feature-provider-readiness", "marketing/feature-lead-candidates", "marketing/feature-engagement"],
+      "scenarioIds": ["S01", "S16"],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Fourteen tests across Marketing, CRM, Work views and migration replay cover independently activated assets, immutable previews, consent and attribution snapshots, engagement evidence and idempotent CRM owner-service handoff.",
+      "observedAt": "2026-09-21T00:09:30+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {"path": "docs/testing/evidence/2026-09-21-marketing-tests.txt", "sha256": "b1ab241295bc912bb5ddac8c69b84bb9607bdfed3828b6baae5ea16bc32b90a7"},
+        {"path": "docs/testing/evidence/2026-09-21-marketing-context.json", "sha256": "0970fe59680fd32e5a4f1e653be9939e9fa83de6254ec48601c36ea4c8a4262e"}
+      ],
+      "limitations": ["No whole-capability, S01 or S16 acceptance.", "Public hosting, provider delivery/webhooks, unsubscribe and campaign analytics remain.", "No multi-role browser, provider, production or business acceptance."],
+      "supersedes": null
+    },
+    {
+      "id": "planning-manufacturing-automated-20260921",
+      "capabilityIds": ["planning/scenarios", "planning/shortages", "planning/recommendations", "planning/feature-capacity", "planning/feature-plan-comparison", "manufacturing/orders", "manufacturing/material-readiness", "manufacturing/quality-disposition", "manufacturing/feature-specifications", "manufacturing/feature-labor-output", "manufacturing/feature-costs-genealogy"],
+      "scenarioIds": ["S03", "S11"],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Fifteen tests across production, shared stock reservation, Quality and migration replay cover BOM/formula, shortage/capacity, reviewed release, reservation/issue, actual cost, output/scrap, independent QC, finished stock and genealogy.",
+      "observedAt": "2026-09-21T00:18:30+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {"path": "docs/testing/evidence/2026-09-21-production-tests.txt", "sha256": "f9c5e9309f5cd517908a69ed2f4a8b51d7d5b5190686b70d05c38ddefa7ed1f2"},
+        {"path": "docs/testing/evidence/2026-09-21-production-context.json", "sha256": "0db58e70220443a237e878af076f613f75b4749ccf69303f2a3dea39164654ac"}
+      ],
+      "limitations": ["No whole-capability, S03 or S11 acceptance.", "Incoming supply/order netting, detailed calendars, multi-operation/machine downtime, lot/serial/recall and WIP/GL remain.", "No multi-role browser, production or business acceptance."],
+      "supersedes": null
+    },
+    {
+      "id": "ecommerce-automated-20260921",
+      "capabilityIds": ["ecommerce/channels", "ecommerce/listings", "ecommerce/returns", "ecommerce/feature-carts", "ecommerce/feature-checkout", "ecommerce/feature-fulfillment"],
+      "scenarioIds": ["S16"],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Twenty-three tests across E-commerce, Commerce returns, shared stock reservations, UI registry and capability delivery cover independent channel/listing review, version-locked cart, idempotent checkout-to-Sales handoff, stock reservation, fulfillment source links and invoice-gated returns.",
+      "observedAt": "2026-09-21T00:34:30+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {"path": "docs/testing/evidence/2026-09-21-ecommerce-tests.txt", "sha256": "878691265da8f4a25a66d85296ae1a92f2ee92b14a785961aabba126d140704f"},
+        {"path": "docs/testing/evidence/2026-09-21-ecommerce-context.json", "sha256": "96c2527b1e55d78ce1527a88ba8cccdb23530402ed5dc4d4c8b53023cc4c8e88"}
+      ],
+      "limitations": ["No whole-capability or S16 acceptance.", "Live storefront/payment/tax/shipping/notification integrations remain provider gates.", "No multi-role browser, migration, production or customer UAT acceptance."],
+      "supersedes": null
+    }
+  ]
+}

@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { activeToken, editMentions, type Mention, type Suggestion } from "@/lib/social-text";
 import { betaFetch } from "@/lib/beta-client";
 import styles from "./social-text.module.css";
-export function SocialTextInput({api,value,mentions,onChange,maxLength,label,placeholder,disabled=false}:{api:string;value:string;mentions:Mention[];onChange:(body:string,mentions:Mention[])=>void;maxLength:number;label:string;placeholder:string;disabled?:boolean}) {
+export function SocialTextInput({api,value,mentions,onChange,onPasteImages,maxLength,label,placeholder,disabled=false}:{api:string;value:string;mentions:Mention[];onChange:(body:string,mentions:Mention[])=>void;onPasteImages?:(files:File[])=>void;maxLength:number;label:string;placeholder:string;disabled?:boolean}) {
   const input=useRef<HTMLTextAreaElement>(null), selected=useRef<HTMLButtonElement>(null),listId=useId();
   const [token,setToken]=useState<ReturnType<typeof activeToken>>(null),[results,setResults]=useState<Suggestion[]>([]),[index,setIndex]=useState(0),[status,setStatus]=useState("");
   const [composing,setComposing]=useState(false);
@@ -41,6 +41,7 @@ export function SocialTextInput({api,value,mentions,onChange,maxLength,label,pla
       role="combobox" aria-autocomplete="list" aria-expanded={!!token&&!composing} aria-controls={listId} aria-activedescendant={token&&results[index]?`${listId}-${index}`:undefined}
       onCompositionStart={()=>setComposing(true)} onCompositionEnd={e=>{setComposing(false);locate(e.currentTarget.value,e.currentTarget.selectionStart);}}
       onChange={e=>{const body=e.target.value;onChange(body,editMentions(value,body,mentions));locate(body,e.target.selectionStart);}}
+      onPaste={e=>{const images=Array.from(e.clipboardData.items).filter(item=>item.kind==="file"&&item.type.startsWith("image/")).map(item=>item.getAsFile()).filter((file):file is File=>!!file);if(images.length&&onPasteImages){e.preventDefault();onPasteImages(images);}}}
       onSelect={e=>locate(e.currentTarget.value,e.currentTarget.selectionStart)}
       onKeyDown={e=>{if(!token||composing||e.nativeEvent.isComposing)return;if(e.key==="Escape"){e.preventDefault();setToken(null);}else if(results.length&&["ArrowDown","ArrowUp"].includes(e.key)){e.preventDefault();setIndex(i=>(i+(e.key==="ArrowDown"?1:-1)+results.length)%results.length);}else if(results[index]&&["Enter","Tab"].includes(e.key)){e.preventDefault();choose(results[index]);}}}
       onBlur={e=>{if(!e.currentTarget.parentElement?.contains(e.relatedTarget))setToken(null);}} />
@@ -52,7 +53,7 @@ export function SocialTextInput({api,value,mentions,onChange,maxLength,label,pla
       </div>)}</div>
       <p role="status">{status||"↑ ↓ to choose · Enter to insert · Esc to close"}</p>
     </div>}
-    <small className={styles.hint}>Use @ for people, AI agents, and records · # for hashtags</small>
+    <small className={styles.hint}>Use @ for people, AI agents, and records · # for hashtags{onPasteImages?" · Paste images to attach them":""}</small>
     {mentions.some(m=>m.kind==="agent")&&<small className={styles.hint}>ERPX assistant will reply after you publish.</small>}
   </div>;
 }

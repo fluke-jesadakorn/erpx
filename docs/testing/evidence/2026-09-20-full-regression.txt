@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  86 passed | 2 skipped (88)
+      Tests  760 passed | 3 skipped (763)
+   Start at  12:14:40
+   Duration  1333.07s (transform 2.26s, setup 1.42s, import 10.19s, tests 1313.84s, environment 4ms)
+

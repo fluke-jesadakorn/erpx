@@ -1,19 +1,20 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { permissionDefinition } from "@/lib/permissions";
 import { currentSession } from "@/server/authorization";
 import { ownIamAccess } from "@/server/iam-my-access";
-import { permissionDefinition } from "@/lib/permissions";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 export default async function MyAccessPage() {
   const session = await currentSession().catch(() =>
     redirect("/login?next=/my-access"),
   );
   const access = await ownIamAccess(session.session.user.id);
   return (
-    <main
+    <FeaturePage
       className="content-stack"
       style={{ maxWidth: 1000, margin: "40px auto", padding: 24 }}
     >
-      <h1>My access</h1>
+      <h1>My access</h1><FeatureTabs/><WidgetGrid pageKey="account-my-access">
       <p>
         Each role is evaluated separately. Select a work role in your workspace
         to use its permissions.
@@ -27,15 +28,15 @@ export default async function MyAccessPage() {
         </Link>
       </div>
       {!access.length && (
-        <section className="card">
-          <h2>No assignments yet</h2>
+        <FeatureWidget id="account-my-access-no-assignments-yet" title="No assignments yet"><section className="card">
+          
           <p>
             Your account is signed in. Ask your company administrator to arrange
             reviewed access.
           </p>
-        </section>
+        </section></FeatureWidget>
       )}
-      {access.map((a) => (
+      <FeatureWidget id="account-roles" title="Roles & permissions">{access.map((a) => (
         <section className="card" key={a.id}>
           <h2>{a.role}</h2>
           <p>
@@ -60,7 +61,7 @@ export default async function MyAccessPage() {
             </ul>
           </details>
         </section>
-      ))}
-    </main>
+      ))}</FeatureWidget>
+    </WidgetGrid></FeaturePage>
   );
 }

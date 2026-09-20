@@ -2,8 +2,65 @@
 
 > Start at `README.md` → here. Replaces `.scratch/docs-seamless/prototype/TOC-seamless.md`.
 
+- [Cross-department business scenarios — 2026-09-20](testing/cross-department-business-scenarios.md): Thai audit of 21 scenario groups, customer outcomes, 183-capability traceability including Legal, current integration/browser evidence, gaps and business UAT gates.
+
+- [A–J implementation progress and readiness](testing/cross-department-implementation-progress.md): actual implementation gaps, scoped evidence and Company-admin readiness dashboard.
+- [Isolated browser simulation](testing/isolated-browser-simulation.md): disposable databases, real password sign-in and independent role handoffs on loopback 3102.
+- [Isolated recovery simulation](testing/recovery-simulation.md): source-linked business snapshot restore with per-table checksums; production RPO/RTO remain pending.
+- [Shared stock reservation simulation](testing/shared-stock-reservation-simulation.md): Sales/POS availability, partial consume, release, expiry and concurrency evidence.
+- [Company routing review](testing/routing-attention-simulation.md): named-source scans, permission-filtered pagination and audited routing repair without a recent-document cutoff.
+- [Supplier payment simulation](testing/supplier-payment-simulation.md): source reservations, independent approval, manual export and bank/GL confirmation with partial outcomes.
+- [Return/refund simulation S04](testing/return-refund-simulation.md): paid returns, independent refund approval, partial bank instructions, exception review and reconciliation.
+- [Inventory transit simulation](testing/inventory-transit-simulation.md): approved dispatch, partial receiving, discrepancy review, preserved valuation and source-linked GL.
+- [Supplier delivery promises](testing/supplier-delivery-promises.md): immutable supplier confirmations, split dates, actual-receipt allocation and unconfirmed shortfall follow-up.
+- [Procurement RFQ simulation](testing/procurement-rfq-simulation.md): immutable supplier comparisons, independent awards and atomic draft-PO handoffs.
+- [Quality hold simulation](testing/quality-hold-simulation.md): warehouse/product quarantine, independent inspection/release, stock/payment guards and scoped handoffs.
+- [Cross-department implementation progress](testing/cross-department-implementation-progress.md): simulation-first development, verified changes and remaining phase gates.
+- [Business acceptance manifest](status/business-acceptance-manifest.json): scenario ownership and independent automated/browser/provider/production gates; simulation first.
+- [Acceptance evidence ledger](status/business-acceptance-evidence.json): durable, checksum-validated observations linked to capabilities; observations do not promote acceptance gates.
+- [Capability delivery matrix](status/capability-delivery-matrix.md): all 183 catalog capabilities including Legal mapped to delivery stage, current evidence and remaining acceptance gap.
+- [Non-Legal core delivery checkpoint — 2026-09-19](testing/non-legal-core-checkpoint-2026-09-19.md): acceptance evidence, known baseline failures and the next delivery boundary for Stages 1–2.
+
+- [Pagination, deferred loading and Server Component audit — 2026-09-18](testing/list-performance-2026-09-18.md): implemented list changes, verification and remaining full-snapshot readers.
+
+## AI workspace — 2026-09-18
+
+- [Freeform Executive widgets and role-scoped AI context](testing/executive-freeform-2026-09-18.md): saved HTML/CSS, border resizing, styled charts and live organization-aware generation.
+
+- [Executive implementation and acceptance](testing/executive-canvas-2026-09-18.md): delivered canvas, real provider/browser checks, access tests, metric coverage and remaining scope.
+
+- [Executive — AI Live Canvas implementation plan](plan/2026-09-18-executive-live-canvas.md): English-only AI, sidebar entry, chat-to-widget reports, live data, C-level eligibility, private ownership, and named sharing.
+- [Architecture comparison: 44 patterns and AI/UX design](plan/2026-09-18-ai-workspace-research.md).
+- [Implemented scope, verification and remaining work](testing/ai-workspace-2026-09-18.md).
+
+## Work/Home performance — 2026-09-17
+
+- [Implementation, native Redis and acceptance evidence](testing/work-home-performance.md).
+
+## Staff self-service — 2026-09-17
+
+- [Implementation and interfaces](contracts/next/staff-self-service.md): feed-centred Home, personal requests, leave entitlement, overtime reviews and payroll-hours handoff.
+- [Acceptance evidence](testing/staff-self-service.md): integration, desktop/mobile browser checks and public development availability.
+
+## Hotel operations — 2026-09-17
+
+- [PMS implementation, API and rollout](contracts/next/pms.md): guided staff reservations, the multi-hotel guest booking portal, secure cancellation, Front Office, housekeeping, receipts, Finance ownership, Night Audit, recovery and deferred SiteMinder integration.
+
+## Point of sale — 2026-09-17
+
+- [POS implementation and rollout](contracts/next/pos.md): retail, kitchen, stock reservations, accounting, Connect setup and acceptance.
+- [ADR-029](adr/ADR-029-pos-fulfillment-and-direct-charges.md): fulfillment ownership and company direct charges.
+
+## Brand and business documents — 2026-09-16
+
+- [ERPX brand guide](brand/ERPX-brand-guide.md): master artwork, color, clear-space, size and icon guidance.
+- [ADR-027](adr/ADR-027-workspace-and-document-branding.md): separates Product Brand, Workspace Brand and the Company legal issuer.
+
 ## Identity and access — 2026-09-15
 
+- [HR/IT separation and Technology console — 2026-09-18](contracts/next/hr-it-technology.md): independent HR placement, applied package snapshots, direct Directory/GPO apply, independent ERPX role review, and UCS Samba write-back. [Verification](testing/hr-it-technology-2026-09-18.md).
+- [People positions and lifecycle implementation](contracts/next/people-lifecycle.md): HR→IT preparation, revisioned access packages, individual reviews, effective cutoffs, browser verification and remaining UCS/GPO work.
+- [UCS lab and People directory operations](contracts/next/ucs-lab.md) — isolated lab, verified UDM write-back, and deferred Windows acceptance.
 - [IAM implementation and operations](contracts/next/identity-access.md): local accounts, AD, Entra ID, UCS, scoped custom roles, matrix, independent review and selective migration.
 - [ADR-025](adr/ADR-025-multiple-identity-providers-and-scoped-replacement.md): multiple providers and Company-scoped identity replacement.
 - [IAM acceptance](testing/identity-access.md): verification and live-provider prerequisites.
@@ -84,3 +141,45 @@ Notes: 31 deep 213→60L (6150→2156L) + MAP 31 + _shared 109L + Plan→docs/pl
 - [Social + AI public beta](plan/2026-09-07-social-ai-public-beta.md) — primary research, approved conversation-to-completion scope, pilot hypotheses, and pending verification gates.
 
 - [Local Mac deployment and recovery](../ops/macos/README.md) — active runtime (ADR-024).
+- [ADR-030: Temporary Samba directory authority](adr/ADR-030-temporary-samba-directory-authority.md) — Alpine ARM64 isolation, identity continuity and recovery boundary.
+- [Samba AD on the ERPX Mac](../ops/samba/README.md) — build, restore and runner operations for the temporary directory hosts.
+
+- [ADR-028: Sandbox cost + Support billing](adr/ADR-028-sandbox-cost-plus-support-billing.md)
+- [Billing Sandbox operations](contracts/next/billing.md)
+
+- [People roster and staff change requests](contracts/next/people-roster.md) — weekly scheduling, swaps, permissions, and development examples.
+- [Calendar and people planning](contracts/next/calendar.md) — combined source reads, privacy, appointments, announcements and lifecycle task planning.
+
+- [Workplace UX, navigation and queues](contracts/next/workplace-ux.md) — shared presentation and navigation contracts.
+- [UX and Retirement verification](plan/2026-09-17-ux-retirement-verification.md) — delivery, test results, browser coverage and development availability.
+
+- [Legal implementation and acceptance boundary](contracts/next/legal.md) — working flows, security invariants, verification and explicit gaps against the full Legal plan.
+
+- [Supplier invoice matching simulation](testing/supplier-invoice-matching.md) — receipt/PO variance, independent Finance review, AP/GL และ supplier returns.
+
+- [Customer contact notes — scope, corrections and simulation](testing/customer-contact-notes.md)
+- [Quality hold cancellation — independent correction](testing/quality-cancellation.md)
+- [CRM customer follow-ups — assignment and outcome](testing/customer-followups.md)
+
+- [CRM leads และ opportunities](testing/crm-leads-opportunities.md) — scoped pipeline และ approved Sales handoff; acceptance ยังแยก gate
+
+- [Customer 360 scoped timeline](testing/customer-timeline.md) — source projection และ privacy boundary
+
+- [Support private evidence](testing/support-evidence.md) — versioned private upload, scoped download และ frozen review evidence
+- [Support sessions and capabilities](testing/support-sessions-capabilities.md) — time-bound independent approval และ allowlisted customer context
+- [Asset and maintenance lifecycle](testing/asset-maintenance-lifecycle.md) — custody, condition, downtime, completion และ retirement evidence
+- [Field service lifecycle](testing/field-service-lifecycle.md) — agreement, dispatch, reserved parts, visit evidence และ billing release
+- [Cross-record collaboration](testing/collaboration-work.md) — private thread files, typed backlinks และ accountable action cards
+- [Learning lifecycle](testing/learning-lifecycle.md) — reviewed catalog, assignments, results, completion และ eligibility handoff
+- [Benefits lifecycle](testing/benefits-lifecycle.md) — reviewed plans, dependents, enrollment, provider acknowledgement และ payroll input
+- [Talent lifecycle](testing/talent-lifecycle.md) — private candidates, reviewed requisitions/proposals/offers และ onboarding handoff
+- [Agent governance](testing/agent-governance.md) — reviewed versions, routing pools, private sessions และ immutable invocation evidence
+- [Marketing lifecycle](testing/marketing-lifecycle.md) — reviewed assets, consent/attribution, engagement และ CRM handoff
+- [Planning and manufacturing lifecycle](testing/planning-manufacturing-lifecycle.md) — BOM/formula, shortage/capacity, production, QC, cost และ genealogy
+- [E-commerce lifecycle](testing/ecommerce-lifecycle.md) — reviewed channels/listings, versioned carts, Sales checkout, shared reservation, fulfillment และ returns
+- [Customer authority access](testing/customer-access.md) — source-bound approval, verified identity, revocation และ read audit
+- [Customer duplicate reviews](testing/customer-duplicate-reviews.md) — independent identity decision และ canonical record evidence
+- [Customer identity changes](testing/customer-identity-changes.md) — reviewed before/after snapshot และ guarded master update
+- [Support incident simulation](testing/support-incidents.md) — shared cause, independent mitigation review และแยกผลลูกค้าแต่ละเคส
+- [Support SLA simulation](testing/support-sla.md) — working calendar, immutable targets และ durable escalation
+- [Support ticket simulation](testing/support-tickets.md) — source handoff และ independent customer confirmation review

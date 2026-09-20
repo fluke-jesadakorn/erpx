@@ -33,4 +33,11 @@ describe("Workflow event projection",()=>{
     await project(env,event);
     expect(await env.H001_READ_DB.prepare("SELECT queue,subtitle FROM work_items").first()).toEqual({queue:"completed",subtitle:"cancelled"});
   });
+  it("projects overtime hours stages and acknowledges policy administration without a request lookup",async()=>{
+    await project(env,{...message("policy",1),eventType:"leave.policy.manage",aggregateId:"company"});
+    await project(env,{...message("overtime",4,"approved"),eventType:"overtime.approve",aggregateId:"overtime"});
+    expect(await env.H001_READ_DB.prepare("SELECT source_type,subtitle,queue FROM work_items").first()).toEqual({source_type:"overtime_request",subtitle:"approved",queue:"completed"});
+    expect(await env.H001_READ_DB.prepare("SELECT COUNT(*) n FROM projection_receipts").first()).toEqual({n:2});
+  });
+
 });

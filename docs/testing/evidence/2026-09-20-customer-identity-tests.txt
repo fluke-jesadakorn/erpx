@@ -1,0 +1,29 @@
+$ bun scripts/local/test.ts tests/customer-identity-changes.test.ts tests/customer-duplicates.test.ts tests/customer-access.test.ts tests/work-views.test.ts tests/staff-migration.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/staff-migration.test.ts > creates a complete, empty PostgreSQL baseline and preserves database invariants 2774ms
+ ✓ tests/customer-identity-changes.test.ts > routes an independent review and atomically applies the snapshot to the unchanged customer version 432ms
+ ✓ tests/customer-identity-changes.test.ts > rejects and lets the requester resubmit a refreshed proposal without rewriting history 264ms
+ ✓ tests/customer-identity-changes.test.ts > blocks approval when the customer master changed and rejects ended reviewers 293ms
+ ✓ tests/customer-identity-changes.test.ts > hides another company and keeps source and event evidence immutable 222ms
+ ✓ tests/customer-access.test.ts > requires an independent current reviewer, exposes Work and retains immutable decisions 959ms
+ ✓ tests/customer-access.test.ts > binds the first verified identity, records allowlisted reads and excludes a second account 469ms
+ ✓ tests/customer-access.test.ts > revokes immediately, hides wrong-scope bindings and blocks stale decisions 553ms
+ ✓ tests/customer-access.test.ts > refuses draft sources and reviewers whose employment ended 550ms
+ ✓ tests/customer-duplicates.test.ts > routes an ordered pair to an independent reviewer and records a canonical duplicate decision 407ms
+ ✓ tests/customer-duplicates.test.ts > supports distinct decisions and explicit reopen without moving source transactions 273ms
+ ✓ tests/customer-duplicates.test.ts > rejects invalid canonical records, stale races, duplicate pairs and ended reviewers 320ms
+ ✓ tests/customer-duplicates.test.ts > keeps pair and history immutable and hides another company 283ms
+ ✓ tests/work-views.test.ts > shows routing attention only to the source-authorized workflow manager 3ms
+ ✓ tests/work-views.test.ts > separates assigned actionable preparation from unassigned setup without changing source queues 1ms
+ ✓ tests/work-views.test.ts > keeps domain queries and return context together 1ms
+ ✓ tests/work-views.test.ts > shows only permission-filtered app cards before launcher search 2ms
+ ✓ tests/work-views.test.ts > searches deep destinations with owning-app context and no duplicate URLs 2ms
+ ✓ tests/work-views.test.ts > omits inaccessible launcher categories and scopes rail state by workspace 1ms
+
+ Test Files  5 passed (5)
+      Tests  19 passed (19)
+   Start at  18:15:13
+   Duration  39.72s (transform 396ms, setup 106ms, import 938ms, tests 38.20s, environment 0ms)
+

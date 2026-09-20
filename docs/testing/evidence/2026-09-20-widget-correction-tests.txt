@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/feature-widget-registry.test.ts tests/page-layouts.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  2 passed (2)
+      Tests  10 passed (10)
+   Start at  10:45:48
+   Duration  8.89s (transform 235ms, setup 105ms, import 370ms, tests 8.28s, environment 0ms)
+

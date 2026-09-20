@@ -1,0 +1,20 @@
+{
+  "fullRun": {
+    "passed": 746,
+    "failed": 1,
+    "skipped": 3,
+    "durationSeconds": 1000.11,
+    "failure": "New stock reservation history widget missing from feature registry"
+  },
+  "correction": {
+    "file": "src/data/feature-widgets.json",
+    "sha256": "94c22e862f616a68b682e1afb481d33227d574460ea880de8b2dcec98dce077f",
+    "verification": "feature-widget-registry + page-layouts: 10 passed",
+    "fullSuiteRerunAfterCorrection": false
+  },
+  "artifacts": {
+    "docs/testing/evidence/2026-09-20-aj-regression.txt": "9d53781fdc4c47f29cbb7327f44956c7b48db1dc155bf297f0de8f55734e73ae",
+    "docs/testing/evidence/2026-09-20-widget-correction-tests.txt": "09b1afd15fa7f8e20c9fb78e93a4efcc68c6300178f2b31e663369628424bc81"
+  },
+  "completion": "Partial implementation only; no scenario, provider or production sign-off inferred."
+}

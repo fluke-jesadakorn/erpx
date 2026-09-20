@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/supplier-payments.test.ts tests/payroll-core.test.ts tests/work-cache.test.ts tests/work-refresh.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  4 passed (4)
+      Tests  20 passed (20)
+   Start at  01:41:14
+   Duration  30.86s (transform 379ms, setup 96ms, import 448ms, tests 30.00s, environment 0ms)
+

@@ -20,23 +20,9 @@
   align-items: center;
   padding: 0 10px 30px;
 }
-.brandMark {
-  width: 31px;
-  height: 31px;
-  display: grid;
-  place-items: center;
-  background: var(--brand);
-  color: var(--on-brand);
-  border-radius: 9px;
-  font-size: 17px;
-  font-weight: 700;
-  box-shadow: inset 0 0 0 4px #ffffff10;
-}
-.brand strong {
-  font-size: 20px;
-  letter-spacing: -0.7px;
-  font-weight: 650;
-}
+.productBrand { display:flex; align-items:center; min-width:0; }
+.productBrand > svg { display:block; width:110px; height:auto; }
+.productBrandSymbol { display:none; }
 .brand small {
   font-size: 9px;
   margin-left: auto;
@@ -106,12 +92,50 @@
   align-items: center;
   border-radius: 10px;
 }
-.navGroupHead:has(.navGroupLink[aria-current="page"]),
 .navGroup[data-active="true"] > .navGroupHead {
-  background: var(--card);
-  color: var(--ink-strong);
+  background: color-mix(in srgb, var(--brand) 14%, var(--card));
+  color: var(--brand);
 }
-.navGroupHead .navGroupLink,
+.navGroup[data-active="true"] > .navGroupHead .navGroupLanding,
+.navGroup[data-active="true"] > .navGroupHead .navGroupLabel,
+.navGroup[data-active="true"] > .navGroupHead .navGroupToggle {
+  color: var(--brand);
+  font-weight: 650;
+}
+.nav .navGroupLanding {
+  min-width: 0;
+  padding-right: 4px;
+  color: inherit;
+}
+.navGroupLanding > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.navGroupToggle {
+  display: grid;
+  width: 36px;
+  min-height: 43px;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.navGroupToggle:hover,
+.navGroupToggle:focus-visible {
+  background: color-mix(in srgb, var(--brand-soft) 75%, transparent);
+  color: var(--ink);
+}
+.navGroupToggle:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.navGroupToggle[aria-expanded="false"] .navGroupChevron {
+  transform: rotate(-90deg);
+}
 .navGroupLabel {
   min-width: 0;
   min-height: 43px;
@@ -128,40 +152,26 @@
 }
 .navGroupLabel {
   cursor: pointer;
+  width: 100%;
+  padding-right: 12px;
+  font-size: 12px;
 }
-.navGroupHead .navGroupLink:hover,
+.navGroupLabel > svg {
+  flex-shrink: 0;
+}
+.navGroupChevron {
+  margin-left: auto;
+  transition: transform 160ms ease;
+}
+.navGroupLabel[aria-expanded="false"] .navGroupChevron {
+  transform: rotate(-90deg);
+}
 .navGroupLabel:hover {
   background: transparent;
   color: var(--ink);
 }
-.navGroupHead .navGroupLink[aria-current="page"] {
-  background: transparent;
-  box-shadow: none;
-  color: var(--brand);
-}
 .navGroup[data-active="true"] > .navGroupHead svg:first-child {
   color: var(--brand);
-}
-.navGroupToggle {
-  width: 36px;
-  min-height: 43px;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-.navGroupToggle:hover {
-  background: var(--card-2);
-  color: var(--ink);
-}
-.navGroupToggle svg {
-  transition: transform 160ms ease;
-}
-.navGroupToggle[aria-expanded="false"] svg {
-  transform: rotate(-90deg);
 }
 .navChildren {
   display: grid;
@@ -701,24 +711,11 @@
   background: var(--brand-soft);
   color: var(--brand);
 }
-.moreChevron {
-  margin-left: auto;
-  transition: transform 160ms ease;
-}
-.moreButton[aria-expanded="true"] .moreChevron {
-  transform: rotate(180deg);
-}
 .secondaryNav {
   display: grid;
   gap: 5px;
   min-width: 0;
   min-height: 0;
-}
-.secondaryNav[data-expanded="false"] {
-  height: 0;
-  overflow: hidden;
-  visibility: hidden;
-  pointer-events: none;
 }
 .secondaryNav a {
   font-size: 12px;
@@ -731,7 +728,6 @@
 .mobileTree .navGroupHead {
   background: var(--card-2);
 }
-.mobileTree .navGroupLink,
 .mobileTree .navGroupLabel {
   display: flex;
   align-items: center;
@@ -758,24 +754,50 @@
   flex: 0 0 auto;
   justify-content: center;
   align-items: center;
-  gap: 4px;
+  gap: 7px;
   min-width: 44px;
   min-height: 44px;
-  border: 0;
+  max-width: min(320px, 36vw);
+  border: 1px solid transparent;
   background: transparent;
   color: var(--ink);
-  padding: 4px 7px;
-  border-radius: 8px;
+  padding: 4px 10px;
+  border-radius: 10px;
   font: inherit;
   font-weight: 600;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
 }
-.workspaceTrigger:hover {
+.workspaceTrigger:hover,
+.workspaceTrigger[aria-expanded="true"] {
   color: var(--brand);
   background: var(--brand-soft);
+  border-color: color-mix(in srgb, var(--brand) 18%, transparent);
 }
 .workspaceTrigger:focus-visible {
   outline: 2px solid var(--brand);
   outline-offset: 2px;
+}
+.workspaceTrigger:disabled {
+  cursor: default;
+}
+.workspaceTriggerLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspaceTriggerChevron {
+  flex: 0 0 auto;
+  color: var(--muted);
+  transition: transform 140ms ease, color 140ms ease;
+}
+.workspaceTrigger:hover .workspaceTriggerChevron,
+.workspaceTrigger[aria-expanded="true"] .workspaceTriggerChevron {
+  color: currentColor;
+}
+.workspaceTrigger[aria-expanded="true"] .workspaceTriggerChevron {
+  transform: rotate(180deg);
 }
 .workspaceSection {
   margin: 0 0 24px;
@@ -882,6 +904,9 @@ a.workspaceChoice:hover {
   font-weight: 650;
   white-space: nowrap;
 }
+.workspaceHolding h4 { display:flex; align-items:center; gap:8px; }
+.choiceBrand { display:grid; place-items:center; flex:0 0 auto; width:24px; height:24px; overflow:hidden; border:1px solid var(--line); border-radius:6px; background:#fff; color:#0B1F3A; font-size:8px; font-weight:750; }
+.choiceBrand img { width:100%; height:100%; padding:2px; object-fit:contain; }
 .workspaceError {
   margin: 10px 0 0;
   color: var(--red);
@@ -1031,3 +1056,108 @@ a.workspaceChoice:hover {
 .appearanceCompact button { flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; }
 .appearanceCompact button[aria-pressed="true"] { background: transparent; color: var(--brand); box-shadow: inset 0 -2px var(--brand); border-radius: 0; }
 .appearanceCompact button svg { width: 16px; height: 16px; }
+
+@media (min-width:651px) and (max-width:1000px){.workspaceTrigger>span,.workspaceTrigger>svg:last-child,.searchButton>span,.searchButton kbd{display:none}.workspaceTrigger,.searchButton{flex-shrink:0;min-width:44px}.topbar{gap:8px}.actions{gap:8px}}
+
+/* Task-oriented business navigation. Categories are presentation only. */
+.shell { grid-template-columns: 260px minmax(0, 1fr); }
+.sidebar { width:260px; }
+.navCategory { display:grid; min-width:0; }
+.navCategoryButton {
+  display:flex;
+  width:100%;
+  min-height:44px;
+  align-items:center;
+  gap:11px;
+  padding:10px 12px;
+  border:0;
+  border-radius:10px;
+  background:transparent;
+  color:var(--muted);
+  cursor:pointer;
+  font:inherit;
+  font-size:13px;
+  font-weight:600;
+  text-align:left;
+}
+.navCategoryButton:hover,
+.navCategory[data-active="true"] > .navCategoryButton {
+  background:var(--card);
+  color:var(--ink-strong);
+  box-shadow:var(--shadow-sm);
+}
+.navCategory[data-active="true"] > .navCategoryButton > svg:first-child { color:var(--brand); }
+.navCategoryButton:focus-visible,
+.navAppLink:focus-visible { outline:2px solid var(--brand); outline-offset:2px; }
+.navCategoryButton[aria-expanded="false"] .navGroupChevron { transform:rotate(-90deg); }
+.navApps {
+  display:grid;
+  gap:2px;
+  margin:3px 0 7px 21px;
+  padding-left:12px;
+  border-left:1px solid var(--line);
+}
+.navApps[hidden] { display:none; }
+.nav .navAppLink {
+  min-height:44px;
+  display:grid;
+  grid-template-columns:18px minmax(0,1fr);
+  align-items:center;
+  gap:9px;
+  padding:8px 10px;
+  border-radius:9px;
+  color:var(--muted);
+  font-size:12px;
+}
+.nav .navAppLink:hover { background:var(--card); color:var(--ink); }
+.nav .navAppLink[aria-current="page"] {
+  background:var(--brand-soft);
+  color:var(--brand);
+  font-weight:650;
+  box-shadow:none;
+}
+.shell:has(.nav[data-rail="true"]) { grid-template-columns:72px minmax(0,1fr); }
+.sidebar:has(.nav[data-rail="true"]) {
+  width:72px;
+  padding:20px 12px 14px;
+  overflow:visible;
+}
+.sidebar:has(.nav[data-rail="true"]) .brand { justify-content:center; padding:0 0 22px; }
+.sidebar:has(.nav[data-rail="true"]) .productBrandWordmark,
+.sidebar:has(.nav[data-rail="true"]) .brand small,
+.sidebar:has(.nav[data-rail="true"]) .sidebarBottom { display:none; }
+.sidebar:has(.nav[data-rail="true"]) .productBrandSymbol { display:flex; }
+.sidebar:has(.nav[data-rail="true"]) .productBrandSymbol > svg { width:36px; height:36px; }
+.nav[data-rail="true"] {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  overflow:visible;
+}
+.nav[data-rail="true"] > a {
+  position:relative;
+  width:48px;
+  min-height:48px;
+  justify-content:center;
+  padding:10px;
+}
+.nav[data-rail="true"] > a > span:not(.navBadge),
+.nav[data-rail="true"] > .navLabel { display:none; }
+.nav[data-rail="true"] .navBadge {
+  position:absolute;
+  top:1px;
+  right:0;
+  min-width:18px;
+  padding:0 5px;
+  line-height:18px;
+}
+@media (max-width:1100px) and (min-width:651px) {
+  .shell { grid-template-columns:260px minmax(0,1fr); }
+  .sidebar { width:260px; padding:24px 18px 18px; }
+  .shell:has(.nav[data-rail="true"]) { grid-template-columns:72px minmax(0,1fr); }
+  .sidebar:has(.nav[data-rail="true"]) { width:72px; padding:20px 12px 14px; }
+}
+@media (max-width:650px) {
+  .shell { display:block; }
+  .sidebar { display:none; }
+}

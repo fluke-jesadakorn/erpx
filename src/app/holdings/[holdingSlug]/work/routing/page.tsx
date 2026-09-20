@@ -1,0 +1,11 @@
+import Link from 'next/link';
+import {flowKinds} from '@/lib/flow';
+import {requireWorkContext,publicScope} from '@/server/authorization';
+import {workspaceBase} from '@/lib/workspace';
+import {routingAttention} from '@/server/routing-attention';
+export const dynamic='force-dynamic';
+export default async function RoutingAttentionPage({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<Record<string,string|string[]|undefined>>}) {
+ const actor=await requireWorkContext((await params).holdingSlug),base=workspaceBase(publicScope(actor)),q=await searchParams;
+ const result=await routingAttention(actor,{kind:typeof q.kind==='string'?q.kind:undefined,after:typeof q.after==='string'?q.after:undefined});
+ return <div className="content-stack"><Link href={`${base}/work?view=routing`}>← Work routing attention</Link><h1>Company routing review</h1><p>Review named workflows across the selected source, without a recent-document cutoff. Only records you can read and manage appear here.</p><form className="business-form"><label>Source<select name="kind" defaultValue={result.kind}>{flowKinds.map(kind=><option value={kind} key={kind}>{kind.replaceAll('_',' ')}</option>)}</select></label><button className="button">Review source</button></form><p>Coverage: named Flow sources. Legal, POS, PMS, overtime, lifecycle and payment owner queues remain separate. This page does not claim a scan of every domain or track how long a blocker has existed.</p><section className="card"><table className="business-table"><thead><tr><th>Record</th><th>State / next action</th><th>Responsible team</th><th>Blocker</th></tr></thead><tbody>{result.items.map(item=><tr key={item.id}><td><Link href={`${base}/work/routing/${item.kind}/${encodeURIComponent(item.id)}`}>{item.title}</Link></td><td>{item.state}<br/>{item.action}</td><td>{item.team??'Routing repair required'}</td><td>{item.blocker}</td></tr>)}</tbody></table>{!result.items.length&&<p>No visible blocked workflows in this source after the selected position.</p>}</section>{result.nextAfter&&<Link className="button secondary" href={`?kind=${result.kind}&after=${encodeURIComponent(result.nextAfter)}`}>Next blocked records</Link>}<p>Refresh to recheck current eligibility. Reassignment requires a reason and keeps completed decisions unchanged.</p></div>;
+}

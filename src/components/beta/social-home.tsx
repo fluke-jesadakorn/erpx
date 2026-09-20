@@ -1,10 +1,14 @@
 "use client";
+import type { SelfServiceSeed } from "@/server/self-service";
 
+import { AnnouncementFeed } from "@/components/calendar/announcement-feed";
 import { workFetch } from "@/lib/work-fetch";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { SelfServiceHome } from "@/components/self-service/home";
 import { workAttention, type WorkAttention as Attention } from "@/lib/work-attention";
 import { WorkAttention } from "@/components/workplace/work-attention";
+import { isMyAction } from "@/lib/work-item";
 import type { WorkSummary } from "@/server/work-summary";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { betaFetch } from "@/lib/beta-client";
@@ -12,7 +16,10 @@ import type { HomePost } from "@/server/social-home";
 import type { Meta } from "./social-types";
 import { SocialComposer } from "./social-composer";
 import { SocialPost } from "./social-post";
-import { SocialTaskDialog } from "./social-task-dialog";
+import dynamic from "next/dynamic";
+import { scheduleWorkRefresh } from "@/lib/work-refresh";
+import { HomeVisualPrototype } from "@/components/home/home-visual-prototype";
+const SocialTaskDialog = dynamic(() => import("./social-task-dialog").then(module => module.SocialTaskDialog));
 import styles from "./social.module.css";
 const feedPageSize = 8;
 export function SocialHome({
@@ -24,6 +31,8 @@ export function SocialHome({
   initialPosts,
   initialMeta,
   single = false,
+  calendarEnabled = false,
+  initialDay,
 }: {
   base: string;
   userId: string;
@@ -33,10 +42,11 @@ export function SocialHome({
   initialPosts: HomePost[];
   initialMeta: Meta;
   single?: boolean;
+  calendarEnabled?: boolean;
+  initialDay?: Promise<SelfServiceSeed | null>;
 }) {
   const [attention, setAttention] = useState<Attention>(() => workAttention([]));
-  const [attentionLoading, setAttentionLoading] = useState(false);
-  const [attentionStarted, setAttentionStarted] = useState(false);
+  const [attentionLoading, setAttentionLoading] = useState(!single);
   const attentionRequest = useRef<AbortController | null>(null);
   const metaLoaded = useRef(false);
   const metaRequest = useRef<Promise<Meta> | null>(null);
@@ -78,7 +88,6 @@ export function SocialHome({
     };
   }, [api, query]);
   const refreshPriorities = useCallback(async () => {
-    setAttentionStarted(true);
     attentionRequest.current?.abort();
     const request = new AbortController();
     attentionRequest.current = request;
@@ -94,7 +103,7 @@ export function SocialHome({
       if (!request.signal.aborted) {
         setAttention(workAttention(data.items, !!data.unavailableSources.length || !!data.capabilities.unavailable.length));
         window.dispatchEvent(new CustomEvent("erpx:work-summary", { detail: {
-          work: data.items.filter(item => item.queue !== "completed").length,
+          work: data.unavailableSources.length || data.capabilities.unavailable.length ? null : data.items.filter(isMyAction).length,
         } }));
       }
     } catch {
@@ -104,14 +113,13 @@ export function SocialHome({
     }
   }, [api]);
   useEffect(() => {
-    if (single) return;
-    const changed = () => { if (attentionStarted) void refreshPriorities(); };
-    window.addEventListener("erpx:work-changed", changed);
-    return () => {
-      attentionRequest.current?.abort();
-      window.removeEventListener("erpx:work-changed", changed);
-    };
-  }, [attentionStarted, refreshPriorities, single]);
+    if (single || calendarEnabled) return;
+    // Synchronize the external Work snapshot after hydration; keep the feed available while loading.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void refreshPriorities();
+    const stop = scheduleWorkRefresh(() => void refreshPriorities());
+    return () => { attentionRequest.current?.abort(); stop(); };
+  }, [refreshPriorities, single, calendarEnabled]);
   const loadMeta = useCallback(() => {
     if (metaLoaded.current) return Promise.resolve();
     if (!metaRequest.current) {
@@ -126,7 +134,7 @@ export function SocialHome({
     return metaRequest.current;
   }, [api, setMeta]);
   async function refresh() {
-    if (attentionStarted) void refreshPriorities();
+    if (!single) void refreshPriorities();
     const rows = await betaFetch<HomePost[]>(`${api}/beta/home?${query}&limit=${feedPageSize}`);
     setPosts(rows);
     setHasMore(rows.length === feedPageSize);
@@ -172,6 +180,7 @@ export function SocialHome({
     }
   }
   return (
+    <HomeVisualPrototype surface="workspace">
     <main className={`content ${styles.home}`}>
       <header className="beta-heading">
         <div>
@@ -180,11 +189,14 @@ export function SocialHome({
           </h1>
           <p>Your work and team updates, in one place.</p>
         </div>
-        {single && <Link href={`${base}/home`}>Back to Home</Link>}
+        {single ? (
+          <Link href={`${base}/home`}>Back to Home</Link>
+        ) : null}
       </header>
-      <div className={single ? styles.singleLayout : styles.homeLayout}>
-        {!single && <aside className={styles.attentionColumn}>
-          <WorkAttention base={base} attention={attention} loading={attentionLoading} deferred={!attentionStarted} retry={() => void refreshPriorities()} />
+      <SelfServiceHome key={base} base={base} enabled={!single && calendarEnabled} initial={initialDay}>
+      <div className={single ? styles.singleLayout : calendarEnabled ? undefined : styles.homeLayout}>
+        {!single && !calendarEnabled && <aside className={styles.attentionColumn}>
+          <WorkAttention base={base} attention={attention} loading={attentionLoading} retry={() => void refreshPriorities()} />
         </aside>}
         <div className={styles.stream}>
       {!single && (
@@ -230,6 +242,7 @@ export function SocialHome({
         </>
       )}
       <section className="beta-feed" aria-label="Team updates">
+        {!single && calendarEnabled && <AnnouncementFeed base={base} />}
         {!posts.length && (
           <div className="card">
             <h2>No conversations here yet</h2>
@@ -267,6 +280,7 @@ export function SocialHome({
       )}
         </div>
       </div>
+      </SelfServiceHome>
       {selected && (
         <SocialTaskDialog
           key={selected.id}
@@ -283,5 +297,6 @@ export function SocialHome({
         />
       )}
     </main>
+    </HomeVisualPrototype>
   );
 }

@@ -18,21 +18,8 @@
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  font-size: 24px;
-  letter-spacing: -1px;
-  font-weight: 650;
 }
-.brand > span {
-  display: grid;
-  place-items: center;
-  width: 33px;
-  height: 33px;
-  background: #1d4ed8;
-  color: #fff;
-  border-radius: 9px;
-  font-size: 18px;
-}
+.brand > svg { display:block; width:132px; height:auto; }
 .story h1 {
   color: var(--ink-strong);
   font-size: clamp(36px, 4.2vw, 60px);

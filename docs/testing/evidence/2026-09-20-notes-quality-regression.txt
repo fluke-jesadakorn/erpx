@@ -1,0 +1,63 @@
+$ bun scripts/local/test.ts tests/quality.test.ts tests/inventory-transfers.test.ts tests/pos.test.ts tests/customer-notes.test.ts tests/calendar.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/pos.test.ts > POS committed business flows > exposes company currency without exposing accounting configuration 765ms
+ ✓ tests/pos.test.ts > POS committed business flows > keeps historical document currencies separate in sales and tender reports 825ms
+ ✓ tests/pos.test.ts > POS committed business flows > pages history without loading other tabs and keeps every sale reachable 735ms
+ ✓ tests/pos.test.ts > POS committed business flows > executes scoped commerce, finance and inventory page queries 731ms
+ ✓ tests/pos.test.ts > POS committed business flows > cash sale posts one balanced invoice, receipt, allocation and stock cost; lost-response replay is safe 1152ms
+ ✓ tests/pos.test.ts > POS committed business flows > split tender never overpays and closing a shift does not repost sales 1054ms
+ ✓ tests/pos.test.ts > POS committed business flows > serializes two tills reserving the final unit and guards other inventory writers 930ms
+ ✓ tests/pos.test.ts > POS committed business flows > serializes Sales and POS competing for the final unit through the same availability owner 1552ms
+ ✓ tests/pos.test.ts > POS committed business flows > reserves recipes on send, consumes on start, moves WIP to COGS on delivery 1112ms
+ ✓ tests/pos.test.ts > POS committed business flows > cancelled preparation records waste and never restores ingredients 1112ms
+ ✓ tests/pos.test.ts > POS committed business flows > splits a dispatched recipe without creating another kitchen item or consuming twice 1105ms
+ ✓ tests/pos.test.ts > POS committed business flows > partial returns require independent review, restore original cost, and cannot exceed original quantity 987ms
+ ✓ tests/pos.test.ts > POS committed business flows > closed periods and changed scopes leave no payment or journal effects 968ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > provider success survives account switch, revoked cashier and repeated polling without duplicate sale 1092ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > paid at provider with a newly closed period enters review and resumes the same payment 1006ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > webhook mode, duplicate and reverse delivery cannot route across companies 856ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > hosted onboarding accepts account-link responses without an object id 961ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > failed provider refund retries with a new attempt only after review and never restores stock twice 1314ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > a payout groups charges and fees, posts once, and matches the existing bank statement 1398ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > full manual advance refund releases the reservation and lets the original bill be edited 1289ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > reports actual return cost and disallows discount preparer self approval 960ms
+ ✓ tests/pos.test.ts > POS monetary and webhook boundaries > allocates every cent across repeated partial refunds 365ms
+ ✓ tests/pos.test.ts > POS monetary and webhook boundaries > requires a fresh, exact signed webhook body 509ms
+ ✓ tests/pos.test.ts > quality quarantine blocks a reserved retail payment without consuming stock or cash 496ms
+ ✓ tests/quality.test.ts > keeps failed inspections and requires a third person to release a passing inspection 375ms
+ ✓ tests/quality.test.ts > blocks already reserved Sales delivery atomically until all overlapping holds are released 824ms
+ ✓ tests/quality.test.ts > scopes the queue and enforces stale versions and revoked recipients 226ms
+ ✓ tests/quality.test.ts > hands inspection and release to scoped Work, Inbox and Calendar source queues 307ms
+ ✓ tests/quality.test.ts > serializes quarantine against a competing reservation and keeps either outcome safe 376ms
+ ✓ tests/quality.test.ts > cancels an incorrect uninspected hold only after independent review, retaining other holds and evidence 514ms
+ ✓ tests/quality.test.ts > never cancels inspected stock and serializes cancellation versus inspection 403ms
+ ✓ tests/quality.test.ts > keeps cancellation quarantined when reviewer authority changes and hides out-of-scope reviews 239ms
+ ✓ tests/customer-notes.test.ts > records, corrects and archives contact evidence without rewriting source or history 523ms
+ ✓ tests/customer-notes.test.ts > protects company, branch, department, role and revoked authority 362ms
+ ✓ tests/customer-notes.test.ts > serializes competing corrections and rejects stale sources and future contact 390ms
+ ✓ tests/customer-notes.test.ts > keeps customer evidence attached to its original customer and limits corrections to author or manager 260ms
+ ✓ tests/calendar.test.ts > reads all sources without causing workflow transitions and hides draft rosters from staff 713ms
+ ✓ tests/calendar.test.ts > preserves overnight shifts crossing adjacent weeks and stored timezone 405ms
+ ✓ tests/calendar.test.ts > lets active staff organize, scopes delegates, redacts availability before serialization and checks direct commands 322ms
+ ✓ tests/calendar.test.ts > uses stable receipts and versions for reschedule/cancel and rejects concurrent stale edits 123ms
+ ✓ tests/calendar.test.ts > reschedules through narrow commands while preserving appointment data and roster assignments 596ms
+ ✓ tests/calendar.test.ts > warns about overlaps and approved all-day leave without exposing reasons; meetings during shifts are allowed 162ms
+ ✓ tests/calendar.test.ts > shares announcement audience/state with the feed and enforces scoped publishing 197ms
+ ✓ tests/calendar.test.ts > preserves actual organizational nesting and reporting ids without duplicates or Company leakage 143ms
+ ✓ tests/calendar.test.ts > keeps legacy tasks privileged/undated, supports explicit ordinary assignees, and leaves cutoffs untouched 151ms
+ ✓ tests/calendar.test.ts > paginates deterministically and validates dates and nonexistent DST local times 143ms
+stderr | tests/calendar.test.ts > reports failed source loading explicitly
+Calendar source failed appointments Source temporarily unavailable
+
+ ✓ tests/calendar.test.ts > reports failed source loading explicitly 43ms
+ ✓ tests/calendar.test.ts > shows future joiners and ended engagement milestones while keeping each cutoff independent 90ms
+ ✓ tests/calendar.test.ts > scopes private detail even when an attendee is in another department and does not search redacted titles 108ms
+ ✓ tests/calendar.test.ts > shows verified directory work in its own week even after the departure window 49ms
+
+ Test Files  4 passed (4)
+      Tests  50 passed (50)
+   Start at  15:39:09
+   Duration  58.50s (transform 961ms, setup 95ms, import 458ms, tests 57.64s, environment 0ms)
+

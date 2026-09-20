@@ -1,0 +1,23 @@
+{
+  "run": "fd3d5be619db",
+  "observedAt": "2026-09-20T16:42:00.113528+07:00",
+  "ticketId": "ticket-b194a39c-df9d-468f-ba35-da589cdc6d08",
+  "accounts": [
+    "Source operator (holding_owner used for Sales initiation/contact recording)",
+    "Support agent",
+    "Support manager"
+  ],
+  "observations": [
+    "Source creates case from existing customer quotation and assigns Support agent",
+    "Agent opens own My actions (1), accepts and records proposed resolution; cannot close case",
+    "After resolution Work actions for agent drop to0; source records simulated phone confirmation on the original quotation",
+    "Independent Support manager enters own My actions (1), sees resolution and contact note body/time/version, selects evidence and confirms",
+    "Closed v4 visible; Work actions drop to0; four immutable events retain three actor IDs",
+    "Original quotation remains draft v1; no payment, stock or provider action"
+  ],
+  "limitations": [
+    "Staff-recorded simulated customer confirmation; no actual customer Portal acceptance",
+    "Wait/reopen/reassignment/concurrency exceptions automated only",
+    "No SLA/Email/attachments or complete support capability sign-off"
+  ]
+}

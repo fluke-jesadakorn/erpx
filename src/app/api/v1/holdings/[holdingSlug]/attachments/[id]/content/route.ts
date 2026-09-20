@@ -1,3 +1,4 @@
+import {getSupportTicket} from "@/server/support";
 import { invoicePaymentOwner } from "@/server/invoice-payment-evidence";
 import { getEmployeeRequest } from "@/server/employee-requests";
 import { socialUploadOwner } from "@/server/social-home";
@@ -31,7 +32,8 @@ export async function GET(
       }>();
     if (!attachment)
       throw new ApiError(404, "NOT_FOUND", "Attachment not found.");
-    if (attachment.owner_type === "employee_request") await getEmployeeRequest(write,actor,attachment.owner_id);
+    if (attachment.owner_type === "support_ticket") await getSupportTicket(actor,attachment.owner_id);
+    else if (attachment.owner_type === "employee_request") await getEmployeeRequest(write,actor,attachment.owner_id);
     else if (attachment.owner_type === "social_draft")
       await socialUploadOwner(write, actor, attachment.owner_id);
     else if (attachment.owner_type === "expense_claim")
@@ -44,6 +46,12 @@ export async function GET(
       await getLeave(actor.holdingId, attachment.owner_id, actor);
     else if (attachment.owner_type === "staff_task")
       await getTask(write, actor, attachment.owner_id);
+    else if (["holding_brand", "branch_brand"].includes(attachment.owner_type)) {
+      const active = await write.prepare(
+        "SELECT 1 FROM organization_brand_profiles WHERE scope_kind=? AND scope_id=? AND (primary_attachment_id=? OR inverse_attachment_id=?)",
+      ).bind(attachment.owner_type === "holding_brand" ? "holding" : "branch", attachment.owner_id, id, id).first();
+      if (!active) throw new ApiError(404, "NOT_FOUND", "Workspace logo not found.");
+    }
     else throw new ApiError(404, "NOT_FOUND", "Attachment not found.");
     const page = new URL(request.url).searchParams.get("page");
     if (page) {
@@ -98,7 +106,7 @@ export async function GET(
       );
     const headers = new Headers({
       "Content-Type": attachment.media_type,
-      "Content-Disposition": `${(!!page || attachment.owner_type === "social_draft") && attachment.media_type.startsWith("image/") ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(attachment.original_name)}`,
+      "Content-Disposition": `${(!!page || attachment.owner_type === "social_draft" || attachment.owner_type.endsWith("_brand")) && attachment.media_type.startsWith("image/") ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(attachment.original_name)}`,
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
       ETag: object.httpEtag,

@@ -1,18 +1,21 @@
-import { pageError } from "@/server/page-error";
-import { FlowPanel, documentFlow } from "@/components/workplace/flow-panel";
 import betaStyles from "@/components/beta/beta.module.css";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { ApprovalAdminLink } from "@/components/modules/approval-admin-link";
-import { readablePost } from "@/server/social-source";
-import Link from "next/link";
-import {
-  TaskEditor,
-  TaskActions,
-} from "@/components/modules/staff-work-controls";
 import { ApprovalHistory } from "@/components/modules/approval-history";
+import {
+TaskActions,
+TaskEditor,
+} from "@/components/modules/staff-work-controls";
+import { StatusBadge } from "@/components/ui/primitives";
+import { FlowPanel,documentFlow } from "@/components/workplace/flow-panel";
+import { RecordNextAction } from "@/components/workplace/record-next-action";
+import { WorkReturn } from "@/components/workplace/work-return";
+import { ApiError } from "@/server/http";
+import { pageError } from "@/server/page-error";
+import { readablePost } from "@/server/social-source";
 import { staffPage } from "@/server/staff-page";
 import { taskDetail } from "@/server/staff-tasks";
-import { ApiError } from "@/server/http";
-import { StatusBadge } from "@/components/ui/primitives";
+import Link from "next/link";
 export default async function Task({
   params,
   searchParams,
@@ -47,14 +50,14 @@ export default async function Task({
     if (!["queue", "type", "q"].includes(key)) returnQuery.delete(key);
   const flow = await documentFlow(actor,"staff_task",id);
   return (
-    <main className="content-stack" data-source="live">
+    <FeaturePage className="content-stack" data-source="live"><WorkReturn base={base}/>
       <Link className="back-link" href={`${base}/work?${returnQuery}`}>
         ← Your work
       </Link>
       <div className="section-head">
         <h1>{t.title}</h1>
         <StatusBadge status={t.state} />
-      </div>
+      </div><FeatureTabs/><WidgetGrid pageKey="staff-tasks-detail">
       {sourceId && (
         <Link
           className={`beta-task-link ${betaStyles.surface}`}
@@ -63,7 +66,7 @@ export default async function Task({
           Open source conversation ↗
         </Link>
       )}
-      <section className="card">
+      <section data-critical-notice><RecordNextAction flow={flow}/></section><TaskActions key={t.id} base={base} detail={{...detail,permittedActions:detail.permittedActions.filter(a=>flow.canAct||["edit","revise","cancel"].includes(a))}} /><FeatureWidget id="staff-tasks-detail-completion-note" title="Completion note">
         <dl className="staff-facts">
           <dt>Accountable assignee</dt>
           <dd>{t.assignee_name}</dd>
@@ -79,15 +82,15 @@ export default async function Task({
             <p style={{ whiteSpace: "pre-wrap" }}>{t.completion_note}</p>
           </>
         )}
-      </section>
-      <TaskActions key={t.id} base={base} detail={{...detail,permittedActions:detail.permittedActions.filter(a=>flow.canAct||["edit","revise","cancel"].includes(a))}} />
+      </FeatureWidget>
+
       {t.description && (
-        <details className="card" open={t.description.length <= 500}>
+        <FeatureWidget id="staff-tasks-detail-task-instructions" title="Task instructions"><details className="card" open={t.description.length <= 500}>
           <summary>Task instructions</summary>
           <p style={{ whiteSpace: "pre-wrap" }}>{t.description}</p>
-        </details>
+        </details></FeatureWidget>
       )}
-      <details className="card">
+      <FeatureWidget id="staff-tasks-detail-record-information" title="Record information"><details className="card">
         <summary>Record information</summary>
         <p>
           Created by {t.creator_name} · {t.project_title ?? "Standalone work"}
@@ -95,11 +98,8 @@ export default async function Task({
         <p>
           Revision {t.revision} · version {t.version}
         </p>
-      </details>
-      <ApprovalHistory
-        approval={detail.approval}
-        blockedReason={detail.blockedReason}
-      />
+      </details></FeatureWidget>
+
       {options.canManage &&
         !actor.beta &&
         (["start_approval", "completion_approval"].includes(t.state) ||
@@ -127,6 +127,10 @@ export default async function Task({
           canRevise
         />
       )}
-    <FlowPanel flow={flow} actor={actor} kind="staff_task" id={id} base={base}/></main>
+    <ApprovalHistory
+        approval={detail.approval}
+        blockedReason={detail.blockedReason}
+      />
+      <FlowPanel flow={flow} actor={actor} kind="staff_task" id={id} base={base}/></WidgetGrid></FeaturePage>
   );
 }

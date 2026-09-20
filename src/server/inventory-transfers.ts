@@ -1,3 +1,4 @@
+import { readListPage } from "./list-page";
 import { requirePermission } from "@/server/iam-permissions";
 import { hasPermission } from "@/lib/permissions";
 import { samePerson } from "@/lib/iam";
@@ -14,7 +15,7 @@ import { scaledAmount } from "@/lib/commerce-math";
 import { sha256 } from "./crypto";
 import { ApiError } from "./http";
 export type TransferRow=Record<string,string|number|null>;
-export const transferSchema=z.object({sourceWarehouseId:z.string().min(1),targetWarehouseId:z.string().min(1),transferDate:z.iso.date(),reason:z.string().trim().min(5).max(2000),expectedVersion:z.number().int().positive().optional(),lines:z.array(z.object({productId:z.string().min(1),quantity:z.string().regex(/^\d{1,12}(\.\d{1,3})?$/)})).min(1).max(20)});
+export const transferSchema=z.object({sourceWarehouseId:z.string().min(1),targetWarehouseId:z.string().min(1),transferDate:z.iso.date(),deliveryMode:z.enum(['direct','transit']).optional(),arrivalDueDate:z.iso.date().optional(),reason:z.string().trim().min(5).max(2000),expectedVersion:z.number().int().positive().optional(),lines:z.array(z.object({productId:z.string().min(1),quantity:z.string().regex(/^\d{1,12}(\.\d{1,3})?$/)})).min(1).max(20)});
 export const transferActionSchema=z.object({expectedVersion:z.number().int().positive(),reason:z.string().trim().min(3).max(2000).optional()});
 export function canPrepareTransfers(actor:WorkContext){return !actor.departmentId&&hasPermission(actor,"inventory.prepare");}
 export function canEditTransfer(actor:WorkContext,row:TransferRow){return canPrepareTransfers(actor)&&(!actor.branchId||actor.branchId===row.source_branch_id)&&["draft","rejected"].includes(String(row.status))&&[row.created_by,row.prepared_by].some(id=>samePerson(actor,id));}
@@ -23,12 +24,21 @@ function readable(actor:WorkContext){if(!canReadCounts(actor))throw new ApiError
 const select="SELECT t.*,s.name source_warehouse_name,d.name target_warehouse_name,c.currency FROM inventory_transfers t JOIN commerce_warehouses s ON s.id=t.source_warehouse_id JOIN commerce_warehouses d ON d.id=t.target_warehouse_id JOIN commerce_settings c ON c.company_id=t.company_id";
 function scope(actor:WorkContext){return {sql:"t.company_id=? AND (?::text IS NULL OR t.source_branch_id=? OR t.target_branch_id=?)",args:[actor.companyId,actor.branchId,actor.branchId,actor.branchId]};}
 export async function listTransfers(actor:WorkContext){readable(actor);const {write}=await holdingResources(actor.holdingId),s=scope(actor);return (await write.prepare(`${select} WHERE ${s.sql} ORDER BY t.updated_at DESC LIMIT 250`).bind(...s.args).all<TransferRow>()).results;}
+export async function transfersPage(actor:WorkContext,query:{q?:string;status?:string;cursor?:string}) {
+  readable(actor);const {write}=await holdingResources(actor.holdingId),s=scope(actor);
+  return readListPage<TransferRow & {id:string;page_key:string}>(write,{
+    sql:`SELECT records.*,updated_at::text AS page_key FROM (${select} WHERE ${s.sql}) records
+      WHERE (?='' OR status=?) AND (?='' OR strpos(lower(number||' '||reason||' '||source_warehouse_name||' '||target_warehouse_name),lower(?))>0)`,
+    args:[...s.args,query.status??'',query.status??'',query.q??'',query.q??''],cursor:query.cursor,descending:true,
+    scope:[actor.companyId,actor.branchId,'transfers',query.q??'',query.status??''],
+  });
+}
 export async function getTransfer(actor:WorkContext,id:string){readable(actor);const {write}=await holdingResources(actor.holdingId),s=scope(actor);const row=await write.prepare(`${select} WHERE t.id=? AND ${s.sql}`).bind(id,...s.args).first<TransferRow>();if(!row)throw new ApiError(404,"TRANSFER_NOT_FOUND","Transfer not found in this workspace.");return row;}
 export async function transferOptions(actor:WorkContext){
   actor = requirePermission(actor,"inventory.prepare");
 readable(actor);const {write}=await holdingResources(actor.holdingId);const [warehouses,stock]=await Promise.all([
  write.prepare("SELECT id,name,branch_id FROM commerce_warehouses WHERE company_id=? AND status='active' ORDER BY name").bind(actor.companyId).all<TransferRow>(),
- write.prepare("SELECT s.*,p.sku,p.name,p.unit FROM commerce_stock s JOIN commerce_products p ON p.id=s.product_id JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=? AND w.status='active' AND p.status='active' AND s.quantity_milli>0 AND (?::text IS NULL OR w.branch_id=?) ORDER BY p.sku").bind(actor.companyId,actor.branchId,actor.branchId).all<TransferRow>(),
+ write.prepare("SELECT s.*,CASE WHEN EXISTS(SELECT 1 FROM inventory_quality_holds h WHERE h.warehouse_id=s.warehouse_id AND h.product_id=s.product_id AND h.status NOT IN ('released','cancelled')) THEN 0 ELSE s.quantity_milli-COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0) END available_milli,p.sku,p.name,p.unit FROM commerce_stock s JOIN commerce_products p ON p.id=s.product_id JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=? AND w.status='active' AND p.status='active' AND s.quantity_milli>0 AND (?::text IS NULL OR w.branch_id=?) ORDER BY p.sku").bind(actor.companyId,actor.branchId,actor.branchId).all<TransferRow>(),
  ]);return {warehouses:warehouses.results,sources:warehouses.results.filter(w=>!actor.branchId||actor.branchId===w.branch_id),stock:stock.results};}
 export async function transferDetail(actor:WorkContext,id:string){const transfer=await getTransfer(actor,id),{write}=await holdingResources(actor.holdingId);const [lines,decisions,history]=await Promise.all([
  write.prepare("SELECT l.*,p.sku,COALESCE(s.version,0) current_version FROM inventory_transfer_lines l JOIN commerce_products p ON p.id=l.product_id LEFT JOIN commerce_stock s ON s.product_id=l.product_id AND s.warehouse_id=? WHERE l.transfer_id=? ORDER BY l.ordinal").bind(transfer.source_warehouse_id,id).all<TransferRow>(),
@@ -43,7 +53,7 @@ export async function saveTransfer(actor:WorkContext,id:string|null,input:z.infe
   actor = requirePermission(actor,"inventory.prepare");
 
  if(!canPrepareTransfers(actor))throw new ApiError(403,"TRANSFER_PREPARER_REQUIRED","An inventory operator must prepare a warehouse transfer.");const {write}=await holdingResources(actor.holdingId),record=id??`transfer-${key}`,operation=id?"inventory.transfer.update":"inventory.transfer.create",prior=await replayCommand(write,actor,key,operation,record,input);if(prior)return prior;
- const current=id?await getTransfer(actor,id):null;if(current&&!canEditTransfer(actor,current))throw new ApiError(403,"TRANSFER_LOCKED","Only the source preparer can edit an unsubmitted transfer.");
+ const current=id?await getTransfer(actor,id):null;const mode=input.deliveryMode??String(current?.delivery_mode??'direct');const due=input.arrivalDueDate??current?.arrival_due_date??null;if(mode==='transit'&&(!due||String(due)<input.transferDate))throw new ApiError(422,'ARRIVAL_DUE_REQUIRED','Choose an arrival date on or after the transfer date.');if(current&&current.delivery_mode!==mode)throw new ApiError(422,'DELIVERY_MODE_LOCKED','Create a new transfer to change its transport mode.');if(current&&!canEditTransfer(actor,current))throw new ApiError(403,"TRANSFER_LOCKED","Only the source preparer can edit an unsubmitted transfer.");
  if(input.sourceWarehouseId===input.targetWarehouseId)throw new ApiError(422,"SAME_WAREHOUSE","Choose different source and receiving warehouses.");
  if(current&&(current.source_warehouse_id!==input.sourceWarehouseId||current.target_warehouse_id!==input.targetWarehouseId))throw new ApiError(422,"WAREHOUSE_LOCKED","Create a new transfer to change its route.");
  if(new Set(input.lines.map(l=>l.productId)).size!==input.lines.length)throw new ApiError(422,"DUPLICATE_PRODUCT","Use one line per product.");
@@ -51,14 +61,15 @@ export async function saveTransfer(actor:WorkContext,id:string|null,input:z.infe
  if(!source||!target||actor.branchId&&actor.branchId!==source.branch_id)throw new ApiError(422,"WAREHOUSE_INVALID","Choose an authorized source and a receiving warehouse in this company.");
  const row:TransferRow={company_id:actor.companyId,source_warehouse_id:source.id,target_warehouse_id:target.id,source_branch_id:source.branch_id,target_branch_id:target.branch_id,source_warehouse_version:source.version,target_warehouse_version:target.version};const steps=warehouseGuards(write,key,row),lines:TransferRow[]=[];let total=0;
  for(const [index,item]of input.lines.entries()){
-  const stock=await write.prepare("SELECT s.*,p.version product_version,p.name,p.unit FROM commerce_stock s JOIN commerce_products p ON p.id=s.product_id WHERE s.warehouse_id=? AND s.product_id=? AND p.company_id=? AND p.status='active'").bind(source.id,item.productId,actor.companyId).first<TransferRow>();
-  const qty=decimalToMinor(item.quantity,3);if(!stock||qty<=0||qty>Number(stock.quantity_milli))throw new ApiError(422,"INSUFFICIENT_STOCK","Transfer quantity must be positive and within available source stock.");
+  const stock=await write.prepare("SELECT s.*,COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0) reserved_milli,p.version product_version,p.name,p.unit FROM commerce_stock s JOIN commerce_products p ON p.id=s.product_id WHERE s.warehouse_id=? AND s.product_id=? AND p.company_id=? AND p.status='active'").bind(source.id,item.productId,actor.companyId).first<TransferRow>();
+  const qty=decimalToMinor(item.quantity,3);if(!stock||qty<=0||qty>Number(stock.quantity_milli)-Number(stock.reserved_milli))throw new ApiError(422,"INSUFFICIENT_STOCK","Transfer quantity must be positive and within available source stock.");
   const value=scaledAmount(Number(stock.value_minor),qty,Number(stock.quantity_milli));if(value<=0)throw new ApiError(422,"VALUATION_REQUIRED","The transferred stock must have a positive recorded value.");total+=value;
   const l:TransferRow={id:`${record}-${index}`,product_id:item.productId,product_version:stock.product_version,description:stock.name,unit:stock.unit,quantity_milli:qty,value_minor:value,source_quantity_milli:stock.quantity_milli,source_value_minor:stock.value_minor,source_version:stock.version,ordinal:index};lines.push(l);steps.push(sourceGuard(write,key,index,source.id,l),dateGuard(write,key,index,source.id,target.id,item.productId,input.transferDate),assertion(write,key,`product-${index}`,"EXISTS(SELECT 1 FROM commerce_products WHERE id=? AND version=? AND status='active')",[item.productId,l.product_version]));
  }
  if(!Number.isSafeInteger(total))throw new ApiError(422,"VALUE_OVERFLOW","Transfer value exceeds supported precision.");const now=Date.now(),version=current?(input.expectedVersion??0)+1:1;
  if(current)steps.push(transferGuard(write,key,current,input.expectedVersion??0),write.prepare("UPDATE inventory_transfers SET source_branch_id=?,target_branch_id=?,source_warehouse_version=?,target_warehouse_version=?,transfer_date=?,reason=?,total_value_minor=?,prepared_by=?,status='draft',version=version+1,updated_at=? WHERE id=?").bind(source.branch_id,target.branch_id,source.version,target.version,input.transferDate,input.reason,total,actor.userId,now,record),write.prepare("DELETE FROM inventory_transfer_lines WHERE transfer_id=?").bind(record));
  else steps.push(write.prepare("INSERT INTO inventory_transfers(id,company_id,source_warehouse_id,target_warehouse_id,source_branch_id,target_branch_id,source_warehouse_version,target_warehouse_version,number,transfer_date,reason,total_value_minor,created_by,prepared_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(record,actor.companyId,source.id,target.id,source.branch_id,target.branch_id,source.version,target.version,`TR-${(await sha256(record)).slice(0,24).toUpperCase()}`,input.transferDate,input.reason,total,actor.userId,actor.userId,now,now));
+ steps.push(write.prepare('UPDATE inventory_transfers SET delivery_mode=?,arrival_due_date=? WHERE id=?').bind(mode,due,record));
  for(const l of lines)steps.push(write.prepare("INSERT INTO inventory_transfer_lines(id,transfer_id,product_id,product_version,description,unit,quantity_milli,value_minor,source_quantity_milli,source_value_minor,source_version,ordinal) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(l.id,record,l.product_id,l.product_version,l.description,l.unit,l.quantity_milli,l.value_minor,l.source_quantity_milli,l.source_value_minor,l.source_version,l.ordinal));
  return executeCommand(write,actor,key,operation,input,record,version,{id:record,status:"draft",version},steps);
 }
@@ -72,7 +83,7 @@ export async function transitionTransfer(actor:WorkContext,id:string,action:"sub
   if(!lines.length)throw new ApiError(409,"EMPTY_TRANSFER","Add products to transfer.");steps.push(...warehouseGuards(write,key,transfer));
   for(const [index,l]of lines.entries())steps.push(sourceGuard(write,key,index,transfer.source_warehouse_id,l),dateGuard(write,key,index,transfer.source_warehouse_id,transfer.target_warehouse_id,l.product_id,transfer.transfer_date),assertion(write,key,`product-${index}`,"EXISTS(SELECT 1 FROM commerce_products WHERE id=? AND version=? AND status='active')",[l.product_id,l.product_version]));
  }
- if(action==="post"){
+ if(action==="post"&&transfer.delivery_mode!=="transit"){
   const periods=await write.prepare("SELECT id FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=?").bind(actor.companyId,transfer.transfer_date,transfer.transfer_date).all<TransferRow>();if(periods.results.length!==1)throw new ApiError(409,"PERIOD_UNAVAILABLE","Exactly one open period must cover the transfer date.");steps.push(assertion(write,key,"period","EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND state='open')",[periods.results[0].id]));
   for(const [index,l]of lines.entries()){
    const target=await write.prepare("SELECT * FROM commerce_stock WHERE warehouse_id=? AND product_id=?").bind(transfer.target_warehouse_id,l.product_id).first<TransferRow>();const targetQty=Number(target?.quantity_milli??0)+Number(l.quantity_milli),targetValue=Number(target?.value_minor??0)+Number(l.value_minor);if(!Number.isSafeInteger(targetQty)||!Number.isSafeInteger(targetValue))throw new ApiError(422,"VALUE_OVERFLOW","Receiving stock exceeds supported precision.");
@@ -82,6 +93,7 @@ export async function transitionTransfer(actor:WorkContext,id:string,action:"sub
    for(const [side,warehouse,direction]of [["out",transfer.source_warehouse_id,-1],["in",transfer.target_warehouse_id,1]] as const)steps.push(write.prepare("INSERT INTO inventory_transfer_moves(id,transfer_id,warehouse_id,product_id,quantity_milli,value_minor,movement_date,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(`${id}-${index}-${side}`,id,warehouse,l.product_id,direction*Number(l.quantity_milli),direction*Number(l.value_minor),transfer.transfer_date,now));
   }
  }
+ if(action==='post'&&transfer.delivery_mode==='transit')steps.push(...await (await import('./inventory-transit')).prepareTransit(write,actor,transfer,lines));
  steps.push(write.prepare("UPDATE inventory_transfers SET status=?,approved_by=CASE WHEN ?='post' THEN ? ELSE approved_by END,submitted_at=CASE WHEN ?='submit' THEN ? ELSE submitted_at END,posted_at=CASE WHEN ?='post' THEN ? ELSE posted_at END,version=version+1,updated_at=? WHERE id=?").bind(status,action,actor.userId,action,now,action,now,now,id));
  if(action!=="submit")steps.push(write.prepare("INSERT INTO inventory_transfer_decisions(id,transfer_id,command_id,action,actor_id,reviewed_version,reason,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(),id,key,action,actor.userId,input.expectedVersion,input.reason,now));
  if(review)steps.push(write.prepare("INSERT INTO decision_evidence(id,command_id,record_id,action,actor_id,assignment_id,reviewed_version,input_digest,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(),key,id,operation,actor.userId,actor.assignmentId,input.expectedVersion,await sha256(JSON.stringify({reason:input.reason,lines})),now));

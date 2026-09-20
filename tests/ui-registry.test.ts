@@ -23,12 +23,12 @@ describe("Enterprise UI coverage and routing", () => {
     expect(modulesForRole("holding_owner",["people_payroll","finance"])).toEqual(["people_payroll","finance"]);
   });
   it("covers all module capabilities without ambiguous section routes", () => {
-    expect(moduleRegistry).toHaveLength(31);
+    expect(moduleRegistry).toHaveLength(32);
     expect(
       moduleRegistry
         .flatMap((module) => module.sections)
         .filter((section) => section.capability),
-    ).toHaveLength(171);
+    ).toHaveLength(183);
     expect(
       new Set(
         moduleRegistry.flatMap((module) =>

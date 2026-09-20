@@ -1,0 +1,41 @@
+{
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "dirtyWorkingTree": true,
+  "runtime": {
+    "node": "24.20.0",
+    "bun": "1.2.17"
+  },
+  "environment": "disposable PostgreSQL integration databases; development browser observation",
+  "sourceHashes": {
+    "migrations/postgres/holding-write/0206_quality_holds.sql": "54db323c4bdca721c3e3022191b80c3a6244b1bb121abee9f8303a936b0b008b",
+    "src/server/quality.ts": "0f411e1cf9e00fd63be1273abe879e99ffd6a009c00b6c836a812ea9df09dc89",
+    "src/server/pos-core.ts": "8d43c9929201d45b1de912d280d852019aac4dd47f572830bea3a4921373a94c",
+    "src/server/pos.ts": "0f893efc3d4130915ddcc0dc22bc09e4aca47a41f913eb3305b0f1f5c4ebbc20",
+    "src/server/commerce.ts": "66789ecd0260f7454d5abbcb93de340a17838301ea1e3dce5dd6bf1df462bbc1",
+    "src/server/calendar/quality.ts": "65e4bb372e2ec74c87a5da88b72e3249a8ff02dccaf05ed7a4e03cb906050fc0",
+    "src/lib/permissions.ts": "4d187ea9cf6233c935f6ba5121272c611ea420780d770698a1e8c48155440ca3",
+    "src/components/modules/quality-console.tsx": "6f0ed251762d89ae435110158d09b1afaf7b602945be1fb8aef604893e7d99ae",
+    "tests/quality.test.ts": "3568201b52e35f62c2135720554ddbb80734947a381d7340aad4ad9928f04676",
+    "tests/pos.test.ts": "29470e53e0615252eeb787a4d1edaa27f1e5600b35aac2999064c7b092835fda"
+  },
+  "browser": {
+    "url": "https://erpx.jesadakorn.com/holdings/acme/quality",
+    "observed": "Authenticated holding-owner queue, product/warehouse selector, due date, reason form, navigation and screenshot. No transaction submitted.",
+    "multiRoleAcceptance": "pending"
+  },
+  "verification": {
+    "ownerRegression": {
+      "filesPassed": 7,
+      "testsPassed": 116,
+      "testsSkipped": 0
+    },
+    "typecheck": "passed",
+    "lint": "0 errors; 3 pre-existing warnings"
+  },
+  "limitations": [
+    "Owner regression is not the full repository suite.",
+    "Work date is UTC; Company business-calendar policy snapshot remains missing.",
+    "Lot/serial, measurements, attachments, disposition and cancellation remain incomplete.",
+    "Multi-role browser, provider and production gates are pending."
+  ]
+}

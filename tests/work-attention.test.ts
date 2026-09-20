@@ -9,17 +9,17 @@ const item = (id: string, changes: Partial<WorkItem> = {}): WorkItem => ({
 });
 
 describe("workspace attention", () => {
-  it("includes blocked waiting work once, excludes completed and ordinary waiting work, and counts beyond the preview", () => {
-    const blocked = item("blocked", { queue: "waiting", blocker: "Choose an owner" });
-    const result = workAttention([blocked, blocked, item("a"), item("b"), item("c"), item("waiting", { queue: "waiting" }), item("done", { queue: "completed", blocker: "Old blocker" })], false, 100);
-    expect(result.total).toBe(4);
+  it("keeps blocked team work out of personal attention", () => {
+    const blocked = item("blocked", { queue: "waiting", relationships:["team"], blocker: "Choose an owner" });
+    const result = workAttention([blocked, blocked, item("a"), item("b"), item("c"), item("waiting", { queue: "waiting", relationships:["requested"] }), item("done", { queue: "completed", blocker: "Old blocker" })], false, 100);
+    expect(result.total).toBe(3);
     expect(result.items).toHaveLength(3);
-    expect(result.items[0].id).toBe("blocked");
-    expect(result.waiting).toBe(2);
+    expect(result.items[0].id).toBe("a");
+    expect(result.waiting).toBe(1);
   });
-  it("orders blockers before overdue work, then due date, latest update and a stable identity", () => {
+  it("orders overdue work, then due date, latest update and a stable identity", () => {
     const rows = [item("latest", { updatedAt: 60 }), item("due", { dueAt: 200 }), item("old"), item("overdue", { dueAt: 80 }), item("blocked", { blocker: "Missing details", dueAt: 300 })];
-    expect(workAttention(rows, false, 100).items.map(i => i.id)).toEqual(["blocked", "overdue", "due"]);
+    expect(workAttention(rows, false, 100).items.map(i => i.id)).toEqual(["overdue", "due", "blocked"]);
     expect(workAttention([item("b"), item("a"), rows[0]], false, 100).items.map(i => i.id)).toEqual(["latest", "a", "b"]);
     expect(rows[0].id).toBe("latest");
   });

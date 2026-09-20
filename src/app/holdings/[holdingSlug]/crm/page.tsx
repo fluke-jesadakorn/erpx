@@ -1,0 +1,9 @@
+import Link from 'next/link';
+import {requireWorkContext,publicScope} from '@/server/authorization';
+import {workspaceBase} from '@/lib/workspace';
+import {pageError} from '@/server/page-error';
+import {crmWorkspace} from '@/server/crm';
+import {CRMConsole} from '@/components/modules/crm-console';
+import {crmForecastDecimal} from '@/lib/crm-forecast';
+export const dynamic='force-dynamic';
+export default async function Page({params}:{params:Promise<{holdingSlug:string}>}){const {holdingSlug}=await params,a=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(a)),data=await crmWorkspace(a).catch(e=>pageError(e,holdingSlug));return <div className="content-stack"><Link href={`${base}/work`}>Back to Work</Link><h1>Leads &amp; opportunities</h1><p>Qualify customer needs, retain the inquiry brief and connect independently approved sales documents.</p><Link href={`${base}/customer-followups`}>Customer contact activities</Link><CRMConsole base={base} data={data}/><section className="card"><h2>Pipeline forecast</h2><p>Internal planning estimates, excluding tax. Discovery 25%, proposal 50%, negotiation 75%. Won values reflect confirmed sales at closure and are not accounting revenue. Currencies are kept separate.</p>{Object.entries(data.forecast).map(([currency,f])=><p key={currency}>{currency} · Open net {crmForecastDecimal(f.unweightedMinor)} · Weighted net {crmForecastDecimal(f.weightedMinor)} · Won net {crmForecastDecimal(f.wonMinor)}</p>)}{!Object.keys(data.forecast).length&&<p>No opportunities in this scope.</p>}</section><section className="card">{data.items.map(r=><Link className="row" key={String(r.id)} href={`${base}/crm/${r.id}`}><strong>{String(r.title)} · {String(r.stage??r.status)}</strong><span>{String(r.owner_name??'Owner unavailable')} · Due {String(r.close_date??r.due_date)}</span></Link>)}{!data.items.length&&<p>No leads in this scope.</p>}</section></div>;}

@@ -1,0 +1,20 @@
+{
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "workingTree": "dirty",
+  "files": {
+    "src/server/quality.ts": "a1d9f1f28dca01b24a59bd0a159c4946cbd26e70f1b4a15cf552e9eec4a99e46",
+    "src/server/commerce.ts": "09935dbc9581b986c111402e6d64dc89124b468802f04ddde3b50e93f232a853",
+    "src/server/pos.ts": "0f893efc3d4130915ddcc0dc22bc09e4aca47a41f913eb3305b0f1f5c4ebbc20",
+    "src/server/inventory-transfers.ts": "a1981b12afd79e3a5fe9bed38879266c36a63d1ad70115d25ad4ad180444110a",
+    "src/server/calendar/quality.ts": "99bac55e4c20657d2bca88c6030b05ae76d52e5e382f82093b50eb2a1506a0c1",
+    "src/components/modules/quality-console.tsx": "2f2090c74d8e7bfd8c30ab7ea235d3f52176611dfd188be6fba508e807e1e9c2",
+    "migrations/postgres/holding-write/0213_quality_hold_cancellation.sql": "669db11c599ccc1216dbb307a5646ccf1d71413255c73b8214002972df4bc7c7",
+    "tests/quality.test.ts": "1643b56caaca706592f3409b15f3551428c4f1bba36d6858c8e5f278eb9e39d3"
+  },
+  "environment": "isolated databases, pinned runtime",
+  "scope": "50 tests across Quality, POS, Calendar and Customer notes; inventory-transfers.test.ts did not exist and is not counted",
+  "limitations": [
+    "Whole warehouse/product quarantine only.",
+    "Multi-role cancellation browser acceptance pending."
+  ]
+}

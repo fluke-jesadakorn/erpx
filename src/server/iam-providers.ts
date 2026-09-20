@@ -38,8 +38,25 @@ const secretSchema = z.object({
   bindPassword: z.string().optional(),
   clientSecret: z.string().optional(),
   caPem: z.string().optional(),
+  tlsServerName: z.string().optional(),
   verificationIdToken: z.string().optional(),
+  udmUrl: z.string().url().optional(),
+  udmUsername: z.string().optional(),
+  udmPassword: z.string().optional(),
+  sambaRunnerUrl: z.string().url().optional(),
+  sambaRunnerToken: z.string().min(32).optional(),
+  windowsRunnerUrl: z.string().url().optional(),
+  windowsRunnerToken: z.string().min(32).optional(),
+  identityAliases: z.record(z.string(), z.string()).default({}),
+  writeOperations: z.array(z.string()).default([]),
+  writeBaseDns: z.array(z.string().min(3)).default([]),
 });
+function canonicalExternalId(
+  secret: z.infer<typeof secretSchema>,
+  providerId: string,
+) {
+  return secret.identityAliases[providerId.toLowerCase()] ?? providerId;
+}
 export async function directorySecret(
   config: DirectoryConfig,
   connectionId: string,
@@ -183,10 +200,41 @@ async function ldapClient(connection: ProviderConnection) {
     connectTimeout: 5000,
     tlsOptions: {
       rejectUnauthorized: true,
+      ...(secret.tlsServerName ? { servername: secret.tlsServerName } : {}),
       ...(secret.caPem ? { ca: secret.caPem } : {}),
     },
   });
   return { client, secret };
+}
+export async function assertEmptyUcsContainer(
+  connection: ProviderConnection,
+  dn: string,
+  id: string,
+) {
+  const { client, secret } = await ldapClient(connection);
+  try {
+    await client.bind(secret.bindDn!, secret.bindPassword!);
+    const { searchEntries } = await client.search(dn, {
+      scope: "base",
+      filter: "(objectClass=*)",
+      attributes: ["entryUUID", "hasSubordinates"],
+    });
+    const entry = searchEntries[0];
+    if (!entry || first(entry, "entryUUID") !== id)
+      throw new ApiError(
+        409,
+        "DIRECTORY_IDENTITY_CHANGED",
+        "The container identity changed. Read inventory again.",
+      );
+    if (first(entry, "hasSubordinates").toUpperCase() !== "FALSE")
+      throw new ApiError(
+        409,
+        "DIRECTORY_CONTAINER_NOT_EMPTY",
+        "UCS recreates populated containers when moving them. Move their children first, then move the empty container and return the children to preserve permanent identities.",
+      );
+  } finally {
+    await client.unbind().catch(() => undefined);
+  }
 }
 export async function readLdapDirectory(
   connection: ProviderConnection,
@@ -251,7 +299,11 @@ export async function readLdapDirectory(
         "DIRECTORY_LIMIT_EXCEEDED",
         "Narrow the directory view before synchronization.",
       );
-    if (users.searchReferences?.length || groups.searchReferences?.length)
+    // AD domain searches commonly return referrals for the Configuration and
+    // DNS application partitions alongside complete results from the requested
+    // domain NC. UCS/OpenLDAP referrals remain a hard failure because they can
+    // represent an incomplete split directory view.
+    if (!ad && (users.searchReferences?.length || groups.searchReferences?.length))
       throw new ApiError(
         502,
         "DIRECTORY_INCOMPLETE",
@@ -309,7 +361,7 @@ export async function readLdapDirectory(
       }
     }
     const groupRows = groups.searchEntries.map((g) => ({
-      externalId: immutable(g, ad),
+      externalId: canonicalExternalId(secret, immutable(g, ad)),
       name: first(g, "cn"),
       dn: g.dn.toLowerCase(),
       members: [...values(g, "member"), ...values(g, "uniqueMember")].map((v) =>
@@ -341,7 +393,7 @@ export async function readLdapDirectory(
           );
       }
       return {
-        externalId: immutable(u, ad),
+        externalId: canonicalExternalId(secret, immutable(u, ad)),
         username,
         name: first(u, "displayName") || first(u, "cn") || username,
         email: first(u, "mailPrimaryAddress") || first(u, "mail") || null,
@@ -358,7 +410,7 @@ export async function readLdapDirectory(
       sizeLimit: 10001,
     });
     if (
-      containers.searchReferences?.length ||
+      (!ad && containers.searchReferences?.length) ||
       containers.searchEntries.length > 10000
     )
       throw new ApiError(
@@ -382,7 +434,7 @@ export async function readLdapDirectory(
         sizeLimit: 10001,
       });
       if (
-        groupContainers.searchReferences?.length ||
+        (!ad && groupContainers.searchReferences?.length) ||
         groupContainers.searchEntries.length > 10000
       )
         throw new ApiError(
@@ -399,7 +451,7 @@ export async function readLdapDirectory(
           containers.searchEntries.push(entry);
     }
     const containerRows = containers.searchEntries.map((c) => ({
-      id: immutable(c, ad),
+      id: canonicalExternalId(secret, immutable(c, ad)),
       dn: c.dn.toLowerCase(),
       row: c,
     }));
@@ -436,7 +488,7 @@ export async function readLdapDirectory(
       placements: [
         ...users.searchEntries.map((u) => ({
           kind: "identity" as const,
-          externalId: immutable(u, ad),
+          externalId: canonicalExternalId(secret, immutable(u, ad)),
           containerId: parent(u.dn),
         })),
         ...groupRows.map((g) => ({
@@ -502,7 +554,7 @@ export async function verifyLdapPassword(
       entries.searchEntries.length === 1 ? entries.searchEntries[0] : null;
     if (!user || !ldapEnabled(user, ad)) throw new Error("Denied");
     await client.bind(user.dn, password);
-    return immutable(user, ad);
+    return canonicalExternalId(secret, immutable(user, ad));
   } catch {
     throw new ApiError(
       401,

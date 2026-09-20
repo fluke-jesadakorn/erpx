@@ -13,7 +13,13 @@ export async function migrateDatabase(db: PostgresDatabase, track: string, root 
       const sql = await readFile(join(root, track, name), 'utf8'), checksum = createHash('sha256').update(sql).digest('hex');
       const previous = await client.query('SELECT checksum FROM erpx_migrations WHERE name=$1', [name]);
       if (previous.rows.length) {
-        if (previous.rows[0].checksum !== checksum) throw new Error(`MIGRATION_CHANGED:${track}:${name}`);
+        // Two shipped 0041 variants exist in development. Preserve the original receipt;
+        // 0042 repairs entitlement provenance additively and 0043 normalizes approval kinds.
+        // This exception is pinned to both exact hashes, never to a filename alone.
+        const repairedLeavePredecessor = track === 'holding-write' && name === '0041_leave_self_service.sql'
+          && previous.rows[0].checksum === 'fb926c55f087b296c11f0f3356a32c2473bd3c56ea13834f25f186564da9038a'
+          && checksum === '0b964e468801e0d410cbcce5e1b8f5d3c4cc85d095d51ec38feaa0d6844e007e';
+        if (previous.rows[0].checksum !== checksum && !repairedLeavePredecessor) throw new Error(`MIGRATION_CHANGED:${track}:${name}`);
         continue;
       }
       await client.query('BEGIN');

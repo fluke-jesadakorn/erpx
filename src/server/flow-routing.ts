@@ -1,3 +1,4 @@
+import { policyRead, policyNow, hasPolicyReadSnapshot } from "./iam-read-snapshot";
 import {currentPersonPrincipals} from "./iam-person";
 import { hasWorkflowPermission } from "@/lib/permissions";
 import type { PermissionActor } from "@/lib/iam";
@@ -14,7 +15,7 @@ import { ApiError } from "./http";
 type Row = Record<string, string | number | null>;
 const tables: Record<FlowKind, string> = { expense: "finance_expenses", leave: "leave_requests", staff_task: "staff_tasks", request: "employee_requests", stock_count: "inventory_counts", transfer: "inventory_transfers", order: "commerce_orders", invoice: "finance_invoices", journal: "finance_journals", payroll: "hr_payroll_runs", record: "workspace_records" };
 export async function flowRecord(db: SqlDatabase, companyId: string, kind: FlowKind, id: string) {
-  const row = await db.prepare(`SELECT * FROM ${tables[kind]} WHERE company_id=? AND id=?`).bind(companyId, id).first<Row>();
+  const row = await policyRead(db, JSON.stringify(["flow-record", companyId, kind, id]), () => db.prepare(`SELECT * FROM ${tables[kind]} WHERE company_id=? AND id=?`).bind(companyId, id).first<Row>());
   if (!row) throw new ApiError(404, "FLOW_NOT_FOUND", "Workflow document not found in this company.");
   return row;
 }
@@ -119,7 +120,7 @@ async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:Staf
   } else if (kind === "stock_count" || kind === "transfer") {
     const target = kind === "transfer" ? { ...scope, branch_id: str(row.target_branch_id) || null, department_id: null } : { ...scope, branch_id: null, department_id: null };
     add("draft", "Prepare and submit warehouse document", "warehouse_manager", [owner], owner);
-    add("submitted", kind === "transfer" ? "Confirm receipt and post stock transfer" : "Approve stock count for GL review", kind === "transfer" ? "warehouse_manager" : "finance_approver", await roles(kind === "transfer" ? ["warehouse_manager","operations_manager","finance_approver","holding_owner"] : ["finance_approver","holding_owner"], true, target));
+    add("submitted", kind === "transfer" ? row.delivery_mode==="transit"?"Approve transport for source dispatch":"Confirm receipt and post stock transfer" : "Approve stock count for GL review", kind === "transfer" ? "warehouse_manager" : "finance_approver", await roles(kind === "transfer" ? ["warehouse_manager","operations_manager","finance_approver","holding_owner"] : ["finance_approver","holding_owner"], true, target));
     if (kind === "stock_count") add("approved", "Review Debit / Credit and post stock adjustment", "finance_approver", await roles(["finance_approver","holding_owner"], true,target),str(row.approved_by)||undefined);
     current = current === "rejected" ? "draft" : current;
     terminal ||= current === "posted";
@@ -131,6 +132,10 @@ async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:Staf
     add("stock_gl", "Review and post goods movement GL", "finance_approver", await roles(["finance_approver","holding_owner"],true));
     add("invoicing", "Prepare invoice for independent GL review", "finance_preparer", await roles(["finance_preparer","finance_approver","holding_owner"]));
     const pending = await db.prepare("SELECT 1 FROM commerce_fulfillments WHERE order_id=? AND invoice_id IS NULL LIMIT 1").bind(row.id).first();
+    if(purchase&&pending){
+      const ready=await db.prepare("SELECT 1 FROM commerce_fulfillments f WHERE f.order_id=? AND f.invoice_id IS NULL AND (NOT EXISTS(SELECT 1 FROM procurement_bill_matches m WHERE m.fulfillment_id=f.id) OR EXISTS(SELECT 1 FROM procurement_bill_matches m WHERE m.fulfillment_id=f.id AND m.status='approved')) LIMIT 1").bind(row.id).first();
+      if(!ready){const step=steps.find(s=>s.key==='invoicing');if(step)step.blocker='Supplier invoice matching requires independent review or supplier correction before AP preparation.';}
+    }
     const stockGl = await db.prepare("SELECT 1 FROM commerce_fulfillments f JOIN finance_journals j ON j.id=f.journal_id WHERE f.order_id=? AND j.status IN ('draft','in_review') LIMIT 1").bind(row.id).first();
     if (current === "fulfilled" && stockGl) current = "stock_gl";
     else if (current === "fulfilled" && pending) current = "invoicing";
@@ -176,21 +181,46 @@ export function flowRoleAllowed(authority:string|PermissionActor,step:FlowStep|n
   return !!step && (step.allowedRoles?.length ? step.allowedRoles.some(role=>hasWorkflowPermission(actor,role)) : ["requester","assignee","team_lead","team_member","personal_approver"].includes(step.role) || hasWorkflowPermission(actor,["named","department"].includes(step.role)?"people_manager":step.role));
 }
 
+type FlowHistoryRow = { kind: string; record_id: string; action: string; actor_name: string; created_at: number; reason: string; step_key: string };
+// Batch common reference data once for a Work read. Command/detail reads retain
+// their original per-document queries and do not reuse authorization decisions.
+function sharedFlowReferences(db: SqlDatabase, companyId: string) {
+  return policyRead(db, JSON.stringify(["flow-references", companyId]), async () => {
+    const [routes, defaults, events] = await Promise.all([
+      db.prepare("SELECT * FROM flow_routes WHERE company_id=?").bind(companyId).all<Route & { kind: string; record_id: string }>(),
+      db.prepare("SELECT * FROM flow_defaults WHERE company_id=? ORDER BY CASE WHEN department_id IS NOT NULL THEN 3 WHEN branch_id IS NOT NULL THEN 2 ELSE 1 END DESC,revision DESC").bind(companyId).all<DefaultRow & { kind: string; branch_id: string | null; department_id: string | null }>(),
+      db.prepare("SELECT kind,record_id,action,actor_name,created_at,reason,step_key FROM flow_events WHERE company_id=? ORDER BY created_at,id").bind(companyId).all<FlowHistoryRow>(),
+    ]);
+    const histories = new Map<string, FlowHistoryRow[]>();
+    for (const event of events.results) {
+      const key = `${event.kind}:${event.record_id}`;
+      const rows = histories.get(key) ?? [];
+      rows.push(event); histories.set(key, rows);
+    }
+    return { routes: new Map(routes.results.map(row => [`${row.kind}:${row.record_id}`, row])), defaults: defaults.results, histories,
+      revision: defaults.results.reduce((max, row) => Math.max(max, row.revision), 0) };
+  });
+}
 export async function resolveFlow(db: SqlDatabase, actor: StaffActor, kind: FlowKind, id: string): Promise<FlowView> {
+  return policyRead(db, JSON.stringify(["flow-view", actor, kind, id]), () => readFlow(db, actor, kind, id));
+}
+async function readFlow(db: SqlDatabase, actor: StaffActor, kind: FlowKind, id: string): Promise<FlowView> {
   const row = await flowRecord(db, actor.companyId, kind, id);
   const d = await definitions(db, kind, row, actor);
-  const route = await db.prepare("SELECT * FROM flow_routes WHERE company_id=? AND kind=? AND record_id=?").bind(actor.companyId, kind, id).first<Route>();
+  const shared = hasPolicyReadSnapshot() ? await sharedFlowReferences(db, actor.companyId) : null;
+  const route = shared ? shared.routes.get(`${kind}:${id}`) : await db.prepare("SELECT * FROM flow_routes WHERE company_id=? AND kind=? AND record_id=?").bind(actor.companyId, kind, id).first<Route>();
   const saved = route ? JSON.parse(route.steps_json) as Record<string,SavedStep> : {};
-  const defaultsRevision = route?.defaults_revision ?? (await db.prepare("SELECT COALESCE(MAX(revision),0) revision FROM flow_defaults WHERE company_id=?").bind(actor.companyId).first<{revision:number}>())!.revision;
-  const defaults = (await db.prepare(`SELECT revision,step_key,primary_user_id FROM flow_defaults WHERE company_id=? AND kind=? AND (branch_id IS NULL OR branch_id=?) AND (department_id IS NULL OR department_id=?) AND revision<=? ORDER BY CASE WHEN department_id IS NOT NULL THEN 3 WHEN branch_id IS NOT NULL THEN 2 ELSE 1 END DESC,revision DESC`).bind(actor.companyId,kind,d.scope.branch_id,d.scope.department_id,defaultsRevision).all<DefaultRow>()).results;
-  const now = Date.now();
-  const people = (await db.prepare(`SELECT s.user_id,s.legal_name,s.department_id,n.display_name team_name FROM (${activeStaffSelect}) s LEFT JOIN organization_nodes n ON n.company_id=s.company_id AND n.id=s.department_id AND n.status='active'`).bind(actor.companyId,now,now).all<{user_id:string;legal_name:string;department_id:string|null;team_name:string|null}>()).results;
+  const defaultsRevision = route?.defaults_revision ?? shared?.revision ?? (await db.prepare("SELECT COALESCE(MAX(revision),0) revision FROM flow_defaults WHERE company_id=?").bind(actor.companyId).first<{revision:number}>())!.revision;
+  const defaults = shared ? shared.defaults.filter(row => row.kind === kind && (row.branch_id === null || row.branch_id === d.scope.branch_id) && (row.department_id === null || row.department_id === d.scope.department_id) && row.revision <= defaultsRevision) : (await db.prepare(`SELECT revision,step_key,primary_user_id FROM flow_defaults WHERE company_id=? AND kind=? AND (branch_id IS NULL OR branch_id=?) AND (department_id IS NULL OR department_id=?) AND revision<=? ORDER BY CASE WHEN department_id IS NOT NULL THEN 3 WHEN branch_id IS NOT NULL THEN 2 ELSE 1 END DESC,revision DESC`).bind(actor.companyId,kind,d.scope.branch_id,d.scope.department_id,defaultsRevision).all<DefaultRow>()).results;
+  const now = policyNow();
+  const people = await policyRead(db, JSON.stringify(["flow-people",actor.companyId]), async () => (await db.prepare(`SELECT s.user_id,s.legal_name,s.department_id,n.display_name team_name FROM (${activeStaffSelect}) s LEFT JOIN organization_nodes n ON n.company_id=s.company_id AND n.id=s.department_id AND n.status='active'`).bind(actor.companyId,now,now).all<{user_id:string;legal_name:string;department_id:string|null;team_name:string|null}>()).results);
   const known = new Map(people.map(p => [p.user_id, {userId:p.user_id,name:p.legal_name,teamId:p.department_id,teamName:p.team_name ?? "Company"} satisfies FlowPerson]));
   if (kind === "request") {
-    const members = (await db.prepare("SELECT DISTINCT a.user_id,COALESCE(p.legal_name,a.user_id) name FROM assignments a LEFT JOIN hr_people p ON p.company_id=a.company_id AND p.user_id=a.user_id AND p.merged_into_id IS NULL WHERE a.company_id=? AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_from<=? AND a.valid_until>?").bind(actor.companyId,now,now).all<{user_id:string;name:string}>()).results;
+    const members = await policyRead(db, JSON.stringify(["flow-members",actor.companyId]), async () => (await db.prepare("SELECT DISTINCT a.user_id,COALESCE(p.legal_name,a.user_id) name FROM assignments a LEFT JOIN hr_people p ON p.company_id=a.company_id AND p.user_id=a.user_id AND p.merged_into_id IS NULL WHERE a.company_id=? AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_from<=? AND a.valid_until>?").bind(actor.companyId,now,now).all<{user_id:string;name:string}>()).results);
     for (const member of members) if (!known.has(member.user_id)) known.set(member.user_id,{userId:member.user_id,name:member.name,teamId:null,teamName:"Company"});
   }
-  const history = (await db.prepare("SELECT action,actor_name,created_at,reason,step_key FROM flow_events WHERE company_id=? AND kind=? AND record_id=? ORDER BY created_at,id").bind(actor.companyId,kind,id).all<{action:string;actor_name:string;created_at:number;reason:string;step_key:string}>()).results.map(e => ({action:e.action,actorName:e.actor_name,at:e.created_at,reason:e.reason,step:e.step_key}));
+  const historyRows = shared ? shared.histories.get(`${kind}:${id}`) ?? [] : (await db.prepare("SELECT action,actor_name,created_at,reason,step_key FROM flow_events WHERE company_id=? AND kind=? AND record_id=? ORDER BY created_at,id").bind(actor.companyId,kind,id).all<{action:string;actor_name:string;created_at:number;reason:string;step_key:string}>()).results;
+  const history = historyRows.map(e => ({action:e.action,actorName:e.actor_name,at:e.created_at,reason:e.reason,step:e.step_key}));
   const identities=await currentPersonPrincipals(db,actor.companyId,[...d.steps.flatMap(s=>[...s.ids,...(s.preferred?[s.preferred]:[])]),...Object.values(saved).flatMap(s=>s.primaryUserId?[s.primaryUserId]:[]),...defaults.map(d=>d.primary_user_id)]);
   const steps: FlowStep[] = d.steps.map(s => {
     const candidates = [...new Set(s.ids.map(id=>identities.get(id)??id))].flatMap(userId => known.has(userId) ? [known.get(userId)!] : []);
@@ -287,12 +317,13 @@ export async function assignFlowPrimary(db: SqlDatabase, actor: StaffActor, kind
 }
 
 export function flowCommandTarget(operation: string, id: string, input: unknown): {kind:FlowKind;id:string;action:string} | null {
+  if(operation.startsWith("leave.self.")||operation.startsWith("leave.policy.")||operation.startsWith("leave.cancellation"))return null;
   if(["record.archive","record.mention","record.reference","record.suggestion","record.suggestion.decide"].includes(operation))return null;
   const rules: [string,FlowKind][] = [["expense.","expense"],["leave.","leave"],["task.","staff_task"],["employee.request.","request"],["inventory.count.","stock_count"],["inventory.transfer.","transfer"],["commerce.order.","order"],["commerce.invoice.settle","invoice"],["finance.invoice.post","invoice"],["finance.journal.post","journal"],["people.payroll.","payroll"],["record.","record"]];
   const rule = rules.find(([prefix]) => operation.startsWith(prefix));
   if (!rule) return null;
   let action = operation.slice(rule[0].endsWith(".") ? rule[0].length : operation.lastIndexOf(".")+1);
   if (action === "transition" && input && typeof input === "object") action = String((input as Record<string,unknown>).action ?? "");
-  if (["create","update","revise","attachment.remove","ai","post.reverse","recalculate"].includes(action) || action.startsWith("ai.") || action.startsWith("payment.") || action === "reverse") return null;
+  if (["create","update","revise","attachment.remove","ai","post.reverse","recalculate","review-export"].includes(action) || action.startsWith("ai.") || action.startsWith("payment.") || action === "reverse") return null;
   return {kind:rule[1],id,action};
 }

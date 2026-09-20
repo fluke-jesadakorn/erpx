@@ -12,3 +12,9 @@
 **Consequences:** Each source context publishes stable events; Operations projections are idempotent and branch-scoped. Legacy dashboard totals are reconciliation fixtures during migration, not a second source of truth.
 
 **Evidence required:** event ownership map, duplicate/replay tests, branch isolation, source-to-dashboard reconciliation, exception recovery, and Legacy/ERPX totals comparison.
+
+## Workforce scheduling amendment (2026-09-17)
+
+People owns staff roster weeks, work shifts, shift templates, assignments, and staff change requests. Managers plan and publish the weekly department roster; staff may request open slots or exchanges. A swap requires coworker acceptance followed by an independent, scoped roster manager. Operations may consume this schedule for coverage planning, without maintaining a second schedule. This supersedes the general reference to Operations owning “shifts” above for workforce scheduling.
+
+POS continues to own **Cash sessions**, including opening float, cash responsibility, closing counts, and independent review. The UI name distinguishes register accountability from planned staff work. Workforce scheduling neither opens a register nor proves attendance or payroll entitlement.

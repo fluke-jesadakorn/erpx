@@ -43,6 +43,11 @@ function define(
     namespace: "customer",
   });
 }
+
+for(const action of ["read","create","work","manage"] as const) define(`support.${action}`,`Support ${action}`,"support",action==='manage'?[owner,"support_manager"]:action==='work'?[owner,"support_agent","support_manager"]:[owner,"support_agent","support_manager","sales_operator","sales_manager"],["Source scope; current eligible owner; independent recorded customer confirmation"],action==='manage'?'privileged':'normal');
+const legalPermissions = ["read", "create", "edit", "review", "approve", "sign", "share", "export", "hold", "hold.release", "manage", "ai"] as const;
+define("legal.destroy","Authorize Legal destruction","legal",[owner,"legal_manager"],["Independent approval; no active hold; approved retention policy"]);
+for (const action of legalPermissions) define(`legal.${action}`, `Legal: ${action}`, "legal", action === "manage" ? [owner, "legal_manager"] : [owner, "legal_counsel", "legal_manager"], ["Explicit membership for confidential and restricted records"]);
 define("iam.read", "View identities and access", "identity_access", [
   owner,
   "hr_admin",
@@ -73,6 +78,7 @@ define(
   [],
   "privileged",
 );
+define("iam.directory.apply", "Apply directory and resource changes", "identity_access", [owner, "it_admin"], ["Preview and fresh MFA"], "privileged");
 define(
   "iam.review",
   "Review sensitive access changes",
@@ -253,6 +259,10 @@ define(
   ["Target branch or company scope; independent reviewer"],
   "privileged",
 );
+define("quality.read", "quality read", "quality", ["holding_owner", "warehouse_manager", "operations_manager", "quality_inspector", "quality_manager", "auditor"], ["Whole warehouse/product scope; independent inspection and release"], "normal");
+define("quality.hold", "quality hold", "quality", ["holding_owner", "warehouse_manager", "operations_manager", "quality_inspector", "quality_manager"], ["Whole warehouse/product scope; independent inspection and release"], "normal");
+define("quality.inspect", "quality inspect", "quality", ["holding_owner", "quality_inspector", "quality_manager"], ["Whole warehouse/product scope; independent inspection and release"], "normal");
+define("quality.release", "quality release", "quality", ["holding_owner", "quality_manager"], ["Whole warehouse/product scope; independent inspection and release"], "privileged");
 define(
   "records.review",
   "Review module records",
@@ -269,6 +279,10 @@ define(
   [],
   "privileged",
 );
+for (const [id, label] of [["executive.access", "Open Executive"], ["executive.report.create", "Create executive reports"], ["executive.report.edit", "Edit executive reports"], ["executive.report.share", "Share executive reports"], ["executive.data.distribute", "Distribute selected executive aggregates"]]) {
+  define(id, label, "collaboration", id === "executive.data.distribute" ? [owner] : [owner,"executive_author"], ["Current executive eligibility; private ownership and source policies still apply"], "privileged");
+}
+define("ai.context.cross", "Continue AI conversations across authorized pages", "collaboration", [owner,"executive_author"], ["Current assignment and source permissions still apply"], "privileged");
 for (const [role, modules] of Object.entries(businessRoles))
   for (const moduleId of modules) {
     const id = `module.${moduleId}.read`,
@@ -403,8 +417,45 @@ define(
 define("self.tasks", "Participate in assigned tasks", "collaboration", staff, [
   "Named assignee, requester or service team membership; current workflow state",
 ]);
+const posStaff = [owner, "pos_cashier", "pos_server", "pos_kitchen", "pos_manager"];
+const pmsStaff = [owner, "pms_reservation", "pms_frontdesk", "pms_cashier", "pms_housekeeping", "pms_supervisor", "pms_maintenance", "pms_night_auditor", "pms_manager"];
+define("pms.read", "View hotel operations", "pms", [...pmsStaff,...financeRead]);
+define("pms.configure", "Configure hotel rooms and rates", "pms", [owner,"pms_manager"]);
+define("pms.reservations", "Manage hotel reservations", "pms", [owner,"pms_reservation","pms_frontdesk","pms_manager"]);
+define("pms.frontdesk", "Check in and check out guests", "pms", [owner,"pms_frontdesk","pms_manager"]);
+define("pms.cashier", "Manage guest folios and receipts", "pms", [owner,"pms_cashier","pms_frontdesk","pms_manager","treasury"]);
+define("pms.housekeeping", "Work on hotel rooms and supplies", "pms", [owner,"pms_housekeeping","pms_supervisor","pms_maintenance","pms_manager"]);
+define("pms.inspect", "Inspect hotel room readiness", "pms", [owner,"pms_supervisor","pms_manager"], ["Independent room inspection"]);
+define("pms.maintenance", "Manage hotel maintenance blocks", "pms", [owner,"pms_maintenance","pms_manager"]);
+define("pms.audit", "Run hotel end of day", "pms", [owner,"pms_night_auditor","pms_manager"]);
+define("pms.approve", "Review hotel refunds, credit and cash differences", "pms", [owner,"pms_manager","finance_approver"], ["Independent reviewer"], "privileged");
+define("pms.accounting.prepare", "Prepare PMS accounting mappings", "pms", [owner,"finance_preparer"], [], "privileged");
+define("pms.accounting.approve", "Approve PMS accounting mappings", "pms", [owner,"finance_approver"], ["Independent reviewer"], "privileged");
+define("pms.reports", "View PMS financial reports", "pms", [owner,"pms_manager","pms_night_auditor",...financeRead]);
+for (const permission of definitions.filter(p=>p.id.startsWith("pms."))) permission.permittedScopes=["holding","branch"];
+define("pos.read", "View point of sale", "pos", [...posStaff, ...financeRead]);
+define("pos.sell", "Sell and manage POS shifts", "pos", [owner,"pos_cashier","pos_server","pos_manager"]);
+define("pos.kitchen", "Operate POS kitchen", "pos", posStaff);
+define("pos.approve", "Review POS refunds and cash differences", "pos", [owner,"pos_manager","finance_approver"], ["Independent reviewer"], "privileged");
+define("pos.configure", "Configure POS and posting accounts", "pos", [owner,"finance_approver"], [], "privileged");
+define("pos.payments.configure", "Connect company Stripe account", "pos", [owner,"finance_approver"], [], "privileged");
+define("pos.reports", "Read POS financial reports", "pos", [owner,"pos_manager",...financeRead]);
+for (const p of definitions.filter(p=>p.id.startsWith("pos."))) p.permittedScopes = p.id.includes("configure") ? ["holding"] : ["holding","branch"];
+
+define("leave.self", "Use personal leave self-service", "people_payroll", staff);
+define("leave.policy.manage", "Manage company leave policies", "people_payroll", hr, [], "privileged");
+definitions.find(p=>p.id==='leave.policy.manage')!.permittedScopes=['holding'];
+const rosterManagers = [owner, "hr_admin", "people_manager", "operations_manager"];
+define("calendar.availability.read", "View availability dates without private details", "people_payroll", rosterManagers);
+define("calendar.appointments.manage", "Manage appointments in scope", "people_payroll", rosterManagers);
+define("calendar.announcements.publish", "Publish scoped announcements", "collaboration", rosterManagers);
+define("roster.read", "View team rosters", "people_payroll", rosterManagers);
+define("roster.manage", "Create and publish team rosters", "people_payroll", rosterManagers);
+define("roster.approve", "Approve roster changes independently", "people_payroll", rosterManagers, ["Independent manager in roster scope"]);
+define("self.roster", "Participate in own roster", "people_payroll", staff, ["Active staff in the roster department"]);
+
 for (const p of definitions) {
-  if (["iam.self", "self.requests", "self.tasks"].includes(p.id))
+  if (["iam.self", "self.requests", "self.tasks", "self.roster", "leave.self"].includes(p.id))
     p.identityBased = true;
 }
 for (const m of moduleRegistry)
@@ -434,6 +485,7 @@ for (const p of definitions) {
     [
       "iam.roles.manage",
       "iam.directory.manage",
+      "iam.directory.apply",
       "iam.recovery",
       "company.owner",
     ].includes(p.id)
@@ -441,6 +493,7 @@ for (const p of definitions) {
     p.permittedScopes = ["holding"];
   if (
     [
+      "quality.read", "quality.hold", "quality.inspect", "quality.release",
       "inventory.read",
       "inventory.prepare",
       "inventory.transfer.review",

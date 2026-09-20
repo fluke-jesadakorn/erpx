@@ -1,5 +1,6 @@
 import { it, expect } from "vitest";
 import { env, applyMigrations } from "./runtime-env";
+// A complete migration replay plus idempotent second pass is an infrastructure acceptance check.
 it("creates a complete, empty PostgreSQL baseline and preserves database invariants", async () => {
   await applyMigrations(env.H001_DB, env.STAFF_TEST_MIGRATIONS);
   await applyMigrations(env.H001_DB, env.STAFF_TEST_MIGRATIONS);
@@ -7,13 +8,35 @@ it("creates a complete, empty PostgreSQL baseline and preserves database invaria
     await env.H001_DB.prepare(
       "SELECT COUNT(*) count FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'",
     ).first(),
-  ).toEqual({ count: 173 });
+  ).toEqual({ count: 433 });
   expect(
     await env.H001_DB.prepare("SELECT count(*) n FROM inventory_ledger").first(
       "n",
     ),
   ).toBe(0);
   for (const table of [
+    "procurement_delivery_promises",
+    "procurement_rfqs",
+    "procurement_rfq_lines",
+    "procurement_rfq_offers",
+    "procurement_rfq_offer_lines",
+    "procurement_rfq_events",
+    "procurement_delivery_promise_lines",
+    "inventory_transit",
+    "inventory_transit_lines",
+    "inventory_transit_events",
+    "pos_sales",
+    "pos_payments",
+    "pos_reservations",
+    "inventory_order_reservations",
+    "inventory_quality_holds",
+    "inventory_quality_inspections",
+    "pos_jobs",
+    "pos_settlements",
+    "pms_booking_receipts",
+    "pms_booking_tokens",
+    "pms_booking_emails",
+    "pms_booking_limits",
     "organization_positions",
     "organization_templates",
     "staff_organization_history",
@@ -24,7 +47,15 @@ it("creates a complete, empty PostgreSQL baseline and preserves database invaria
     "organization_nodes",
     "assignments",
     "finance_expenses",
+    "finance_refund_obligations",
+    "finance_supplier_batches",
+    "finance_supplier_instructions",
+    "finance_refund_instructions",
     "leave_requests",
+    "leave_balance_entries",
+    "leave_policy_assignments",
+    "overtime_requests",
+    "overtime_payroll_handoffs",
     "hr_payroll_runs",
     "command_receipts",
     "audit_events",
@@ -43,6 +74,35 @@ it("creates a complete, empty PostgreSQL baseline and preserves database invaria
     "um_attachments",
     "um_history",
     "um_candidates",
+    "people_access_packages",
+    "people_package_revisions",
+    "people_position_packages",
+    "people_lifecycle_settings",
+    "people_lifecycle_cases",
+    "people_preparation_tasks",
+    "people_lifecycle_grants",
+    "people_access_cutoffs",
+    "people_directory_state",
+    "people_directory_operations",
+    "people_provision_operations",
+    "people_applied_packages",
+    "people_provision_grants",
+    "people_directory_membership_sources",
+    "people_holding_templates",
+    "people_template_adoptions",
+    "calendar_appointments",
+    "calendar_appointment_participants",
+    "calendar_announcements",
+    "calendar_history",
+    "navigation_preferences",
+    "legal_items",
+    "legal_documents",
+    "legal_contracts",
+    "legal_requests",
+    "legal_matters",
+    "legal_holds",
+    "legal_envelopes",
+    "legal_external_uploads",
   ])
     expect(
       await env.H001_DB.prepare(`SELECT COUNT(*) count FROM ${table}`).first(),
@@ -52,4 +112,4 @@ it("creates a complete, empty PostgreSQL baseline and preserves database invaria
       "INSERT INTO assignments(id,user_id,role,modules_json,company_id,valid_from,valid_until,scope_kind) VALUES('invalid','user','holding_owner','[]','company',0,100,'branch')",
     ).run(),
   ).rejects.toMatchObject({ code: "23514" });
-});
+}, 120_000);

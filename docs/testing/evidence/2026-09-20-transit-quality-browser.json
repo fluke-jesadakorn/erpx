@@ -1,0 +1,122 @@
+{
+  "observedAt": "2026-09-20T05:16:24.782351+00:00",
+  "environment": "isolated simulation; loopback 3102; disposable PostgreSQL databases",
+  "runId": "d0a9187a989e",
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "workingTree": "dirty; file hashes identify observed source",
+  "sourceHashes": {
+    "src/server/inventory-transit.ts": "76d6c627364b48c3ae4a61ea8582c03e13ff66cf811289b8614da5eeb91117ed",
+    "src/server/inventory-transfers.ts": "7bee5f45c8ea047bc8fba29937499be69f48fd2fc853e8c88a973fd54c13f32c",
+    "src/server/quality.ts": "1cc2e9c8f1e4eabaec27f18bb1f9ca60ee2db3e92e9e4f337ca95ef42c2dd9e3",
+    "src/components/modules/transit-console.tsx": "6e0972691723413e2bc4a5d36ec67d2685c2e95961356c5d17af63c836576cc2",
+    "src/components/modules/quality-console.tsx": "6f0ed251762d89ae435110158d09b1afaf7b602945be1fb8aef604893e7d99ae",
+    "src/components/workplace/transit-next-action.tsx": "42ab06c2178900dd0810b8b0c8b7ad82d0912e264185dee2275426ad067db48e",
+    "src/app/holdings/[holdingSlug]/stock-transfers/[id]/page.tsx": "905f24f4ca1cadc5dd9b8dd0a9a97ab0f211993a29752b8af158cbb06544b625",
+    "src/app/holdings/[holdingSlug]/stock-transit/[id]/page.tsx": "866e2b713a71330fcf446849418df35ebec800e84f2152baf70d1ef249eb1638",
+    "src/app/holdings/[holdingSlug]/commerce/page.tsx": "7cb80d9ce9f5636961ffd686910733c44e80cb186fb4f10df760e44f704a7dce",
+    "scripts/local/browser-simulation.ts": "14cc12c75e65d473734d70dc703bc66378bac36feb97f77137f3c4bc5240f867",
+    "migrations/postgres/holding-write/0206_quality_holds.sql": "54db323c4bdca721c3e3022191b80c3a6244b1bb121abee9f8303a936b0b008b",
+    "migrations/postgres/holding-write/0207_inventory_transit.sql": "f41526007e1ce0aef79fece0c30e936cf57210a7c45f360dc465ed8f0857bb84"
+  },
+  "actors": [
+    {
+      "label": "Source operator",
+      "email": "source@simulation.test",
+      "role": "holding_owner",
+      "userId": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-owner"
+    },
+    {
+      "label": "Receiving operator",
+      "email": "receiver@simulation.test",
+      "role": "warehouse_manager",
+      "userId": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-head"
+    },
+    {
+      "label": "Finance reviewer",
+      "email": "finance@simulation.test",
+      "role": "finance_approver",
+      "userId": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-manager"
+    },
+    {
+      "label": "Quality inspector",
+      "email": "inspector@simulation.test",
+      "role": "quality_inspector",
+      "userId": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-reviewer"
+    },
+    {
+      "label": "Quality release manager",
+      "email": "quality-manager@simulation.test",
+      "role": "quality_manager",
+      "userId": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-payer"
+    }
+  ],
+  "sourceIds": {
+    "transfer": "transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa",
+    "transport": "transit-transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa",
+    "journal": "journal-a3dc995b-4299-4eee-81f1-c8ede22d487e",
+    "qualityHold": "quality-3bce7083-727d-4ce5-ae5f-999efddeef17"
+  },
+  "observations": [
+    {
+      "case": "Independent routing",
+      "expected": "Receiver gets submitted transfer in own Work; creator cannot approve",
+      "actual": "Receiver My actions 1; Approve transport for source dispatch; creator sees Waiting for Receiving operator",
+      "result": "passed"
+    },
+    {
+      "case": "Dispatch handoff",
+      "expected": "Approval does not move stock; source dispatcher gets own Work item",
+      "actual": "Transport awaiting_dispatch; no movement history; source Work Record physical dispatch and tracking; dispatch records 3 units THB10.00",
+      "result": "passed"
+    },
+    {
+      "case": "Partial receipt",
+      "expected": "Independent receiver receives2;1unit remains in transit",
+      "actual": "Receiver entered through own Work; receipt2 THB6.67; residualTHB3.33; dispatcher has no receipt form",
+      "result": "passed"
+    },
+    {
+      "case": "Loss review",
+      "expected": "Reporting1missing does not remove asset until third-person Finance review",
+      "actual": "Disputed1; residualTHB3.33; receiver Work0; Finance Work1; Finance posts lossTHB3.33; transportcompleted/residual0",
+      "result": "passed"
+    },
+    {
+      "case": "Source-linked accounting",
+      "expected": "Loss posts balanced journal from transport snapshot",
+      "actual": "Journal posted; expense debit3.33; configured asset credit3.33. Fixture names inventory asset cash. Opening-stock GL not rehearsed in this browser run.",
+      "result": "partial"
+    },
+    {
+      "case": "Stock conservation",
+      "expected": "2received+1lost=3dispatched;6.67+3.33=10.00",
+      "actual": "Inventory screen destination2/6.67; source0/0.00; movements+2and-3 reference same transport",
+      "result": "passed"
+    },
+    {
+      "case": "Quality hold",
+      "expected": "Stock retained but unavailable while quarantined; creator cannot inspect or release",
+      "actual": "Holdheldversion1; destinationonhand2/value6.67/available0Qualityhold; creator Waiting for independent quality member",
+      "result": "passed"
+    },
+    {
+      "case": "Independent inspection and release",
+      "expected": "Inspector enters own Work; pass awaits third-person manager; availability resumes only after release",
+      "actual": "Inspector Work1 then0, awaiting_releaseversion2, no release form; manager Work1, releasesversion3 thenWork0; warehouse sees available2/value6.67",
+      "result": "passed"
+    },
+    {
+      "case": "Quality-only cost privacy",
+      "expected": "Quality manager cannot open inventory cost page",
+      "actual": "No cost table exposed. Initial generic error corrected to ERPX_PERMISSION Your role cannot open this view; browser reverified",
+      "result": "passed"
+    }
+  ],
+  "limitations": [
+    "Observation of scoped workflows, not complete S03/S14 or whole-capability sign-off.",
+    "No live provider/device/customer UAT or production data.",
+    "One Company/Branch in browser; cross-scope/race/revocation exceptions remain automated evidence.",
+    "Opening stock seeded as fixture without opening GL; credit account uses existing fixture inventory mapping named cash.",
+    "Browser after source updates copied five changed source files into isolated app; source hashes retained."
+  ]
+}

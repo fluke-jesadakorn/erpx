@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/stock-reservations.test.ts tests/workplace-navigation.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  2 passed (2)
+      Tests  53 passed (53)
+   Start at  10:22:08
+   Duration  31.20s (transform 185ms, setup 55ms, import 253ms, tests 30.74s, environment 0ms)
+

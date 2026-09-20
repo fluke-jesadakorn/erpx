@@ -1,3 +1,5 @@
+import {listSupplierBatches,supplierBatchWorkspace,createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recoverSupplierExport,recordSupplierResult,confirmSupplierInstruction,supplierBatchSchema,supplierDecisionSchema,supplierExportSchema,supplierResultSchema,supplierConfirmSchema} from "@/server/supplier-payments";
+import {recoverRefundExport,listRefunds,refundWorkspace,approveRefund,prepareRefundInstruction,exportRefundInstructions,confirmRefundInstruction,recordRefundException,refundApprovalSchema,refundInstructionSchema,refundExportSchema,refundConfirmationSchema,refundExceptionSchema} from "@/server/refunds";
 import { requirePermission } from "@/server/iam-permissions";
 import { requestPublicOrigin } from "@/server/public-origin";
 import { requireWorkContext } from "@/server/authorization";
@@ -19,6 +21,8 @@ import {
   createPayment,
   approvePayment,
   releasePayment,
+  reversePayment,
+  reversePaymentSchema,
   allocatePayment,
   exportPaymentFile,
   createTaxCode,
@@ -38,6 +42,8 @@ import {
   revenueObligationSchema,
   recognizeRevenue,
   importOpeningTrialBalance,
+  openingTrialBalanceSchema,
+  previewOpeningTrialBalance,
   importAccounts,
   importBankStatement,
   listAccounts,
@@ -102,6 +108,10 @@ export async function GET(request: Request, context: FinanceRouteContext) {
       if (parts[1] && parts[2] === "accounts") return Response.json({ data: await listAccounts(actor, parts[1]) });
       return Response.json({ data: await listCharts(actor) });
     }
+    if(parts[0]==="supplier-batches"&&parts.length===3&&parts[2]==="export")return Response.json({data:await recoverSupplierExport(actor,parts[1])});
+    if(parts[0]==="supplier-batches")return Response.json({data:parts[1]?await supplierBatchWorkspace(actor,parts[1]):await listSupplierBatches(actor)});
+    if(parts[0]==="refund-instructions"&&parts.length===3&&parts[2]==="export")return Response.json({data:await recoverRefundExport(actor,parts[1])});
+    if(parts[0]==="refunds")return Response.json({data:parts[1]?await refundWorkspace(actor,parts[1]):await listRefunds(actor)});
     if (parts[0] === "periods") return Response.json({ data: await listPeriods(actor) });
     if (parts[0] === "journals") return Response.json({ data: await listJournals(actor, { periodId: search.get("periodId") ?? undefined, status: search.get("status") ?? undefined }) });
     if (parts[0] === "invoices") return parts[1] ? Response.json({ data: await getInvoice(actor, parts[1]) }) : Response.json({ data: await listInvoices(actor) });
@@ -119,6 +129,16 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     const { holdingSlug, path } = await context.params;
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
     const parts = segments(path); const input = await body(request);
+    if(parts[0]==="supplier-batches"&&parts.length===1)return Response.json({data:await createSupplierBatch(actor,supplierBatchSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="supplier-batches"&&parts.length===3&&(parts[2]==="approve"||parts[2]==="cancel"))return Response.json({data:await decideSupplierBatch(actor,parts[1],supplierDecisionSchema.parse(input),needCommand(request),parts[2])});
+    if(parts[0]==="supplier-batches"&&parts.length===3&&parts[2]==="export")return Response.json({data:await exportSupplierBatch(actor,parts[1],supplierExportSchema.parse(input),needCommand(request))});
+    if(parts[0]==="supplier-instructions"&&parts.length===3&&parts[2]==="result")return Response.json({data:await recordSupplierResult(actor,parts[1],supplierResultSchema.parse(input),needCommand(request))});
+    if(parts[0]==="supplier-instructions"&&parts.length===3&&parts[2]==="confirm")return Response.json({data:await confirmSupplierInstruction(actor,parts[1],supplierConfirmSchema.parse(input),needCommand(request))});
+    if(parts[0]==="refunds"&&parts.length===3&&parts[2]==="approve")return Response.json({data:await approveRefund(actor,parts[1],refundApprovalSchema.parse(input),needCommand(request))});
+    if(parts[0]==="refunds"&&parts.length===3&&parts[2]==="instructions")return Response.json({data:await prepareRefundInstruction(actor,parts[1],refundInstructionSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="refund-instructions"&&parts.length===2&&parts[1]==="export")return Response.json({data:await exportRefundInstructions(actor,refundExportSchema.parse(input),needCommand(request))});
+    if(parts[0]==="refund-instructions"&&parts.length===3&&parts[2]==="confirm")return Response.json({data:await confirmRefundInstruction(actor,parts[1],refundConfirmationSchema.parse(input),needCommand(request))});
+    if(parts[0]==="refund-instructions"&&parts.length===3&&parts[2]==="exception")return Response.json({data:await recordRefundException(actor,parts[1],refundExceptionSchema.parse(input),needCommand(request))});
     if (parts[0] === "charts" && parts[1] === "import") {
       const normalized = typeof input === "object" && input !== null && "csv" in input && typeof input.csv === "string" ? { ...(input as Record<string, unknown>), rows: csvRows(input.csv) } : input;
       const parsed = z.object({ chartId: z.string().min(1), rows: z.array(z.object({ code: z.string(), name: z.string(), category: z.enum(["asset", "liability", "equity", "revenue", "expense", "other_income", "other_expense"]), currency: z.string().optional() })).min(1) }).safeParse(normalized);
@@ -128,8 +148,9 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     if (parts[0] === "charts" && parts.length === 1) { const parsed = createChartSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid chart."); return Response.json({ data: await createChart(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
     if (parts[0] === "charts" && parts[2] === "accounts" && parts.length === 3) { const parsed = createAccountSchema.safeParse({ ...(typeof input === "object" && input !== null ? input : {}), chartId: parts[1] }); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid account."); return Response.json({ data: await createAccount(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
     if (parts[0] === "periods" && parts.length === 1) { const parsed = createPeriodSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid period."); return Response.json({ data: await createPeriod(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
-    if (parts[0] === "journals" && parts.length === 1) { const parsed = createJournalSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid journal."); return Response.json({ data: await createJournal(actor, {...parsed.data,sourceType:"manual",sourceId:undefined}, needCommand(request)) }, { status: 201 }); }
-    if (parts[0] === "opening-balances" && parts[1] === "import") { const parsed = z.object({ chartId: z.string(), periodId: z.string(), entryDate: z.string().date(), currency: z.string().length(3), lines: z.array(z.object({ accountId: z.string(), debit: z.string(), credit: z.string(), description: z.string().optional() })).min(2) }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Opening trial balance is invalid."); return Response.json({ data: await importOpeningTrialBalance(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
+    if (parts[0] === "journals" && parts.length === 1) { const parsed = createJournalSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid journal."); return Response.json({ data: await createJournal(actor, {...parsed.data,sourceType:"manual",sourceId:undefined,isOpening:false}, needCommand(request)) }, { status: 201 }); }
+    if (parts[0] === "opening-balances" && parts[1] === "preview") { const parsed = openingTrialBalanceSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Opening trial balance is invalid."); return Response.json({ data: await previewOpeningTrialBalance(actor, parsed.data) }); }
+    if (parts[0] === "opening-balances" && parts[1] === "import") { const parsed = openingTrialBalanceSchema.extend({previewToken:z.string().length(64)}).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Opening trial balance is invalid."); return Response.json({ data: await importOpeningTrialBalance(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
     if (parts[0] === "journals" && parts[2] === "post") { const parsed = z.object({ expectedVersion: z.number().int().positive() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "expectedVersion is required."); return Response.json({ data: await postJournal(actor, parts[1], needCommand(request), parsed.data) }); }
     if (parts[0] === "journals" && parts[2] === "reverse") { const parsed = z.object({ periodId: z.string(), entryDate: z.string().date(), memo: z.string().optional() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "A reversal period and date are required."); return Response.json({ data: await reverseJournal(actor, parts[1], needCommand(request), parsed.data) }, { status: 201 }); }
     if (parts[0] === "periods" && parts[2] === "begin-close") return Response.json({ data: await beginClose(actor, parts[1], needCommand(request)) });
@@ -143,6 +164,7 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     if (parts[0] === "payments" && parts.length === 1) { const parsed = z.object({ partyId: z.string().optional(), kind: z.enum(["payment", "receipt", "refund"]), paymentNumber: z.string(), paymentDate: z.string().date(), currency: z.string().length(3), amount: z.string(), bankAccount: z.string().optional() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid payment."); return Response.json({ data: await createPayment(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
     if (parts[0] === "payments" && parts[2] === "approve") { const parsed = z.object({ expectedVersion: z.number().int().positive(), proof: z.string() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Payment approval evidence is required."); return Response.json({ data: await approvePayment(actor, parts[1], parsed.data, needCommand(request)) }); }
     if (parts[0] === "payments" && parts[2] === "release") { const parsed = z.object({ expectedVersion: z.number().int().positive(), proof: z.string() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Payment release evidence is required."); return Response.json({ data: await releasePayment(actor, parts[1], parsed.data, needCommand(request)) }); }
+    if (parts[0] === "payments" && parts[2] === "reverse") { const parsed = reversePaymentSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message??"Payment correction evidence is required."); return Response.json({ data: await reversePayment(actor, parts[1], parsed.data, needCommand(request)) }); }
     if (parts[0] === "payments" && parts[2] === "allocate") { const parsed = z.object({ invoiceId: z.string(), amount: z.string(), expectedVersion: z.number().int().positive() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Payment allocation is invalid."); return Response.json({ data: await allocatePayment(actor, parts[1], parsed.data, needCommand(request)) }); }
     if (parts[0] === "payments" && parts[1] === "export") { const parsed = z.object({ paymentIds: z.array(z.string()).min(1) }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Select released payments."); return Response.json({ data: await exportPaymentFile(actor, parsed.data.paymentIds, needCommand(request)) }); }
     if (parts[0] === "tax-codes" && parts.length === 1) { const parsed = taxCodeSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid tax code."); return Response.json({ data: await createTaxCode(actor, parsed.data, needCommand(request)) }, { status: 201 }); }

@@ -2699,5 +2699,106 @@
         "capability": false
       }
     ]
-  }
+  },
+{
+  "id": "pms",
+  "name": "Hotel PMS",
+  "group": "04",
+  "icon": "hotel",
+  "description": "Reservations, front office, housekeeping and connected hotel accounting.",
+  "recordType": "reservation",
+  "action": "Manage hotel",
+  "primary": [
+    "dashboard",
+    "reservations",
+    "front-desk",
+    "housekeeping"
+  ],
+  "sections": [
+    {
+      "id": "dashboard",
+      "label": "Overview",
+      "description": "Overview",
+      "kind": "workflow",
+      "capability": true
+    },
+    {
+      "id": "reservations",
+      "label": "Reservations",
+      "description": "Reservations",
+      "kind": "workflow",
+      "capability": true
+    },
+    {
+      "id": "front-desk",
+      "label": "Front Office",
+      "description": "Front Office",
+      "kind": "workflow",
+      "capability": true
+    },
+    {
+      "id": "rooms",
+      "label": "Rooms",
+      "description": "Rooms",
+      "kind": "board",
+      "capability": true
+    },
+    {
+      "id": "housekeeping",
+      "label": "Housekeeping",
+      "description": "Housekeeping",
+      "kind": "board",
+      "capability": true
+    },
+    {
+      "id": "folios",
+      "label": "Folios & payments",
+      "description": "Folios & payments",
+      "kind": "workflow",
+      "capability": true
+    },
+    {
+      "id": "cashier",
+      "label": "Cashier shifts",
+      "description": "Cashier shifts",
+      "kind": "workflow",
+      "capability": true
+    },
+    {
+      "id": "inventory",
+      "label": "Minibar & linen",
+      "description": "Minibar & linen",
+      "kind": "workflow",
+      "capability": true
+    },
+    {
+      "id": "guests",
+      "label": "Guests",
+      "description": "Guests",
+      "kind": "workflow",
+      "capability": true
+    },
+    {
+      "id": "reports",
+      "label": "Reports",
+      "description": "Reports",
+      "kind": "workflow",
+      "capability": true
+    },
+    {
+      "id": "night-audit",
+      "label": "Night Audit",
+      "description": "Night Audit",
+      "kind": "workflow",
+      "capability": true
+    },
+    {
+      "id": "settings",
+      "label": "Settings",
+      "description": "Settings",
+      "kind": "workflow",
+      "capability": true
+    }
+  ]
+}
 ]

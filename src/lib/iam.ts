@@ -34,7 +34,7 @@ export type ScopedAssignment = {
   revokedAt: number | null;
   version: number;
   parentId: string | null;
-  source: "manual" | "directory" | "legacy" | "emergency" | "policy";
+  source: "manual" | "directory" | "legacy" | "emergency" | "policy" | "lifecycle" | "provisioning";
   sourceId: string | null;
 };
 export type DirectoryProvider = "active_directory" | "entra_id" | "univention";

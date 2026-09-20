@@ -1,0 +1,251 @@
+.workspace {
+  --home-accent: #4f7df3;
+  --home-accent-strong: #315fd5;
+  --home-navy: #111c31;
+  --home-navy-soft: #1b3157;
+  --home-surface: color-mix(in srgb, var(--card) 96%, #edf3ff);
+  --home-surface-muted: color-mix(in srgb, var(--card-2) 84%, #eaf1ff);
+  --home-border: color-mix(in srgb, var(--line) 78%, #b9c8e3);
+  position: relative;
+  isolation: isolate;
+  min-width: 0;
+  min-height: calc(100dvh - 64px);
+  overflow: clip;
+  background:
+    radial-gradient(circle at 13% 4%, #f3c99524, transparent 29rem),
+    radial-gradient(circle at 88% 8%, #7aa2f72b, transparent 34rem),
+    linear-gradient(152deg, color-mix(in srgb, var(--paper) 95%, #fff8ed), var(--paper) 58%);
+  font-feature-settings: "ss01" 1, "cv05" 1, "cv11" 1;
+}
+
+.workspace::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  pointer-events: none;
+  opacity: .32;
+  background-image: radial-gradient(color-mix(in srgb, var(--ink) 17%, transparent) .55px, transparent .55px);
+  background-size: 15px 15px;
+  mask-image: linear-gradient(to bottom, #000, transparent 31rem);
+}
+
+.workspace > :global(main) {
+  position: relative;
+  z-index: 1;
+}
+
+.workspace :global(.beta-heading) {
+  position: relative;
+  min-height: 154px;
+  padding: 30px 32px;
+  overflow: hidden;
+  border: 1px solid #ffffff1a;
+  border-radius: 22px;
+  color: #cbd7eb;
+  background:
+    radial-gradient(circle at 91% -30%, #5688eeaa, transparent 27rem),
+    linear-gradient(132deg, var(--home-navy), var(--home-navy-soft));
+  box-shadow: 0 22px 54px #12213a29, inset 0 1px #ffffff12;
+}
+
+.workspace :global(.beta-heading)::after {
+  position: absolute;
+  top: -62px;
+  right: 7%;
+  width: 210px;
+  height: 210px;
+  border: 1px solid #ffffff18;
+  border-radius: 999px;
+  content: "";
+  box-shadow: 0 0 0 42px #ffffff08, 0 0 0 84px #ffffff05;
+}
+
+.workspace :global(.beta-heading) > * {
+  position: relative;
+  z-index: 1;
+}
+
+.workspace :global(.beta-heading h1) {
+  color: #fff;
+  font-size: clamp(2rem, 3vw, 2.65rem);
+  font-weight: 650;
+  letter-spacing: -.055em;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+.workspace :global(.beta-heading p) {
+  max-width: 36rem;
+  color: #becbe0;
+  font-size: 14px;
+}
+
+.workspace :global([data-layout-controls]) button {
+  min-height: 40px;
+  border-color: color-mix(in srgb, var(--home-border) 75%, transparent);
+  background: color-mix(in srgb, var(--home-surface) 88%, transparent);
+  box-shadow: 0 7px 22px #16223a0b;
+}
+
+.workspace :global([data-page-key="home"]) {
+  gap: 18px;
+}
+
+.workspace :global([data-feature-widget]),
+.workspace :global(.beta-composer),
+.workspace :global(.beta-post),
+.workspace :global(nav[aria-label="Staff self-service"] a) {
+  border-color: var(--home-border);
+  background: var(--home-surface);
+  box-shadow: 0 13px 38px #20304a0e, 0 2px 8px #20304a08;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease, background-color .18s ease;
+}
+
+.workspace :global([data-feature-widget]) {
+  border-radius: 18px;
+}
+
+.workspace :global([data-feature-widget] h2) {
+  color: var(--ink-strong);
+  font-weight: 650;
+  letter-spacing: -.025em;
+}
+
+.workspace :global(nav[aria-label="Staff self-service"] a) {
+  min-height: 124px;
+  border-radius: 17px;
+}
+
+.workspace :global(nav[aria-label="Staff self-service"] a)::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: 17px 0 0 17px;
+  content: "";
+  background: linear-gradient(var(--home-accent), #78a8ff);
+  opacity: .75;
+}
+
+.workspace :global(nav[aria-label="Staff self-service"] a:hover) {
+  border-color: color-mix(in srgb, var(--home-accent) 48%, var(--home-border));
+  background: color-mix(in srgb, var(--home-surface) 91%, var(--brand-soft));
+  box-shadow: 0 18px 42px #27426f1a;
+  transform: translateY(-3px);
+}
+
+.workspace :global(nav[aria-label="Staff self-service"] a svg:first-child) {
+  color: var(--home-accent-strong);
+}
+
+.workspace :global([data-feature-widget="home-feed"]) {
+  padding: 22px;
+  background: color-mix(in srgb, var(--home-surface-muted) 86%, transparent);
+  backdrop-filter: blur(10px);
+}
+
+.workspace :global([data-feature-widget="home-feed"] > header) {
+  padding-bottom: 2px;
+}
+
+.workspace :global(.beta-composer),
+.workspace :global(.beta-post) {
+  border-radius: 15px;
+}
+
+.workspace :global(.beta-composer:hover),
+.workspace :global(.beta-post:hover) {
+  border-color: color-mix(in srgb, var(--home-accent) 32%, var(--home-border));
+}
+
+.workspace :global(.beta-filters) {
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--home-border) 72%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--home-surface) 74%, transparent);
+}
+
+.workspace :global(.beta-filters button[aria-pressed="true"]) {
+  color: var(--home-accent-strong);
+  background: color-mix(in srgb, var(--home-accent) 12%, var(--home-surface));
+  box-shadow: 0 2px 8px #24478a12;
+}
+
+.workspace :global(.beta-filters select) {
+  border-color: transparent;
+  background-color: transparent;
+}
+
+.workspace :global(.beta-post-body) {
+  color: var(--ink-strong);
+  font-size: 14.5px;
+  letter-spacing: -.006em;
+}
+
+.workspace :global(.beta-post-actions button:hover),
+.workspace :global(.beta-follow:hover) {
+  color: var(--home-accent-strong);
+  background: var(--brand-soft);
+}
+
+.workspace :global(.beta-comments) {
+  border-color: var(--home-border);
+}
+
+.workspace :global(.beta-comment) > div {
+  background: var(--home-surface-muted);
+}
+
+.workspace :global(nav[aria-label="Staff self-service"] a:focus-visible),
+.workspace :global(.beta-filters button:focus-visible),
+.workspace :global(.beta-post-actions button:focus-visible),
+.workspace :global([data-feature-widget]:focus-visible) {
+  outline: 3px solid var(--home-accent);
+  outline-offset: 3px;
+}
+
+:global(html[data-theme="dark"]) .workspace {
+  --home-accent: #7ba4ff;
+  --home-accent-strong: #a9c1ff;
+  --home-surface: color-mix(in srgb, var(--card) 95%, #1d2d49);
+  --home-surface-muted: color-mix(in srgb, var(--card-2) 90%, #1b2a43);
+  --home-border: color-mix(in srgb, var(--line) 76%, #61789b);
+  background:
+    radial-gradient(circle at 13% 4%, #a86b2e20, transparent 29rem),
+    radial-gradient(circle at 88% 8%, #3468c52b, transparent 34rem),
+    var(--paper);
+}
+
+@media (prefers-color-scheme: dark) {
+  :global(html[data-theme="system"]) .workspace {
+    --home-accent: #7ba4ff;
+    --home-accent-strong: #a9c1ff;
+    --home-surface: color-mix(in srgb, var(--card) 95%, #1d2d49);
+    --home-surface-muted: color-mix(in srgb, var(--card-2) 90%, #1b2a43);
+    --home-border: color-mix(in srgb, var(--line) 76%, #61789b);
+    background: radial-gradient(circle at 88% 8%, #3468c52b, transparent 34rem), var(--paper);
+  }
+}
+
+@media (max-width: 700px) {
+  .workspace :global(.beta-heading) {
+    min-height: 138px;
+    padding: 25px 22px;
+    border-radius: 18px;
+  }
+  .workspace :global(.beta-heading h1) { font-size: 1.9rem; }
+  .workspace :global(nav[aria-label="Staff self-service"] a) { min-height: 100px; }
+  .workspace :global([data-feature-widget="home-feed"]) { padding: 14px; }
+  .workspace :global(.beta-filters) { padding: 4px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace :global([data-feature-widget]),
+  .workspace :global(.beta-composer),
+  .workspace :global(.beta-post),
+  .workspace :global(nav[aria-label="Staff self-service"] a) { transition: none; }
+}
+
+@media print {
+  .workspace { background: none !important; }
+}

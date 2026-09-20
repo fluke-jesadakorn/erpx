@@ -1,0 +1,20 @@
+{
+  "observedAt": "2026-09-20T10:36:00.271169+00:00",
+  "scope": "Full suite discovered at start after Support SLA and incidents, before Support attachments test creation",
+  "result": {
+    "filesPassed": 99,
+    "filesSkipped": 2,
+    "testsPassed": 817,
+    "testsSkipped": 3
+  },
+  "durationSeconds": 791.58,
+  "sourceContext": [
+    "docs/testing/evidence/2026-09-20-support-sla-context.json",
+    "docs/testing/evidence/2026-09-20-support-incidents-context.json"
+  ],
+  "limitations": [
+    "Workspace remained dirty; Support attachment implementation proceeded while the suite ran. This is not an immutable final release acceptance.",
+    "Support evidence routes and migration0220 need their separate targeted evidence; not included among the 817 discovered tests.",
+    "Skipped Stripe and directory provider tests are not passed gates."
+  ]
+}

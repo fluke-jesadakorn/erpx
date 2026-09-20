@@ -22,9 +22,17 @@ export type RuntimeEnv = BetaEnvironment & {
 };
 const manifestSchema = z.object({ version: z.literal(1), databases: z.record(z.string(), z.string().url()),
   slots: z.array(z.object({ id: z.string().regex(/^[a-z0-9]{3,24}$/), write: z.string(), read: z.string(), files: z.string(), beta: z.boolean().optional() })).max(22) });
+const runtimeGlobal = globalThis as typeof globalThis & { erpxDevRuntime?: { key: string; env: RuntimeEnv } };
 let singleton: RuntimeEnv | undefined;
+function runtimeKey() { return JSON.stringify([process.env.ERPX_DATABASE_MANIFEST, process.env.ERPX_PROCESS_ROLE, process.env.ERPX_DEV_PG_POOL_MAX, process.env.ERPX_PUBLIC_ORIGIN, process.env.ERPX_DATA_DIR]); }
+
 export function getRuntime(): RuntimeEnv {
   if (singleton) return singleton;
+  if (process.env.NODE_ENV === 'development' && runtimeGlobal.erpxDevRuntime?.key === runtimeKey()) return singleton = runtimeGlobal.erpxDevRuntime.env;
+  if (process.env.NODE_ENV === 'development' && runtimeGlobal.erpxDevRuntime) {
+    void closeDatabases(runtimeGlobal.erpxDevRuntime.env).catch(() => {});
+    delete runtimeGlobal.erpxDevRuntime;
+  }
   const production = process.env.NODE_ENV === 'production';
   const data = resolve(/* turbopackIgnore: true */ process.env.ERPX_DATA_DIR ?? '.runtime/local');
   if (production && !isAbsolute(process.env.ERPX_DATA_DIR ?? '')) throw new Error('ERPX_DATA_DIR_REQUIRED');
@@ -49,19 +57,31 @@ export function getRuntime(): RuntimeEnv {
     'ERPX_IAM_SECRET_PROFILES','AI_BASE_URL','AI_MODEL','AI_API_KEY','AI_CREDENTIAL_KEY_ID','AI_CREDENTIAL_KEYS','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','STRIPE_PRICE_ID'])
     if (process.env[name]) env[name] = process.env[name];
   const role = process.env.ERPX_PROCESS_ROLE === 'jobs' ? 'jobs' : 'app';
+  const devPool = Number(process.env.ERPX_DEV_PG_POOL_MAX ?? 6);
+  if (!Number.isInteger(devPool) || devPool < 1 || devPool > 16) throw new Error('INVALID_DEV_PG_POOL_MAX');
   for (const [binding, connectionString] of Object.entries(manifest.databases)) {
     // Installer provides independently scoped database logins; a separate jobs
     // manifest grants projection writes that the web process cannot perform.
-    env[binding] = new PostgresDatabase({ connectionString, application_name: `erpx-${role}`, max: binding === 'CONTROL_DB' ? (role === 'jobs' ? 2 : 5) : 1 });
+    env[binding] = new PostgresDatabase({ connectionString, application_name: `erpx-${role}`, max: binding === 'CONTROL_DB' ? (role === 'jobs' ? 2 : 5) : (process.env.NODE_ENV === 'development' && role === 'app' ? devPool : 1) });
   }
   if (!env.CONTROL_DB) throw new Error('CONTROL_DATABASE_REQUIRED');
   for (const slot of manifest.slots) {
     if (!env[slot.write] || !env[slot.read]) throw new Error('HOLDING_DATABASE_REQUIRED');
-    env[slot.files] = new LocalFileStore(join(data, 'files', slot.id));
+    env[slot.files] = new LocalFileStore(join(data, 'files', slot.id), env[slot.write] as PostgresDatabase);
   }
-  singleton = env as RuntimeEnv; return singleton;
+  singleton = env as RuntimeEnv;
+  if (process.env.NODE_ENV === 'development') runtimeGlobal.erpxDevRuntime = { key: runtimeKey(), env: singleton };
+  return singleton;
+}
+function closeDatabases(env: RuntimeEnv) {
+  // Constructors change during HMR; an instanceof check would miss retained pools.
+  const databases = Object.values(env).filter((value): value is PostgresDatabase =>
+    !!value && typeof value === 'object' && 'pool' in value && 'close' in value && typeof value.close === 'function');
+  return Promise.all(databases.map(db => db.close()));
 }
 export async function closeRuntime() {
   if (!singleton) return;
-  await Promise.all(Object.values(singleton).filter(v => v instanceof PostgresDatabase).map(v => v.close())); singleton = undefined;
+  const current = singleton; singleton = undefined;
+  if (runtimeGlobal.erpxDevRuntime?.env === current) delete runtimeGlobal.erpxDevRuntime;
+  await closeDatabases(current);
 }

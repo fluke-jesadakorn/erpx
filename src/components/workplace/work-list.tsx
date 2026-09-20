@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { StatusBadge, EmptyState } from "@/components/ui/primitives";
-import { workTypes, type WorkItem } from "@/lib/work-item";
+import { workTypes, workItemHref, type WorkItem } from "@/lib/work-item";
 import { workBlocker } from "@/lib/work-attention";
 import { WorkFlow } from "./work-flow";
 import styles from "./work-list.module.css";
@@ -27,14 +27,14 @@ export function WorkList({
         <EmptyState
           title={incomplete ? "Work is temporarily unavailable" : filtered ? "No matching work" : queue === "todo" ? "No actions for you right now" : queue === "waiting" ? "Nothing waiting" : queue === "completed" ? "No completed work yet" : "Your work starts here"}
           description={incomplete ? "Retry above to check for missing work." : filtered ? "Try another search or clear the filters." : queue === "todo" && waiting > 0 ? `${waiting} ${waiting === 1 ? "item is" : "items are"} with others. You can follow their progress in Waiting.` : queue === "todo" ? "You’re all caught up." : queue === "completed" ? "Finished work will appear here." : queue === "waiting" ? "Work with other people will appear here." : "Use New to start a request or task."}
-          action={!filtered && !incomplete && queue === "todo" && waiting > 0 ? <Link className="button secondary" href={`${base}/work?queue=waiting`}>View waiting work</Link> : undefined}
+          action={!filtered && !incomplete && queue === "todo" && waiting > 0 ? <Link className="button secondary" href={`${base}/work?view=waiting`}>View waiting work</Link> : undefined}
         />
       ) : (
         items.map((item) => (
           <Link
             className={styles.row}
             key={`${item.type}:${item.id}`}
-            href={`${base}${item.href}?${new URLSearchParams({ return: returnTo })}`}
+            href={workItemHref(base, item, returnTo)}
           >
             <div className={styles.body}>
               <small className={styles.type}>

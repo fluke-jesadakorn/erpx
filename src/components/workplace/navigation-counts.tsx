@@ -1,4 +1,5 @@
 "use client";
+import { scheduleWorkRefresh } from "@/lib/work-refresh";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -6,30 +7,37 @@ import { workFetch } from "@/lib/work-fetch";
 
 type Counts = { home: number | null; work: number | null };
 const empty: Counts = { home: null, work: null };
-const NavigationCounts = createContext({ counts: empty, readHome: () => {} });
+const NavigationCounts = createContext<{ counts: Counts; readHome: () => void; publishWork: (count: number | null) => void }>({ counts: empty, readHome: () => {}, publishWork: () => {} });
 export const useNavigationCounts = () => useContext(NavigationCounts);
 
 export function NavigationCountsProvider({ base, children }: { base: string; children: React.ReactNode }) {
   const pathname = usePathname();
+  const home = pathname === `${base}/home` || pathname === `${base}/feed`;
   const [counts, setCounts] = useState<Counts>(empty);
   const generation = useRef(0);
   const pendingRead = useRef<Promise<void> | null>(null);
-  const fetching = useRef(false);
+  const request = useRef<AbortController | null>(null);
+  const summaryRevision = useRef(0);
   const invalidate = useCallback(() => { ++generation.current; }, []);
+  const publishWork = useCallback((work: number | null) => {
+    ++summaryRevision.current;
+    setCounts(value => ({ ...value, work }));
+  }, []);
   const endpoint = `/api/v1${base}/navigation`;
   const refresh = useCallback(async () => {
-    if (fetching.current) return;
-    fetching.current = true;
+    request.current?.abort();
+    const controller = new AbortController(); request.current = controller;
+    const workRevision = summaryRevision.current;
     const current = ++generation.current;
     try {
-      const response = await workFetch(endpoint, { cache: "no-store" });
+      const response = await workFetch(endpoint, { cache: "no-store", signal: controller.signal });
       if (!response.ok) throw new Error("Counts unavailable");
       const { data } = await response.json();
-      if (current === generation.current) setCounts(data);
+      if (!controller.signal.aborted && current === generation.current) setCounts(previous => ({ home: data.home, work: workRevision === summaryRevision.current ? data.work : previous.work }));
     } catch {
-      if (current === generation.current) setCounts(empty);
+      if (!controller.signal.aborted && current === generation.current) setCounts(empty);
     } finally {
-      fetching.current = false;
+      if (request.current === controller) request.current = null;
     }
   }, [endpoint]);
   const readHome = useCallback(() => {
@@ -55,32 +63,32 @@ export function NavigationCountsProvider({ base, children }: { base: string; chi
     return pendingRead.current;
   }, [endpoint, refresh]);
   useEffect(() => {
-    const home = pathname === `${base}/home` || pathname === `${base}/feed`;
     // Read on entry, never on a background poll or when opening a post detail.
     const initial = setTimeout(() => {
-      if (home) void readHome();
+      if (home) void readHome().then(refresh);
       else void refresh();
     }, 0);
     const update = () => {
-      if (!home && document.visibilityState === "visible" && !pendingRead.current) void refresh();
+      if (document.visibilityState === "visible" && !pendingRead.current) void refresh();
     };
     const summary = (event: Event) => {
       const work = (event as CustomEvent<{ work?: unknown }>).detail?.work;
-      if (typeof work === "number" && Number.isInteger(work) && work >= 0)
-        setCounts(value => ({ ...value, work }));
+      if (work === null || typeof work === "number" && Number.isInteger(work) && work >= 0) {
+        publishWork(work);
+      }
     };
     const timer = setInterval(update, 30_000);
-    window.addEventListener("focus", update);
+    const stopRefresh = scheduleWorkRefresh(update);
     window.addEventListener("erpx:work-summary", summary);
-    document.addEventListener("visibilitychange", update);
+
     return () => {
-      invalidate();
+      invalidate(); request.current?.abort();
       clearTimeout(initial);
       clearInterval(timer);
-      window.removeEventListener("focus", update);
+      stopRefresh();
       window.removeEventListener("erpx:work-summary", summary);
-      document.removeEventListener("visibilitychange", update);
+
     };
-  }, [pathname, base, refresh, readHome, invalidate]);
-  return <NavigationCounts.Provider value={{ counts, readHome }}>{children}</NavigationCounts.Provider>;
+  }, [home, base, refresh, readHome, invalidate, publishWork]);
+  return <NavigationCounts.Provider value={{ counts, readHome, publishWork }}>{children}</NavigationCounts.Provider>;
 }

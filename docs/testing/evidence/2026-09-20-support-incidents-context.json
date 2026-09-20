@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-09-20T10:27:48.160643+00:00",
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "dirtyWorkspace": true,
+  "sourceHashes": {
+    "src/server/support-incidents.ts": "5146571253c66c6ed69893bc49f1899c9ad6b33f1e4d9c3f302daee542518dd6",
+    "src/components/modules/support-incident-console.tsx": "dd343278033ba71b5ee2733ad21ca61627cb83a03450d1f08872862b690ca92c",
+    "src/server/calendar/support.ts": "9c542a8d4f05c58e0081e07dd8dae2a4dc3f099cc52190cb560c3efb4c2ac205",
+    "src/server/support.ts": "5d3cd4587f7dbf7a24c613421444e6b8f63aebacd56d9bceafa9ba4504240ac1",
+    "tests/support-incidents.test.ts": "57dedfb0340cf140c0421020c3d8f4ac63d825a91bcc7b03c18fa435b8b8b738",
+    "migrations/postgres/holding-write/0219_support_incidents.sql": "eb4455b9f8a0e27355021818100a00ad7952e45e03b2a0951f5ae1190dcdbc64"
+  },
+  "scope": "Source-linked incident owner lifecycle only",
+  "tests": "12 passed / 4 files, 356-table isolated baseline",
+  "typecheck": "passed",
+  "lint": "0 errors / 3 existing warnings",
+  "release": ".runtime/releases/2026-09-20T10-21-02-784Z",
+  "fullRegression": "running separately; not claimed passed"
+}

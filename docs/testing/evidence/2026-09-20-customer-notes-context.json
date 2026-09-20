@@ -1,0 +1,16 @@
+{
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "workingTree": "dirty",
+  "runtime": "Bun 1.2.17 / Node 24.20.0 / isolated PostgreSQL",
+  "files": {
+    "src/server/customer-notes.ts": "4cbb3426069ba7f25de925911c3ac1f9f217539629123e5370b18a7205f29975",
+    "src/components/modules/customer-notes.tsx": "203bba1e3b50e561ae88cdb2d9b9d42be4cea7a69e3b3c6125ef39b15b2b544a",
+    "migrations/postgres/holding-write/0212_customer_contact_notes.sql": "d5b16b9dd2a102b44bc116660c52f090e245005d3df97445e8dea373496d9d3c",
+    "tests/customer-notes.test.ts": "ba0e70ef295ea4dc128c1d5fbf7943637e02a1ad0e28f7afcdddf19e15b5283b"
+  },
+  "limitations": [
+    "Source-order contact notes only; not standalone customer authority or consent.",
+    "No customer portal disclosure, no email transmission.",
+    "Browser mutations not yet verified."
+  ]
+}

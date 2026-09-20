@@ -1,0 +1,20 @@
+{
+  "observedAt": "2026-09-20T15:31:53.784Z",
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "dirtyWorkspace": true,
+  "sourceHashes": {
+    "src/server/support-sessions.ts": "aaf02615b0caafa7776332b3d686b3294e400b4802bbcc5f5e8c13959a1fb5c8",
+    "src/components/modules/support-session-console.tsx": "e33a95d19e2e6bed1887100a52c2b7dd7637891605428b345e47d577ae04ea76",
+    "src/app/api/v1/holdings/[holdingSlug]/support/sessions/route.ts": "bdf8d051a918755aababab6cfd6ae36584edf5bcc69a0205be537166bd63260f",
+    "tests/support-sessions.test.ts": "79041b22f9b6e02af525b68668e895cb8883d6550162f3dc00ee443c0d923df1",
+    "migrations/postgres/holding-write/0224_support_sessions.sql": "f1f797744dfb4801c63aaa868ab12da4a01215db3b19fdb4ca58c931cc5cf103"
+  },
+  "scope": "Ticket-bound temporary sessions and allowlisted read capabilities",
+  "tests": "14 passed / 4 discovered files; owner flow 4 tests and 368-table baseline",
+  "typecheck": "passed",
+  "limitations": [
+    "No whole-capability or S10 acceptance",
+    "No customer consent, remote control, write/file-byte grant or Calendar",
+    "No browser, provider, production or business acceptance"
+  ]
+}

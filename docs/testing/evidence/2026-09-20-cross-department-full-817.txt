@@ -1,0 +1,1516 @@
+$ bun scripts/local/test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/pos.test.ts > POS committed business flows > exposes company currency without exposing accounting configuration 947ms
+ ✓ tests/pos.test.ts > POS committed business flows > keeps historical document currencies separate in sales and tender reports 1026ms
+ ✓ tests/pos.test.ts > POS committed business flows > pages history without loading other tabs and keeps every sale reachable 685ms
+ ✓ tests/pos.test.ts > POS committed business flows > executes scoped commerce, finance and inventory page queries 557ms
+ ✓ tests/pos.test.ts > POS committed business flows > cash sale posts one balanced invoice, receipt, allocation and stock cost; lost-response replay is safe 551ms
+ ✓ tests/pos.test.ts > POS committed business flows > split tender never overpays and closing a shift does not repost sales 909ms
+ ✓ tests/pos.test.ts > POS committed business flows > serializes two tills reserving the final unit and guards other inventory writers 791ms
+ ✓ tests/pos.test.ts > POS committed business flows > serializes Sales and POS competing for the final unit through the same availability owner 3358ms
+ ✓ tests/pos.test.ts > POS committed business flows > reserves recipes on send, consumes on start, moves WIP to COGS on delivery 521ms
+ ✓ tests/pos.test.ts > POS committed business flows > cancelled preparation records waste and never restores ingredients 596ms
+ ✓ tests/pos.test.ts > POS committed business flows > splits a dispatched recipe without creating another kitchen item or consuming twice 1307ms
+ ✓ tests/pos.test.ts > POS committed business flows > partial returns require independent review, restore original cost, and cannot exceed original quantity 1540ms
+ ✓ tests/pos.test.ts > POS committed business flows > closed periods and changed scopes leave no payment or journal effects 1148ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > provider success survives account switch, revoked cashier and repeated polling without duplicate sale 933ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > paid at provider with a newly closed period enters review and resumes the same payment 621ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > webhook mode, duplicate and reverse delivery cannot route across companies 766ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > hosted onboarding accepts account-link responses without an object id 741ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > failed provider refund retries with a new attempt only after review and never restores stock twice 884ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > a payout groups charges and fees, posts once, and matches the existing bank statement 974ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > full manual advance refund releases the reservation and lets the original bill be edited 912ms
+ ✓ tests/pos.test.ts > POS provider recovery and reporting > reports actual return cost and disallows discount preparer self approval 948ms
+ ✓ tests/pos.test.ts > POS monetary and webhook boundaries > allocates every cent across repeated partial refunds 877ms
+ ✓ tests/pos.test.ts > POS monetary and webhook boundaries > requires a fresh, exact signed webhook body 945ms
+ ✓ tests/pos.test.ts > quality quarantine blocks a reserved retail payment without consuming stock or cash 1012ms
+ ✓ tests/flow-routing.test.ts > requires a primary for an ambiguous team; administrators cannot select the claimant or an unrelated user 3161ms
+ ✓ tests/flow-routing.test.ts > freezes defaults for existing documents and applies a new revision only to new routes 1093ms
+ ✓ tests/flow-routing.test.ts > rejects stale reassignment and leaves completed approvals immutable 2099ms
+ ✓ tests/flow-routing.test.ts > keeps approval, GL and payment separate and returns an unposted GL review for correction 3545ms
+ ✓ tests/flow-routing.test.ts > posts one balanced GL under retries and blocks a revoked primary 2971ms
+ ✓ tests/flow-routing.test.ts > repairs a revoked reviewer through an audited independent reassignment 3578ms
+ ✓ tests/flow-routing.test.ts > routes standalone invoice posting and partial settlement through different named staff 713ms
+ ✓ tests/flow-routing.test.ts > requires stock approval before balanced GL and posts the counted stock only once 637ms
+ ✓ tests/flow-routing.test.ts > hands purchase receipt to accounting before drafting and posting its payable 1384ms
+ ✓ tests/flow-routing.test.ts > cancels an approved order independently but requires a return after stock moved 664ms
+ ✓ tests/flow-routing.test.ts > enforces a versioned customer credit limit when sales approval creates exposure 445ms
+ ✓ tests/expense-v2.test.ts > preserves incomplete owner and beta member drafts and reports missing setup 392ms
+ ✓ tests/expense-v2.test.ts > only the configured primary can decide and concurrent decisions complete one step 1476ms
+ ✓ tests/expense-v2.test.ts > uses the reporting superior and blocks missing supervisors and cycles 201ms
+ ✓ tests/expense-v2.test.ts > revalidates department ranks and revoked Accounts roles at commit 908ms
+ ✓ tests/expense-v2.test.ts > separates approval from atomic GL posting, preserves partial payments and requires unique slips 6101ms
+ ✓ tests/expense-v2.test.ts > requires four different people and routes correction through department approval again 5305ms
+ ✓ tests/expense-v2.test.ts > denies alternate posting, settlement, other company access and ineligible repair 2384ms
+ ✓ tests/expense-v2.test.ts > removes unacted pool access after role revocation and reroutes to a currently eligible replacement 955ms
+ ✓ tests/expense-v2.test.ts > does not offer a department decision that would leave no independent Accounts reviewer 100ms
+ ✓ tests/expense-v2.test.ts > excludes reviewers whose current assignments do not cover the claim branch 103ms
+ ✓ tests/routing-attention.test.ts > pages only source-authorized blockers and removes a repaired source without approving it 4514ms
+ ✓ tests/routing-attention.test.ts > finds an old blocker after more than 250 newer owner-created documents 10763ms
+ ✓ tests/routing-attention.test.ts > rechecks manager assignment validity and never treats another Company cursor as authority 159ms
+ ✓ tests/social-beta.test.ts > social beta isolation and work > keeps drafts private, then uses the normal independent review workflow 648ms
+ ✓ tests/social-beta.test.ts > social beta isolation and work > commits exactly one task, source, receipt and assignment notification during a race 129ms
+ ✓ tests/social-beta.test.ts > social beta isolation and work > rechecks source version and permissions before any task writes 86ms
+ ✓ tests/social-beta.test.ts > social beta isolation and work > denies another company, another branch, revoked accounts and hidden source files 70ms
+ ✓ tests/social-beta.test.ts > social beta isolation and work > rejects idempotency keys reused by another actor and leaves no extra posts 29ms
+ ✓ tests/social-beta.test.ts > social beta isolation and work > keeps beta modules unavailable at server destinations 21ms
+ ✓ tests/social-beta.test.ts > AI reservations and private output > reserves before calling, validates references and persists only a private draft 75ms
+ ✓ tests/social-beta.test.ts > AI reservations and private output > atomically limits concurrent requests and monthly quota 86ms
+ ✓ tests/social-beta.test.ts > AI reservations and private output > fails safely for timeout without creating work 56ms
+ ✓ tests/social-beta.test.ts > AI reservations and private output > fails safely for schema without creating work 77ms
+ ✓ tests/social-beta.test.ts > AI reservations and private output > fails safely for citation without creating work 59ms
+ ✓ tests/social-beta.test.ts > AI reservations and private output > fails safely for revocation without creating work 166ms
+ ✓ tests/social-beta.test.ts > AI reservations and private output > fails safely for changed without creating work 56ms
+ ✓ tests/social-beta.test.ts > AI reservations and private output > handles provider refusal, invalid JSON and excessive output 22ms
+ ✓ tests/social-beta.test.ts > AI reservations and private output > requires explicit missing task fields in the schema 18ms
+ ✓ tests/social-beta.test.ts > tenant admission and verified invitations > resumes a claim and admits only available isolated slots 7952ms
+ ✓ tests/social-beta.test.ts > tenant admission and verified invitations > links only the invited verified account and retries without duplicate access 164ms
+ ✓ tests/social-beta.test.ts > tenant admission and verified invitations > validates registry capacity and refuses arbitrary binding names 27ms
+ ✓ tests/social-beta.test.ts > tenant admission and verified invitations > accepts an owner-issued IT invitation alongside ordinary employee access 98ms
+ ✓ tests/social-beta.test.ts > paginates tied timestamps without dropping or duplicating conversations 71ms
+ ✓ tests/social-beta.test.ts > enforces member and branch capacity before granting access 158ms
+ ✓ tests/social-beta.test.ts > lets the original reporter track status without granting task or evidence access 152ms
+ ✓ tests/social-beta.test.ts > inline mentions, hashtags and assistant replies > preserves draft metadata, indexes hashtags and queues only once 133ms
+ ✓ tests/social-beta.test.ts > inline mentions, hashtags and assistant replies > rejects forged targets and stale offsets 26ms
+ ✓ tests/social-beta.test.ts > inline mentions, hashtags and assistant replies > publishes one attributed AI reply, accounts usage, and never recursively queues 98ms
+ ✓ tests/social-beta.test.ts > inline mentions, hashtags and assistant replies > keeps the post when AI fails and lets only its requester retry 163ms
+ ✓ tests/social-beta.test.ts > inline mentions, hashtags and assistant replies > blocks exhausted quotas and revoked access without publishing 120ms
+ ✓ tests/social-beta.test.ts > inline mentions, hashtags and assistant replies > invokes the assistant from a comment and fails expired leases visibly 59ms
+ ✓ tests/social-beta.test.ts > scopes people/record suggestions and notifies only readable mentioned people 77ms
+ ✓ tests/social-beta.test.ts > keeps the newest replies visible in long conversations 86ms
+ ✓ tests/staff-work.test.ts > Staff request routing and approval transactions > allows employees and contractors under every business role, and missing levels do not block personal requests 2343ms
+ ✓ tests/staff-work.test.ts > Staff request routing and approval transactions > uses the reporting manager and engagement scope, requires ordered independent HR, preserves scope across workspaces 568ms
+ ✓ tests/staff-work.test.ts > Staff request routing and approval transactions > keeps drafts when routing is missing, detects cycles and escalates a head's own request 173ms
+ ✓ tests/staff-work.test.ts > Staff request routing and approval transactions > rejects missing, inactive and ambiguous engagement links 61ms
+ ✓ tests/staff-work.test.ts > Staff request routing and approval transactions > blocks missing reporting managers and independent HR explicitly 73ms
+ ✓ tests/staff-work.test.ts > Staff request routing and approval transactions > starts fresh cycles after rejection and allows cancellation before HR final approval 458ms
+ ✓ tests/staff-work.test.ts > Staff request routing and approval transactions > commits one concurrent decision, replays retries, and rejects stale versions 337ms
+ ✓ tests/staff-work.test.ts > Staff request routing and approval transactions > rolls back a decision when the HR grant is revoked after preparation 314ms
+ ✓ tests/staff-work.test.ts > Staff request routing and approval transactions > rejects a route changed between resolution and atomic submission 115ms
+ ✓ tests/staff-work.test.ts > Staff request routing and approval transactions > initializes pending legacy routes once, preserving earlier decisions and record scope 193ms
+ ✓ tests/staff-work.test.ts > Staff request routing and approval transactions > administratively reroutes unavailable approvers with evidence and still enforces HR eligibility 300ms
+ ✓ tests/staff-work.test.ts > Projects, task phases and evidence boundaries > runs before approval with cross-department staff and denies unrelated readers 289ms
+ ✓ tests/staff-work.test.ts > Projects, task phases and evidence boundaries > runs after approval with cross-department staff and denies unrelated readers 243ms
+ ✓ tests/staff-work.test.ts > Projects, task phases and evidence boundaries > runs both approval with cross-department staff and denies unrelated readers 350ms
+ ✓ tests/staff-work.test.ts > Projects, task phases and evidence boundaries > prevents assignee review and creator start approval; supports rework, revision and reassignment 479ms
+ ✓ tests/staff-work.test.ts > Projects, task phases and evidence boundaries > requires each named step in order and ignores former reviewers becoming unavailable 704ms
+ ✓ tests/staff-work.test.ts > Projects, task phases and evidence boundaries > allows the creator to cancel work after its assignee becomes unavailable 197ms
+ ✓ tests/staff-work.test.ts > Projects, task phases and evidence boundaries > project owners manage workflows, members read only relevant project tasks 199ms
+ ✓ tests/staff-work.test.ts > Projects, task phases and evidence boundaries > blocks task completion when a configured approver is unavailable 208ms
+ ✓ tests/staff-work.test.ts > Reusable levels and routine scheduling > scopes Administration sections without granting staff approval management or beta ERP tools 97ms
+ ✓ tests/staff-work.test.ts > Reusable levels and routine scheduling > retains level history and filters without conferring authority 236ms
+stdout | tests/staff-work.test.ts > Reusable levels and routine scheduling > generates bounded independent occurrences, deduplicates concurrent runs and skips pauses
+{"event":"routine_generation","generated":0,"examined":1,"lagMs":86400000}
+
+stdout | tests/staff-work.test.ts > Reusable levels and routine scheduling > generates bounded independent occurrences, deduplicates concurrent runs and skips pauses
+{"event":"routine_generation","generated":3,"examined":4,"lagMs":0}
+
+ ✓ tests/staff-work.test.ts > Reusable levels and routine scheduling > generates bounded independent occurrences, deduplicates concurrent runs and skips pauses 158ms
+stderr | tests/staff-work.test.ts > Reusable levels and routine scheduling > clones templates, keeps existing occurrences unchanged and surfaces unavailable assignment
+{"event":"routine_blocked","taskId":"task-0a5c1fe5-5904-4e2a-8373-9bdcc4f338c5","templateId":"routine-605f4b53-4913-443f-a3f3-107704569e6b","companyId":"co-5d33b92d-39d5-417e-ba81-30cb534af462","reason":"An active employee or contractor engagement and account are required in this company."}
+
+ ✓ tests/staff-work.test.ts > Reusable levels and routine scheduling > clones templates, keeps existing occurrences unchanged and surfaces unavailable assignment 192ms
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Hotel operations","durationMs":1.2451660000006086}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Stock counts","durationMs":1.0567920000012236}
+{"event":"work_source","source":"Warehouse transfers","durationMs":1.0603750000009313}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Quality holds","durationMs":7.607707999999548}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier quotation reviews","durationMs":8.015666999999667}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Overtime","durationMs":8.909333000001425}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Retirement clearance","durationMs":15.002207999999882}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Leave requests","durationMs":20.398459000000003}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Expense claims","durationMs":24.368083000001207}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Commercial and financial workflows","durationMs":27.318167000001267}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"POS","durationMs":35.88287499999933}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier invoice reviews","durationMs":36.15912500000013}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier confirmations","durationMs":42.05291600000055}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier payment batches","durationMs":42.428249999999025}
+{"event":"work_source","source":"Stock in transit","durationMs":42.445208000001}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Return refunds","durationMs":42.62262499999997}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Employee requests","durationMs":43.00533399999949}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"CRM pipeline","durationMs":44.90541600000142}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Customer follow-ups","durationMs":45.15049999999974}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Support target escalations","durationMs":45.77508399999897}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Legal","durationMs":47.11316699999952}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"People & IT preparation","durationMs":48.2505829999991}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Support tickets","durationMs":49.360500000000684}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Support incidents","durationMs":49.74183300000004}
+{"event":"work_source","source":"Support SLA policies","durationMs":49.745584000000235}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Tasks","durationMs":82.15141700000095}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_snapshot","queries":37,"queryMs":177.25912499999868,"poolWaitMs":87.11091600000327,"durationMs":83.69491700000071,"items":1}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Hotel operations","durationMs":0.39949999999953434}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Stock counts","durationMs":0.46229200000016135}
+{"event":"work_source","source":"Warehouse transfers","durationMs":0.4666660000002594}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"POS","durationMs":0.5550419999999576}
+{"event":"work_source","source":"CRM pipeline","durationMs":0.5593339999995806}
+{"event":"work_source","source":"Support target escalations","durationMs":0.5613329999996495}
+{"event":"work_source","source":"Support incidents","durationMs":0.5637920000008307}
+{"event":"work_source","source":"Support SLA policies","durationMs":0.5655000000006112}
+{"event":"work_source","source":"Support tickets","durationMs":0.567417000000205}
+{"event":"work_source","source":"Customer follow-ups","durationMs":0.5697090000012395}
+{"event":"work_source","source":"Supplier invoice reviews","durationMs":0.5717919999988226}
+{"event":"work_source","source":"Supplier quotation reviews","durationMs":0.5736670000005688}
+{"event":"work_source","source":"Supplier confirmations","durationMs":0.5757499999999709}
+{"event":"work_source","source":"Stock in transit","durationMs":0.5778339999997115}
+{"event":"work_source","source":"Quality holds","durationMs":0.5794999999998254}
+{"event":"work_source","source":"Supplier payment batches","durationMs":0.5815000000002328}
+{"event":"work_source","source":"Return refunds","durationMs":0.5836249999993015}
+{"event":"work_source","source":"Legal","durationMs":0.6568329999990965}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Overtime","durationMs":4.020500000000538}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Retirement clearance","durationMs":4.289875000000393}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Employee requests","durationMs":7.318708999999217}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Expense claims","durationMs":9.31000000000131}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Leave requests","durationMs":10.046500000000378}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Commercial and financial workflows","durationMs":12.056708000000071}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"People & IT preparation","durationMs":23.709625000001324}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Tasks","durationMs":29.66204199999993}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_snapshot","queries":41,"queryMs":72.4566650000088,"poolWaitMs":25.47116399999686,"durationMs":29.822167000000263,"items":1}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Hotel operations","durationMs":0.4913329999999405}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Stock counts","durationMs":0.5940829999999551}
+{"event":"work_source","source":"Warehouse transfers","durationMs":0.6030840000003082}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"POS","durationMs":0.7409170000009908}
+{"event":"work_source","source":"CRM pipeline","durationMs":0.7498329999998532}
+{"event":"work_source","source":"Support target escalations","durationMs":0.7538750000003347}
+{"event":"work_source","source":"Support incidents","durationMs":0.757832999999664}
+{"event":"work_source","source":"Support SLA policies","durationMs":0.7612500000013824}
+{"event":"work_source","source":"Support tickets","durationMs":0.7650420000009035}
+{"event":"work_source","source":"Customer follow-ups","durationMs":0.768792000000758}
+{"event":"work_source","source":"Supplier invoice reviews","durationMs":0.7724159999997937}
+{"event":"work_source","source":"Supplier quotation reviews","durationMs":0.7760830000006536}
+{"event":"work_source","source":"Supplier confirmations","durationMs":0.7797499999996944}
+{"event":"work_source","source":"Stock in transit","durationMs":0.7831250000017462}
+{"event":"work_source","source":"Quality holds","durationMs":0.7866670000003069}
+{"event":"work_source","source":"Supplier payment batches","durationMs":0.7902919999996811}
+{"event":"work_source","source":"Return refunds","durationMs":0.7938340000000608}
+{"event":"work_source","source":"Legal","durationMs":0.8591250000008586}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Overtime","durationMs":3.283957999999984}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Retirement clearance","durationMs":4.947125000000597}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Employee requests","durationMs":7.570334000000003}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Leave requests","durationMs":7.708582999999635}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Commercial and financial workflows","durationMs":12.06579199999942}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Expense claims","durationMs":12.411834000000454}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"People & IT preparation","durationMs":19.733917000001384}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Tasks","durationMs":28.520457999999053}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_snapshot","queries":40,"queryMs":67.57616700000108,"poolWaitMs":25.34637400000429,"durationMs":28.763624999999593,"items":1}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Hotel operations","durationMs":0.5598749999990105}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Stock counts","durationMs":0.6760840000006283}
+{"event":"work_source","source":"Warehouse transfers","durationMs":0.6762089999992895}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"People & IT preparation","durationMs":0.7015840000003664}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"POS","durationMs":3.0019999999985885}
+{"event":"work_source","source":"Support target escalations","durationMs":3.0628749999996217}
+{"event":"work_source","source":"Support incidents","durationMs":3.0736249999990832}
+{"event":"work_source","source":"Support SLA policies","durationMs":3.077500000001237}
+{"event":"work_source","source":"Support tickets","durationMs":3.0817499999993743}
+{"event":"work_source","source":"Stock in transit","durationMs":3.114665999999488}
+{"event":"work_source","source":"Quality holds","durationMs":3.1206660000007105}
+{"event":"work_source","source":"Supplier payment batches","durationMs":3.1252499999991414}
+{"event":"work_source","source":"Legal","durationMs":3.2287500000002183}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Retirement clearance","durationMs":4.954250000000684}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Overtime","durationMs":5.78270799999882}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Customer follow-ups","durationMs":9.246250000000146}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier quotation reviews","durationMs":9.628708000000188}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"CRM pipeline","durationMs":11.273041000000376}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Return refunds","durationMs":13.993166000000201}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier invoice reviews","durationMs":14.096874999999272}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Employee requests","durationMs":15.272124999999505}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Leave requests","durationMs":15.69866699999875}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier confirmations","durationMs":16.141875000001164}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Commercial and financial workflows","durationMs":16.565207999999984}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Expense claims","durationMs":18.653207999999722}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Tasks","durationMs":36.56879100000151}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_snapshot","queries":36,"queryMs":72.78420600000754,"poolWaitMs":95.75275100000545,"durationMs":36.78020800000013,"items":1}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Hotel operations","durationMs":2.572374999999738}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Stock counts","durationMs":2.74854200000118}
+{"event":"work_source","source":"Warehouse transfers","durationMs":2.7609579999989364}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"People & IT preparation","durationMs":2.806542000000263}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"POS","durationMs":3.574957999999242}
+{"event":"work_source","source":"Support target escalations","durationMs":3.6136249999999563}
+{"event":"work_source","source":"Support incidents","durationMs":3.6202919999996084}
+{"event":"work_source","source":"Support SLA policies","durationMs":3.624041999999463}
+{"event":"work_source","source":"Support tickets","durationMs":3.628208000000086}
+{"event":"work_source","source":"Stock in transit","durationMs":3.6280420000002778}
+{"event":"work_source","source":"Quality holds","durationMs":3.632166999999754}
+{"event":"work_source","source":"Supplier payment batches","durationMs":3.6364160000011907}
+{"event":"work_source","source":"Legal","durationMs":3.7349169999997684}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Overtime","durationMs":5.763708000000406}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Retirement clearance","durationMs":6.1159579999985}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Tasks","durationMs":9.913749999999709}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Customer follow-ups","durationMs":11.141999999999825}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"CRM pipeline","durationMs":13.034707999999227}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier quotation reviews","durationMs":13.311917000000903}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier invoice reviews","durationMs":15.184042000000773}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Return refunds","durationMs":15.271124999999302}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Employee requests","durationMs":19.91258299999936}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier confirmations","durationMs":20.591333000000304}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Expense claims","durationMs":20.87316699999974}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Commercial and financial workflows","durationMs":20.927165999999488}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Leave requests","durationMs":21.073374999999942}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_snapshot","queries":19,"queryMs":67.21062299999903,"poolWaitMs":88.76162699999259,"durationMs":21.270834000000832,"items":0}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Hotel operations","durationMs":0.5151669999995647}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Stock counts","durationMs":0.6208330000008573}
+{"event":"work_source","source":"Warehouse transfers","durationMs":0.6313329999993584}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"People & IT preparation","durationMs":0.6528749999997672}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"POS","durationMs":2.2404589999987365}
+{"event":"work_source","source":"Supplier invoice reviews","durationMs":2.2562089999992168}
+{"event":"work_source","source":"Stock in transit","durationMs":2.257499999999709}
+{"event":"work_source","source":"Quality holds","durationMs":2.2609580000007554}
+{"event":"work_source","source":"Supplier payment batches","durationMs":2.2643330000009882}
+{"event":"work_source","source":"Return refunds","durationMs":2.2715840000000753}
+{"event":"work_source","source":"Legal","durationMs":2.370208000000275}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Retirement clearance","durationMs":4.5439580000002024}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Overtime","durationMs":5.357958999999028}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"CRM pipeline","durationMs":8.719250000000102}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Support incidents","durationMs":10.396166999998968}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Support target escalations","durationMs":10.714167000000089}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Support SLA policies","durationMs":13.179083000000901}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Customer follow-ups","durationMs":13.304250000001048}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Support tickets","durationMs":14.262375000000247}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier quotation reviews","durationMs":16.685875000001033}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Expense claims","durationMs":18.334499999999025}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Employee requests","durationMs":18.392249999998967}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Leave requests","durationMs":18.58050000000003}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Commercial and financial workflows","durationMs":19.21483399999852}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier confirmations","durationMs":21.018834000000425}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Tasks","durationMs":39.930458000000726}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_snapshot","queries":38,"queryMs":87.59595900000386,"poolWaitMs":126.69374899999457,"durationMs":40.22529200000099,"items":1}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Hotel operations","durationMs":1.3925840000010794}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Stock counts","durationMs":1.5794160000004922}
+{"event":"work_source","source":"Warehouse transfers","durationMs":1.5335830000003625}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"People & IT preparation","durationMs":1.2214160000003176}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"POS","durationMs":2.9262089999992895}
+{"event":"work_source","source":"Supplier invoice reviews","durationMs":2.9688330000008136}
+{"event":"work_source","source":"Stock in transit","durationMs":2.9985000000015134}
+{"event":"work_source","source":"Quality holds","durationMs":3.0093329999999696}
+{"event":"work_source","source":"Supplier payment batches","durationMs":3.015457999999853}
+{"event":"work_source","source":"Return refunds","durationMs":3.021500000000742}
+{"event":"work_source","source":"Legal","durationMs":3.564875000000029}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Overtime","durationMs":13.089208999999755}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Retirement clearance","durationMs":13.360500000000684}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Support target escalations","durationMs":18.087290999999823}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"CRM pipeline","durationMs":19.724958999999217}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Support SLA policies","durationMs":20.926041999999143}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Support incidents","durationMs":21.29004200000054}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Support tickets","durationMs":21.96220799999901}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Customer follow-ups","durationMs":22.51116600000023}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier quotation reviews","durationMs":22.870332999998936}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Employee requests","durationMs":26.262332999998762}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier confirmations","durationMs":27.40533300000061}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Leave requests","durationMs":27.6282910000009}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Commercial and financial workflows","durationMs":28.178792000000612}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Expense claims","durationMs":29.418250000000626}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Tasks","durationMs":41.17645799999991}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_snapshot","queries":36,"queryMs":109.71662300000025,"poolWaitMs":217.21862699999292,"durationMs":42.02833399999872,"items":1}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Hotel operations","durationMs":0.344041999998808}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Stock counts","durationMs":0.42937499999970896}
+{"event":"work_source","source":"Warehouse transfers","durationMs":0.4336250000014843}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"People & IT preparation","durationMs":0.4509589999997843}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"POS","durationMs":1.2528330000004644}
+{"event":"work_source","source":"Supplier invoice reviews","durationMs":1.252582999999504}
+{"event":"work_source","source":"Stock in transit","durationMs":1.2532910000008997}
+{"event":"work_source","source":"Quality holds","durationMs":1.2551249999996799}
+{"event":"work_source","source":"Supplier payment batches","durationMs":1.2568749999991269}
+{"event":"work_source","source":"Return refunds","durationMs":1.2835420000010345}
+{"event":"work_source","source":"Legal","durationMs":1.345167000001311}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Retirement clearance","durationMs":10.243083000001207}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Overtime","durationMs":14.531582999999955}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"CRM pipeline","durationMs":16.406999999999243}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Support incidents","durationMs":23.742082999999184}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Support SLA policies","durationMs":24.878249999999753}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Support target escalations","durationMs":25.81408399999964}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Customer follow-ups","durationMs":26.293958000000202}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier quotation reviews","durationMs":27.319917000000714}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Support tickets","durationMs":27.441666999999143}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Leave requests","durationMs":30.293915999998717}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Supplier confirmations","durationMs":30.52483300000131}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Employee requests","durationMs":31.014333999999508}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Expense claims","durationMs":31.30291599999873}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Commercial and financial workflows","durationMs":32.65024999999878}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_source","source":"Tasks","durationMs":45.07599999999911}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_snapshot","queries":36,"queryMs":134.50295800001004,"poolWaitMs":253.17379099999562,"durationMs":45.21916600000077,"items":1}
+
+stdout | tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment
+{"event":"work_cache","status":"miss"}
+
+ ✓ tests/staff-work.test.ts > refreshes a persisted Work snapshot immediately after task submit, approval and reassignment 1944ms
+ ✓ tests/supplier-bill-matching.test.ts > posts reviewed price 12 and reverses actual AP with original stock cost over partial returns 2655ms
+ ✓ tests/supplier-bill-matching.test.ts > posts reviewed price 8 and reverses actual AP with original stock cost over partial returns 1910ms
+ ✓ tests/supplier-bill-matching.test.ts > keeps quantity discrepancies in review, blocks invoice bypass and preserves correction history 1147ms
+ ✓ tests/supplier-bill-matching.test.ts > serializes capture and review, protects current authority, and exposes scoped handoffs 1960ms
+ ✓ tests/supplier-bill-matching.test.ts > returns an unposted AP draft atomically and accepts a corrected bill without receiving or posting goods twice 2124ms
+ ✓ tests/supplier-bill-matching.test.ts > allows exactly one winner when AP posting races an independent draft correction 1694ms
+ ✓ tests/support-sla.test.ts > requires independent policy approval, snapshots the calendar and preserves consumed time through wait/resume/rework 710ms
+ ✓ tests/support-sla.test.ts > scopes target watches and rejects retired, stale and duplicate attachments without replacing a ticket policy 447ms
+ ✓ tests/support-sla.test.ts > retains durable breach escalation across retries, checks live routing and records a manager without changing the ticket 416ms
+ ✓ tests/support-sla.test.ts > removes a withdrawn reviewer from policy actions and never approves through stale HR eligibility 376ms
+ ✓ tests/support-sla.test.ts > recovers a breach after worker downtime and routes it when manager coverage becomes available 377ms
+ ✓ tests/legal.test.ts > keeps confidential records out of lists, details and counts until membership is granted 181ms
+ ✓ tests/legal.test.ts > replays create and rejects stale edits without adding extra evidence 127ms
+ ✓ tests/legal.test.ts > requires independent approval of a pinned document and signer list 314ms
+ ✓ tests/legal.test.ts > propagates multiple holds through cyclic typed links and retains the other hold on release 170ms
+ ✓ tests/legal.test.ts > rejects document replacement even through raw database updates 80ms
+ ✓ tests/legal.test.ts > validates dates and refuses unknown domain fields 37ms
+ ✓ tests/legal.test.ts > denies cross-company and local-scope reads even with explicit membership 68ms
+ ✓ tests/legal.test.ts > keeps records readable when disabled but blocks mutations 79ms
+ ✓ tests/legal.test.ts > requires completion evidence for an obligation 154ms
+ ✓ tests/legal.test.ts > limits external readers to shared versions and hides internal comments 765ms
+ ✓ tests/legal.test.ts > validates and imports records atomically and replays an import 125ms
+ ✓ tests/legal.test.ts > protects private legal files from overwrite and generic cleanup 75ms
+ ✓ tests/legal.test.ts > exports readable DOCX and PDF while auditing access 108ms
+ ✓ tests/legal.test.ts > completes ordered portal signing with fresh MFA, exact consent and replay 680ms
+ ✓ tests/legal.test.ts > catches up deadline reminders once without flooding old thresholds 150ms
+ ✓ tests/legal.test.ts > preserves metadata snapshots and searches document text within the same ACL 89ms
+ ✓ tests/legal.test.ts > does not disclose the source matter's hold reason to a linked evidence reader 123ms
+ ✓ tests/legal.test.ts > accepts only human-reviewed AI content and keeps approval separate with replay 110ms
+ ✓ tests/legal.test.ts > shares staff discussion only with the explicitly selected document version 140ms
+ ✓ tests/legal.test.ts > prevents the latest editor approving their own content on someone else's record 98ms
+ ✓ tests/legal.test.ts > routes approval through independent sequential reviewers and blocks route bypass 173ms
+ ✓ tests/legal.test.ts > tracks case actions with optimistic versions, evidence, access and work/calendar integration 128ms
+ ✓ tests/legal.test.ts > sends generic version-scoped invitations through retryable jobs and cancels revoked shares 130ms
+ ✓ tests/legal.test.ts > blocks destruction under overlapping holds and completes an independently approved retention disposal 226ms
+ ✓ tests/legal.test.ts > runs every specialized register workflow to completion with evidence and records immutable history 1040ms
+ ✓ tests/legal.test.ts > requires independent intake approval, validates fields and starts SLA without exposing reports or knowledge 162ms
+ ✓ tests/legal.test.ts > binds invited enrollment to a signed unexpired share and revokes it immediately 76ms
+ ✓ tests/legal.test.ts > preserves original file bytes under a hold and blocks overwrite and generic cleanup 76ms
+ ✓ tests/legal.test.ts > accepts external counsel billing once without exposing another submitter's entries 87ms
+ ✓ tests/legal.test.ts > rejects signing authority after revocation and rejects changed approval content 62ms
+ ✓ tests/legal.test.ts > hands counsel spending into Finance once and replays the complete command 116ms
+ ✓ tests/legal.test.ts > rechecks AI policy after generation and refuses unsupported citations without executing document instructions 93ms
+ ✓ tests/employee-services.test.ts > allows incomplete service drafts without profiles; purchases require an engagement 606ms
+ ✓ tests/employee-services.test.ts > routes a no-profile service request directly, without granting business or IT authority 548ms
+ ✓ tests/employee-services.test.ts > keeps missing coverage requests and repairs routing with an audited owner reason 463ms
+ ✓ tests/employee-services.test.ts > uses department over branch over company, preserving open routing until explicit reassignment 447ms
+ ✓ tests/employee-services.test.ts > rejects ambiguous coverage, stale team changes, and leads without covered access 303ms
+ ✓ tests/employee-services.test.ts > supports conversation, requester questions, resolution, reopening and explicit final confirmation 1455ms
+ ✓ tests/employee-services.test.ts > rejects revoked team access and prevents company, branch and department leakage 641ms
+ ✓ tests/employee-services.test.ts > revalidates membership, coverage and rank snapshots in the committing transaction 97ms
+ ✓ tests/employee-services.test.ts > requires resource profiles, but department approval does not require Accounts or Treasury 641ms
+ ✓ tests/employee-services.test.ts > permits only one concurrent independent decision and preserves correction before resubmission 1206ms
+ ✓ tests/employee-services.test.ts > excludes the service preparer from resource approvals and cannot approve spending by closing a service job 1293ms
+ ✓ tests/employee-services.test.ts > records equipment handover separately from inventory and accounting postings 1292ms
+ ✓ tests/employee-services.test.ts > requires purchasing authority and an approved unchanged request for an atomic order handoff 2327ms
+ ✓ tests/employee-services.test.ts > uses only the active responsibility even when other grants exist 199ms
+ ✓ tests/employee-services.test.ts > keeps handbook drafts, published revisions and search strictly separate 258ms
+ ✓ tests/employee-services.test.ts > revokes handbook editing immediately, denies cross-company reads and rejects stale publication 387ms
+ ✓ tests/employee-services.test.ts > retains immutable team configuration history and blocks unavailable local coverage 237ms
+ ✓ tests/employee-services.test.ts > permits a purchase request with unknown cost and no promised delivery date 516ms
+ ✓ tests/employee-services.test.ts > opens historical published handbook content and never exposes a requested draft revision 375ms
+ ✓ tests/employee-services.test.ts > maps an approved requisition into RFQ and atomically links the awarded PO without bypassing either owner 2481ms
+ ✓ tests/commerce-returns.test.ts > returns a supplier receipt through independent review, stock reversal and debit-note GL 2314ms
+ ✓ tests/commerce-returns.test.ts > separates invoice credit from sales cash refund and reconciles partial/final payments exactly once 2152ms
+ ✓ tests/commerce-returns.test.ts > separates invoice credit from purchase cash refund and reconciles partial/final payments exactly once 2009ms
+ ✓ tests/commerce-returns.test.ts > holds uncertain payments, requires independent failure review, and serializes competing replacement instructions 2165ms
+ ✓ tests/commerce-returns.test.ts > keeps tax in the full paid credit and creates exactly the gross refund obligation 1974ms
+ ✓ tests/spending-approvals.test.ts > resolves exactly the nearest higher reporting supervisor, never a same-level peer 354ms
+ ✓ tests/spending-approvals.test.ts > starts CEO requests at Accounting while retaining independent preparation and approval 601ms
+ ✓ tests/spending-approvals.test.ts > routes manager, Accounting and Finance requesters through independent participants 209ms
+ ✓ tests/spending-approvals.test.ts > blocks pending decisions after a manager departure until the reporting data is repaired 338ms
+ ✓ tests/spending-approvals.test.ts > records a supplier payment request with its selected payee through posting 2850ms
+ ✓ tests/spending-approvals.test.ts > allows Accounting Level 4 and rejects Level 5 even with the same role 158ms
+ ✓ tests/spending-approvals.test.ts > checks readiness per request, leaving unrelated incomplete profiles harmless 145ms
+ ✓ tests/spending-approvals.test.ts > freezes submitted template and supervisor despite later organization and template changes 465ms
+ ✓ tests/spending-approvals.test.ts > requires explicit exceptions for missing managers without exempting Accounting 186ms
+ ✓ tests/spending-approvals.test.ts > keeps purchase requests out of purchasing until both Accounting steps complete 1293ms
+ ✓ tests/spending-approvals.test.ts > requires the reporting manager to actively select People Manager for both UI and decisions 1330ms
+ ✓ tests/spending-approvals.test.ts > does not turn a Treasury assignment into the same person's Accounting reviewer role 3507ms
+ ✓ tests/pms.test.ts > completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue 374ms
+ ✓ tests/pms.test.ts > serializes competing bookings for the last room and rolls back the losing command 130ms
+ ✓ tests/pms.test.ts > rejects double booking, duplicate OTA references and stale versions 114ms
+ ✓ tests/pms.test.ts > requires inspected rooms and independent inspection; maintenance cannot displace guests 113ms
+ ✓ tests/pms.test.ts > keeps group pickup from consuming inventory twice and allows back-to-back stays 101ms
+ ✓ tests/pms.test.ts > separates security deposits, enforces refund independence and reverses advance VAT once 370ms
+ ✓ tests/pms.test.ts > blocks unauthorized, cross-company and revoked actors without business writes 544ms
+ ✓ tests/pms.test.ts > blocks closed accounting periods and keeps the payment and folio atomic 158ms
+ ✓ tests/pms.test.ts > durably blocks failed night audit and resumes under a valid auditor 201ms
+ ✓ tests/pms.test.ts > protects PMS invoices and payments from generic finance mutations 123ms
+ ✓ tests/pms.test.ts > calculates inclusive prices with exact integer money 214ms
+ ✓ tests/pms.test.ts > allocates new receipts after an earlier deposit was refunded 304ms
+ ✓ tests/pms.test.ts > traces a partially refunded damage deposit used to settle a room charge 278ms
+ ✓ tests/pms.test.ts > splits and merges charges without repeating revenue and reverses the recipient entry once 185ms
+ ✓ tests/pms.test.ts > settles a manually entered OTA reservation against approved credit and net bank proceeds 250ms
+ ✓ tests/pms.test.ts > moves an in-house guest, extends safely and preserves room history 167ms
+ ✓ tests/pms.test.ts > uses daily prices and stop-sell without repricing an existing reservation 128ms
+ ✓ tests/pms.test.ts > posts minibar and inventory cost together, rolling back insufficient stock 180ms
+ ✓ tests/pms.test.ts > locks closing-day commands and blocks workers whose originating authority was revoked 118ms
+ ✓ tests/pms.test.ts > cancels an unarrived room in a partially checked-in group and ignores stale housekeeping cycles 162ms
+ ✓ tests/pms.test.ts > loads real workspace selectors and redacts financial and guest data for housekeeping 151ms
+ ✓ tests/pms.test.ts > defines a POS room-charge contract that rejects foreign scope and already recognized revenue 296ms
+ ✓ tests/pms.test.ts > retains historical occupancy capacity and posts corrections in the open business date 245ms
+ ✓ tests/pms.test.ts > resumes a multi-chunk night from committed sources and serializes competing workers 491ms
+ ✓ tests/pms.test.ts > protects allocated receipt links and journal lines from deletion outside the subledger 210ms
+ ✓ tests/ai-providers.test.ts > uses only the selected IT assignment without granting billing or role administration 473ms
+ ✓ tests/ai-providers.test.ts > encrypts credentials with identity context, returns only masked status, and preserves active revisions 364ms
+ ✓ tests/ai-providers.test.ts > checks authority after tests and blocks stale configuration updates and silent fallback 221ms
+ ✓ tests/ai-providers.test.ts > rejects private URLs, DNS targets and redirects while allowing explicit public unauthenticated JSON endpoints 114ms
+ ✓ tests/ai-providers.test.ts > prepares cited expense fields without changing the claim and invalidates changed sources 451ms
+ ✓ tests/ai-providers.test.ts > stores PDF pages under original access and quota, rejects missing pages and preserves drafts on AI failure 1131ms
+ ✓ tests/ai-providers.test.ts > deduplicates queued work, leaves conflicting evidence blank and attributes both models 371ms
+ ✓ tests/ai-providers.test.ts > resumes an expired lease and does not overwrite a newer worker result 326ms
+ ✓ tests/ai-providers.test.ts > enforces company quota without losing an editable claim 225ms
+ ✓ tests/ai-providers.test.ts > discovers unsaved models without creating a revision and uses the current key 137ms
+ ✓ tests/ai-providers.test.ts > keeps saved credentials within the original URL and company during discovery and save 189ms
+ ✓ tests/ai-providers.test.ts > reports catalog failures and supports public catalogs without a key 94ms
+ ✓ tests/ai-providers.test.ts > persists separate protocols in draft and active revisions without changing company defaults 114ms
+ ✓ tests/ai-providers.test.ts > accepts omitted protocols and ignores caller protocol overrides 123ms
+ ✓ tests/ai-providers.test.ts > rejects unsupported endpoint/model pairs https://opencode.ai/zen/v1 future-model  129ms
+ ✓ tests/ai-providers.test.ts > rejects unsupported endpoint/model pairs https://opencode.ai/zen/v1 gemini-3.8-flash  93ms
+ ✓ tests/ai-providers.test.ts > rejects unsupported endpoint/model pairs https://custom.provider.com/v1 gpt-5.6-luna  78ms
+ ✓ tests/ai-providers.test.ts > rejects unsupported endpoint/model pairs https://opencode.ai/zen/v1 gpt-5.6-luna unknown-image 84ms
+ ✓ tests/ai-providers.test.ts > rejects unsupported endpoint/model pairs https://opencode.ai/zen/v1 toString  92ms
+ ✓ tests/ai-providers.test.ts > preserves legacy custom revisions for runtime but rejects saving unsupported drafts 161ms
+ ✓ tests/ai-providers.test.ts > does not activate an automatically configured model when the image capability test fails 166ms
+ ✓ tests/ai-providers.test.ts > filters unsafe receipt fields, preserves a Gregorian date and rejects a category in another currency 299ms
+ ✓ tests/ai-providers.test.ts > accepts an exact color with harmless case and whitespace normalization 117ms
+ ✓ tests/ai-providers.test.ts > derives draft net from cited receipt total with 0 recorded recoverable tax 255ms
+ ✓ tests/ai-providers.test.ts > derives draft net from cited receipt total with 385 recorded recoverable tax 276ms
+ ✓ tests/ai-providers.test.ts > re-extracts ready suggestions only on explicit retry and still deduplicates queued work 507ms
+ ✓ tests/pms-booking.test.ts > shares exact nightly prices, child occupancy and policy snapshots 238ms
+ ✓ tests/pms-booking.test.ts > atomically confirms and queues email without creating money entries 127ms
+ ✓ tests/pms-booking.test.ts > replays identical submissions and rejects a reused key with new input 125ms
+ ✓ tests/pms-booking.test.ts > serializes staff and guest bookings for the last room 127ms
+ ✓ tests/pms-booking.test.ts > rejects stale price, stale policy, forged and expired quotes 170ms
+ ✓ tests/pms-booking.test.ts > requires explicit publication and prevents selling private rates 155ms
+ ✓ tests/pms-booking.test.ts > never exposes another Holding's booking through a token or confirmation 3816ms
+ ✓ tests/pms-booking.test.ts > cancels all rooms once and restores inventory without fees 363ms
+ ✓ tests/pms-booking.test.ts > rejects cancellation at the exact cutoff and after partial arrival or financial activity 167ms
+ ✓ tests/pms-booking.test.ts > filters inventory reads and public responses away from guest and financial history 120ms
+ ✓ tests/pms-booking.test.ts > retries email failures while keeping the booking confirmed 181ms
+ ✓ tests/pms-booking.test.ts > expires access links and provides non-enumerating email recovery 90ms
+ ✓ tests/pms-booking.test.ts > blocks bookings during night closure and rate limits abuse 78ms
+ ✓ tests/pms-booking.test.ts > handles timezone cutoffs and rejects missing child pricing 67ms
+ ✓ tests/pms-booking.test.ts > withdraws inventory after maintenance and rejects a previously available quote 101ms
+ ✓ tests/pms-booking.test.ts > keeps confirmation replay immutable after cancellation 84ms
+ ✓ tests/support.test.ts > hands off to Support and separates proposed resolution from independently reviewed customer confirmation 865ms
+ ✓ tests/support.test.ts > blocks inactive recipients and protects scope, event history and stale concurrent actions 377ms
+ ✓ tests/support.test.ts > does not allow the resolving manager to approve their own resolution after reassignment 338ms
+ ✓ tests/support-incidents.test.ts > hands off one incident across owners and reviewers while preserving separate customer cases 528ms
+ ✓ tests/support-incidents.test.ts > does not let the mitigating manager self-review through reassignment and requires current reviewer eligibility 239ms
+ ✓ tests/support-incidents.test.ts > protects source scope, versions, duplicate links and recipient withdrawal 231ms
+ ✓ tests/quality.test.ts > keeps failed inspections and requires a third person to release a passing inspection 401ms
+ ✓ tests/quality.test.ts > blocks already reserved Sales delivery atomically until all overlapping holds are released 999ms
+ ✓ tests/quality.test.ts > scopes the queue and enforces stale versions and revoked recipients 176ms
+ ✓ tests/quality.test.ts > hands inspection and release to scoped Work, Inbox and Calendar source queues 331ms
+ ✓ tests/quality.test.ts > serializes quarantine against a competing reservation and keeps either outcome safe 395ms
+ ✓ tests/quality.test.ts > cancels an incorrect uninspected hold only after independent review, retaining other holds and evidence 582ms
+ ✓ tests/quality.test.ts > never cancels inspected stock and serializes cancellation versus inspection 384ms
+ ✓ tests/quality.test.ts > keeps cancellation quarantined when reviewer authority changes and hides out-of-scope reviews 293ms
+ ✓ tests/inventory-transit.test.ts > preserves stock through approval, dispatch, partial receipts and final rounding with replay and scope guards 817ms
+ ✓ tests/inventory-transit.test.ts > reserves reported loss, rejects it without stock changes and independently posts confirmed loss to GL 593ms
+ ✓ tests/inventory-transit.test.ts > blocks closed periods and quarantine, cancels only before dispatch and prevents competing over-receipts 355ms
+ ✓ tests/inventory-transit.test.ts > allows only one competing final receipt and leaves closed-period quantities untouched 415ms
+ ✓ tests/inventory-transit.test.ts > preserves the legacy direct transfer contract without inventing transport history 302ms
+ ✓ tests/inventory-transit.test.ts > exposes source handoffs and valuation without leaking another branch and retains quality hold on incoming goods 505ms
+ ✓ tests/inventory-transit.test.ts > rejects revoked receivers and keeps an unresolved loss on the asset balance while its accounting period is closed 460ms
+ ✓ tests/people-roster.test.ts > keeps drafts private and publishes copied templates without changing their snapshots 657ms
+ ✓ tests/people-roster.test.ts > requires coworker acceptance and swaps both assignments only on independent approval 654ms
+ ✓ tests/people-roster.test.ts > supports extra shifts, moving an assignment, rejection and withdrawal 807ms
+ ✓ tests/people-roster.test.ts > blocks self approval, unauthorized managers, cross-department and cross-company access 461ms
+ ✓ tests/people-roster.test.ts > invalidates requests after a source shift edit and requires a published-change reason 556ms
+ ✓ tests/people-roster.test.ts > checks overnight intervals, approved leave, and engagement end dates 284ms
+ ✓ tests/people-roster.test.ts > flags leave approved after publication, including legacy employee-linked leave 393ms
+ ✓ tests/people-roster.test.ts > revalidates eligibility when a coworker accepts 453ms
+ ✓ tests/people-roster.test.ts > serializes competing approvals for the last slot 466ms
+ ✓ tests/people-roster.test.ts > serializes concurrent overlapping assignments in different weeks and preserves command replay 357ms
+ ✓ tests/people-roster.test.ts > lets coworkers reject, releases cancelled shifts, and prevents stale edits 468ms
+ ✓ tests/supplier-promises.test.ts > records immutable split commitments, allocates partial receipts in date order and keeps stock under its owner 975ms
+ ✓ tests/supplier-promises.test.ts > retains unconfirmed shortfalls, replacements and withdrawal without changing purchase required date or receipts 714ms
+ ✓ tests/supplier-promises.test.ts > enforces replay, source versions and one winner under concurrent schedule changes 386ms
+ ✓ tests/supplier-promises.test.ts > rejects invalid quantities, foreign lines, cancelled/unapproved sources, scope and revoked authority 404ms
+ ✓ tests/supplier-promises.test.ts > completes source receiving and retires follow-up while retaining supplier evidence 530ms
+ ✓ tests/supplier-promises.test.ts > recomputes against concurrent receiving instead of allowing a stale overcommitment 468ms
+ ✓ tests/supplier-promises.test.ts > routes supplier updates to authorized Work, Inbox and Calendar without leaking another branch 567ms
+ ✓ tests/people-lifecycle.test.ts > creates one IT task on retried position creation and rename, without grants 479ms
+ ✓ tests/people-lifecycle.test.ts > requires IT authority, published revisions, fresh previews, and Company ownership 206ms
+ ✓ tests/people-lifecycle.test.ts > keeps onboarding waiting for IT and identity verification without granting access 189ms
+ ✓ tests/people-lifecycle.test.ts > enforces all-account Company cutoffs on time even before worker execution and supports cancellation 169ms
+ ✓ tests/people-lifecycle.test.ts > applies offboarding once, retains history, and never waits for directory tasks 135ms
+ ✓ tests/people-lifecycle.test.ts > requires independent personal reviews and does not grant before the effective time 195ms
+ ✓ tests/people-lifecycle.test.ts > routes Company IAM to People while keeping advanced destinations explicit 0ms
+ ✓ tests/people-lifecycle.test.ts > preserves independent access on transfer and rejects changed engagement snapshots 229ms
+ ✓ tests/people-lifecycle.test.ts > requires new engagement and new grants on rehire, without reviving old direct access 183ms
+ ✓ tests/people-lifecycle.test.ts > does not let one failed placement delay another Company's departure 266ms
+ ✓ tests/people-lifecycle.test.ts > blocks protected administrator promotion after a departure was scheduled 163ms
+ ✓ tests/people-lifecycle.test.ts > allows IT to prepare groups without granting access-policy authority 267ms
+ ✓ tests/people-lifecycle.test.ts > excludes superseded accounts from new grants but retains them in departure coverage 286ms
+ ✓ tests/people-lifecycle.test.ts > closes rejected individual reviews without activating partial grants 135ms
+ ✓ tests/people-lifecycle.test.ts > prevents legacy status controls from bypassing lifecycle cutoff or ending history early 67ms
+ ✓ tests/people-lifecycle.test.ts > shares immutable packages across positions and preserves another occupant's membership after departure 266ms
+ ✓ tests/people-lifecycle.test.ts > groups accounts by reviewed identity links rather than matching email 58ms
+ ✓ tests/people-lifecycle.test.ts > creates six retirement responsibilities, keeps cutoff independent and prevents IT from closing finance 145ms
+ ✓ tests/people-lifecycle.test.ts > retirement cancellation keeps history and cancels pending clearance before cutoff 74ms
+ ✓ tests/people-lifecycle.test.ts > reads retirement evidence through source permissions and never changes the financial document 214ms
+ ✓ tests/people-lifecycle.test.ts > revalidates clearance owners, rejects stale edits and keeps reassignment notifications attached to the same task 116ms
+ ✓ tests/people-lifecycle.test.ts > paginates the directory in SQL and resolves details outside the current page 86ms
+ ✓ tests/people-lifecycle.test.ts > HR placement works without a package, linked account or IT preparation and never grants access 114ms
+ ✓ tests/people-lifecycle.test.ts > IT applies pinned resources and requests independently reviewed ERPX roles, retaining them across HR transfers 205ms
+ ✓ tests/people-lifecycle.test.ts > keeps supplemental access independently and withdraws only its selected source 116ms
+ ✓ tests/people-lifecycle.test.ts > revalidates HR position scope before applying a scheduled placement 130ms
+ ✓ tests/people-lifecycle.test.ts > provisions a shared package for multiple positions only when IT selects their employees 122ms
+ ✓ tests/people-lifecycle.test.ts > keeps cutoffs effective after HR returns an employee and requires new IT access 167ms
+ ✓ tests/executive-canvas.test.ts > rejects scripts, arbitrary URLs, unknown metrics and untranslated product labels 171ms
+ ✓ tests/executive-canvas.test.ts > keeps private reports undiscoverable even to another senior role 164ms
+ ✓ tests/executive-canvas.test.ts > requires executive eligibility and an explicit effective grant 88ms
+ ✓ tests/executive-canvas.test.ts > rejects concurrent report edits and keeps immutable revisions 126ms
+ ✓ tests/executive-canvas.test.ts > uses exact aggregates beyond list-page limits and excludes unrelated users 143ms
+ ✓ tests/executive-canvas.test.ts > allows a bounded published live view without granting source-module access 147ms
+ ✓ tests/executive-canvas.test.ts > uses recipient source access instead of the publisher's authority by default 128ms
+ ✓ tests/executive-canvas.test.ts > pins shared definitions so later widgets do not expand a grant 130ms
+ ✓ tests/executive-canvas.test.ts > revocation immediately removes the shared view and library metadata 124ms
+ ✓ tests/executive-canvas.test.ts > stops published reads after the publisher assignment is revoked 133ms
+ ✓ tests/executive-canvas.test.ts > does not grant staff editor rights or publish a person's private work metrics 108ms
+ ✓ tests/executive-canvas.test.ts > durably generates an English proposal once without changing the report 185ms
+ ✓ tests/executive-canvas.test.ts > cancelled jobs never call the provider 138ms
+ ✓ tests/executive-canvas.test.ts > reconciles money by currency, period and posting state without list truncation 164ms
+ ✓ tests/executive-canvas.test.ts > does not let a distribution recipient expand filters or retain an expired grant 199ms
+ ✓ tests/executive-canvas.test.ts > discards a provider result if access is revoked during generation 181ms
+ ✓ tests/executive-canvas.test.ts > fails an interrupted lease without silently issuing another paid inference 90ms
+ ✓ tests/executive-canvas.test.ts > allows repeated bounded editor changes without advancing other recipients 186ms
+ ✓ tests/executive-canvas.test.ts > removes C-level author eligibility after an effective level change 118ms
+ ✓ tests/executive-canvas.test.ts > rejects authority when its scoped organizational node is inactive 133ms
+ ✓ tests/executive-canvas.test.ts > does not misclassify a transient database failure as revoked access 120ms
+ ✓ tests/executive-canvas.test.ts > sends exact authorized data and structure to the model while excluding forbidden modules 152ms
+ ✓ tests/executive-canvas.test.ts > keeps scoped AI context inside its branch and does not send company finance totals 145ms
+ ✓ tests/executive-canvas.test.ts > uses a single effective engagement per person for additive organization charts 136ms
+ ✓ tests/executive-canvas.test.ts > persists custom HTML/CSS and dimensions and binds it to authorized live values 220ms
+ ✓ tests/executive-canvas.test.ts > isolates generated markup and blocks script, navigation and external fetches 106ms
+ ✓ tests/executive-canvas.test.ts > keeps custom iframe content stable on heartbeat but updates changed data and clears denied reads 126ms
+ ✓ tests/executive-canvas.test.ts > persists adaptive styling and color mode in the published definition without changing data access 256ms
+ ✓ tests/self-service-journeys.test.ts > Staff self-service transactional journeys > reserves once under retries; rejection releases without usage and resubmission re-previews 406ms
+ ✓ tests/self-service-journeys.test.ts > Staff self-service transactional journeys > serializes competing entitlement requests and supports non-overlapping halves 177ms
+ ✓ tests/self-service-journeys.test.ts > Staff self-service transactional journeys > keeps approved absence until both cancellation reviews, with exactly one reversal 416ms
+ ✓ tests/self-service-journeys.test.ts > Staff self-service transactional journeys > freezes policy snapshots and requires evidence before submission 90ms
+ ✓ tests/self-service-journeys.test.ts > Staff self-service transactional journeys > catches up missed accrual periods once and isolates balances by year 71ms
+ ✓ tests/self-service-journeys.test.ts > Staff self-service transactional journeys > reviews retrospective overnight actuals and creates exactly one immutable payroll handoff 365ms
+ ✓ tests/self-service-journeys.test.ts > Staff self-service transactional journeys > separates planned authorization, actuals corrections and fresh independent reviews 1771ms
+ ✓ tests/self-service-journeys.test.ts > Staff self-service transactional journeys > blocks future actuals, overlaps, contractor defaults and cross-company access 1478ms
+ ✓ tests/self-service-journeys.test.ts > Staff self-service transactional journeys > blocks handoff when manual overtime requires explicit reconciliation 605ms
+ ✓ tests/self-service-journeys.test.ts > Staff self-service transactional journeys > permits separate half days, excludes nonworking gaps and freezes policy details 934ms
+ ✓ tests/self-service-journeys.test.ts > Staff self-service transactional journeys > requires explicit contractor eligibility and rejects stale configuration writes 93ms
+ ✓ tests/self-service-journeys.test.ts > Staff self-service transactional journeys > administers multiple leave rules, assignments and adjustments with recoverable receipts 192ms
+ ✓ tests/directory-operations.test.ts > requires tested write-back and independent review, preserves request idempotency, and verifies only after execution 305ms
+ ✓ tests/directory-operations.test.ts > rejects stale preview, cross-Company connection use and unsupported writable fields 83ms
+ ✓ tests/directory-operations.test.ts > stops queued work when the authorizing assignment or write-back setting is withdrawn 91ms
+ ✓ tests/directory-operations.test.ts > cancels queued work and keeps completed or possibly applied work out of cancellation 135ms
+ ✓ tests/directory-operations.test.ts > requires all affected Companies to be acknowledged for whole-account disable and blocks protected accounts 117ms
+ ✓ tests/directory-operations.test.ts > rejects nested cycles and requires an explicit computer target 2ms
+ ✓ tests/directory-operations.test.ts > preserves UCS canonical identities while retaining the Samba write identity 1ms
+ ✓ tests/directory-operations.test.ts > patches existing GPO settings without requiring replacement links or filters and previews all filter members 1ms
+ ✓ tests/directory-operations.test.ts > compiles registry policies and preferences separately and escapes preference XML without storing credentials 2ms
+ ✓ tests/directory-operations.test.ts > enforces field ACLs in snapshots and API mutations, including Branch overrides 274ms
+ ✓ tests/directory-operations.test.ts > copies revisioned Holding fields and tasks without changing Company copies on publication 114ms
+ ✓ tests/directory-operations.test.ts > requires an explicit verified identity before importing or exporting mapped fields 90ms
+ ✓ tests/directory-operations.test.ts > inherits unit fields and previews resetting a Company-owned Branch override 346ms
+ ✓ tests/directory-operations.test.ts > imports supported fields for a reviewed identity and rejects a changed mapping preview 263ms
+ ✓ tests/directory-operations.test.ts > allows one IT operator to directly apply a fresh preview while preserving legacy reviews 114ms
+ ✓ tests/directory-operations.test.ts > resumes only unfinished batch steps with the same operation IDs 138ms
+ ✓ tests/directory-operations.test.ts > moves groups and OUs separately from HR structure and rejects OU cycles 1ms
+ ✓ tests/directory-operations.test.ts > rejects group cycles formed across individually valid batch steps 87ms
+ ✓ tests/recovery-simulation.test.ts > restores an isolated source-linked business snapshot without reposting its transactions 7524ms
+ ✓ tests/procurement-rfqs.test.ts > compares immutable supplier offers and atomically hands an independent award to one normal draft PO 967ms
+ ✓ tests/procurement-rfqs.test.ts > requires independent award review and a current complete offer; return preserves history and invalidates prior selection 517ms
+ ✓ tests/procurement-rfqs.test.ts > rejects changed award terms and concurrent duplicate order handoff without leaving an orphan PO 474ms
+ ✓ tests/procurement-rfqs.test.ts > guards scope, current role, idempotency, stale versions, expiry and incomplete quotations 584ms
+ ✓ tests/procurement-rfqs.test.ts > routes independent review and cancellation without stock or accounting side effects 580ms
+ ✓ tests/procurement-rfqs.test.ts > keeps Inbox and Calendar within source scope and exposes missing independent reviewer coverage 656ms
+ ✓ tests/crm.test.ts > qualifies once and requires approved quotation plus confirmed source sales order before winning 659ms
+ ✓ tests/crm.test.ts > serializes qualification and preserves immutable evidence through loss and reopening 177ms
+ ✓ tests/crm.test.ts > scopes prospects and blocks ineligible owners until manager reassignment 165ms
+ ✓ tests/crm.test.ts > delivers reassignment to the actual recipient through Work, Inbox and Calendar, and removes disqualified work 271ms
+ ✓ tests/stock-reservations.test.ts > reserves the last stock once under competing orders and preserves source scope and replay 802ms
+ ✓ tests/stock-reservations.test.ts > consumes only its source reservation with partial deliveries and leaves quantities and costs consistent 525ms
+ ✓ tests/stock-reservations.test.ts > expires without requiring a worker, cancels atomically, and prevents direct stock reductions below reservations 560ms
+ ✓ tests/supplier-payments.test.ts > reserves, independently approves and confirms a partial multi-invoice batch with source accounting 1189ms
+ ✓ tests/supplier-payments.test.ts > prevents concurrent over-reservation and permits cancellation only before export 433ms
+ ✓ tests/supplier-payments.test.ts > rejects wrong ledgers, closed periods, stale versions and revoked treasury assignments 427ms
+ ✓ tests/supplier-payments.test.ts > prevents the legacy contractor exporter and supplier batches from reserving the same invoice 545ms
+ ✓ tests/organization.test.ts > keeps legacy ranks unmapped and installs one explicit six-level catalog 266ms
+ ✓ tests/organization.test.ts > preserves incomplete onboarding and requires manager and numbered level for activation 197ms
+ ✓ tests/organization.test.ts > allows the explicit CEO exception and rejects self or junior reporting managers 129ms
+ ✓ tests/organization.test.ts > checks position scope and optimistic versions without allowing reporting cycles 149ms
+ ✓ tests/organization.test.ts > reviews a reusable template, reuses the CEO, adds vacancies and never grants roles 124ms
+ ✓ tests/organization.test.ts > routes HR grants through fresh MFA and review while preventing self changes and broader scope 104ms
+ ✓ tests/organization.test.ts > rejects a stale organization snapshot in the committing transaction 91ms
+ ✓ tests/iam.test.ts > rejects duplicate, dangling, cyclic and excessive directory topology 2ms
+ ✓ tests/iam.test.ts > People explorer isolates company/subtree data, includes accountless people, and compares one assignment per person 419ms
+ ✓ tests/iam.test.ts > stores topology only with a complete sync, backfills without reseed, and retains it after invalid refresh 247ms
+ ✓ tests/iam.test.ts > seeds protected built-ins with a code-owned permission catalog and denies unknown actions 46ms
+ ✓ tests/iam.test.ts > keeps local login policy and assignments intact when a connector is only saved 88ms
+ ✓ tests/iam.test.ts > publishes only independently reviewed immutable role revisions and uses them in matrix decisions 218ms
+ ✓ tests/iam.test.ts > enforces MFA freshness, grant ceilings, parent expiry, and revoked proposer authority 161ms
+ ✓ tests/iam.test.ts > invalidates child assignments and command replay immediately after parent revocation 61ms
+ ✓ tests/iam.test.ts > rejects stale identity snapshots and stale work contexts before recording mutations 58ms
+ ✓ tests/iam.test.ts > keeps distinct provider identities despite duplicate contact emails, and rejects partial authoritative imports 91ms
+ ✓ tests/iam.test.ts > rejects cross-company access and person aliases cannot approve their own proposal 133ms
+ ✓ tests/iam.test.ts > uses correct AD GUID byte order without mutating input, escapes filters, and respects disablement 1ms
+ ✓ tests/iam.test.ts > prevents authenticator replay and rejects MFA proof after the five minute boundary 35ms
+ ✓ tests/iam.test.ts > migrates an explicit batch, preserves history, and never restores local access after group removal 273ms
+ ✓ tests/iam.test.ts > expires directory evidence at five minutes and never turns an outage into local permission 81ms
+ ✓ tests/iam.test.ts > protects the parent authority of the final recovery administrator 62ms
+ ✓ tests/iam.test.ts > rejects a grant reviewed against an obsolete role revision 50ms
+ ✓ tests/iam.test.ts > keeps the record inspector read-only and rejects mismatched actions 157ms
+ ✓ tests/iam.test.ts > searches audit history beyond the first page without crossing company scope 98ms
+ ✓ tests/messaging.test.ts > uses real company accounts, reuses direct pairs, persists messages and tracks reading 482ms
+ ✓ tests/messaging.test.ts > paginates without gaps and orders concurrent sends 1062ms
+ ✓ tests/messaging.test.ts > manages groups with owner and version checks; revoked users lose access 256ms
+ ✓ tests/messaging.test.ts > creates General and isolates private channels; team removal also clears private membership 310ms
+ ✓ tests/messaging.test.ts > keeps draft files private, binds attachments once, and revokes downloads with membership 309ms
+ ✓ tests/messaging.test.ts > rejects invalid content, oversize files, nonexistent and other-company recipients 148ms
+ ✓ tests/work-card-preferences.test.ts > distinguishes defaults from no pins and reads the same arrangement from another device 440ms
+ ✓ tests/work-card-preferences.test.ts > replays the exact save once and rejects reuse with different input 166ms
+ ✓ tests/work-card-preferences.test.ts > allows only one concurrent arrangement for the same expected version 178ms
+ ✓ tests/work-card-preferences.test.ts > keeps preferences private to each company and user 341ms
+ ✓ tests/work-card-preferences.test.ts > preserves existing hidden pins but refuses to add unavailable capabilities 204ms
+ ✓ tests/work-card-preferences.test.ts > requires active access on reads and again in the committing transaction 155ms
+ ✓ tests/work-card-preferences.test.ts > requires selecting the warehouse grant and rejects department inventory creation 155ms
+ ✓ tests/work-card-preferences.test.ts > shows a team queue only for current coverage overlapping the workspace 172ms
+ ✓ tests/customer-notes.test.ts > records, corrects and archives contact evidence without rewriting source or history 463ms
+ ✓ tests/customer-notes.test.ts > protects company, branch, department, role and revoked authority 263ms
+ ✓ tests/customer-notes.test.ts > serializes competing corrections and rejects stale sources and future contact 253ms
+ ✓ tests/customer-notes.test.ts > keeps customer evidence attached to its original customer and limits corrections to author or manager 248ms
+ ✓ tests/workspace-assistant.test.ts > isolates record and filter contexts while ignoring navigation-only pagination 260ms
+ ✓ tests/workspace-assistant.test.ts > persists page history without carrying it to another page or actor 180ms
+ ✓ tests/workspace-assistant.test.ts > rejects cross-page requests for a role without the explicit permission 521ms
+ ✓ tests/workspace-assistant.test.ts > replays a completed message without paying for a second inference 467ms
+ ✓ tests/workspace-assistant.test.ts > does not reveal answers after the authorizing assignment is revoked 170ms
+ ✓ tests/organization-channels.test.ts > derives company, branch and department channels from placement without owner privilege 330ms
+ ✓ tests/organization-channels.test.ts > transfers revoke old history and file access immediately and expose new channel history 217ms
+ ✓ tests/organization-channels.test.ts > rejects a send after departure even with cached membership and retains messages 209ms
+ ✓ tests/customer-followups.test.ts > hands a source-linked contact to the eligible owner via Work, Inbox and Calendar and records its outcome once 449ms
+ ✓ tests/customer-followups.test.ts > blocks revoked and ended owners until a manager explicitly reassigns eligible staff 354ms
+ ✓ tests/customer-followups.test.ts > hides details, counts, recipients and notifications outside source scope 240ms
+ ✓ tests/customer-followups.test.ts > serializes outcome against reassignment and preserves immutable history 226ms
+ ✓ tests/business-readiness.test.ts > bundles current validated evidence without promoting observations into capability sign-offs 251ms
+ ✓ tests/business-readiness.test.ts > rejects branch, department, non-manager and revoked Company authority 144ms
+ ✓ tests/request-ai.test.ts > preserves manual drafts when no company or deployment provider is available 328ms
+ ✓ tests/request-ai.test.ts > deduplicates queued preparation, records usage and never transitions or overwrites a human request 275ms
+ ✓ tests/request-ai.test.ts > rejects stale preparation after human changes and after provider revisions change 286ms
+ ✓ tests/request-ai.test.ts > keeps failed suggestions retryable, validates output and rechecks revoked access 452ms
+ ✓ tests/request-ai.test.ts > releases exhausted worker leases and preserves the saved request 256ms
+ ✓ tests/request-ai.test.ts > honors the shared company AI allowance without reserving work or changing the draft 266ms
+ ✓ tests/access-diagnosis.test.ts > reads expired from stored assignments without changing access 21ms
+ ✓ tests/access-diagnosis.test.ts > reads revoked from stored assignments without changing access 6ms
+ ✓ tests/access-diagnosis.test.ts > reads scheduled from stored assignments without changing access 4ms
+ ✓ tests/access-diagnosis.test.ts > distinguishes absent access from access to a different workspace 3ms
+ ✓ tests/access-diagnosis.test.ts > reports an inactive branch only to its own member 11ms
+ ✓ tests/access-diagnosis.test.ts > explains COMPANY_REQUIRED without exposing organization details 2ms
+ ✓ tests/access-diagnosis.test.ts > explains INVALID_ORGANIZATION_LINEAGE without exposing organization details 2ms
+ ✓ tests/access-diagnosis.test.ts > explains HOLDING_NOT_FOUND without exposing organization details 3ms
+ ✓ tests/access-diagnosis.test.ts > rechecks restored access and keeps feature permission hints separate 2ms
+ ✓ tests/access-diagnosis.test.ts > does not disclose an account or workspace when signed out 2ms
+ ✓ tests/access-diagnosis.test.ts > keeps unexpected service failures out of the permission/not-found cases 3ms
+ ✓ tests/calendar-api.test.ts > checks command keys, origin and input at the API boundary 249ms
+ ✓ tests/navigation-counts.test.ts > clears the entire feed, retains the cursor across sessions, and counts only subsequent posts 238ms
+ ✓ tests/navigation-counts.test.ts > keeps read state separate for different users and workspace scopes 144ms
+ ✓ tests/retirement.test.ts > defaults cutoff to next-day Bangkok midnight, independent of browser timezone 22ms
+ ✓ tests/retirement.test.ts > keeps legacy departures as other 2ms
+ ✓ tests/retirement.test.ts > seeds six fixed fictional records without changing them on repeat 60ms
+ ✓ tests/active-work-context.test.ts > requires one explicit assignment and atomically rejects a stale selector 57ms
+ ✓ tests/active-work-context.test.ts > rejects stale writes before recording data, receipts or decisions 68ms
+ ✓ tests/active-work-context.test.ts > shares context within a session while separating devices and companies 38ms
+ ✓ tests/active-work-context.test.ts > preserves the actual authority in audit and prevents cross-role replay 39ms
+ ✓ tests/active-work-context.test.ts > never writes under an invisible role when a role switch races a command 35ms
+ ✓ tests/active-work-context.test.ts > allows recovery after revocation without using the revoked assignment 38ms
+ ✓ tests/active-work-context.test.ts > rejects expired, future, changed and foreign assignments 38ms
+ ✓ tests/active-work-context.test.ts > separates identically named branch assignments and inherits only into their own departments 53ms
+ ✓ tests/active-work-context.test.ts > restores a saved role into a new session without changing an existing session 31ms
+ ✓ tests/active-work-context.test.ts > never restores an expired, revoked, or changed saved grant 52ms
+ ✓ tests/active-work-context.test.ts > concurrent restoration initializes one revision and retains an audit trail 33ms
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > invalidates after direct SQL, job writes and reassignment in the committing transaction
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > invalidates after direct SQL, job writes and reassignment in the committing transaction
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > invalidates after direct SQL, job writes and reassignment in the committing transaction
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > discards a fill that crosses a commit; reads starting after commit never join the old fill
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > discards a fill that crosses a commit; reads starting after commit never join the old fill
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > discards a fill that crosses a commit; reads starting after commit never join the old fill
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > does not persist incomplete sources
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > does not persist incomplete sources
+{"event":"work_cache","status":"miss"}
+
+ ✓ tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills 38ms
+ ✓ tests/work-cache.test.ts > invalidates after direct SQL, job writes and reassignment in the committing transaction 27ms
+ ✓ tests/work-cache.test.ts > rolls revisions back with a transaction and does not expose uncommitted writes 8ms
+ ✓ tests/work-cache.test.ts > discards a fill that crosses a commit; reads starting after commit never join the old fill 19ms
+stdout | tests/work-cache.test.ts > expires on authority deadlines without a data write
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > expires on authority deadlines without a data write
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > expires before a candidate assignment expires without a new write
+{"event":"work_cache","status":"miss"}
+
+ ✓ tests/work-cache.test.ts > does not persist incomplete sources 10ms
+ ✓ tests/work-cache.test.ts > partitions company/user/branch/department/role/assignment, authority and database 2ms
+ ✓ tests/work-cache.test.ts > expires on authority deadlines without a data write 11ms
+ ✓ tests/work-cache.test.ts > tracks IAM revocation and excludes read cursors/housekeeping 11ms
+ ✓ tests/work-cache.test.ts > bypasses persistent cache when a newly added table has no revision trigger 7ms
+stdout | tests/work-cache.test.ts > expires before a candidate assignment expires without a new write
+{"event":"work_cache","status":"miss"}
+
+ ✓ tests/work-cache.test.ts > expires before a candidate assignment expires without a new write 380ms
+ ✓ tests/work-cache.test.ts > does not lose revisions under concurrent writers and invalidates on truncate 22ms
+stdout | tests/work-cache.test.ts > does not join a pre-expiry fill after a time boundary without a commit
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > does not join a pre-expiry fill after a time boundary without a commit
+{"event":"work_cache","status":"hit"}
+
+ ✓ tests/work-cache.test.ts > does not join a pre-expiry fill after a time boundary without a commit 252ms
+ ✓ tests/payroll-core.test.ts > snapshots configured proration and overtime and exports an immutable review revision 316ms
+ ✓ tests/native-runtime.test.ts > Native PostgreSQL and private file runtime > rejects unsafe integers instead of silently changing money or epoch values 4ms
+ ✓ tests/native-runtime.test.ts > Native PostgreSQL and private file runtime > publishes exactly one immutable revision under concurrent upload and serves ranges 35ms
+ ✓ tests/native-runtime.test.ts > Native PostgreSQL and private file runtime > does not expose an interrupted upload, and a retry can publish it 20ms
+ ✓ tests/native-runtime.test.ts > Native PostgreSQL and private file runtime > claims once concurrently and recovers a lease after a worker disappears 43ms
+stderr | tests/native-runtime.test.ts > Native PostgreSQL and private file runtime > retries five times then dead-letters while storing only an error code
+{"event":"job_failed","holdingId":"h001","eventId":"967bcb3c-91cf-4a02-a7cc-216365ba246b","attempt":1,"code":"Error"}
+
+stderr | tests/native-runtime.test.ts > Native PostgreSQL and private file runtime > retries five times then dead-letters while storing only an error code
+{"event":"job_failed","holdingId":"h001","eventId":"967bcb3c-91cf-4a02-a7cc-216365ba246b","attempt":2,"code":"Error"}
+
+stderr | tests/native-runtime.test.ts > Native PostgreSQL and private file runtime > retries five times then dead-letters while storing only an error code
+{"event":"job_failed","holdingId":"h001","eventId":"967bcb3c-91cf-4a02-a7cc-216365ba246b","attempt":3,"code":"Error"}
+
+stderr | tests/native-runtime.test.ts > Native PostgreSQL and private file runtime > retries five times then dead-letters while storing only an error code
+{"event":"job_failed","holdingId":"h001","eventId":"967bcb3c-91cf-4a02-a7cc-216365ba246b","attempt":4,"code":"Error"}
+
+stderr | tests/native-runtime.test.ts > Native PostgreSQL and private file runtime > retries five times then dead-letters while storing only an error code
+{"event":"job_failed","holdingId":"h001","eventId":"967bcb3c-91cf-4a02-a7cc-216365ba246b","attempt":5,"code":"Error"}
+
+stderr | tests/native-runtime.test.ts > Native PostgreSQL and private file runtime > retries five times then dead-letters while storing only an error code
+{"event":"job_failed","holdingId":"h001","eventId":"967bcb3c-91cf-4a02-a7cc-216365ba246b","attempt":6,"code":"Error"}
+
+stderr | tests/native-runtime.test.ts > Native PostgreSQL and private file runtime > replays a projected event without duplicating its receipt
+{"event":"job_failed","holdingId":"h001","eventId":"ce14e7b3-ca85-4c78-9bb4-c0aa118c1c72","attempt":1,"code":"Error"}
+
+ ✓ tests/native-runtime.test.ts > Native PostgreSQL and private file runtime > retries five times then dead-letters while storing only an error code 16ms
+ ✓ tests/native-runtime.test.ts > Native PostgreSQL and private file runtime > replays a projected event without duplicating its receipt 10ms
+ ✓ tests/finance-payment-corrections.test.ts > reverses a settled payment atomically and restores its invoice allocation 615ms
+ ✓ tests/business-commands.test.ts > Business command transactions > replays a committed command without repeating its effects and rejects changed input 165ms
+ ✓ tests/business-commands.test.ts > Business command transactions > allows only one competing update and rolls back the losing receipt and evidence 174ms
+ ✓ tests/business-commands.test.ts > Business command transactions > rejects a grant whose company or scope changed before commit 146ms
+ ✓ tests/business-commands.test.ts > Business command transactions > rechecks revocation at commit time 100ms
+ ✓ tests/user-management.test.ts > validates field types, false values, choices and real dates 7ms
+ ✓ tests/user-management.test.ts > keeps SQL and client rule semantics aligned, especially missing values 5ms
+ ✓ tests/user-management.test.ts > previews without persisting and rejects stale previews and cross-company objects 361ms
+ ✓ tests/user-management.test.ts > supports nested membership, prevents cycles, and rejects manual additions to automatic groups 260ms
+ ✓ tests/user-management.test.ts > requires independent approval, invalidates access synchronously, and creates a fresh proposal after rejoin 344ms
+ ✓ tests/user-management.test.ts > keeps independent policy sources separate and denies expiry and stale revisions without a worker 498ms
+ ✓ tests/user-management.test.ts > stores company-scoped attributes and prevents archiving a rule dependency 182ms
+ ✓ tests/user-management.test.ts > narrows organization attachments with exclusions and isolates delegated views 300ms
+ ✓ tests/user-management.test.ts > rejects stale beneficiary approvals and retains rejected decisions until eligibility changes 372ms
+ ✓ tests/user-management.test.ts > keeps previews retryable, permits clearing optional attributes, and rejects protected policy roles 262ms
+ ✓ tests/calendar.test.ts > reads all sources without causing workflow transitions and hides draft rosters from staff 515ms
+ ✓ tests/calendar.test.ts > preserves overnight shifts crossing adjacent weeks and stored timezone 401ms
+ ✓ tests/calendar.test.ts > lets active staff organize, scopes delegates, redacts availability before serialization and checks direct commands 269ms
+ ✓ tests/calendar.test.ts > uses stable receipts and versions for reschedule/cancel and rejects concurrent stale edits 139ms
+ ✓ tests/calendar.test.ts > reschedules through narrow commands while preserving appointment data and roster assignments 409ms
+ ✓ tests/calendar.test.ts > warns about overlaps and approved all-day leave without exposing reasons; meetings during shifts are allowed 79ms
+ ✓ tests/calendar.test.ts > shares announcement audience/state with the feed and enforces scoped publishing 104ms
+ ✓ tests/calendar.test.ts > preserves actual organizational nesting and reporting ids without duplicates or Company leakage 113ms
+ ✓ tests/calendar.test.ts > keeps legacy tasks privileged/undated, supports explicit ordinary assignees, and leaves cutoffs untouched 144ms
+ ✓ tests/calendar.test.ts > paginates deterministically and validates dates and nonexistent DST local times 168ms
+stderr | tests/calendar.test.ts > reports failed source loading explicitly
+Calendar source failed appointments Source temporarily unavailable
+
+ ✓ tests/calendar.test.ts > reports failed source loading explicitly 65ms
+ ✓ tests/calendar.test.ts > shows future joiners and ended engagement milestones while keeping each cutoff independent 146ms
+ ✓ tests/calendar.test.ts > scopes private detail even when an attendee is in another department and does not search redacted titles 140ms
+ ✓ tests/calendar.test.ts > shows verified directory work in its own week even after the departure window 60ms
+ ✓ tests/staff-migration.test.ts > creates a complete, empty PostgreSQL baseline and preserves database invariants 5071ms
+ ✓ tests/branding.test.ts > accepts real PNG/WebP signatures and rejects a MIME mismatch 262ms
+ ✓ tests/branding.test.ts > re-encodes transparent logos as metadata-free WebP 135ms
+ ✓ tests/branding.test.ts > rejects corrupt, undersized and pixel-bomb logo inputs 161ms
+ ✓ tests/branding.test.ts > derives an expense Branch from the record and applies document-mode defaults 157ms
+ ✓ tests/branding.test.ts > allows the Holding owner to manage brands and rejects ordinary staff 148ms
+ ✓ tests/finance-opening-balances.test.ts > opening trial balance > previews normalized lines and imports one auditable draft 53ms
+ ✓ tests/finance-opening-balances.test.ts > opening trial balance > rejects invalid and stale previews 8ms
+ ✓ tests/finance-opening-balances.test.ts > opening trial balance > allows only one concurrent opening import per chart 27ms
+ ✓ tests/customer-timeline.test.ts > federates actual CRM, notes and follow-up source events without copying private payloads or mutating their owners 253ms
+ ✓ tests/customer-timeline.test.ts > hides customer identity, entries and counts outside company/branch/department scope and from non-commerce roles 112ms
+ ✓ tests/customer-timeline.test.ts > paginates source events deterministically without duplicates and rejects malformed cursors 166ms
+ ✓ tests/customer-timeline.test.ts > includes Support lifecycle only when the viewer also has the Support owner permission 154ms
+ ✓ tests/native-recovery.test.ts > restores the same database and file snapshot and refuses corrupted backups 2517ms
+ ✓ tests/organization-chart.test.ts > uses actual managers across levels and branches, with direct counts and full search 10ms
+ ✓ tests/organization-chart.test.ts > uses engagement identities and keeps ambiguous manager profiles reachable 0ms
+ ✓ tests/organization-chart.test.ts > never leaks hidden managers or counts and does not call a scoped boundary a missing manager 0ms
+ ✓ tests/organization-chart.test.ts > does not connect profiles across companies 0ms
+ ✓ tests/organization-chart.test.ts > breaks self and multi-person cycles while retaining all people and downstream reports 0ms
+ ✓ tests/organization-chart.test.ts > groups assigned levels independently of reporting depth and retains unknown levels 0ms
+ ✓ tests/organization-chart.test.ts > keeps branches separate while sharing department colors 0ms
+ ✓ tests/organization-chart.test.ts > previews 500 profiles without changing the source and keeps all searchable 10ms
+ ✓ tests/billing.test.ts > uses Bangkok calendar days, including leap February and same-day starts 3ms
+ ✓ tests/billing.test.ts > issues exactly one 925 baht reviewed invoice across concurrent approvals and an interrupted Stripe response 212ms
+ ✓ tests/billing.test.ts > applies changes only at month end, allows withdrawal, ends Hosting without starting another Support period, and bills late costs 90ms
+ ✓ tests/billing.test.ts > requires explicit consent and a card, handles withdrawal before issue, rejects cross-holding and legacy active enrollment 67ms
+ ✓ tests/billing.test.ts > reconciles payment failures, authentication and paid state from current Stripe, never from event snapshots 109ms
+ ✓ tests/billing.test.ts > keeps historical plan revisions immutable and uses new prices only for the next period 40ms
+ ✓ tests/billing.test.ts > bills late adjustments without duplicating Support and rejects references across Holdings 99ms
+ ✓ tests/preferred-role.test.ts > never uses another assignment to authorize an action 5ms
+ ✓ tests/preferred-role.test.ts > uses only the explicitly selected finance assignment 0ms
+ ✓ tests/billing-api.test.ts > allows owner reads, denies ordinary users and cross-Holding URL access 23ms
+ ✓ tests/billing-api.test.ts > protects Platform mutations from auditors and cross-origin requests 6ms
+ ✓ tests/billing-api.test.ts > stores evidence privately, retries uploads safely and prevents evidence access under another Holding 37ms
+ ✓ tests/workspace-preferences.test.ts > stores workspace and company by account independently of browser/session 11ms
+stderr | tests/beta-auth-billing.test.ts > registers, verifies email and recovers a password through actual Better Auth handlers
+2026-09-20T10:33:19.743Z WARN [Better Auth]: Invalid password
+
+ ✓ tests/beta-auth-billing.test.ts > registers, verifies email and recovers a password through actual Better Auth handlers 339ms
+ ✓ tests/beta-auth-billing.test.ts > disables legacy checkout and returns portal customers to Usage & billing 4ms
+ ✓ tests/beta-auth-billing.test.ts > rejects invalid signatures, stale timestamps, modified bytes and live billing events 1ms
+ ✓ tests/beta-auth-billing.test.ts > uses a durable inbox, retries failures and ignores duplicate or older subscription snapshots 11ms
+ ✓ tests/redis-cache.test.ts > never enables persistent cache outside development 1ms
+ ✓ tests/redis-cache.test.ts > bounds ERPX connection failure and reconnects after its own proxy recovers 355ms
+ ✓ tests/request-draft-create.test.ts > recovers the exact draft across a lost response and reload before uploading 21ms
+ ✓ tests/request-draft-create.test.ts > retries an upload without another intent or completed file 1ms
+ ✓ tests/work-cards.test.ts > shows draft-capable cards with zero work and omits actions that cannot be used 6ms
+ ✓ tests/work-cards.test.ts > counts deduplicated records and matches each card's canonical destination filters 14ms
+ ✓ tests/work-cards.test.ts > limits approvals to actionable decisions and team cards to current membership 0ms
+ ✓ tests/work-cards.test.ts > marks a failed source as incomplete instead of reporting a misleading zero 0ms
+ ✓ tests/work-cards.test.ts > prioritizes pending approvals and team queues before the fixed default order 0ms
+ ✓ tests/work-cards.test.ts > preserves return filters on creation and keeps beta conversation creation on Home 1ms
+ ✓ tests/work-cards.test.ts > validates bounded unique catalog IDs, own-user input, and default versus empty arrangements 2ms
+ ✓ tests/routine-calendar.test.ts > Routine calendar > uses the last day for monthly dates beyond month-end 22ms
+ ✓ tests/routine-calendar.test.ts > Routine calendar > honors leap days, weekday and inclusive end dates 2ms
+ ✓ tests/routine-calendar.test.ts > Routine calendar > schedules one occurrence through DST gaps and overlaps 1ms
+ ✓ tests/workspace-choices.test.ts > platform authority alone creates no business choices 5ms
+ ✓ tests/workspace-choices.test.ts > sorts multiple Holdings by label and slug 12ms
+ ✓ tests/workspace-choices.test.ts > builds Holding, Company and Branch choices from active assignments 2ms
+ ✓ tests/workspace-choices.test.ts > shows only direct Department grants when no selectable parent exists 0ms
+ ✓ tests/workspace-choices.test.ts > does not repeat Department choices beneath an accessible parent 0ms
+ ✓ tests/workspace-choices.test.ts > does not mask unexpected platform authorization failures 1ms
+ ✓ tests/workspace-choices.test.ts > all platform sections report previews with no live action destinations 10ms
+ ✓ tests/page-error.test.ts > preserves the scoped destination when sign-in is required 20ms
+ ✓ tests/page-error.test.ts > diagnoses FORBIDDEN rather than masking it with 404 1ms
+ ✓ tests/page-error.test.ts > diagnoses COMPANY_REQUIRED rather than masking it with 404 0ms
+ ✓ tests/page-error.test.ts > diagnoses HOLDING_NOT_FOUND rather than masking it with 404 0ms
+ ✓ tests/page-error.test.ts > diagnoses WORKSPACE_NOT_FOUND rather than masking it with 404 0ms
+ ✓ tests/page-error.test.ts > diagnoses INVALID_ORGANIZATION_LINEAGE rather than masking it with 404 0ms
+ ✓ tests/page-error.test.ts > maps expected page status 403 to permission 0ms
+ ✓ tests/page-error.test.ts > maps expected page status 409 to conflict 0ms
+ ✓ tests/page-error.test.ts > maps expected page status 400 to invalid 0ms
+ ✓ tests/page-error.test.ts > maps expected page status 422 to invalid 0ms
+ ✓ tests/page-error.test.ts > maps expected page status 429 to rate_limited 0ms
+ ✓ tests/page-error.test.ts > uses the not-found UI for missing/removed resources (404) 0ms
+ ✓ tests/page-error.test.ts > uses the not-found UI for missing/removed resources (410) 0ms
+ ✓ tests/page-error.test.ts > distinguishes unavailable beta capabilities 0ms
+ ✓ tests/page-error.test.ts > passes server failures and Next navigation interrupts through unchanged 0ms
+ ✓ tests/people-payroll-math.test.ts > payroll calculation boundaries > includes contractual earnings before subtracting employee deductions 2ms
+ ✓ tests/people-payroll-math.test.ts > payroll calculation boundaries > calculates salaried pay and preserves component explanations 0ms
+ ✓ tests/people-payroll-math.test.ts > payroll calculation boundaries > applies overtime at one and a half times for hourly workers 0ms
+ ✓ tests/people-payroll-math.test.ts > payroll calculation boundaries > uses the configured overtime multiplier and calendar-day proration 0ms
+ ✓ tests/page-layouts.test.ts > persists across sessions and resets without saving business data 25ms
+ ✓ tests/page-layouts.test.ts > rejects concurrent saves, replays identical commands, and audits once 8ms
+ ✓ tests/page-layouts.test.ts > isolates account owners and rejects unknown widgets and cross-scope pages 3ms
+ ✓ tests/page-layouts.test.ts > publishes organization revisions while retaining personal layouts until reset 22ms
+ ✓ tests/page-layouts.test.ts > refuses mutation after session revocation 3ms
+ ✓ tests/page-layouts.test.ts > keeps detail layouts record independent and legacy links focusable 3ms
+ ✓ tests/page-layouts.test.ts > splits standard People tabs while leaving Beta People navigation unchanged 2ms
+ ✓ tests/page-layouts.test.ts > describes personal layout changes and resets one widget to its organization position 2ms
+ ✓ tests/list-page.test.ts > pages duplicate sort keys forward and backward without losing rows 41ms
+ ✓ tests/list-page.test.ts > handles empty lists, descending order and exact page boundaries 4ms
+ ✓ tests/workspace.test.ts > canonical workspace routing > builds all public and API workspace bases from immutable slugs 2ms
+ ✓ tests/workspace.test.ts > canonical workspace routing > parses Branch and Department placement without adding a role level 1ms
+ ✓ tests/workspace.test.ts > assignment containment > inherits Holding and Branch assignments but denies Department siblings 0ms
+ ✓ tests/workspace.test.ts > assignment containment > keeps Platform roles separate and holding_owner Holding-only 0ms
+ ✓ tests/expense-ai-draft.test.ts > fills empty receipt fields and retains source page references 1ms
+ ✓ tests/expense-ai-draft.test.ts > preserves both typed values and fields explicitly cleared while AI runs 0ms
+ ✓ tests/expense-ai-draft.test.ts > replaces only on explicit use-suggestion and ignores unknown/null fields 0ms
+ ✓ tests/expense-ai-draft.test.ts > invalidates stale AI fields while keeping human edits and accepts new evidence 0ms
+ ✓ tests/expense-ai-draft.test.ts > retains provenance after browser recovery and does not invalidate the same proposal 0ms
+ ✓ tests/expense-ai-draft.test.ts > rejects unsupported or empty files before uploading 1ms
+ ✓ tests/expense-ai-draft.test.ts > retries an interrupted PUT with the same intent and avoids duplicate successful uploads 9ms
+ ✓ tests/expense-ai-draft.test.ts > retries failed PDF rendering without uploading another original 0ms
+ ✓ tests/expense-ai-draft.test.ts > recovers a lost draft response after reload with the original idempotency key and values 4ms
+ ✓ tests/expense-ai-draft.test.ts > allows correcting a definitively rejected draft without replaying invalid input 0ms
+ ✓ tests/expense-ai-draft.test.ts > fills the receipt total despite unknown VAT recoverability and preserves user amounts 0ms
+ ✓ tests/expense-ai-draft.test.ts > uses a recoverable tax edited while AI was running without counting it twice 0ms
+ ✓ tests/expense-ai-draft.test.ts > does not turn missing or invalid receipt total null into an amount 0ms
+ ✓ tests/expense-ai-draft.test.ts > does not turn missing or invalid receipt total -54.50 into an amount 0ms
+ ✓ tests/expense-ai-draft.test.ts > does not turn missing or invalid receipt total 999999999999999999999 into an amount 0ms
+ ✓ tests/expense-ai-draft.test.ts > does not turn missing or invalid receipt total invalid into an amount 0ms
+ ✓ tests/cloudflare-bindings.test.ts > Cloudflare persistence invariants > rolls an earlier guarded update back when its SQL assertion fails 56ms
+ ✓ tests/cloudflare-bindings.test.ts > Cloudflare persistence invariants > stores private R2 content with integrity metadata 61ms
+ ✓ tests/calendar-timeline.test.ts > calendar timeline geometry > queries exactly one local date for day view 2ms
+ ✓ tests/calendar-timeline.test.ts > calendar timeline geometry > uses 23 and 25 actual hours across DST transitions and disambiguates the repeated hour 18ms
+ ✓ tests/calendar-timeline.test.ts > calendar timeline geometry > snaps to 15 minutes and clips overnight items without mutating duration 0ms
+ ✓ tests/calendar-timeline.test.ts > calendar timeline geometry > packs overlapping events into lanes and reuses a lane after an event ends 0ms
+ ✓ tests/calendar-timeline.test.ts > calendar timeline geometry > moves inclusive announcement ranges while preserving their length 0ms
+ ✓ tests/acceptance-evidence.test.ts > acceptance evidence boundaries > preserves scoped observations without promoting capability gates 4ms
+ ✓ tests/acceptance-evidence.test.ts > acceptance evidence boundaries > rejects simulation evidence for provider and production gates 1ms
+ ✓ tests/acceptance-evidence.test.ts > acceptance evidence boundaries > rejects stale capability/scenario mappings and non-durable evidence 1ms
+ ✓ tests/acceptance-evidence.test.ts > acceptance evidence boundaries > requires unique IDs and an earlier, same-scope record for corrections 1ms
+ ✓ tests/iam-providers.test.ts > retains active_directory real containers, placement and escaped commas 3ms
+ ✓ tests/iam-providers.test.ts > retains univention real containers, placement and escaped commas 0ms
+ ✓ tests/iam-providers.test.ts > does not return a complete snapshot when container discovery returns referrals 1ms
+ ✓ tests/iam-providers.test.ts > reads UCS nested groups by immutable entryUUID and validates LDAPS certificates 1ms
+ ✓ tests/iam-providers.test.ts > authenticates active_directory by bind and never returns passwords 0ms
+ ✓ tests/iam-providers.test.ts > authenticates univention by bind and never returns passwords 0ms
+ ✓ tests/iam-providers.test.ts > rejects certificate failure and incomplete LDAP searches instead of producing an empty directory 0ms
+ ✓ tests/iam-providers.test.ts > prevents using another connection’s approved external secret profile 0ms
+ ✓ tests/iam-providers.test.ts > uses tenant Graph pagination and transitive memberships even when token groups are absent 10ms
+ ✓ tests/iam-providers.test.ts > rejects Graph continuation redirects outside the approved API 1ms
+ ✓ tests/iam-providers.test.ts > requires a signed UCS OIDC entryUUID correlation and rejects a mismatched audience 21ms
+ ✓ tests/workflow-projection.test.ts > Workflow event projection > recovers older events missing state from the owner and rejects stale projection updates 63ms
+ ✓ tests/workflow-projection.test.ts > Workflow event projection > uses the current task and its scope for duplicate or delayed approval and generated events 36ms
+ ✓ tests/workflow-projection.test.ts > Workflow event projection > closes cancelled leave work items 31ms
+ ✓ tests/workflow-projection.test.ts > Workflow event projection > projects overtime hours stages and acknowledges policy administration without a request lookup 25ms
+ ✓ tests/work-refresh.test.ts > coalesces focus/visibility/write bursts and removes pending refresh on unmount 2ms
+ ✓ tests/work-refresh.test.ts > rejects an old response when the rendered company/role changes, including DOM reuse 10ms
+ ✓ tests/work-refresh.test.ts > announces successful writes immediately but not reads or unsuccessful writes 1ms
+ ✓ tests/leave-self-service.test.ts > leave working-day calculation > uses the policy workweek and excludes holidays across a year boundary 3ms
+ ✓ tests/leave-self-service.test.ts > leave working-day calculation > lets a published roster override the fallback workweek 0ms
+ ✓ tests/leave-self-service.test.ts > leave working-day calculation > calculates half-day boundaries without changing intermediate days 0ms
+ ✓ tests/leave-self-service.test.ts > leave working-day calculation > rejects contradictory halves for a single date 1ms
+ ✓ tests/leave-self-service.test.ts > leave working-day calculation > caps an accidental oversized range 1ms
+ ✓ tests/support-clock.test.ts > pauses only when the snapshot permits and resumes with the unspent working duration 40ms
+ ✓ tests/support-clock.test.ts > preserves a breach through later resolution and reopening and does not reset the budget 1ms
+ ✓ tests/support-clock.test.ts > accepts completion exactly on the target, rejects backwards time and keeps snapshots independent 1ms
+ ✓ tests/social-text.test.ts > social inline text > recognizes a token at the caret, not email addresses 2ms
+ ✓ tests/social-text.test.ts > social inline text > preserves identity across prefix edits and drops edited mentions 2ms
+ ✓ tests/social-text.test.ts > social inline text > keeps duplicate display names distinct and handles pasted emoji 0ms
+ ✓ tests/social-text.test.ts > social inline text > recognizes Thai/English tags, normalizes case, ignores URLs and oversized tags 8ms
+ ✓ tests/finance-money.test.ts > finance money boundaries > converts decimal strings without floating point drift 4ms
+ ✓ tests/finance-money.test.ts > finance money boundaries > rejects values with too much precision 1ms
+ ✓ tests/crm-forecast.test.ts > retains exact totals beyond safe Number aggregation and rounds each weighted opportunity half up 5ms
+ ✓ tests/business-time.test.ts > retains seconds and skips weekends/holidays according to the supplied calendar snapshot 62ms
+ ✓ tests/business-time.test.ts > counts actual working time across skipped and repeated local DST hours 2ms
+ ✓ tests/business-time.test.ts > validates timezone, weekday uniqueness, daytime windows and clock boundaries 1ms
+ ✓ tests/feature-widget-registry.test.ts > keeps widget identities unique, validates layouts, and registers declared page types 199ms
+ ✓ tests/feature-widget-registry.test.ts > does not reintroduce the removed topic switchers 0ms
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_source","source":"Expense claims","durationMs":0.6242919999999685}
+{"event":"work_source","source":"Overtime","durationMs":1.7042080000001079}
+{"event":"work_source","source":"Hotel operations","durationMs":1.7650000000001}
+{"event":"work_source","source":"Stock counts","durationMs":1.487292000000025}
+{"event":"work_source","source":"Warehouse transfers","durationMs":1.5012910000000375}
+{"event":"work_source","source":"Tasks","durationMs":1.5122089999999844}
+{"event":"work_source","source":"Commercial and financial workflows","durationMs":1.2404999999998836}
+{"event":"work_source","source":"Leave requests","durationMs":1.5414169999999103}
+
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_source","source":"Employee requests","durationMs":1.696666999999934}
+{"event":"work_source","source":"Retirement clearance","durationMs":1.7345419999999194}
+{"event":"work_source","source":"People & IT preparation","durationMs":1.7743749999999636}
+
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_source","source":"Quality holds","durationMs":23.839665999999852}
+
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_source","source":"Supplier payment batches","durationMs":24.240625000000136}
+
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_source","source":"Support target escalations","durationMs":33.97454199999993}
+
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_source","source":"CRM pipeline","durationMs":34.48641599999996}
+
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_source","source":"Stock in transit","durationMs":34.75799999999981}
+
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_source","source":"Supplier quotation reviews","durationMs":35.22900000000004}
+
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_source","source":"Return refunds","durationMs":35.47704099999987}
+
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_source","source":"Legal","durationMs":39.1165840000001}
+
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_source","source":"Support tickets","durationMs":39.56016599999998}
+
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_source","source":"Supplier confirmations","durationMs":40.00254199999995}
+
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_source","source":"Support incidents","durationMs":40.20354199999997}
+{"event":"work_source","source":"Support SLA policies","durationMs":40.200041000000056}
+
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_source","source":"POS","durationMs":40.59420799999998}
+{"event":"work_source","source":"Customer follow-ups","durationMs":40.52712499999984}
+
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_source","source":"Supplier invoice reviews","durationMs":40.81070799999998}
+
+stdout | tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source
+{"event":"work_snapshot","queries":0,"queryMs":0,"poolWaitMs":0,"durationMs":48.097041999999874,"items":2}
+
+ ✓ tests/work-sources.test.ts > deduplicates a record found through several responsibilities and keeps all viewer relationships 8ms
+ ✓ tests/work-sources.test.ts > limits Home priorities to three actionable items from any source, with overdue work first 1ms
+ ✓ tests/work-sources.test.ts > retains the workspace when one source fails and reports only that source 50ms
+ ✓ tests/acme-organization-fixture.test.ts > adds only 92 unique Acme identities and covers every department in both branches 4ms
+ ✓ tests/acme-organization-fixture.test.ts > connects every new position and staff member to a strictly senior manager and the existing CEO 12ms
+ ✓ tests/acme-organization-fixture.test.ts > assigns valid business scopes and keeps Accounting preparation, approval and Treasury independent 5ms
+ ✓ tests/ai-protocols.test.ts > normalizes chat-completions images, authentication, JSON and usage 12ms
+ ✓ tests/ai-protocols.test.ts > normalizes responses images, authentication, JSON and usage 1ms
+ ✓ tests/ai-protocols.test.ts > normalizes messages images, authentication, JSON and usage 1ms
+ ✓ tests/ai-protocols.test.ts > rejects incomplete/refused responses output 1ms
+ ✓ tests/ai-protocols.test.ts > rejects incomplete/refused responses output 0ms
+ ✓ tests/ai-protocols.test.ts > rejects incomplete/refused messages output 0ms
+ ✓ tests/ai-protocols.test.ts > rejects incomplete/refused messages output 0ms
+ ✓ tests/ai-protocols.test.ts > rejects incomplete/refused chat-completions output 0ms
+ ✓ tests/ai-protocols.test.ts > rejects invalid JSON objects: not json 0ms
+ ✓ tests/ai-protocols.test.ts > rejects invalid JSON objects: [] 0ms
+ ✓ tests/ai-protocols.test.ts > rejects invalid JSON objects: null 0ms
+ ✓ tests/ai-protocols.test.ts > rejects invalid JSON objects: "text" 0ms
+ ✓ tests/ai-protocols.test.ts > keeps Go and Zen protocol guidance separate and leaves new models unknown 0ms
+ ✓ tests/ai-protocols.test.ts > sends the stable session and honest client identity only to OpenCode inference 1ms
+ ✓ tests/ai-protocols.test.ts > includes all newly reconciled catalog IDs and keeps documented Qwen protocols 0ms
+ ✓ tests/workplace-navigation.test.ts > Side menu destination coverage > makes each visible destination unique and highlights its own entry 3ms
+ ✓ tests/workplace-navigation.test.ts > Side menu destination coverage > exposes missing pages by their feature names in the appropriate group 1ms
+ ✓ tests/workplace-navigation.test.ts > Side menu destination coverage > keeps feature permissions and scope restrictions in the side menu 0ms
+ ✓ tests/workplace-navigation.test.ts > Side menu destination coverage > keeps aliases, detail pages and query tabs under their current feature 1ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > keeps roster in People and cash sessions on compatible POS routes at every scope 0ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > keeps staff navigation compact and excludes inaccessible search results 0ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > shows authorized live areas without module capability results 0ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > assigns semantic icons to feature destinations 0ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > keeps Local workspaces operational and removes Company-only navigation 0ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > keeps beta and platform discovery inside their supported surfaces 0ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > maps collections, details, and query views to their canonical parents 0ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > does not expose generic workspace records as a Work type 0ms
+ ✓ tests/workplace-navigation.test.ts > filters mixed work without treating another queue as actionable 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves handbook and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves learn and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/settings and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/settings?section=templates and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/settings?section=attributes and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves settings?section=usage and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves settings?section=approvals and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/access and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/access?view=packages and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/access?view=groups and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/access?view=policies and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/access?view=devices and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/settings?section=connections and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/settings?section=roles and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/settings?section=matrix and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/settings?section=reviews and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves settings?section=ai and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves iam/groups and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves iam/mappings and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves iam/connections and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves iam/roles and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves iam/matrix and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves settings?section=people and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves settings?section=organization and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves iam/overview and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves iam/users and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > keeps the exact group order, People contents, and a direct help link 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > maps app-level navigation into presentation categories without changing breadcrumbs 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > retains holding_owner authorization in Company, Branch and Department navigation 3ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > retains hr_admin authorization in Company, Branch and Department navigation 1ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > retains it_admin authorization in Company, Branch and Department navigation 1ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > retains employee authorization in Company, Branch and Department navigation 1ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > uses the server approval flag independently from the readable legacy section 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > builds Finance and Technology from individually allowed services 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > retains Beta and Platform feature organization 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > migrates retained expansion choices and defaults Technology to collapsed 0ms
+ ✓ tests/workplace-navigation.test.ts > keeps Executive hidden without eligibility or a named share, and resolves report breadcrumbs 0ms
+ ✓ tests/work-views.test.ts > shows routing attention only to the source-authorized workflow manager 1ms
+ ✓ tests/work-views.test.ts > separates assigned actionable preparation from unassigned setup without changing source queues 0ms
+ ✓ tests/work-views.test.ts > keeps domain queries and return context together 0ms
+ ✓ tests/work-views.test.ts > shows only permission-filtered app cards before launcher search 1ms
+ ✓ tests/work-views.test.ts > searches deep destinations with owning-app context and no duplicate URLs 1ms
+ ✓ tests/work-views.test.ts > omits inaccessible launcher categories and scopes rail state by workspace 0ms
+ ✓ tests/native-proxy.test.ts > keeps branch rewrites on the loopback origin and replaces caller scope headers 3ms
+ ✓ tests/native-proxy.test.ts > rejects foreign hosts, redirects HTTP and sets secure workspace cookies in production 4ms
+ ✓ tests/work-attention.test.ts > workspace attention > keeps blocked team work out of personal attention 2ms
+ ✓ tests/work-attention.test.ts > workspace attention > orders overdue work, then due date, latest update and a stable identity 0ms
+ ✓ tests/work-attention.test.ts > workspace attention > uses the latest duplicate and does not collapse different work types 0ms
+ ✓ tests/work-attention.test.ts > workspace attention > retains incomplete state for an empty or partially loaded snapshot 0ms
+ ✓ tests/work-attention.test.ts > workspace attention > treats blank blockers as absent and accepts a due timestamp of zero 0ms
+ ✓ tests/work-attention.test.ts > groups notifications by Bangkok day across a UTC midnight boundary without mutating source order 0ms
+ ✓ tests/legal-deadlines.test.ts > uses explicit calendar rules across month ends, leap years and weekends 6ms
+ ✓ tests/home-streaming.test.ts > streams the feed before the day summary and then renders the supplied summary 11ms
+ ✓ tests/access-problem.test.ts > classifies permission from the account's own applicable assignments 1ms
+ ✓ tests/access-problem.test.ts > classifies scope from the account's own applicable assignments 0ms
+ ✓ tests/access-problem.test.ts > classifies expired from the account's own applicable assignments 0ms
+ ✓ tests/access-problem.test.ts > classifies revoked from the account's own applicable assignments 0ms
+ ✓ tests/access-problem.test.ts > classifies scheduled from the account's own applicable assignments 0ms
+ ✓ tests/access-problem.test.ts > classifies role from the account's own applicable assignments 0ms
+ ✓ tests/access-problem.test.ts > classifies no_access from the account's own applicable assignments 0ms
+ ✓ tests/access-problem.test.ts > classifies scheduled from the account's own applicable assignments 0ms
+ ✓ tests/access-problem.test.ts > classifies permission from the account's own applicable assignments 0ms
+ ✓ tests/access-problem.test.ts > classifies expired from the account's own applicable assignments 0ms
+ ✓ tests/access-problem.test.ts > classifies no_access from the account's own applicable assignments 0ms
+ ✓ tests/access-problem.test.ts > rejects unsafe or looping return path https://evil.example 0ms
+ ✓ tests/access-problem.test.ts > rejects unsafe or looping return path //evil.example 0ms
+ ✓ tests/access-problem.test.ts > rejects unsafe or looping return path /\evil.example 0ms
+ ✓ tests/access-problem.test.ts > rejects unsafe or looping return path /api/v1/delete 0ms
+ ✓ tests/access-problem.test.ts > rejects unsafe or looping return path /login 0ms
+ ✓ tests/access-problem.test.ts > rejects unsafe or looping return path /access?reason=expired 0ms
+ ✓ tests/access-problem.test.ts > rejects unsafe or looping return path /holdings/%2f%2fevil.example 0ms
+ ✓ tests/access-problem.test.ts > rejects unsafe or looping return path /holdings/acme/home 0ms
+ ✓ tests/access-problem.test.ts > rejects unsafe or looping return path /holdings/acme/%5cfoo 0ms
+ ✓ tests/access-problem.test.ts > rejects unsafe or looping return path /holdings/acme/%00home 0ms
+ ✓ tests/access-problem.test.ts > rejects unsafe or looping return path /holdings/../../api/auth/sign-out 0ms
+ ✓ tests/access-problem.test.ts > rejects unsafe or looping return path /holdings/%2e%2e/access 0ms
+ ✓ tests/access-problem.test.ts > rejects unsafe or looping return path /holdings/acme/.. 0ms
+ ✓ tests/access-problem.test.ts > rejects unsafe or looping return path null 0ms
+ ✓ tests/access-problem.test.ts > rejects unsafe or looping return path xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx 0ms
+ ✓ tests/access-problem.test.ts > accepts scoped application links and retains ordinary query parameters 0ms
+ ✓ tests/access-problem.test.ts > gives every supported problem a distinct explanation and a next step 0ms
+ ✓ tests/capability-delivery.test.ts > capability delivery inventory > keeps production acceptance independent from implementation and provider labels 9ms
+ ✓ tests/capability-delivery.test.ts > capability delivery inventory > accounts for every catalog capability including Legal 3ms
+ ✓ tests/capability-delivery.test.ts > capability delivery inventory > includes Legal and has no stale module definitions 0ms
+ ✓ tests/capability-delivery.test.ts > capability delivery inventory > links implemented evidence to repository paths 4ms
+ ✓ tests/ui-registry.test.ts > Enterprise UI coverage and routing > matches module access by exact assignment module id 1ms
+ ✓ tests/ui-registry.test.ts > Enterprise UI coverage and routing > limits legacy broad module grants to the selected business role 0ms
+ ✓ tests/ui-registry.test.ts > Enterprise UI coverage and routing > covers all module capabilities without ambiguous section routes 1ms
+ ✓ tests/ui-registry.test.ts > Enterprise UI coverage and routing > does not advertise unwired foundation modules as live 0ms
+ ✓ tests/ui-registry.test.ts > Enterprise UI coverage and routing > retains action-level capability metadata for IAM and backend compatibility 2ms
+ ✓ tests/ui-registry.test.ts > Work responsibility > keeps another person’s draft out of my actionable queue 0ms
+ ✓ tests/ui-registry.test.ts > Work responsibility > does not turn my own request into an approval when I change role 0ms
+ ✓ tests/ui-registry.test.ts > Work responsibility > keeps all terminal outcomes in completed work 0ms
+ ↓ tests/billing-stripe-sandbox.test.ts > runs reviewed manual and auto collection against actual Stripe Sandbox, with isolated accounts and an injected clock
+ ↓ tests/directory-provider-live.test.ts > verifies real UCS create, retry, update, membership, conflict, enable, move retry and disable read-back
+ ↓ tests/directory-provider-live.test.ts > writes GPO settings, links, filtering, order and inheritance through verified UCS HTTPS
+
+ Test Files  99 passed | 2 skipped (101)
+      Tests  817 passed | 3 skipped (820)
+   Start at  17:21:49
+   Duration  791.58s (transform 3.11s, setup 1.91s, import 12.37s, tests 768.60s, environment 4ms)
+

@@ -102,15 +102,15 @@ routes. They return the standard unavailable/not-found response without a
 redirect. The universal record APIs above remain for backend compatibility and
 historical data access.
 
-Authenticated workspace discovery uses one role- and scope-aware navigation
-hierarchy. Home, Work, and Inbox are primary destinations. Holding business
-pages are grouped under People, Operations, Finance, and Projects; Company
-handbook, Learn, and Help & feedback are Resources; authorized settings and IAM
-pages are Administration. Stable overview and collection pages are searchable.
-Redirect aliases, creation states, and individual records inherit their parent
-for active navigation and breadcrumbs but are not separate navigation results.
-Platform uses the same contract as a flat list because it has no Holding
-business groups.
+Authenticated business-workspace discovery uses one role- and scope-aware
+destination catalog. Home, Work, Inbox, and Calendar are primary destinations.
+The sidebar exposes app-level links under presentation-only People &
+organization, Operations, Finance, Management, and System categories. Deep
+pages remain in app-local tabs and become launcher or command-search results
+only when searched. Redirect aliases, creation states, and individual records
+inherit their app parent for active navigation and `App › Page` breadcrumbs but
+are not separate default launcher cards. Platform keeps its existing flat
+navigation contract.
 
 ## Planned business routes
 
@@ -148,3 +148,42 @@ Add rows as `src/app/api/<ctx>/*` handlers land. Keep this file in sync with `do
 ## Staff work and approval routes
 
 See [Staff requests, levels and work](staff-work.md) for versioned request bodies, participant policies, routine defaults and release order. Workspace-prefixed UI routes: `/staff-tasks`, `/staff-tasks/{id}`, `/projects`, `/projects/{id}`, `/routine-templates`, `/routine-templates/{id}`, `/staff-settings`. New staff APIs use the same workspace prefix and retain legacy generic record routes. Work and Inbox include current named approvals and task participants; business-role module selection does not gate personal requests or assigned work.
+
+## Return/refund commands (simulation acceptance)
+
+All POST commands use source permissions, `Idempotency-Key` and `expectedVersion` (export has a version for every instruction). See [S04 refund simulation](../../testing/return-refund-simulation.md).
+
+| Route under `/api/v1/holdings/{holdingSlug}/finance` | Method | Owner behavior |
+| --- | --- | --- |
+| `/refunds`, `/refunds/{id}` | GET | Company/branch/department-filtered obligations and evidence |
+| `/refunds/{id}/approve` | POST | Independent source/beneficiary approval |
+| `/refunds/{id}/instructions` | POST | Reserve partial/final refund amount |
+| `/refund-instructions/export` | POST | Immutable CSV receipt with SHA-256; no cash posting |
+| `/refund-instructions/{id}/export` | GET | Recover an authorized committed export |
+| `/refund-instructions/{id}/exception` | POST | Cancel before export, hold unknown result, independently verify failure |
+| `/refund-instructions/{id}/confirm` | POST | Bank evidence + cash GL + payment + remaining obligation commit together |
+
+## Supplier payment batches (simulation)
+
+Company Finance/Treasury scope only; mutation commands require `Idempotency-Key` and expected versions (create supplies every invoice version). Details: [supplier payment simulation](../../testing/supplier-payment-simulation.md).
+
+| Route under `/api/v1/holdings/{holdingSlug}/finance` | Method | Behavior |
+| --- | --- | --- |
+| `/supplier-batches`, `/supplier-batches/{id}` | GET | Source-owned batches / review workspace |
+| `/supplier-batches` | POST | Reserve posted invoice amounts without cash posting |
+| `/supplier-batches/{id}/approve`, `/cancel` | POST | Independent approval or cancel before export |
+| `/supplier-batches/{id}/export` | POST / GET | Third-person export / recover immutable receipt |
+| `/supplier-instructions/{id}/result` | POST | Unknown retains reservation; independently verified failure releases it |
+| `/supplier-instructions/{id}/confirm` | POST | Bank evidence, payment, allocation, invoice and GL commit together |
+
+## Company routing attention
+
+`GET /api/v1/holdings/{holdingSlug}/routing-attention?kind={flowKind}&after={lastVisibleRecordId}&limit=25` requires current Company organization-management authority, then owner read permission for each source. Returns only authorized blockers and a next cursor based on visible records. Read-only scan; repairs use existing versioned `/flows/{kind}/{id}` commands. Named Flow coverage only; see [routing simulation](../../testing/routing-attention-simulation.md).
+
+### Sales stock reservations
+
+`POST /api/v1/holdings/{holdingSlug}/commerce/orders/{id}/reservations` — `inventory.prepare`, source Company/Branch/Department scope, approved sales order, `Idempotency-Key` and `expectedVersion`. Reserve/release quantity, reason and reserve expiry; atomic audit and source version. See [simulation contract](../../testing/shared-stock-reservation-simulation.md).
+
+### Business readiness
+
+`GET /api/v1/holdings/{holdingSlug}/business-readiness` — active Company organization manager only, private/no-store. Bundled workspace simulation manifest and scoped evidence; no Company production sign-off and no write/approval endpoint. UI: `/holdings/{holdingSlug}/settings/business-readiness`.

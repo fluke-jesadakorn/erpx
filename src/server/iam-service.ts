@@ -978,6 +978,11 @@ export async function decideIamReview(
     kind: string,
     payload: Record<string, unknown>,
   ) => Promise<void>,
+  rejectExtension?: (
+    c: PoolClient,
+    kind: string,
+    payload: Record<string, unknown>,
+  ) => Promise<void>,
 ) {
   db = iamDb(db);
   assertCompanyScope(actor);
@@ -1054,9 +1059,11 @@ export async function decideIamReview(
             "The proposer no longer has active authority. Create a new proposal.",
           );
         const required =
-          r.kind === "role.publish"
+          r.kind === "people.provision.grant"
+            ? "iam.directory.apply"
+            : r.kind === "role.publish"
             ? "iam.roles.manage"
-            : r.kind === "connection.activate"
+            : ["connection.activate", "directory.operation"].includes(r.kind)
               ? "iam.directory.manage"
               : r.kind.startsWith("emergency.")
                 ? "iam.recovery"
@@ -1152,6 +1159,8 @@ export async function decideIamReview(
             "This review requires its registered workflow handler.",
           );
       }
+      if (input.decision === "reject" && rejectExtension)
+        await rejectExtension(c, r.kind, p);
       await c.query(
         "UPDATE iam_reviews SET status=$1,reviewed_by=$2,reviewed_at=$3,reason=reason||$4,version=version+1 WHERE id=$5",
         [

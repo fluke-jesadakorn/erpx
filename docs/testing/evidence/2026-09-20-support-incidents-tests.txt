@@ -1,0 +1,22 @@
+$ bun scripts/local/test.ts tests/support-incidents.test.ts tests/support.test.ts tests/support-sla.test.ts tests/staff-migration.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/support-sla.test.ts > requires independent policy approval, snapshots the calendar and preserves consumed time through wait/resume/rework 1525ms
+ ✓ tests/support-sla.test.ts > scopes target watches and rejects retired, stale and duplicate attachments without replacing a ticket policy 1295ms
+ ✓ tests/support-sla.test.ts > retains durable breach escalation across retries, checks live routing and records a manager without changing the ticket 1449ms
+ ✓ tests/support-sla.test.ts > removes a withdrawn reviewer from policy actions and never approves through stale HR eligibility 1470ms
+ ✓ tests/support-sla.test.ts > recovers a breach after worker downtime and routes it when manager coverage becomes available 667ms
+ ✓ tests/support-incidents.test.ts > hands off one incident across owners and reviewers while preserving separate customer cases 2134ms
+ ✓ tests/support-incidents.test.ts > does not let the mitigating manager self-review through reassignment and requires current reviewer eligibility 494ms
+ ✓ tests/support-incidents.test.ts > protects source scope, versions, duplicate links and recipient withdrawal 723ms
+ ✓ tests/support.test.ts > hands off to Support and separates proposed resolution from independently reviewed customer confirmation 920ms
+ ✓ tests/support.test.ts > blocks inactive recipients and protects scope, event history and stale concurrent actions 384ms
+ ✓ tests/support.test.ts > does not allow the resolving manager to approve their own resolution after reassignment 532ms
+ ✓ tests/staff-migration.test.ts > creates a complete, empty PostgreSQL baseline and preserves database invariants 3408ms
+
+ Test Files  4 passed (4)
+      Tests  12 passed (12)
+   Start at  17:20:06
+   Duration  54.59s (transform 392ms, setup 110ms, import 524ms, tests 53.63s, environment 0ms)
+

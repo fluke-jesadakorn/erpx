@@ -1,0 +1,42 @@
+$ bun scripts/local/test.ts tests/support-sla.test.ts tests/support.test.ts tests/support-clock.test.ts tests/business-time.test.ts tests/calendar.test.ts tests/staff-migration.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/calendar.test.ts > reads all sources without causing workflow transitions and hides draft rosters from staff 267ms
+ ✓ tests/calendar.test.ts > preserves overnight shifts crossing adjacent weeks and stored timezone 190ms
+ ✓ tests/calendar.test.ts > lets active staff organize, scopes delegates, redacts availability before serialization and checks direct commands 130ms
+ ✓ tests/calendar.test.ts > uses stable receipts and versions for reschedule/cancel and rejects concurrent stale edits 137ms
+ ✓ tests/calendar.test.ts > reschedules through narrow commands while preserving appointment data and roster assignments 345ms
+ ✓ tests/calendar.test.ts > warns about overlaps and approved all-day leave without exposing reasons; meetings during shifts are allowed 101ms
+ ✓ tests/calendar.test.ts > shares announcement audience/state with the feed and enforces scoped publishing 151ms
+ ✓ tests/calendar.test.ts > preserves actual organizational nesting and reporting ids without duplicates or Company leakage 107ms
+ ✓ tests/calendar.test.ts > keeps legacy tasks privileged/undated, supports explicit ordinary assignees, and leaves cutoffs untouched 119ms
+ ✓ tests/calendar.test.ts > paginates deterministically and validates dates and nonexistent DST local times 173ms
+stderr | tests/calendar.test.ts > reports failed source loading explicitly
+Calendar source failed appointments Source temporarily unavailable
+
+ ✓ tests/calendar.test.ts > reports failed source loading explicitly 53ms
+ ✓ tests/calendar.test.ts > shows future joiners and ended engagement milestones while keeping each cutoff independent 134ms
+ ✓ tests/calendar.test.ts > scopes private detail even when an attendee is in another department and does not search redacted titles 142ms
+ ✓ tests/calendar.test.ts > shows verified directory work in its own week even after the departure window 62ms
+ ✓ tests/support-sla.test.ts > requires independent policy approval, snapshots the calendar and preserves consumed time through wait/resume/rework 794ms
+ ✓ tests/support-sla.test.ts > scopes target watches and rejects retired, stale and duplicate attachments without replacing a ticket policy 506ms
+ ✓ tests/support-sla.test.ts > retains durable breach escalation across retries, checks live routing and records a manager without changing the ticket 436ms
+ ✓ tests/support-sla.test.ts > removes a withdrawn reviewer from policy actions and never approves through stale HR eligibility 410ms
+ ✓ tests/support-sla.test.ts > recovers a breach after worker downtime and routes it when manager coverage becomes available 417ms
+ ✓ tests/support.test.ts > hands off to Support and separates proposed resolution from independently reviewed customer confirmation 732ms
+ ✓ tests/support.test.ts > blocks inactive recipients and protects scope, event history and stale concurrent actions 257ms
+ ✓ tests/support.test.ts > does not allow the resolving manager to approve their own resolution after reassignment 284ms
+ ✓ tests/staff-migration.test.ts > creates a complete, empty PostgreSQL baseline and preserves database invariants 3693ms
+ ✓ tests/business-time.test.ts > retains seconds and skips weekends/holidays according to the supplied calendar snapshot 70ms
+ ✓ tests/business-time.test.ts > counts actual working time across skipped and repeated local DST hours 2ms
+ ✓ tests/business-time.test.ts > validates timezone, weekday uniqueness, daytime windows and clock boundaries 1ms
+ ✓ tests/support-clock.test.ts > pauses only when the snapshot permits and resumes with the unspent working duration 39ms
+ ✓ tests/support-clock.test.ts > preserves a breach through later resolution and reopening and does not reset the budget 1ms
+ ✓ tests/support-clock.test.ts > accepts completion exactly on the target, rejects backwards time and keeps snapshots independent 1ms
+
+ Test Files  6 passed (6)
+      Tests  29 passed (29)
+   Start at  17:11:14
+   Duration  36.30s (transform 543ms, setup 130ms, import 482ms, tests 35.19s, environment 0ms)
+

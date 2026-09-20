@@ -16,6 +16,7 @@ import {
 } from "../src/server/beta-onboarding";
 import {
   postView,
+  postComments,
   homePosts,
   savePostDraft,
   publishPost,
@@ -857,5 +858,12 @@ it("keeps the newest replies visible in long conversations",async()=>{
  const p=await post(),now=Date.now();
  await db.batch(Array.from({length:55},(_,i)=>db.prepare("INSERT INTO social_comments(id,post_id,author_id,author_name,body,created_at,updated_at) VALUES(?,?,?,'Owner',?,?,?)").bind(`${p.id}-${i}`,p.id,owner.userId,`Reply ${i}`,now+i,now+i)));
  const view=await postView(db,owner,p.id);
- expect(view.comments).toHaveLength(50);expect(view.comments[0].body).toBe("Reply 5");expect(view.comments.at(-1)?.body).toBe("Reply 54");
+ expect(view.comments).toHaveLength(20);expect(view.comments[0].body).toBe("Reply 35");expect(view.comments.at(-1)?.body).toBe("Reply 54");
+ expect(view.commentCount).toBe(55);
+ const ids:string[]=[];let cursor:string|undefined;
+ do {const page=await postComments(db,owner,p.id,cursor);ids.push(...page.items.map(c=>c.id));cursor=page.nextCursor??undefined;} while(cursor);
+ expect(ids).toHaveLength(55);expect(new Set(ids).size).toBe(55);
+ const feed=(await homePosts(db,owner)).find(row=>row.id===p.id)!;
+ expect(feed.comments).toHaveLength(2);expect(feed.commentCount).toBe(55);
+ await expect(postComments(db,{...owner,companyId:'another-company'},p.id)).rejects.toMatchObject({code:'POST_NOT_FOUND'});
 });

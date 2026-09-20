@@ -1,7 +1,7 @@
 import { beforeAll, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "./runtime-env";
 import { iamDb } from "../src/server/iam-db";
-import { loadIamAuthority } from "../src/server/iam-store";
+import { loadIamAuthority, iamRole } from "../src/server/iam-store";
 import { selectWorkRole } from "../src/server/work-role-store";
 import { captureJobAuthority } from "../src/server/iam-jobs";
 import { decideIamReview } from "../src/server/iam-service";
@@ -133,7 +133,7 @@ async function policy(actor: IamActor) {
       grants: [
         {
           roleId: "auditor",
-          expectedRoleRevision: 2,
+          expectedRoleRevision: (await iamRole(db,actor.companyId,"auditor"))!.revision,
           scopeKind: "holding",
           scopeNodeId: null,
           validUntil: Date.now() + 86400000,
@@ -750,7 +750,7 @@ it("keeps previews retryable, permits clearing optional attributes, and rejects 
         grants: [
           {
             roleId: "holding_owner",
-            expectedRoleRevision: 2,
+            expectedRoleRevision: (await iamRole(db,f.owner.companyId,"holding_owner"))!.revision,
             scopeKind: "holding",
             scopeNodeId: null,
             validUntil: Date.now() + 86400000,

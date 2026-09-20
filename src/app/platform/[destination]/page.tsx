@@ -1,6 +1,8 @@
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { PageHeader,PreviewBanner } from "@/components/ui/primitives";
 import { workspaceChoices } from "@/server/workspace-choices";
 import { notFound } from "next/navigation";
-import { PageHeader, PreviewBanner } from "@/components/ui/primitives";
+import { HomeVisualPrototype } from "@/components/home/home-visual-prototype";
 
 const destinations: Record<string, [string, string]> = {
   home: ["Platform overview", "Control-plane operations are separated from every customer Holding."],
@@ -19,13 +21,14 @@ export default async function PlatformDestinationPage({ params }: PageProps<"/pl
       (choice) => choice.kind === "holding",
     );
     return (
-      <main className="content">
+      <HomeVisualPrototype surface="platform">
+      <FeaturePage className="content">
         <PageHeader
           eyebrow="Platform"
           title="Platform administration"
           description="Use Switch workspace to choose a Company or an authorized Branch."
-        />
-        <h2>Business workspaces</h2>
+        /><FeatureTabs/><WidgetGrid>
+        <FeatureWidget id="platform-workspaces" title="Business workspaces">
         {choices.length ? (
           <ul>
             {choices.map((choice) => (
@@ -38,11 +41,12 @@ export default async function PlatformDestinationPage({ params }: PageProps<"/pl
         ) : (
           <p>No business workspaces assigned.</p>
         )}
-      </main>
+      </FeatureWidget></WidgetGrid></FeaturePage>
+      </HomeVisualPrototype>
     );
   }
-  return <main className="content" data-source="sample">
-    <PageHeader eyebrow="Platform preview" title={content[0]} description={content[1]} />
-    <PreviewBanner />
-  </main>;
+  return <FeaturePage className="content" data-source="sample">
+    <PageHeader eyebrow="Platform preview" title={content[0]} description={content[1]} /><FeatureTabs/><WidgetGrid>
+    <FeatureWidget id="platform-preview" title={content[0]}><PreviewBanner /></FeatureWidget>
+  </WidgetGrid></FeaturePage>;
 }

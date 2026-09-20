@@ -1,37 +1,40 @@
 "use client";
+import { FeatureTabBar,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 
+
+import { PersonAvatar } from "@/components/ui/person-avatar";
 import { workFetch } from "@/lib/work-fetch";
 import Image from "next/image";
-import { PersonAvatar } from "@/components/ui/person-avatar";
+import { useRouter } from "next/navigation";
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-  type FormEvent,
-} from "react";
-import {
-  Hash,
-  LockKeyhole,
-  MessageCircle,
-  Plus,
-  Users,
-  ArrowLeft,
-  Paperclip,
-  Send,
-  Settings,
-  X,
-} from "lucide-react";
 import type {
-  MessagingHistory,
-  MessagingMessage,
-  MessagingOverview,
-  MessagingPerson,
-  MessagingRoom,
-  MessagingTeam,
+MessagingHistory,
+MessagingMessage,
+MessagingOverview,
+MessagingPerson,
+MessagingRoom,
+MessagingTeam,
 } from "@/lib/messaging";
+import {
+ArrowLeft,
+Hash,
+LockKeyhole,
+MessageCircle,
+Paperclip,
+Plus,
+Send,
+Settings,
+Users,
+X,
+} from "lucide-react";
+import {
+useCallback,
+useEffect,
+useRef,
+useState,
+type FormEvent,
+type ReactNode,
+} from "react";
 import styles from "./inbox.module.css";
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
@@ -72,8 +75,9 @@ export function MessagingInbox({
   initialPerson?: string;
   initialRoom?: string;
 }) {
+  const router = useRouter();
   const root = `/api/v1${base}/messaging`;
-  const [tab, setTab] = useState<"chats" | "teams" | "updates">(initialTab);
+  const tab = initialTab;
   const [overview, setOverview] = useState<MessagingOverview>({
     teams: [],
     rooms: [],
@@ -169,17 +173,16 @@ export function MessagingInbox({
   }
   return (
     <>
-      <nav className={styles.tabs} aria-label="Inbox sections">
+      <FeatureTabBar  aria-label="Inbox sections">
         {(["chats", "teams", "updates"] as const).map((value) => (
           <button
             key={value}
             aria-current={tab === value ? "page" : undefined}
             onClick={() => {
-              setTab(value);
-              setSelected(null);
+              router.push(`${base}/inbox?tab=${value}`,{scroll:false});
             }}
           >
-            {value[0].toUpperCase() + value.slice(1)}
+            {{chats:"Messages",teams:"Teams",updates:"Notifications"}[value]}
             {value !== "updates" &&
               overview.rooms
                 .filter((r) => (value === "teams") === (r.kind === "channel"))
@@ -194,7 +197,7 @@ export function MessagingInbox({
               )}
           </button>
         ))}
-      </nav>
+      </FeatureTabBar>
       {tab === "updates" ? (
         updates
       ) : (
@@ -204,7 +207,7 @@ export function MessagingInbox({
               {error} Reconnecting…
             </p>
           )}
-          <section
+          <WidgetGrid pageKey={`inbox-${tab}`}><FeatureWidget id="inbox-conversations" title={tab === "chats" ? "Messages" : "Teams"}><section
             className={`${styles.workspace} ${room ? styles.hasRoom : ""}`}
           >
             <aside
@@ -339,7 +342,7 @@ export function MessagingInbox({
                 </button>
               </div>
             )}
-          </section>
+          </section></FeatureWidget></WidgetGrid>
         </>
       )}
       {editor && (

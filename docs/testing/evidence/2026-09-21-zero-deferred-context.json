@@ -1,0 +1,30 @@
+{
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "environment": "isolated PostgreSQL simulation and isolated Next.js release build",
+  "capabilities": 183,
+  "statusCounts": {
+    "flowAccepted": 40,
+    "sandboxVerified": 5,
+    "liveVerified": 1,
+    "implemented": 137,
+    "deferred": 0
+  },
+  "fullRegression": {
+    "filesPassed": 114,
+    "filesSkipped": 2,
+    "testsPassed": 870,
+    "testsSkipped": 3,
+    "sha256": "111c2b46dac1cf84b749db13ca523f4ef7a1a001b561f0a98afa896e5197cc14"
+  },
+  "release": {
+    "path": ".runtime/releases/2026-09-20T18-15-18-853Z",
+    "sha256": "5677f53004cd465a535eb848f44a4a07510c1b771640f1bac41407da0d6b70e2"
+  },
+  "matrixSha256": "099371140509feadcefb57368bafa28d5c57e061e1ba6a5859d297b1ae15b166",
+  "readinessSnapshotSha256": "81c797764ef2b9a5159f6171da4a6f9ef2eab403032ee09d308822c825b260a0",
+  "limitations": [
+    "Three skipped provider tests remain skipped and are not counted as passed.",
+    "Implemented status does not promote browser, provider, UAT or production gates.",
+    "Pilot company data, business signers and production hostname remain intentionally pending."
+  ]
+}

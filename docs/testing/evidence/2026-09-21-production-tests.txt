@@ -1,0 +1,24 @@
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/quality.test.ts > keeps failed inspections and requires a third person to release a passing inspection 2718ms
+ ✓ tests/quality.test.ts > blocks already reserved Sales delivery atomically until all overlapping holds are released 3006ms
+ ✓ tests/quality.test.ts > scopes the queue and enforces stale versions and revoked recipients 715ms
+ ✓ tests/quality.test.ts > hands inspection and release to scoped Work, Inbox and Calendar source queues 758ms
+ ✓ tests/quality.test.ts > serializes quarantine against a competing reservation and keeps either outcome safe 843ms
+ ✓ tests/quality.test.ts > cancels an incorrect uninspected hold only after independent review, retaining other holds and evidence 1433ms
+ ✓ tests/quality.test.ts > never cancels inspected stock and serializes cancellation versus inspection 1187ms
+ ✓ tests/quality.test.ts > keeps cancellation quarantined when reviewer authority changes and hides out-of-scope reviews 548ms
+ ✓ tests/stock-reservations.test.ts > reserves the last stock once under competing orders and preserves source scope and replay 1672ms
+ ✓ tests/stock-reservations.test.ts > consumes only its source reservation with partial deliveries and leaves quantities and costs consistent 588ms
+ ✓ tests/stock-reservations.test.ts > expires without requiring a worker, cancels atomically, and prevents direct stock reductions below reservations 521ms
+ ✓ tests/production.test.ts > runs BOM planning through reservation, actual issue, output, independent QC, cost and genealogy 168ms
+ ✓ tests/production.test.ts > calculates shortages and a capacity-delayed feasible date without changing stock 82ms
+ ✓ tests/production.test.ts > serializes last-material reservations across competing released orders 128ms
+ ✓ tests/staff-migration.test.ts > creates a complete, empty PostgreSQL baseline and preserves database invariants 4146ms
+
+ Test Files  4 passed (4)
+      Tests  15 passed (15)
+   Start at  00:17:26
+   Duration  60.72s (transform 517ms, setup 122ms, import 616ms, tests 59.67s, environment 0ms)
+

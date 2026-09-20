@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/quality.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  11:22:28
+   Duration  7.10s (transform 267ms, setup 48ms, import 220ms, tests 6.75s, environment 0ms)
+

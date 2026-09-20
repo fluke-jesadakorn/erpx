@@ -1,3 +1,4 @@
+import { readListPage } from "./list-page";
 import { requirePermission } from "@/server/iam-permissions";
 import { hasPermission } from "@/lib/permissions";
 import { samePerson } from "@/lib/iam";
@@ -28,6 +29,17 @@ function readable(actor:WorkContext){if(!canReadCounts(actor))throw new ApiError
 export async function listCounts(actor:WorkContext){
   readable(actor);const {write}=await holdingResources(actor.holdingId);
   return (await write.prepare("SELECT c.*,w.name warehouse_name FROM inventory_counts c JOIN commerce_warehouses w ON w.id=c.warehouse_id WHERE c.company_id=? AND (?::text IS NULL OR c.branch_id=?) ORDER BY c.updated_at DESC LIMIT 250").bind(actor.companyId,actor.branchId,actor.branchId).all<CountRow>()).results;
+}
+export async function countsPage(actor:WorkContext,query:{q?:string;status?:string;cursor?:string}) {
+  readable(actor);const {write}=await holdingResources(actor.holdingId);
+  return readListPage<CountRow & {id:string;page_key:string}>(write,{
+    sql:`SELECT c.*,w.name warehouse_name,s.currency,c.updated_at::text AS page_key FROM inventory_counts c
+      JOIN commerce_warehouses w ON w.id=c.warehouse_id JOIN commerce_settings s ON s.company_id=c.company_id
+      WHERE c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?='' OR c.status=?)
+      AND (?='' OR strpos(lower(c.number||' '||w.name||' '||c.reason),lower(?))>0)`,
+    args:[actor.companyId,actor.branchId,actor.branchId,query.status??'',query.status??'',query.q??'',query.q??''],
+    cursor:query.cursor,descending:true,scope:[actor.companyId,actor.branchId,'counts',query.q??'',query.status??''],
+  });
 }
 export async function getCount(actor:WorkContext,id:string){
   readable(actor);const {write}=await holdingResources(actor.holdingId);

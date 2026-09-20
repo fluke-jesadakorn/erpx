@@ -12,6 +12,7 @@ import { ApiError } from "./http";
 import { grantInput, insertIamGrant, validateIamGrant } from "./iam-service";
 import {
   managementChange,
+  attributeAccess,
   personRuleFields,
   ruleMatches,
   validateAttributeValue as validateValue,
@@ -109,7 +110,13 @@ async function groupRow(c: PoolClient, actor: IamActor, id: string) {
   await allowedScope(c, actor, row.definition.scopeNodeId);
   return row;
 }
-function commandPermission(change: ManagementChange) {
+function commandPermission(change: ManagementChange, actor: IamActor) {
+  if (
+    (["group", "membership"].includes(change.operation) ||
+      (change.operation === "values" && change.input.target === "group")) &&
+    hasPermission(actor, "iam.directory.manage")
+  )
+    return "iam.directory.manage";
   return change.operation === "attribute"
     ? "iam.roles.manage"
     : change.operation === "values"
@@ -158,7 +165,12 @@ export async function managementSnapshot(
   }));
   const memberships = (
     await c.query(
-      "SELECT g.id,p.id person_id FROM um_groups g CROSS JOIN hr_people p WHERE g.company_id=$1 AND p.company_id=$1 AND um_group_member($1,p.id,g.id)",
+      `SELECT g.id,p.id person_id,
+ EXISTS(SELECT 1 FROM um_memberships m WHERE m.company_id=$1 AND m.group_id=g.id AND m.person_id=p.id) direct,
+ g.definition->>'kind'='automatic' AND um_rule_matches(g.definition->'rule',um_person_facts($1,p.id)) rule,
+ EXISTS(SELECT 1 FROM um_groups child WHERE child.company_id=$1 AND child.definition->>'parentId'=g.id AND um_group_member($1,p.id,child.id)) nested,
+ (EXISTS(SELECT 1 FROM people_lifecycle_cases lc JOIN people_package_revisions pr ON pr.company_id=lc.company_id AND pr.package_id=lc.package_id AND pr.revision=lc.package_revision WHERE lc.company_id=$1 AND lc.person_id=p.id AND people_case_active(lc.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND pr.definition->'groupIds' @> jsonb_build_array(g.id)) OR EXISTS(SELECT 1 FROM people_applied_packages ap WHERE ap.company_id=$1 AND ap.person_id=p.id AND people_application_active(ap.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND ap.definition->'groupIds' @> jsonb_build_array(g.id))) position
+ FROM um_groups g CROSS JOIN hr_people p WHERE g.company_id=$1 AND p.company_id=$1 AND um_group_member($1,p.id,g.id)`,
       [company],
     )
   ).rows;
@@ -166,6 +178,20 @@ export async function managementSnapshot(
     g.members = memberships
       .filter((m) => m.id === g.id && people.some((p) => p.id === m.person_id))
       .map((m) => m.person_id);
+  for (const g of groups)
+    g.memberSources = Object.fromEntries(
+      memberships
+        .filter((m) => m.id === g.id && g.members.includes(m.person_id))
+        .map((m) => [
+          m.person_id,
+          [
+            m.direct ? "Added directly" : null,
+            m.rule ? "Rule" : null,
+            m.nested ? "Nested group" : null,
+            m.position ? "Position access package" : null,
+          ].filter(Boolean),
+        ]),
+    );
   const nodes = (
     await c.query(
       "SELECT id,parent_id,display_name,kind FROM organization_nodes WHERE company_id=$1 AND status='active' AND ($2::text IS NULL OR um_descendant($1,id,$2)) ORDER BY display_name,id",
@@ -209,7 +235,7 @@ export async function managementSnapshot(
       (r) =>
         ({ ...r.definition, id: r.id, version: r.version }) as AccessPolicy,
     );
-  const attributes = (
+  const allAttributes = (
     await c.query(
       "SELECT * FROM um_attributes WHERE company_id=$1 ORDER BY definition->>'label',id",
       [company],
@@ -222,9 +248,31 @@ export async function managementSnapshot(
         version: r.version,
       }) as AttributeDefinition,
   );
-  const values = (
+  const attributes = allAttributes
+    .map((a) => ({ ...a, ...attributeAccess(a, actor.role, actor.scopeKind) }))
+    .filter((a) => a.canView || hasPermission(actor, "iam.roles.manage"));
+  const visibleFields = new Set(
+    attributes.filter((a) => a.canView).map((a) => a.id),
+  );
+  for (const person of people)
+    person.facts = Object.fromEntries(
+      Object.entries(person.facts).filter(
+        ([key]) =>
+          !key.startsWith("custom:") || visibleFields.has(key.slice(7)),
+      ),
+    );
+  for (const group of groups)
+    if (
+      group.rule?.conditions.some(
+        (c) =>
+          c.field.startsWith("custom:") && !visibleFields.has(c.field.slice(7)),
+      )
+    )
+      group.rule = null;
+  const allValues = (
     await c.query("SELECT * FROM um_values WHERE company_id=$1", [company])
-  ).rows
+  ).rows;
+  const values: ManagementSnapshot["values"] = allValues
     .filter((r) =>
       r.target === "person"
         ? people.some((p) => p.id === r.object_id)
@@ -235,11 +283,52 @@ export async function managementSnapshot(
     .map((r) => ({
       target: r.target,
       objectId: r.object_id,
-      values: r.definition,
+      values: Object.fromEntries(
+        Object.entries(r.definition).filter(([key]) => visibleFields.has(key)),
+      ),
       version: r.version,
       expectedVersion: r.version,
       reason: "",
     }));
+  // Unit values inherit through their Company-owned organization ancestry.
+  // Load ancestry outside a Branch view, then expose only effective visible fields.
+  const ancestors = (
+    await c.query(
+      "SELECT id,parent_id FROM organization_nodes WHERE company_id=$1",
+      [company],
+    )
+  ).rows;
+  for (const node of nodes) {
+    let record = values.find(
+      (v) => v.target === "unit" && v.objectId === node.id,
+    );
+    if (!record) {
+      record = {
+        target: "unit",
+        objectId: node.id,
+        expectedVersion: 0,
+        version: 0,
+        values: {},
+        reason: "",
+      };
+      values.push(record);
+    }
+    record.inheritedFrom = {};
+    let parent = ancestors.find((n) => n.id === node.id)?.parent_id;
+    const seen = new Set([node.id]);
+    while (parent && !seen.has(parent)) {
+      seen.add(parent);
+      const inherited =
+        allValues.find((v) => v.target === "unit" && v.object_id === parent)
+          ?.definition ?? {};
+      for (const [field, value] of Object.entries(inherited))
+        if (visibleFields.has(field) && !Object.hasOwn(record.values, field)) {
+          record.values[field] = value;
+          record.inheritedFrom[field] = parent;
+        }
+      parent = ancestors.find((n) => n.id === parent)?.parent_id;
+    }
+  }
   const candidates = (
     await c.query(
       "SELECT c.*,r.status review_status,r.version review_version,CASE WHEN c.status='active' THEN iam_assignment_active(c.assignment_id,$2) ELSE true END enabled FROM um_candidates c LEFT JOIN iam_reviews r ON r.id=c.review_id WHERE c.company_id=$1 ORDER BY c.created_at DESC,c.id",
@@ -287,6 +376,9 @@ export async function managementSnapshot(
     nodes,
     candidates,
     canManage: hasPermission(actor, "iam.manage"),
+    canManageGroups:
+      hasPermission(actor, "iam.manage") ||
+      hasPermission(actor, "iam.directory.manage"),
     canDefine:
       actor.scopeKind === "holding" && hasPermission(actor, "iam.roles.manage"),
     canManagePeople: hasPermission(actor, "people.manage"),
@@ -419,7 +511,7 @@ async function applyChange(
   actor: IamActor,
   change: ManagementChange,
 ) {
-  requirePermission(actor, commandPermission(change));
+  requirePermission(actor, commandPermission(change, actor));
   const snapshot = await managementSnapshot(c, actor);
   if (change.operation === "attribute") {
     if (actor.scopeKind !== "holding")
@@ -430,6 +522,33 @@ async function applyChange(
       );
     const input = change.input,
       old = snapshot.attributes.find((a) => a.id === input.id);
+    for (const roleId of new Set([
+      ...(input.readRoles ?? []),
+      ...(input.writeRoles ?? []),
+      ...(input.ownerRole ? [input.ownerRole] : []),
+    ]))
+      if (
+        !(
+          await c.query(
+            "SELECT 1 FROM iam_roles WHERE id=$1 AND company_id IN ('*',$2) AND status='active'",
+            [roleId, actor.companyId],
+          )
+        ).rowCount
+      )
+        fail(
+          "Choose an active role for field ownership and access.",
+          "ATTRIBUTE_ROLE_INVALID",
+          422,
+        );
+    if (
+      input.readRoles?.length &&
+      input.writeRoles?.some((role) => !input.readRoles!.includes(role))
+    )
+      fail(
+        "Every field editor must also be allowed to view the field.",
+        "ATTRIBUTE_ACL_INVALID",
+        422,
+      );
     if (old && (old.type !== input.type || old.target !== input.target))
       fail("Field type and target are permanent. Create a new field instead.");
     const used = (
@@ -595,22 +714,68 @@ async function applyChange(
     if ((old?.version ?? 0) !== input.expectedVersion)
       fail("These values changed. Refresh first.");
     const values = { ...(old?.definition ?? {}) };
+    if (input.inherit?.length) {
+      if (input.target !== "unit")
+        fail(
+          "Only organization values support inheritance.",
+          "ATTRIBUTE_INHERIT_INVALID",
+          422,
+        );
+      for (const fieldId of input.inherit) {
+        const field = snapshot.attributes.find(
+          (a) => a.id === fieldId && a.target === "unit",
+        );
+        if (
+          !field ||
+          !attributeAccess(field, actor.role, actor.scopeKind).canEdit
+        )
+          fail(
+            "Your role cannot reset this field.",
+            "ATTRIBUTE_WRITE_FORBIDDEN",
+            403,
+          );
+        const inherited = (
+          await c.query(
+            "WITH RECURSIVE ancestry AS (SELECT parent_id,ARRAY[id] path,0 depth FROM organization_nodes WHERE id=$1 AND company_id=$2 UNION ALL SELECT n.parent_id,a.path||n.id,a.depth+1 FROM organization_nodes n JOIN ancestry a ON n.id=a.parent_id WHERE n.company_id=$2 AND NOT n.id=ANY(a.path) AND a.depth<32) SELECT v.definition->$3 value FROM ancestry a JOIN um_values v ON v.object_id=a.parent_id AND v.company_id=$2 AND v.target='unit' WHERE v.definition ? $3 ORDER BY a.depth LIMIT 1",
+            [input.objectId, actor.companyId, fieldId],
+          )
+        ).rows[0];
+        validateAttributeValue(field, inherited?.value);
+        delete values[fieldId];
+      }
+    }
     for (const id of Object.keys(input.values))
       if (
         !snapshot.attributes.some(
-          (a) => a.id === id && a.target === input.target && !a.archived,
+          (a) =>
+            a.id === id &&
+            a.target === input.target &&
+            !a.archived &&
+            attributeAccess(a, actor.role, actor.scopeKind).canEdit,
         )
       )
-        fail("An attribute is unavailable.");
+        fail(
+          "Your role cannot edit this field or override its inherited value.",
+          "ATTRIBUTE_WRITE_FORBIDDEN",
+          403,
+        );
     for (const field of snapshot.attributes.filter(
       (a) => a.target === input.target && !a.archived,
-    ))
+    )) {
+      if (input.inherit?.includes(field.id)) continue;
+      if (
+        input.target === "unit" &&
+        !Object.hasOwn(input.values, field.id) &&
+        !Object.hasOwn(values, field.id)
+      )
+        continue;
       values[field.id] = validateAttributeValue(
         field,
         Object.hasOwn(input.values, field.id)
           ? input.values[field.id]
           : values[field.id],
       );
+    }
     const version = input.expectedVersion + 1;
     await c.query(
       "INSERT INTO um_values VALUES($1,$2,$3,$4,$5) ON CONFLICT(company_id,target,object_id) DO UPDATE SET version=excluded.version,definition=excluded.definition",
@@ -935,7 +1100,7 @@ export async function managementCommand(
   token?: string,
 ) {
   const change = managementChange.parse(raw);
-  requirePermission(actor, commandPermission(change));
+  requirePermission(actor, commandPermission(change, actor));
   if (!preview && ["policy", "attachment"].includes(change.operation))
     await requireFreshMfa(actor);
   const run = async (c: PoolClient) => {
@@ -980,7 +1145,7 @@ export async function managementCommand(
       key,
       `user-management.${change.operation}`,
       change,
-      commandPermission(change),
+      commandPermission(change, actor),
       run,
     );
   const c = await iamDb(db).pool.connect();

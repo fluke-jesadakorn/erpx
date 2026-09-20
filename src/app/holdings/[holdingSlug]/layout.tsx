@@ -1,30 +1,41 @@
-import { RememberWorkspace } from "@/components/workplace/remember-workspace";
-import { workspaceChoices } from "@/server/workspace-choices";
-import Link from "next/link";
-import { cookies } from "next/headers";
-import { pageError } from "@/server/page-error";
-import { Suspense } from "react";
-import { Building2 } from "lucide-react";
-import {
-  publicScope,
-  listWorkspaceCompanies,
-  requireWorkContext,
-} from "@/server/authorization";
-import { workspaceBase } from "@/lib/workspace";
-import { WorkContextBoundary } from "@/components/workplace/work-context-boundary";
+import { ProductBrand } from "@/components/brand/product-brand";
+import { WorkspaceBrandMark } from "@/components/brand/workspace-brand";
+import { FeatureEnvironment } from "@/components/features/feature-page";
 import { NavigationCountsProvider } from "@/components/workplace/navigation-counts";
-import { AccountSwitcher } from "./account-switcher";
+import { RememberWorkspace } from "@/components/workplace/remember-workspace";
+import styles from "@/components/workplace/shell.module.css";
+import { WorkContextBoundary } from "@/components/workplace/work-context-boundary";
+import {
+CommandSearch,
+WorkplaceNavigation,
+} from "@/components/workplace/workplace-controls";
+import { WorkspaceAssistant } from "@/components/workplace/workspace-assistant";
+import {
+WorkspaceBreadcrumb,
+type WorkspaceCrumb,
+} from "@/components/workplace/workspace-breadcrumb";
 import { WorkspaceMenu } from "@/components/workplace/workspace-menu";
+import { hasPermission } from "@/lib/permissions";
+import { workspaceBase } from "@/lib/workspace";
 import { administrationAccess } from "@/server/administration";
 import {
-  WorkspaceBreadcrumb,
-  type WorkspaceCrumb,
-} from "@/components/workplace/workspace-breadcrumb";
-import {
-  CommandSearch,
-  WorkplaceNavigation,
-} from "@/components/workplace/workplace-controls";
-import styles from "@/components/workplace/shell.module.css";
+listWorkspaceCompanies,
+publicScope,
+requireWorkContext,
+} from "@/server/authorization";
+import { resolveWorkspaceBrand } from "@/server/branding";
+import { executiveVisible } from "@/server/executive/access";
+import { pageError } from "@/server/page-error";
+import { holdingResources } from "@/server/runtime";
+import { workspaceChoices } from "@/server/workspace-choices";
+import { Building2 } from "lucide-react";
+import { cookies } from "next/headers";
+import Link from "next/link";
+import { Suspense,type ComponentProps } from "react";
+import { AccountSwitcher } from "./account-switcher";
+async function DeferredWorkspaceMenu(props: Omit<ComponentProps<typeof WorkspaceMenu>, "choices">) {
+  return <WorkspaceMenu {...props} choices={await workspaceChoices()}/>;
+}
 export const dynamic = "force-dynamic";
 export default async function WorkplaceLayout({
   children,
@@ -46,18 +57,21 @@ export default async function WorkplaceLayout({
       : context.scope.kind === "branch"
         ? context.scope.branchName
         : "Holding";
-  const companies =
-    context.scope.kind === "holding"
-      ? await listWorkspaceCompanies(context.holdingId)
-      : [];
-  const admin = await administrationAccess(context);
+  const { write } = await holdingResources(context.holdingId);
+  const [workspaceBrand, companies, admin] = await Promise.all([
+    resolveWorkspaceBrand(write, context),
+    context.scope.kind === "holding" ? listWorkspaceCompanies(context.holdingId) : Promise.resolve([]),
+    administrationAccess(context),
+  ]);
   const navigation = {
+    executiveVisible: await executiveVisible(write,context),
     workspaceBase: base,
     scopeKind: context.scope.kind,
     beta: context.beta,
     role: context.role,
     permissions:context.iam?.permissions,
     adminSections: admin.sections,
+    canManageApprovals: admin.manageOrganization,
   };
   const companyName =
     companies.find((company) => company.id === context.companyId)?.name ??
@@ -92,12 +106,10 @@ export default async function WorkplaceLayout({
       <a href="#workspace-content" className="skip-link">
         Skip to content
       </a>
-      <aside className={styles.sidebar}>
+      <aside className={styles.sidebar} data-app-chrome>
         <Link className={styles.brand} href={`${base}/home`}>
-          <span className={styles.brandMark}>E</span>
-          <strong>
-            erpx<span style={{ color: "var(--brand)" }}>.</span>
-          </strong>
+          <ProductBrand className={`${styles.productBrand} ${styles.productBrandWordmark}`} />
+          <ProductBrand variant="symbol" className={`${styles.productBrand} ${styles.productBrandSymbol}`} />
           <small>WORKSPACE</small>
         </Link>
         <Suspense>
@@ -113,12 +125,13 @@ export default async function WorkplaceLayout({
           </div>
         </div>
       </aside>
-      <div className={styles.main}>
-        <header className={styles.topbar}>
+      <div className={styles.main} data-app-main>
+        <header className={styles.topbar} data-app-chrome>
           <div className={styles.workspace}>
-            <WorkspaceMenu
+            <WorkspaceBrandMark brand={workspaceBrand} compact />
+            <Suspense fallback={<span>{workspaceLabel}</span>}>
+            <DeferredWorkspaceMenu
               label={workspaceLabel}
-              choices={await workspaceChoices()}
               current={
                 context.scope.kind === "holding"
                   ? {
@@ -142,6 +155,7 @@ export default async function WorkplaceLayout({
                       }
               }
             />
+            </Suspense>
 
             <Suspense
               fallback={
@@ -181,13 +195,14 @@ export default async function WorkplaceLayout({
             assignmentId={context.assignmentId}
             revision={context.authority!.revision}
           >
-            {children}
+            <FeatureEnvironment navigation={navigation}>{children}</FeatureEnvironment>
+            <Suspense><WorkspaceAssistant base={base} crossContext={hasPermission(context,"ai.context.cross")}/></Suspense>
           </WorkContextBoundary>
         </div>
       </div>
-      <Suspense>
+      <div data-app-chrome><Suspense>
         <WorkplaceNavigation {...navigation} mobile />
-      </Suspense>
+      </Suspense></div>
     </div>
     </NavigationCountsProvider>
   );

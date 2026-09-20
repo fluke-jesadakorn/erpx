@@ -1,9 +1,11 @@
+import { selfServiceHref } from "./self-service";
 import type { WorkItem } from "./work-item";
 
 export const workCardIds = [
   "tasks",
   "expenses",
   "leave",
+  "overtime",
   "services",
   "equipment",
   "purchases",
@@ -20,6 +22,7 @@ export type NewWorkKind =
   | "purchase_request"
   | "task"
   | "leave"
+  | "overtime"
   | "stock_count"
   | "transfer";
 export type WorkCreation = {
@@ -68,9 +71,10 @@ export const workCardCatalog: {
     newKind: "expense",
     sources: ["Expense claims"],
   },
+  {id:"overtime",title:"Overtime",type:"overtime",newKind:"overtime",sources:["Overtime"]},
   {
     id: "leave",
-    title: "Leave requests",
+    title: "My leave",
     type: "leave",
     newKind: "leave",
     sources: ["Leave requests"],
@@ -153,6 +157,8 @@ export function newWorkHref(
   creation: WorkCreation,
   current: string,
 ) {
+  const personal=selfServiceHref(base,creation.kind);
+  if(personal&&creation.kind!=="purchase_request")return personal;
   if (creation.kind === "conversation") return creation.href;
   const query = new URLSearchParams(current);
   query.set("new", creation.kind);

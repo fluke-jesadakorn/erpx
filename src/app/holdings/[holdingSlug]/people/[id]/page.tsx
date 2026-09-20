@@ -1,30 +1,32 @@
-import { hasPermission } from "@/lib/permissions";
-import { organizationOverview } from "@/server/organization";
-import { companyAuthority } from "@/server/staff-policy";
-import { LevelAssignmentEditor } from "@/components/modules/level-assignment-editor";
-import styles from "@/components/workplace/pages.module.css";
-import { holdingResources } from "@/server/runtime";
-import { staffSettings } from "@/server/staff-settings";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { AccessEditor } from "@/components/modules/access-editor";
+import { LevelAssignmentEditor } from "@/components/modules/level-assignment-editor";
 import {
-  canManagePeople,
-  directoryOptions,
-  personAccess,
-} from "@/server/people-directory";
+CompensationEditor,
+TimeEntryEditor,
+} from "@/components/modules/payroll-controls";
 import { PeopleEditor } from "@/components/modules/people-editor";
+import { LifecyclePanel } from "@/components/people/lifecycle-workspace";
+import { StatusBadge } from "@/components/ui/primitives";
+import { minorToDecimal } from "@/lib/finance-money";
+import { hasPermission } from "@/lib/permissions";
+import { workspaceBase } from "@/lib/workspace";
+import { publicScope,requireWorkContext } from "@/server/authorization";
+import { organizationOverview } from "@/server/organization";
+import { accessPage,pageError } from "@/server/page-error";
+import {
+canManagePeople,
+directoryOptions,
+personAccess,
+} from "@/server/people-directory";
+import { peopleLifecycleData } from "@/server/people-lifecycle";
+import { getPerson,payrollOptions } from "@/server/people-payroll";
+import { holdingResources } from "@/server/runtime";
+import { companyAuthority } from "@/server/staff-policy";
+import { staffSettings } from "@/server/staff-settings";
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { pageError, accessPage } from "@/server/page-error";
-import { ArrowLeft } from "lucide-react";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import {
-  CompensationEditor,
-  TimeEntryEditor,
-} from "@/components/modules/payroll-controls";
-import { getPerson, payrollOptions } from "@/server/people-payroll";
-import { workspaceBase } from "@/lib/workspace";
-import { minorToDecimal } from "@/lib/finance-money";
-import { StatusBadge } from "@/components/ui/primitives";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +75,7 @@ export default async function PersonDetail({
     notFound();
   }
   return (
-    <main className="content-stack" data-source="live">
+    <FeaturePage className="content-stack" data-source="live">
       <Link className="back-link" href={`${base}/people`}>
         <ArrowLeft size={14} /> Back to people
       </Link>
@@ -88,19 +90,10 @@ export default async function PersonDetail({
           status={String(person.engagement_status ?? person.status)}
         />
       </div>
-      <nav className={styles.tabs} aria-label="Person sections">
-        {tabs.map(([key, label]) => (
-          <Link
-            key={key}
-            href={`${base}/people/${id}?tab=${key}`}
-            aria-current={tab === key ? "page" : undefined}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
-      {tab === "profile" && (
-        <>
+
+      <FeatureTabs/><WidgetGrid>
+      {canManagePeople(actor) && !!person.engagement_id && <FeatureWidget id="person-lifecycle" title="Lifecycle"><LifecyclePanel base={base} data={await peopleLifecycleData(write,actor)} person={{id,name:String(person.legal_name),status:String(person.engagement_status),engagementId:String(person.engagement_id),positionId:person.position_id?String(person.position_id):null,managerPersonId:person.manager_person_id?String(person.manager_person_id):null}}/></FeatureWidget>}
+      {true && <FeatureWidget id="person-profile" title="Profile"><>
           <section className="card">
             <dl className="staff-facts">
               {[
@@ -118,6 +111,7 @@ export default async function PersonDetail({
           </section>
           {canManagePeople(actor) && (
             <PeopleEditor
+              lifecycleManaged={!actor.beta}
               base={base}
               person={person}
               nodes={nodes}
@@ -147,9 +141,8 @@ export default async function PersonDetail({
               </p>
             ))}
           </details>
-        </>
-      )}
-      {tab === "access" && access && (
+        </></FeatureWidget>}
+      {access && <FeatureWidget id="person-access" title="Login & access">
         <AccessEditor
           base={base}
           personId={id}
@@ -164,9 +157,8 @@ export default async function PersonDetail({
             hasPermission(actor,"iam.manage") && person.user_id !== actor.userId
           }
         />
-      )}
-      {tab === "work" && (
-        <section className="card">
+      </FeatureWidget>}
+      {true && <FeatureWidget id="person-work" title="Work history"><section className="card">
           <h2>Leave history</h2>
           {!data.leave.length ? (
             <p>No leave requests linked to this worker.</p>
@@ -183,12 +175,10 @@ export default async function PersonDetail({
               </div>
             ))
           )}
-        </section>
-      )}
-      {tab === "pay" && data.privateAccess && Boolean(person.engagement_id) && (
-        <>
+        </section></FeatureWidget>}
+      {data.privateAccess && Boolean(person.engagement_id) && <FeatureWidget id="person-pay" title="Pay & time">
           <section className="card">
-            <h2>Pay & time</h2>
+            
             <p>
               Base pay:{" "}
               {person.base_amount_minor == null
@@ -222,8 +212,7 @@ export default async function PersonDetail({
             ].includes(actor.role)}
             userId={actor.userId}
           />
-        </>
-      )}
-    </main>
+        </FeatureWidget>}
+    </WidgetGrid></FeaturePage>
   );
 }

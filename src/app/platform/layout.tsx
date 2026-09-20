@@ -1,19 +1,21 @@
-import { RememberWorkspace } from "@/components/workplace/remember-workspace";
-import { WorkspaceMenu } from "@/components/workplace/workspace-menu";
-import { workspaceChoices } from "@/server/workspace-choices";
-import Link from "next/link";
-import { cookies } from "next/headers";
-import { pageError } from "@/server/page-error";
-import { Suspense } from "react";
-import { ShieldCheck } from "lucide-react";
-import { requirePlatformContext } from "@/server/authorization";
-import {
-  Appearance,
-  CommandSearch,
-  WorkplaceNavigation,
-} from "@/components/workplace/workplace-controls";
+import { ProductBrand } from "@/components/brand/product-brand";
+import { FeatureEnvironment } from "@/components/features/feature-page";
 import { PlatformRoleSwitcher } from "@/components/workplace/platform-role-switcher";
+import { RememberWorkspace } from "@/components/workplace/remember-workspace";
 import styles from "@/components/workplace/shell.module.css";
+import {
+Appearance,
+CommandSearch,
+WorkplaceNavigation,
+} from "@/components/workplace/workplace-controls";
+import { WorkspaceMenu } from "@/components/workplace/workspace-menu";
+import { requirePlatformContext } from "@/server/authorization";
+import { pageError } from "@/server/page-error";
+import { workspaceChoices } from "@/server/workspace-choices";
+import { ShieldCheck } from "lucide-react";
+import { cookies } from "next/headers";
+import Link from "next/link";
+import { Suspense } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -33,12 +35,9 @@ export default async function PlatformLayout({
       <a href="#workspace-content" className="skip-link">
         Skip to content
       </a>
-      <aside className={styles.sidebar}>
+      <aside className={styles.sidebar} data-app-chrome>
         <Link className={styles.brand} href="/platform/home">
-          <span className={styles.brandMark}>E</span>
-          <strong>
-            erpx<span style={{ color: "var(--brand)" }}>.</span>
-          </strong>
+          <ProductBrand className={styles.productBrand} />
           <small>PLATFORM</small>
         </Link>
         <Suspense>
@@ -58,8 +57,8 @@ export default async function PlatformLayout({
           <Appearance initialTheme={theme} />
         </div>
       </aside>
-      <div className={styles.main}>
-        <header className={styles.topbar}>
+      <div className={styles.main} data-app-main>
+        <header className={styles.topbar} data-app-chrome>
           <div className={styles.workspace}>
             <WorkspaceMenu
               label="Platform administration"
@@ -85,16 +84,16 @@ export default async function PlatformLayout({
           </div>
         </header>
         <div id="workspace-content" tabIndex={-1}>
-          {children}
+          <FeatureEnvironment navigation={{workspaceBase:"/platform",scopeKind:"platform",role:context.role}}>{children}</FeatureEnvironment>
         </div>
       </div>
-      <Suspense>
+      <div data-app-chrome><Suspense>
         <WorkplaceNavigation
           workspaceBase="/platform"
           scopeKind="platform"
           mobile
         />
-      </Suspense>
+      </Suspense></div>
     </div>
   );
 }

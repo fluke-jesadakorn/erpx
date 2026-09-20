@@ -1,3 +1,4 @@
+import { readListPage } from "./list-page";
 import { hasPermission } from "@/lib/permissions";
 import { samePerson } from "@/lib/iam";
 import type { SqlDatabase, SqlStatement } from "./runtime/types";
@@ -75,6 +76,8 @@ export const payGroupSchema = z.object({
   currency,
   frequency: z.enum(["weekly", "fortnightly", "semimonthly", "monthly"]),
   timezone: z.string().min(1).max(80).default("UTC"),
+  overtimeMultiplierBps:z.number().int().min(10000).max(50000).default(15000),
+  prorationMethod:z.enum(["calendar_days","none"]).default("calendar_days"),
 });
 
 export const countryPackSchema = z.object({
@@ -155,7 +158,7 @@ export async function listPeople(actor: WorkContext,filters:{levelId?:string;dep
   const { write } = await holdingResources(actor.holdingId);
   const rows = await write.prepare(`SELECT p.id,p.user_id,p.legal_name,p.preferred_name,p.email,p.country_code,p.status,p.version,
       e.id AS engagement_id,e.job_title,e.worker_type,e.employment_type,e.status AS engagement_status,e.start_date,e.currency,
-      e.level_id,e.department_id,(SELECT name FROM staff_levels WHERE id=e.level_id) level_name,n.display_name AS branch_name
+      e.level_id,e.department_id,e.position_id,e.manager_person_id,(SELECT name FROM staff_levels WHERE id=e.level_id) level_name,n.display_name AS branch_name
     FROM hr_people p LEFT JOIN hr_engagements e ON e.id=(SELECT x.id FROM hr_engagements x WHERE x.person_id=p.id AND x.company_id=p.company_id ORDER BY CASE WHEN x.status IN ('active','onboarding','suspended') THEN 0 ELSE 1 END,x.start_date DESC,x.id LIMIT 1)
     LEFT JOIN organization_nodes n ON n.id=e.branch_id
     WHERE p.company_id=? AND p.merged_into_id IS NULL AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)
@@ -251,6 +254,7 @@ export async function transitionCompensation(actor:WorkContext,compensationId:st
 
 export async function transitionEngagement(actor: WorkContext, engagementId: string, input: z.infer<typeof engagementTransitionSchema>, key: string) {
   actor = requirePermission(actor,"people.manage");
+  if (!actor.beta) throw new ApiError(409,"LIFECYCLE_REQUIRED","Use the person lifecycle workflow to review verified accounts and the effective time.");
   const { write } = await holdingResources(actor.holdingId);
   const previous=await replayCommand(write,actor,key,"people.engagement.transition",engagementId,input);if(previous)return previous;
   const guard=await organizationGuard(write,actor.companyId,key);
@@ -320,7 +324,7 @@ export async function approveTimeEntry(actor:WorkContext,entryId:string,expected
 export async function createPayGroup(actor: WorkContext, input: z.infer<typeof payGroupSchema>, id: string) {
   actor = requirePermission(actor,"payroll.prepare"); const { write } = await holdingResources(actor.holdingId); const c=await command(write,actor,id,"people.pay-group.create",input); if(c.result)return c.result;
   const groupId=`paygrp-${crypto.randomUUID()}`; const now=Date.now(); const result={id:groupId,...input,status:"active"};
-  await executeCommand(write,actor,id,"people.pay-group.create",input,groupId,1,result,[write.prepare("INSERT INTO hr_pay_groups(id,company_id,name,country_code,currency,frequency,timezone,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(groupId,actor.companyId,input.name,input.countryCode,input.currency,input.frequency,input.timezone,actor.userId,now,now),receipt(write,id,"people.pay-group.create",c.digest,result)]); return result;
+  await executeCommand(write,actor,id,"people.pay-group.create",input,groupId,1,result,[write.prepare("INSERT INTO hr_pay_groups(id,company_id,name,country_code,currency,frequency,timezone,overtime_multiplier_bps,proration_method,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(groupId,actor.companyId,input.name,input.countryCode,input.currency,input.frequency,input.timezone,input.overtimeMultiplierBps,input.prorationMethod,actor.userId,now,now),receipt(write,id,"people.pay-group.create",c.digest,result)]); return result;
 }
 
 export async function createCountryPack(actor: WorkContext, input: z.infer<typeof countryPackSchema>, id: string) {
@@ -332,14 +336,22 @@ export async function createCountryPack(actor: WorkContext, input: z.infer<typeo
 export async function listCountryPacks(actor: WorkContext){actor = requirePermission(actor,"payroll.configuration.read");const {write}=await holdingResources(actor.holdingId);return (await write.prepare("SELECT id,country_code,version,status,effective_from,export_formats_json,validated_by,updated_at FROM hr_country_packs ORDER BY country_code,version DESC").all()).results;}
 export async function transitionCountryPack(actor: WorkContext,packId:string,input:z.infer<typeof countryPackTransitionSchema>,commandId:string){actor = requirePermission(actor,"people.compensation.approve");const {write}=await holdingResources(actor.holdingId);const prior=await replayCommand(write,actor,commandId,`people.country-pack.${input.status}`,packId,input);if(prior)return prior;const pack=await write.prepare("SELECT status FROM hr_country_packs WHERE id=?").bind(packId).first<{status:string}>();if(!pack)throw new ApiError(404,"COUNTRY_PACK_NOT_FOUND","Country pack not found.");const allowed=(pack.status==="testing"&&input.status==="validated")||(pack.status==="validated"&&input.status==="active")||(pack.status==="active"&&input.status==="superseded");if(!allowed)throw new ApiError(409,"INVALID_COUNTRY_PACK_TRANSITION","Country pack status must progress testing → validated → active.");const now=Date.now();await executeCommand(write,actor,commandId,`people.country-pack.${input.status}`,input,packId,1,{id:packId,status:input.status},[assertion(write,commandId,"pack-status","EXISTS(SELECT 1 FROM hr_country_packs WHERE id=? AND status=?)",[packId,pack.status]),write.prepare("UPDATE hr_country_packs SET status=?,approval_evidence=?,validated_by=?,effective_from=CASE WHEN ?='active' THEN COALESCE(effective_from,?) ELSE effective_from END,updated_at=? WHERE id=? AND status=?").bind(input.status,input.proof,actor.userId,input.status,new Date().toISOString().slice(0,10),now,packId,pack.status)]);return {id:packId,status:input.status};}
 
-async function calculateItem(write: SqlDatabase, run: { id: string; period_start: string; period_end: string; currency: string }, engagement: { id: string; version:number; person_id: string; worker_type: string; employment_type: string; start_date: string; end_date: string | null; job_title: string }) {
-  const compensation = await write.prepare(`SELECT * FROM hr_compensation_revisions WHERE engagement_id=? AND status IN ('active','approved') AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC LIMIT 1`).bind(engagement.id,run.period_start,run.period_end).first<Record<string, string | number | null>>();
+async function calculateItem(write: SqlDatabase, run: { id: string; period_start: string; period_end: string; currency: string }, engagement: { id: string; version:number; person_id: string; worker_type: string; employment_type: string; start_date: string; end_date: string | null; job_title: string },policy:{overtimeMultiplierBps:number;prorationMethod:"calendar_days"|"none"}) {
+  const compensation = await write.prepare(`SELECT * FROM hr_compensation_revisions WHERE engagement_id=? AND status IN ('active','approved') AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC LIMIT 1`).bind(engagement.id,run.period_end,run.period_start).first<Record<string, string | number | null>>();
   const time = await write.prepare("SELECT id,version,regular_hours,overtime_hours FROM hr_time_entries WHERE engagement_id=? AND work_date BETWEEN ? AND ? AND status='approved' ORDER BY id").bind(engagement.id,run.period_start,run.period_end).all<{id:string;version:number;regular_hours:number;overtime_hours:number}>();
-  const hours = {regular:time.results.reduce((sum,t)=>sum+t.regular_hours,0),overtime:time.results.reduce((sum,t)=>sum+t.overtime_hours,0),entries:time.results};
+  const handoffs=(await write.prepare('SELECT id,request_id,request_version,minutes,work_date FROM overtime_payroll_handoffs WHERE engagement_id=? AND work_date BETWEEN ? AND ? ORDER BY id').bind(engagement.id,run.period_start,run.period_end).all<{id:string;request_id:string;request_version:number;minutes:number;work_date:string}>()).results;
+  const hours = {handoffs,regular:time.results.reduce((sum,t)=>sum+t.regular_hours,0),overtime:time.results.reduce((sum,t)=>sum+t.overtime_hours,0)+handoffs.reduce((sum,h)=>sum+h.minutes/60,0),entries:time.results};
   const base = Number(compensation?.base_amount_minor ?? 0); const hourly = Number(compensation?.hourly_rate_minor ?? 0); const regular = Number(hours?.regular ?? 0); const overtime = Number(hours?.overtime ?? 0);
   const components = compensation?.components_json ? JSON.parse(String(compensation.components_json)) as Array<{ code:string; label:string; kind:string; amount:string }> : [];
-  const calculated = calculatePayrollAmounts({ employmentType: engagement.employment_type as "salaried"|"hourly"|"shift"|"contractor", baseMinor: base, hourlyMinor: hourly, regularHours: regular, overtimeHours: overtime, components: components.filter((component): component is {code:string;label:string;kind:"earning"|"deduction"|"employer";amount:string} => ["earning","deduction","employer"].includes(component.kind)) });
-  const { gross, deductions, employer, net } = calculated; const inputSnapshot={engagement,compensation,hours,period:{start:run.period_start,end:run.period_end}}; const result={grossMinor:gross,deductionsMinor:deductions,employerCostMinor:employer,netMinor:net,explanation:{baseMinor:base,hourlyRateMinor:hourly,regularHours:regular,overtimeHours:overtime,components:calculated.applied}};
+  const benefitInputs=(await write.prepare("SELECT b.*,p.name plan_name FROM benefit_payroll_inputs b JOIN benefit_elections e ON e.id=b.election_id JOIN benefit_plans p ON p.id=e.plan_id WHERE b.engagement_id=? AND b.currency=? AND b.status='released' AND b.effective_from<=? AND (b.effective_to IS NULL OR b.effective_to>=?) ORDER BY b.id").bind(engagement.id,run.currency,run.period_end,run.period_start).all<{id:string;plan_name:string;employee_deduction_minor:number;employer_cost_minor:number;source_election_version:number}>()).results;
+  for(const benefit of benefitInputs){
+    if(Number(benefit.employee_deduction_minor)>0)components.push({code:`benefit-deduction:${benefit.id}`,label:`Benefit · ${benefit.plan_name}`,kind:"deduction",amount:minorToDecimal(Number(benefit.employee_deduction_minor))});
+    if(Number(benefit.employer_cost_minor)>0)components.push({code:`benefit-employer:${benefit.id}`,label:`Benefit employer cost · ${benefit.plan_name}`,kind:"employer",amount:minorToDecimal(Number(benefit.employer_cost_minor))});
+  }
+  const day=86400000,periodDays=Math.floor((Date.parse(run.period_end)-Date.parse(run.period_start))/day)+1,activeStart=engagement.start_date>run.period_start?engagement.start_date:run.period_start,activeEnd=engagement.end_date&&engagement.end_date<run.period_end?engagement.end_date:run.period_end,activeDays=Math.floor((Date.parse(activeEnd)-Date.parse(activeStart))/day)+1,partial=activeDays!==periodDays;
+  if(partial&&policy.prorationMethod==="none")throw new ApiError(422,"PRORATION_REQUIRED","This pay group does not permit automatic proration for partial-period employment.");
+  const calculated = calculatePayrollAmounts({ employmentType: engagement.employment_type as "salaried"|"hourly"|"shift"|"contractor", baseMinor: base, hourlyMinor: hourly, regularHours: regular, overtimeHours: overtime,overtimeMultiplierBps:policy.overtimeMultiplierBps,...(partial&&policy.prorationMethod==="calendar_days"?{prorationNumerator:activeDays,prorationDenominator:periodDays}:{}), components: components.filter((component): component is {code:string;label:string;kind:"earning"|"deduction"|"employer";amount:string} => ["earning","deduction","employer"].includes(component.kind)) });
+  const { gross, deductions, employer, net } = calculated; const inputSnapshot={engagement,compensation,hours,benefitInputs,period:{start:run.period_start,end:run.period_end},policy:{...policy,activeDays,periodDays}}; const result={grossMinor:gross,deductionsMinor:deductions,employerCostMinor:employer,netMinor:net,explanation:{baseMinor:base,hourlyRateMinor:hourly,regularHours:regular,overtimeHours:overtime,overtimeMultiplierBps:policy.overtimeMultiplierBps,activeDays,periodDays,components:calculated.applied}};
   return { itemId:`payitem-${crypto.randomUUID()}`, engagementId:engagement.id, personId:engagement.person_id, workerType:engagement.worker_type, inputSnapshot, result, gross, deductions, employer, net };
 }
 
@@ -361,8 +373,9 @@ export async function calculatePayrollRun(actor:WorkContext,runId:string,key=cry
   if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Use a holding-level payroll assignment for company-wide runs.");
   const engagements=await write.prepare("SELECT e.id,e.version,e.person_id,e.worker_type,e.employment_type,e.start_date,e.end_date,e.job_title FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.status='active' AND p.status='active' AND p.merged_into_id IS NULL AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?) ORDER BY e.id").bind(actor.companyId,run.pay_group_id,run.currency,run.period_end,run.period_start).all<{id:string;version:number;person_id:string;worker_type:string;employment_type:string;start_date:string;end_date:string|null;job_title:string}>();
   if(!engagements.results.length)throw new ApiError(422,"PAYROLL_EMPTY","Assign active employees to this pay group before calculating.");
-  if(engagements.results.some(e=>e.start_date>run.period_start||(e.end_date&&e.end_date<run.period_end)))throw new ApiError(422,"PRORATION_REQUIRED","A partial-period engagement needs a prorated pay calculation before this preview can proceed.");
-  const items=await Promise.all(engagements.results.map(e=>calculateItem(write,run,e)));
+  const group=await write.prepare("SELECT overtime_multiplier_bps,proration_method FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(run.pay_group_id,actor.companyId).first<{overtime_multiplier_bps:number;proration_method:"calendar_days"|"none"}>();if(!group)throw new ApiError(409,"PAY_GROUP_CHANGED","The pay group is no longer active.");
+  const policy={overtimeMultiplierBps:Number(group.overtime_multiplier_bps),prorationMethod:group.proration_method};
+  const items=await Promise.all(engagements.results.map(e=>calculateItem(write,run,e,policy)));
   if(items.some(i=>!i.inputSnapshot.compensation||i.inputSnapshot.compensation.currency!==run.currency))throw new ApiError(422,"PAYROLL_INPUT_INCOMPLETE","Every employee needs approved compensation in the pay-group currency covering the full period.");
   if(items.some(i=>i.net<0))throw new ApiError(422,"NEGATIVE_NET_PAY","Review deductions exceeding gross pay.");
   const total=items.reduce((a,i)=>({gross:a.gross+i.gross,deductions:a.deductions+i.deductions,employer:a.employer+i.employer,net:a.net+i.net}),{gross:0,deductions:0,employer:0,net:0});if(Object.values(total).some(v=>!Number.isSafeInteger(v)))throw new ApiError(422,"MONEY_OVERFLOW","Payroll exceeds supported precision.");
@@ -372,6 +385,7 @@ export async function calculatePayrollRun(actor:WorkContext,runId:string,key=cry
     ...items.flatMap((i,index)=>[
       assertion(write,key,`engagement-${index}`,"EXISTS(SELECT 1 FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.id=? AND e.version=? AND e.status='active' AND p.status='active')",[i.engagementId,i.inputSnapshot.engagement.version]),
       assertion(write,key,`time-count-${index}`,"(SELECT COUNT(*) FROM hr_time_entries WHERE engagement_id=? AND work_date BETWEEN ? AND ? AND status='approved')=?",[i.engagementId,run.period_start,run.period_end,i.inputSnapshot.hours.entries.length]),
+      assertion(write,key,`handoff-count-${index}`,"(SELECT COUNT(*) FROM overtime_payroll_handoffs WHERE engagement_id=? AND work_date BETWEEN ? AND ?)=?",[i.engagementId,run.period_start,run.period_end,i.inputSnapshot.hours.handoffs.length]),
       ...i.inputSnapshot.hours.entries.map(t=>assertion(write,key,`time-${index}-${t.id}`,"EXISTS(SELECT 1 FROM hr_time_entries WHERE id=? AND version=? AND status='approved')",[t.id,t.version])),
     ]),
     ...items.map((i,index)=>assertion(write,key,`compensation-${index}`,"EXISTS(SELECT 1 FROM hr_compensation_revisions WHERE id=? AND version=? AND status IN ('active','approved'))",[i.inputSnapshot.compensation!.id,i.inputSnapshot.compensation!.version])),
@@ -381,7 +395,7 @@ export async function calculatePayrollRun(actor:WorkContext,runId:string,key=cry
   ]);
 }
 
-export async function getPayrollRun(actor: WorkContext, runId: string) { if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment."); actor = requirePermission(actor,"payroll.read"); const {write}=await holdingResources(actor.holdingId); const run=await write.prepare("SELECT * FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,actor.companyId).first(); if(!run)throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found."); const items=await write.prepare("SELECT i.*,p.legal_name,p.id person_id FROM hr_payroll_items i JOIN hr_engagements e ON e.id=i.engagement_id JOIN hr_people p ON p.id=e.person_id WHERE i.run_id=? ORDER BY p.legal_name").bind(runId).all(); return {run,items:items.results}; }
+export async function getPayrollRun(actor: WorkContext, runId: string) { if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment."); actor = requirePermission(actor,"payroll.read"); const {write}=await holdingResources(actor.holdingId); const run=await write.prepare("SELECT r.*,g.overtime_multiplier_bps,g.proration_method FROM hr_payroll_runs r JOIN hr_pay_groups g ON g.id=r.pay_group_id WHERE r.id=? AND r.company_id=?").bind(runId,actor.companyId).first(); if(!run)throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found."); const [items,exports]=await Promise.all([write.prepare("SELECT i.*,p.legal_name,p.id person_id FROM hr_payroll_items i JOIN hr_engagements e ON e.id=i.engagement_id JOIN hr_people p ON p.id=e.person_id WHERE i.run_id=? ORDER BY p.legal_name").bind(runId).all(),write.prepare("SELECT id,run_revision,checksum_sha256,created_at FROM hr_payroll_review_exports WHERE run_id=? ORDER BY run_revision DESC").bind(runId).all()]); return {run,items:items.results,exports:exports.results}; }
 export async function listPayrollRuns(actor: WorkContext) { actor = requirePermission(actor,"payroll.read"); if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment."); const {write}=await holdingResources(actor.holdingId); return (await write.prepare("SELECT * FROM hr_payroll_runs WHERE company_id=? ORDER BY pay_date DESC,created_at DESC").bind(actor.companyId).all()).results; }
 
 export async function postPayroll(actor: WorkContext) {
@@ -397,6 +411,25 @@ export async function approvePayrollRun(actor:WorkContext,runId:string,expectedV
     write.prepare("UPDATE hr_payroll_runs SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=?").bind(actor.userId,Date.now(),runId),
     write.prepare("INSERT INTO decision_evidence(id,command_id,record_id,action,actor_id,assignment_id,reviewed_version,input_digest,created_at) SELECT ?,?,?,?,?,?,?,input_digest,? FROM hr_payroll_runs WHERE id=?").bind(crypto.randomUUID(),key,runId,"people.payroll.approve",actor.userId,actor.assignmentId,expectedVersion,Date.now(),runId),
   ]);
+}
+
+export async function exportPayrollReview(actor:WorkContext,runId:string,key:string){
+  actor=requirePermission(actor,"payroll.read");if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");
+  const {write,files}=await holdingResources(actor.holdingId),previous=await replayCommand(write,actor,key,"people.payroll.review-export",runId,{});if(previous)return previous;
+  const run=await write.prepare("SELECT id,status,revision,input_digest,currency,period_start,period_end FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,actor.companyId).first<{id:string;status:string;revision:number;input_digest:string|null;currency:string;period_start:string;period_end:string}>();
+  if(!run||!["preview","approved"].includes(run.status)||!run.input_digest)throw new ApiError(409,"PAYROLL_REVIEW_NOT_READY","Calculate a payroll preview before exporting review evidence.");
+  const items=await write.prepare("SELECT p.legal_name,i.worker_type,i.gross_minor,i.deductions_minor,i.employer_cost_minor,i.net_minor,i.currency,i.input_snapshot_json FROM hr_payroll_items i JOIN hr_engagements e ON e.id=i.engagement_id JOIN hr_people p ON p.id=e.person_id WHERE i.run_id=? ORDER BY p.legal_name").bind(runId).all<{legal_name:string;worker_type:string;gross_minor:number;deductions_minor:number;employer_cost_minor:number;net_minor:number;currency:string;input_snapshot_json:string}>();
+  const csv=["employee,worker_type,gross,deductions,employer_cost,net,currency,input_snapshot",...items.results.map(item=>[item.legal_name,item.worker_type,minorToDecimal(item.gross_minor),minorToDecimal(item.deductions_minor),minorToDecimal(item.employer_cost_minor),minorToDecimal(item.net_minor),item.currency,item.input_snapshot_json].map(value=>`"${String(value).replaceAll('"','""')}"`).join(","))].join("\n"),checksum=await sha256(csv),fileKey=`${actor.holdingId}/people/payroll/${runId}/review-${run.revision}.csv`,exportId=`payroll-review-${key}`,now=Date.now();
+  await files.put(fileKey,csv,{httpMetadata:{contentType:"text/csv"},customMetadata:{sha256:checksum,inputDigest:run.input_digest,period:`${run.period_start}:${run.period_end}`}});
+  return executeCommand(write,actor,key,"people.payroll.review-export",{},runId,Number(run.revision),{id:runId,revision:run.revision,checksum},[
+    assertion(write,key,"run","EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND revision=? AND input_digest=? AND status IN ('preview','approved'))",[runId,actor.companyId,run.revision,run.input_digest]),
+    write.prepare("INSERT INTO hr_payroll_review_exports(id,run_id,run_revision,file_key,checksum_sha256,created_by,created_at) VALUES(?,?,?,?,?,?,?)").bind(exportId,runId,run.revision,fileKey,checksum,actor.userId,now),
+  ]);
+}
+
+export async function getPayrollReviewFile(actor:WorkContext,runId:string,revision:number){
+  actor=requirePermission(actor,"payroll.read");if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");
+  const {write,files}=await holdingResources(actor.holdingId),row=await write.prepare("SELECT e.file_key,e.checksum_sha256 FROM hr_payroll_review_exports e JOIN hr_payroll_runs r ON r.id=e.run_id WHERE e.run_id=? AND e.run_revision=? AND r.company_id=?").bind(runId,revision,actor.companyId).first<{file_key:string;checksum_sha256:string}>();if(!row)throw new ApiError(404,"PAYROLL_REVIEW_EXPORT_NOT_FOUND","Payroll review export not found.");const object=await files.get(row.file_key);if(!object)throw new ApiError(503,"PAYROLL_REVIEW_EXPORT_UNAVAILABLE","Payroll review export is temporarily unavailable.");return {object,checksum:row.checksum_sha256};
 }
 
 export async function createPaymentBatch(actor: WorkContext, input: z.infer<typeof paymentBatchSchema>, commandId: string) {
@@ -424,6 +457,11 @@ export async function createPaymentBatch(actor: WorkContext, input: z.infer<type
   }
   if(!items.results.length)throw new ApiError(409,"PAYMENT_ITEMS_EMPTY","There are no approved payable items to export.");
   const total=items.results.reduce((sum,item)=>sum+item.net_minor,0); if (total <= 0) throw new ApiError(422, "PAYMENT_TOTAL_INVALID", "Payment amount must be greater than zero."); const batchId=`payment-${crypto.randomUUID()}`; const now=Date.now(); const statements:SqlStatement[]=[write.prepare("INSERT INTO hr_payment_batches(id,company_id,source_type,source_id,currency,status,format_code,total_minor,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(batchId,actor.companyId,input.sourceType,input.sourceId,currency,"draft",input.formatCode,total,actor.userId,now,now)];
+  if(input.sourceType==='contractor')statements.push(
+    assertion(write,commandId,'supplier-payment-reservation',"NOT EXISTS(SELECT 1 FROM finance_supplier_instructions WHERE invoice_id=? AND status IN ('reserved','exported','unknown','confirmed'))",[input.sourceId]),
+    assertion(write,commandId,'contractor-batch-unique',"NOT EXISTS(SELECT 1 FROM hr_payment_batches WHERE company_id=? AND source_type='contractor' AND source_id=? AND status<>'cancelled' AND id<>?)",[actor.companyId,input.sourceId,batchId]),
+    write.prepare('UPDATE finance_invoices SET version=version+1,updated_at=? WHERE id=? AND company_id=?').bind(now,input.sourceId,actor.companyId),
+  );
   for(const item of items.results)statements.push(write.prepare("INSERT INTO hr_payment_batch_items(id,batch_id,engagement_id,person_id,reference,payee_name,amount_minor,currency) VALUES(?,?,?,?,?,?,?,?)").bind(`payitem-${crypto.randomUUID()}`,batchId,item.engagement_id,item.person_id,`PAY-${input.sourceId}-${item.id}`,item.preferred_name??item.legal_name,item.net_minor,item.currency));
   const result={id:batchId,status:"draft",totalMinor:total,itemCount:items.results.length}; statements.push(receipt(write,commandId,"people.payment-batch.create",c.digest,result));
   await executeCommand(write,actor,commandId,"people.payment-batch.create",input,batchId,1,result,statements); return result;
@@ -451,3 +489,11 @@ export async function confirmPaymentBatch(actor:WorkContext,batchId:string,input
 }
 
 export async function getPaymentFile(actor: WorkContext,batchId:string){actor = requirePermission(actor,"payroll.payment.read");const {write,files}=await holdingResources(actor.holdingId);const batch=await write.prepare("SELECT file_key,file_checksum FROM hr_payment_batches WHERE id=? AND company_id=? AND status IN ('exported','partially_settled','settled')").bind(batchId,actor.companyId).first<{file_key:string|null;file_checksum:string|null}>();if(!batch?.file_key)throw new ApiError(404,"PAYMENT_FILE_NOT_FOUND","Payment export is not available.");const object=await files.get(batch.file_key);if(!object)throw new ApiError(503,"PAYMENT_FILE_UNAVAILABLE","Payment export is temporarily unavailable.");return {object,checksum:batch.file_checksum};}
+
+export async function payrollRunsPage(actor:WorkContext,cursor?:string) {
+ actor=requirePermission(actor,"payroll.read");if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");
+ const {write}=await holdingResources(actor.holdingId);
+ return readListPage<Record<string,string|number|null> & {id:string;page_key:string}>(write,{
+  sql:"SELECT *,pay_date||':'||created_at::text page_key FROM hr_payroll_runs WHERE company_id=?",args:[actor.companyId],cursor,descending:true,scope:[actor.companyId,'payroll'],
+ });
+}

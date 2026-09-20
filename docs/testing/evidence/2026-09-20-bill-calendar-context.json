@@ -1,0 +1,16 @@
+{
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "workingTree": "dirty; exact files identified by checksum",
+  "environment": "isolated test databases; Bun 1.2.17 / Node 24.20.0",
+  "files": {
+    "src/server/supplier-bill-matching.ts": "dcf0daad7c3ab0c1af68ba6adc2b08fcfb42d34a0c056fc924d91b52ba7cbf47",
+    "src/server/calendar/supplier-bills.ts": "73a1314f3d55c36f0c7f3ca14e706fdf51de4b4f1efd0b8063680357a1324e40",
+    "src/server/commerce.ts": "04d798d80a23fa8ef5100217297516ec4d7f571d9f4de26c03ada958e4644da7",
+    "tests/supplier-bill-matching.test.ts": "a2b92f13a92409d8454bd6424e26237dcb600ab2077b30f2214e9d5f445ec5b5"
+  },
+  "limitations": [
+    "No browser correction acceptance.",
+    "Calendar mine filter remains creator/reviewer based; team calendar includes correction tasks. Named PO owner is authoritative in Work.",
+    "Not complete A-J acceptance."
+  ]
+}

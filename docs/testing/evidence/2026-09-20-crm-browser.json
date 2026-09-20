@@ -1,0 +1,20 @@
+{
+  "observedAt": "2026-09-20T16:16:27.927969+07:00",
+  "run": "f7218583fd23",
+  "origin": "http://127.0.0.1:3102",
+  "account": "Source operator / holding_owner, simulation only",
+  "leadId": "lead-192660c2-f030-4d25-94d9-5d3cbb8f2e8c",
+  "observations": [
+    "Normal credential login; create lead with contact, brief and deadline",
+    "Qualify existing simulation customer, expected net THB15",
+    "Draft quotation does not appear in approved quotation choices; no confirmed sales order selectable",
+    "Lost removes actionable Work count from 2 to 1; reason and both lead/opportunity event versions visible",
+    "Manager-authorized reopen restores discovery and Work count2",
+    "Pipeline visibly shows THB15.00 open / 3.75 weighted / 0.00 won; full page screenshot inspected"
+  ],
+  "limitations": [
+    "Only one browser account; not separate-person CRM handoff acceptance",
+    "Approved quote to won flow automated only",
+    "No customer portal, provider, real customer or production sign-off"
+  ]
+}

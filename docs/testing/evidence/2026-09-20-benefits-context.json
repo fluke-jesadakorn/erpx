@@ -1,0 +1,8 @@
+{
+  "observedAt": "2026-09-20T23:43:00+07:00",
+  "environment": "disposable PostgreSQL simulation",
+  "command": "bun scripts/local/test.ts tests/benefits.test.ts tests/payroll-core.test.ts tests/staff-migration.test.ts --reporter=verbose",
+  "result": { "filesPassed": 3, "testsPassed": 5, "failed": 0, "skipped": 0 },
+  "scope": ["benefit plans", "dependents", "enrollment windows", "elections", "provider acknowledgement", "payroll inputs", "payroll calculation snapshot"],
+  "limitations": ["No live provider", "No multi-role browser acceptance", "No Thai payroll expert or business sign-off"]
+}

@@ -1,0 +1,22 @@
+{
+  "observedAt": "2026-09-20T11:02:35.242Z",
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "dirtyWorkspace": true,
+  "sourceHashes": {
+    "src/server/customer-access.ts": "eced2dc52524bc11cc35eb04f9d17ab96a38aaab92121e24e2c6cacafe224d55",
+    "src/server/customer-portal.ts": "0b6341ddbfdf040e60fab3ff6a4de50383ca3feb93aea60b6a8d35540d15ba4c",
+    "src/components/modules/customer-access-console.tsx": "2c262cdfb1c3a706c1450bbb5efb4f8738529544063c23a26fa725a99a065519",
+    "src/app/api/v1/holdings/[holdingSlug]/customer-access/route.ts": "de80390f70b676d050c9fda96464abe2ffd78a75c1f5e05d86ebba44ef46fd3d",
+    "tests/customer-access.test.ts": "130842564f52f4bf109bcb5da318237d3905369b2d7386b23939d3258e4474c8",
+    "migrations/postgres/holding-write/0221_customer_access.sql": "5fde1a426c124c23bd632a74f1b9c01fbb4fd05eecf8f62c990a40138fff29a7"
+  },
+  "scope": "Source-bound customer authority and allowlisted order projection",
+  "tests": "23 passed / 4 files; customer access owner tests, Work views/cache and 360-table baseline",
+  "typecheck": "passed",
+  "lint": "0 errors / 3 existing warnings",
+  "browser": "three simulation roles; request, independent approval, one audited read, revoke and denied reread",
+  "limitations": [
+    "No duplicate merge or identity-change review",
+    "No consent preferences, replies/uploads, email provider, production or real customer UAT"
+  ]
+}

@@ -1,3 +1,4 @@
+import { readListPage } from "./list-page";
 import type { WorkContext } from "./authorization";
 import type { Mention } from "@/lib/social-text";
 import { mentionsSchema, validateMentions, textStatements } from "./social-text";
@@ -212,73 +213,63 @@ export async function publishPost(
     ],
   );
 }
-export async function postView(db: SqlDatabase, actor: StaffActor, id: string) {
-  const post = await readablePost(db, actor, id);
-  const [comments, files, counts, origin] = await Promise.all([
-    db
-      .prepare(
-        "SELECT id,body,author_id,author_name,created_at,mentions_json,author_kind FROM social_comments WHERE post_id=? AND state='published' ORDER BY created_at DESC,id DESC LIMIT 50",
-      )
-      .bind(id)
-      .all<{
-        id: string;
-        body: string;
-        author_id: string;
-        author_name: string;
-        created_at: number;
-        mentions_json: string;
-        author_kind: "person" | "agent";
-      }>(),
-    db
-      .prepare(
-        "SELECT a.id,a.original_name,a.media_type FROM attachments a JOIN social_post_drafts d ON d.id=a.owner_id WHERE a.owner_type='social_draft' AND d.published_post_id=? AND a.revoked_at IS NULL",
-      )
-      .bind(id)
-      .all<{ id: string; original_name: string; media_type: string }>(),
-    db
-      .prepare(
-        "SELECT (SELECT count(*) FROM social_reactions WHERE post_id=?) appreciationCount,EXISTS(SELECT 1 FROM social_reactions WHERE post_id=? AND principal_id=?) appreciated,EXISTS(SELECT 1 FROM social_follows WHERE target_type='post' AND target_id=? AND principal_id=?) followed",
-      )
-      .bind(id, id, actor.userId, id, actor.userId)
-      .first<{
-        appreciationCount: number;
-        appreciated: number;
-        followed: number;
-      }>(),
-    db
-      .prepare("SELECT task_id FROM social_task_origins WHERE post_id=?")
-      .bind(id)
-      .first<{ task_id: string }>(),
+type CommentRow = { id:string;post_id:string;body:string;author_id:string;author_name:string;created_at:number;mentions_json:string;author_kind:"person"|"agent" };
+const commentView = (c:CommentRow) => ({...c,mentions:JSON.parse(c.mentions_json) as Mention[]});
+export async function postComments(db:SqlDatabase,actor:StaffActor,id:string,cursor?:string) {
+  await readablePost(db,actor,id);
+  const page = await readListPage<CommentRow & {page_key:string}>(db,{
+    sql:"SELECT id,post_id,body,author_id,author_name,created_at,mentions_json,author_kind,created_at::text AS page_key FROM social_comments WHERE post_id=? AND state='published'",
+    args:[id],scope:[actor.companyId,actor.userId,id],cursor,limit:20,descending:true,
+  });
+  return {...page,items:page.items.map(commentView)};
+}
+async function postViews(db:SqlDatabase,actor:StaffActor,ids:string[],commentLimit:number) {
+  if(!ids.length) return [];
+  const now=Date.now(), slots=ids.map(()=>'?').join(',');
+  const posts=(await db.prepare(`SELECT p.* FROM social_posts p WHERE p.id IN (${slots}) AND p.company_id=? AND p.state='published' AND ${sourceAccessSql()}`)
+    .bind(...ids,actor.companyId,actor.userId,now,now).all<PostRow>()).results;
+  if(!posts.length) return [];
+  const allowed=posts.map(p=>p.id), placeholders=allowed.map(()=>'?').join(',');
+  const [comments,files,counts,origins,replies]=await Promise.all([
+    db.prepare(`SELECT * FROM (SELECT id,post_id,body,author_id,author_name,created_at,mentions_json,author_kind,
+      row_number() OVER(PARTITION BY post_id ORDER BY created_at DESC,id DESC) ordinal
+      FROM social_comments WHERE post_id IN (${placeholders}) AND state='published') c WHERE ordinal<=? ORDER BY created_at,id`)
+      .bind(...allowed,commentLimit).all<CommentRow>(),
+    db.prepare(`SELECT d.published_post_id AS post_id,a.id,a.original_name,a.media_type FROM attachments a JOIN social_post_drafts d ON d.id=a.owner_id
+      WHERE a.owner_type='social_draft' AND d.published_post_id IN (${placeholders}) AND a.revoked_at IS NULL`).bind(...allowed)
+      .all<{post_id:string;id:string;original_name:string;media_type:string}>(),
+    db.prepare(`SELECT p.id,(SELECT count(*) FROM social_comments WHERE post_id=p.id AND state='published') AS commentCount,
+      (SELECT count(*) FROM social_reactions WHERE post_id=p.id) AS appreciationCount,
+      EXISTS(SELECT 1 FROM social_reactions WHERE post_id=p.id AND principal_id=?) AS appreciated,
+      EXISTS(SELECT 1 FROM social_follows WHERE target_type='post' AND target_id=p.id AND principal_id=?) AS followed
+      FROM social_posts p WHERE p.id IN (${placeholders})`).bind(actor.userId,actor.userId,...allowed)
+      .all<{id:string;commentCount:number;appreciationCount:number;appreciated:number;followed:number}>(),
+    db.prepare(`SELECT post_id,task_id FROM social_task_origins WHERE post_id IN (${placeholders})`).bind(...allowed).all<{post_id:string;task_id:string}>(),
+    db.prepare(`SELECT post_id,id,state,error,actor_id FROM social_agent_replies WHERE post_id IN (${placeholders}) ORDER BY created_at`).bind(...allowed)
+      .all<{post_id:string;id:string;state:string;error:string|null;actor_id:string}>(),
   ]);
-  // A linked task's existence does not grant its details. The task endpoint rechecks participants.
-  let task: null | { id: string; state: string } = null;
-  let trackingState: string | null = null;
-  if (origin) {
-    const { getTask } = await import("./staff-tasks");
-    try {
-      const t = await getTask(db, actor, origin.task_id);
-      task = { id: t.id, state: t.state };
-    } catch (e) {
-      if (!(e instanceof ApiError) || ![403, 404].includes(e.status)) throw e;
+  const byId=new Map(posts.map(p=>[p.id,p]));
+  return Promise.all(ids.filter(id=>byId.has(id)).map(async id=>{
+    const post=byId.get(id)!,origin=origins.results.find(o=>o.post_id===id);
+    let task:null|{id:string;state:string}=null,trackingState:string|null=null;
+    if(origin){
+      const {getTask}=await import('./staff-tasks');
+      try {const t=await getTask(db,actor,origin.task_id);task={id:t.id,state:t.state};}
+      catch(e){if(!(e instanceof ApiError)||![403,404].includes(e.status))throw e;}
+      if(post.author_id===actor.userId) trackingState=await db.prepare('SELECT state FROM staff_tasks WHERE id=? AND company_id=?').bind(origin.task_id,actor.companyId).first<string>('state');
     }
-    // The original reporter may track progress without gaining task/evidence access.
-    if (post.author_id === actor.userId)
-      trackingState = await db
-        .prepare("SELECT state FROM staff_tasks WHERE id=? AND company_id=?")
-        .bind(origin.task_id, actor.companyId)
-        .first<string>("state");
-  }
-  return {
-    ...post,
-    mentions: JSON.parse((post as PostRow & {mentions_json:string}).mentions_json ?? "[]") as Mention[],
-    agentReplies: (await db.prepare("SELECT id,state,error,actor_id FROM social_agent_replies WHERE post_id=? ORDER BY created_at").bind(id).all<{id:string;state:string;error:string|null;actor_id:string}>()).results,
-    comments: comments.results.reverse().map(c=>({...c, mentions: JSON.parse(c.mentions_json) as Mention[]})),
-    files: files.results,
-    ...counts,
-    task,
-    trackingState,
-    hasTask: !!origin,
-  };
+    const count=counts.results.find(c=>c.id===id)!;
+    return {...post,mentions:JSON.parse((post as PostRow & {mentions_json:string}).mentions_json??'[]') as Mention[],
+      comments:comments.results.filter(c=>c.post_id===id).map(commentView),
+      files:files.results.filter(f=>f.post_id===id),agentReplies:replies.results.filter(r=>r.post_id===id),
+      appreciationCount:count.appreciationCount,appreciated:count.appreciated,followed:count.followed,commentCount:count.commentCount,
+      task,trackingState,hasTask:!!origin};
+  }));
+}
+export async function postView(db:SqlDatabase,actor:StaffActor,id:string) {
+  const post=(await postViews(db,actor,[id],20))[0];
+  if(!post)throw new ApiError(404,'POST_NOT_FOUND','This post is unavailable.');
+  return post;
 }
 export async function homePosts(
   db: SqlDatabase,
@@ -316,15 +307,7 @@ export async function homePosts(
       limit,
     )
     .all<{ id: string }>();
-  const posts = [];
-  for (const row of result.results) {
-    try {
-      posts.push(await postView(db, actor, row.id));
-    } catch (e) {
-      if (!(e instanceof ApiError) || e.status !== 404) throw e;
-    }
-  }
-  return posts;
+  return postViews(db,actor,result.results.map(row=>row.id),2);
 }
 export async function postAction(
   db: SqlDatabase,

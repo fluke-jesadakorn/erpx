@@ -109,12 +109,25 @@ async function businessWorkspaceChoice(
     branchId: row.kind === "department" ? row.branch_id : null,
     branchSlug: row.kind === "department" ? row.branch_slug : null,
   }));
-  return buildWorkspaceHoldingChoice(
+  const choice = buildWorkspaceHoldingChoice(
     holding.slug,
     holding.displayName,
     assignments,
     nodes,
   );
+  if (!choice) return null;
+  const profiles = (await write.prepare("SELECT scope_kind,scope_id,primary_attachment_id FROM organization_brand_profiles WHERE scope_kind='holding' OR company_id IN (" + placeholders + ")")
+    .bind(...companyIds).all<{ scope_kind: "holding" | "branch"; scope_id: string; primary_attachment_id: string | null }>()).results;
+  const short = (label: string) => label.trim().split(/\s+/u).filter(Boolean).slice(0, 2).map((word) => Array.from(word)[0] ?? "").join("").toLocaleUpperCase().slice(0, 3) || "—";
+  const present = (label: string, kind: "holding" | "branch", id: string) => {
+    const attachment = profiles.find((profile) => profile.scope_kind === kind && profile.scope_id === id)?.primary_attachment_id;
+    return { label, initials: short(label), ...(attachment ? { primaryUrl: `/api/v1/holdings/${encodeURIComponent(holding.slug)}/attachments/${encodeURIComponent(attachment)}/content` } : {}) };
+  };
+  return {
+    ...choice,
+    brand: present(choice.label, "holding", holding.id),
+    companies: choice.companies.map((company) => ({ ...company, branches: company.branches.map((branch) => ({ ...branch, brand: present(branch.label, "branch", branch.id) })) })),
+  };
 }
 
 export const workspaceChoices = cache(async (): Promise<WorkspaceChoice[]> => {

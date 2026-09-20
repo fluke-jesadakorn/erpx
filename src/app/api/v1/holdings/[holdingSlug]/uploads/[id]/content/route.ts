@@ -1,3 +1,4 @@
+import {supportEvidenceGuard,supportEvidenceEvent} from "@/server/support-evidence";
 import { invoiceEvidenceGuard } from "@/server/invoice-payment-evidence";
 import { requestPublicOrigin } from "@/server/public-origin";
 import { employeeRequestUpload, requestVersionGuard } from "@/server/employee-requests";
@@ -12,25 +13,8 @@ import { canEditExpense, getExpense } from "@/server/expenses";
 import { assertion, executeCommand, replayCommand } from "@/server/commands";
 import { ApiError, errorResponse } from "@/server/http";
 import { paymentDraft, paymentGuards } from "@/server/expense-payments";
-
-function matchesSignature(type: string, bytes: Uint8Array) {
-  if (type === "application/pdf")
-    return new TextDecoder().decode(bytes.slice(0, 5)) === "%PDF-";
-  if (type === "image/png")
-    return (
-      bytes[0] === 0x89 &&
-      bytes[1] === 0x50 &&
-      bytes[2] === 0x4e &&
-      bytes[3] === 0x47
-    );
-  if (type === "image/jpeg") return bytes[0] === 0xff && bytes[1] === 0xd8;
-  if (type === "image/webp")
-    return (
-      new TextDecoder().decode(bytes.slice(0, 4)) === "RIFF" &&
-      new TextDecoder().decode(bytes.slice(8, 12)) === "WEBP"
-    );
-  return type === "text/csv";
-}
+import { completeBrandUpload } from "@/server/branding";
+import { matchesUploadSignature } from "@/server/upload-validation";
 
 export async function PUT(
   request: Request,
@@ -53,6 +37,7 @@ export async function PUT(
       )
       .bind(id, actor.userId, Date.now())
       .first<{
+        id: string;
         staging_key: string;
         declared_bytes: number;
         media_type: string;
@@ -61,6 +46,7 @@ export async function PUT(
         owner_id: string;
         purpose: string;
         revision: number;
+        owner_version: number|null;
       }>();
     if (!intent)
       throw new ApiError(
@@ -92,12 +78,29 @@ export async function PUT(
         "The uploaded file size does not match its intent.",
       );
     const bytes = new Uint8Array(buffer);
-    if (!matchesSignature(intent.media_type, bytes))
+    if (!matchesUploadSignature(intent.media_type, bytes))
       throw new ApiError(
         422,
         "UPLOAD_TYPE",
         "The file contents do not match the selected type.",
       );
+    if (intent.owner_type === "holding_brand" || intent.owner_type === "branch_brand") {
+      const result = await completeBrandUpload({
+        db: write,
+        files,
+        actor,
+        intent: {
+          id,
+          owner_type: intent.owner_type,
+          owner_id: intent.owner_id,
+          purpose: intent.purpose === "inverse" ? "inverse" : "primary",
+          revision: intent.revision,
+          original_name: intent.original_name,
+        },
+        buffer,
+      });
+      return Response.json({ data: result }, { status: 201 });
+    }
     const checksum = await sha256(buffer);
     const input = { uploadId: id, checksum, bytes: buffer.byteLength },
       commandId = `upload-${id}`;
@@ -110,6 +113,7 @@ export async function PUT(
       input,
     );
     if (prior) return Response.json({ data: prior }, { status: 201 });
+    const support=intent.owner_type==="support_ticket"?await supportEvidenceGuard(write,actor,intent.owner_id,Number(intent.owner_version),commandId):null;
     const invoiceEvidence=intent.owner_type==="invoice_payment"?await invoiceEvidenceGuard(write,actor,intent.owner_id,commandId):null;
     const requestSnapshot = intent.owner_type === "employee_request" ? await serviceAuthoritySnapshot(write, actor.companyId) : null;
     const employeeRequest = intent.owner_type === "employee_request" ? await employeeRequestUpload(write, actor, intent.owner_id, intent.purpose) : null;
@@ -158,11 +162,11 @@ export async function PUT(
         "LEAVE_LOCKED",
         "Evidence changes require your editable request.",
       );
-    if (!expense && !task && !leave && !social && !payment && !employeeRequest && !invoiceEvidence)
+    if (!expense && !task && !leave && !social && !payment && !employeeRequest && !invoiceEvidence && !support)
       throw new ApiError(404, "OWNER_NOT_FOUND", "Attachment owner not found.");
     const ownerScope = payment
       ? { ...payment.expense, ...payment.draft }
-      : (invoiceEvidence?.invoice ?? employeeRequest ?? social ?? expense ?? task ?? leave!);
+      : (support?.row ?? invoiceEvidence?.invoice ?? employeeRequest ?? social ?? expense ?? task ?? leave!);
     const finalKey = `${actor.holdingId}/objects/${id}/r${intent.revision}`;
     const stored = await files.put(finalKey, buffer, {
       onlyIf: { etagDoesNotMatch: "*" },
@@ -183,10 +187,11 @@ export async function PUT(
     const steps = [
       ...(requestSnapshot ? requestSnapshot(commandId) : []),
       ...(invoiceEvidence?.guards??[]),
+      ...(support?.guards??[]),
       ...(payment
         ? paymentGuards(write, actor, commandId, payment.expense)
         : []),
-      invoiceEvidence ? assertion(write,commandId,"invoice-slip-type","? IN ('image/jpeg','image/png','image/webp','application/pdf')",[intent.media_type]) : employeeRequest ? requestVersionGuard(write, commandId, employeeRequest) : payment
+      support ? assertion(write,commandId,"support-purpose","?='support_evidence'",[intent.purpose]) : invoiceEvidence ? assertion(write,commandId,"invoice-slip-type","? IN ('image/jpeg','image/png','image/webp','application/pdf')",[intent.media_type]) : employeeRequest ? requestVersionGuard(write, commandId, employeeRequest) : payment
         ? assertion(
             write,
             commandId,
@@ -259,10 +264,11 @@ export async function PUT(
         ),
       write
         .prepare(
-          `UPDATE ${invoiceEvidence ? "finance_invoices" : employeeRequest ? "employee_requests" : payment ? "expense_payment_drafts" : social ? "social_post_drafts" : expense ? "finance_expenses" : task ? "staff_tasks" : "leave_requests"} SET version=version+1,${employeeRequest ? "evidence_version=evidence_version+1," : ""}updated_at=? WHERE id=?`,
+          `UPDATE ${support ? "support_tickets" : invoiceEvidence ? "finance_invoices" : employeeRequest ? "employee_requests" : payment ? "expense_payment_drafts" : social ? "social_post_drafts" : expense ? "finance_expenses" : task ? "staff_tasks" : "leave_requests"} SET version=version+1,${employeeRequest ? "evidence_version=evidence_version+1," : ""}updated_at=? WHERE id=?`,
         )
         .bind(now, intent.owner_id),
     ];
+    if(support)steps.push(supportEvidenceEvent(write,intent.owner_id,commandId,actor.userId,"attachment-add",{attachmentId,checksum,filename:intent.original_name},"Attached private support evidence"));
     const result = await executeCommand(
       write,
       actor,

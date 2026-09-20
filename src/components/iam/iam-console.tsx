@@ -1,31 +1,33 @@
 "use client";
+import { FeatureTabBar,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+
 import { flowKinds } from "@/lib/flow";
-import { useMemo, useState, useRef, useEffect } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
-  Check,
-  X,
-  CircleHelp,
-  Minus,
-  ShieldCheck,
-  Users,
-  KeyRound,
-  Network,
-  Search,
-  Download,
-  RefreshCw,
-} from "lucide-react";
-import {
-  directoryProviderLabels,
-  iamSections,
-  type IamSection,
-  type AccessDecision,
-  type RoleRevision,
+directoryProviderLabels,
+iamSections,
+type AccessDecision,
+type IamSection,
+type RoleRevision,
 } from "@/lib/iam";
 import { evaluateAccess } from "@/lib/permissions";
-import type { iamOverview } from "@/server/iam-service";
 import { workFetch } from "@/lib/work-fetch";
+import type { iamOverview } from "@/server/iam-service";
+import {
+Check,
+CircleHelp,
+Download,
+KeyRound,
+Minus,
+Network,
+RefreshCw,
+Search,
+ShieldCheck,
+Users,
+X,
+} from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect,useMemo,useRef,useState } from "react";
 import styles from "./iam.module.css";
 type Data = Awaited<ReturnType<typeof iamOverview>>;
 type Row = Record<string, unknown>;
@@ -77,7 +79,9 @@ export function IamConsole({
   base,
   api,
   section,
+  embedded = false,
 }: {
+  embedded?: boolean;
   data: Data;
   base: string;
   api: string;
@@ -413,8 +417,8 @@ export function IamConsole({
     </div>
   );
   return (
-    <main className={styles.console}>
-      <header className={styles.header}>
+    <section className={styles.console}>
+      {!embedded && <header className={styles.header}>
         <div>
           <p className={styles.eyebrow}>
             {data.platform ? "Platform" : "Company"} administration
@@ -426,8 +430,8 @@ export function IamConsole({
           <ShieldCheck size={17} />
           {title(data.scopeKind)} scope
         </span>
-      </header>
-      <nav className={styles.tabs} aria-label="Identity and access">
+      </header>}
+      {!embedded && <FeatureTabBar  aria-label="Identity and access">
         {iamSections
           .filter(
             ([id]) =>
@@ -445,7 +449,7 @@ export function IamConsole({
               {label}
             </Link>
           ))}
-      </nav>
+      </FeatureTabBar>}
       <div aria-live="polite">
         {message && <p className={styles.success}>{message}</p>}
       </div>
@@ -454,7 +458,7 @@ export function IamConsole({
           {error}
         </p>
       )}
-      <div className={styles.sectionHeading}>
+      <WidgetGrid pageKey={base === "/platform" ? `platform-iam-${section}` : undefined}><FeatureWidget id={`iam-${section}`} title={pageTitle}><div className={styles.sectionHeading}>
         <h2>{pageTitle}</h2>
         <button
           className="button secondary"
@@ -2201,6 +2205,7 @@ export function IamConsole({
           ))}
         </section>
       )}
-    </main>
+    </FeatureWidget></WidgetGrid>
+    </section>
   );
 }

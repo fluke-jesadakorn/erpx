@@ -85,77 +85,79 @@ test("desktop and mobile navigation place live business destinations correctly",
   const nav = page
     .getByRole("navigation", { name: /^(Primary|Mobile navigation)$/ })
     .filter({ visible: true });
-  for (const destination of ["Home", "Work", "Inbox"])
+  for (const destination of ["Home", "Work", "Inbox", "Calendar"])
     await expect(
       nav.getByRole("link", { name: new RegExp(`^${destination}(?:\\s|$)`) }),
     ).toBeVisible();
-  for (const destination of ["People", "Operations", "Finance", "Projects"])
-    await expect(nav.getByRole("link", { name: destination, exact: true })).toHaveCount(info.project.name === "desktop" ? 1 : 0);
-  await expect(
-    nav.getByRole("link", { name: "Inbox", exact: true }),
-  ).toBeVisible();
-  const moreButton = nav.getByRole("button", { name: "More navigation" });
-  if (info.project.name === "desktop")
-    await expect(moreButton).toHaveAttribute("aria-expanded", "true");
-  else await moreButton.click();
-  const more =
-    info.project.name === "desktop"
-      ? nav
-      : page.getByRole("dialog", { name: "More", exact: true });
-  for (const destination of ["People", "Operations", "Finance", "Projects"])
-    await expect(
-      more.getByRole("link", { name: destination, exact: true }),
-    ).toHaveCount(1);
-  await expect(
-    more.getByRole("button", { name: "Collapse People" }),
-  ).toHaveAttribute("aria-expanded", "true");
-  const peopleParentIcon = more
-    .getByRole("link", { name: "People", exact: true })
-    .locator("svg")
-    .first();
-  const organizationChildIcon = more
-    .getByRole("link", { name: "Organization", exact: true })
-    .locator("svg")
-    .first();
-  await expect(peopleParentIcon).toHaveAttribute("width", "18");
-  await expect(organizationChildIcon).toHaveAttribute("width", "15");
-  await expect(organizationChildIcon).toHaveAttribute("stroke-width", "1.7");
-  await more.getByRole("button", { name: "Collapse People" }).click();
-  await expect(
-    more.getByRole("button", { name: "Expand People" }),
-  ).toHaveAttribute("aria-expanded", "false");
-  await more.getByRole("button", { name: "Expand People" }).click();
-  await expect(
-    more.getByRole("link", { name: "Administration" }),
-  ).toBeVisible();
-  await expect(
-    more.getByRole("link", { name: "Updates", exact: true }),
-  ).toHaveCount(0);
+  const moreButton = nav.getByRole("button", { name: "App launcher" });
   if (info.project.name === "desktop") {
-    await moreButton.click();
-    await expect(moreButton).toHaveAttribute("aria-expanded", "false");
-    await expect(
-      nav.getByRole("link", { name: "Administration" }),
-    ).toHaveCount(0);
-    await page.waitForTimeout(300);
-    await expect(moreButton).toHaveCount(1);
-    await expect(moreButton).toHaveAttribute("aria-expanded", "false");
-    await expect(
-      nav.getByRole("link", { name: "Administration" }),
-    ).toHaveCount(0);
-    await moreButton.click();
-    await expect(moreButton).toHaveAttribute("aria-expanded", "true");
-    await expect(
-      nav.getByRole("link", { name: "Administration" }),
-    ).toBeVisible();
-    await page.setViewportSize({ width: 1440, height: 2200 });
-    await expect(moreButton).toHaveCount(0);
-    await expect(
-      nav.getByRole("link", { name: "Administration" }),
-    ).toBeVisible();
-  } else {
+    await page.goto("/holdings/acme/people");
+    await expect(nav.getByRole("button", { name: "Collapse People & organization" })).toHaveAttribute("aria-expanded", "true");
+    await expect(nav.getByRole("link", { name: "People", exact: true })).toBeVisible();
+    await nav.getByRole("button", { name: "Expand Operations" }).click();
+    await expect(nav.getByRole("button", { name: "Collapse Operations" })).toHaveAttribute("aria-expanded", "true");
+    await expect(nav.getByRole("button", { name: "Expand People & organization" })).toHaveAttribute("aria-expanded", "false");
+    await expect(nav.getByRole("link", { name: "Sales & purchasing", exact: true })).toBeVisible();
+    await page.reload();
+    await expect(nav.getByRole("button", { name: "Collapse People & organization" })).toHaveAttribute("aria-expanded", "true");
+    await nav.getByRole("button", { name: "Collapse sidebar" }).click();
+    await expect(nav).toHaveAttribute("data-rail", "true");
+    await page.reload();
+    await expect(nav).toHaveAttribute("data-rail", "true");
+    await expect(nav.getByRole("group", { name: "People & organization" })).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(moreButton).toBeFocused();
+    const peopleRailTrigger = nav.getByRole("button", { name: "Expand People & organization" });
+    await expect(peopleRailTrigger).toBeFocused();
+    await peopleRailTrigger.click();
+    await nav.getByRole("button", { name: "Expand sidebar" }).click();
+  }
+  await moreButton.click();
+  const more = page.getByRole("dialog", { name: "App launcher", exact: true });
+  await expect(more).toBeVisible();
+  for (const heading of ["People & organization", "Operations", "Finance", "Management", "System"])
+    await expect(more.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+  await expect(more.getByRole("link", { name: "People", exact: true })).toBeVisible();
+  await expect(more.getByRole("link", { name: "People directory", exact: true })).toHaveCount(0);
+  await expect(more.getByRole("button", { name: /^(?:Pin|Unpin)/ })).toHaveCount(0);
+  const launcherSearch = more.getByRole("searchbox", { name: "Search apps and pages" });
+  for (const [query, name, href] of [
+    ["roster", /Roster.*People/, /\/people\/roster$/],
+    ["suppliers", /Customers & suppliers.*Sales & purchasing/, /\/commerce\?view=parties$/],
+    ["bank reconciliation", /Bank reconciliation.*Finance/, /\/finance\/bank$/],
+    ["contracts", /Legal.*Management/, /\/legal$/],
+    ["gpo", /Directory & GPO.*Technology/, /\/technology\?view=directory$/],
+  ] as const) {
+    await launcherSearch.fill(query);
+    await expect(more.getByRole("link", { name })).toHaveAttribute("href", href);
+  }
+  await expect(more.getByRole("heading", { name: "People & organization", exact: true })).toHaveCount(0);
+  await launcherSearch.fill("");
+  await page.keyboard.press("Escape");
+  await expect(moreButton).toBeFocused();
+  for (const viewport of info.project.name === "desktop"
+    ? [{ width: 768, height: 900 }, { width: 1440, height: 900 }]
+    : [{ width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await expect(
+      page
+        .getByRole("navigation", {
+          name:
+            viewport.width <= 650 ? "Mobile navigation" : "Primary",
+        })
+        .filter({ visible: true }),
+    ).toBeVisible();
+    if (viewport.width <= 650) {
+      const mobile = page.getByRole("navigation", { name: "Mobile navigation" }).filter({ visible: true });
+      await expect(mobile.getByRole("link")).toHaveCount(4);
+      await expect(mobile.getByRole("button", { name: "App launcher" })).toBeVisible();
+      for (const destination of ["Home", "Work", "Inbox", "Calendar"])
+        await expect(mobile.getByRole("link", { name: new RegExp(`^${destination}(?:\\s|$)`) })).toBeVisible();
+    }
   }
   await page.getByRole("button", { name: "Search workspace" }).click();
   const dialog = page.getByRole("dialog", { name: "Go to…" });
@@ -170,6 +172,12 @@ test("desktop and mobile navigation place live business destinations correctly",
   await page.keyboard.press("Escape");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  for (const viewport of info.project.name === "desktop"
+    ? [{ width: 768, height: 900 }, { width: 1440, height: 900 }]
+    : [{ width: 390, height: 844 }]) {
+    await page.setViewportSize(viewport);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
   await page
     .getByRole("navigation", { name: /^(Primary|Mobile navigation)$/ })
     .filter({ visible: true })
@@ -187,6 +195,32 @@ test("breadcrumb returns to live business parents", async ({ page }, info) => {
   const crumb = page.getByRole("navigation", { name: "Breadcrumb" });
   await expect(crumb).toContainText("People");
   await expect(crumb).toContainText("Organization");
+});
+test("a person row opens the editable drawer without a second edit click", async ({
+  page,
+}, info) => {
+  await login(page);
+  await page.goto("/holdings/acme/people");
+  const featureTabs = page.locator("main [data-feature-tabs]");
+  await expect(featureTabs.getByRole("button", { name: "People tools" })).toBeVisible();
+  expect(await featureTabs.getByRole("link").count()).toBeLessThanOrEqual(4);
+  await expect(featureTabs.getByRole("link", { name: "Company handbook" })).toHaveCount(0);
+  await expect(page.locator('main [data-feature-widget]:visible')).toHaveCount(1);
+  expect((await page.getByRole("link", { name: "Add person" }).boundingBox())!.width).toBeLessThan(200);
+  if (info.project.name === "desktop")
+    expect((await page.getByRole("combobox", { name: "Retirement status" }).boundingBox())!.width).toBeLessThanOrEqual(240);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page
+    .locator('[data-feature-widget="current-profiles"]')
+    .getByRole("button", { name: /Ada Bennett/ })
+    .click();
+  const drawer = page.getByRole("dialog", { name: "Edit Ada Bennett" });
+  await expect(drawer).toBeVisible({ timeout: 30000 });
+  await expect(drawer.getByRole("textbox", { name: "Legal name" })).toBeVisible({ timeout: 30000 });
+  await expect(drawer.getByRole("button", { name: "Edit employee" })).toHaveCount(0);
+  await drawer.getByRole("button", { name: "Back to people" }).click();
+  await expect(drawer).toBeHidden();
+  await expect(page).not.toHaveURL(/[?&]person=/);
 });
 test("live workspace pages fit three widths and both themes", async ({
   page,

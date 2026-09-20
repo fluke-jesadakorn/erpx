@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="928" height="200" viewBox="0 0 464 100" role="img" aria-label="ERPX — ERP multiplied">
+  <title>ERPX — custom ERP wordmark with multiplication sign</title>
+  <g id="artwork">
+    <g fill="#111318" fill-rule="evenodd">
+      <path d="M0 0H110L92 18H18V41H88L70 59H18V82H110L92 100H0Z"/>
+      <path transform="translate(140)" d="M0 0H82L108 26V40L86 62H72L112 100H85L45 62H18V100H0ZM18 18V44H78L90 32 76 18Z"/>
+      <path transform="translate(282)" d="M0 0H82L108 26V40L86 62H18V100H0ZM18 18V44H78L90 32 76 18Z"/>
+    </g>
+    <path fill="#2F69F5" transform="rotate(45 435 50)" d="M430 28H440V45H457V55H440V72H430V55H413V45H430Z"/>
+  </g>
+</svg>

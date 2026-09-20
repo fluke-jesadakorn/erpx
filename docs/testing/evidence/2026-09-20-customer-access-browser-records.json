@@ -1,0 +1,87 @@
+{
+  "run": "39f0d6afe7da",
+  "exportedAt": "2026-09-20T11:01:59.558Z",
+  "binding": {
+    "id": "customer-access-4d466a8f-6a8d-401b-b82c-077ed9d9e303",
+    "company_id": "expense-3c17b9f3-a1c1-4a40-93b7-021f445d6337",
+    "order_id": "order-c2113a5a-a8d5-45f7-9380-7152fb8475fc",
+    "customer_id": "parties-2f728b68-ca5d-4738-a11b-50d484d9bcb6",
+    "email": "receiver@simulation.test",
+    "expires_at": "1790330400000",
+    "status": "revoked",
+    "reason": "Simulation customer authority withdrawn after access audit verification",
+    "created_by": "expense-3c17b9f3-a1c1-4a40-93b7-021f445d6337-owner",
+    "approved_by": "expense-3c17b9f3-a1c1-4a40-93b7-021f445d6337-tie",
+    "reviewed_at": "1789902000375",
+    "version": "3",
+    "created_at": "1789901965086",
+    "updated_at": "1789902059934"
+  },
+  "events": [
+    {
+      "id": "customer-access-event-4d466a8f-6a8d-401b-b82c-077ed9d9e303",
+      "binding_id": "customer-access-4d466a8f-6a8d-401b-b82c-077ed9d9e303",
+      "version": "1",
+      "action": "request",
+      "actor_id": "expense-3c17b9f3-a1c1-4a40-93b7-021f445d6337-owner",
+      "reason": "Verified simulation customer account authority for this approved quotation only",
+      "created_at": "1789901965086"
+    },
+    {
+      "id": "customer-access-event-c7bbdaa9-887d-432f-9d26-2e087530444c",
+      "binding_id": "customer-access-4d466a8f-6a8d-401b-b82c-077ed9d9e303",
+      "version": "2",
+      "action": "approve",
+      "actor_id": "expense-3c17b9f3-a1c1-4a40-93b7-021f445d6337-tie",
+      "reason": "Independent simulation review matched the recipient to the approved quotation",
+      "created_at": "1789902000375"
+    },
+    {
+      "id": "customer-access-event-9003402f-65e1-4f3c-95a8-64433a2c8c76",
+      "binding_id": "customer-access-4d466a8f-6a8d-401b-b82c-077ed9d9e303",
+      "version": "3",
+      "action": "revoke",
+      "actor_id": "expense-3c17b9f3-a1c1-4a40-93b7-021f445d6337-tie",
+      "reason": "Simulation customer authority withdrawn after access audit verification",
+      "created_at": "1789902059934"
+    }
+  ],
+  "reads": [
+    {
+      "binding_version": "2",
+      "user_id": "expense-3c17b9f3-a1c1-4a40-93b7-021f445d6337-head",
+      "read_at": "1789902026365",
+      "projection_version": "customer-order-v1"
+    }
+  ],
+  "identities": [
+    {
+      "binding_id": "customer-access-4d466a8f-6a8d-401b-b82c-077ed9d9e303",
+      "user_id": "expense-3c17b9f3-a1c1-4a40-93b7-021f445d6337-head",
+      "email": "receiver@simulation.test",
+      "bound_at": "1789902026365"
+    }
+  ],
+  "source": [
+    {
+      "id": "order-c2113a5a-a8d5-45f7-9380-7152fb8475fc",
+      "kind": "quote",
+      "state": "confirmed",
+      "version": "3",
+      "party_id": "parties-2f728b68-ca5d-4738-a11b-50d484d9bcb6",
+      "currency": "THB"
+    }
+  ],
+  "migration": [
+    {
+      "name": "0221_customer_access.sql",
+      "checksum": "5fde1a426c124c23bd632a74f1b9c01fbb4fd05eecf8f62c990a40138fff29a7"
+    }
+  ],
+  "sourceHashes": {
+    "src/server/customer-access.ts": "eced2dc52524bc11cc35eb04f9d17ab96a38aaab92121e24e2c6cacafe224d55",
+    "src/server/customer-portal.ts": "0b6341ddbfdf040e60fab3ff6a4de50383ca3feb93aea60b6a8d35540d15ba4c",
+    "src/components/modules/customer-access-console.tsx": "2c262cdfb1c3a706c1450bbb5efb4f8738529544063c23a26fa725a99a065519",
+    "migrations/postgres/holding-write/0221_customer_access.sql": "5fde1a426c124c23bd632a74f1b9c01fbb4fd05eecf8f62c990a40138fff29a7"
+  }
+}

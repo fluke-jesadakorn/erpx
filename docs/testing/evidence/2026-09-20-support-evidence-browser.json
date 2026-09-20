@@ -1,0 +1,22 @@
+{
+  "observedAt": "2026-09-20T10:44:23.868190+00:00",
+  "environment": "disposable simulation b073bc982dbb",
+  "roles": [
+    "assigned Support agent"
+  ],
+  "steps": [
+    "Created source-linked ticket through UI",
+    "Selected 70-byte simulation CSV through native macOS picker after extension file upload was unavailable",
+    "Attached file: attachment-add event and ticket version 2",
+    "Withdrew with reason: download link removed, metadata retained, version 3",
+    "Accepted case then proposed resolution: version 5 resolved; evidence editing frozen"
+  ],
+  "ticketId": "ticket-cfcb4fc6-e202-41d9-af66-f293bd5e6ebc",
+  "attachmentId": "attachment-4d58035b-36fd-49dc-94d4-7ca623876df8",
+  "limitations": [
+    "One staff role only; not multi-role customer acceptance",
+    "No active-file browser download; download authorization checked by API tests",
+    "Resolved is proposed resolution, not confirmed customer completion",
+    "No external provider, customer Portal or production sign-off"
+  ]
+}

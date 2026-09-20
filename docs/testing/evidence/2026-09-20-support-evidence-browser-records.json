@@ -1,0 +1,159 @@
+{
+  "run": "b073bc982dbb",
+  "exportedAt": "2026-09-20T10:40:35.990Z",
+  "ticket": {
+    "id": "ticket-cfcb4fc6-e202-41d9-af66-f293bd5e6ebc",
+    "company_id": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497",
+    "branch_id": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-branch",
+    "department_id": null,
+    "order_id": "order-38c90e09-8f45-4e02-a54a-23858a5145c3",
+    "customer_id": "parties-37510320-2803-484c-8423-eca996b8c2ca",
+    "title": "Private evidence browser case",
+    "issue": "Simulation installation issue requiring a private diagnostic file",
+    "owner_id": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-claimant",
+    "due_date": "2026-09-24",
+    "status": "resolved",
+    "blocked_reason": null,
+    "resolution": "Simulated text resolution supplied; obsolete file remains withdrawn in history. Await independent customer confirmation review.",
+    "resolved_by": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-claimant",
+    "resolved_at": "1789900782050",
+    "confirmation_note_id": null,
+    "confirmation_note_version": null,
+    "version": "5",
+    "created_by": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-claimant",
+    "created_at": "1789900584413",
+    "updated_at": "1789900782050",
+    "sla_policy_id": null,
+    "sla_policy_version": null,
+    "sla_clock_json": null
+  },
+  "events": [
+    {
+      "id": "ticket-event-cfcb4fc6-e202-41d9-af66-f293bd5e6ebc",
+      "ticket_id": "ticket-cfcb4fc6-e202-41d9-af66-f293bd5e6ebc",
+      "version": "1",
+      "action": "create",
+      "actor_id": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-claimant",
+      "reason": "Simulation installation issue requiring a private diagnostic file",
+      "owner_id": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-claimant",
+      "due_date": "2026-09-24",
+      "status": "open",
+      "created_at": "1789900584413",
+      "evidence_json": {
+        "issue": "Simulation installation issue requiring a private diagnostic file",
+        "title": "Private evidence browser case",
+        "dueDate": "2026-09-24",
+        "orderId": "order-38c90e09-8f45-4e02-a54a-23858a5145c3",
+        "ownerId": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-claimant",
+        "sourceVersion": 1
+      }
+    },
+    {
+      "id": "support-evidence-upload-4d58035b-36fd-49dc-94d4-7ca623876df8",
+      "ticket_id": "ticket-cfcb4fc6-e202-41d9-af66-f293bd5e6ebc",
+      "version": "2",
+      "action": "attachment-add",
+      "actor_id": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-claimant",
+      "reason": "Attached private support evidence",
+      "owner_id": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-claimant",
+      "due_date": "2026-09-24",
+      "status": "open",
+      "created_at": "1789900685356",
+      "evidence_json": {
+        "checksum": "bc93ecf796b0176f787aa7ffa03be2b9437f0d93d8b9719f2b88789ed45c8fd5",
+        "filename": "support-evidence-browser.csv",
+        "attachmentId": "attachment-4d58035b-36fd-49dc-94d4-7ca623876df8"
+      }
+    },
+    {
+      "id": "support-evidence-7e3dfa97-db1b-4827-97cc-adedd751048b",
+      "ticket_id": "ticket-cfcb4fc6-e202-41d9-af66-f293bd5e6ebc",
+      "version": "3",
+      "action": "attachment-revoke",
+      "actor_id": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-claimant",
+      "reason": "Withdraw simulated diagnostic file because this observation will be replaced",
+      "owner_id": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-claimant",
+      "due_date": "2026-09-24",
+      "status": "open",
+      "created_at": "1789900707570",
+      "evidence_json": {
+        "reason": "Withdraw simulated diagnostic file because this observation will be replaced",
+        "attachmentId": "attachment-4d58035b-36fd-49dc-94d4-7ca623876df8",
+        "expectedVersion": 2
+      }
+    },
+    {
+      "id": "ticket-event-18a64cb2-043f-4b05-b576-27fe5ecae733",
+      "ticket_id": "ticket-cfcb4fc6-e202-41d9-af66-f293bd5e6ebc",
+      "version": "4",
+      "action": "start",
+      "actor_id": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-claimant",
+      "reason": "Begin resolution after withdrawing obsolete simulated evidence",
+      "owner_id": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-claimant",
+      "due_date": "2026-09-24",
+      "status": "in_progress",
+      "created_at": "1789900734817",
+      "evidence_json": {
+        "action": "start",
+        "reason": "Begin resolution after withdrawing obsolete simulated evidence",
+        "expectedVersion": 3
+      }
+    },
+    {
+      "id": "ticket-event-87ee08c0-d92b-478b-8ec6-9761b231cf5c",
+      "ticket_id": "ticket-cfcb4fc6-e202-41d9-af66-f293bd5e6ebc",
+      "version": "5",
+      "action": "resolve",
+      "actor_id": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-claimant",
+      "reason": "Simulated text resolution supplied; obsolete file remains withdrawn in history. Await independent customer confirmation review.",
+      "owner_id": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-claimant",
+      "due_date": "2026-09-24",
+      "status": "resolved",
+      "created_at": "1789900782050",
+      "evidence_json": {
+        "action": "resolve",
+        "reason": "Simulated text resolution supplied; obsolete file remains withdrawn in history. Await independent customer confirmation review.",
+        "expectedVersion": 4
+      }
+    }
+  ],
+  "files": [
+    {
+      "id": "attachment-4d58035b-36fd-49dc-94d4-7ca623876df8",
+      "owner_type": "support_ticket",
+      "owner_id": "ticket-cfcb4fc6-e202-41d9-af66-f293bd5e6ebc",
+      "original_name": "support-evidence-browser.csv",
+      "media_type": "text/csv",
+      "bytes": "70",
+      "checksum_sha256": "bc93ecf796b0176f787aa7ffa03be2b9437f0d93d8b9719f2b88789ed45c8fd5",
+      "created_by": "expense-8803d4ca-2c93-4ce4-b84a-73e69bfec497-claimant",
+      "created_at": "1789900685356",
+      "revoked_at": "1789900707570"
+    }
+  ],
+  "uploadedFixtureChecksum": "bc93ecf796b0176f787aa7ffa03be2b9437f0d93d8b9719f2b88789ed45c8fd5",
+  "source": [
+    {
+      "id": "order-38c90e09-8f45-4e02-a54a-23858a5145c3",
+      "kind": "quote",
+      "state": "draft",
+      "version": "1",
+      "party_id": "parties-37510320-2803-484c-8423-eca996b8c2ca",
+      "currency": "THB"
+    }
+  ],
+  "migration": [
+    {
+      "name": "0220_support_evidence.sql",
+      "checksum": "53385d8859dfda8c1d8854058b5439c96467b1e74805fab5a1db3735c93baa25"
+    }
+  ],
+  "sourceHashes": {
+    "src/server/support-evidence.ts": "bf008adcc55c15e627c64370c1c1c459026de8bdd8fb331eb4b601289bace9e7",
+    "src/components/modules/support-evidence-console.tsx": "7cadd9aada5fb8b2c69668a11000db9b0d5b4b50d60d1a55dcb3237c7cba6c29",
+    "src/app/api/v1/holdings/[holdingSlug]/uploads/route.ts": "26d5a7d23d960072cdfc6596215bfb7e2f9e26b6b4739a0f6040e0a9616bcad4",
+    "src/app/api/v1/holdings/[holdingSlug]/uploads/[id]/content/route.ts": "60c090134cc338efee650bcf011105ac206c25a5dd516c2e8948dc35446245b4",
+    "src/app/api/v1/holdings/[holdingSlug]/attachments/[id]/content/route.ts": "242fea475ebaf688cbf5b97cc9280cf95fb23f76e4407650c53cf5aa077d4a13",
+    "migrations/postgres/holding-write/0220_support_evidence.sql": "53385d8859dfda8c1d8854058b5439c96467b1e74805fab5a1db3735c93baa25"
+  }
+}

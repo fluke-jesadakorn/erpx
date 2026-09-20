@@ -1,0 +1,1390 @@
+[
+  {
+    "id": "pos-products-menu",
+    "title": "Products & menu",
+    "page": "pos-sale",
+    "columns": 6
+  },
+  {
+    "id": "pos-open-sales",
+    "title": "Open sales",
+    "page": "pos-sale",
+    "columns": 12
+  },
+  {
+    "id": "pos-search-receipts",
+    "title": "Search receipts",
+    "page": "pos-history",
+    "columns": 12
+  },
+  {
+    "id": "pos-refund-requests",
+    "title": "Refund requests",
+    "page": "pos-history",
+    "columns": 12
+  },
+  {
+    "id": "pos-open-cash-session",
+    "title": "Open cash session",
+    "page": "pos-shifts",
+    "columns": 12
+  },
+  {
+    "id": "pos-sales-by-date-and-register",
+    "title": "Sales by date and register",
+    "page": "pos-reports",
+    "columns": 12
+  },
+  {
+    "id": "pos-cash-received-by-method-and-cash-session",
+    "title": "Cash received by method and cash session",
+    "page": "pos-reports",
+    "columns": 12
+  },
+  {
+    "id": "pos-stripe-funds-fees-and-disputes",
+    "title": "Stripe · Funds, fees and disputes",
+    "page": "pos-reports",
+    "columns": 12
+  },
+  {
+    "id": "pos-company-stripe",
+    "title": "Company Stripe",
+    "page": "pos-settings",
+    "columns": 12,
+    "permission": "pos.payments.configure"
+  },
+  {
+    "id": "pos-products-menus-recipes",
+    "title": "Products, menus & recipes",
+    "page": "pos-settings",
+    "columns": 6,
+    "permission": "pos.configure"
+  },
+  {
+    "id": "pos-pos-accounting-policy",
+    "title": "POS accounting & policy",
+    "page": "pos-settings",
+    "columns": 12,
+    "permission": "pos.configure"
+  },
+  {
+    "id": "pos-add-register",
+    "title": "Add register",
+    "page": "pos-settings",
+    "columns": 12,
+    "permission": "pos.configure"
+  },
+  {
+    "id": "pos-add-table",
+    "title": "Add table",
+    "page": "pos-settings",
+    "columns": 12,
+    "permission": "pos.configure"
+  },
+  {
+    "id": "current-profiles",
+    "title": "Current profiles",
+    "page": "people-directory",
+    "columns": 12
+  },
+  {
+    "id": "archived-profiles",
+    "title": "Archived profiles",
+    "page": "people-directory",
+    "columns": 12
+  },
+  {
+    "id": "people-explorer",
+    "title": "People explorer",
+    "page": "people-directory",
+    "permission": "iam.read",
+    "columns": 12
+  },
+  {
+    "id": "person-profile",
+    "title": "Profile",
+    "page": "people-directory-detail",
+    "columns": 12
+  },
+  {
+    "id": "person-work",
+    "title": "Work history",
+    "page": "people-directory-detail",
+    "columns": 12
+  },
+  {
+    "id": "organization-organizationchart",
+    "title": "Reporting chart",
+    "page": "people-organization",
+    "columns": 12
+  },
+  {
+    "id": "organization-positionpreparation",
+    "title": "Position preparation",
+    "page": "people-organization",
+    "columns": 12
+  },
+  {
+    "id": "organization-spendingtemplateeditor",
+    "title": "Spending approvals",
+    "page": "people-organization",
+    "columns": 12,
+    "permission": "organization.manage"
+  },
+  {
+    "id": "organization-templateeditor",
+    "title": "Organization templates",
+    "page": "people-organization",
+    "columns": 12,
+    "permission": "organization.manage"
+  },
+  {
+    "id": "roster-mine",
+    "title": "My shifts",
+    "page": "people-roster",
+    "columns": 12
+  },
+  {
+    "id": "roster-team",
+    "title": "Team roster",
+    "page": "people-roster",
+    "columns": 12
+  },
+  {
+    "id": "roster-requests",
+    "title": "Requests",
+    "page": "people-roster",
+    "columns": 12
+  },
+  {
+    "id": "roster-templates",
+    "title": "Shift templates",
+    "page": "people-roster",
+    "columns": 12,
+    "permission": "roster.manage"
+  },
+  {
+    "id": "templates",
+    "title": "Templates & lifecycle handoff",
+    "page": "people-settings",
+    "columns": 12,
+    "permission": "organization.manage"
+  },
+  {
+    "id": "attributes",
+    "title": "Custom attributes",
+    "page": "people-settings",
+    "columns": 12,
+    "permission": "iam.read"
+  },
+  {
+    "id": "roles",
+    "title": "Roles",
+    "page": "technology-roles",
+    "columns": 12
+  },
+  {
+    "id": "matrix",
+    "title": "Access matrix",
+    "page": "technology-roles",
+    "columns": 12
+  },
+  {
+    "id": "connections",
+    "title": "Connections",
+    "page": "technology-connections",
+    "columns": 12
+  },
+  {
+    "id": "reviews",
+    "title": "Reviews",
+    "page": "technology-reviews",
+    "columns": 12
+  },
+  {
+    "id": "groups",
+    "title": "Groups",
+    "page": "technology-groups",
+    "columns": 12
+  },
+  {
+    "id": "my-access",
+    "title": "My-access",
+    "page": "technology-my-access",
+    "columns": 12
+  },
+  {
+    "id": "overview",
+    "title": "Overview",
+    "page": "technology-overview",
+    "columns": 12
+  },
+  {
+    "id": "policies",
+    "title": "Access & Windows policies",
+    "page": "technology-groups",
+    "columns": 12
+  },
+  {
+    "id": "commerce-orders-detail-order-lines",
+    "title": "Order lines",
+    "page": "commerce-orders-detail",
+    "columns": 12
+  },
+  {
+    "id": "commerce-orders-detail-order-details",
+    "title": "Order details",
+    "page": "commerce-orders-detail",
+    "columns": 12
+  },
+  {
+    "id": "commerce-orders-detail-receipts-deliveries-and-invoices",
+    "title": "Receipts, deliveries and invoices",
+    "page": "commerce-orders-detail",
+    "columns": 12
+  },
+  {
+    "id": "commerce-orders-detail-audit-trail",
+    "title": "Audit trail",
+    "page": "commerce-orders-detail",
+    "columns": 12
+  },
+  {
+    "id": "operations-sales-approved-request",
+    "title": "Approved request",
+    "page": "operations-sales",
+    "columns": 12
+  },
+  {
+    "id": "operations-sales-order-details",
+    "title": "Order details",
+    "page": "operations-sales",
+    "columns": 12
+  },
+  {
+    "id": "people-settings-people-access",
+    "title": "People & access",
+    "page": "people-settings",
+    "columns": 12
+  },
+  {
+    "id": "people-settings-organization-chart-and-positions",
+    "title": "Organization chart and positions",
+    "page": "people-settings",
+    "columns": 12
+  },
+  {
+    "id": "people-settings-branches",
+    "title": "Branches",
+    "page": "people-settings",
+    "columns": 12
+  },
+  {
+    "id": "people-settings-staff-levels-and-department-heads",
+    "title": "Staff levels and department heads",
+    "page": "people-settings",
+    "columns": 12
+  },
+  {
+    "id": "people-settings-routines",
+    "title": "Routines",
+    "page": "people-settings",
+    "columns": 12
+  },
+  {
+    "id": "work-original-approval-history",
+    "title": "Original approval history",
+    "page": "tasks-people-payroll-detail",
+    "columns": 12
+  },
+  {
+    "id": "work-leave-request",
+    "title": "Leave request",
+    "page": "tasks-people-payroll-detail",
+    "columns": 12
+  },
+  {
+    "id": "work-request-details",
+    "title": "Request details",
+    "page": "tasks-people-payroll-detail",
+    "columns": 12
+  },
+  {
+    "id": "work-private-supporting-evidence",
+    "title": "Private supporting evidence",
+    "page": "tasks-people-payroll-detail",
+    "columns": 12
+  },
+  {
+    "id": "staff-tasks-detail-task-instructions",
+    "title": "Task instructions",
+    "page": "staff-tasks-detail",
+    "columns": 12
+  },
+  {
+    "id": "staff-tasks-detail-record-information",
+    "title": "Record information",
+    "page": "staff-tasks-detail",
+    "columns": 12
+  },
+  {
+    "id": "expenses-detail-business-purpose",
+    "title": "Business purpose",
+    "page": "expenses-detail",
+    "columns": 12
+  },
+  {
+    "id": "expenses-detail-expense-details",
+    "title": "Expense details",
+    "page": "expenses-detail",
+    "columns": 12
+  },
+  {
+    "id": "expenses-detail-reimbursements",
+    "title": "Reimbursements",
+    "page": "expenses-detail",
+    "columns": 12
+  },
+  {
+    "id": "expenses-detail-review-decisions",
+    "title": "Review decisions",
+    "page": "expenses-detail",
+    "columns": 12
+  },
+  {
+    "id": "expenses-detail-activity",
+    "title": "Activity",
+    "page": "expenses-detail",
+    "columns": 12
+  },
+  {
+    "id": "projects-detail-project-tasks",
+    "title": "Project tasks",
+    "page": "projects-detail",
+    "columns": 12
+  },
+  {
+    "id": "projects-list-your-projects",
+    "title": "Your projects",
+    "page": "projects-list",
+    "columns": 12
+  },
+  {
+    "id": "stock-transfers-detail-transfer-quantities-and-valuation",
+    "title": "Transfer quantities and valuation",
+    "page": "stock-transfers-detail",
+    "columns": 12
+  },
+  {
+    "id": "stock-transfers-detail-receipt-and-review-decisions",
+    "title": "Receipt and review decisions",
+    "page": "stock-transfers-detail",
+    "columns": 12
+  },
+  {
+    "id": "stock-transfers-detail-activity",
+    "title": "Activity",
+    "page": "stock-transfers-detail",
+    "columns": 12
+  },
+  {
+    "id": "requests-detail-purchase-progress",
+    "title": "Purchase progress",
+    "page": "requests-detail",
+    "columns": 12
+  },
+  {
+    "id": "requests-detail-request-details",
+    "title": "Request details",
+    "page": "requests-detail",
+    "columns": 12
+  },
+  {
+    "id": "requests-detail-latest-message",
+    "title": "Latest message",
+    "page": "requests-detail",
+    "columns": 12
+  },
+  {
+    "id": "requests-detail-purchasing-handoff",
+    "title": "Purchasing handoff",
+    "page": "requests-detail",
+    "columns": 12
+  },
+  {
+    "id": "requests-detail-related-requests",
+    "title": "Related requests",
+    "page": "requests-detail",
+    "columns": 12
+  },
+  {
+    "id": "handbook-detail-revision-history",
+    "title": "Revision history",
+    "page": "handbook-detail",
+    "columns": 12
+  },
+  {
+    "id": "work-expense-details",
+    "title": "Expense details",
+    "page": "work",
+    "columns": 12
+  },
+  {
+    "id": "finance-ledger-journal-entry",
+    "title": "Journal entry",
+    "page": "finance-ledger",
+    "columns": 12
+  },
+  {
+    "id": "finance-ledger-opening-balances",
+    "title": "Opening balances",
+    "page": "finance-ledger",
+    "columns": 12
+  },
+  {
+    "id": "finance-ledger-journals",
+    "title": "Journals",
+    "page": "finance-ledger",
+    "columns": 12
+  },
+  {
+    "id": "finance-ledger-trial-balance",
+    "title": "Trial balance ·",
+    "page": "finance-ledger",
+    "columns": 12
+  },
+  {
+    "id": "finance-invoices-detail-invoice-details",
+    "title": "Invoice details",
+    "page": "finance-invoices-detail",
+    "columns": 12
+  },
+  {
+    "id": "finance-invoices-invoice-details",
+    "title": "Invoice details",
+    "page": "finance-invoices",
+    "columns": 12
+  },
+  {
+    "id": "finance-bank-import-statement",
+    "title": "Import statement",
+    "page": "finance-bank",
+    "columns": 12
+  },
+  {
+    "id": "finance-bank-statements",
+    "title": "Statements",
+    "page": "finance-bank",
+    "columns": 12
+  },
+  {
+    "id": "overtime-setup-needs-attention",
+    "title": "Setup needs attention",
+    "page": "overtime",
+    "columns": 12
+  },
+  {
+    "id": "overtime-requests-history",
+    "title": "Requests & history",
+    "page": "overtime",
+    "columns": 12
+  },
+  {
+    "id": "stock-counts-detail-counted-quantities-and-valuation",
+    "title": "Counted quantities and valuation",
+    "page": "stock-counts-detail",
+    "columns": 12
+  },
+  {
+    "id": "stock-counts-detail-review-decisions",
+    "title": "Review decisions",
+    "page": "stock-counts-detail",
+    "columns": 12
+  },
+  {
+    "id": "stock-counts-detail-activity",
+    "title": "Activity",
+    "page": "stock-counts-detail",
+    "columns": 12
+  },
+  {
+    "id": "projects-routines-company-templates",
+    "title": "Company templates",
+    "page": "projects-routines",
+    "columns": 12
+  },
+  {
+    "id": "account-my-access-no-assignments-yet",
+    "title": "No assignments yet",
+    "page": "account-my-access",
+    "columns": 12
+  },
+  {
+    "id": "pms-set-up-your-first-hotel",
+    "title": "Set up your first hotel",
+    "page": "pms-dashboard",
+    "columns": 12
+  },
+  {
+    "id": "pms-room-status",
+    "title": "Room status",
+    "page": "pms-dashboard",
+    "columns": 12
+  },
+  {
+    "id": "pms-today-s-work",
+    "title": "Today's work",
+    "page": "pms-dashboard",
+    "columns": 12
+  },
+  {
+    "id": "pms-availability-by-room-type",
+    "title": "Availability by room type",
+    "page": "pms-reservations",
+    "columns": 12
+  },
+  {
+    "id": "pms-room-reservations",
+    "title": "Room reservations",
+    "page": "pms-reservations",
+    "columns": 12
+  },
+  {
+    "id": "pms-reservations",
+    "title": "Reservations",
+    "page": "pms-reservations",
+    "columns": 12
+  },
+  {
+    "id": "pms-front-office",
+    "title": "Front Office",
+    "page": "pms-front-desk",
+    "columns": 12
+  },
+  {
+    "id": "pms-tasks",
+    "title": "Tasks",
+    "page": "pms-dashboard",
+    "columns": 12
+  },
+  {
+    "id": "pms-rooms-under-maintenance",
+    "title": "Rooms under maintenance",
+    "page": "pms-dashboard",
+    "columns": 12
+  },
+  {
+    "id": "pms-guest-folio",
+    "title": "Guest folio",
+    "page": "pms-folios",
+    "columns": 12
+  },
+  {
+    "id": "pms-refunds-credit",
+    "title": "Refunds & credit",
+    "page": "pms-folios",
+    "columns": 12
+  },
+  {
+    "id": "pms-documents",
+    "title": "Documents",
+    "page": "pms-folios",
+    "columns": 12
+  },
+  {
+    "id": "pms-cashier-shifts",
+    "title": "Cashier shifts",
+    "page": "pms-cashier",
+    "columns": 12
+  },
+  {
+    "id": "pms-minibar-supplies-linen",
+    "title": "Minibar, supplies & linen",
+    "page": "pms-inventory",
+    "columns": 12
+  },
+  {
+    "id": "pms-lost-found",
+    "title": "Lost & found",
+    "page": "pms-inventory",
+    "columns": 12
+  },
+  {
+    "id": "pms-movement-history",
+    "title": "Movement history",
+    "page": "pms-inventory",
+    "columns": 12
+  },
+  {
+    "id": "pms-guest-directory",
+    "title": "Guest directory",
+    "page": "pms-guests",
+    "columns": 12
+  },
+  {
+    "id": "pms-night-audit",
+    "title": "Night Audit",
+    "page": "pms-night-audit",
+    "columns": 12
+  },
+  {
+    "id": "pms-daily-performance",
+    "title": "Daily performance",
+    "page": "pms-reports",
+    "columns": 12
+  },
+  {
+    "id": "pms-pms-vs-gl",
+    "title": "PMS vs GL",
+    "page": "pms-reports",
+    "columns": 12
+  },
+  {
+    "id": "pms-receivables-balances",
+    "title": "Receivables & balances",
+    "page": "pms-reports",
+    "columns": 12
+  },
+  {
+    "id": "pms-booking-email-delivery",
+    "title": "Booking email delivery",
+    "page": "pms-settings",
+    "columns": 12
+  },
+  {
+    "id": "pms-hotel-details",
+    "title": "Hotel details",
+    "page": "pms-settings",
+    "columns": 12
+  },
+  {
+    "id": "pms-room-types",
+    "title": "Room types",
+    "page": "pms-settings",
+    "columns": 12
+  },
+  {
+    "id": "pms-rooms",
+    "title": "Rooms",
+    "page": "pms-settings",
+    "columns": 12
+  },
+  {
+    "id": "pms-rate-plans",
+    "title": "Rate plans",
+    "page": "pms-settings",
+    "columns": 12
+  },
+  {
+    "id": "pms-accounting-tax",
+    "title": "Accounting & tax",
+    "page": "pms-settings",
+    "columns": 12
+  },
+  {
+    "id": "pms-rooms-readiness",
+    "title": "Rooms & readiness",
+    "page": "pms-rooms",
+    "columns": 12
+  },
+  {
+    "id": "pms-housekeeping",
+    "title": "Housekeeping",
+    "page": "pms-housekeeping",
+    "columns": 12
+  },
+  {
+    "id": "billing-overview",
+    "title": "Overview",
+    "page": "administration-usage",
+    "columns": 12
+  },
+  {
+    "id": "billing-overview",
+    "title": "Overview",
+    "page": "platform-billing",
+    "columns": 12
+  },
+  {
+    "id": "billing-plans",
+    "title": "Plans",
+    "page": "administration-usage",
+    "columns": 12
+  },
+  {
+    "id": "billing-plans",
+    "title": "Plans",
+    "page": "platform-billing",
+    "columns": 12
+  },
+  {
+    "id": "billing-invoices",
+    "title": "Costs & invoices",
+    "page": "administration-usage",
+    "columns": 12
+  },
+  {
+    "id": "billing-invoices",
+    "title": "Costs & invoices",
+    "page": "platform-billing",
+    "columns": 12
+  },
+  {
+    "id": "billing-payment",
+    "title": "Payment",
+    "page": "administration-usage",
+    "columns": 12
+  },
+  {
+    "id": "billing-payment",
+    "title": "Payment",
+    "page": "platform-billing",
+    "columns": 12
+  },
+  {
+    "id": "billing-history",
+    "title": "History & changes",
+    "page": "administration-usage",
+    "columns": 12
+  },
+  {
+    "id": "billing-history",
+    "title": "History & changes",
+    "page": "platform-billing",
+    "columns": 12
+  },
+  {
+    "id": "inbox-unread",
+    "title": "Unread",
+    "page": "inbox-updates"
+  },
+  {
+    "id": "inbox-all",
+    "title": "All",
+    "page": "inbox-updates"
+  },
+  {
+    "id": "executive-mine",
+    "title": "Mine reports",
+    "page": "executive"
+  },
+  {
+    "id": "executive-shared",
+    "title": "Shared reports",
+    "page": "executive"
+  },
+  {
+    "id": "inbox-conversations",
+    "title": "Messages",
+    "page": "inbox-chats"
+  },
+  {
+    "id": "inbox-conversations",
+    "title": "Teams",
+    "page": "inbox-teams"
+  },
+  {
+    "id": "leave-balances",
+    "title": "Balances",
+    "page": "leave"
+  },
+  {
+    "id": "leave-upcoming-pending",
+    "title": "Upcoming & pending",
+    "page": "leave"
+  },
+  {
+    "id": "leave-policy-holidays",
+    "title": "Policy & holidays",
+    "page": "leave"
+  },
+  {
+    "id": "leave-request-history",
+    "title": "Request history",
+    "page": "leave"
+  },
+  {
+    "id": "work-queue",
+    "title": "Work queue",
+    "page": "work"
+  },
+  {
+    "id": "pos-new-sale",
+    "title": "New sale",
+    "page": "pos-sale"
+  },
+  {
+    "id": "pos-cart-payment",
+    "title": "Cart & payment",
+    "page": "pos-sale"
+  },
+  {
+    "id": "operations-sales-approved-request",
+    "title": "Approved request",
+    "page": "operations-quotations",
+    "columns": 12
+  },
+  {
+    "id": "operations-sales-order-details",
+    "title": "Order details",
+    "page": "operations-quotations",
+    "columns": 12
+  },
+  {
+    "id": "operations-sales-approved-request",
+    "title": "Approved request",
+    "page": "operations-purchasing",
+    "columns": 12
+  },
+  {
+    "id": "operations-sales-order-details",
+    "title": "Order details",
+    "page": "operations-purchasing",
+    "columns": 12
+  },
+  {
+    "id": "operations-sales-stock-on-hand",
+    "title": "Stock on hand",
+    "page": "operations-stock",
+    "columns": 12
+  },
+  {
+    "id": "operations-sales-movement-history",
+    "title": "Movement history",
+    "page": "operations-stock",
+    "columns": 12
+  },
+  {
+    "id": "operations-sales-new-entry",
+    "title": "New entry",
+    "page": "operations-products",
+    "columns": 12
+  },
+  {
+    "id": "operations-sales-new-entry",
+    "title": "New entry",
+    "page": "operations-warehouses",
+    "columns": 12
+  },
+  {
+    "id": "operations-sales-new-entry",
+    "title": "New entry",
+    "page": "operations-parties",
+    "columns": 12
+  },
+  {
+    "id": "home-schedule",
+    "title": "Your next shift",
+    "page": "home",
+    "columns": 4
+  },
+  {
+    "id": "home-attention",
+    "title": "Needs your attention",
+    "page": "home",
+    "columns": 4
+  },
+  {
+    "id": "home-requests",
+    "title": "My requests",
+    "page": "home",
+    "columns": 4
+  },
+  {
+    "id": "home-feed",
+    "title": "Feed",
+    "page": "home",
+    "columns": 12
+  },
+  {
+    "id": "person-pay",
+    "title": "Pay & time",
+    "page": "people-directory-detail"
+  },
+  {
+    "id": "person-access",
+    "title": "Login & access",
+    "page": "people-directory-detail"
+  },
+  {
+    "id": "person-lifecycle",
+    "title": "Lifecycle",
+    "page": "people-directory-detail",
+    "permission": "people.manage"
+  },
+  {
+    "id": "learn-open-the-work-ask-what-comes-next-",
+    "title": "Open the work. Ask what comes next.",
+    "page": "learn"
+  },
+  {
+    "id": "learn-choose-your-workflow",
+    "title": "Choose your workflow",
+    "page": "learn"
+  },
+  {
+    "id": "learn-published-knowledge",
+    "title": "Published knowledge",
+    "page": "learn"
+  },
+  {
+    "id": "finance-overview-finance-work-queues",
+    "title": "Finance work queues",
+    "page": "finance-overview"
+  },
+  {
+    "id": "finance-overview-finance-health",
+    "title": "Finance health",
+    "page": "finance-overview"
+  },
+  {
+    "id": "finance-overview-recent-invoices",
+    "title": "Recent invoices",
+    "page": "finance-overview"
+  },
+  {
+    "id": "finance-expenses-expense-claims",
+    "title": "Expense claims",
+    "page": "finance-expenses"
+  },
+  {
+    "id": "operations-counts-count-register",
+    "title": "Count register",
+    "page": "operations-counts"
+  },
+  {
+    "id": "operations-transfers-transfer-register",
+    "title": "Transfer register",
+    "page": "operations-transfers"
+  },
+  {
+    "id": "handbook-published",
+    "title": "Published knowledge",
+    "page": "handbook"
+  },
+  {
+    "id": "handbook-drafts",
+    "title": "Drafts & editing",
+    "page": "handbook"
+  },
+  {
+    "id": "handbook-editors",
+    "title": "Editorial access",
+    "page": "handbook"
+  },
+  {
+    "id": "iam-overview",
+    "title": "Overview",
+    "page": "platform-iam-overview"
+  },
+  {
+    "id": "iam-users",
+    "title": "Users",
+    "page": "platform-iam-users"
+  },
+  {
+    "id": "iam-roles",
+    "title": "Roles",
+    "page": "platform-iam-roles"
+  },
+  {
+    "id": "iam-matrix",
+    "title": "Matrix",
+    "page": "platform-iam-matrix"
+  },
+  {
+    "id": "iam-groups",
+    "title": "Groups",
+    "page": "platform-iam-groups"
+  },
+  {
+    "id": "iam-connections",
+    "title": "Connections",
+    "page": "platform-iam-connections"
+  },
+  {
+    "id": "iam-reviews",
+    "title": "Reviews",
+    "page": "platform-iam-reviews"
+  },
+  {
+    "id": "iam-my-access",
+    "title": "My-Access",
+    "page": "platform-iam-my-access"
+  },
+  {
+    "id": "platform-workspaces",
+    "title": "Business workspaces",
+    "page": "platform-home"
+  },
+  {
+    "id": "account-security-controls",
+    "title": "Account security",
+    "page": "account-security"
+  },
+  {
+    "id": "platform-preview",
+    "title": "Work",
+    "page": "platform-work"
+  },
+  {
+    "id": "platform-preview",
+    "title": "Feed",
+    "page": "platform-feed"
+  },
+  {
+    "id": "platform-preview",
+    "title": "Inbox",
+    "page": "platform-inbox"
+  },
+  {
+    "id": "platform-preview",
+    "title": "Learn",
+    "page": "platform-learn"
+  },
+  {
+    "id": "platform-tasks-overview-preview",
+    "title": "Preview",
+    "page": "platform-tasks-overview"
+  },
+  {
+    "id": "handbook-detail-article",
+    "title": "Article",
+    "page": "handbook-detail"
+  },
+  {
+    "id": "operations-transfers-warehouse-transfer",
+    "title": "Warehouse transfer",
+    "page": "operations-transfers"
+  },
+  {
+    "id": "staff-tasks-detail-completion-note",
+    "title": "Completion note",
+    "page": "staff-tasks-detail"
+  },
+  {
+    "id": "operations-counts-stock-count",
+    "title": "Stock count",
+    "page": "operations-counts"
+  },
+  {
+    "id": "leave-detail-leave-request",
+    "title": "Leave request",
+    "page": "leave-detail"
+  },
+  {
+    "id": "pms-folios-document",
+    "title": "Document",
+    "page": "pms-documents-detail"
+  },
+  {
+    "id": "stock-transfers-detail-warehouse-transfer",
+    "title": "Warehouse transfer",
+    "page": "stock-transfers-detail"
+  },
+  {
+    "id": "stock-counts-detail-stock-count",
+    "title": "Stock count",
+    "page": "stock-counts-detail"
+  },
+  {
+    "id": "work-stock-count",
+    "title": "Stock count",
+    "page": "work"
+  },
+  {
+    "id": "work-warehouse-transfer",
+    "title": "Warehouse transfer",
+    "page": "work"
+  },
+  {
+    "id": "finance-ledger-accounting-periods",
+    "title": "Accounting periods",
+    "page": "finance-ledger"
+  },
+  {
+    "id": "finance-payments-detail-payment-correction",
+    "title": "Payment correction",
+    "page": "finance-payments-detail"
+  },
+  {
+    "id": "finance-payments-detail-correction-evidence",
+    "title": "Correction evidence",
+    "page": "finance-payments-detail"
+  },
+  {
+    "id": "commerce-orders-detail-returns-and-adjustments",
+    "title": "Returns and adjustments",
+    "page": "commerce-orders-detail"
+  },
+  {
+    "id": "people-payroll-detail-calculation-policy",
+    "title": "Calculation policy",
+    "page": "people-payroll-detail"
+  },
+  {
+    "id": "payroll-pay-group-policy",
+    "title": "Pay group policy",
+    "page": "people-payroll"
+  },
+  {
+    "id": "finance-journals-detail-journal-actions",
+    "title": "Journal actions",
+    "page": "finance-journals-detail"
+  },
+  {
+    "id": "finance-journals-detail-journal-lines",
+    "title": "Journal lines",
+    "page": "finance-journals-detail"
+  },
+  {
+    "id": "finance-bank-transactions-and-matches",
+    "title": "Transactions and matches",
+    "page": "finance-bank"
+  },
+  {
+    "id": "finance-invoices-detail-allocations",
+    "title": "Allocations",
+    "page": "finance-invoices-detail"
+  },
+  {
+    "id": "people-clearance-detail-clearance",
+    "title": "Clearance",
+    "page": "people-clearance-detail"
+  },
+  {
+    "id": "finance-payments-detail-payment-details",
+    "title": "Payment details",
+    "page": "finance-payments-detail"
+  },
+  {
+    "id": "finance-payments-detail-invoice-allocations",
+    "title": "Invoice allocations",
+    "page": "finance-payments-detail"
+  },
+  {
+    "id": "people-payroll-detail-calculated-items",
+    "title": "Calculated items",
+    "page": "people-payroll-detail"
+  },
+  {
+    "id": "pos-kitchen-queue",
+    "title": "Kitchen queue",
+    "page": "pos-kitchen"
+  },
+  {
+    "id": "payroll-runs",
+    "title": "Recent payroll runs",
+    "page": "people-payroll"
+  },
+  {
+    "id": "payroll-new-run",
+    "title": "Create payroll run",
+    "page": "people-payroll"
+  },
+  {
+    "id": "overtime-request",
+    "title": "Overtime request",
+    "page": "overtime-detail"
+  },
+  {
+    "id": "access-packages",
+    "title": "Access packages",
+    "page": "technology-packages"
+  },
+  {
+    "id": "device-preparation",
+    "title": "Preparation tasks",
+    "page": "technology-devices"
+  },
+  {
+    "id": "directory-inventory",
+    "title": "Device inventory",
+    "page": "technology-devices"
+  },
+  {
+    "id": "directory-groups",
+    "title": "Directory groups",
+    "page": "technology-groups"
+  },
+  {
+    "id": "directory-gpo",
+    "title": "Windows policies",
+    "page": "technology-groups"
+  },
+  {
+    "id": "directory-mappings",
+    "title": "Directory mappings",
+    "page": "technology-groups"
+  },
+  {
+    "id": "leave-leave-types-evidence-requirements",
+    "title": "Leave types & evidence requirements",
+    "page": "people-settings",
+    "permission": "leave.policy.manage"
+  },
+  {
+    "id": "leave-policy-versions-grants-accruals",
+    "title": "Policy versions, grants & accruals",
+    "page": "people-settings",
+    "permission": "leave.policy.manage"
+  },
+  {
+    "id": "leave-holiday-calendars",
+    "title": "Holiday calendars",
+    "page": "people-settings",
+    "permission": "leave.policy.manage"
+  },
+  {
+    "id": "leave-assign-policy-to-staff",
+    "title": "Assign policy to staff",
+    "page": "people-settings",
+    "permission": "leave.policy.manage"
+  },
+  {
+    "id": "leave-entitlement-adjustments",
+    "title": "Entitlement adjustments",
+    "page": "people-settings",
+    "permission": "leave.policy.manage"
+  },
+  {
+    "id": "leave-overtime-eligibility",
+    "title": "Overtime eligibility",
+    "page": "people-settings",
+    "permission": "leave.policy.manage"
+  },
+  {
+    "id": "leave-policy-assignments",
+    "title": "Policy assignments",
+    "page": "people-settings",
+    "permission": "leave.policy.manage"
+  },
+  {
+    "id": "account-roles",
+    "title": "Roles & permissions",
+    "page": "account-my-access"
+  },
+  {
+    "id": "routine-template",
+    "title": "Routine template",
+    "page": "routine-templates-detail"
+  },
+  {
+    "id": "routine-schedule",
+    "title": "Schedule",
+    "page": "routine-templates-detail"
+  },
+  {
+    "id": "commerce-records",
+    "title": "Sales orders",
+    "page": "operations-sales"
+  },
+  {
+    "id": "commerce-records",
+    "title": "Quotations",
+    "page": "operations-quotations"
+  },
+  {
+    "id": "commerce-records",
+    "title": "Purchase orders",
+    "page": "operations-purchasing"
+  },
+  {
+    "id": "commerce-records",
+    "title": "Products",
+    "page": "operations-products"
+  },
+  {
+    "id": "commerce-records",
+    "title": "Warehouses",
+    "page": "operations-warehouses"
+  },
+  {
+    "id": "commerce-records",
+    "title": "Customers & suppliers",
+    "page": "operations-parties"
+  },
+  {
+    "id": "work-draft",
+    "title": "New work",
+    "page": "work-create"
+  },
+  {
+    "id": "organization-positions",
+    "title": "Positions",
+    "page": "people-organization"
+  },
+  {
+    "id": "pms-set-up-your-first-hotel",
+    "title": "Set up your first hotel",
+    "page": "pms-cashier",
+    "columns": 12
+  },
+  {
+    "id": "pms-set-up-your-first-hotel",
+    "title": "Set up your first hotel",
+    "page": "pms-folios",
+    "columns": 12
+  },
+  {
+    "id": "pms-set-up-your-first-hotel",
+    "title": "Set up your first hotel",
+    "page": "pms-front-desk",
+    "columns": 12
+  },
+  {
+    "id": "pms-set-up-your-first-hotel",
+    "title": "Set up your first hotel",
+    "page": "pms-guests",
+    "columns": 12
+  },
+  {
+    "id": "pms-set-up-your-first-hotel",
+    "title": "Set up your first hotel",
+    "page": "pms-housekeeping",
+    "columns": 12
+  },
+  {
+    "id": "pms-set-up-your-first-hotel",
+    "title": "Set up your first hotel",
+    "page": "pms-inventory",
+    "columns": 12
+  },
+  {
+    "id": "pms-set-up-your-first-hotel",
+    "title": "Set up your first hotel",
+    "page": "pms-night-audit",
+    "columns": 12
+  },
+  {
+    "id": "pms-set-up-your-first-hotel",
+    "title": "Set up your first hotel",
+    "page": "pms-reports",
+    "columns": 12
+  },
+  {
+    "id": "pms-set-up-your-first-hotel",
+    "title": "Set up your first hotel",
+    "page": "pms-reservations",
+    "columns": 12
+  },
+  {
+    "id": "pms-set-up-your-first-hotel",
+    "title": "Set up your first hotel",
+    "page": "pms-rooms",
+    "columns": 12
+  },
+  {
+    "id": "pms-set-up-your-first-hotel",
+    "title": "Set up your first hotel",
+    "page": "pms-settings",
+    "columns": 12
+  },
+  {
+    "id": "commerce-orders-detail-stock-reservations",
+    "title": "Stock reservation history",
+    "page": "commerce-orders-detail",
+    "columns": 12
+  }
+]

@@ -1,5 +1,6 @@
 import { Pool, types, type PoolClient, type PoolConfig, type QueryResult } from 'pg';
 import type { SqlDatabase, SqlResult, SqlStatement } from './types';
+import { currentReadMetrics } from './read-metrics';
 
 // The business API uses exact safe integers and serialized JSON. Reject overflow,
 // rather than silently rounding PostgreSQL bigint/numeric values.
@@ -45,10 +46,19 @@ function result<T>(query: QueryResult, start: number): SqlResult<T> {
   return { results: query.rows as T[], success: true, meta: { changes: query.rowCount ?? 0, duration: performance.now() - start } };
 }
 class Statement implements SqlStatement {
-  constructor(readonly database: PostgresDatabase, readonly sql: string, readonly args: unknown[] = []) {}
+  constructor(readonly database: { pool: Pool | PoolClient }, readonly sql: string, readonly args: unknown[] = []) {}
   bind(...args: unknown[]) { return new Statement(this.database, this.sql, args); }
   async execute(client: Pool | PoolClient): Promise<QueryResult> {
-    return client.query(parameters(this.sql, this.args.length), values(this.args));
+    const sql = parameters(this.sql, this.args.length), args = values(this.args);
+    const metrics = currentReadMetrics();
+    if (!metrics) return client.query(sql, args);
+    const started = performance.now();
+    const leased = client instanceof Pool ? await client.connect() : null;
+    metrics.poolWaitMs += performance.now() - started;
+    const execution = performance.now();
+    metrics.queries++;
+    try { return await (leased ?? client).query(sql, args); }
+    finally { metrics.queryMs += performance.now() - execution; leased?.release(); }
   }
   async all<T = Record<string, unknown>>() { const start = performance.now(); return result<T>(await this.execute(this.database.pool), start); }
   run<T = Record<string, unknown>>() { return this.all<T>(); }
@@ -71,10 +81,32 @@ export class PostgresDatabase implements SqlDatabase {
     this.pool.on('error', () => console.error(JSON.stringify({ event: 'database_connection_error' })));
   }
   prepare(sql: string) { return new Statement(this, sql); }
+  /** Reads and derived writes share the same snapshot; retry the entire calculation. */
+  async transaction<T>(action: (tx: SqlDatabase) => Promise<T>): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      const waiting = performance.now();
+      const client = await this.pool.connect();
+      const metrics = currentReadMetrics();
+      if (metrics) metrics.poolWaitMs += performance.now() - waiting;
+      try {
+        await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
+        const tx = new TransactionDatabase(client);
+        const value = await action(tx);
+        await client.query('COMMIT');
+        return value;
+      } catch (error) {
+        await client.query('ROLLBACK').catch(() => {});
+        if (attempt >= 3 || !['40001', '40P01'].includes((error as { code?: string }).code ?? '')) throw error;
+      } finally { client.release(); }
+    }
+  }
   async batch<T = Record<string, unknown>>(statements: SqlStatement[]): Promise<SqlResult<T>[]> {
     if (statements.some(s => !(s instanceof Statement) || s.database !== this)) throw new Error('CROSS_DATABASE_TRANSACTION');
     for (let attempt = 0; ; attempt++) {
+      const waiting = performance.now();
       const client = await this.pool.connect();
+      const metrics = currentReadMetrics();
+      if (metrics) metrics.poolWaitMs += performance.now() - waiting;
       try {
         await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
         const results: SqlResult<T>[] = [];
@@ -95,4 +127,23 @@ export class PostgresDatabase implements SqlDatabase {
     return { count: Array.isArray(results) ? results.length : 1, duration: performance.now() - start };
   }
   close() { return this.pool.end(); }
+}
+
+class TransactionDatabase implements SqlDatabase {
+  constructor(readonly pool: PoolClient) {}
+  prepare(sql: string) { return new Statement(this, sql); }
+  async batch<T = Record<string, unknown>>(statements: SqlStatement[]): Promise<SqlResult<T>[]> {
+    const results: SqlResult<T>[] = [];
+    for (const statement of statements) {
+      if (!(statement instanceof Statement) || statement.database !== this) throw new Error('CROSS_DATABASE_TRANSACTION');
+      const start = performance.now();
+      results.push(result<T>(await statement.execute(this.pool), start));
+    }
+    return results;
+  }
+  async exec(sql: string) {
+    const start = performance.now();
+    const queries = await this.pool.query(sql);
+    return { count: Array.isArray(queries) ? queries.length : 1, duration: performance.now() - start };
+  }
 }

@@ -1,0 +1,37 @@
+$ bun scripts/local/test.ts tests/procurement-rfqs.test.ts tests/employee-services.test.ts tests/staff-migration.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/procurement-rfqs.test.ts > compares immutable supplier offers and atomically hands an independent award to one normal draft PO 8645ms
+ ✓ tests/procurement-rfqs.test.ts > requires independent award review and a current complete offer; return preserves history and invalidates prior selection 4276ms
+ ✓ tests/procurement-rfqs.test.ts > rejects changed award terms and concurrent duplicate order handoff without leaving an orphan PO 3842ms
+ ✓ tests/procurement-rfqs.test.ts > guards scope, current role, idempotency, stale versions, expiry and incomplete quotations 1591ms
+ ✓ tests/procurement-rfqs.test.ts > routes independent review and cancellation without stock or accounting side effects 793ms
+ ✓ tests/procurement-rfqs.test.ts > keeps Inbox and Calendar within source scope and exposes missing independent reviewer coverage 2109ms
+ ✓ tests/employee-services.test.ts > allows incomplete service drafts without profiles; purchases require an engagement 4555ms
+ ✓ tests/employee-services.test.ts > routes a no-profile service request directly, without granting business or IT authority 2356ms
+ ✓ tests/employee-services.test.ts > keeps missing coverage requests and repairs routing with an audited owner reason 4872ms
+ ✓ tests/employee-services.test.ts > uses department over branch over company, preserving open routing until explicit reassignment 5733ms
+ ✓ tests/employee-services.test.ts > rejects ambiguous coverage, stale team changes, and leads without covered access 1497ms
+ ✓ tests/employee-services.test.ts > supports conversation, requester questions, resolution, reopening and explicit final confirmation 6684ms
+ ✓ tests/employee-services.test.ts > rejects revoked team access and prevents company, branch and department leakage 4352ms
+ ✓ tests/employee-services.test.ts > revalidates membership, coverage and rank snapshots in the committing transaction 2065ms
+ ✓ tests/employee-services.test.ts > requires resource profiles, but department approval does not require Accounts or Treasury 4933ms
+ ✓ tests/employee-services.test.ts > permits only one concurrent independent decision and preserves correction before resubmission 1020ms
+ ✓ tests/employee-services.test.ts > excludes the service preparer from resource approvals and cannot approve spending by closing a service job 1238ms
+ ✓ tests/employee-services.test.ts > records equipment handover separately from inventory and accounting postings 2057ms
+ ✓ tests/employee-services.test.ts > requires purchasing authority and an approved unchanged request for an atomic order handoff 25144ms
+ ✓ tests/employee-services.test.ts > uses only the active responsibility even when other grants exist 2964ms
+ ✓ tests/employee-services.test.ts > keeps handbook drafts, published revisions and search strictly separate 2708ms
+ ✓ tests/employee-services.test.ts > revokes handbook editing immediately, denies cross-company reads and rejects stale publication 4527ms
+ ✓ tests/employee-services.test.ts > retains immutable team configuration history and blocks unavailable local coverage 2751ms
+ ✓ tests/employee-services.test.ts > permits a purchase request with unknown cost and no promised delivery date 2844ms
+ ✓ tests/employee-services.test.ts > opens historical published handbook content and never exposes a requested draft revision 2790ms
+ ✓ tests/employee-services.test.ts > maps an approved requisition into RFQ and atomically links the awarded PO without bypassing either owner 12318ms
+ ✓ tests/staff-migration.test.ts > creates a complete, empty PostgreSQL baseline and preserves database invariants 25336ms
+
+ Test Files  3 passed (3)
+      Tests  27 passed (27)
+   Start at  13:17:52
+   Duration  249.29s (transform 378ms, setup 81ms, import 337ms, tests 248.63s, environment 0ms)
+

@@ -1,0 +1,23 @@
+{
+  "run": "d8d0a4d04501",
+  "observedAt": "2026-09-20T10:27:48.160643+00:00",
+  "environment": "Disposable PostgreSQL, localhost:3102, normal credential sessions",
+  "roles": [
+    "source operator (holding_owner)",
+    "support_agent",
+    "support_manager"
+  ],
+  "observations": [
+    "Source operator created source quotation-linked customer ticket through UI then declared incident assigned to Support agent",
+    "Support agent entered own Work My actions 2 and selected incident, started investigation and proposed root cause/mitigation",
+    "Agent had no confirm control; Work retained one independent customer ticket action",
+    "Independent Support manager entered own Work My actions 1, reviewed mitigation and confirmed incident",
+    "Incident closed v4, manager Work 0; customer case still open v1 with its own owner",
+    "Actual screenshot inspected after closure; public dev incident page rendered read-only"
+  ],
+  "limitations": [
+    "Browser used one linked case; two distinct customers and link/unlink/relink/reject/reopen covered in integration tests",
+    "Not full scenario/business/customer acceptance",
+    "No external email/provider messages or production transactions"
+  ]
+}

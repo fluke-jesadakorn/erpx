@@ -1,0 +1,140 @@
+{
+  "run": "fd3d5be619db",
+  "exportedAt": "2026-09-20T09:40:49.789Z",
+  "ticket": {
+    "id": "ticket-b194a39c-df9d-468f-ba35-da589cdc6d08",
+    "company_id": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a",
+    "branch_id": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a-branch",
+    "department_id": null,
+    "order_id": "order-3a34b2d0-e622-44a9-b5fd-3b3ac4711623",
+    "customer_id": "parties-d638b9f2-9e54-48c7-84a9-7b78e65520a4",
+    "title": "Simulation installation guidance",
+    "issue": "Customer needs the installation sequence checked before delivery.",
+    "owner_id": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a-claimant",
+    "due_date": "2026-09-24",
+    "status": "closed",
+    "blocked_reason": null,
+    "resolution": "Checked the installation sequence and recorded the corrected guidance; awaiting customer confirmation.",
+    "resolved_by": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a-claimant",
+    "resolved_at": "1789897069941",
+    "confirmation_note_id": "contact-5de6ffd9-68e4-434d-aa90-dac47e8debca",
+    "confirmation_note_version": "1",
+    "version": "4",
+    "created_by": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a-owner",
+    "created_at": "1789896936631",
+    "updated_at": "1789897181803"
+  },
+  "events": [
+    {
+      "id": "ticket-event-b194a39c-df9d-468f-ba35-da589cdc6d08",
+      "ticket_id": "ticket-b194a39c-df9d-468f-ba35-da589cdc6d08",
+      "version": "1",
+      "action": "create",
+      "actor_id": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a-owner",
+      "reason": "Customer needs the installation sequence checked before delivery.",
+      "owner_id": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a-claimant",
+      "due_date": "2026-09-24",
+      "status": "open",
+      "created_at": "1789896936631",
+      "evidence_json": {
+        "issue": "Customer needs the installation sequence checked before delivery.",
+        "title": "Simulation installation guidance",
+        "dueDate": "2026-09-24",
+        "orderId": "order-3a34b2d0-e622-44a9-b5fd-3b3ac4711623",
+        "ownerId": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a-claimant",
+        "sourceVersion": 1
+      }
+    },
+    {
+      "id": "ticket-event-b0efc259-231d-445e-85f4-d7f33e378c63",
+      "ticket_id": "ticket-b194a39c-df9d-468f-ba35-da589cdc6d08",
+      "version": "2",
+      "action": "start",
+      "actor_id": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a-claimant",
+      "reason": "Support agent accepted the installation question from Sales.",
+      "owner_id": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a-claimant",
+      "due_date": "2026-09-24",
+      "status": "in_progress",
+      "created_at": "1789897047335",
+      "evidence_json": {
+        "action": "start",
+        "reason": "Support agent accepted the installation question from Sales.",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "id": "ticket-event-36713c13-cffc-4c40-ae90-6b20a6ec7d4c",
+      "ticket_id": "ticket-b194a39c-df9d-468f-ba35-da589cdc6d08",
+      "version": "3",
+      "action": "resolve",
+      "actor_id": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a-claimant",
+      "reason": "Checked the installation sequence and recorded the corrected guidance; awaiting customer confirmation.",
+      "owner_id": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a-claimant",
+      "due_date": "2026-09-24",
+      "status": "resolved",
+      "created_at": "1789897069941",
+      "evidence_json": {
+        "action": "resolve",
+        "reason": "Checked the installation sequence and recorded the corrected guidance; awaiting customer confirmation.",
+        "expectedVersion": 2
+      }
+    },
+    {
+      "id": "ticket-event-a0832992-e7e2-4d96-8b2a-242ad34cc661",
+      "ticket_id": "ticket-b194a39c-df9d-468f-ba35-da589cdc6d08",
+      "version": "4",
+      "action": "confirm",
+      "actor_id": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a-tie",
+      "reason": "Independent Support manager reviewed the simulated phone confirmation and resolution evidence.",
+      "owner_id": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a-claimant",
+      "due_date": "2026-09-24",
+      "status": "closed",
+      "created_at": "1789897181803",
+      "evidence_json": {
+        "action": "confirm",
+        "noteId": "contact-5de6ffd9-68e4-434d-aa90-dac47e8debca",
+        "reason": "Independent Support manager reviewed the simulated phone confirmation and resolution evidence.",
+        "noteVersion": 1,
+        "expectedVersion": 3
+      }
+    }
+  ],
+  "note": {
+    "id": "contact-5de6ffd9-68e4-434d-aa90-dac47e8debca",
+    "company_id": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a",
+    "customer_id": "parties-d638b9f2-9e54-48c7-84a9-7b78e65520a4",
+    "order_id": "order-3a34b2d0-e622-44a9-b5fd-3b3ac4711623",
+    "channel": "phone",
+    "occurred_at": "1789897080000",
+    "body": "SIMULATION: customer confirmed by phone that the corrected installation guidance resolved the question.",
+    "status": "active",
+    "version": "1",
+    "created_by": "expense-8d88a57f-2da7-4f67-aedb-248660986a4a-owner",
+    "created_at": "1789897115670",
+    "updated_at": "1789897115670"
+  },
+  "source": [
+    {
+      "id": "order-3a34b2d0-e622-44a9-b5fd-3b3ac4711623",
+      "kind": "quote",
+      "state": "draft",
+      "version": "1",
+      "party_id": "parties-d638b9f2-9e54-48c7-84a9-7b78e65520a4",
+      "subtotal_minor": "1000",
+      "currency": "THB"
+    }
+  ],
+  "migration": [
+    {
+      "name": "0216_support_tickets.sql",
+      "checksum": "f198248a7dda814c97da260f8a13a2f072b9ec88edae66e5342d22164289c72a"
+    }
+  ],
+  "sourceHashes": {
+    "src/server/support.ts": "c498f4caf0577703370f44dc96b7889ac1ed4ab9a0c05986e50961a19c6a38fc",
+    "src/server/support-recipient.ts": "7c6c165c3534213189334aa33a845214c92f1a6346dc140f90dba9d9b00abcef",
+    "src/components/modules/support-console.tsx": "21d3d1c80255177fbb56a7c47ad5e187135c5cf7f21359883adb73d82b6ecf67",
+    "src/server/calendar/support.ts": "1e888b76af8dca0e5575d24524eb9eeb627f916eaddb4ff124abfad38879de52",
+    "migrations/postgres/holding-write/0216_support_tickets.sql": "f198248a7dda814c97da260f8a13a2f072b9ec88edae66e5342d22164289c72a"
+  }
+}

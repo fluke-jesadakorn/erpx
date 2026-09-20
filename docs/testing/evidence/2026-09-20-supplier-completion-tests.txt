@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/supplier-payments.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  1 passed (1)
+      Tests  4 passed (4)
+   Start at  01:45:41
+   Duration  8.99s (transform 327ms, setup 50ms, import 317ms, tests 8.54s, environment 0ms)
+

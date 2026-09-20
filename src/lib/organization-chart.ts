@@ -98,17 +98,42 @@ export function ancestorPath(graph: OrganizationGraph, id: string): string[] {
   return path;
 }
 
-export function visibleChartIds(graph: OrganizationGraph, expanded: ReadonlySet<string>): string[] {
-  const result: string[] = [], queue = [...graph.roots];
-  for (let index = 0; index < queue.length; index++) {
-    const id = queue[index];
-    result.push(id);
-    if (expanded.has(id)) queue.push(...(graph.children.get(id) ?? []));
-  }
-  return result;
-}
-
 export function searchOrganization(graph: OrganizationGraph, query: string): string[] {
   const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
   return [...graph.entries.keys()].filter(id => terms.every(term => graph.entries.get(id)!.searchText.includes(term)));
+}
+
+export const teamLevelTitles = ["CEO", "Executives / Directors", "Branch / Department Managers", "Supervisors", "Senior Staff", "Staff", "Level not assigned"];
+export function assignedLevel(value: number | null): number {
+  return value !== null && Number.isInteger(value) && value >= 1 && value <= 6 ? value : 7;
+}
+export function departmentHue(slug: string): number {
+  const hues: Record<string, number> = { finance: 174, accounting: 150, operations: 214, people: 275, sales: 340, purchasing: 43, warehouse: 25, it: 240, "customer-service": 190 };
+  const normalized = slug.toLowerCase().trim();
+  return hues[normalized] ?? [...normalized].reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) % 360, 0);
+}
+export function teamIds(graph: OrganizationGraph, focusId: string | null): Set<string> {
+  if (!focusId) return new Set(graph.entries.keys());
+  const ids = new Set<string>(), queue = [focusId];
+  for (let i = 0; i < queue.length; i++) {
+    const id = queue[i];
+    if (ids.has(id) || !graph.entries.has(id)) continue;
+    ids.add(id); queue.push(...(graph.children.get(id) ?? []));
+  }
+  return ids;
+}
+export function levelGroups(graph: OrganizationGraph, data: Pick<OrganizationOverview, "nodes">, ids: ReadonlySet<string>) {
+  const nodes = new Map(data.nodes.map(n => [n.id, n]));
+  return teamLevelTitles.map((title, index) => {
+    const groups = new Map<string, { key: string; department: string; branch: string; hue: number; ids: string[] }>();
+    for (const id of ids) {
+      const person = graph.entries.get(id)!.person;
+      if (assignedLevel(person.level_number) !== index + 1) continue;
+      const key = JSON.stringify([person.company_id, person.branch_id, person.department_id]);
+      if (!groups.has(key)) groups.set(key, { key, department: nodes.get(person.department_id ?? "")?.display_name ?? "Department not assigned / not shown", branch: nodes.get(person.branch_id ?? "")?.display_name ?? "Company-wide / branch not shown", hue: departmentHue(nodes.get(person.department_id ?? "")?.slug ?? person.department_id ?? "unassigned"), ids: [] });
+      groups.get(key)!.ids.push(id);
+    }
+    for (const group of groups.values()) group.ids.sort((a, b) => graph.entries.get(a)!.person.legal_name.localeCompare(graph.entries.get(b)!.person.legal_name) || a.localeCompare(b));
+    return { level: index + 1, title, groups: [...groups.values()].sort((a, b) => a.department.localeCompare(b.department) || a.branch.localeCompare(b.branch) || a.key.localeCompare(b.key)) };
+  });
 }

@@ -111,10 +111,11 @@ async function assigned(kind = "service") {
   await act(f.it, r.id, "start");
   return r;
 }
-it("allows incomplete drafts for active ERP and beta members without profiles", async () => {
+it("allows incomplete service drafts without profiles; purchases require an engagement", async () => {
   const missing = await f.member("missing", "employee", 1, f.department, false);
   missing.beta = true;
-  for (const kind of ["service", "equipment", "purchase"]) {
+  await expect(saveEmployeeRequest(db, missing, null, employeeRequestSchema.parse({kind:"purchase"}), key())).rejects.toMatchObject({code:"STAFF_LINK_REQUIRED"});
+  for (const kind of ["service", "equipment"]) {
     const input = employeeRequestSchema.parse({ kind });
     const command = key();
     const saved = await saveEmployeeRequest(db, missing, null, input, command);
@@ -697,4 +698,24 @@ it("opens historical published handbook content and never exposes a requested dr
   expect((await handbookArticle(db, f.claimant, r.id)).revision.revision).toBe(
     2,
   );
+});
+it('maps an approved requisition into RFQ and atomically links the awarded PO without bypassing either owner',async()=>{
+ const {createRfq,actRfq,rfqDetail}=await import('../src/server/procurement-rfqs');
+ const {saveMaster,saveOrder,orderSchema,getOrder}=await import('../src/server/commerce');
+ const r=await assigned('purchase'),purchaser={...f.it,role:'purchasing_operator',assignmentId:await f.grant(f.it,'purchasing_operator')};
+ const source=await getEmployeeRequest(db,purchaser,r.id),warehouse=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Requisition warehouse'},key())).id),product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Requested laptop',price:'100'},key())).id),party=String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:key(),name:'Approved supplier'},key())).id);
+ const input={requestId:r.id,requestVersion:source.version,title:'Source requisition RFQ',warehouseId:warehouse,neededDate:'2026-09-20',demandEvidence:'Product mapped to the approved laptop request',lines:[{requestItemOrdinal:0,productId:product,quantity:'1'}]};
+ await expect(createRfq(purchaser,{...input,lines:[{...input.lines[0],quantity:'2'}]},key())).rejects.toMatchObject({code:'RFQ_REQUEST_MAPPING_REQUIRED'});
+ const id=String((await createRfq(purchaser,input,key())).id);await expect(createRfq(purchaser,input,key())).rejects.toMatchObject({status:409});
+ const poInput=orderSchema.parse({kind:'purchase',requestId:r.id,requestVersion:source.version,partyId:party,warehouseId:warehouse,orderDate:'2026-09-20',dueDate:'2026-09-20',lines:[{productId:product,quantity:'1',price:'100',taxBps:0}]});
+ await expect(saveOrder(purchaser,null,poInput,key())).rejects.toMatchObject({code:'REQUEST_RFQ_REQUIRED'});
+ await expect(act(purchaser,r.id,'link-order',{purchaseOrderId:'unrelated-order'})).rejects.toMatchObject({code:'REQUEST_RFQ_REQUIRED'});
+ let detail=await rfqDetail(purchaser,id);expect(detail.rfq.department_id).toBe(f.department);expect(detail.lines[0].request_item_ordinal).toBe(0);
+ await actRfq(purchaser,id,{action:'offer',expectedVersion:1,supplierId:party,reference:'QUOTE-PR-001',evidence:'Supplier agrees to the requested laptop',arrivalDate:'2026-09-20',validUntil:'2099-12-31',lines:[{lineId:String(detail.lines[0].id),price:'100',taxBps:0}]},key());detail=await rfqDetail(purchaser,id);
+ await act(f.it,r.id,'ask');expect((await rfqDetail(purchaser,id)).sourceBlocked).toBe(true);
+ await expect(actRfq(purchaser,id,{action:'submit',expectedVersion:2,offerId:String(detail.current[0].id),reason:'Cannot award unresolved demand'},key())).rejects.toMatchObject({code:'RFQ_REQUEST_CHANGED'});await act(f.claimant,r.id,'reply');
+ await actRfq(purchaser,id,{action:'submit',expectedVersion:2,offerId:String(detail.current[0].id),reason:'Matches approved request with full delivery'},key());await actRfq(f.owner,id,{action:'approve',expectedVersion:3,reason:'Independent comparison and award review'},key());
+ await act(f.it,r.id,'comment');detail=await rfqDetail(purchaser,id);expect(detail.currentRequestVersion).toBeGreaterThan(source.version);
+ const handoff={...poInput,requestVersion:detail.currentRequestVersion!,rfqId:id,rfqVersion:4},command=key(),po=await saveOrder(purchaser,null,handoff,command);expect(await saveOrder(purchaser,null,handoff,command)).toEqual(po);
+ expect((await getEmployeeRequest(db,purchaser,r.id)).purchase_order_id).toBe(po.id);expect((await rfqDetail(purchaser,id)).rfq.order_id).toBe(po.id);expect((await getOrder(purchaser,String(po.id))).order.state).toBe('draft');
 });

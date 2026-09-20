@@ -37,6 +37,7 @@ const icons = {
   tasks: ClipboardList,
   expenses: Receipt,
   leave: CalendarDays,
+  overtime: CalendarDays,
   services: Headset,
   equipment: Laptop,
   purchases: ShoppingCart,

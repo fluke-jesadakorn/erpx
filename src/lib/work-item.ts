@@ -1,7 +1,40 @@
 export type WorkItem = {
+  canAct?: boolean;
+  category?: "operational" | "setup";
+  setupReason?: string | null;
   flow?: import("./flow").FlowView;
   id: string;
   type:
+    | "customer_identity"
+    | "customer_duplicate"
+    | "customer_access"
+    | "support_incident"
+    | "support_policy"
+    | "support_sla_alert"
+    | "support_ticket"
+    | "support_session"
+    | "maintenance_work"
+    | "field_service"
+    | "collaboration_action"
+    | "learning_assignment"
+    | "benefit_enrollment"
+    | "talent_application"
+    | "marketing_candidate"
+    | "manufacturing_order"
+    | "crm_lead"
+    | "customer_followup"
+    | "supplier_promise"
+    | "procurement_rfq"
+    | "supplier_bill"
+    | "inventory_transit"
+    | "quality_hold"
+    | "supplier_batch"
+    | "refund"
+    | "legal"
+    | "pms"
+    | "pos"
+    | "people_lifecycle"
+    | "overtime"
     | "leave"
     | "expense"
     | "stock_count"
@@ -24,12 +57,42 @@ export type WorkItem = {
   relationships?: ("requested" | "assigned" | "approval" | "team")[];
 };
 export const workTypes = [
+  ["customer_identity", "Customer identity changes"],
+  ["customer_duplicate", "Customer duplicate reviews"],
+  ["customer_access", "Customer access reviews"],
+  ["support_incident", "Support incidents"],
+  ["support_policy", "Support SLA policies"],
+  ["support_sla_alert", "Support target escalations"],
+  ["support_ticket", "Support cases"],
+  ["support_session", "Temporary support access"],
+  ["maintenance_work", "Maintenance work"],
+  ["field_service", "Field service"],
+  ["collaboration_action", "Cross-record actions"],
+  ["learning_assignment", "Learning assignments"],
+  ["benefit_enrollment", "Benefit enrollments"],
+  ["talent_application", "Talent applications"],
+  ["marketing_candidate", "Marketing lead candidates"],
+  ["manufacturing_order", "Manufacturing orders"],
+  ["crm_lead", "CRM leads & opportunities"],
+  ["customer_followup", "Customer follow-ups"],
+  ["legal", "Legal"],
+  ["pms", "Hotel operations"],
   ["all", "All types"],
+  ["pos", "POS"],
+  ["people_lifecycle", "People & IT preparation"],
   ["order", "Sales / purchase orders"],
   ["invoice", "Invoices and settlement"],
+  ["refund", "Return refunds"],
+  ["supplier_batch", "Supplier payment batches"],
+  ["quality_hold", "Quality holds"],
+  ["inventory_transit", "Stock in transit"],
+  ["supplier_promise", "Supplier delivery confirmations"],
+  ["procurement_rfq", "Supplier quotation reviews"],
+  ["supplier_bill", "Supplier invoice matching"],
   ["journal", "General ledger"],
   ["payroll", "Payroll"],
   ["staff_task", "Tasks"],
+  ["overtime", "Overtime"],
   ["leave", "Leave requests"],
   ["expense", "Expense claims"],
   ["stock_count", "Stock counts"],
@@ -62,4 +125,32 @@ export function filterWork(
         .toLowerCase()
         .includes(q.toLowerCase()),
   );
+}
+
+export const workViews = [
+  ["actions", "My actions"], ["waiting", "Waiting"], ["requests", "My requests"],
+  ["team", "Team"], ["completed", "Completed"], ["all", "All work"],
+  ["routing", "Routing attention"],
+] as const;
+export type WorkView = typeof workViews[number][0];
+/** Source adapters decide authority. Legacy queues remain valid deep links. */
+export function isMyAction(item: WorkItem) {
+  return item.queue === "todo" && (item.canAct ?? true);
+}
+export function compareWork(a: WorkItem, b: WorkItem) {
+  return (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity) ||
+    b.updatedAt - a.updatedAt || `${a.type}:${a.id}`.localeCompare(`${b.type}:${b.id}`);
+}
+export function workInView(items: WorkItem[], view: string) {
+  return items.filter(item => view === "routing" ? !!(item.flow?.canManage && item.flow.current && item.flow.blocker)
+    : view === "actions" ? isMyAction(item)
+    : view === "waiting" ? item.queue === "waiting" && !!item.relationships?.some(r => r !== "team")
+    : view === "requests" ? item.relationships?.includes("requested")
+    : view === "team" ? item.queue !== "completed" && (item.category === "setup" || item.relationships?.includes("team"))
+    : view === "completed" ? item.queue === "completed" : true).sort(compareWork);
+}
+export function workItemHref(base: string, item: WorkItem, returnTo: string) {
+  const url = new URL(`${base}${item.href}`, "https://work.invalid");
+  url.searchParams.set("return", returnTo);
+  return `${url.pathname}${url.search}${url.hash}`;
 }

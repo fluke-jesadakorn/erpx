@@ -51,7 +51,7 @@ export function ExpenseEditor({
     hydrated = useHydrated(),
     attempt = useRef<{ body: string; key: string } | null>(null);
   const initial: Fields = {
-    personId: String(expense?.employee_id ?? ""),
+    personId: String(expense?.employee_id ?? options.people.find(p => p.user_id === options.selfUserId)?.id ?? ""),
     payeePartyId: String(expense?.payee_party_id??""),
     requestKind: String(expense?.request_kind ?? "expense"),
     expenseDate: String(expense?.expense_date ?? ""),
@@ -189,7 +189,7 @@ export function ExpenseEditor({
       </p>
       {expense && receiptAi && <ExpenseAiPanel compact base={base} expenseId={String(expense.id)} version={Number(expense.version)} {...receiptAi} />}
       {!expense && <div className={styles.dropzone} onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (hydrated && !pending && !uploading && !createdId) void receiptFirst(Array.from(e.dataTransfer.files)); }}>
-        <UploadCloud size={28} /><strong>Start with your receipt</strong><p>Drop receipts here. AI will read them and fill your claim for review.</p>
+        <UploadCloud size={28} /><strong>Start with your receipt</strong><p>Drop receipts here, then review the claim. AI suggestions are optional when available.</p>
         <label className="button secondary">Choose receipts<input aria-label="Choose receipts" type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" disabled={!hydrated || pending || uploading || !!createdId || draft.conflict} onChange={e => { const files = Array.from(e.target.files ?? []); void receiptFirst(files); e.target.value = ""; }} /></label>
         <span>JPG, PNG, WebP or PDF · Up to 10 MB each · A draft is created automatically</span>
       </div>}

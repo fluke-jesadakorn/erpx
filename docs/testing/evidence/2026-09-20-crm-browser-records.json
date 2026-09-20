@@ -1,0 +1,183 @@
+{
+  "run": "f7218583fd23",
+  "exportedAt": "2026-09-20T09:15:41.494Z",
+  "scope": "Normal browser UI commands on disposable databases; no external communications or payments.",
+  "lead": [
+    {
+      "id": "lead-192660c2-f030-4d25-94d9-5d3cbb8f2e8c",
+      "company_id": "expense-90797bbf-4e20-4339-a1ee-3e106d17749d",
+      "branch_id": "expense-90797bbf-4e20-4339-a1ee-3e106d17749d-branch",
+      "department_id": null,
+      "title": "Simulation installation inquiry",
+      "contact_name": "Simulated customer contact",
+      "contact_detail": "Phone inquiry recorded by staff; no external message sent.",
+      "source": "Inbound phone simulation",
+      "brief": "One installation kit; customer requires confirmed delivery before accepting a quote.",
+      "owner_id": "expense-90797bbf-4e20-4339-a1ee-3e106d17749d-owner",
+      "due_date": "2026-09-23",
+      "status": "qualified",
+      "version": "4",
+      "created_by": "expense-90797bbf-4e20-4339-a1ee-3e106d17749d-owner",
+      "created_at": "1789895646754",
+      "updated_at": "1789895710785"
+    }
+  ],
+  "opportunity": [
+    {
+      "id": "opportunity-0c89859d-b919-4d19-8504-b041e9fbd5be",
+      "lead_id": "lead-192660c2-f030-4d25-94d9-5d3cbb8f2e8c",
+      "customer_id": "parties-c8ced842-797b-4a1c-a0c6-fc0307be7f49",
+      "stage": "discovery",
+      "expected_minor": "1500",
+      "currency": "THB",
+      "close_date": "2026-09-25",
+      "quote_id": null,
+      "quote_version": null,
+      "sales_id": null,
+      "version": "3",
+      "created_by": "expense-90797bbf-4e20-4339-a1ee-3e106d17749d-owner",
+      "created_at": "1789895669024",
+      "updated_at": "1789895710785"
+    }
+  ],
+  "events": [
+    {
+      "id": "crm-event-192660c2-f030-4d25-94d9-5d3cbb8f2e8c-lead",
+      "lead_id": "lead-192660c2-f030-4d25-94d9-5d3cbb8f2e8c",
+      "opportunity_id": null,
+      "version": "1",
+      "action": "create",
+      "actor_id": "expense-90797bbf-4e20-4339-a1ee-3e106d17749d-owner",
+      "reason": "One installation kit; customer requires confirmed delivery before accepting a quote.",
+      "snapshot_json": {
+        "brief": "One installation kit; customer requires confirmed delivery before accepting a quote.",
+        "title": "Simulation installation inquiry",
+        "source": "Inbound phone simulation",
+        "dueDate": "2026-09-23",
+        "branchId": "expense-90797bbf-4e20-4339-a1ee-3e106d17749d-branch",
+        "contactName": "Simulated customer contact",
+        "contactDetail": "Phone inquiry recorded by staff; no external message sent."
+      },
+      "created_at": "1789895646754"
+    },
+    {
+      "id": "crm-event-0c89859d-b919-4d19-8504-b041e9fbd5be-deal",
+      "lead_id": "lead-192660c2-f030-4d25-94d9-5d3cbb8f2e8c",
+      "opportunity_id": "opportunity-0c89859d-b919-4d19-8504-b041e9fbd5be",
+      "version": "1",
+      "action": "qualify",
+      "actor_id": "expense-90797bbf-4e20-4339-a1ee-3e106d17749d-owner",
+      "reason": "Simulated customer requirements reviewed; existing customer selected.",
+      "snapshot_json": {
+        "action": "qualify",
+        "reason": "Simulated customer requirements reviewed; existing customer selected.",
+        "closeDate": "2026-09-25",
+        "customerId": "parties-c8ced842-797b-4a1c-a0c6-fc0307be7f49",
+        "expectedValue": "15",
+        "expectedVersion": 1
+      },
+      "created_at": "1789895669024"
+    },
+    {
+      "id": "crm-event-0c89859d-b919-4d19-8504-b041e9fbd5be-lead",
+      "lead_id": "lead-192660c2-f030-4d25-94d9-5d3cbb8f2e8c",
+      "opportunity_id": null,
+      "version": "2",
+      "action": "qualify",
+      "actor_id": "expense-90797bbf-4e20-4339-a1ee-3e106d17749d-owner",
+      "reason": "Simulated customer requirements reviewed; existing customer selected.",
+      "snapshot_json": {
+        "action": "qualify",
+        "reason": "Simulated customer requirements reviewed; existing customer selected.",
+        "closeDate": "2026-09-25",
+        "customerId": "parties-c8ced842-797b-4a1c-a0c6-fc0307be7f49",
+        "expectedValue": "15",
+        "expectedVersion": 1
+      },
+      "created_at": "1789895669024"
+    },
+    {
+      "id": "crm-event-95e4fe75-59a2-43ce-b283-957f0dc976cf-deal",
+      "lead_id": "lead-192660c2-f030-4d25-94d9-5d3cbb8f2e8c",
+      "opportunity_id": "opportunity-0c89859d-b919-4d19-8504-b041e9fbd5be",
+      "version": "2",
+      "action": "lose",
+      "actor_id": "expense-90797bbf-4e20-4339-a1ee-3e106d17749d-owner",
+      "reason": "Simulated customer deferred the installation budget.",
+      "snapshot_json": {
+        "stage": "lost",
+        "action": "lose",
+        "reason": "Simulated customer deferred the installation budget.",
+        "leadVersion": 2,
+        "expectedVersion": 1
+      },
+      "created_at": "1789895688323"
+    },
+    {
+      "id": "crm-event-95e4fe75-59a2-43ce-b283-957f0dc976cf-lead",
+      "lead_id": "lead-192660c2-f030-4d25-94d9-5d3cbb8f2e8c",
+      "opportunity_id": null,
+      "version": "3",
+      "action": "opportunity-lose",
+      "actor_id": "expense-90797bbf-4e20-4339-a1ee-3e106d17749d-owner",
+      "reason": "Simulated customer deferred the installation budget.",
+      "snapshot_json": {
+        "action": "lose",
+        "reason": "Simulated customer deferred the installation budget.",
+        "leadVersion": 2,
+        "expectedVersion": 1
+      },
+      "created_at": "1789895688323"
+    },
+    {
+      "id": "crm-event-247165fc-747f-4c2c-bd01-a5f57fe6aeb9-deal",
+      "lead_id": "lead-192660c2-f030-4d25-94d9-5d3cbb8f2e8c",
+      "opportunity_id": "opportunity-0c89859d-b919-4d19-8504-b041e9fbd5be",
+      "version": "3",
+      "action": "reopen",
+      "actor_id": "expense-90797bbf-4e20-4339-a1ee-3e106d17749d-owner",
+      "reason": "Manager reviewed the renewed simulated customer inquiry.",
+      "snapshot_json": {
+        "stage": "discovery",
+        "action": "reopen",
+        "reason": "Manager reviewed the renewed simulated customer inquiry.",
+        "leadVersion": 3,
+        "expectedVersion": 2
+      },
+      "created_at": "1789895710785"
+    },
+    {
+      "id": "crm-event-247165fc-747f-4c2c-bd01-a5f57fe6aeb9-lead",
+      "lead_id": "lead-192660c2-f030-4d25-94d9-5d3cbb8f2e8c",
+      "opportunity_id": null,
+      "version": "4",
+      "action": "opportunity-reopen",
+      "actor_id": "expense-90797bbf-4e20-4339-a1ee-3e106d17749d-owner",
+      "reason": "Manager reviewed the renewed simulated customer inquiry.",
+      "snapshot_json": {
+        "action": "reopen",
+        "reason": "Manager reviewed the renewed simulated customer inquiry.",
+        "leadVersion": 3,
+        "expectedVersion": 2
+      },
+      "created_at": "1789895710785"
+    }
+  ],
+  "quotation": [
+    {
+      "id": "order-bd9c2f8c-3c43-453c-8bc7-f7208fa7504c",
+      "kind": "quote",
+      "state": "draft",
+      "version": "1",
+      "party_id": "parties-c8ced842-797b-4a1c-a0c6-fc0307be7f49",
+      "subtotal_minor": "1000",
+      "currency": "THB"
+    }
+  ],
+  "sourceHashes": {
+    "src/server/crm.ts": "2eda6205546f1403933353880ddab984392c3e4f18a82f2dd1337dabcf55a8b0",
+    "src/lib/crm-forecast.ts": "128795c3a5f20b837503c48ef9426a913511a8b944829dd8e83fa20b27fb0d2e",
+    "src/components/modules/crm-console.tsx": "7937d9e9d4a3573ab5cf98a5d459bbda59dcf1cf1398d153e9f9b8f879b5a937",
+    "src/server/calendar/crm.ts": "d78d855d741d07b3c8404a6541ac4053e8990c0e372af8484f0371e184a53c61"
+  }
+}

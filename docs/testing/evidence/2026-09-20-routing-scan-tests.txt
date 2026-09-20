@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/routing-attention.test.ts tests/flow-routing.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  2 passed (2)
+      Tests  14 passed (14)
+   Start at  09:54:45
+   Duration  52.68s (transform 287ms, setup 63ms, import 376ms, tests 52.08s, environment 0ms)
+

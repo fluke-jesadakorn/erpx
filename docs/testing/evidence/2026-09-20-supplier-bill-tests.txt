@@ -1,0 +1,24 @@
+$ bun scripts/local/test.ts tests/supplier-bill-matching.test.ts tests/commerce-returns.test.ts tests/supplier-payments.test.ts tests/staff-migration.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/commerce-returns.test.ts > returns a supplier receipt through independent review, stock reversal and debit-note GL 2610ms
+ ✓ tests/commerce-returns.test.ts > separates invoice credit from sales cash refund and reconciles partial/final payments exactly once 2488ms
+ ✓ tests/commerce-returns.test.ts > separates invoice credit from purchase cash refund and reconciles partial/final payments exactly once 1952ms
+ ✓ tests/commerce-returns.test.ts > holds uncertain payments, requires independent failure review, and serializes competing replacement instructions 1973ms
+ ✓ tests/commerce-returns.test.ts > keeps tax in the full paid credit and creates exactly the gross refund obligation 2260ms
+ ✓ tests/supplier-bill-matching.test.ts > posts reviewed price 12 and reverses actual AP with original stock cost over partial returns 2692ms
+ ✓ tests/supplier-bill-matching.test.ts > posts reviewed price 8 and reverses actual AP with original stock cost over partial returns 2211ms
+ ✓ tests/supplier-bill-matching.test.ts > keeps quantity discrepancies in review, blocks invoice bypass and preserves correction history 1449ms
+ ✓ tests/supplier-bill-matching.test.ts > serializes capture and review, protects current authority, and exposes scoped handoffs 2835ms
+ ✓ tests/supplier-payments.test.ts > reserves, independently approves and confirms a partial multi-invoice batch with source accounting 2156ms
+ ✓ tests/supplier-payments.test.ts > prevents concurrent over-reservation and permits cancellation only before export 684ms
+ ✓ tests/supplier-payments.test.ts > rejects wrong ledgers, closed periods, stale versions and revoked treasury assignments 498ms
+ ✓ tests/supplier-payments.test.ts > prevents the legacy contractor exporter and supplier batches from reserving the same invoice 549ms
+ ✓ tests/staff-migration.test.ts > creates a complete, empty PostgreSQL baseline and preserves database invariants 3777ms
+
+ Test Files  4 passed (4)
+      Tests  14 passed (14)
+   Start at  13:50:04
+   Duration  68.18s (transform 595ms, setup 93ms, import 364ms, tests 67.39s, environment 0ms)
+

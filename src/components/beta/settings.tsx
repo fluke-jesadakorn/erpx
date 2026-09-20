@@ -1,4 +1,5 @@
 "use client";
+import { BillingConsole } from "@/components/billing/billing-console";
 import betaStyles from "@/components/beta/beta.module.css";
 import { useEffect, useState, useRef } from "react";
 import { betaFetch } from "@/lib/beta-client";
@@ -84,7 +85,7 @@ export function BetaSettings({
     }
   }
   return (
-    <div className={`beta-settings ${betaStyles.surface}`}>
+    <div className={`beta-settings ${betaStyles.surface}`} style={section === "usage" ? {display:"contents"} : undefined}>
       {section === "usage" && (
         <section className="card">
           <h2>{beta ? "Free public beta" : "Workspace usage"}</h2>
@@ -116,7 +117,7 @@ export function BetaSettings({
                   </dd>
                 </>
               )}
-              <dt>Billing</dt>
+              <dt>Legacy Sandbox history</dt>
               <dd>
                 {settings.billing
                   ? `Test subscription · ${settings.billing.status}`
@@ -246,43 +247,8 @@ export function BetaSettings({
               ))}
             </section>
           )}
-          {section === "usage" && (
-            <details className="card">
-              <summary>Stripe sandbox · Test controls</summary>
-              <p>
-                These controls use test mode only. They do not charge real money
-                or change beta access.
-              </p>
-              <p>
-                Test subscription:{" "}
-                {settings?.billing?.status ?? "Not configured"}
-              </p>
-              {(["checkout", "portal"] as const).map((action) => (
-                <button
-                  className="button secondary"
-                  key={action}
-                  disabled={busy}
-                  onClick={async () => {
-                    setBusy(true);
-                    try {
-                      const data = await betaFetch<{ url: string }>(
-                        `${api}/billing`,
-                        { action },
-                      );
-                      window.location.assign(data.url);
-                    } catch (e) {
-                      setMessage(
-                        e instanceof Error ? e.message : "Please try again.",
-                      );
-                      setBusy(false);
-                    }
-                  }}
-                >
-                  Test {action}
-                </button>
-              ))}
-            </details>
-          )}
+          {section === "usage" && <BillingConsole base={base} writable />}
+
         </>
       )}
     </div>

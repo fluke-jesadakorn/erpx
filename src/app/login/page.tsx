@@ -4,6 +4,7 @@ import { Check, ArrowRight, ShieldCheck } from "lucide-react";
 import { LoginForm } from "./login-form";
 import styles from "@/components/workplace/login.module.css";
 import { safeReturnPath } from "@/lib/access-problem";
+import { ProductBrand } from "@/components/brand/product-brand";
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ reason?: string; next?: string; connection?:string }> }) {
   const query = await searchParams;
   const next = safeReturnPath(query.next);
@@ -11,9 +12,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <main className={styles.page}>
       <section className={styles.story}>
-        <div className={styles.brand}>
-          <span>E</span>erpx.
-        </div>
+        <ProductBrand className={styles.brand} />
         <div>
           <div className="eyebrow" style={{ color: "var(--muted)" }}>
             A more connected way to work
@@ -50,9 +49,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       </section>
       <section className={styles.panel}>
         <div className={styles.formPanel}>
-          <div className={styles.brand}>
-            <span>E</span>erpx.
-          </div>
+          <ProductBrand className={styles.brand} />
           <div className="eyebrow">Your day starts here</div>
           <h1>Welcome back</h1>
           <p>Sign in to your workspace and pick up where you left off.</p>

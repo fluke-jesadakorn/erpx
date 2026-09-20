@@ -1,24 +1,28 @@
-import { hasPermission } from "@/lib/permissions";
-import { ServiceTeams } from "@/components/workplace/service-teams";
-import { RequestAdministration } from "@/components/workplace/request-administration";
-import { serviceTeamOptions } from "@/server/service-team-options";
-import Link from "next/link";
-import { AccountInvitations } from "@/components/modules/account-invitations";
-import { notFound } from "next/navigation";
-import { accessPage } from "@/server/page-error";
 import { BetaSettings } from "@/components/beta/settings";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { runtimeEnv, holdingResources } from "@/server/runtime";
-import { aiProviderOverview } from "@/server/ai-providers";
+import { FeatureTabBar, FeaturePage, FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { AccountInvitations } from "@/components/modules/account-invitations";
 import { AiProviders } from "@/components/modules/ai-providers";
-import { workspaceBase } from "@/lib/workspace";
-import { administrationAccess } from "@/server/administration";
-import { adminSections, type AdminSection } from "@/lib/administration";
-import { staffSettings } from "@/server/staff-settings";
-import { StaffSettingsControls } from "@/components/modules/staff-settings-controls";
 import { ApprovalAdministration } from "@/components/modules/approval-administration";
+import { BrandAdministration } from "@/components/modules/brand-administration";
+import { ServiceNavigation } from "@/components/modules/service-navigation";
+import { StaffSettingsControls } from "@/components/modules/staff-settings-controls";
 import { PageHeader } from "@/components/ui/primitives";
 import styles from "@/components/workplace/pages.module.css";
+import { RequestAdministration } from "@/components/workplace/request-administration";
+import { ServiceTeams } from "@/components/workplace/service-teams";
+import { adminSections,type AdminSection } from "@/lib/administration";
+import { hasPermission } from "@/lib/permissions";
+import { workspaceBase } from "@/lib/workspace";
+import { administrationAccess } from "@/server/administration";
+import { aiProviderOverview } from "@/server/ai-providers";
+import { publicScope,requireWorkContext } from "@/server/authorization";
+import { listBrandProfiles } from "@/server/branding";
+import { accessPage } from "@/server/page-error";
+import { holdingResources,runtimeEnv } from "@/server/runtime";
+import { serviceTeamOptions } from "@/server/service-team-options";
+import { staffSettings } from "@/server/staff-settings";
+import Link from "next/link";
+import { notFound,redirect } from "next/navigation";
 export default async function Settings({
   params,
   searchParams,
@@ -34,6 +38,8 @@ export default async function Settings({
     (access.managePeople || access.owner || access.manageAiProviders
       ? access.sections[0]
       : "feedback")) as AdminSection;
+  if(!actor.beta && section === "organization")redirect(`${base}/people/organization`);
+  if(!actor.beta && section === "people")redirect(`${base}/people/settings`);
   // Preserve the legacy staff-settings read-only organization view.
   const readOnlyOrganization =
     !actor.beta && section === "organization" && !access.manageOrganization;
@@ -57,17 +63,23 @@ export default async function Settings({
         .all<{ display_name: string }>()
     : null;
   return (
-    <main className="content-stack" data-source="live">
+    <FeaturePage className="content-stack" data-source="live">
       <PageHeader
+        eyebrow={actor.beta || section === "feedback" ? undefined : section === "usage" ? "Finance" : section === "ai" ? "Technology" : "Projects & workflows"}
         title={
-          section === "feedback" ? "Help & feedback" : "Administration"
+          section === "feedback" ? "Help & feedback" : actor.beta ? "Administration" : section === "approvals" ? access.manageOrganization ? "Approvals" : "Routine templates" : adminSections.find(([id]) => id === section)![1]
         }
-        description={section === "feedback" ? "Get help or tell us what could work better." : "Manage your workspace, one place at a time."}
+        description={section === "feedback" ? "Get help or tell us what could work better." : actor.beta ? "Manage your workspace, one place at a time." : section === "approvals" ? "Review approvals and manage routines." : section === "usage" ? "Manage company usage and billing." : "Configure AI providers for your company."}
       />
-      {access.sections.length > 1 && (
-        <nav className={styles.tabs} aria-label="Administration sections">
+      {!actor.beta && section !== "feedback" && <ServiceNavigation
+        context={{ workspaceBase: base, scopeKind: actor.scope.kind, role: actor.role, permissions: actor.iam?.permissions, adminSections: access.sections, canManageApprovals: access.manageOrganization }}
+        groupId={section === "usage" ? "finance" : section === "ai" ? "technology" : "projects"}
+        activeId={section === "approvals" && !access.manageOrganization ? "projects-routines" : `administration-${section}`}
+      />}
+      {actor.beta && section !== "feedback" && access.sections.length > 1 && (
+        <FeatureTabBar aria-label="Administration sections">
           {adminSections
-            .filter(([id]) => access.sections.includes(id))
+            .filter(([id]) => access.sections.includes(id) && id !== "feedback" && (actor.beta || !["people", "organization"].includes(id)))
             .map(([id, label]) => (
               <Link
                 key={id}
@@ -77,11 +89,12 @@ export default async function Settings({
                 {label}
               </Link>
             ))}
-        </nav>
+        </FeatureTabBar>
       )}
-      {section === "people" && (
-        <section className="card">
-          <h2>People & access</h2><Link className="button secondary" href={`${base}/iam`}>Identity & access administration</Link>
+      {access.manageOrganization&&!actor.branchId&&!actor.departmentId&&<Link className="button secondary" href={`${base}/settings/business-readiness`}>Business readiness · A–J</Link>}
+      <WidgetGrid>{section === "people" && (
+        <FeatureWidget id="people-settings-people-access" title="People & access"><section className="card">
+          <Link className="button secondary" href={`${base}/iam`}>Identity & access administration</Link>
           <p>
             Manage employee details and individual access from each person’s
             profile.
@@ -96,7 +109,7 @@ export default async function Settings({
               email.
             </p>
           )}
-        </section>
+        </section></FeatureWidget>
       )}
       {section === "ai" && access.manageAiProviders && (
         <AiProviders
@@ -112,19 +125,25 @@ export default async function Settings({
         )}
       {section === "organization" && options && (
         <>
-          <section className="card"><h2>Organization chart and positions</h2><p>Manage staff levels, reporting managers, vacancies, and reusable organization templates.</p><Link className="button" href={`${base}/people/organization`}>Open organization</Link></section>
+          <BrandAdministration
+            base={base}
+            {...await listBrandProfiles(write, actor)}
+            canHolding={access.owner}
+            canBranches={access.manageOrganization}
+          />
+          <FeatureWidget id="people-settings-organization-chart-and-positions" title="Organization chart and positions"><section className="card"><p>Manage staff levels, reporting managers, vacancies, and reusable organization templates.</p><Link className="button" href={`${base}/people/organization`}>Open organization</Link></section></FeatureWidget>
           {access.owner && <ServiceTeams base={base} options={await serviceTeamOptions(write, actor)} companyId={actor.companyId} userId={actor.userId}/>}
-          <section className="card">
-            <h2>Branches</h2>
+          <FeatureWidget id="people-settings-branches" title="Branches"><section className="card">
+            
             {branches?.results.map((b) => (
               <p key={b.display_name}>{b.display_name}</p>
             ))}
-          </section>
+          </section></FeatureWidget>
           {access.manageOrganization ? (
             <StaffSettingsControls base={base} options={options} />
           ) : (
-            <section className="card">
-              <h2>Staff levels and department heads</h2>
+            <FeatureWidget id="people-settings-staff-levels-and-department-heads" title="Staff levels and department heads"><section className="card">
+              
               {options.levels.map((l) => (
                 <p key={l.id}>
                   {l.name} · {l.level_number?`Level ${l.level_number}`:"Legacy level"}
@@ -135,7 +154,7 @@ export default async function Settings({
                   {d.display_name} · {d.head_name}
                 </p>
               ))}
-            </section>
+            </section></FeatureWidget>
           )}
         </>
       )}
@@ -148,13 +167,13 @@ export default async function Settings({
             record={query.record}
           />
         ) : (
-          <section className="card">
-            <h2>Routines</h2>
+          <FeatureWidget id="people-settings-routines" title="Routines"><section className="card">
+            
             <p>Browse published routines and manage the templates you own.</p>
             <Link className="button" href={`${base}/routine-templates`}>
               Routine templates
             </Link>
-          </section>
+          </section></FeatureWidget>
         ))}
       {section === "approvals" && access.owner && !query.record && <RequestAdministration actor={actor} base={base}/>}
       {(section === "usage" ||
@@ -168,6 +187,6 @@ export default async function Settings({
           beta={!!actor.beta}
         />
       )}
-    </main>
+    </WidgetGrid></FeaturePage>
   );
 }

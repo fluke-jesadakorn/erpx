@@ -22,7 +22,7 @@ import {
   type StaffActor,
 } from "./staff-policy";
 
-export type ApprovalKind = "expense" | "leave" | "task";
+export type ApprovalKind = "expense" | "leave" | "leave_cancellation" | "overtime" | "task" | "legal";
 export type ApprovalPhase = "request" | "start" | "completion";
 export type ApprovalInstance = RecordScope & {
   id: string;
@@ -251,7 +251,7 @@ export async function initializeLegacyApproval(
   db: SqlDatabase,
   instance: ApprovalInstance,
 ) {
-  if (instance.record_type === "task" || instance.state !== "blocked")
+  if (["task", "overtime", "leave_cancellation", "legal"].includes(instance.record_type) || instance.state !== "blocked")
     return instance;
   if ((await stepsFor(db, instance)).length) return instance;
   const expense =
@@ -267,7 +267,7 @@ export async function initializeLegacyApproval(
     db,
     instance.company_id,
     instance.requester_user_id,
-    instance.record_type,
+    instance.record_type === "expense" ? "expense" : "leave",
     expense
       ? [
           expense.created_by,
@@ -520,6 +520,7 @@ export async function approvalView(
   id: string,
   actor: Pick<StaffActor, "companyId" | "userId" | "role" | "assignmentId"> & {inspection?:true},
 ): Promise<ApprovalView> {
+  if (kind === "legal") throw new ApiError(403, "LEGAL_OWNER_REQUIRED", "Use the Legal approval endpoint with record access checks.");
   let instance = await currentApproval(db, kind, id, actor.companyId);
   if (instance && !actor.inspection) instance = await initializeLegacyApproval(db, instance);
   const steps = instance ? await stepsFor(db, instance) : [];
@@ -615,6 +616,7 @@ export async function prepareDecision(
   reason: string,
   version: number,
 ) {
+  if(kind==='legal')throw new ApiError(409,'LEGAL_OWNER_REQUIRED','Use the Legal decision adapter with document and signer checks.');
   if (!approve && !reason.trim())
     throw new ApiError(
       422,
@@ -837,6 +839,7 @@ export async function rerouteApproval(
       "ROUTE_CONFIGURATION_REQUIRED",
       "Configure the request route before rerouting an active step.",
     );
+  if(instance.record_type==='legal')throw new ApiError(409,'LEGAL_OWNER_REQUIRED','Use Legal to replace approvers and review document scope.');
   const operation = `${instance.record_type}.approval.reroute`,
     prior = await replayCommand(
       db,
@@ -862,7 +865,7 @@ export async function rerouteApproval(
       "The current approval step is missing.",
     );
   if (
-    instance.record_type === "leave" &&
+    ["leave", "leave_cancellation", "overtime"].includes(instance.record_type) &&
     steps.some(
       (s) => s.id !== current.id && s.approver_user_id === input.approverUserId,
     )
@@ -918,8 +921,9 @@ export async function rerouteApproval(
   const blocked = await stepBlock(db, instance, replacement, steps);
   if (blocked) throw new ApiError(422, "APPROVER_INELIGIBLE", blocked);
   const table =
-      instance.record_type === "leave"
+      ["leave", "leave_cancellation"].includes(instance.record_type)
         ? "leave_requests"
+        : instance.record_type === "overtime" ? "overtime_requests"
         : instance.record_type === "expense"
           ? "finance_expenses"
           : "staff_tasks",
@@ -927,6 +931,8 @@ export async function rerouteApproval(
   const state =
       instance.record_type === "leave"
         ? "pending_approval"
+        : instance.record_type === "leave_cancellation" ? "approved"
+        : instance.record_type === "overtime" ? instance.phase === "start" ? "pending_authorization" : current.authority === "hr_admin" ? "pending_hr" : "pending_verification"
         : instance.record_type === "expense"
           ? "in_review"
           : instance.phase === "start"

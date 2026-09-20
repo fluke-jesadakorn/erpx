@@ -1,0 +1,27 @@
+$ bun scripts/local/test.ts tests/supplier-bill-matching.test.ts tests/flow-routing.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/flow-routing.test.ts > requires a primary for an ambiguous team; administrators cannot select the claimant or an unrelated user 1715ms
+ ✓ tests/flow-routing.test.ts > freezes defaults for existing documents and applies a new revision only to new routes 1354ms
+ ✓ tests/flow-routing.test.ts > rejects stale reassignment and leaves completed approvals immutable 1971ms
+ ✓ tests/flow-routing.test.ts > keeps approval, GL and payment separate and returns an unposted GL review for correction 2980ms
+ ✓ tests/flow-routing.test.ts > posts one balanced GL under retries and blocks a revoked primary 3753ms
+ ✓ tests/flow-routing.test.ts > repairs a revoked reviewer through an audited independent reassignment 2622ms
+ ✓ tests/flow-routing.test.ts > routes standalone invoice posting and partial settlement through different named staff 301ms
+ ✓ tests/flow-routing.test.ts > requires stock approval before balanced GL and posts the counted stock only once 262ms
+ ✓ tests/flow-routing.test.ts > hands purchase receipt to accounting before drafting and posting its payable 680ms
+ ✓ tests/flow-routing.test.ts > cancels an approved order independently but requires a return after stock moved 301ms
+ ✓ tests/flow-routing.test.ts > enforces a versioned customer credit limit when sales approval creates exposure 166ms
+ ✓ tests/supplier-bill-matching.test.ts > posts reviewed price 12 and reverses actual AP with original stock cost over partial returns 3291ms
+ ✓ tests/supplier-bill-matching.test.ts > posts reviewed price 8 and reverses actual AP with original stock cost over partial returns 1541ms
+ ✓ tests/supplier-bill-matching.test.ts > keeps quantity discrepancies in review, blocks invoice bypass and preserves correction history 536ms
+ ✓ tests/supplier-bill-matching.test.ts > serializes capture and review, protects current authority, and exposes scoped handoffs 822ms
+ ✓ tests/supplier-bill-matching.test.ts > returns an unposted AP draft atomically and accepts a corrected bill without receiving or posting goods twice 751ms
+ ✓ tests/supplier-bill-matching.test.ts > allows exactly one winner when AP posting races an independent draft correction 566ms
+
+ Test Files  2 passed (2)
+      Tests  17 passed (17)
+   Start at  14:11:45
+   Duration  34.81s (transform 301ms, setup 58ms, import 314ms, tests 34.28s, environment 0ms)
+

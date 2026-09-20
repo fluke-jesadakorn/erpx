@@ -1,0 +1,17 @@
+{
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "workingTree": "dirty",
+  "files": {
+    "src/server/customer-followups.ts": "64ace77b8a8bedc94178aaba7ad6a477846e263af371ee7c73707bc6850549f6",
+    "src/server/calendar/customer-followups.ts": "c5ae6c90d6816a1962f8a34df6d80390e17ef310be9dc27bad9c9dd0721b4c55",
+    "src/components/modules/customer-followups.tsx": "1737cad6f0cf025dcec95dfe427afcbd544377e1f00bf95ef069a1a4e7e9b488",
+    "migrations/postgres/holding-write/0214_customer_followups.sql": "885624fd1cee59b5fbd5a9996e92eb878196c000cfa0cc55acf217d68c5a043c",
+    "tests/customer-followups.test.ts": "a6e8a6942e458203e362da1c6eadbe8ff70142740c1dfb99b3b85de70d9d05f4"
+  },
+  "environment": "pinned Bun/Node; isolated PostgreSQL",
+  "scope": "28 tests: followups, notes, Work and Calendar",
+  "limitations": [
+    "Order/quotation follow-ups only; lead and opportunity domain still deferred.",
+    "Business-calendar SLA/escalation and provider messaging remain."
+  ]
+}

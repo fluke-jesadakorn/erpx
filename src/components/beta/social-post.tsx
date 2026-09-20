@@ -150,7 +150,7 @@ export function SocialPost({
           aria-expanded={commentsOpen}
           onClick={() => setCommentsOpen((value) => !value)}
         >
-          <MessageCircle size={16} /> Comment {post.comments.length || ""}
+          <MessageCircle size={16} /> Comment {post.commentCount || ""}
         </button>
 
         {!post.hasTask && (

@@ -1,0 +1,23 @@
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/crm.test.ts > qualifies once and requires approved quotation plus confirmed source sales order before winning 460ms
+ ✓ tests/crm.test.ts > serializes qualification and preserves immutable evidence through loss and reopening 91ms
+ ✓ tests/crm.test.ts > scopes prospects and blocks ineligible owners until manager reassignment 81ms
+ ✓ tests/crm.test.ts > delivers reassignment to the actual recipient through Work, Inbox and Calendar, and removes disqualified work 282ms
+ ✓ tests/marketing.test.ts > reviews form/content/domain/provider assets without treating previews as active 1733ms
+ ✓ tests/marketing.test.ts > hands a consented attributed candidate to the CRM owner service exactly once 1720ms
+ ✓ tests/marketing.test.ts > rejects stale or inactive form sources 1027ms
+ ✓ tests/staff-migration.test.ts > creates a complete, empty PostgreSQL baseline and preserves database invariants 19914ms
+ ✓ tests/work-views.test.ts > shows routing attention only to the source-authorized workflow manager 1ms
+ ✓ tests/work-views.test.ts > separates assigned actionable preparation from unassigned setup without changing source queues 0ms
+ ✓ tests/work-views.test.ts > keeps domain queries and return context together 0ms
+ ✓ tests/work-views.test.ts > shows only permission-filtered app cards before launcher search 1ms
+ ✓ tests/work-views.test.ts > searches deep destinations with owning-app context and no duplicate URLs 1ms
+ ✓ tests/work-views.test.ts > omits inaccessible launcher categories and scopes rail state by workspace 0ms
+
+ Test Files  4 passed (4)
+      Tests  14 passed (14)
+   Start at  00:08:08
+   Duration  68.51s (transform 352ms, setup 132ms, import 464ms, tests 67.61s, environment 0ms)
+

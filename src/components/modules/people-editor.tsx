@@ -18,6 +18,9 @@ export function PeopleEditor({
   returnTo,
   organization,
   initialPositionId,
+  lifecycleManaged = false,
+  initialOpen = false,
+  alwaysOpen = false,
 }: {
   base: string;
   person?: Row;
@@ -29,10 +32,13 @@ export function PeopleEditor({
   returnTo?: string;
   organization?: OrganizationOverview;
   initialPositionId?:string;
+  lifecycleManaged?: boolean;
+  initialOpen?: boolean;
+  alwaysOpen?: boolean;
 }) {
   const ready = useHydrated();
   const router = useRouter();
-  const [open, setOpen] = useState(!!initialPositionId);
+  const [open, setOpen] = useState(initialOpen || !!initialPositionId);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [branch, setBranch] = useState(
@@ -84,20 +90,22 @@ export function PeopleEditor({
     <section className="card">
       <div className="section-head">
         <h2>{person ? "Manage employee" : "Add a person"}</h2>
-        <button
-          className="button"
-          disabled={!ready}
-          onClick={() => setOpen(!open)}
-        >
-          {open ? "Close form" : person ? "Edit employee" : "Add person"}
-        </button>
+        {!alwaysOpen && (
+          <button
+            className="button"
+            disabled={!ready}
+            onClick={() => setOpen(!open)}
+          >
+            {open ? "Close form" : person ? "Edit employee" : "Add person"}
+          </button>
+        )}
       </div>
       {error && (
         <p role="alert" className="error">
           {error}
         </p>
       )}
-      {open && (
+      {(open || alwaysOpen) && (
         <form
           className="business-form"
           onSubmit={(e) => {
@@ -316,7 +324,7 @@ export function PeopleEditor({
       )}
       {person && (
         <div className="form-actions">
-          <button
+          {(!lifecycleManaged || person.status === "archived") && <button
             className="button secondary"
             disabled={pending || !ready}
             onClick={() =>
@@ -333,10 +341,10 @@ export function PeopleEditor({
             {person.status === "active" && person.engagement_status === "active"
               ? "Deactivate employee"
               : "Activate employee"}
-          </button>
+          </button>}
           <button
             className="button secondary"
-            disabled={pending || !ready || person.status === "archived"}
+            disabled={pending || !ready || person.status === "archived" || (lifecycleManaged && person.engagement_status !== "ended")}
             onClick={() =>
               void send(`/${person.id}/status`, {
                 status: "archived",
@@ -347,8 +355,7 @@ export function PeopleEditor({
             Archive employee
           </button>
           <p className="muted">
-            Deactivation revokes this company’s role assignments. Archived
-            profiles retain their history and can be restored.
+            {lifecycleManaged ? "Use the lifecycle panel to suspend access or end employment. Archive retains history after employment ends." : "Deactivation revokes this company’s role assignments. Archived profiles retain their history and can be restored."}
           </p>
         </div>
       )}

@@ -1,3 +1,4 @@
+import { selfServiceSeed } from "@/server/self-service";
 import { SocialHome } from "./social-home";
 import { homePosts, postView } from "@/server/social-home";
 import { holdingResources } from "@/server/runtime";
@@ -13,6 +14,7 @@ export async function SocialPage({
   postId?: string;
 }) {
   const { write } = await holdingResources(actor.holdingId);
+  const initialDay = !postId && !actor.beta ? selfServiceSeed(actor).catch(() => null) : undefined;
   const [posts, branches, moderate] = await Promise.all([
     postId
       ? postView(write, actor, postId).then((p) => [p])
@@ -41,6 +43,8 @@ export async function SocialPage({
         tasks: [],
       }}
       single={!!postId}
+      calendarEnabled={!actor.beta}
+      initialDay={initialDay}
     />
   );
 }

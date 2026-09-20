@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/workplace-navigation.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  1 passed (1)
+      Tests  50 passed (50)
+   Start at  11:53:25
+   Duration  2.12s (transform 77ms, setup 47ms, import 99ms, tests 1.90s, environment 0ms)
+

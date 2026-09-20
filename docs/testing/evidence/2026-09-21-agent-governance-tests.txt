@@ -1,0 +1,18 @@
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/agent-governance.test.ts > routes an approved immutable version through a pool and records private invocation evidence 448ms
+ ✓ tests/agent-governance.test.ts > rejects unapproved versions and keeps authority actions out of version policy 376ms
+ ✓ tests/agent-governance.test.ts > records provider failure without exposing another user's private session 397ms
+ ✓ tests/staff-migration.test.ts > creates a complete, empty PostgreSQL baseline and preserves database invariants 5693ms
+ ✓ tests/workspace-assistant.test.ts > isolates record and filter contexts while ignoring navigation-only pagination 323ms
+ ✓ tests/workspace-assistant.test.ts > persists page history without carrying it to another page or actor 213ms
+ ✓ tests/workspace-assistant.test.ts > rejects cross-page requests for a role without the explicit permission 116ms
+ ✓ tests/workspace-assistant.test.ts > replays a completed message without paying for a second inference 136ms
+ ✓ tests/workspace-assistant.test.ts > does not reveal answers after the authorizing assignment is revoked 107ms
+
+ Test Files  3 passed (3)
+      Tests  9 passed (9)
+   Start at  00:00:59
+   Duration  28.76s (transform 235ms, setup 100ms, import 365ms, tests 27.94s, environment 0ms)
+

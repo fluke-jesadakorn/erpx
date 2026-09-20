@@ -36,8 +36,11 @@ export async function project(env: JobEnv, message: EventMessage) {
   if (!resourceSlots(env).some((s) => s.id === message.holdingId))
     throw new Error("INVALID_HOLDING");
   const { read, write } = databases(env, message.holdingId);
+  if (message.eventType === "legal.ai.queue") await (await import("./legal/jobs")).drainLegalAi(write,env);
+  if (message.eventType === "executive.generation.queue") await (await import("./executive/generation")).drainExecutiveGeneration(write,env);
   if (["social.post.publish", "social.post.comment", "social.agent.retry"].includes(message.eventType)) await drainSocialAgent(write, env, message.aggregateId);
-  const isLeave = message.eventType.startsWith("leave.");
+  const isLeave = message.eventType.startsWith("leave.") && !message.eventType.startsWith("leave.policy.");
+  const isOvertime = message.eventType.startsWith("overtime.") && message.eventType !== "overtime.eligibility";
   const isPayroll = message.eventType.startsWith("people.payroll.");
   const isTask =
     message.eventType.startsWith("task.") ||
@@ -52,12 +55,14 @@ export async function project(env: JobEnv, message: EventMessage) {
   if (message.eventType === "request.ai.prepare") await drainRequestAi(write, env, message.aggregateId);
   let payload = message.payload,
     version = message.aggregateVersion;
-  if (isTask || ((isLeave || isPayroll) && !payload.state)) {
+  if (isTask || ((isLeave || isPayroll || isOvertime) && !payload.state)) {
     // Backward compatibility for committed events written before state was included.
     const owner = await write
       .prepare(
         isTask
           ? "SELECT state,version,company_id,branch_id,department_id FROM staff_tasks WHERE id=?"
+          : isOvertime
+            ? "SELECT state,version,company_id,branch_id,department_id FROM overtime_requests WHERE id=?"
           : isLeave
             ? "SELECT state,version,company_id,branch_id,department_id FROM leave_requests WHERE id=?"
             : "SELECT status state,version,company_id,NULL branch_id,NULL department_id FROM hr_payroll_runs WHERE id=?",
@@ -93,29 +98,30 @@ export async function project(env: JobEnv, message: EventMessage) {
         Date.now(),
       ),
   ];
-  if (isLeave || isPayroll || isTask) {
+  if (isLeave || isPayroll || isTask || isOvertime) {
     const completed = [
       "approved",
       "posted",
       "rejected",
       "cancelled",
       "completed",
+      "withdrawn",
     ].includes(payload.state ?? "");
     const queue = completed
       ? "completed"
       : payload.state === "pending_approval" || payload.state === "preview"
         ? "todo"
         : "waiting";
-    const sourceType = isTask
+    const sourceType = isOvertime ? "overtime_request" : isTask
       ? "staff_task"
       : isPayroll
         ? "hr_payroll_run"
         : "leave_request";
-    const title = isTask
+    const title = isOvertime ? "Overtime request" : isTask
       ? "Staff task"
       : isPayroll
         ? "Payroll preview"
-        : "Annual leave request";
+        : "Leave request";
     statements.push(
       read
         .prepare(

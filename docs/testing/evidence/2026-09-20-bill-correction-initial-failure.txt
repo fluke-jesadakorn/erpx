@@ -1,0 +1,35 @@
+$ bun scripts/local/test.ts tests/supplier-bill-matching.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/supplier-bill-matching.test.ts > posts reviewed price 12 and reverses actual AP with original stock cost over partial returns 2983ms
+ ✓ tests/supplier-bill-matching.test.ts > posts reviewed price 8 and reverses actual AP with original stock cost over partial returns 2043ms
+ ✓ tests/supplier-bill-matching.test.ts > keeps quantity discrepancies in review, blocks invoice bypass and preserves correction history 1320ms
+ ✓ tests/supplier-bill-matching.test.ts > serializes capture and review, protects current authority, and exposes scoped handoffs 1931ms
+ × tests/supplier-bill-matching.test.ts > returns an unposted AP draft atomically and accepts a corrected bill without receiving or posting goods twice 1547ms
+   → The record changed, a reference is unavailable, or this value already exists. Refresh and review again.
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/supplier-bill-matching.test.ts > returns an unposted AP draft atomically and accepts a corrected bill without receiving or posting goods twice
+Error: The record changed, a reference is unavailable, or this value already exists. Refresh and review again.
+ ❯ executeCommand src/server/commands.ts:93:57
+     91|     const committed = await prior();
+     92|     if (committed) return committed;
+     93|     if (/constraint|UNIQUE/i.test(String(error))) throw new ApiError(4…
+       |                                                         ^
+     94|     throw error;
+     95|   }
+ ❯ tests/supplier-bill-matching.test.ts:40:16
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+Serialized Error: { status: 409, code: 'CONFLICT' }
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  14:05:39
+   Duration  15.14s (transform 353ms, setup 55ms, import 217ms, tests 14.77s, environment 0ms)
+
+error: script "test:integration" exited with code 1

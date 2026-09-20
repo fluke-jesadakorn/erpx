@@ -1,11 +1,11 @@
 "use client";
+/* eslint-disable @next/next/no-img-element -- Private workspace logos are served through authenticated attachment routes. */
 
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useState } from "react";
 import {
   Building2,
   ChevronDown,
-  MapPin,
   Network,
   ShieldCheck,
 } from "lucide-react";
@@ -18,11 +18,17 @@ import type {
   WorkspaceChoice,
   WorkspaceCompanyChoice,
   WorkspaceDepartmentChoice,
+  WorkspaceChoiceBrand,
 } from "@/lib/workspace-choice";
 import styles from "./shell.module.css";
 
 function CurrentArea() {
   return <span className={styles.workspaceCurrent}>Current area</span>;
+}
+
+function ChoiceBrand({ brand }: { brand?: WorkspaceChoiceBrand }) {
+  if (!brand) return <Building2 size={17} aria-hidden="true" />;
+  return <span className={styles.choiceBrand} aria-hidden="true">{brand.primaryUrl ? <img src={brand.primaryUrl} alt="" /> : brand.initials}</span>;
 }
 
 export function WorkspaceMenu({
@@ -134,7 +140,7 @@ export function WorkspaceMenu({
         disabled={!ready}
         aria-label="Switch workspace"
         aria-haspopup="dialog"
-        title={`Switch workspace: ${label}`}
+        title={`Change workspace (currently ${label})`}
         aria-expanded={open}
         onClick={() => {
           setError("");
@@ -142,8 +148,12 @@ export function WorkspaceMenu({
         }}
       >
         <Building2 size={18} aria-hidden="true" />
-        <span>Switch workspace</span>
-        <ChevronDown size={12} aria-hidden="true" />
+        <span className={styles.workspaceTriggerLabel}>{label}</span>
+        <ChevronDown
+          className={styles.workspaceTriggerChevron}
+          size={14}
+          aria-hidden="true"
+        />
       </button>
       <Dialog title="Switch workspace" open={open} onClose={() => setOpen(false)}>
         <section className={styles.workspaceSection}>
@@ -155,7 +165,7 @@ export function WorkspaceMenu({
                 key={holding.holdingSlug}
                 className={styles.workspaceHolding}
               >
-                <h4>{holding.label}</h4>
+                <h4><ChoiceBrand brand={holding.brand} />{holding.label}</h4>
                 {holding.companies.map((company) => {
                   const companyCurrent = companyIsCurrent(
                     holding.holdingSlug,
@@ -205,7 +215,7 @@ export function WorkspaceMenu({
                                     }
                                     onClick={() => setOpen(false)}
                                   >
-                                    <MapPin size={16} aria-hidden="true" />
+                                    <ChoiceBrand brand={branch.brand} />
                                     <span>{branch.label}</span>
                                     {branchCurrent && <CurrentArea />}
                                   </a>
@@ -213,7 +223,7 @@ export function WorkspaceMenu({
                                   <div
                                     className={`${styles.workspaceChoice} ${styles.workspaceBranchLabel}`}
                                   >
-                                    <MapPin size={16} aria-hidden="true" />
+                                    <ChoiceBrand brand={branch.brand} />
                                     <span>{branch.label}</span>
                                   </div>
                                 )}

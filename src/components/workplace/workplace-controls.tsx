@@ -1,12 +1,12 @@
 "use client";
 
+import { AppNavigation } from "./app-navigation";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import Link from "next/link";
 import {
   useCallback,
   useEffect,
   useId,
-  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -15,6 +15,7 @@ import {
   ArrowLeftRight,
   ArrowUpRight,
   Banknote,
+  CalendarDays,
   Bell,
   BookOpenText,
   BookOpen,
@@ -58,9 +59,10 @@ import {
 } from "lucide-react";
 import {
   resolveNavigation,
+  navigationCollapsedValue,
   workplaceNavigation,
   type NavigationContext,
-  type NavigationGroup,
+  type NavigationApp,
   type NavigationIconId,
   type NavigationItem,
 } from "@/lib/workplace-navigation";
@@ -72,13 +74,16 @@ const icons: Record<NavigationIconId, LucideIcon> = {
   home: Home,
   work: BriefcaseBusiness,
   inbox: Bell,
+  calendar: CalendarDays,
   people: UsersRound,
   commerce: Package,
   finance: Landmark,
+  pms: Building2,
   learn: BookOpen,
   settings: Settings,
   feedback: HelpCircle,
   projects: Folder,
+  technology: Monitor,
   feed: MessagesSquare,
   organization: Building2,
   payroll: Banknote,
@@ -187,7 +192,13 @@ function readCollapsed(value: string) {
   }
 }
 
-export function WorkplaceNavigation(
+export function WorkplaceNavigation(props: NavigationContext & { mobile?: boolean; theme?: string }) {
+  return props.scopeKind === "platform" || props.workspaceBase === "/platform"
+    ? <LegacyWorkplaceNavigation {...props}/>
+    : <AppNavigation context={props} mobile={props.mobile} Icon={NavigationIcon}/>;
+}
+
+function LegacyWorkplaceNavigation(
   props: NavigationContext & { mobile?: boolean; theme?: string },
 ) {
   const { workspaceBase, mobile = false } = props;
@@ -202,15 +213,17 @@ export function WorkplaceNavigation(
     pathname,
     searchParams,
   );
-  const business = model.groups.filter((group) => group.placement === "business");
-  const secondary = model.groups.filter(
+  const business = model.apps.filter((group) => group.placement === "business");
+  const secondary = model.apps.filter(
     (group) => group.placement === "secondary",
   );
-  const storageKey = `erpx-navigation-collapsed:v1:${workspaceBase}`;
+  const standard = !props.beta && props.scopeKind !== "platform" && workspaceBase !== "/platform";
+  const legacyStorageKey = `erpx-navigation-collapsed:v2:${workspaceBase}`;
+  const storageKey = standard ? `erpx-navigation-collapsed:v3:${workspaceBase}` : legacyStorageKey;
+  const defaultCollapsed = JSON.stringify(model.apps.map((group) => group.id));
+  const location = `${pathname}?${searchParams}`;
+  const [activeCollapse, setActiveCollapse] = useState<string | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [overflowing, setOverflowing] = useState(false);
-  const navRef = useRef<HTMLElement>(null);
-  const secondaryRef = useRef<HTMLDivElement>(null);
   const treeId = useId().replaceAll(":", "");
   const subscribeCollapsed = useCallback(
     (callback: () => void) => {
@@ -229,13 +242,17 @@ export function WorkplaceNavigation(
   );
   const collapsedValue = useSyncExternalStore(
     subscribeCollapsed,
-    () => window.localStorage.getItem(storageKey) ?? "[]",
-    () => "[]",
+    () => {
+      try {
+        const saved = window.localStorage.getItem(storageKey);
+        return standard
+          ? navigationCollapsedValue(saved, window.localStorage.getItem(legacyStorageKey), model.apps.map((group) => group.id))
+          : saved ?? defaultCollapsed;
+      } catch { return defaultCollapsed; }
+    },
+    () => defaultCollapsed,
   );
   const collapsed = readCollapsed(collapsedValue);
-  const secondaryActive = secondary.some(
-    (group) => group.id === resolved.groupId,
-  ) || model.standalone.some((item) => item.id === resolved.activeId);
 
   const persistCollapsed = (next: Set<string>) => {
     try {
@@ -246,56 +263,16 @@ export function WorkplaceNavigation(
     }
   };
   const expanded = (id: string) =>
-    resolved.groupId === id ||
-    (id === "__more" && secondaryActive) ||
+    (resolved.groupId === id && activeCollapse !== `${location}:${id}`) ||
     !collapsed.has(id);
   const toggleExpanded = (id: string) => {
     const next = new Set(collapsed);
-    if (expanded(id)) next.add(id);
+    const open = expanded(id);
+    if (open) next.add(id);
     else next.delete(id);
+    if (resolved.groupId === id) setActiveCollapse(open ? `${location}:${id}` : null);
     persistCollapsed(next);
   };
-
-  useEffect(() => {
-    if (mobile) return;
-    const nav = navRef.current;
-    const overflowContent = secondaryRef.current;
-    if (!nav || !overflowContent) return;
-    let frame = 0;
-    const measure = () => {
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(() => {
-        const moreButton = nav.querySelector<HTMLElement>("[data-more-toggle]");
-        const fixedChildren = Array.from(nav.children).filter(
-          (child) => child !== overflowContent && child !== moreButton,
-        );
-        const gap = Number.parseFloat(getComputedStyle(nav).rowGap) || 0;
-        const fullHeight =
-          fixedChildren.reduce(
-            (height, child) =>
-              height + (child as HTMLElement).getBoundingClientRect().height,
-            0,
-          ) +
-          overflowContent.scrollHeight +
-          (secondary.length || model.standalone.length ? 44 : 0) +
-          gap * (fixedChildren.length + 1);
-        setOverflowing(fullHeight > nav.clientHeight + 1);
-      });
-    };
-    const observer = new ResizeObserver(measure);
-    observer.observe(nav);
-    observer.observe(overflowContent);
-    measure();
-    return () => {
-      cancelAnimationFrame(frame);
-      observer.disconnect();
-    };
-  }, [
-    mobile,
-    secondary.length,
-    model.standalone.length,
-    collapsedValue,
-  ]);
 
   const closeMobile = () => {
     if (mobile) setMobileOpen(false);
@@ -343,7 +320,7 @@ export function WorkplaceNavigation(
       </Link>
     );
   };
-  const renderGroup = (group: NavigationGroup) => {
+  const renderGroup = (group: NavigationApp) => {
     const open = expanded(group.id);
     const childrenId = `${treeId}-${group.id}`;
     const groupActive = resolved.groupId === group.id;
@@ -354,37 +331,17 @@ export function WorkplaceNavigation(
         key={group.id}
       >
         <div className={styles.navGroupHead}>
-          {group.href ? (
-            <Link
-              className={styles.navGroupLink}
-              href={group.href}
-              aria-current={resolved.activeId === group.id ? "page" : undefined}
-              onClick={closeMobile}
-            >
-              <NavigationIcon id={group.icon} />
-              <span>{group.label}</span>
-            </Link>
-          ) : (
-            <button
-              type="button"
-              className={styles.navGroupLabel}
-              onClick={() => toggleExpanded(group.id)}
-              aria-expanded={open}
-              aria-controls={childrenId}
-            >
-              <NavigationIcon id={group.icon} />
-              <span>{group.label}</span>
-            </button>
-          )}
           <button
             type="button"
-            className={styles.navGroupToggle}
+            className={styles.navGroupLabel}
+            onClick={() => toggleExpanded(group.id)}
             aria-label={`${open ? "Collapse" : "Expand"} ${group.label}`}
             aria-expanded={open}
             aria-controls={childrenId}
-            onClick={() => toggleExpanded(group.id)}
           >
-            <ChevronDown size={15} aria-hidden="true" />
+            <NavigationIcon id={group.icon} />
+            <span>{group.label}</span>
+            <ChevronDown className={styles.navGroupChevron} size={15} aria-hidden="true" />
           </button>
         </div>
         <div
@@ -399,8 +356,6 @@ export function WorkplaceNavigation(
     );
   };
 
-  const moreOpen = expanded("__more");
-
   const secondaryContent = (
     <>
       {secondary.map(renderGroup)}
@@ -411,7 +366,6 @@ export function WorkplaceNavigation(
   return (
     <>
       <nav
-        ref={navRef}
         className={mobile ? styles.mobileNav : styles.nav}
         aria-label={mobile ? "Mobile navigation" : "Primary"}
       >
@@ -420,36 +374,9 @@ export function WorkplaceNavigation(
           <span className={styles.navLabel}>Business</span>
         )}
         {!mobile && business.map(renderGroup)}
-        {!mobile && overflowing && (secondary.length > 0 || model.standalone.length > 0) && (
-          <button
-            type="button"
-            data-more-toggle
-            className={styles.moreButton}
-            disabled={!ready}
-            onClick={() => toggleExpanded("__more")}
-            aria-expanded={moreOpen}
-            aria-current={secondaryActive ? "page" : undefined}
-            aria-controls={`${treeId}-overflow`}
-            aria-label="More navigation"
-          >
-            <Menu size={18} aria-hidden="true" />
-            <span>More</span>
-            <ChevronDown
-              className={styles.moreChevron}
-              size={15}
-              aria-hidden="true"
-            />
-          </button>
-        )}
-        {!mobile && (
-          <div
-            ref={secondaryRef}
-            id={`${treeId}-overflow`}
-            className={styles.secondaryNav}
-            data-expanded={!overflowing || moreOpen}
-            aria-hidden={overflowing && !moreOpen}
-            inert={overflowing && !moreOpen}
-          >
+        {!mobile && (secondary.length > 0 || model.standalone.length > 0) && (
+          <div className={styles.secondaryNav} data-expanded="true">
+            {!standard && <span className={styles.navLabel}>Workspace</span>}
             {secondaryContent}
           </div>
         )}

@@ -12,7 +12,7 @@ import { multiSession } from "better-auth/plugins";
 import { sendBetaEmail } from "./beta-email";
 import { runtimeEnv } from "./runtime";
 
-export async function createAuth(requestOrigin?: string, directoryId?: string) {
+export async function createAuth(requestOrigin?: string, directoryId?: string, legalInvitationEmail?:string) {
   const env = await runtimeEnv();
   const local = env.ERPX_ENVIRONMENT === "local";
   const baseURL = local ? requestOrigin ?? env.BETTER_AUTH_URL : env.BETTER_AUTH_URL;
@@ -24,13 +24,13 @@ export async function createAuth(requestOrigin?: string, directoryId?: string) {
     advanced: { useSecureCookies: !local, ...(!local ? { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } } : {}) },
     emailAndPassword: {
       enabled: true,
-      disableSignUp: !beta,
-      requireEmailVerification: !local || beta,
+      disableSignUp: !beta && !legalInvitationEmail,
+      requireEmailVerification: !local || beta || !!legalInvitationEmail,
       sendResetPassword: async ({user,url}) => { await sendBetaEmail(env,user.email,"Reset your ERPX password",url); },
       minPasswordLength: 12,
     },
     emailVerification: {
-      sendOnSignUp: beta, autoSignInAfterVerification: true,
+      sendOnSignUp: beta || !!legalInvitationEmail, autoSignInAfterVerification: true,
       sendVerificationEmail: async ({user,url}) => { await sendBetaEmail(env,user.email,"Verify your ERPX email",url); },
     },
     session: {
@@ -42,7 +42,7 @@ export async function createAuth(requestOrigin?: string, directoryId?: string) {
       storage: "database",
     },
     account: { encryptOAuthTokens:true, accountLinking: { enabled: false } },
-    databaseHooks: { account: { create: { before: async account => account.providerId === "credential" && !await localCredentialAllowed(account.userId) ? false : undefined } } },
+    databaseHooks: { ...(legalInvitationEmail?{user:{create:{before:async(user:{email:string})=>user.email.toLowerCase()===legalInvitationEmail.toLowerCase()?undefined:false}}}:{}), account: { create: { before: async account => account.providerId === "credential" && !await localCredentialAllowed(account.userId) ? false : undefined } } },
     plugins: [multiSession({ maximumSessions: 5 }), directoryAuthPlugin(), ...(directoryId ? [genericOAuth({config:[await directoryOidcConfig(directoryId)]})] : [])],
     trustedOrigins: [
       baseURL,

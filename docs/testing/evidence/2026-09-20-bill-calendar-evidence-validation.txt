@@ -1,0 +1,16 @@
+$ bun scripts/local/test.ts tests/business-readiness.test.ts tests/acceptance-evidence.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/business-readiness.test.ts > bundles current validated evidence without promoting observations into capability sign-offs 229ms
+ ✓ tests/business-readiness.test.ts > rejects branch, department, non-manager and revoked Company authority 117ms
+ ✓ tests/acceptance-evidence.test.ts > acceptance evidence boundaries > preserves scoped observations without promoting capability gates 4ms
+ ✓ tests/acceptance-evidence.test.ts > acceptance evidence boundaries > rejects simulation evidence for provider and production gates 1ms
+ ✓ tests/acceptance-evidence.test.ts > acceptance evidence boundaries > rejects stale capability/scenario mappings and non-durable evidence 1ms
+ ✓ tests/acceptance-evidence.test.ts > acceptance evidence boundaries > requires unique IDs and an earlier, same-scope record for corrections 1ms
+
+ Test Files  2 passed (2)
+      Tests  6 passed (6)
+   Start at  14:16:49
+   Duration  7.79s (transform 205ms, setup 73ms, import 274ms, tests 7.29s, environment 0ms)
+

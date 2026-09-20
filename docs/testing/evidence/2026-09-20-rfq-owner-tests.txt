@@ -1,0 +1,99 @@
+$ bun scripts/local/test.ts tests/procurement-rfqs.test.ts tests/business-commands.test.ts tests/calendar-api.test.ts tests/work-cache.test.ts tests/work-views.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/procurement-rfqs.test.ts > compares immutable supplier offers and atomically hands an independent award to one normal draft PO 4524ms
+ ✓ tests/procurement-rfqs.test.ts > requires independent award review and a current complete offer; return preserves history and invalidates prior selection 1609ms
+ ✓ tests/procurement-rfqs.test.ts > rejects changed award terms and concurrent duplicate order handoff without leaving an orphan PO 823ms
+ ✓ tests/procurement-rfqs.test.ts > guards scope, current role, idempotency, stale versions, expiry and incomplete quotations 727ms
+ ✓ tests/procurement-rfqs.test.ts > routes independent review and cancellation without stock or accounting side effects 2232ms
+ ✓ tests/procurement-rfqs.test.ts > keeps Inbox and Calendar within source scope and exposes missing independent reviewer coverage 4815ms
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > invalidates after direct SQL, job writes and reassignment in the committing transaction
+{"event":"work_cache","status":"miss"}
+
+ ✓ tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills 692ms
+stdout | tests/work-cache.test.ts > invalidates after direct SQL, job writes and reassignment in the committing transaction
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > invalidates after direct SQL, job writes and reassignment in the committing transaction
+{"event":"work_cache","status":"miss"}
+
+ ✓ tests/work-cache.test.ts > invalidates after direct SQL, job writes and reassignment in the committing transaction 308ms
+ ✓ tests/work-cache.test.ts > rolls revisions back with a transaction and does not expose uncommitted writes 115ms
+stdout | tests/work-cache.test.ts > discards a fill that crosses a commit; reads starting after commit never join the old fill
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > discards a fill that crosses a commit; reads starting after commit never join the old fill
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > discards a fill that crosses a commit; reads starting after commit never join the old fill
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > does not persist incomplete sources
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > does not persist incomplete sources
+{"event":"work_cache","status":"miss"}
+
+ ✓ tests/work-cache.test.ts > discards a fill that crosses a commit; reads starting after commit never join the old fill 384ms
+ ✓ tests/work-cache.test.ts > does not persist incomplete sources 99ms
+stdout | tests/work-cache.test.ts > expires on authority deadlines without a data write
+{"event":"work_cache","status":"miss"}
+
+ ✓ tests/work-cache.test.ts > partitions company/user/branch/department/role/assignment, authority and database 25ms
+stdout | tests/work-cache.test.ts > expires on authority deadlines without a data write
+{"event":"work_cache","status":"miss"}
+
+ ✓ tests/work-cache.test.ts > expires on authority deadlines without a data write 148ms
+ ✓ tests/work-cache.test.ts > tracks IAM revocation and excludes read cursors/housekeeping 183ms
+stdout | tests/work-cache.test.ts > expires before a candidate assignment expires without a new write
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > expires before a candidate assignment expires without a new write
+{"event":"work_cache","status":"miss"}
+
+ ✓ tests/work-cache.test.ts > bypasses persistent cache when a newly added table has no revision trigger 207ms
+ ✓ tests/work-cache.test.ts > expires before a candidate assignment expires without a new write 448ms
+ ✓ tests/work-cache.test.ts > does not lose revisions under concurrent writers and invalidates on truncate 267ms
+stdout | tests/work-cache.test.ts > does not join a pre-expiry fill after a time boundary without a commit
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > does not join a pre-expiry fill after a time boundary without a commit
+{"event":"work_cache","status":"hit"}
+
+ ✓ tests/work-cache.test.ts > does not join a pre-expiry fill after a time boundary without a commit 340ms
+ ✓ tests/business-commands.test.ts > Business command transactions > replays a committed command without repeating its effects and rejects changed input 422ms
+ ✓ tests/business-commands.test.ts > Business command transactions > allows only one competing update and rolls back the losing receipt and evidence 777ms
+ ✓ tests/business-commands.test.ts > Business command transactions > rejects a grant whose company or scope changed before commit 853ms
+ ✓ tests/business-commands.test.ts > Business command transactions > rechecks revocation at commit time 829ms
+ ✓ tests/calendar-api.test.ts > checks command keys, origin and input at the API boundary 2166ms
+ ✓ tests/work-views.test.ts > shows routing attention only to the source-authorized workflow manager 3ms
+ ✓ tests/work-views.test.ts > separates assigned actionable preparation from unassigned setup without changing source queues 1ms
+ ✓ tests/work-views.test.ts > keeps domain queries and return context together 1ms
+ ✓ tests/work-views.test.ts > shows only permission-filtered app cards before launcher search 2ms
+ ✓ tests/work-views.test.ts > searches deep destinations with owning-app context and no duplicate URLs 3ms
+ ✓ tests/work-views.test.ts > omits inaccessible launcher categories and scopes rail state by workspace 1ms
+
+ Test Files  5 passed (5)
+      Tests  29 passed (29)
+   Start at  13:07:22
+   Duration  289.51s (transform 478ms, setup 128ms, import 447ms, tests 288.52s, environment 0ms)
+

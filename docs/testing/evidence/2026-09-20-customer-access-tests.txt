@@ -1,0 +1,93 @@
+$ bun scripts/local/test.ts tests/customer-access.test.ts tests/work-views.test.ts tests/work-cache.test.ts tests/staff-migration.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/customer-access.test.ts > requires an independent current reviewer, exposes Work and retains immutable decisions 581ms
+ ✓ tests/customer-access.test.ts > binds the first verified identity, records allowlisted reads and excludes a second account 328ms
+ ✓ tests/customer-access.test.ts > revokes immediately, hides wrong-scope bindings and blocks stale decisions 555ms
+ ✓ tests/customer-access.test.ts > refuses draft sources and reviewers whose employment ended 448ms
+ ✓ tests/staff-migration.test.ts > creates a complete, empty PostgreSQL baseline and preserves database invariants 3866ms
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > invalidates after direct SQL, job writes and reassignment in the committing transaction
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > invalidates after direct SQL, job writes and reassignment in the committing transaction
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > invalidates after direct SQL, job writes and reassignment in the committing transaction
+{"event":"work_cache","status":"miss"}
+
+ ✓ tests/work-cache.test.ts > preserves complete results, order and actions on warm reads; coalesces five fills 109ms
+ ✓ tests/work-cache.test.ts > invalidates after direct SQL, job writes and reassignment in the committing transaction 62ms
+ ✓ tests/work-cache.test.ts > rolls revisions back with a transaction and does not expose uncommitted writes 22ms
+stdout | tests/work-cache.test.ts > discards a fill that crosses a commit; reads starting after commit never join the old fill
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > discards a fill that crosses a commit; reads starting after commit never join the old fill
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > discards a fill that crosses a commit; reads starting after commit never join the old fill
+{"event":"work_cache","status":"hit"}
+
+stdout | tests/work-cache.test.ts > does not persist incomplete sources
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > does not persist incomplete sources
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > expires on authority deadlines without a data write
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > expires on authority deadlines without a data write
+{"event":"work_cache","status":"miss"}
+
+ ✓ tests/work-cache.test.ts > discards a fill that crosses a commit; reads starting after commit never join the old fill 53ms
+ ✓ tests/work-cache.test.ts > does not persist incomplete sources 28ms
+ ✓ tests/work-cache.test.ts > partitions company/user/branch/department/role/assignment, authority and database 9ms
+ ✓ tests/work-cache.test.ts > expires on authority deadlines without a data write 26ms
+stdout | tests/work-cache.test.ts > expires before a candidate assignment expires without a new write
+{"event":"work_cache","status":"miss"}
+
+ ✓ tests/work-cache.test.ts > tracks IAM revocation and excludes read cursors/housekeeping 25ms
+ ✓ tests/work-cache.test.ts > bypasses persistent cache when a newly added table has no revision trigger 21ms
+stdout | tests/work-cache.test.ts > expires before a candidate assignment expires without a new write
+{"event":"work_cache","status":"miss"}
+
+ ✓ tests/work-cache.test.ts > expires before a candidate assignment expires without a new write 379ms
+ ✓ tests/work-cache.test.ts > does not lose revisions under concurrent writers and invalidates on truncate 12ms
+stdout | tests/work-cache.test.ts > does not join a pre-expiry fill after a time boundary without a commit
+{"event":"work_cache","status":"miss"}
+
+stdout | tests/work-cache.test.ts > does not join a pre-expiry fill after a time boundary without a commit
+{"event":"work_cache","status":"hit"}
+
+ ✓ tests/work-cache.test.ts > does not join a pre-expiry fill after a time boundary without a commit 252ms
+ ✓ tests/work-views.test.ts > shows routing attention only to the source-authorized workflow manager 1ms
+ ✓ tests/work-views.test.ts > separates assigned actionable preparation from unassigned setup without changing source queues 0ms
+ ✓ tests/work-views.test.ts > keeps domain queries and return context together 0ms
+ ✓ tests/work-views.test.ts > shows only permission-filtered app cards before launcher search 1ms
+ ✓ tests/work-views.test.ts > searches deep destinations with owning-app context and no duplicate URLs 1ms
+ ✓ tests/work-views.test.ts > omits inaccessible launcher categories and scopes rail state by workspace 0ms
+
+ Test Files  4 passed (4)
+      Tests  23 passed (23)
+   Start at  17:56:21
+   Duration  25.55s (transform 287ms, setup 132ms, import 770ms, tests 24.32s, environment 0ms)
+

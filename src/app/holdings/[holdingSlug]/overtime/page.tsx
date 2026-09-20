@@ -1,0 +1,14 @@
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import styles from "@/components/self-service/self-service.module.css";
+import { overtimeLabels } from "@/lib/overtime";
+import { workspaceBase } from "@/lib/workspace";
+import { publicScope,requireWorkContext } from "@/server/authorization";
+import { ApiError } from "@/server/http";
+import { listOvertime,overtimeSetup } from "@/server/overtime";
+import { holdingResources } from "@/server/runtime";
+import Link from "next/link";
+export default async function Overtime({params}:{params:Promise<{holdingSlug:string}>}) {
+ const actor=await requireWorkContext((await params).holdingSlug),base=workspaceBase(publicScope(actor)),{write}=await holdingResources(actor.holdingId);
+ const [requests,setup]=await Promise.all([listOvertime(actor),overtimeSetup(write,actor).then(s=>({blockers:s.blockers,canDraft:true})).catch(e=>{if(e instanceof ApiError)return {blockers:[e.message],canDraft:false};throw e;})]);
+ return <FeaturePage className={`content ${styles.workspace}`}><Link href={`${base}/home`}>← Home</Link><header className={styles.heading}><div><p className={styles.eyebrow}>My work · Self-service</p><h1>Overtime</h1><p>Plan extra work, submit actual hours, and follow each review.</p></div><Link className="button" href={`${base}/overtime/new`}>Request overtime</Link></header><FeatureTabs/><WidgetGrid pageKey="overtime">{!!setup.blockers.length&&<FeatureWidget id="overtime-setup-needs-attention" title="Setup needs attention"><section className={styles.panel} role="status">{setup.blockers.map(b=><p key={b}>{b}</p>)}<p>Ask HR to resolve this in <Link href={`${base}/people/settings?section=leave`}>People settings</Link>. {setup.canDraft?'You can still save a draft.':'An active staff engagement is needed before creating a request.'}</p></section></FeatureWidget>}<FeatureWidget id="overtime-requests-history" title="Requests & history"><section className={styles.panel}>{requests.length?requests.map(r=><Link className={styles.row} key={r.id} href={`${base}/overtime/${r.id}`}><span><strong>{r.start_local.slice(0,10)} · {(r.minutes/60).toFixed(2)} hours</strong><small>{r.mode==='advance'?'Advance request':'Retrospective claim'} · {r.approval.currentApprover?.approver_name??'Requester'}</small></span><span className={styles.status}>{overtimeLabels[r.state]}</span></Link>):<p className={styles.muted}>Your requests will appear here, including saved drafts.</p>}</section></FeatureWidget><p className={styles.muted}>Final approval supplies hours to payroll preview. It does not calculate statutory pay or authorize payment.</p></WidgetGrid></FeaturePage>;
+}

@@ -1,0 +1,14 @@
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/payroll-core.test.ts > snapshots configured proration and overtime and exports an immutable review revision 196ms
+ ✓ tests/staff-migration.test.ts > creates a complete, empty PostgreSQL baseline and preserves database invariants 4467ms
+ ✓ tests/benefits.test.ts > snapshots family coverage through independent provider and payroll release 489ms
+ ✓ tests/benefits.test.ts > blocks family coverage without verified dependents and stale source versions 212ms
+ ✓ tests/benefits.test.ts > feeds released benefit deductions and employer cost into payroll snapshots 474ms
+
+ Test Files  3 passed (3)
+      Tests  5 passed (5)
+   Start at  23:42:38
+   Duration  21.54s (transform 187ms, setup 84ms, import 293ms, tests 20.84s, environment 0ms)
+

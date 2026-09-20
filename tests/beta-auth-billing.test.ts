@@ -2,6 +2,7 @@ import { env } from "./runtime-env";
 import { applyMigrations, type TestMigration } from "./runtime-env";
 import { beforeAll, it, expect, vi } from "vitest";
 import {
+  billingLink,
   verifyStripeSignature,
   stripeWebhook,
 } from "../src/server/beta-billing";
@@ -94,6 +95,34 @@ it("registers, verifies email and recovers a password through actual Better Auth
     ).toBe(200);
   } finally {
     globalThis.fetch = original;
+  }
+});
+it("disables legacy checkout and returns portal customers to Usage & billing", async () => {
+  const holding = `bill-return-${crypto.randomUUID()}`;
+  await env.CONTROL_DB.prepare(
+    "INSERT INTO beta_billing(holding_id,customer_id,updated_at) VALUES(?,?,1)",
+  ).bind(holding, `cus_${holding}`).run();
+  const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) =>
+    Response.json({
+      url: String(url).includes("billing_portal")
+        ? "https://billing.stripe.com/p/session/test"
+        : "https://checkout.stripe.com/c/pay/test",
+    }),
+  );
+  try {
+    const configuration = {
+      ...env,
+      STRIPE_SECRET_KEY: "sk_test_fixture",
+      STRIPE_PRICE_ID: "price_fixture",
+      BETTER_AUTH_URL: "https://erpx.example.test",
+    };
+    await expect(billingLink(configuration, holding, "acme", "owner@example.test", "checkout")).rejects.toMatchObject({code:"LEGACY_CHECKOUT_DISABLED"});
+    await billingLink(configuration, holding, "acme", "owner@example.test", "portal");
+    const portal = new URLSearchParams(String(fetch.mock.calls[0][1]?.body));
+    const expected = "https://erpx.example.test/holdings/acme/settings?section=usage";
+    expect(portal.get("return_url")).toBe(expected);
+  } finally {
+    fetch.mockRestore();
   }
 });
 async function signed(

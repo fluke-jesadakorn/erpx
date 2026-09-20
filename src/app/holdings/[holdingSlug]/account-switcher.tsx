@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import styles from "@/components/workplace/account.module.css";
 import Link from "next/link";
-import { authClient } from "@/lib/auth-client";
 import { Appearance } from "@/components/workplace/workplace-controls";
 
 type DeviceSession = {
@@ -50,6 +49,7 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
   const [sessions, setSessions] = useState<DeviceSession[]>([]);
 
   async function loadAccounts() {
+    const { authClient } = await import("@/lib/auth-client");
     const result = await authClient.multiSession.listDeviceSessions();
     if (result.data) setSessions(result.data as DeviceSession[]);
   }
@@ -102,6 +102,7 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
     if (session.user.id === activeUser.id) return;
     setPending(`account:${session.user.id}`);
     setError("");
+    const { authClient } = await import("@/lib/auth-client");
     const result = await authClient.multiSession.setActive({
       sessionToken: session.session.token,
     });
@@ -121,6 +122,7 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
     setPending("add");
     setError("");
     const form = new FormData(event.currentTarget);
+    const { authClient } = await import("@/lib/auth-client");
     const result = await authClient.signIn.email({
       email: String(form.get("email")),
       password: String(form.get("password")),
@@ -153,6 +155,7 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
 
   async function signOut() {
     setPending("logout");
+    const { authClient } = await import("@/lib/auth-client");
     await authClient.signOut();
     window.location.replace(new URL("/login", window.location.origin));
   }

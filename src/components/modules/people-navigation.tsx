@@ -1,10 +1,6 @@
-import Link from "next/link";
+import { ServiceNavigation } from "./service-navigation";
 import type { PermissionActor } from "@/lib/iam";
-import {
-  workplaceNavigation,
-  type NavigationScopeKind,
-} from "@/lib/workplace-navigation";
-import styles from "@/components/workplace/pages.module.css";
+import { type NavigationScopeKind } from "@/lib/workplace-navigation";
 export function PeopleNavigation({
   base,
   actor,
@@ -22,39 +18,41 @@ export function PeopleNavigation({
     !base.includes("/departments/"),
 }: {
   base: string;
-  actor: PermissionActor;
-  active: "directory" | "organization" | "access" | "payroll";
+  actor: PermissionActor & { beta?: boolean };
+  active:
+    | "roster"
+    | "directory"
+    | "organization"
+    | "access"
+    | "payroll"
+    | "settings"
+    | "handbook"
+    | "learn";
   scopeKind: NavigationScopeKind;
   canPayroll?: boolean;
 }) {
-  const people = workplaceNavigation({
-    workspaceBase: base,
-    scopeKind,
-    role: actor.role,
-    permissions: actor.permissions,
-  }).groups.find((group) => group.id === "people")!;
-  const ids: Record<string, typeof active> = {
-    "people-organization": "organization",
-    "people-payroll": "payroll",
-    "people-access": "access",
+  const ids: Record<typeof active, string> = {
+    directory: "people-directory",
+    roster: "people-roster",
+    organization: "people-organization",
+    payroll: "people-payroll",
+    access: "people-access",
+    settings: "people-settings",
+    handbook: "handbook",
+    learn: "learn",
   };
-  const links = [
-    ["directory", people.href!, "Directory"],
-    ...people.items
-      .filter((item) => canPayroll || item.id !== "people-payroll")
-      .map((item) => [ids[item.id], item.href, item.label]),
-  ];
   return (
-    <nav className={styles.tabs} aria-label="People views">
-      {links.map(([id, href, label]) => (
-        <Link
-          key={id}
-          href={href}
-          aria-current={active === id ? "page" : undefined}
-        >
-          {label}
-        </Link>
-      ))}
-    </nav>
+    <ServiceNavigation
+      context={{
+        workspaceBase: base,
+        scopeKind,
+        beta: actor.beta,
+        role: actor.role,
+        permissions: actor.iam?.permissions ?? actor.permissions,
+      }}
+      groupId="people"
+      activeId={ids[active]}
+      exclude={canPayroll ? [] : ["people-payroll"]}
+    />
   );
 }

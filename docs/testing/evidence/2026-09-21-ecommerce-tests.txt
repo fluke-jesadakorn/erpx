@@ -1,0 +1,9 @@
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  5 passed (5)
+      Tests  23 passed (23)
+   Start at  00:33:17
+   Duration  42.38s (transform 491ms, setup 120ms, import 394ms, tests 41.43s, environment 0ms)
+

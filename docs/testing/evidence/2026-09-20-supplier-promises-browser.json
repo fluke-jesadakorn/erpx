@@ -1,0 +1,57 @@
+{
+  "observedAt": "2026-09-20T05:54:27.496274+00:00",
+  "environment": "isolated simulation 800afde9dbe0 on loopback 3102",
+  "baseRevision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "workingTree": "Uncommitted implementation; source checksums identify observed files",
+  "sourceSha256": {
+    "src/server/supplier-promises.ts": "3fef9a07b48f93ec9cb96728774076a63c5364a02bb942061ce89c2e51cecab6",
+    "src/components/modules/supplier-promise-console.tsx": "d945ef0a293af9cacd70e1c9a546755e226cb564cf7c955540426752653aadd5",
+    "src/components/modules/supplier-promise-console.module.css": "ea4afbb6332c6602ebd17dec45b8551be18458e480e15398661634772f4da820",
+    "src/server/calendar/supplier-promises.ts": "2d8dafd91f9bb4b738f41cfeb1b4d9c24b9367895d63c3cb2570b3475fb74243",
+    "migrations/postgres/holding-write/0208_supplier_promises.sql": "349ba64e68d46d8645781a3086a1f32ed34398c2b8d10443b93bec7f947cf6f1",
+    "tests/supplier-promises.test.ts": "af550be0037a79c5f1e8631bc7f1a9b82104c30e1d46549f6e7475be38e1d505"
+  },
+  "actors": [
+    "Source operator (creator)",
+    "Purchasing manager (independent approver and commitments)",
+    "Receiving operator (partial receipt)",
+    "Finance reviewer (independent GL posting)"
+  ],
+  "orderId": "order-c3359fae-d33a-4359-954a-499e17ef1a81",
+  "observations": [
+    {
+      "expected": "Creator cannot approve own PO; independent buyer receives in Work",
+      "actual": "Submitted PO appeared in buyer Work; buyer approved version 3."
+    },
+    {
+      "expected": "Partial supplier commitment leaves explicit shortfall and late date",
+      "actual": "3 ordered; 1 promised Sep21 and 1 Sep23; 1 unconfirmed; Sep23 marked later than Sep22 requirement. Calendar showed both dates."
+    },
+    {
+      "expected": "Warehouse receives from own Work; first dated commitment consumed once",
+      "actual": "Receiving operator received 1; 2 outstanding, 1 unconfirmed, only Sep23 remained. Warehouse could not edit supplier promises."
+    },
+    {
+      "expected": "Replacement after receipt does not subtract previous receipt again",
+      "actual": "Reconfirmed remaining 2 for Sep24; outstanding2/unconfirmed0; original history retained."
+    },
+    {
+      "expected": "Withdrawal retains receipt/history and restores unconfirmed remainder",
+      "actual": "Withdrawal version7 left outstanding2/unconfirmed2; no open promised quantities; all three evidence versions visible."
+    },
+    {
+      "expected": "Receipt accounting handed to independent Finance",
+      "actual": "Finance Work contained journal-9ef1e409-5866-4e09-9362-f20e0e0b735d; debit inventory10/credit payable10 posted by Finance; Work actions0."
+    },
+    {
+      "expected": "Readable form grouping",
+      "actual": "Found grid layout issue in screenshot; scoped CSS fixed full-width instructions/evidence and grouped split lines; verified revised screenshot."
+    }
+  ],
+  "limitations": [
+    "One Company/Branch and one product; does not close all S03 or procurement capabilities.",
+    "No RFQ, variance matching, supplier/customer portal or email exercised.",
+    "PO intentionally remains partially fulfilled with unconfirmed remainder; full receipt and concurrency covered by owner tests.",
+    "No live providers, real UAT, invoice settlement or production acceptance."
+  ]
+}

@@ -1,4 +1,5 @@
 "use client";
+import { workFetch } from "@/lib/work-fetch";
 import { useState } from "react";
 import type { Mention } from "@/lib/social-text";
 import { SocialTextInput } from "./social-text-input";
@@ -18,13 +19,22 @@ export function SocialComments({
   userId: string;
   onChanged: () => Promise<void>;
 }) {
+  const [loaded,setLoaded] = useState<HomePost["comments"]>([]);
+  const [cursor,setCursor] = useState<string|null|undefined>(undefined);
+  const comments = [...new Map([...loaded,...post.comments].map(c=>[c.id,c])).values()].sort((a,b)=>a.created_at-b.created_at || a.id.localeCompare(b.id));
+  const loadOlder = () => run(async()=>{
+    const response=await workFetch(`${api}/posts/${post.id}/comments${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,{cache:"no-store"});
+    const result=await response.json();
+    if(!response.ok) throw new Error(result.error?.message??"Unable to load comments");
+    setLoaded(old=>[...old,...result.data.items]);setCursor(result.data.nextCursor);
+  });
   const [body,setBody]=useState("");
   const [mentions,setMentions]=useState<Mention[]>([]);
   const { run, send, busy, message } = useSocialCommand();
   return (
     <>
       <div className="beta-comments">
-        {post.comments.map((comment) => (
+        {comments.map((comment) => (
           <div id={comment.id} className="beta-comment" key={comment.id}>
             <div>
               <strong>{comment.author_name}{comment.author_kind==="agent"?" · AI":""}</strong>
@@ -32,6 +42,7 @@ export function SocialComments({
             </div>
           </div>
         ))}
+        {comments.length < post.commentCount && cursor !== null && <button disabled={busy} onClick={loadOlder}>Load older comments</button>}
         <form
           onSubmit={(e) => {
             e.preventDefault();

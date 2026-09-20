@@ -1,15 +1,16 @@
-import { pageError } from "@/server/page-error";
-import Link from "next/link";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import {
-  TaskEditor,
-  RoutineScheduleControls,
+RoutineScheduleControls,
+TaskEditor,
 } from "@/components/modules/staff-work-controls";
-import { staffPage } from "@/server/staff-page";
+import { pageError } from "@/server/page-error";
 import {
-  getTemplate,
-  canEditTemplate,
-  type ScheduleRow,
+canEditTemplate,
+getTemplate,
+type ScheduleRow,
 } from "@/server/routines";
+import { staffPage } from "@/server/staff-page";
+import Link from "next/link";
 export default async function Routine({
   params,
 }: {
@@ -30,16 +31,16 @@ export default async function Routine({
         .all<ScheduleRow>()
     ).results;
   return (
-    <main className="content-stack" data-source="live">
+    <FeaturePage className="content-stack" data-source="live">
       <Link href={`${base}/routine-templates`}>← Routine templates</Link>
-      <h1>{template.title}</h1>
+      <h1>{template.title}</h1><FeatureTabs/><WidgetGrid pageKey="routine-templates-detail">
       <p>{template.description}</p>
       <p>
         Template version {template.version} ·{" "}
         {template.published ? "Published" : "Draft"}. Edits affect future
         occurrences.
       </p>
-      {canEdit && (
+      <FeatureWidget id="routine-template" title="Routine template">{canEdit && (
         <TaskEditor
           key={template.version}
           base={base}
@@ -58,12 +59,12 @@ export default async function Routine({
         template={template}
         clone
       />
-      <RoutineScheduleControls
+      </FeatureWidget><FeatureWidget id="routine-schedule" title="Schedule"><RoutineScheduleControls
         base={base}
         template={template}
         schedules={schedules}
         canEdit={canEdit}
       />
-    </main>
+    </FeatureWidget></WidgetGrid></FeaturePage>
   );
 }

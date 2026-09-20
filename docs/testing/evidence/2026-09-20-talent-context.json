@@ -1,0 +1,8 @@
+{
+  "observedAt": "2026-09-20T23:52:00+07:00",
+  "environment": "disposable PostgreSQL simulation",
+  "command": "bun scripts/local/test.ts tests/talent.test.ts tests/people-lifecycle.test.ts tests/staff-migration.test.ts tests/work-views.test.ts --reporter=verbose",
+  "result": { "filesPassed": 4, "testsPassed": 38, "failed": 0, "skipped": 0 },
+  "scope": ["requisitions", "candidate consent/privacy", "applications", "interview proposals", "offers", "hire handoff", "People regression"],
+  "limitations": ["No candidate portal or e-signature", "No onboarding handoff consumer", "No multi-role browser or business acceptance"]
+}

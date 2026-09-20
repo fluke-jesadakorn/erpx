@@ -1,0 +1,19 @@
+$ bun scripts/local/test.ts tests/customer-notes.test.ts tests/business-commands.test.ts tests/staff-migration.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/business-commands.test.ts > Business command transactions > replays a committed command without repeating its effects and rejects changed input 115ms
+ ✓ tests/business-commands.test.ts > Business command transactions > allows only one competing update and rolls back the losing receipt and evidence 127ms
+ ✓ tests/business-commands.test.ts > Business command transactions > rejects a grant whose company or scope changed before commit 107ms
+ ✓ tests/business-commands.test.ts > Business command transactions > rechecks revocation at commit time 91ms
+ ✓ tests/staff-migration.test.ts > creates a complete, empty PostgreSQL baseline and preserves database invariants 3372ms
+ ✓ tests/customer-notes.test.ts > records, corrects and archives contact evidence without rewriting source or history 546ms
+ ✓ tests/customer-notes.test.ts > protects company, branch, department, role and revoked authority 163ms
+ ✓ tests/customer-notes.test.ts > serializes competing corrections and rejects stale sources and future contact 235ms
+ ✓ tests/customer-notes.test.ts > keeps customer evidence attached to its original customer and limits corrections to author or manager 199ms
+
+ Test Files  3 passed (3)
+      Tests  9 passed (9)
+   Start at  15:32:23
+   Duration  19.84s (transform 234ms, setup 90ms, import 294ms, tests 19.15s, environment 0ms)
+

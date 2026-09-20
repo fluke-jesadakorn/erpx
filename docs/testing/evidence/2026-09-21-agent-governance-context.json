@@ -1,0 +1,8 @@
+{
+  "observedAt": "2026-09-21T00:01:30+07:00",
+  "environment": "disposable PostgreSQL simulation",
+  "command": "bun scripts/local/test.ts tests/agent-governance.test.ts tests/workspace-assistant.test.ts tests/staff-migration.test.ts --reporter=verbose",
+  "result": { "filesPassed": 3, "testsPassed": 9, "failed": 0, "skipped": 0 },
+  "scope": ["catalog", "version approval", "assignments", "pools", "private sessions", "invocation evidence", "read-only assistant regression"],
+  "limitations": ["No full source adapter coverage", "No browser/provider/production acceptance", "No business sign-off"]
+}

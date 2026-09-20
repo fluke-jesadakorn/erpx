@@ -1,3 +1,4 @@
+import { readListPage } from "./list-page";
 import type { SqlDatabase } from "./runtime/types";
 import "server-only";
 import { z } from "zod";
@@ -168,52 +169,17 @@ export async function setHandbookEditor(
     ],
   );
 }
-export async function handbookList(
-  db: SqlDatabase,
-  actor: WorkContext,
-  q = "",
-  editing = false,
-) {
-  const access = await handbookAccess(db, actor);
-  if (editing && !access.editor)
-    throw new ApiError(
-      403,
-      "HANDBOOK_EDITOR_REQUIRED",
-      "Draft articles are available only to editors.",
-    );
-  // Search the visible revision only: unpublished text never affects employee search results.
-  const rows = (
-    await db
-      .prepare(
-        `SELECT a.id,a.version,a.archived,r.revision,r.title,r.category,r.body,r.published_at FROM handbook_articles a JOIN handbook_revisions r ON r.article_id=a.id AND r.company_id=a.company_id AND r.revision=CASE WHEN ?=1 THEN a.draft_revision ELSE a.published_revision END
-    WHERE a.company_id=? AND (?=1 OR a.archived=0) ORDER BY r.title,a.id LIMIT 200`,
-      )
-      .bind(editing ? 1 : 0, actor.companyId, editing ? 1 : 0)
-      .all<{
-        id: string;
-        version: number;
-        archived: number;
-        revision: number;
-        title: string;
-        category: string;
-        body: string;
-        published_at: number | null;
-      }>()
-  ).results;
-  return {
-    access,
-    articles: rows
-      .filter((r) =>
-        `${r.title} ${r.body} ${r.category}`
-          .toLowerCase()
-          .includes(q.toLowerCase()),
-      )
-      .map(({ body, ...r }) => ({
-        ...r,
-        version: editing ? r.version : r.revision,
-        excerpt: body.slice(0, 220),
-      })),
-  };
+export async function handbookList(db:SqlDatabase,actor:WorkContext,q="",editing=false,cursor?:string) {
+  const access=await handbookAccess(db,actor);
+  if(editing&&!access.editor)throw new ApiError(403,"HANDBOOK_EDITOR_REQUIRED","Draft articles are available only to editors.");
+  const page=await readListPage<{id:string;page_key:string;version:number;archived:number;revision:number;title:string;category:string;excerpt:string;published_at:number|null}>(db,{
+    sql:`SELECT a.id,a.version,a.archived,r.revision,r.title,r.title AS page_key,r.category,left(r.body,220) AS excerpt,r.published_at
+      FROM handbook_articles a JOIN handbook_revisions r ON r.article_id=a.id AND r.company_id=a.company_id
+        AND r.revision=CASE WHEN ?=1 THEN a.draft_revision ELSE a.published_revision END
+      WHERE a.company_id=? AND (?=1 OR a.archived=0) AND strpos(lower(r.title||' '||r.body||' '||r.category),lower(?))>0`,
+    args:[editing?1:0,actor.companyId,editing?1:0,q],cursor,scope:[actor.companyId,actor.userId,'handbook',editing,q],
+  });
+  return {access,...page,articles:page.items.map(r=>({...r,version:editing?r.version:r.revision}))};
 }
 export async function handbookArticle(
   db: SqlDatabase,

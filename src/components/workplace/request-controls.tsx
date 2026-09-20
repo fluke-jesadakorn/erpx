@@ -1,8 +1,9 @@
 "use client";
 
+import { createRequestDraftOnce, createRequestUploader } from "@/lib/request-draft-create";
 import { workFetch } from "@/lib/work-fetch";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useRecoverableDraft } from "@/components/ui/use-recoverable-draft";
@@ -49,6 +50,25 @@ export function RequestEditor({
   const ready = useHydrated(),
     router = useRouter(),
     command = useStaffCommand(base);
+  const creationKey = `erpx:request-create:${base}:${options.companyId}:${options.userId}:${kind}:${parentRequestId ?? "new"}`;
+  const createOnce = useRef(createRequestDraftOnce()), uploader = useRef(createRequestUploader());
+  const [files,setFiles] = useState<File[]>([]), [saving,setSaving] = useState(false), [saveError,setSaveError] = useState(""), [createdId,setCreatedId] = useState(""), [recovering,setRecovering] = useState(false);
+  useEffect(() => {
+    try {
+      const id = sessionStorage.getItem(`${creationKey}:created`);
+      if (request && id === request.id) { sessionStorage.removeItem(`${creationKey}:created`); return; }
+      if (!request && !id && sessionStorage.getItem(`${creationKey}:creation`)) {
+        // Restore a persisted network attempt after hydration.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setRecovering(true);
+        setSaveError("The previous save has not been confirmed. Retry to recover the same draft. Select any files again if needed.");
+      }
+      if (id && !request) {
+        setCreatedId(id);
+        setSaveError("Your draft is saved. Select any files that did not finish uploading again; browsers cannot restore selected files.");
+      }
+    } catch {}
+  },[creationKey,request]);
   const initial = {
     title: request?.title ?? "",
     description: request?.description ?? "",
@@ -107,26 +127,20 @@ export function RequestEditor({
     );
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    const saved = await command.send(
-      `requests${request ? `/${request.id}` : ""}`,
-      {
-        ...fields,
-        kind,
-        branchId: fields.branchId || null,
-        departmentId: fields.departmentId || null,
-        items: kind === "service" ? [] : items,
-        parentRequestId: request?.parent_request_id ?? parentRequestId,
-        expectedVersion: request?.version ?? 1,
-      },
-    );
-    if (saved) {
+    setSaving(true); setSaveError("");
+    try {
+      const input = {...fields,kind,branchId:fields.branchId || null,departmentId:fields.departmentId || null,items:kind === "service" ? [] : items,parentRequestId:request?.parent_request_id ?? parentRequestId,expectedVersion:request?.version ?? 1};
+      const saved = request ? await command.send(`requests/${request.id}`,input) : {id: await createOnce.current(base,creationKey,input)};
+      if (!saved) return;
+      if (!request) { setCreatedId(saved.id); setRecovering(false); }
+      for (const file of files) await uploader.current(base,saved.id,file);
       draft.clear();
-      if (!request)
-        router.push(
-          `${base}/requests/${saved.id}${returnTo ? `?${new URLSearchParams({ return: returnTo })}` : ""}`,
-        );
-    }
+      if (!request) router.push(`${base}/requests/${saved.id}${returnTo ? `?${new URLSearchParams({return:returnTo})}` : ""}`);
+      else { setFiles([]); router.refresh(); }
+    } catch (error) { if (!request) { try { setRecovering(!!sessionStorage.getItem(`${creationKey}:creation`)); } catch {} } setSaveError(error instanceof Error ? error.message : "Unable to save. Your details are preserved.");}
+    finally {setSaving(false);}
   }
+
   return (
     <section className="card">
       <h2>
@@ -135,11 +149,17 @@ export function RequestEditor({
           : requestKinds.find(([id]) => id === kind)?.[1]}
       </h2>
       <p className={styles.quiet}>
-        Save a draft at any time. Add supporting files after saving.
+        Review your details and attach supporting files here. A draft keeps your progress safe.
       </p>
       {draft.notice}
+      {saveError && <p role="alert">{saveError}</p>}
+      {createdId && <p><Link href={`${base}/requests/${createdId}`}>Open saved draft</Link> · Retry uploads below without creating another request.</p>}
       <form onSubmit={save}>
-        <fieldset disabled={!ready || command.busy} className={styles.form}>
+        <label>Supporting files<input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" disabled={!ready || saving} onChange={e => setFiles(Array.from(e.target.files ?? []))}/></label>
+        {!!files.length && <p>{files.map(file => file.name).join(", ")}</p>}
+        {(createdId || recovering) && <button className="button" disabled={saving}>{saving ? "Saving…" : recovering ? "Recover saved draft" : "Retry uploads and open draft"}</button>}
+
+        <fieldset disabled={!ready || command.busy || saving || !!createdId || recovering} className={styles.form}>
           {kind === "service" && (
             <div className={styles.pair}>
               <label>
@@ -329,6 +349,7 @@ export function RequestEditor({
               )}
             </>
           )}
+          <section aria-label="Review request"><h3>Review</h3><p>{fields.title || "Add a title"} · {fields.location || "No location specified"}</p><p>{fields.description || "Add a description"}</p><p>{files.length} supporting files · Approval is requested after you review the saved draft.</p></section>
           <div className={styles.actions}>
             <button className="button" disabled={draft.conflict}>
               Save draft

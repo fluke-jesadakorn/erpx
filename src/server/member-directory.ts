@@ -8,7 +8,7 @@ export async function companyMembers(actor: WorkContext) {
   const members = (
     await write
       .prepare(
-        `SELECT DISTINCT user_id FROM assignments WHERE company_id=? AND user_id IS NOT NULL AND ((revoked_at IS NULL AND valid_from<=? AND valid_until>?) OR ?=1) AND (?::text IS NULL OR scope_kind='holding' OR COALESCE(branch_id,(SELECT branch_id FROM organization_nodes WHERE id=scope_node_id))=?) ORDER BY user_id LIMIT 250`,
+        `SELECT DISTINCT user_id FROM assignments WHERE company_id=? AND user_id IS NOT NULL AND ((revoked_at IS NULL AND valid_from<=? AND valid_until>?) OR ?=1) AND (?::text IS NULL OR scope_kind='holding' OR COALESCE(branch_id,(SELECT branch_id FROM organization_nodes WHERE id=scope_node_id))=?) ORDER BY user_id`,
       )
       .bind(
         actor.companyId,
@@ -35,22 +35,29 @@ export async function companyMembers(actor: WorkContext) {
         .bind(...ids)
         .all<{ id: string; name: string; email: string }>()
     ).results;
+    // Resolve the whole control-database batch in one holding query. Keep the
+    // verified-link and beta email fallback rules identical to profile lookup.
+    const links = accounts.length ? (await write.prepare(`
+      SELECT a.id AS account_id, person.id AS person_id
+      FROM jsonb_to_recordset(?::jsonb) AS a(id text,email text)
+      LEFT JOIN LATERAL (
+        SELECT p.id FROM hr_people p
+        WHERE p.company_id=? AND p.merged_into_id IS NULL
+          AND (p.user_id=a.id OR EXISTS (
+            SELECT 1 FROM iam_members m WHERE m.company_id=p.company_id
+              AND m.person_id=p.id AND m.user_id=a.id
+          ) OR (?=1 AND p.user_id IS NULL AND lower(p.email)=lower(a.email)))
+        ORDER BY CASE WHEN p.user_id IS NOT NULL THEN 0 ELSE 1 END,p.id LIMIT 1
+      ) person ON true
+    `).bind(JSON.stringify(accounts.map(({id,email})=>({id,email}))),
+      actor.companyId, actor.beta && manager ? 1 : 0)
+      .all<{account_id:string;person_id:string|null}>()).results : [];
+    const personIds = new Map(links.map(link=>[link.account_id,link.person_id]));
     for (const account of accounts) {
-      const person = await write
-        .prepare(
-          "SELECT id FROM hr_people WHERE company_id=? AND (user_id=? OR (?=1 AND user_id IS NULL AND lower(email)=?)) AND merged_into_id IS NULL ORDER BY CASE WHEN user_id IS NOT NULL THEN 0 ELSE 1 END LIMIT 1",
-        )
-        .bind(
-          actor.companyId,
-          account.id,
-          manager ? 1 : 0,
-          account.email.toLowerCase(),
-        )
-        .first<{ id: string }>();
       rows.push({
         ...account,
         email: manager || account.id === actor.userId ? account.email : "",
-        personId: person?.id ?? null,
+        personId: personIds.get(account.id) ?? null,
       });
     }
   }

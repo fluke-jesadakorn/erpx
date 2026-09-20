@@ -1,8 +1,9 @@
-import { pageError } from "@/server/page-error";
-import Link from "next/link";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { ProjectEditor } from "@/components/modules/staff-work-controls";
+import { pageError } from "@/server/page-error";
 import { staffPage } from "@/server/staff-page";
-import { getProject, listTasks } from "@/server/staff-tasks";
+import { getProject,listTasks } from "@/server/staff-tasks";
+import Link from "next/link";
 export default async function Project({
   params,
 }: {
@@ -21,9 +22,9 @@ export default async function Project({
         .all<{ user_id: string }>()
     ).results;
   return (
-    <main className="content-stack" data-source="live">
+    <FeaturePage className="content-stack" data-source="live">
       <Link href={`${base}/projects`}>← Projects</Link>
-      <h1>{project.title}</h1>
+      <h1>{project.title}</h1><FeatureTabs/><WidgetGrid pageKey="projects-detail">
       <p>{project.description}</p>
       {project.owner_user_id === actor.userId && (
         <ProjectEditor
@@ -33,8 +34,8 @@ export default async function Project({
           members={members.map((m) => m.user_id)}
         />
       )}
-      <section className="card">
-        <h2>Project tasks</h2>
+      <FeatureWidget id="projects-detail-project-tasks" title="Project tasks"><section className="card">
+        
         <Link className="button" href={`${base}/work?new=task`}>
           Create a task
         </Link>
@@ -43,7 +44,7 @@ export default async function Project({
             {t.title} · {t.state.replaceAll("_", " ")} · {t.assignee_name}
           </Link>
         ))}
-      </section>
-    </main>
+      </section></FeatureWidget>
+    </WidgetGrid></FeaturePage>
   );
 }

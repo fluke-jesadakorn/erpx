@@ -1,0 +1,24 @@
+{
+  "run": "7431bb7d79de",
+  "environment": "disposable PostgreSQL and localhost:3102, ordinary credential sessions",
+  "roles": [
+    "source operator (holding_owner)",
+    "support_manager",
+    "support_agent"
+  ],
+  "observations": [
+    "Creator drafted one-minute Bangkok calendar policy; own decision offered retire only; draft absent from attachment choices",
+    "Independent Support manager entered Work My actions 1, reviewed and approved; Work became 0",
+    "Manager attached approved policy to original open source-linked ticket; dueAt 2026-09-20T10:09:36.616Z",
+    "Support agent entered own Work My actions 1, accepted after actual deadline, requested customer information; paused clock retained breach",
+    "Owner worker drain invoked on isolated DB before due: no alert; twice after due: exactly one alert",
+    "Support manager entered own Work My actions 1 escalation, recorded recovery responsibility; Work 0; source ticket remains waiting_customer v4",
+    "Actual browser screenshot inspected after acknowledgement"
+  ],
+  "limitations": [
+    "No external email/customer/provider actions",
+    "Worker drain exercised directly on disposable DB, not production scheduling uptime",
+    "No full S10/S11/S20 or whole SLA capability sign-off",
+    "Remaining targets/default binding/multilevel routing are implementation gaps"
+  ]
+}

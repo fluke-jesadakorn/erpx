@@ -1,3 +1,6 @@
+import { applyProvisioningReview } from "./technology";
+import { applyLifecycleReview } from "./people-lifecycle";
+import { applyDirectoryOperationReview } from "./directory-operations";
 import { inspectIamAccess, inspectorInput } from "./iam-inspector";
 import { requestPublicOrigin } from "./public-origin";
 import { applyManagementReview, managementCommand } from "./user-management";
@@ -378,6 +381,9 @@ export async function iamApi(
         reviewInput.parse(input),
         key,
         async (c, kind, p) => {
+          if (!actor.platform && kind === "people.provision.grant") return applyProvisioningReview(c,actor,p);
+          if (!actor.platform && kind === "directory.operation") return applyDirectoryOperationReview(c, actor, p);
+          if (!actor.platform && kind.startsWith("people.lifecycle.")) return applyLifecycleReview(c, actor, kind, p);
           if (kind === "policy.grant") return applyManagementReview(c, actor, p);
           if (kind === "identity.restore") {
             if (
@@ -450,6 +456,12 @@ export async function iamApi(
           if (kind === "emergency.designate")
             return applyEmergency(c, actor, p);
           return applyDirectoryReview(c, actor, kind, p);
+        },
+        async (c, kind, p) => {
+          if (!actor.platform && kind === "people.provision.grant") return applyProvisioningReview(c,actor,p,"reject");
+          if (!actor.platform && kind === "directory.operation") return applyDirectoryOperationReview(c, actor, p, "reject");
+          if (!actor.platform && kind.startsWith("people.lifecycle."))
+            await applyLifecycleReview(c, actor, kind, p, "reject");
         },
       );
     else if (path[0] === "users" && path[2] === "sessions") {

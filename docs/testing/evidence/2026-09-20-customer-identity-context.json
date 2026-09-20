@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-09-20T11:16:23.971Z",
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "dirtyWorkspace": true,
+  "sourceHashes": {
+    "src/server/customer-identity-changes.ts": "868a2aa8a1194925a07e56af0ae1fb875e93ac9e2d9f6b5c223ce2ea0fc58ce5",
+    "src/components/modules/customer-identity-console.tsx": "652887fa4ac06a32766796e519fd457067f158c1cfc40240cf18398c9cb0677e",
+    "src/app/api/v1/holdings/[holdingSlug]/customer-identity/route.ts": "ac5cbabf8829f3b1030804ebb02e9b779ca191ebf10c4d91522c107e8bfa4551",
+    "tests/customer-identity-changes.test.ts": "85fa4309c8472fcfc1702b2c693682e906fb9ab673cd7d804b1f9c4786049f7b",
+    "migrations/postgres/holding-write/0223_customer_identity_changes.sql": "15744c21e62700078c197b15d1835e5760286b9ce8e5e6c25cd79c948c0b1228"
+  },
+  "scope": "Reviewed customer legal-name and tax-registration changes",
+  "tests": "19 passed / 5 files across identity, duplicates, access, Work views and 364-table baseline",
+  "typecheck": "passed",
+  "limitations": [
+    "No address/contact identity or consent",
+    "No external registry, browser, production or business acceptance"
+  ]
+}

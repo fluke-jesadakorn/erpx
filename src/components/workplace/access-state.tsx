@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import { ArrowRight, FileQuestion, LockKeyhole, RefreshCw, ShieldAlert, WifiOff } from "lucide-react";
 import { accessProblems, type AccessProblem } from "@/lib/access-problem";
 import styles from "./access-state.module.css";
+import { ProductBrand } from "@/components/brand/product-brand";
 
 function subscribe(callback: () => void) { window.addEventListener("online", callback); window.addEventListener("offline", callback); return () => { window.removeEventListener("online", callback); window.removeEventListener("offline", callback); }; }
 export function AccessState({ problem, email, reference, embedded = false, retry, returnTo }: {
@@ -16,7 +17,7 @@ export function AccessState({ problem, email, reference, embedded = false, retry
   const canRetry = ["unavailable", "offline", "conflict", "rate_limited"].includes(reason);
   return <main className={`${styles.page} ${embedded ? styles.embedded : ""}`}>
     <section className={styles.card} aria-labelledby="access-state-title" data-access-reason={reason}>
-      <a className={styles.brand} href="/" aria-label="ERPX home"><span>E</span>erpx.</a>
+      <a className={styles.brand} href="/" aria-label="ERPX home"><ProductBrand /></a>
       <div className={styles.icon}><Icon size={26} aria-hidden="true" /></div>
       <p className={styles.label}>{content.label}</p>
       <h1 id="access-state-title">{content.title}</h1>

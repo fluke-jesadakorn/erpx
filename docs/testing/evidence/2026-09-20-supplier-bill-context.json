@@ -1,0 +1,25 @@
+{
+  "observedAt": "2026-09-20T06:52:27.647591+00:00",
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "dirtyWorkingTree": true,
+  "runtime": {
+    "bun": "1.2.17",
+    "node": "24.20.0",
+    "database": "isolated PostgreSQL test databases"
+  },
+  "tests": "4 files / 14 tests passed after return-after-approval guard",
+  "sourceSha256": {
+    "src/server/supplier-bill-matching.ts": "2ee43a10ce1f70fc3cc7c0aa3dc477f580629635171b0bb6c4ed73a86116e7a1",
+    "src/server/commerce.ts": "058803bea482f4121ec33b4234b2eb109eee593f5ca7be34bc2e6a69316d7e24",
+    "src/server/finance.ts": "79d790f22faccc7971c8522b89b97f5185b1850edc094987d2647d6e676b4095",
+    "src/components/modules/supplier-bill-console.tsx": "d4b7b856739b258a29ef2b1e5d2f8bb598f2c91e0c91512117f5eeb640ab31ac",
+    "src/components/modules/document-posting-preview.tsx": "b98cc92e2d8213b11e5e73088dea7e90c56ba89eeefabe4ab93469bf25e2462d",
+    "tests/supplier-bill-matching.test.ts": "dec72eee66abeba5265be0220ff289e1e130ace7e9b44767dbdbe97b3fd64c86",
+    "migrations/postgres/holding-write/0211_supplier_bill_matching.sql": "f497743afb1f3a9bb9a8398b8514c81b1119db19b160c275322970ae4db28978"
+  },
+  "limitations": [
+    "Not full A-J or S03/S04 acceptance",
+    "No provider, business or production sign-off",
+    "Initial adjacent run 32 passed / 1 assertion failed because another eligible Finance reviewer remained; corrected fixture and final owner regression passed"
+  ]
+}

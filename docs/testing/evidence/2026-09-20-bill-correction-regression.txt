@@ -1,0 +1,25 @@
+$ bun scripts/local/test.ts tests/supplier-bill-matching.test.ts tests/commerce-returns.test.ts tests/supplier-payments.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/commerce-returns.test.ts > returns a supplier receipt through independent review, stock reversal and debit-note GL 2351ms
+ ✓ tests/commerce-returns.test.ts > separates invoice credit from sales cash refund and reconciles partial/final payments exactly once 2215ms
+ ✓ tests/commerce-returns.test.ts > separates invoice credit from purchase cash refund and reconciles partial/final payments exactly once 2274ms
+ ✓ tests/commerce-returns.test.ts > holds uncertain payments, requires independent failure review, and serializes competing replacement instructions 2350ms
+ ✓ tests/commerce-returns.test.ts > keeps tax in the full paid credit and creates exactly the gross refund obligation 2031ms
+ ✓ tests/supplier-payments.test.ts > reserves, independently approves and confirms a partial multi-invoice batch with source accounting 1286ms
+ ✓ tests/supplier-payments.test.ts > prevents concurrent over-reservation and permits cancellation only before export 584ms
+ ✓ tests/supplier-payments.test.ts > rejects wrong ledgers, closed periods, stale versions and revoked treasury assignments 496ms
+ ✓ tests/supplier-payments.test.ts > prevents the legacy contractor exporter and supplier batches from reserving the same invoice 645ms
+ ✓ tests/supplier-bill-matching.test.ts > posts reviewed price 12 and reverses actual AP with original stock cost over partial returns 2134ms
+ ✓ tests/supplier-bill-matching.test.ts > posts reviewed price 8 and reverses actual AP with original stock cost over partial returns 1672ms
+ ✓ tests/supplier-bill-matching.test.ts > keeps quantity discrepancies in review, blocks invoice bypass and preserves correction history 1005ms
+ ✓ tests/supplier-bill-matching.test.ts > serializes capture and review, protects current authority, and exposes scoped handoffs 1415ms
+ ✓ tests/supplier-bill-matching.test.ts > returns an unposted AP draft atomically and accepts a corrected bill without receiving or posting goods twice 1313ms
+ ✓ tests/supplier-bill-matching.test.ts > allows exactly one winner when AP posting races an independent draft correction 1103ms
+
+ Test Files  3 passed (3)
+      Tests  15 passed (15)
+   Start at  14:10:31
+   Duration  39.18s (transform 511ms, setup 70ms, import 417ms, tests 38.48s, environment 0ms)
+

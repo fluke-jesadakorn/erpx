@@ -1,0 +1,19 @@
+{
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "environment": "isolated PostgreSQL simulation",
+  "scope": "E-commerce channels, listings, carts, checkout-to-Sales handoff, shared stock reservation, fulfillment evidence and invoice-gated returns",
+  "sourceHashes": {
+    "src/server/ecommerce.ts": "f4e4c32f55673ffbb29dd6a7b2a86d61ff5ab4b3d847ffbb0890b68d66a81172",
+    "migrations/postgres/holding-write/0234_ecommerce.sql": "179414e9570e6c0a9774b901dc142fd6595176c98ce6218f49ef4b0fbdd80c91",
+    "src/app/api/v1/holdings/[holdingSlug]/ecommerce/route.ts": "319a2938d75523001f973b80bdc3be8d264d8582f7a80d07f779877ec10f94b6",
+    "src/components/modules/ecommerce-console.tsx": "f5271e9614e15b9e9d5a8dc5adc379222c7d3cdd30d182f2128715fc53b92878",
+    "src/components/modules/ecommerce-checkout-controls.tsx": "ad688ea84b570652b06e23d8f513b177c83a9d4b5071382c914d4900c585ce07",
+    "tests/ecommerce.test.ts": "b4fd1946373930d90a6b3cf9ca2c5397c3eb5f6d54da487798f5abd84dc73237"
+  },
+  "result": "5 files, 23 tests passed",
+  "limitations": [
+    "No whole-capability or S16 business acceptance.",
+    "No live storefront, payment, tax, shipping or notification provider acceptance.",
+    "No multi-role browser, migration, production or customer UAT sign-off."
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "ownerRegression": {
+    "filesPassed": 7,
+    "testsPassed": 116
+  },
+  "finalQualityProjection": {
+    "testsPassed": 5
+  },
+  "handoffRegression": {
+    "filesPassed": 4,
+    "filesFailed": 1,
+    "testsPassed": 25,
+    "testsFailed": 1,
+    "failure": "Work launcher expected app list omitted the newly added Quality app."
+  },
+  "correction": {
+    "file": "tests/work-views.test.ts",
+    "testsPassed": 6,
+    "remainingFailures": 0,
+    "fullCombinedRerun": false
+  },
+  "releaseBuild": ".runtime/releases/2026-09-20T04-25-38-947Z",
+  "deployed": false,
+  "typecheck": "passed",
+  "lint": "0 errors, 3 pre-existing warnings",
+  "localHealth": 200,
+  "publicHealth": 200,
+  "browser": "Authenticated quality queue/form and navigation rendering verified; no submitted transactions or multi-role acceptance.",
+  "devPid": 56148,
+  "productionOrTunnelChanged": false
+}

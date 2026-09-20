@@ -1,0 +1,33 @@
+$ bun scripts/local/test.ts tests/supplier-bill-matching.test.ts tests/calendar.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/supplier-bill-matching.test.ts > posts reviewed price 12 and reverses actual AP with original stock cost over partial returns 2525ms
+ ✓ tests/supplier-bill-matching.test.ts > posts reviewed price 8 and reverses actual AP with original stock cost over partial returns 2242ms
+ ✓ tests/supplier-bill-matching.test.ts > keeps quantity discrepancies in review, blocks invoice bypass and preserves correction history 942ms
+ ✓ tests/supplier-bill-matching.test.ts > serializes capture and review, protects current authority, and exposes scoped handoffs 1476ms
+ ✓ tests/supplier-bill-matching.test.ts > returns an unposted AP draft atomically and accepts a corrected bill without receiving or posting goods twice 1314ms
+ ✓ tests/supplier-bill-matching.test.ts > allows exactly one winner when AP posting races an independent draft correction 1073ms
+ ✓ tests/calendar.test.ts > reads all sources without causing workflow transitions and hides draft rosters from staff 388ms
+ ✓ tests/calendar.test.ts > preserves overnight shifts crossing adjacent weeks and stored timezone 268ms
+ ✓ tests/calendar.test.ts > lets active staff organize, scopes delegates, redacts availability before serialization and checks direct commands 159ms
+ ✓ tests/calendar.test.ts > uses stable receipts and versions for reschedule/cancel and rejects concurrent stale edits 135ms
+ ✓ tests/calendar.test.ts > reschedules through narrow commands while preserving appointment data and roster assignments 338ms
+ ✓ tests/calendar.test.ts > warns about overlaps and approved all-day leave without exposing reasons; meetings during shifts are allowed 85ms
+ ✓ tests/calendar.test.ts > shares announcement audience/state with the feed and enforces scoped publishing 103ms
+ ✓ tests/calendar.test.ts > preserves actual organizational nesting and reporting ids without duplicates or Company leakage 85ms
+ ✓ tests/calendar.test.ts > keeps legacy tasks privileged/undated, supports explicit ordinary assignees, and leaves cutoffs untouched 114ms
+stderr | tests/calendar.test.ts > reports failed source loading explicitly
+Calendar source failed appointments Source temporarily unavailable
+
+ ✓ tests/calendar.test.ts > paginates deterministically and validates dates and nonexistent DST local times 117ms
+ ✓ tests/calendar.test.ts > reports failed source loading explicitly 39ms
+ ✓ tests/calendar.test.ts > shows future joiners and ended engagement milestones while keeping each cutoff independent 84ms
+ ✓ tests/calendar.test.ts > scopes private detail even when an attendee is in another department and does not search redacted titles 101ms
+ ✓ tests/calendar.test.ts > shows verified directory work in its own week even after the departure window 47ms
+
+ Test Files  2 passed (2)
+      Tests  20 passed (20)
+   Start at  14:15:40
+   Duration  20.40s (transform 381ms, setup 61ms, import 355ms, tests 19.84s, environment 0ms)
+

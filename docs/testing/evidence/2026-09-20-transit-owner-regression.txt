@@ -1,0 +1,41 @@
+$ bun scripts/local/test.ts tests/inventory-transit.test.ts tests/workplace-navigation.test.ts tests/pos.test.ts tests/business-commands.test.ts tests/calendar-api.test.ts tests/work-cache.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ❯ tests/workplace-navigation.test.ts (50 tests | 1 failed) 2378ms
+     × exposes missing pages by their feature names in the appropriate group 3ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/workplace-navigation.test.ts > Side menu destination coverage > exposes missing pages by their feature names in the appropriate group
+AssertionError: expected [ 'Stock & movements', …(5) ] to deeply equal [ 'Stock & movements', …(4) ]
+
+- Expected
++ Received
+
+@@ -2,6 +2,7 @@
+    "Stock & movements",
+    "Stock counts",
+    "Warehouse transfers",
+    "Products",
+    "Warehouses",
++   "Stock in transit",
+  ]
+
+ ❯ tests/workplace-navigation.test.ts:46:91
+     44|     expect(owner.apps.find(app => app.id === "finance")?.items.map(ite…
+     45|     expect(owner.apps.find(app => app.id === "technology")?.items.map(…
+     46|     expect(owner.apps.find(app => app.id === "inventory")?.items.map(i…
+       |                                                                                           ^
+     47|   });
+     48|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 5 passed (6)
+      Tests  1 failed | 97 passed (98)
+   Start at  11:50:55
+   Duration  100.61s (transform 804ms, setup 134ms, import 512ms, tests 99.42s, environment 0ms)
+
+error: script "test:integration" exited with code 1

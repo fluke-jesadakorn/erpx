@@ -1,3 +1,6 @@
+import { drainProvisioning } from "../technology";
+import { drainPeopleLifecycle } from "../people-lifecycle-jobs";
+import { drainDirectoryOperations } from "../directory-operations";
 import { drainDirectoryJobs } from "../iam-directories";
 import type { PostgresDatabase } from "./postgres";
 import { drainSocialAgent } from "../social-agent";
@@ -51,14 +54,21 @@ export async function directoryWork(env: JobEnv) {
   for(const slot of await activeSlots(env)) {
     const db=registeredResources(env,slot.id).write as PostgresDatabase;
     await drainDirectoryJobs(db);
+    if (!slot.beta) { await drainDirectoryOperations(db); await drainProvisioning(db); }
     await (await import("../user-management")).managementWork(db);
   }
 }
+export async function posQueueWork(env: JobEnv) {
+ for(const slot of await activeSlots(env))await (await import("../pos-stripe")).drainPos(registeredResources(env,slot.id).write as PostgresDatabase,slot.id);
+}
 export async function scheduledWork(env: JobEnv) {
+  for (const slot of await activeSlots(env)) if (!slot.beta) await drainPeopleLifecycle(registeredResources(env,slot.id).write as PostgresDatabase);
   for (const slot of await activeSlots(env)) {
     const { write,files } = registeredResources(env,slot.id);
+    await (await import("../leave-self-service")).runLeaveAccruals(write,new Date().toISOString().slice(0,10));
     await generateOccurrences(write);
     await drainRequestAi(write,env);
+    await (await import("../executive/generation")).drainExecutiveGeneration(write,env);
     await drainSocialAgent(write,env);
     if(slot.beta) await cleanupBetaResources(write,files,slot.id);
   }
@@ -73,4 +83,26 @@ export async function expenseAiWork(env: JobEnv) {
     const { write, files } = registeredResources(env, slot.id);
     await drainExpenseAi(write, files, env);
   }
+}
+
+export async function billingWork(env: JobEnv) {
+  if(!env.CONTROL_DB)return;
+  await (await import("../billing-jobs")).drainBilling(env as import("../billing-jobs").BillingJobEnv);
+  await env.CONTROL_DB.prepare("INSERT INTO runtime_health(service,heartbeat_at,details_json) VALUES('billing',?,'{}') ON CONFLICT(service) DO UPDATE SET heartbeat_at=excluded.heartbeat_at").bind(Date.now()).run();
+}
+
+export async function pmsWork(env: JobEnv) {
+ for (const slot of await activeSlots(env)) if (!slot.beta) {
+   const db=registeredResources(env,slot.id).write as PostgresDatabase;
+   await (await import("../pms")).drainPms(db);
+   const booking=await import("../pms-booking");
+   await booking.deliverBookingEmails(db,{secret: String(env.BETTER_AUTH_SECRET),origin: String(env.ERPX_PUBLIC_ORIGIN),apiKey:typeof env.RESEND_API_KEY === "string" ? env.RESEND_API_KEY : undefined,from:typeof env.RESEND_FROM === "string" ? env.RESEND_FROM : undefined});
+ }
+
+}
+
+export async function legalWork(env:JobEnv){for(const slot of await activeSlots(env)){const {write,files}=registeredResources(env,slot.id);await Promise.allSettled([(await import('../legal/jobs')).legalReminders(write),(await import('../legal/invitations')).drainLegalInvitations(write,env),(await import('../legal/processing')).drainLegalProcessing(write,files),(await import('../legal/retention')).drainLegalDestruction(write as PostgresDatabase,files),(await import('../legal/jobs')).drainLegalAi(write,env)]).then(results=>{if(results.some(r=>r.status==='rejected'))throw new Error('LEGAL_WORK_FAILED')})}}
+
+export async function supportWork(env:JobEnv) {
+ for(const slot of await activeSlots(env)) await (await import('../support-sla-alerts')).drainSupportSla(registeredResources(env,slot.id).write);
 }

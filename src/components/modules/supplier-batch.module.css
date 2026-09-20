@@ -1,0 +1,12 @@
+.console { display:grid;gap:24px;min-width:0; }
+.console :global(.business-form) { grid-template-columns:repeat(2,minmax(0,1fr));align-items:start; }
+.console fieldset { grid-column:1/-1;min-width:0;border:1px solid var(--control-border);border-radius:10px;padding:16px;margin:0; }
+.console fieldset legend { max-width:100%;padding:0 8px; }
+.console fieldset legend label { display:flex;flex-direction:row;align-items:center;gap:10px;color:var(--ink); }
+.console input[type='checkbox'] { width:18px;height:18px;min-height:18px;flex:0 0 18px;padding:0; }
+.console fieldset :global(.business-form) { grid-template-columns:repeat(3,minmax(0,1fr));padding:12px 0 0; }
+.console button { justify-self:start; }
+.console code { overflow-wrap:anywhere; }
+@media(max-width:750px) {
+ .console :global(.business-form),.console fieldset :global(.business-form) { grid-template-columns:1fr; }
+}

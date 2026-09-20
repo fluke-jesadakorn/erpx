@@ -10,6 +10,7 @@ import { assertion, executeCommand, replayCommand } from "./commands";
 import { reportingIssues, staffLevelTitles, type OrganizationOverview, type OrganizationPerson, type OrganizationPosition, type OrganizationTemplatePosition, type OrganizationNode } from "@/lib/organization";
 
 export const positionSchema = z.object({
+  requirements: z.string().trim().max(3000).default(""),
   title: z.string().trim().min(2).max(160), branchId: z.string().nullable(), departmentId: z.string().nullable(),
   levelId: z.string().min(1), reportsToPositionId: z.string().nullable(), isCeo: z.boolean().default(false),
   active: z.boolean().default(true), expectedVersion: z.number().int().min(0), reason: z.string().trim().min(3).max(1000),
@@ -46,7 +47,7 @@ export async function organizationOverview(db: SqlDatabase, actor: WorkContext):
   const {people,positions} = await organizationRoster(db,actor.companyId);
   const visible = (p:{branch_id:string|null;department_id:string|null}) => (!actor.branchId || p.branch_id === actor.branchId) && (!actor.departmentId || p.department_id === actor.departmentId);
   const canManage = hasPermission(actor,"organization.manage");
-  const nodes = (await db.prepare("SELECT id,kind,display_name,branch_id FROM organization_nodes WHERE company_id=? AND status='active' AND kind IN ('company','branch','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR kind!='department' OR id=?) ORDER BY display_name").bind(actor.companyId,actor.branchId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).all<OrganizationNode>()).results;
+  const nodes = (await db.prepare("SELECT id,kind,slug,display_name,branch_id FROM organization_nodes WHERE company_id=? AND status='active' AND kind IN ('company','branch','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR kind!='department' OR id=?) ORDER BY display_name").bind(actor.companyId,actor.branchId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).all<OrganizationNode>()).results;
   const levels = (await db.prepare("SELECT id,name,level_number FROM staff_levels WHERE company_id=? AND active=1 AND level_number IS NOT NULL ORDER BY level_number").bind(actor.companyId).all<{id:string;name:string;level_number:number}>()).results;
   const templates = canManage ? (await db.prepare("SELECT id,name,version,positions_json FROM organization_templates WHERE company_id=? ORDER BY name").bind(actor.companyId).all<{id:string;name:string;version:number;positions_json:string}>()).results.map(t=>({id:t.id,name:t.name,version:t.version,positions:JSON.parse(t.positions_json) as OrganizationTemplatePosition[]})) : [];
   const authorizedChannelNodes=(await db.prepare(`SELECT n.id FROM organization_nodes n WHERE n.company_id=? AND n.status='active' AND n.kind IN ('company','branch','department') AND ${organizationMemberSql("n","?")}`).bind(actor.companyId,actor.userId).all<{id:string}>()).results.map(n=>n.id);
@@ -98,6 +99,7 @@ export async function savePosition(db:SqlDatabase,actor:WorkContext,id:string|nu
     ...(id?[assertion(db,key,"position-version","EXISTS(SELECT 1 FROM organization_positions WHERE id=? AND company_id=? AND version=?)",[id,actor.companyId,input.expectedVersion])]:[]),
     db.prepare(`INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,reports_to_position_id,is_ceo,active,version,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(id) DO UPDATE SET branch_id=excluded.branch_id,department_id=excluded.department_id,title=excluded.title,level_id=excluded.level_id,reports_to_position_id=excluded.reports_to_position_id,is_ceo=excluded.is_ceo,active=excluded.active,version=excluded.version,updated_at=excluded.updated_at`).bind(recordId,actor.companyId,input.branchId,input.departmentId,input.title,input.levelId,input.reportsToPositionId,input.isCeo?1:0,input.active?1:0,version,actor.userId,now,now),
+    db.prepare("UPDATE organization_positions SET requirements=? WHERE id=? AND company_id=?").bind(input.requirements,recordId,actor.companyId),
   ]);
 }
 function validateTemplate(positions:OrganizationTemplatePosition[]) {

@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/field-service.test.ts tests/support.test.ts tests/stock-reservations.test.ts tests/quality.test.ts tests/asset-maintenance.test.ts tests/staff-work.test.ts tests/staff-migration.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  7 passed (7)
+      Tests  46 passed (46)
+   Start at  23:07:22
+   Duration  78.10s (transform 1.99s, setup 178ms, import 522ms, tests 76.79s, environment 0ms)
+

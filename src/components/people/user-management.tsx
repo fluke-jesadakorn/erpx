@@ -39,6 +39,8 @@ import {
 } from "@/lib/user-management";
 import type { RoleRevision } from "@/lib/iam";
 import styles from "./user-management.module.css";
+import { LifecyclePanel } from "./lifecycle-workspace";
+import type { PeopleLifecycleData } from "@/lib/people-lifecycle";
 import { PeopleAccessExplorer } from "./access-explorer";
 
 type View = "people" | "groups" | "policies" | "attributes";
@@ -104,7 +106,13 @@ export function UserManagement({
   base,
   api,
   accounts,
+  initialView = "people",
+  views,
+  lifecycle,
 }: {
+  lifecycle?: PeopleLifecycleData | null;
+  initialView?: View;
+  views?: View[];
   initial: ManagementSnapshot;
   roles: RoleRevision[];
   base: string;
@@ -114,8 +122,9 @@ export function UserManagement({
     "meta" | "initialEntries"
   >;
 }) {
+  const [movePerson,setMovePerson] = useState<string|null>(null);
   const [data, setData] = useState(initial),
-    [view, setView] = useState<View>("people"),
+    [view, setView] = useState<View>(initialView),
     [selection, setSelection] = useState<Selection | null>(null),
     [filter, setFilter] = useState(""),
     [showArchived, setShowArchived] = useState(false),
@@ -136,6 +145,7 @@ export function UserManagement({
     [reviewIds, setReviewIds] = useState<string[]>([]);
   const drag = useRef<Drag | null>(null),
     heading = useRef<HTMLHeadingElement>(null);
+  const canManageGroups=!!data.canManageGroups || data.canManage;
   const iamApi = api.replace(/\/people\/access$/, "/iam");
   const select = (s: Selection) => {
     setSelection(s);
@@ -193,6 +203,7 @@ export function UserManagement({
   function startDrag(e: DragEvent, value: Drag) {
     drag.current = value;
     e.dataTransfer.effectAllowed = "copyMove";
+    if(value.kind === "people" && value.ids.length===1)e.dataTransfer.setData("application/erpx-person",value.ids[0]);
     e.dataTransfer.setData(
       "application/x-erpx-management",
       JSON.stringify(value),
@@ -202,7 +213,11 @@ export function UserManagement({
     e.preventDefault();
     const value = drag.current;
     drag.current = null;
-    if (!value || !data.canManage) return;
+    if(value?.kind === "people" && target === "unit" && lifecycle?.canManage) {
+      if(value.ids.length!==1){setMessage("Move one person at a time so their access can be reviewed.");return;}
+      setMovePerson(value.ids[0]);return;
+    }
+    if (!value || !(value.kind === "policy" ? data.canManage : canManageGroups)) return;
     if (
       target === "group" &&
       value.kind !== "policy" &&
@@ -305,7 +320,7 @@ export function UserManagement({
             <Users size={15} />
             <button
               type="button"
-              draggable={data.canManage}
+              draggable={canManageGroups}
               onDragStart={(e) => startDrag(e, { kind: "group", id: g.id })}
               onDragEnd={() => {
                 drag.current = null;
@@ -388,8 +403,9 @@ export function UserManagement({
       : null;
   return (
     <div className={styles.workspace}>
+      {lifecycle&&movePerson&&<Dialog open onClose={()=>setMovePerson(null)} title="Assign or transfer person" presentation="responsive-panel">{(()=>{const person=lifecycle.roster.find(p=>p.id===movePerson);return person?<LifecyclePanel base={base} data={lifecycle} person={person} initialKind="transfer"/>:<p>Complete an engagement in this workspace before moving this person.</p>;})()}</Dialog>}
       <div className={styles.topbar}>
-        <nav aria-label="User management views">
+        {(!views || views.length > 1) && <nav aria-label="User management views">
           {(
             [
               { id: "people", label: "People", Icon: UserRound },
@@ -401,7 +417,7 @@ export function UserManagement({
                 Icon: SlidersHorizontal,
               },
             ] as const
-          ).map(({ id, label, Icon }) => (
+          ).filter(({id}) => !views || views.includes(id)).map(({ id, label, Icon }) => (
             <button
               key={id}
               type="button"
@@ -412,10 +428,10 @@ export function UserManagement({
               {label}
             </button>
           ))}
-        </nav>
+        </nav>}
         <details className={styles.advanced}>
           <summary>
-            <Settings2 size={15} /> Advanced
+            <Settings2 size={15} /> Directory explorer
           </summary>
           <button
             onClick={() => {
@@ -425,9 +441,7 @@ export function UserManagement({
           >
             Accounts & connected directories
           </button>
-          <Link href={base + "/iam/matrix"}>Access matrix</Link>
-          <Link href={base + "/iam/roles"}>Roles & permissions</Link>
-          <Link href={base + "/iam/connections"}>Directory connections</Link>
+          <Link href={base + "/people/settings"}>People settings</Link>
           <Link href="/security">Verify MFA</Link>
         </details>
       </div>
@@ -480,7 +494,7 @@ export function UserManagement({
                 Add or edit a person
               </Link>
             ) : (
-              (view === "attributes" ? data.canDefine : data.canManage) && (
+              (view === "attributes" ? data.canDefine : view === "groups" ? canManageGroups : data.canManage) && (
                 <button
                   className="button"
                   onClick={() =>
@@ -597,7 +611,7 @@ export function UserManagement({
                       />
                       Select visible
                     </label>
-                    {data.canManage && (
+                    {canManageGroups && (
                       <button
                         disabled={!selected.length}
                         onClick={() =>
@@ -623,7 +637,7 @@ export function UserManagement({
                         }
                       />
                       <button
-                        draggable={data.canManage}
+                        draggable={canManageGroups}
                         onDragStart={(e) =>
                           startDrag(e, {
                             kind: "people",
@@ -661,7 +675,7 @@ export function UserManagement({
                       key={g.id}
                       aria-pressed={selection?.id === g.id}
                       onClick={() => select({ kind: "group", id: g.id })}
-                      draggable={data.canManage && !g.archived}
+                      draggable={canManageGroups && !g.archived}
                       onDragStart={(e) =>
                         startDrag(e, { kind: "group", id: g.id })
                       }
@@ -807,7 +821,7 @@ export function UserManagement({
                         </small>
                       </button>
                     ))}
-                  {data.canManage && (
+                  {canManageGroups && (
                     <button
                       className="button secondary"
                       onClick={() =>
@@ -849,6 +863,7 @@ export function UserManagement({
                     {group.members.map((id) => (
                       <li key={id}>
                         {data.people.find((p) => p.id === id)?.name}
+                        <small> · {(group.memberSources?.[id]??[]).join(" · ")}</small>
                         {group.rule && (
                           <small>
                             {group.rule.conditions
@@ -869,7 +884,7 @@ export function UserManagement({
                       </li>
                     ))}
                   </ul>
-                  {data.canManage && (
+                  {canManageGroups && (
                     <button
                       className="button secondary"
                       onClick={() => setEditor({ kind: "group", item: group })}
@@ -1201,7 +1216,7 @@ function AttributeValueForm({
   busy: boolean;
 }) {
   const fields = data.attributes.filter(
-      (a) => a.target === target && !a.archived,
+      (a) => a.target === target && !a.archived && a.canView !== false,
     ),
     record = data.values.find(
       (v) => v.target === target && v.objectId === objectId,
@@ -1211,7 +1226,7 @@ function AttributeValueForm({
         ? data.canManagePeople
         : target === "unit"
           ? data.canManageOrganization
-          : data.canManage;
+          : data.canManageGroups || data.canManage;
   if (!fields.length) return null;
   return (
     <form
@@ -1221,6 +1236,7 @@ function AttributeValueForm({
         const f = new FormData(e.currentTarget),
           values: Record<string, unknown> = {};
         for (const a of fields) {
+          if (a.canEdit === false) continue;
           const v = f.get(a.id);
           values[a.id] =
             a.type === "checkbox"
@@ -1240,6 +1256,7 @@ function AttributeValueForm({
             objectId,
             expectedVersion: record?.version ?? 0,
             values,
+            inherit: f.getAll("inherit").map(String),
             reason: str(f, "reason"),
           },
         });
@@ -1255,7 +1272,7 @@ function AttributeValueForm({
               type="checkbox"
               name={a.id}
               defaultChecked={record?.values[a.id] === true}
-              disabled={!canEdit}
+              disabled={!canEdit || a.canEdit === false}
             />
           ) : a.type.endsWith("select") ? (
             <select
@@ -1266,7 +1283,7 @@ function AttributeValueForm({
                   (a.type === "multi-select" ? [] : "")) as string | string[]
               }
               required={a.required}
-              disabled={!canEdit}
+              disabled={!canEdit || a.canEdit === false}
             >
               {a.type === "single-select" && <option value="">Choose…</option>}
               {a.options.map((o) => (
@@ -1287,10 +1304,11 @@ function AttributeValueForm({
               maxLength={2000}
               required={a.required}
               defaultValue={String(record?.values[a.id] ?? "")}
-              disabled={!canEdit}
+              disabled={!canEdit || a.canEdit === false}
             />
           )}
-          <small>{a.help}</small>
+          <small>{a.help}{record?.inheritedFrom?.[a.id] ? " · Inherited from "+(data.nodes.find(n=>n.id===record.inheritedFrom![a.id])?.label??"parent organization") : ""}</small>
+          {target==="unit"&&canEdit&&a.canEdit!==false&&!record?.inheritedFrom?.[a.id]&&<span><input type="checkbox" name="inherit" value={a.id}/>Use inherited value</span>}
         </label>
       ))}
       {canEdit && (
@@ -1388,6 +1406,10 @@ function ManagementEditor({
           ...base,
           label: str(f, "label"),
           help: str(f, "help"),
+          ownerRole: str(f, "ownerRole") || undefined,
+          readRoles: f.getAll("readRoles").map(String),
+          writeRoles: f.getAll("writeRoles").map(String),
+          branchOverride: f.get("branchOverride") === "on",
           target: str(f, "target") as AttributeDefinition["target"],
           type,
           required: f.get("required") === "on",
@@ -1699,6 +1721,17 @@ function ManagementEditor({
       )}
       {editor.kind === "attribute" && (
         <>
+          <label>Data owner role<select name="ownerRole" defaultValue={editor.item?.ownerRole ?? ""}>
+            <option value="">Company administration</option>
+            {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select></label>
+          <label>Roles allowed to view<select multiple name="readRoles" defaultValue={editor.item?.readRoles ?? []}>
+            {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select><small>Leave empty to retain the existing object view permissions.</small></label>
+          <label>Roles allowed to edit<select multiple name="writeRoles" defaultValue={editor.item?.writeRoles ?? []}>
+            {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select><small>Editors also need permission to manage this person, group, or unit.</small></label>
+          <label><input type="checkbox" name="branchOverride" defaultChecked={editor.item?.branchOverride !== false} />Allow Branch overrides</label>
           <label>
             Label
             <input

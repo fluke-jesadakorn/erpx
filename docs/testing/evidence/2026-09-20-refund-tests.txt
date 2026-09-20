@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/commerce-returns.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Start at  01:04:36
+   Duration  34.70s (transform 349ms, setup 41ms, import 202ms, tests 34.35s, environment 0ms)
+

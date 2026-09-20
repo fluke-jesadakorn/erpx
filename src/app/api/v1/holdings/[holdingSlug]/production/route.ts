@@ -1,0 +1,71 @@
+import { requireWorkContext } from "@/server/authorization";
+import { requestPublicOrigin } from "@/server/public-origin";
+import { ApiError, errorResponse } from "@/server/http";
+import {
+  changeManufacturingOrder,
+  createPlanningScenario,
+  createSpecification,
+  productionDetail,
+  productionWorkspace,
+  reviewPlanningRecommendation,
+  reviewSpecification,
+} from "@/server/production";
+type C = { params: Promise<{ holdingSlug: string }> };
+const headers = { "Cache-Control": "private, no-store" };
+export async function GET(r: Request, c: C) {
+  try {
+    const a = await requireWorkContext((await c.params).holdingSlug),
+      u = new URL(r.url),
+      id = u.searchParams.get("id"),
+      workspaceModule =
+        u.searchParams.get("module") === "planning"
+          ? "planning"
+          : "manufacturing";
+    return Response.json(
+      {
+        data: id
+          ? await productionDetail(a, id)
+          : await productionWorkspace(a, workspaceModule),
+      },
+      { headers },
+    );
+  } catch (e) {
+    return errorResponse(e);
+  }
+}
+export async function POST(r: Request, c: C) {
+  try {
+    if (
+      r.headers.get("origin") &&
+      r.headers.get("origin") !== requestPublicOrigin(r)
+    )
+      throw new ApiError(
+        403,
+        "ORIGIN_FORBIDDEN",
+        "Use the application origin.",
+      );
+    const key = r.headers.get("Idempotency-Key");
+    if (!key)
+      throw new ApiError(
+        422,
+        "COMMAND_KEY_REQUIRED",
+        "Idempotency-Key is required.",
+      );
+    const a = await requireWorkContext((await c.params).holdingSlug),
+      i = await r.json();
+    let data;
+    if (i.entity === "specification")
+      data =
+        typeof i.id === "string"
+          ? await reviewSpecification(a, i.id, i, key)
+          : await createSpecification(a, i, key);
+    else if (i.entity === "scenario")
+      data = await createPlanningScenario(a, i, key);
+    else if (i.entity === "recommendation")
+      data = await reviewPlanningRecommendation(a, i.id, i, key);
+    else data = await changeManufacturingOrder(a, i.id, i, key);
+    return Response.json({ data }, { headers });
+  } catch (e) {
+    return errorResponse(e);
+  }
+}

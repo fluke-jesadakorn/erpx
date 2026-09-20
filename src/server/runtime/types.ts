@@ -38,5 +38,6 @@ export interface FileStore {
   get(key: string, options?: { range?: { offset?: number; length?: number; suffix?: number } }): Promise<StoredFile | null>;
   head(key: string): Promise<FileMetadata | null>;
   delete(key: string | string[]): Promise<void>;
+  destroyPreserved?(keys:string[], authorization:{database:SqlDatabase;destructionId:string}):Promise<void>;
   list(options?: { prefix?: string; cursor?: string; limit?: number }): Promise<{ objects: FileMetadata[]; truncated: boolean; cursor?: string }>;
 }

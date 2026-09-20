@@ -1,3 +1,4 @@
+import { isMyAction } from "@/lib/work-item";
 import { requireWorkContext } from "@/server/authorization";
 import { holdingResources } from "@/server/runtime";
 import { workSnapshot } from "@/server/work-items";
@@ -15,7 +16,7 @@ export async function GET(_request: Request, context: Context) {
     const [home, work] = await Promise.all([unreadHomeCount(write, actor), workSnapshot(actor)]);
     return Response.json({ data: {
       home,
-      work: work.unavailableSources.length ? null : work.items.filter(item => item.queue !== "completed").length,
+      work: work.unavailableSources.length ? null : work.items.filter(isMyAction).length,
     } }, { headers });
   } catch (error) { return errorResponse(error); }
 }

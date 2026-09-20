@@ -1,0 +1,20 @@
+$ bun scripts/local/test.ts tests/crm.test.ts tests/crm-forecast.test.ts tests/customer-followups.test.ts tests/staff-migration.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/crm.test.ts > qualifies once and requires approved quotation plus confirmed source sales order before winning 3208ms
+ ✓ tests/crm.test.ts > serializes qualification and preserves immutable evidence through loss and reopening 333ms
+ ✓ tests/crm.test.ts > scopes prospects and blocks ineligible owners until manager reassignment 659ms
+ ✓ tests/crm.test.ts > delivers reassignment to the actual recipient through Work, Inbox and Calendar, and removes disqualified work 691ms
+ ✓ tests/customer-followups.test.ts > hands a source-linked contact to the eligible owner via Work, Inbox and Calendar and records its outcome once 1337ms
+ ✓ tests/customer-followups.test.ts > blocks revoked and ended owners until a manager explicitly reassigns eligible staff 1274ms
+ ✓ tests/customer-followups.test.ts > hides details, counts, recipients and notifications outside source scope 1242ms
+ ✓ tests/customer-followups.test.ts > serializes outcome against reassignment and preserves immutable history 973ms
+ ✓ tests/staff-migration.test.ts > creates a complete, empty PostgreSQL baseline and preserves database invariants 3497ms
+ ✓ tests/crm-forecast.test.ts > retains exact totals beyond safe Number aggregation and rounds each weighted opportunity half up 2ms
+
+ Test Files  4 passed (4)
+      Tests  10 passed (10)
+   Start at  16:11:55
+   Duration  58.74s (transform 346ms, setup 96ms, import 368ms, tests 57.95s, environment 0ms)
+

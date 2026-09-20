@@ -1,3 +1,4 @@
+import { SetupChecklist } from "@/components/ui/setup-checklist";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { approvalView, type ApprovalKind } from "@/server/approvals";
@@ -95,6 +96,7 @@ export async function ApprovalAdministration({
           Organization settings
         </Link>
       </div>
+      <SetupChecklist title="Approval readiness" items={rows.some(row=>row.approval.blockedReason) ? rows.filter(row=>row.approval.blockedReason).map(row=>({id:`${row.record_type}:${row.record_id}`,label:`${row.record_type} approval routing`,ready:false,owner:"Organization administrator",href:approvalAdminHref(base,row.record_type,row.record_id),detail:row.approval.blockedReason ?? "Assign an eligible independent approver"})) : [{id:"routing",label:"Approval routing",ready:true,owner:"Organization administrator",href:`${base}/people/organization`,detail:"No blocked approval routes in your visible queue"}]} />
       <section className="card">
         <h2>Approval issues</h2>
         <p className="muted">

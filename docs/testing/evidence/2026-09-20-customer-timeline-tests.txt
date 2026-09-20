@@ -1,0 +1,18 @@
+$ bun scripts/local/test.ts tests/customer-timeline.test.ts tests/commerce-returns.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/commerce-returns.test.ts > returns a supplier receipt through independent review, stock reversal and debit-note GL 1190ms
+ ✓ tests/commerce-returns.test.ts > separates invoice credit from sales cash refund and reconciles partial/final payments exactly once 1193ms
+ ✓ tests/commerce-returns.test.ts > separates invoice credit from purchase cash refund and reconciles partial/final payments exactly once 1996ms
+ ✓ tests/commerce-returns.test.ts > holds uncertain payments, requires independent failure review, and serializes competing replacement instructions 3240ms
+ ✓ tests/commerce-returns.test.ts > keeps tax in the full paid credit and creates exactly the gross refund obligation 2275ms
+ ✓ tests/customer-timeline.test.ts > federates actual CRM, notes and follow-up source events without copying private payloads or mutating their owners 792ms
+ ✓ tests/customer-timeline.test.ts > hides customer identity, entries and counts outside company/branch/department scope and from non-commerce roles 349ms
+ ✓ tests/customer-timeline.test.ts > paginates source events deterministically without duplicates and rejects malformed cursors 445ms
+
+ Test Files  2 passed (2)
+      Tests  8 passed (8)
+   Start at  16:22:37
+   Duration  23.78s (transform 404ms, setup 71ms, import 433ms, tests 23.09s, environment 0ms)
+

@@ -1,4 +1,5 @@
 import "server-only";
+import { hasPolicyReadSnapshot, policyRead } from "./iam-read-snapshot";
 import type { SqlDatabase } from "./runtime/types";
 /** All reviewed identities of these people, including superseded principals. */
 export async function personIdentityIds(
@@ -24,14 +25,12 @@ export async function currentPersonPrincipals(
   ids: readonly string[],
 ) {
   if (!ids.length) return new Map<string, string>();
-  const rows = (
-    await db
-      .prepare(
-        `SELECT original.user_id original_id,linked.user_id current_id FROM iam_members original JOIN iam_members linked ON linked.company_id=original.company_id AND linked.person_id=original.person_id AND linked.status='active' WHERE original.company_id=? AND original.status='superseded' AND original.user_id IN (${ids.map(() => "?").join(",")})`,
-      )
-      .bind(companyId, ...ids)
-      .all<{ original_id: string; current_id: string }>()
-  ).results;
+  const select = `SELECT original.user_id original_id,linked.user_id current_id FROM iam_members original JOIN iam_members linked ON linked.company_id=original.company_id AND linked.person_id=original.person_id AND linked.status='active' WHERE original.company_id=? AND original.status='superseded'`;
+  const rows = hasPolicyReadSnapshot()
+    ? await policyRead(db, JSON.stringify(["current-principals", companyId]), async () =>
+      (await db.prepare(select).bind(companyId).all<{ original_id: string; current_id: string }>()).results)
+    : (await db.prepare(`${select} AND original.user_id IN (${ids.map(() => "?").join(",")})`)
+      .bind(companyId, ...ids).all<{ original_id: string; current_id: string }>()).results;
   const map = new Map(ids.map((id) => [id, id]));
   for (const id of ids) {
     const matches = rows.filter((r) => r.original_id === id);

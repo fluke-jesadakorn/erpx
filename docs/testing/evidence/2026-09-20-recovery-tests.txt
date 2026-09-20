@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/recovery-simulation.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  10:25:34
+   Duration  26.36s (transform 154ms, setup 39ms, import 183ms, tests 26.02s, environment 0ms)
+

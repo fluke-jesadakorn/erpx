@@ -1,0 +1,29 @@
+{
+  "observedAt": "2026-09-20T16:54:24.002196+07:00",
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "dirtyTree": true,
+  "scope": "Full regression of owner implementations through migration0216, before SLA integration/migration0217. New business-time/support-clock unit tests are separate.",
+  "result": {
+    "filesPassed": 95,
+    "filesSkipped": 2,
+    "testsPassed": 803,
+    "testsSkipped": 3
+  },
+  "baselineSourceHashes": {
+    "src/server/support.ts": "c498f4caf0577703370f44dc96b7889ac1ed4ab9a0c05986e50961a19c6a38fc",
+    "src/server/support-recipient.ts": "7c6c165c3534213189334aa33a845214c92f1a6346dc140f90dba9d9b00abcef",
+    "src/server/customer-timeline.ts": "c912192eb1872369888f1467768950e6fe84e0e6bccf5ca351f3206cdadf0bf5",
+    "src/server/calendar/support.ts": "1e888b76af8dca0e5575d24524eb9eeb627f916eaddb4ff124abfad38879de52",
+    "src/lib/workplace-navigation.ts": "5dfdc445018036c3f0b752f8f265250504bd860de165f0b49b7e1e14b12cfecd",
+    "src/lib/permissions.ts": "3f959b2e278d9e97de801099d80e9b7c22c17a1c48356c19636a65589e0385c7",
+    "src/components/modules/support-console.tsx": "21d3d1c80255177fbb56a7c47ad5e187135c5cf7f21359883adb73d82b6ecf67",
+    "migrations/postgres/holding-write/0216_support_tickets.sql": "f198248a7dda814c97da260f8a13a2f072b9ec88edae66e5342d22164289c72a",
+    "tests/support.test.ts": "430782efdb826df0994afd4a9031016bed46fd1969296be509f0a68450c4743b",
+    "tests/customer-timeline.test.ts": "67f6c7bd611ba381722a2b83a564175753e24f542e1972acbf265fc02829714f"
+  },
+  "limitations": [
+    "Skipped tests are not passed gates.",
+    "Does not cover later SLA integration or 73 Deferred capabilities.",
+    "Not provider, UAT or production sign-off."
+  ]
+}

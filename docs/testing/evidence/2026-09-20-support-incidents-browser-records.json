@@ -1,0 +1,180 @@
+{
+  "run": "d8d0a4d04501",
+  "exportedAt": "2026-09-20T10:26:52.028Z",
+  "incident": {
+    "id": "incident-b55d621a-0603-45fb-99d9-650a9a0e9de0",
+    "company_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa",
+    "branch_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-branch",
+    "department_id": null,
+    "title": "Shared installer configuration failure",
+    "impact": "Simulation installation blocked; investigate shared cause while each customer case stays open",
+    "severity": "high",
+    "owner_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-claimant",
+    "due_date": "2026-09-24",
+    "status": "closed",
+    "root_cause": "Simulation root cause: installer configuration omitted a valid product code",
+    "mitigation": "Updated configuration and verified installation in the isolated simulation",
+    "mitigated_by": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-claimant",
+    "version": "4",
+    "created_by": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-owner",
+    "created_at": "1789899854953",
+    "updated_at": "1789899990334"
+  },
+  "events": [
+    {
+      "id": "incident-event-b55d621a-0603-45fb-99d9-650a9a0e9de0",
+      "incident_id": "incident-b55d621a-0603-45fb-99d9-650a9a0e9de0",
+      "version": "1",
+      "action": "create",
+      "actor_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-owner",
+      "reason": "Simulation installation blocked; investigate shared cause while each customer case stays open",
+      "created_at": "1789899854953",
+      "evidence_json": {
+        "title": "Shared installer configuration failure",
+        "impact": "Simulation installation blocked; investigate shared cause while each customer case stays open",
+        "dueDate": "2026-09-24",
+        "ownerId": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-claimant",
+        "severity": "high",
+        "ticketId": "ticket-eeed52f7-93fd-482b-a164-196e515036d4",
+        "ticketVersion": 1
+      }
+    },
+    {
+      "id": "incident-event-148e3068-0e77-4e3a-845b-7e5a795e2a80",
+      "incident_id": "incident-b55d621a-0603-45fb-99d9-650a9a0e9de0",
+      "version": "2",
+      "action": "start",
+      "actor_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-claimant",
+      "reason": "Accept investigation of the shared installer configuration in the isolated environment",
+      "created_at": "1789899915561",
+      "evidence_json": {
+        "action": "start",
+        "reason": "Accept investigation of the shared installer configuration in the isolated environment",
+        "status": "investigating",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "id": "incident-event-7b93fcfe-273e-404b-8b06-8ceef6ccaa36",
+      "incident_id": "incident-b55d621a-0603-45fb-99d9-650a9a0e9de0",
+      "version": "3",
+      "action": "mitigate",
+      "actor_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-claimant",
+      "reason": "Request independent review; customer ticket still needs its own confirmation",
+      "created_at": "1789899942434",
+      "evidence_json": {
+        "action": "mitigate",
+        "reason": "Request independent review; customer ticket still needs its own confirmation",
+        "status": "mitigated",
+        "rootCause": "Simulation root cause: installer configuration omitted a valid product code",
+        "mitigation": "Updated configuration and verified installation in the isolated simulation",
+        "expectedVersion": 2
+      }
+    },
+    {
+      "id": "incident-event-782445f5-2046-481c-aa6f-90c236e88ebb",
+      "incident_id": "incident-b55d621a-0603-45fb-99d9-650a9a0e9de0",
+      "version": "4",
+      "action": "close",
+      "actor_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-tie",
+      "reason": "Independent manager reviewed the simulated mitigation evidence; case owner must still obtain customer confirmation",
+      "created_at": "1789899990334",
+      "evidence_json": {
+        "action": "close",
+        "reason": "Independent manager reviewed the simulated mitigation evidence; case owner must still obtain customer confirmation",
+        "status": "closed",
+        "expectedVersion": 3
+      }
+    }
+  ],
+  "links": [
+    {
+      "incident_id": "incident-b55d621a-0603-45fb-99d9-650a9a0e9de0",
+      "ticket_id": "ticket-eeed52f7-93fd-482b-a164-196e515036d4",
+      "linked_version": "1",
+      "linked_by": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-owner",
+      "linked_at": "1789899854953",
+      "active": true
+    }
+  ],
+  "ticket": {
+    "id": "ticket-eeed52f7-93fd-482b-a164-196e515036d4",
+    "company_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa",
+    "branch_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-branch",
+    "department_id": null,
+    "order_id": "order-f3b885eb-144d-4168-b9a5-569c82121b92",
+    "customer_id": "parties-bcf02dda-8478-463b-9b4c-df93bc220417",
+    "title": "Incident-linked customer case",
+    "issue": "Simulation installer rejects valid product code",
+    "owner_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-claimant",
+    "due_date": "2026-09-24",
+    "status": "open",
+    "blocked_reason": null,
+    "resolution": null,
+    "resolved_by": null,
+    "resolved_at": null,
+    "confirmation_note_id": null,
+    "confirmation_note_version": null,
+    "version": "1",
+    "created_by": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-owner",
+    "created_at": "1789899821187",
+    "updated_at": "1789899821187",
+    "sla_policy_id": null,
+    "sla_policy_version": null,
+    "sla_clock_json": null
+  },
+  "source": [
+    {
+      "id": "order-f3b885eb-144d-4168-b9a5-569c82121b92",
+      "kind": "quote",
+      "state": "draft",
+      "version": "1",
+      "party_id": "parties-bcf02dda-8478-463b-9b4c-df93bc220417",
+      "currency": "THB"
+    }
+  ],
+  "notifications": [
+    {
+      "user_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-claimant",
+      "record_version": "1",
+      "message": "Incident updated: review impact and follow up each linked customer case"
+    },
+    {
+      "user_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-claimant",
+      "record_version": "2",
+      "message": "Incident updated: review impact and follow up each linked customer case"
+    },
+    {
+      "user_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-claimant",
+      "record_version": "3",
+      "message": "Incident updated: review impact and follow up each linked customer case"
+    },
+    {
+      "user_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-owner",
+      "record_version": "3",
+      "message": "Incident updated: review impact and follow up each linked customer case"
+    },
+    {
+      "user_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-tie",
+      "record_version": "3",
+      "message": "Incident updated: review impact and follow up each linked customer case"
+    },
+    {
+      "user_id": "expense-0b2d474d-2f00-4b15-93d6-2aadff2535aa-claimant",
+      "record_version": "4",
+      "message": "Incident updated: review impact and follow up each linked customer case"
+    }
+  ],
+  "migration": [
+    {
+      "name": "0219_support_incidents.sql",
+      "checksum": "eb4455b9f8a0e27355021818100a00ad7952e45e03b2a0951f5ae1190dcdbc64"
+    }
+  ],
+  "sourceHashes": {
+    "src/server/support-incidents.ts": "5146571253c66c6ed69893bc49f1899c9ad6b33f1e4d9c3f302daee542518dd6",
+    "src/components/modules/support-incident-console.tsx": "dd343278033ba71b5ee2733ad21ca61627cb83a03450d1f08872862b690ca92c",
+    "src/server/calendar/support.ts": "9c542a8d4f05c58e0081e07dd8dae2a4dc3f099cc52190cb560c3efb4c2ac205",
+    "migrations/postgres/holding-write/0219_support_incidents.sql": "eb4455b9f8a0e27355021818100a00ad7952e45e03b2a0951f5ae1190dcdbc64"
+  }
+}

@@ -2,6 +2,7 @@ import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "./runtime-env";
 import { expenseFixture, expenseDb as db, key } from "./helpers/expense-fixture";
 import { assignFlowPrimary, resolveFlow } from "../src/server/flow-routing";
+import { saveExpenseAccounting } from "../src/server/expense-workflow";
 import { postExpense, getExpense } from "../src/server/expenses";
 import { createInvoice, invoiceSchema, postInvoice } from "../src/server/finance";
 import { settleInvoice } from "../src/server/commerce";
@@ -62,6 +63,29 @@ it("posts one balanced GL under retries and blocks a revoked primary",async()=>{
   expect(sums).toEqual({debit:10700,credit:10700});
   await db.prepare("UPDATE assignments SET revoked_at=1 WHERE company_id=? AND user_id=? AND role='treasury'").bind(f.company,f.payer.userId).run();
   expect((await resolveFlow(db,f.payer,"expense",id)).canAct).toBe(false);
+});
+it("repairs a revoked reviewer through an audited independent reassignment",async()=>{
+  f.tie.role="finance_preparer";f.tie.assignmentId=await f.grant(f.tie,"finance_preparer");
+  const id=await f.claim();await f.attach(id);await f.action(f.claimant,id,"submit");
+  await f.action(f.head,id,"approve");
+  await assign(id,f.reviewer.userId,false,"accounts_review");
+  const recorded=(await resolveFlow(db,f.owner,"expense",id)).steps.filter(step=>step.status==="recorded");
+  await db.prepare("UPDATE assignments SET revoked_at=1 WHERE company_id=? AND user_id=? AND role='finance_preparer'").bind(f.company,f.reviewer.userId).run();
+  const blocked=await resolveFlow(db,f.owner,"expense",id);
+  expect(blocked.blocker).toContain("no longer eligible");
+  expect(blocked.canManage).toBe(true);
+  await expect(f.action(f.reviewer,id,"approve")).rejects.toBeDefined();
+  await expect(assign(id,f.claimant.userId,false,"accounts_review")).rejects.toMatchObject({code:"FLOW_STAFF_INELIGIBLE"});
+  await assign(id,f.tie.userId,false,"accounts_review");
+  const repaired=await resolveFlow(db,f.tie,"expense",id);
+  expect(repaired.canAct).toBe(true);
+  expect(repaired.steps.filter(step=>step.status==="recorded")).toEqual(recorded);
+  expect(repaired.history.at(-1)?.reason).toContain("Assign the responsible staff member");
+  expect((await resolveFlow(db,f.reviewer,"expense",id)).canAct).toBe(false);
+  const expense=await getExpense(f.tie,id);
+  await saveExpenseAccounting(f.tie,id,{expectedVersion:Number(expense.version),categoryAccountId:f.accounts.expense,tax:"7",periodId:f.period,entryDate:"2026-09-02",note:"Replacement reviewer checked source evidence"},key());
+  await f.action(f.tie,id,"approve");
+  expect((await resolveFlow(db,f.owner,"expense",id)).current?.key).not.toBe("accounts_review");
 });
 it("routes standalone invoice posting and partial settlement through different named staff",async()=>{
   for (const [actor,role] of [[f.reviewer,"finance_preparer"],[f.manager,"finance_approver"],[f.payer,"treasury"]] as const) {
@@ -140,4 +164,38 @@ it("hands purchase receipt to accounting before drafting and posting its payable
   await choose("invoice",String(invoice.invoiceId),"draft",f.manager.userId);
   await postInvoice(f.manager,String(invoice.invoiceId),{expectedVersion:1,periodId:f.period,entryDate:"2026-09-02"},key());
   expect((await resolveFlow(db,f.payer,"invoice",String(invoice.invoiceId))).current?.key).toBe("posted");
+});
+
+it("cancels an approved order independently but requires a return after stock moved",async()=>{
+  const {saveMaster,saveOrder,orderSchema,transitionOrder,getOrder,fulfillOrder}=await import("../src/server/commerce");
+  const stock=await stockFixture();
+  f.head.role="purchasing_manager";f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,"purchasing_manager");
+  const party=await saveMaster(f.owner,"parties",null,{kind:"supplier",code:key(),name:"Cancellation supplier"},key());
+  async function approvedOrder(){
+    const created=await saveOrder(f.owner,null,orderSchema.parse({kind:"purchase",partyId:party.id,warehouseId:stock.warehouseId,orderDate:"2026-09-02",dueDate:"2026-09-03",lines:[{productId:stock.productId,quantity:"2",price:"10",taxBps:0}]}),key());
+    const id=String(created.id);
+    await transitionOrder(f.owner,id,{action:"submit",expectedVersion:1},key());
+    await transitionOrder(f.head,id,{action:"approve",expectedVersion:2},key());
+    return id;
+  }
+  const cancellable=await approvedOrder();
+  await expect(transitionOrder(f.owner,cancellable,{action:"cancel",expectedVersion:3},key())).rejects.toMatchObject({code:"INDEPENDENT_CANCELLER_REQUIRED"});
+  const cancelled=await transitionOrder(f.head,cancellable,{action:"cancel",expectedVersion:3},key());
+  expect(cancelled).toMatchObject({state:"cancelled",version:4});
+  const received=await approvedOrder(),details=await getOrder(f.owner,received);
+  await fulfillOrder(f.owner,received,{expectedVersion:3,date:"2026-09-02",lines:[{lineId:String(details.lines[0].id),quantity:"1"}]},key());
+  await expect(transitionOrder(f.head,received,{action:"cancel",expectedVersion:4},key())).rejects.toMatchObject({code:"ORDER_REVERSAL_REQUIRED"});
+});
+
+it("enforces a versioned customer credit limit when sales approval creates exposure",async()=>{
+  const {saveMaster,saveOrder,orderSchema,transitionOrder}=await import("../src/server/commerce");
+  const stock=await stockFixture();
+  f.head.role="sales_manager";f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,"sales_manager");
+  const party=await saveMaster(f.owner,"parties",null,{kind:"customer",code:key(),name:"Credit customer",creditLimit:"15"},key());
+  const order=await saveOrder(f.owner,null,orderSchema.parse({kind:"sales",partyId:party.id,warehouseId:stock.warehouseId,orderDate:"2026-09-02",dueDate:"2026-09-03",lines:[{productId:stock.productId,quantity:"2",price:"10",taxBps:0}]}),key());
+  const id=String(order.id);
+  await transitionOrder(f.owner,id,{action:"submit",expectedVersion:1},key());
+  await expect(transitionOrder(f.head,id,{action:"approve",expectedVersion:2},key())).rejects.toBeDefined();
+  await saveMaster(f.owner,"parties",String(party.id),{kind:"customer",code:String((await db.prepare("SELECT code FROM finance_parties WHERE id=?").bind(party.id).first("code"))),name:"Credit customer",paymentTermsDays:30,creditLimit:"30",status:"active",expectedVersion:1},key());
+  await expect(transitionOrder(f.head,id,{action:"approve",expectedVersion:2},key())).resolves.toMatchObject({state:"confirmed"});
 });

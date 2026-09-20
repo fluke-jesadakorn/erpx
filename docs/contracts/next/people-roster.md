@@ -1,0 +1,35 @@
+# People roster
+
+People owns planned workforce scheduling (ADR-008 amendment). POS owns cash sessions. A roster is neither attendance evidence nor a payroll input.
+
+## Screens and scope
+
+`{workspaceBase}/people/roster` works in Holding, Branch, and Department workspaces. `department` selects an authorized department; `week` is its Monday date; `view=requests` and `request` deep-link from the inbox. Staff see published weeks in their active engagement's department. Roster managers can also see drafts within their selected workspace scope. Department scopes include descendant departments, while requests only exchange work within the exact same department and branch.
+
+My shifts, Team roster, and Requests are available to active staff. Authorized managers also see Shift templates and create, copy, publish, assign, edit, and cancel controls. Desktop uses a weekly grid; mobile uses daily cards. A published change requires a reason. Already-started shifts cannot be changed. Published weeks cannot be unpublished, and their timezone is fixed at creation. Templates are copied into shifts, never applied retroactively.
+
+## API and records
+
+`GET /api/v1{workspaceBase}/people/roster?department=…&week=…` returns `RosterData` with permitted departments, the selected week, nearby weeks, shifts, assignments, request actions, conflicts, and history. Drafts and manager-only data are removed server-side. Requests retain their original assignment references even after an exchange. The calendar query includes five weeks before and after the chosen week; request details additionally include their referenced shifts.
+
+`POST` to the same URL accepts the discriminated `RosterCommand` in `src/lib/people-roster.ts`. The actions are `template.save`, `week.create` (optional `copyWeekId`), `week.publish`, `shift.save`, `shift.cancel`, `request.create`, and `request.decide`. Writes require an `Idempotency-Key`; edits and decisions include `expectedVersion`. Shift saves check the containing week's version, and shift cancellations check the shift's version. Responses use the existing `{data}` / `{error:{code,message}}` convention. Reads are private and uncached.
+
+The additive holding-write migration `0035_people_roster.sql` defines templates, weeks, shifts, assignments, requests, append-only history, and a company mutation revision. It also registers permissions and adds immutable built-in role revisions. Existing POS records and commands are unchanged.
+
+## Workflow and invariants
+
+- Extra slot: pending manager → approved / rejected / withdrawn.
+- Move: pending manager → approved / rejected / withdrawn. Approval releases the original assignment and creates its replacement in one transaction.
+- Swap: pending coworker → pending manager → approved. Coworkers can reject before accepting; managers can reject after acceptance; requesters can withdraw before approval.
+- Neither participant can be the final reviewer, including through another linked principal of the same Person. Changing referenced shifts or assignments invalidates pending requests and notifies their participants.
+- Owners, HR admins, People managers, and Operations managers receive `roster.read`, `roster.manage`, and `roster.approve` in their allowed scopes. `self.roster` is identity-based and additionally requires an active staff engagement and account. Custom roles can receive the scoped permissions through normal IAM administration.
+- All shifts use an explicit IANA timezone, default Asia/Bangkok. Monday–Sunday refers to local shift start dates. End time earlier than start means the next day; equal times are rejected. PostgreSQL resolves local times; nonexistent daylight-saving times are rejected by round-trip validation. Ambiguous times use PostgreSQL's timezone resolution consistently.
+- Assignment validation checks active staff and account eligibility, placement, engagement dates, approved leave, overlaps (including overnight and adjacent weeks), and capacity. Validation repeats at publication, coworker acceptance, and final approval. Approved leave introduced later appears as a coverage conflict without silently cancelling the published assignment.
+- Every mutation, its history, audit/outbox event, receipt, and notifications commit together. A company roster revision serializes mutations across weeks; SERIALIZABLE retries recompute checks after concurrency conflicts. Shift/assignment row locks protect affected records. Two managers cannot fill the last slot twice.
+- Copying a week creates independent draft shifts and assignments; it never copies requests or decisions. It validates all proposed assignments and rolls back the entire copy on a conflict.
+
+## Development examples and verification
+
+Run `bun run db:migrate:local`, then `bun run seed:roster:local`. Seeding requires local `erpx_dev_*` databases and existing fictional Acme organization profiles. It adds no accounts, grants, or passwords. It seeds Bangkok Operations and Warehouse with three shift templates, a published week, a following draft, vacancies, and pending-coworker/pending-manager/approved/rejected requests. The published week uses three upcoming days (the current week when possible, otherwise next week). Stable command receipts resume interrupted work; completed examples and pre-existing weeks are preserved on rerun.
+
+`tests/people-roster.test.ts` exercises publication, private drafts, copy snapshots, request lifecycle, independent approvals, scope, overnight intervals, leave/engagement conflicts, invalidation, replay, and concurrent capacity/overlap checks. POS and navigation regression tests must also pass. Use the pinned runtime for typecheck, lint, tests, and isolated release builds; keep dev on port 3100 and verify the public hostname with an authenticated browser.

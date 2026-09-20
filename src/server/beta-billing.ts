@@ -62,6 +62,7 @@ export async function billingLink(
   email: string,
   action: "checkout" | "portal",
 ) {
+  if (action === "checkout") throw new ApiError(409,"LEGACY_CHECKOUT_DISABLED","Choose a Support plan in Usage & billing instead.");
   let row = await env.CONTROL_DB.prepare(
     "SELECT customer_id FROM beta_billing WHERE holding_id=?",
   )
@@ -90,30 +91,10 @@ export async function billingLink(
       .first<{ customer_id: string }>();
   }
   const returnUrl = new URL(
-    `/holdings/${slug}/settings`,
+    `/holdings/${slug}/settings?section=usage`,
     env.BETTER_AUTH_URL,
   ).toString();
-  if (action === "checkout" && !env.STRIPE_PRICE_ID)
-    throw new ApiError(
-      503,
-      "PRICE_NOT_CONFIGURED",
-      "Configure a test price before testing checkout.",
-    );
-  const result = await stripeRequest(
-    env,
-    action === "portal" ? "billing_portal/sessions" : "checkout/sessions",
-    action === "portal"
-      ? { customer: row!.customer_id!, return_url: returnUrl }
-      : {
-          customer: row!.customer_id!,
-          mode: "subscription",
-          "line_items[0][price]": env.STRIPE_PRICE_ID!,
-          "line_items[0][quantity]": "1",
-          success_url: returnUrl,
-          cancel_url: returnUrl,
-          "subscription_data[metadata][holding_id]": holdingId,
-        },
-  );
+  const result = await stripeRequest(env, "billing_portal/sessions", {customer:row!.customer_id!,return_url:returnUrl});
   if (
     typeof result.url !== "string" ||
     !["checkout.stripe.com", "billing.stripe.com"].includes(
@@ -164,7 +145,7 @@ export async function stripeWebhook(
   env: Env,
   raw: string,
   signature: string | null,
-  retrieve = stripeRequest,
+  retrieve?: typeof stripeRequest,
 ) {
   if (
     !env.STRIPE_WEBHOOK_SECRET ||
@@ -174,6 +155,8 @@ export async function stripeWebhook(
   const event = JSON.parse(raw);
   if (
     event.livemode !== false ||
+    event.data?.object?.livemode === true ||
+    (env.STRIPE_SECRET_KEY !== undefined && !env.STRIPE_SECRET_KEY.startsWith("sk_test_")) ||
     typeof event.id !== "string" ||
     typeof event.type !== "string" ||
     !Number.isSafeInteger(event.created)
@@ -190,6 +173,11 @@ export async function stripeWebhook(
     )
     .bind(event.id, event.type, event.created, raw)
     .run();
+  if (!retrieve) return { received: true };
+  return applyLegacyStripeEvent(env, event, retrieve);
+}
+export async function applyLegacyStripeEvent(env: Env, event: {id:string;type:string;created:number;data?:{object?:{customer?:unknown}}}, retrieve = stripeRequest) {
+  const db=env.CONTROL_DB;
   const inbox = await db
     .prepare("SELECT state FROM stripe_inbox WHERE id=?")
     .bind(event.id)
@@ -219,7 +207,7 @@ export async function stripeWebhook(
   // Query current Stripe state; an older delivery must never restore an obsolete subscription snapshot.
   const subscriptions = await retrieve(
     env,
-    `subscriptions?customer=${encodeURIComponent(customer)}&status=all&limit=10`,
+    `subscriptions?customer=${encodeURIComponent(String(customer))}&status=all&limit=10`,
   );
   const list = Array.isArray(subscriptions.data) ? subscriptions.data : [];
   if (list.some((s) => s.livemode !== false))

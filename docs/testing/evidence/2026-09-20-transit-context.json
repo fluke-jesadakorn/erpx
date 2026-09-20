@@ -1,0 +1,29 @@
+{
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "dirtyWorkingTree": true,
+  "runtime": {
+    "node": "24.20.0",
+    "bun": "1.2.17"
+  },
+  "environment": "isolated PostgreSQL integration databases",
+  "sourceHashes": {
+    "migrations/postgres/holding-write/0207_inventory_transit.sql": "f41526007e1ce0aef79fece0c30e936cf57210a7c45f360dc465ed8f0857bb84",
+    "src/server/inventory-transfers.ts": "7bee5f45c8ea047bc8fba29937499be69f48fd2fc853e8c88a973fd54c13f32c",
+    "src/server/inventory-transit.ts": "3a97e33d423d6b49afc3a6fea9e5d5db5fae58c9377756be4e3cfdff158c7b38",
+    "src/server/calendar/transit.ts": "1cedd814cbd5f0be233de54485907b773ff67ebb382b20a74d65abf0df8a00d9",
+    "src/components/modules/transit-console.tsx": "6e0972691723413e2bc4a5d36ec67d2685c2e95961356c5d17af63c836576cc2",
+    "src/components/modules/stock-transfer-controls.tsx": "a25768d78c2443ba261ad16dddefd43421d5be4a22cbae46dc3a38e0f8045871",
+    "src/server/commerce.ts": "fa65e3de5a9c0f9fbe08f420dbb5f9ce22dcd2b400438608bce4961b0377095c",
+    "tests/inventory-transit.test.ts": "b86eb9219b70513d1ff35cbb7251b03bc7cb4c1ade01b205435162a59f080bd4"
+  },
+  "regression": {
+    "filesPassed": 5,
+    "filesFailed": 1,
+    "testsPassed": 97,
+    "testsFailed": 1,
+    "failure": "Navigation expected children omitted Stock in transit.",
+    "correction": "Navigation rerun: 50 tests passed. The earlier combined result remains mixed."
+  },
+  "transportOwnerCases": 7,
+  "browser": "Authenticated public development transport queue and breadcrumb rendered; no transaction submitted or multi-role acceptance yet."
+}

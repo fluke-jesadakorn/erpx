@@ -1,0 +1,194 @@
+{
+  "run": "800afde9dbe0",
+  "exportedAt": "2026-09-20T05:54:27.420Z",
+  "scope": "Read-only source verification following browser transactions on disposable simulation databases",
+  "order": [
+    {
+      "id": "order-c3359fae-d33a-4359-954a-499e17ef1a81",
+      "company_id": "expense-190225b6-0fc9-4300-8c5c-691323e75481",
+      "branch_id": "expense-190225b6-0fc9-4300-8c5c-691323e75481-branch",
+      "department_id": null,
+      "kind": "purchase",
+      "number": "PO-F54419424536E794461FAE64",
+      "party_id": "parties-03e42601-09f6-4e88-af63-c60ac035b0d6",
+      "warehouse_id": "warehouses-161e186c-7fb6-4dba-8af5-140d113497f4",
+      "currency": "THB",
+      "order_date": "2026-09-20",
+      "due_date": "2026-09-22",
+      "note": "S03 supplier commitment and partial receiving simulation",
+      "state": "partially_fulfilled",
+      "subtotal_minor": "3000",
+      "tax_minor": "0",
+      "source_id": null,
+      "version": "8",
+      "created_by": "expense-190225b6-0fc9-4300-8c5c-691323e75481-owner",
+      "approved_by": "expense-190225b6-0fc9-4300-8c5c-691323e75481-it",
+      "created_at": "1789883138487",
+      "updated_at": "1789883614799"
+    }
+  ],
+  "lines": [
+    {
+      "id": "order-c3359fae-d33a-4359-954a-499e17ef1a81-line-0",
+      "order_id": "order-c3359fae-d33a-4359-954a-499e17ef1a81",
+      "product_id": "products-94ef1e4c-2516-4992-bc56-607d57e87d50",
+      "description": "Simulation stock only",
+      "quantity_milli": "3000",
+      "fulfilled_milli": "1000",
+      "price_minor": "1000",
+      "tax_bps": "0",
+      "subtotal_minor": "3000",
+      "tax_minor": "0",
+      "ordinal": "0"
+    }
+  ],
+  "promises": [
+    {
+      "id": "supplier-promise-79e46aeb-0bb2-4067-9c57-7d05c770f6df",
+      "order_id": "order-c3359fae-d33a-4359-954a-499e17ef1a81",
+      "company_id": "expense-190225b6-0fc9-4300-8c5c-691323e75481",
+      "order_version": "3",
+      "supplier_id": "parties-03e42601-09f6-4e88-af63-c60ac035b0d6",
+      "currency": "THB",
+      "required_date": "2026-09-22",
+      "kind": "confirmed",
+      "confirmation_date": "2026-09-20",
+      "supplier_reference": "SIM-PROMISE-001",
+      "evidence": "Simulated supplier confirms two partial deliveries; one unit remains unconfirmed.",
+      "recorded_by": "expense-190225b6-0fc9-4300-8c5c-691323e75481-it",
+      "created_at": "1789883277636"
+    },
+    {
+      "id": "supplier-promise-3ca3c33a-fd58-43c6-9e64-3139d627c2b8",
+      "order_id": "order-c3359fae-d33a-4359-954a-499e17ef1a81",
+      "company_id": "expense-190225b6-0fc9-4300-8c5c-691323e75481",
+      "order_version": "5",
+      "supplier_id": "parties-03e42601-09f6-4e88-af63-c60ac035b0d6",
+      "currency": "THB",
+      "required_date": "2026-09-22",
+      "kind": "confirmed",
+      "confirmation_date": "2026-09-20",
+      "supplier_reference": "SIM-PROMISE-002",
+      "evidence": "After one unit received, supplier reconfirms remaining two units for September 24.",
+      "recorded_by": "expense-190225b6-0fc9-4300-8c5c-691323e75481-it",
+      "created_at": "1789883418554"
+    },
+    {
+      "id": "supplier-promise-67e6f8b7-b73d-4da1-add2-aaa88a0432fe",
+      "order_id": "order-c3359fae-d33a-4359-954a-499e17ef1a81",
+      "company_id": "expense-190225b6-0fc9-4300-8c5c-691323e75481",
+      "order_version": "6",
+      "supplier_id": "parties-03e42601-09f6-4e88-af63-c60ac035b0d6",
+      "currency": "THB",
+      "required_date": "2026-09-22",
+      "kind": "withdrawn",
+      "confirmation_date": "2026-09-20",
+      "supplier_reference": "SIM-WITHDRAW-003",
+      "evidence": "Simulated disruption: supplier withdraws both remaining units; buyer must obtain a new commitment.",
+      "recorded_by": "expense-190225b6-0fc9-4300-8c5c-691323e75481-it",
+      "created_at": "1789883425716"
+    }
+  ],
+  "schedule": [
+    {
+      "id": "supplier-promise-79e46aeb-0bb2-4067-9c57-7d05c770f6df-0",
+      "promise_id": "supplier-promise-79e46aeb-0bb2-4067-9c57-7d05c770f6df",
+      "order_line_id": "order-c3359fae-d33a-4359-954a-499e17ef1a81-line-0",
+      "ordinal": 0,
+      "quantity_milli": "1000",
+      "fulfilled_snapshot_milli": "0",
+      "promised_date": "2026-09-21"
+    },
+    {
+      "id": "supplier-promise-79e46aeb-0bb2-4067-9c57-7d05c770f6df-1",
+      "promise_id": "supplier-promise-79e46aeb-0bb2-4067-9c57-7d05c770f6df",
+      "order_line_id": "order-c3359fae-d33a-4359-954a-499e17ef1a81-line-0",
+      "ordinal": 1,
+      "quantity_milli": "1000",
+      "fulfilled_snapshot_milli": "0",
+      "promised_date": "2026-09-23"
+    },
+    {
+      "id": "supplier-promise-3ca3c33a-fd58-43c6-9e64-3139d627c2b8-0",
+      "promise_id": "supplier-promise-3ca3c33a-fd58-43c6-9e64-3139d627c2b8",
+      "order_line_id": "order-c3359fae-d33a-4359-954a-499e17ef1a81-line-0",
+      "ordinal": 0,
+      "quantity_milli": "2000",
+      "fulfilled_snapshot_milli": "1000",
+      "promised_date": "2026-09-24"
+    }
+  ],
+  "receipts": [
+    {
+      "id": "delivery-9ef1e409-5866-4e09-9362-f20e0e0b735d",
+      "order_id": "order-c3359fae-d33a-4359-954a-499e17ef1a81",
+      "number": "GR-B6B0B63A300BBD3EE4A0807C",
+      "fulfillment_date": "2026-09-20",
+      "created_by": "expense-190225b6-0fc9-4300-8c5c-691323e75481-head",
+      "created_at": "1789883374556",
+      "journal_id": "journal-9ef1e409-5866-4e09-9362-f20e0e0b735d",
+      "invoice_id": null,
+      "version": "1"
+    }
+  ],
+  "stock": [
+    {
+      "warehouse_id": "warehouses-161e186c-7fb6-4dba-8af5-140d113497f4",
+      "product_id": "products-94ef1e4c-2516-4992-bc56-607d57e87d50",
+      "quantity_milli": "1000",
+      "value_minor": "1000",
+      "version": "2"
+    }
+  ],
+  "journals": [
+    {
+      "id": "journal-9ef1e409-5866-4e09-9362-f20e0e0b735d",
+      "company_id": "expense-190225b6-0fc9-4300-8c5c-691323e75481",
+      "chart_id": "expense-190225b6-0fc9-4300-8c5c-691323e75481-chart",
+      "period_id": "expense-190225b6-0fc9-4300-8c5c-691323e75481-period",
+      "journal_number": "GL-9ef1e409-5866-4e09-9362-f20e0e0b735d",
+      "entry_date": "2026-09-20",
+      "currency": "THB",
+      "fx_rate_micros": null,
+      "source_type": "goods_receipt",
+      "source_id": "delivery-9ef1e409-5866-4e09-9362-f20e0e0b735d",
+      "memo": "goods_receipt delivery-9ef1e409-5866-4e09-9362-f20e0e0b735d",
+      "status": "posted",
+      "is_opening": "0",
+      "version": "2",
+      "created_by": "expense-190225b6-0fc9-4300-8c5c-691323e75481-head",
+      "posted_by": "expense-190225b6-0fc9-4300-8c5c-691323e75481-manager",
+      "posted_at": "1789883608535",
+      "reversed_by": null,
+      "reversed_at": null,
+      "created_at": "1789883374558",
+      "updated_at": "1789883608535"
+    }
+  ],
+  "journalLines": [
+    {
+      "id": "journal-9ef1e409-5866-4e09-9362-f20e0e0b735d-0",
+      "journal_id": "journal-9ef1e409-5866-4e09-9362-f20e0e0b735d",
+      "account_id": "expense-190225b6-0fc9-4300-8c5c-691323e75481-inventory",
+      "description": "",
+      "debit_minor": "1000",
+      "credit_minor": "0",
+      "base_debit_minor": "1000",
+      "base_credit_minor": "0",
+      "dimension_json": "{}",
+      "ordinal": "0"
+    },
+    {
+      "id": "journal-9ef1e409-5866-4e09-9362-f20e0e0b735d-1",
+      "journal_id": "journal-9ef1e409-5866-4e09-9362-f20e0e0b735d",
+      "account_id": "expense-190225b6-0fc9-4300-8c5c-691323e75481-payable",
+      "description": "",
+      "debit_minor": "0",
+      "credit_minor": "1000",
+      "base_debit_minor": "0",
+      "base_credit_minor": "1000",
+      "dimension_json": "{}",
+      "ordinal": "1"
+    }
+  ]
+}

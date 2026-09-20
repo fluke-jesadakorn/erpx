@@ -1,0 +1,21 @@
+$ bun scripts/local/test.ts tests/customer-duplicates.test.ts tests/work-views.test.ts tests/staff-migration.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/customer-duplicates.test.ts > routes an ordered pair to an independent reviewer and records a canonical duplicate decision 1089ms
+ ✓ tests/customer-duplicates.test.ts > supports distinct decisions and explicit reopen without moving source transactions 386ms
+ ✓ tests/customer-duplicates.test.ts > rejects invalid canonical records, stale races, duplicate pairs and ended reviewers 535ms
+ ✓ tests/customer-duplicates.test.ts > keeps pair and history immutable and hides another company 232ms
+ ✓ tests/staff-migration.test.ts > creates a complete, empty PostgreSQL baseline and preserves database invariants 4408ms
+ ✓ tests/work-views.test.ts > shows routing attention only to the source-authorized workflow manager 1ms
+ ✓ tests/work-views.test.ts > separates assigned actionable preparation from unassigned setup without changing source queues 0ms
+ ✓ tests/work-views.test.ts > keeps domain queries and return context together 0ms
+ ✓ tests/work-views.test.ts > shows only permission-filtered app cards before launcher search 1ms
+ ✓ tests/work-views.test.ts > searches deep destinations with owning-app context and no duplicate URLs 1ms
+ ✓ tests/work-views.test.ts > omits inaccessible launcher categories and scopes rail state by workspace 0ms
+
+ Test Files  3 passed (3)
+      Tests  11 passed (11)
+   Start at  18:08:24
+   Duration  32.49s (transform 203ms, setup 83ms, import 286ms, tests 31.89s, environment 0ms)
+

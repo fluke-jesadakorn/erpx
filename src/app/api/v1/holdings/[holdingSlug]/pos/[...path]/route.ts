@@ -1,0 +1,28 @@
+import { z } from 'zod';
+import { requireWorkContext } from '@/server/authorization';
+import { requestPublicOrigin } from '@/server/public-origin';
+import { ApiError, errorResponse } from '@/server/http';
+import { holdingResources } from '@/server/runtime';
+import { PostgresDatabase } from '@/server/runtime/postgres';
+import { posCommand } from '@/server/pos-core';
+import { finishPosOAuth, oauthUrl } from '@/server/pos-stripe';
+type Context={params:Promise<{holdingSlug:string;path:string[]}>};
+export async function POST(request:Request,{params}:Context){
+ try{
+  if(request.headers.get('origin')!==requestPublicOrigin(request))throw new ApiError(403,'ORIGIN_FORBIDDEN','Use the application origin.');
+  const {holdingSlug,path}=await params,actor=await requireWorkContext(holdingSlug),key=request.headers.get('Idempotency-Key');if(!key)throw new ApiError(422,'COMMAND_KEY_REQUIRED','Idempotency-Key is required.');
+  if(path.length!==2)throw new ApiError(404,'NOT_FOUND','Unknown POS action.');
+  const input=await request.json(),operation=path.join('.'),db=(await holdingResources(actor.holdingId)).write as PostgresDatabase;
+  const data=await posCommand(db,actor,operation,input,key);
+  if(operation==='connection.oauth')data.url=oauthUrl(String(data.id),holdingSlug,Boolean(data.livemode));
+  return Response.json({data},{headers:{'Cache-Control':'private, no-store'}});
+ }catch(error){if(error instanceof z.ZodError)return errorResponse(new ApiError(422,'VALIDATION_FAILED',error.issues[0]?.message??'Invalid input.'));if(error instanceof SyntaxError)return errorResponse(new ApiError(422,'INVALID_JSON','Invalid JSON.'));return errorResponse(error);}
+}
+export async function GET(request:Request,{params}:Context){
+ try{
+  const {holdingSlug,path}=await params;if(path.join('/')!=='connect/callback')throw new ApiError(404,'NOT_FOUND','Not found.');
+  const actor=await requireWorkContext(holdingSlug),url=new URL(request.url);if(url.searchParams.has('error'))throw new ApiError(422,'STRIPE_CONNECT_CANCELLED','Connection was cancelled. Start again from POS settings.');
+  await finishPosOAuth(actor,z.string().uuid().parse(url.searchParams.get('state')),z.string().min(1).parse(url.searchParams.get('code')));
+  return Response.redirect(new URL(`/holdings/${holdingSlug}/pos?tab=settings`,requestPublicOrigin(request)),303);
+ }catch(error){return errorResponse(error);}
+}

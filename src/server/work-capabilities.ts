@@ -1,3 +1,4 @@
+import { selfServiceHref } from "@/lib/self-service";
 import type { SqlDatabase } from "./runtime/types";
 import "server-only";
 import type { WorkContext } from "./authorization";
@@ -62,6 +63,7 @@ export async function getWorkCapabilities(
         ? [
             ["task", "Task"],
             ["leave", "Leave request"],
+            ["overtime", "Overtime"],
           ]
         : []),
     ...(!actor.beta && canPrepareCounts(actor)
@@ -73,7 +75,7 @@ export async function getWorkCapabilities(
   ].map(([kind, label]) => ({
     kind: kind as WorkCreation["kind"],
     label,
-    href: kind === "conversation" ? `${base}/home` : `${base}/work?new=${kind}`,
+    href: selfServiceHref(base,kind) ?? (kind === "conversation" ? `${base}/home` : `${base}/work?new=${kind}`),
   }));
   return {
     creation,

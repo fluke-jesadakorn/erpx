@@ -19,6 +19,15 @@ export function assignmentApplies(
 }
 
 const businessRoleScopes: Record<string, readonly AssignmentScopeKind[]> = {
+  executive_author: ["holding", "branch", "department"],
+  pms_reservation: ["holding", "branch"],
+  pms_frontdesk: ["holding", "branch"],
+  pms_cashier: ["holding", "branch"],
+  pms_housekeeping: ["holding", "branch"],
+  pms_supervisor: ["holding", "branch"],
+  pms_maintenance: ["holding", "branch"],
+  pms_night_auditor: ["holding", "branch"],
+  pms_manager: ["holding", "branch"],
   it_admin: ["holding"],
   holding_owner: ["holding"],
   sales_manager: ["holding", "branch", "department"],

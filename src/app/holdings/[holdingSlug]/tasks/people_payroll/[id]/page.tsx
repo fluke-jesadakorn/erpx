@@ -1,149 +1,23 @@
-import { pageError } from "@/server/page-error";
-import { FlowPanel, documentFlow } from "@/components/workplace/flow-panel";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { ApprovalHistory } from "@/components/modules/approval-history";
-import { ApprovalAdminLink } from "@/components/modules/approval-admin-link";
-import { staffSettings } from "@/server/staff-settings";
-import { holdingResources } from "@/server/runtime";
-import Link from "next/link";
-import { LeaveControls } from "@/components/modules/leave-controls";
-import { ArrowLeft } from "lucide-react";
-import { publicScope, requireWorkContext } from "@/server/authorization";
+import { LeaveDecisions,LeaveEditor } from "@/components/self-service/leave-editor";
+import styles from "@/components/self-service/self-service.module.css";
 import { workspaceBase } from "@/lib/workspace";
+import { publicScope,requireWorkContext } from "@/server/authorization";
 import { getLeave } from "@/server/leave";
+import { leaveSummary } from "@/server/leave-self-service";
+import { pageError } from "@/server/page-error";
 import { getLeaveEvidence } from "@/server/work";
-import { StatusBadge } from "@/components/ui/primitives";
-import { LeaveTaskForm } from "./task-form";
-import styles from "@/components/workplace/pages.module.css";
-export default async function LeaveTaskPage({
-  params,
-  searchParams,
-}: PageProps<"/holdings/[holdingSlug]/tasks/people_payroll/[id]">) {
-  const { holdingSlug, id } = await params;
-  const search = await searchParams;
-  const context = await requireWorkContext(holdingSlug);
-  const base = workspaceBase(publicScope(context));
-  const request = await getLeave(context.holdingId, id, context).catch(
-    (error) => {
-      return pageError(error, holdingSlug);
-    },
-  );
-  const { write } = await holdingResources(context.holdingId);
-  const options = await staffSettings(write, context);
-  const evidence = await getLeaveEvidence(context.holdingId, id, context);
-  const back =
-    search.from === "home"
-      ? `${base}/home`
-      : `${base}/work${typeof search.return === "string" ? `?${new URLSearchParams(search.return).toString()}` : ""}`;
-  const flow = await documentFlow(context,"leave",id);
-  return (
-    <main className="content" data-source="live">
-      <Link href={back} className="back-link">
-        <ArrowLeft size={14} />
-        Back to {search.from === "home" ? "home" : "work"}
-      </Link>
-      <header className={styles.recordHeader}>
-        <div>
-          <div className="eyebrow">People & payroll / Annual leave</div>
-          <h1>{request.number}</h1>
-          <p className="lede">A clear handover makes time away easier.</p>
-        </div>
-        <StatusBadge status={request.state} />
-      </header>
-      <div className={styles.recordGrid}>
-        <div>
-          <section className="card">
-            <h2 style={{ marginBottom: 24 }}>Request details</h2>
-            <dl className={styles.facts}>
-              <div>
-                <dt>First day</dt>
-                <dd>{request.start_date}</dd>
-              </div>
-              <div>
-                <dt>Duration</dt>
-                <dd>{request.days} days</dd>
-              </div>
-              <div>
-                <dt>Status</dt>
-                <dd>{request.state.replaceAll("_", " ")}</dd>
-              </div>
-            </dl>
-            <div className={styles.detailNote}>
-              <h3>Handover plan</h3>
-              <p>
-                {request.handover_note || "No handover note has been added."}
-              </p>
-            </div>
-            <div className={styles.detailNote}>
-              <h3>Supporting evidence</h3>
-              {evidence.length
-                ? evidence.map((file) => (
-                    <a
-                      className="row"
-                      key={file.id}
-                      href={`/api/v1${base}/attachments/${file.id}/content`}
-                    >
-                      <span className="row-main">{file.original_name}</span>
-                      <span className="small">
-                        {Math.max(1, Math.round(file.bytes / 1024))} KB ·
-                        Download
-                      </span>
-                    </a>
-                  ))
-                : "No supporting files attached."}
-            </div>
-            {request.decision_note && (
-              <div className={styles.detailNote}>
-                <h3>Decision note</h3>
-                <p>{request.decision_note}</p>
-              </div>
-            )}
-          </section>
-          <ApprovalHistory approval={request.approval} />
-          {options.canManage &&
-            (request.state === "pending_approval" ||
-              !!request.approval.blockedReason) && (
-              <ApprovalAdminLink base={base} kind="leave" id={request.id} />
-            )}
-          <LeaveTaskForm
-            key={request.id}
-            workspaceBase={base}
-            request={request}
-            canApprove={flow.canAct&&request.permittedActions.includes("approve")}
-            canSubmit={request.created_by === context.userId}
-            blockedReason={request.approval.blockedReason}
-          />
-          {(request.permittedActions.includes("cancel") ||
-            request.permittedActions.includes("reject")) && (
-            <LeaveControls
-              base={base}
-              recordId={id}
-              version={request.version}
-              canCancel={request.permittedActions.includes("cancel")}
-              canReject={flow.canAct&&request.permittedActions.includes("reject")}
-            />
-          )}
-        </div>
-        <aside className={styles.recordAside}>
-          <div className="eyebrow">How it moves forward</div>
-          <h2 style={{ marginTop: 8 }}>A simple handoff</h2>
-          <ol>
-            <li>
-              <strong>Prepare</strong>Dates, handover, and evidence.
-            </li>
-            <li>
-              <strong>Department review</strong>Your named department approver
-              reviews your request.
-            </li>
-            <li>
-              <strong>HR review</strong>An independent HR administrator makes
-              the final decision.
-            </li>
-          </ol>
-          <p className="small" style={{ margin: "24px 0 0" }}>
-            Record version {request.version}
-          </p>
-        </aside>
-      </div>
-    <FlowPanel flow={flow} actor={context} kind="leave" id={id} base={base}/></main>
-  );
+import Link from "next/link";
+export default async function LeaveTaskPage({params}: {params:Promise<{holdingSlug:string;id:string}>}) {
+ const {holdingSlug,id}=await params,actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor)),request=await getLeave(actor.holdingId,id,actor).catch(e=>pageError(e,holdingSlug));
+ const evidence=await getLeaveEvidence(actor.holdingId,id,actor),editable=request.permittedActions.includes('save'),summary=editable?await leaveSummary(actor):null;
+ const approval=request.cancellationApproval??request.approval;
+ return <FeaturePage className={`content ${styles.workspace}`}><Link href={`${base}/leave`}>← My leave</Link><header className={styles.heading}><div><p className={styles.eyebrow}>Personal request</p><h1>Leave request</h1><p>{request.start_date} – {request.end_date??request.start_date} · {request.calculated_units??request.days} working days</p></div><span className={styles.status}>{request.cancellation_state==='pending_review'?'Cancellation in review':request.state.replaceAll('_',' ')}</span></header><FeatureTabs/><WidgetGrid pageKey="tasks-people-payroll-detail">
+ <section className={styles.panel}><h2>{request.cancellation_state==='pending_review'?'Cancellation review':editable?'Prepare and submit':request.state==='pending_approval'?'Approval in progress':request.state.replaceAll('_',' ')}</h2><p>Responsible: {approval.currentApprover?.approver_name??(editable?'Requester':'No pending review')}</p>{approval.blockedReason&&<p role="status">{approval.blockedReason} Ask HR to resolve this in People settings.</p>}{request.cancellation_state==='pending_review'&&<p>Approved absence and usage remain effective until both the manager and independent HR approve cancellation.</p>}{request.decision_note&&<p><strong>Decision reason:</strong> {request.decision_note}</p>}{(approval.instance||approval.history.length>0)&&<ApprovalHistory approval={approval}/>}{request.cancellationApproval&&<FeatureWidget id="work-original-approval-history" title="Original approval history"><details><summary>Original approval history</summary><ApprovalHistory approval={request.approval}/></details></FeatureWidget>}</section>
+ {!editable&&<LeaveDecisions key={`${id}:${request.version}`} base={base} record={request}/>}
+ {editable&&summary?<FeatureWidget id="work-leave-request" title="Leave request"><LeaveEditor key={`${actor.companyId}:${actor.userId}:${id}`} base={base} record={request} types={summary.balances}/></FeatureWidget>:<FeatureWidget id="work-request-details" title="Request details"><section className={styles.panel}><p>{request.start_segment?.replaceAll('_',' ')} → {request.end_segment?.replaceAll('_',' ')}</p><p>{request.handover_note||'No handover note added.'}</p><p className={styles.muted}>Submitted calculations and policy terms are frozen with this request.</p></section></FeatureWidget>}
+ {editable&&<LeaveDecisions key={`${id}:${request.version}`} base={base} record={request}/>}
+ <FeatureWidget id="work-private-supporting-evidence" title="Private supporting evidence"><section className={styles.panel}>{evidence.length?evidence.map(f=><a className={styles.row} key={f.id} href={`/api/v1${base}/attachments/${f.id}/content`}>{f.original_name} · Download</a>):<p>No evidence attached.</p>}</section></FeatureWidget>
+ </WidgetGrid></FeaturePage>;
 }

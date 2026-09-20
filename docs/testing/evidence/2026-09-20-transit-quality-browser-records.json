@@ -1,0 +1,205 @@
+{
+  "run": "d0a9187a989e",
+  "exportedAt": "2026-09-20T05:16:59.200Z",
+  "scope": "Read-only verification of records created through isolated browser",
+  "transfer": [
+    {
+      "id": "transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa",
+      "company_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108",
+      "source_warehouse_id": "warehouses-ab94d8b4-ac0b-43a0-ad4e-66916b5a6584",
+      "target_warehouse_id": "warehouses-3eae25b7-03ec-4b7b-b64b-c72fd346892a",
+      "source_branch_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-branch",
+      "target_branch_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-branch",
+      "source_warehouse_version": "1",
+      "target_warehouse_version": "1",
+      "number": "TR-37D954BAA2D02A368F700829",
+      "transfer_date": "2026-09-20",
+      "reason": "S14 isolated browser transport with partial receipt and reviewed loss",
+      "status": "posted",
+      "version": "3",
+      "total_value_minor": "1000",
+      "created_by": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-owner",
+      "prepared_by": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-owner",
+      "approved_by": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-head",
+      "submitted_at": "1789880736263",
+      "posted_at": "1789880785005",
+      "created_at": "1789880723951",
+      "updated_at": "1789880785005",
+      "delivery_mode": "transit",
+      "arrival_due_date": "2026-09-22"
+    }
+  ],
+  "transport": [
+    {
+      "id": "transit-transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa",
+      "transfer_id": "transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa",
+      "company_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108",
+      "source_warehouse_id": "warehouses-ab94d8b4-ac0b-43a0-ad4e-66916b5a6584",
+      "target_warehouse_id": "warehouses-3eae25b7-03ec-4b7b-b64b-c72fd346892a",
+      "source_branch_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-branch",
+      "target_branch_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-branch",
+      "status": "completed",
+      "due_date": "2026-09-22",
+      "currency": "THB",
+      "chart_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-chart",
+      "inventory_account_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-cash",
+      "created_by": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-owner",
+      "approved_by": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-head",
+      "dispatched_by": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-owner",
+      "dispatch_date": "2026-09-20",
+      "tracking_reference": "SIM-DISPATCH-001",
+      "version": "5",
+      "created_at": "1789880785006",
+      "updated_at": "1789880976180"
+    }
+  ],
+  "transportLines": [
+    {
+      "id": "transit-transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa-0",
+      "transit_id": "transit-transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa",
+      "source_line_id": "transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa-0",
+      "product_id": "products-2d79fd0d-0a7f-4c60-9cb7-442cca77b340",
+      "quantity_milli": "3000",
+      "value_minor": "1000",
+      "received_milli": "2000",
+      "lost_milli": "1000",
+      "settled_value_minor": "1000"
+    }
+  ],
+  "transportEvents": [
+    {
+      "id": "f18ca4ce-c5fc-4359-8cd4-909b06c35821-0",
+      "transit_id": "transit-transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa",
+      "line_id": "transit-transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa-0",
+      "kind": "dispatch",
+      "quantity_milli": "3000",
+      "value_minor": "1000",
+      "movement_date": "2026-09-20",
+      "evidence": "Simulation: three units counted and loaded at source; dispatch sheet SIM-001",
+      "actor_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-owner",
+      "reviewed_version": "1",
+      "proposal_id": null,
+      "journal_id": null,
+      "created_at": "1789880839192"
+    },
+    {
+      "id": "10428ab3-ea6f-42a0-ac6f-888d09a28c20-0",
+      "transit_id": "transit-transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa",
+      "line_id": "transit-transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa-0",
+      "kind": "receipt",
+      "quantity_milli": "2000",
+      "value_minor": "667",
+      "movement_date": "2026-09-20",
+      "evidence": "Simulation: receiving count two units; third unit missing on arrival",
+      "actor_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-head",
+      "reviewed_version": "2",
+      "proposal_id": null,
+      "journal_id": null,
+      "created_at": "1789880895348"
+    },
+    {
+      "id": "loss-050d11e2-8724-47d6-89e7-1bf6fcee944c",
+      "transit_id": "transit-transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa",
+      "line_id": "transit-transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa-0",
+      "kind": "loss_requested",
+      "quantity_milli": "1000",
+      "value_minor": "0",
+      "movement_date": "2026-09-20",
+      "evidence": "Simulation discrepancy SIM-LOSS-001: one unit missing; pending independent Finance decision",
+      "actor_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-head",
+      "reviewed_version": "3",
+      "proposal_id": null,
+      "journal_id": null,
+      "created_at": "1789880913307"
+    },
+    {
+      "id": "decision-a3dc995b-4299-4eee-81f1-c8ede22d487e",
+      "transit_id": "transit-transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa",
+      "line_id": "transit-transfer-f4f6cae8-9c6c-4a20-8e32-a07a621318fa-0",
+      "kind": "loss_approved",
+      "quantity_milli": "1000",
+      "value_minor": "333",
+      "movement_date": "2026-09-20",
+      "evidence": "Simulation Finance review SIM-LOSS-001: approved one missing unit, THB 3.33, against dispatch and receiving evidence",
+      "actor_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-manager",
+      "reviewed_version": "4",
+      "proposal_id": "loss-050d11e2-8724-47d6-89e7-1bf6fcee944c",
+      "journal_id": "journal-a3dc995b-4299-4eee-81f1-c8ede22d487e",
+      "created_at": "1789880976180"
+    }
+  ],
+  "qualityHold": [
+    {
+      "id": "quality-3bce7083-727d-4ce5-ae5f-999efddeef17",
+      "company_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108",
+      "branch_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-branch",
+      "warehouse_id": "warehouses-3eae25b7-03ec-4b7b-b64b-c72fd346892a",
+      "product_id": "products-2d79fd0d-0a7f-4c60-9cb7-442cca77b340",
+      "reason": "Simulation QA-001: packaging inspection required after partial transit receipt",
+      "due_date": "2026-09-22",
+      "status": "released",
+      "created_by": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-head",
+      "last_inspector": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-reviewer",
+      "last_result": "pass",
+      "released_by": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-payer",
+      "release_reason": "Simulation QA-001: independently reviewed passing inspection and authorize stock release",
+      "released_at": "1789881208446",
+      "version": "3",
+      "created_at": "1789881097390",
+      "updated_at": "1789881208446"
+    }
+  ],
+  "inspections": [
+    {
+      "id": "inspection-ebb5a0f4-69de-4b1d-a607-1a7d53d63c66",
+      "hold_id": "quality-3bce7083-727d-4ce5-ae5f-999efddeef17",
+      "reviewed_version": "1",
+      "result": "pass",
+      "evidence": "Simulation QA-001: both received units inspected; packaging and product intact; request independent release",
+      "inspected_by": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-reviewer",
+      "created_at": "1789881161271"
+    }
+  ],
+  "stock": [
+    {
+      "warehouse_id": "warehouses-ab94d8b4-ac0b-43a0-ad4e-66916b5a6584",
+      "product_id": "products-2d79fd0d-0a7f-4c60-9cb7-442cca77b340",
+      "quantity_milli": "0",
+      "value_minor": "0",
+      "version": "2"
+    },
+    {
+      "warehouse_id": "warehouses-3eae25b7-03ec-4b7b-b64b-c72fd346892a",
+      "product_id": "products-2d79fd0d-0a7f-4c60-9cb7-442cca77b340",
+      "quantity_milli": "2000",
+      "value_minor": "667",
+      "version": "5"
+    }
+  ],
+  "journalLines": [
+    {
+      "id": "journal-a3dc995b-4299-4eee-81f1-c8ede22d487e-0",
+      "journal_id": "journal-a3dc995b-4299-4eee-81f1-c8ede22d487e",
+      "account_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-expense",
+      "description": "",
+      "debit_minor": "333",
+      "credit_minor": "0",
+      "base_debit_minor": "333",
+      "base_credit_minor": "0",
+      "dimension_json": "{}",
+      "ordinal": "0"
+    },
+    {
+      "id": "journal-a3dc995b-4299-4eee-81f1-c8ede22d487e-1",
+      "journal_id": "journal-a3dc995b-4299-4eee-81f1-c8ede22d487e",
+      "account_id": "expense-4eb123b8-a86f-431d-8335-b0cc0fe57108-cash",
+      "description": "",
+      "debit_minor": "0",
+      "credit_minor": "333",
+      "base_debit_minor": "0",
+      "base_credit_minor": "333",
+      "dimension_json": "{}",
+      "ordinal": "1"
+    }
+  ]
+}

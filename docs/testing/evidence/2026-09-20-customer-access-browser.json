@@ -1,0 +1,15 @@
+{
+  "environment": "disposable simulation 39f0d6afe7da",
+  "roles": ["source operator", "independent sales reviewer", "verified customer account"],
+  "observations": [
+    "Source operator requested access for one confirmed quotation; self-review controls were absent.",
+    "Independent reviewer received one My actions item, opened the source-bound request and approved it.",
+    "Verified customer account saw only the allowlisted quotation projection in Customer Portal.",
+    "Staff audit displayed the customer read with binding version 2 and projection customer-order-v1.",
+    "Reviewer revoked version 3; the same customer account then saw no approved documents."
+  ],
+  "limitations": [
+    "Simulation accounts and one quotation only; no real customer or provider acceptance.",
+    "Duplicate merge, identity-change review, consent preferences, customer replies/uploads and email delivery remain outside this increment."
+  ]
+}

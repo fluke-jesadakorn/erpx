@@ -8,7 +8,7 @@ The active deployment is ADR-024: Node 24.20.0, Bun 1.2.17, PostgreSQL 18.6 and 
 
 ## Build and initial install
 
-1. `bun install --frozen-lockfile`, then `bun run lint`, `bun run typecheck`, `bun run test:integration`, `bun run deploy:build`. Integration tests use their own random `erpx_test_*` databases on a separate loopback PostgreSQL server at 5434; set `ERPX_TEST_ADMIN_URL` for that cluster. They never target production databases.
+1. `bun install --frozen-lockfile`, then `bun run lint`, `bun run typecheck`, `bun run test:integration`, `bun run deploy:build`. Integration tests use their own random `erpx_test_*` databases on loopback PostgreSQL at 5432 under the guarded `erpx_test_admin` role. The pinned test runner loads only `ERPX_TEST_ADMIN_URL` from `.env.test.local`, `.env.test`, or `.env.local` when not explicitly set; production uses 5433. They never target production databases.
 2. `python3 ops/macos/bundle-runtime.py` copies the pinned Node/PostgreSQL/cloudflared runtimes into `.runtime/deployment/runtime`, relocates Homebrew dylibs and verifies executables. This payload is independent of later Homebrew formula upgrades.
 3. Prepare private `.runtime/deployment/production.env` with a strong Better Auth secret, AES key ring, canonical `ERPX_PUBLIC_ORIGIN`, Resend key and verified sender. Keep `ERPX_PUBLIC_BETA=false` until email/HTTPS acceptance. Store the dedicated remotely managed Tunnel token in `.runtime/deployment/tunnel.token` (0600).
 4. Inspect `install.py`. After local acceptance and confirming ports 3101/5433 are free, run:

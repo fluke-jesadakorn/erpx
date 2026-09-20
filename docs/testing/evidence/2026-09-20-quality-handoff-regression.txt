@@ -1,0 +1,44 @@
+$ bun scripts/local/test.ts tests/work-views.test.ts tests/work-cache.test.ts tests/navigation-counts.test.ts tests/acceptance-evidence.test.ts tests/business-readiness.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ❯ tests/work-views.test.ts (6 tests | 1 failed) 1933ms
+   × shows only permission-filtered app cards before launcher search 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/work-views.test.ts > shows only permission-filtered app cards before launcher search
+AssertionError: expected [ 'people', 'operations', …(10) ] to deeply equal [ 'people', 'operations', …(9) ]
+
+- Expected
++ Received
+
+@@ -1,9 +1,10 @@
+  [
+    "people",
+    "operations",
+    "inventory",
++   "quality",
+    "pos",
+    "pms",
+    "finance",
+    "executive",
+    "projects",
+
+ ❯ tests/work-views.test.ts:34:84
+     32|  expect(launcher.results).toEqual([]);
+     33|  expect(launcher.categories.map(category => category.id)).toEqual(["pe…
+     34|  expect(launcher.categories.flatMap(category => category.apps.map(app …
+       |                                                                                    ^
+     35|   "people","operations","inventory","pos","pms","finance","executive",…
+     36|  ]);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 4 passed (5)
+      Tests  1 failed | 25 passed (26)
+   Start at  11:25:11
+   Duration  19.80s (transform 285ms, setup 115ms, import 863ms, tests 18.44s, environment 0ms)
+
+error: script "test:integration" exited with code 1

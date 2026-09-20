@@ -1,3 +1,4 @@
+import { readListPage } from "./list-page";
 import {samePerson} from "@/lib/iam";
 import { requirePermission } from "@/server/iam-permissions";
 import { hasPermission } from "@/lib/permissions";
@@ -73,6 +74,7 @@ function assertModule(actor: WorkContext, moduleId: string) {
     throw new ApiError(403, "MODULE_FORBIDDEN", "Change to a role with access to this module.");
 }
 function assertFinanceOwnerOperation(moduleId: string,actor?:WorkContext) {
+  if (moduleId === "legal") throw new ApiError(409, "LEGAL_OWNER_REQUIRED", "Use Legal workflows; preview records remain read-only.");
   const definition=findModule(moduleId);if(definition&&moduleAvailability(definition)==="preview")throw new ApiError(409,"MODULE_PREVIEW_ONLY","This module is a preview and cannot execute business commands.");
   if(actor)requirePermission(actor,"records.write");
   if (moduleId === "finance") throw new ApiError(409, "FINANCE_OWNER_REQUIRED", "Use the Finance API for accounting records; the generic workbench is read-only.");
@@ -264,4 +266,14 @@ export async function decideSuggestion(actor:WorkContext,moduleId:string,id:stri
  statements.push(write.prepare("UPDATE record_field_suggestions SET state=?,applied_by=?,updated_at=? WHERE id=?").bind(input.action==="apply"?"applied":"rejected",actor.userId,now,suggestionId));
  await recordMutation(write,actor,moduleId,id,context.record.version,"record.suggestion.decide",{suggestionId,...input},statements,key);
  return recordContext(actor,moduleId,id);
+}
+
+export async function recordsPage(actor:WorkContext,moduleId:string,sectionId:string,query:{q?:string;cursor?:string}) {
+ assertModule(actor,moduleId);const {write}=await holdingResources(actor.holdingId),scope=scopeSql(actor);
+ const page=await readListPage<RecordRow & {page_key:string}>(write,{
+   sql:`SELECT module_id,id,section_id,title,description,status,fields_json,version,created_by,updated_at,updated_at::text page_key
+     FROM workspace_records WHERE archived_at IS NULL AND module_id=? AND section_id=? AND ${scope.sql}
+     AND strpos(lower(title||' '||COALESCE(description,'')),lower(?))>0`,
+   args:[moduleId,sectionId,...scope.args,query.q??''],cursor:query.cursor,descending:true,scope:[actor.companyId,actor.userId,scope,moduleId,sectionId,query.q??''],
+ });return {...page,items:page.items.map(mapRecord)};
 }

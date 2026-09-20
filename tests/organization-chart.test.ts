@@ -1,8 +1,7 @@
 import { expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { buildOrganizationGraph, ancestorPath, visibleChartIds, searchOrganization } from "../src/lib/organization-chart";
-import { layoutOrganizationChart, chartCardWidth, chartCardHeight } from "../src/lib/organization-chart-layout";
+import { buildOrganizationGraph, ancestorPath, teamIds, levelGroups, departmentHue, assignedLevel, searchOrganization } from "../src/lib/organization-chart";
 import { OrganizationTeamView } from "../src/components/modules/organization-team-view";
 import type { OrganizationOverview, OrganizationPerson } from "../src/lib/organization";
 
@@ -10,14 +9,14 @@ function person(id: string, manager: string | null, extra: Partial<OrganizationP
   return { person_id: id, engagement_id: "e-" + id, user_id: null, email: null, legal_name: "Person " + id, engagement_version: 1, person_version: 1, company_id: "company", branch_id: "branch", department_id: "department", position_id: null, manager_person_id: manager, level_id: null, level_number: manager ? 6 : 1, level_name: manager ? "Staff" : "CEO", status: "active", person_status: "active", start_date: "2026-01-01", end_date: null, job_title: "Staff", issues: [], ...extra };
 }
 function data(people: OrganizationPerson[]): OrganizationOverview {
-  return { people, positions: [], nodes: [{ id: "branch", display_name: "Bangkok", kind: "branch", branch_id: null }, { id: "department", display_name: "Operations", kind: "department", branch_id: "branch" }], levels: [], templates: [], canManage: false };
+  return { people, positions: [], nodes: [{ id: "branch", display_name: "Bangkok", kind: "branch", slug: "bangkok", branch_id: null }, { id: "department", display_name: "Operations", kind: "department", slug: "operations", branch_id: "branch" }], levels: [], templates: [], canManage: false };
 }
 it("uses actual managers across levels and branches, with direct counts and full search", () => {
   const graph = buildOrganizationGraph(data([person("ceo", null), person("manager", "ceo", { level_number: 3 }), person("staff", "manager", { legal_name: "Sofia Example", branch_id: "elsewhere" }), person("direct", "ceo")]));
   expect(graph.parents.get("e-direct")).toBe("e-ceo");
   expect(graph.children.get("e-ceo")).toHaveLength(2);
   expect(ancestorPath(graph, "e-staff")).toEqual(["e-ceo", "e-manager"]);
-  expect(visibleChartIds(graph, new Set(graph.roots))).not.toContain("e-staff");
+  expect(teamIds(graph, "e-manager")).toEqual(new Set(["e-manager", "e-staff"]));
   expect(searchOrganization(graph, "sofia level 6")).toEqual(["e-staff"]);
   expect(searchOrganization(graph, "Bangkok Operations")).toHaveLength(3);
 });
@@ -26,7 +25,7 @@ it("uses engagement identities and keeps ambiguous manager profiles reachable", 
   expect(graph.entries.size).toBe(3);
   expect(graph.parents.has("e-staff")).toBe(false);
   expect(graph.attention).toContain("e-staff");
-  expect(visibleChartIds(graph, new Set())).toHaveLength(3);
+  expect(teamIds(graph, null).size).toBe(3);
 });
 it("never leaks hidden managers or counts and does not call a scoped boundary a missing manager", () => {
   const graph = buildOrganizationGraph(data([person("staff", "private-manager")]));
@@ -44,38 +43,35 @@ it("breaks self and multi-person cycles while retaining all people and downstrea
   const graph = buildOrganizationGraph(data([person("self", "self"), person("a", "b"), person("b", "c"), person("c", "a"), person("report", "b")]));
   expect(graph.attention).toEqual(expect.arrayContaining(["e-self", "e-a", "e-b", "e-c"]));
   expect(graph.parents.get("e-report")).toBe("e-b");
-  expect(new Set(visibleChartIds(graph, new Set(graph.entries.keys()))).size).toBe(5);
+  expect(teamIds(graph, null).size).toBe(5);
   expect(ancestorPath(graph, "e-a")).toEqual([]);
 });
-it("keeps incomplete profiles and multiple starting teams visible", () => {
-  const graph = buildOrganizationGraph(data([person("a", null), person("b", null, { level_number: null, issues: ["Assign a manager."] })]));
-  const html = renderToStaticMarkup(createElement(OrganizationTeamView, { graph, focusId: null, onFocus() {}, onDetails() {} }));
-  expect(html).toContain("Choose a starting team");
-  expect(html).toContain("Level not mapped");
-  expect(html.match(/data-person-id=/g)).toHaveLength(2);
+it("groups assigned levels independently of reporting depth and retains unknown levels", () => {
+  const overview = data([person("ceo", null), person("direct", "ceo"), person("unknown", null, { level_number: 9 })]);
+  const graph = buildOrganizationGraph(overview);
+  const levels = levelGroups(graph, overview, teamIds(graph, null));
+  expect(levels[5].groups[0].ids).toEqual(["e-direct"]);
+  expect(levels[6].groups[0].ids).toEqual(["e-unknown"]);
+  expect([null, 0, -1, 1.5, 7].map(assignedLevel)).toEqual([7, 7, 7, 7, 7]);
 });
-it("renders the selected person's actual manager, their team and a leaf empty state", () => {
-  const graph = buildOrganizationGraph(data([person("ceo", null), person("manager", "ceo"), person("leaf", "manager")]));
-  const html = renderToStaticMarkup(createElement(OrganizationTeamView, { graph, focusId: "e-leaf", onFocus() {}, onDetails() {} }));
-  expect(html).toContain("Person manager");
-  expect(html).toContain("No direct reports in this view.");
-  expect(html.match(/data-person-id=/g)).toHaveLength(2);
+it("keeps branches separate while sharing department colors", () => {
+  const overview = data([person("a", null), person("b", null, { branch_id: "other", department_id: "other-ops" })]);
+  overview.nodes.push({ id: "other-ops", kind: "department", slug: "operations", display_name: "Operations", branch_id: "other" });
+  const graph = buildOrganizationGraph(overview);
+  const groups = levelGroups(graph, overview, teamIds(graph, null))[0].groups;
+  expect(groups).toHaveLength(2);
+  expect(groups[0].hue).toBe(groups[1].hue);
+  expect(departmentHue("unfamiliar")).toBe(departmentHue("unfamiliar"));
+  expect(new Set(["finance", "accounting", "operations", "people", "sales", "purchasing", "warehouse", "it", "customer-service"].map(departmentHue)).size).toBe(9);
 });
-it("handles 500 profiles through layout and actual team rendering without changing the source", () => {
+it("previews 500 profiles without changing the source and keeps all searchable", () => {
   const overview = data(Array.from({ length: 500 }, (_, i) => person(String(i), i ? "0" : null)));
   const before = JSON.stringify(overview);
   const graph = buildOrganizationGraph(overview);
-  const ids = visibleChartIds(graph, new Set(graph.entries.keys()));
-  const layout = layoutOrganizationChart(graph, ids);
-  expect(layout.positions.size).toBe(500);
-  expect(layout.edges).toHaveLength(499);
-  const points = [...layout.positions.values()].sort((a, b) => a.x - b.x);
-  expect(points.every(p => Number.isFinite(p.x) && Number.isFinite(p.y))).toBe(true);
-  const childPoints = ids.filter(id => id !== "e-0").map(id => layout.positions.get(id)!).sort((a, b) => a.x - b.x);
-  for (let i = 1; i < childPoints.length; i++) expect(childPoints[i].x - childPoints[i - 1].x).toBeGreaterThanOrEqual(chartCardWidth);
-  expect(childPoints[0].y - layout.positions.get("e-0")!.y).toBeGreaterThan(chartCardHeight);
-  const html = renderToStaticMarkup(createElement(OrganizationTeamView, { graph, focusId: "e-0", onFocus() {}, onDetails() {} }));
-  expect(html.match(/data-person-id=/g)).toHaveLength(500);
-  expect(html).toContain("499");
+  expect(teamIds(graph, "e-0").size).toBe(500);
+  const html = renderToStaticMarkup(createElement(OrganizationTeamView, { graph, data: overview, focusId: null, branch: "", department: "", reveal: null, onFocus() {}, onDetails() {} }));
+  expect(html.match(/data-person-id=/g)).toHaveLength(3);
+  expect(html).toContain("497 remaining");
+  expect(searchOrganization(graph, "Person 499")).toEqual(["e-499"]);
   expect(JSON.stringify(overview)).toBe(before);
 });

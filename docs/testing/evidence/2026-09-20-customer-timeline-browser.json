@@ -1,0 +1,20 @@
+{
+  "observedAt": "2026-09-20T16:22:22.723007+07:00",
+  "run": "f7218583fd23",
+  "observations": [
+    "Source operator sees only simulation customer with actual source records",
+    "Timeline shows 4 CRM history entries and 1 draft quotation with source versions/times",
+    "Opening CRM link returns to actual discovery opportunity",
+    "Second account Quality manager is denied CRM and Customer 360 with ERPX_PERMISSION; no customer details rendered"
+  ],
+  "sourceHashes": {
+    "src/server/customer-timeline.ts": "3ddacb96d66eaa0677d3e5bc7a1ac2f28914f8e84c006693339db665c3c0def3",
+    "src/app/holdings/[holdingSlug]/customers/page.tsx": "5603366eadc060c2ef2a0b306f6fc273dbd5fe259e3da8db567aa1c6d2c2cf96",
+    "src/app/holdings/[holdingSlug]/customers/[id]/page.tsx": "92aef4de31ae2ad9dac3ea68726176c895bd1489a491dcf9c88699c7334b763b",
+    "src/app/api/v1/holdings/[holdingSlug]/customers/route.ts": "0708bfd171270cdf1f739df6d9008b2b346a726ef7d049ba5654d6ff60e337d9"
+  },
+  "limitations": [
+    "Return source link corrected to existing order route after initial timeline screenshot; return browser journey not tested",
+    "No full cross-department customer service or Portal acceptance"
+  ]
+}

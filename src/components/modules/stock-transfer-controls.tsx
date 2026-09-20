@@ -81,9 +81,7 @@ export function TransferEditor({
         {transfer ? "Edit transfer quantities" : "New warehouse transfer"}
       </summary>
       <p className="muted">
-        Record a completed direct movement between company warehouses. The
-        receiving reviewer confirms the quantities before stock changes. Source
-        cost is preserved.
+        Choose a completed direct movement or staged dispatch and receiving. Staged transport preserves goods in transit until receipt or independently approved loss. Source cost is preserved.
       </p>
       {error && (
         <p className="error" role="alert">
@@ -100,6 +98,7 @@ export function TransferEditor({
               sourceWarehouseId: source,
               targetWarehouseId: target,
               transferDate: f.get("transferDate"),
+              deliveryMode:f.get("deliveryMode"),arrivalDueDate:f.get("arrivalDueDate")||undefined,
               reason: f.get("reason"),
               lines: items.map((l) => ({
                 productId: l.productId,
@@ -112,6 +111,8 @@ export function TransferEditor({
         }}
       >
         <div className="business-form">
+          <label>Transport mode<select name="deliveryMode" defaultValue={String(transfer?.delivery_mode??'direct')} disabled={!!transfer}><option value="direct">Completed direct movement</option><option value="transit">Dispatch and receive separately</option></select>{transfer&&<input type="hidden" name="deliveryMode" value={String(transfer.delivery_mode)}/>}</label>
+          <label>Expected arrival (staged transport)<input type="date" name="arrivalDueDate" defaultValue={String(transfer?.arrival_due_date??'')}/></label>
           <label>
             Source warehouse
             <select
@@ -151,7 +152,7 @@ export function TransferEditor({
             </select>
           </label>
           <label>
-            Transfer receipt date
+            Transfer planning / receipt date
             <input
               type="date"
               name="transferDate"
@@ -185,7 +186,7 @@ export function TransferEditor({
               {available.map((s) => (
                 <option key={String(s.product_id)} value={String(s.product_id)}>
                   {String(s.sku)} · {String(s.name)} ·{" "}
-                  {Number(s.quantity_milli) / 1000} {String(s.unit)} available
+                  {Number(s.available_milli??s.quantity_milli) / 1000} {String(s.unit)} available
                 </option>
               ))}
             </select>
@@ -223,7 +224,7 @@ export function TransferEditor({
               <div>
                 <strong>{l.description}</strong>
                 <p className="muted">
-                  Available: {Number(s?.quantity_milli ?? 0) / 1000}{" "}
+                  Available: {Number(s?.available_milli ?? s?.quantity_milli ?? 0) / 1000}{" "}
                   {String(s?.unit ?? "")} · recorded value{" "}
                   {minorToDecimal(Number(s?.value_minor ?? 0))}
                 </p>
@@ -321,7 +322,7 @@ export function TransferActions({
                     })
                   }
                 >
-                  Submit transfer for receipt review
+                  {transfer.delivery_mode==='transit'?'Submit transport for approval':'Submit transfer for receipt review'}
                 </button>
                 <button
                   className="button secondary"
@@ -349,7 +350,7 @@ export function TransferActions({
                     })
                   }
                 >
-                  Confirm receipt and post transfer
+                  {transfer.delivery_mode==='transit'?'Approve transport for dispatch':'Confirm receipt and post transfer'}
                 </button>
                 <button
                   className="button secondary"
@@ -373,7 +374,7 @@ export function TransferActions({
           {transfer.status === "submitted"
             ? "Awaiting an independent receiving reviewer."
             : transfer.status === "posted"
-              ? "The source and receiving stock movements are posted. Use a new transfer to move stock back."
+              ? transfer.delivery_mode==='transit'?"Transport approved. Continue in the dispatch and receiving record below.":"The source and receiving stock movements are posted. Use a new transfer to move stock back."
               : transfer.status === "cancelled"
                 ? "This transfer was cancelled; its history is retained."
                 : "Only the source preparer can edit this transfer."}

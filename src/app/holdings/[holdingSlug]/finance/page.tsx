@@ -1,14 +1,15 @@
-import Link from "next/link";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { workspaceBase } from "@/lib/workspace";
-import {
-  listCharts,
-  listInvoices,
-  listJournals,
-  listPayments,
-  statements,
-} from "@/server/finance";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { minorToDecimal } from "@/lib/finance-money";
+import { workspaceBase } from "@/lib/workspace";
+import { publicScope,requireWorkContext } from "@/server/authorization";
+import {
+financeOverviewCounts,
+listCharts,
+listInvoices,
+listPayments,
+statements,
+} from "@/server/finance";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -22,15 +23,21 @@ export default async function FinanceOverview({
   const base = workspaceBase(publicScope(actor));
   const charts = await listCharts(actor);
   const chart = charts.find((c) => c.name === "Operations ledger") ?? charts[0];
-  const [journals, report, invoices, payments] = await Promise.all([
-    listJournals(actor, {}),
+  const [counts, report, invoices, payments] = await Promise.all([
+    financeOverviewCounts(actor),
     statements(actor, undefined, String(chart?.id)),
-    listInvoices(actor),
-    listPayments(actor),
+    listInvoices(actor,8),
+    listPayments(actor,6),
   ]);
+  const queues=[
+    {id:"receivable",title:"To collect",count:counts.receivable,href:`${base}/finance/invoices?kind=receivable&queue=open`,detail:"Posted customer balances"},
+    {id:"payable",title:"To pay",count:counts.payable,href:`${base}/finance/invoices?kind=payable&queue=open`,detail:"Posted supplier balances"},
+    {id:"posting",title:"To post",count:counts.posting,href:`${base}/finance/ledger?status=draft`,detail:"Independent ledger review"},
+    {id:"reconcile",title:"To reconcile",count:counts.reconcile,href:`${base}/finance/bank`,detail:"Match bank evidence with payments"},
+  ];
   const cards = [
     ["Charts", charts.length, "Chart of accounts and posting profiles"],
-    ["Journals", journals.length, "Draft, posted and reversed entries"],
+    ["Journals", counts.journals, "Draft, posted and reversed entries"],
     [
       "Assets",
       `${String(chart?.base_currency)} ${report.balanceSheet.assets}`,
@@ -41,21 +48,22 @@ export default async function FinanceOverview({
       `${String(chart?.base_currency)} ${report.profitAndLoss.revenue}`,
       "Posted revenue balance",
     ],
-    ["Invoices", invoices.length, "Receivables and payables in this Company"],
-    ["Payments", payments.length, "Receipts, settlements, and releases"],
+    ["Invoices", counts.invoices, "Receivables and payables in this Company"],
+    ["Payments", counts.payments, "Receipts, settlements, and releases"],
   ];
   return (
-    <main className="content-stack" data-source="live" data-module="finance">
+    <FeaturePage className="content-stack" data-source="live" data-module="finance">
       <div className="section-head">
         <div>
           <p className="eyebrow">Finance · General ledger</p>
-          <h1>Finance overview</h1>
+          <h1>Finance overview</h1>{!actor.branchId&&!actor.departmentId&&<Link href={`${base}/finance/supplier-batches`}>Supplier payment batches · approve and reconcile</Link>}<Link href={`${base}/finance/refunds`}>Return refunds · review, export and reconcile</Link>
           <p className="muted">
             Company accounting, controlled posting and period close.
           </p>
         </div>
-      </div>
-      <section className="card-grid" aria-label="Finance health">
+      </div><FeatureTabs/><WidgetGrid pageKey="finance-overview">
+      <FeatureWidget id="finance-overview-finance-work-queues" title="Finance work queues">{queues.map(queue=><Link className="card" key={queue.id} href={queue.href}><span className="eyebrow">{queue.title}</span><strong>{queue.count}</strong><span className="muted">{queue.detail}</span></Link>)}</FeatureWidget>
+      <FeatureWidget id="finance-overview-finance-health" title="Finance health">
         {cards.map(([label, value, detail]) => (
           <article className="card" key={label}>
             <span className="eyebrow">{label}</span>
@@ -63,8 +71,8 @@ export default async function FinanceOverview({
             <span className="muted">{detail}</span>
           </article>
         ))}
-      </section>
-      <section className="card-grid">
+      </FeatureWidget>
+      <FeatureWidget id="finance-overview-recent-invoices" title="Recent invoices">
         <article className="card" style={{ gridColumn: "span 2" }}>
           <div className="section-head">
             <h2>Recent invoices</h2>
@@ -126,7 +134,7 @@ export default async function FinanceOverview({
             ))
           )}
         </article>
-      </section>
+      </FeatureWidget>
       <section className="card-grid">
         {[
           [
@@ -153,6 +161,6 @@ export default async function FinanceOverview({
           </Link>
         ))}
       </section>
-    </main>
+    </WidgetGrid></FeaturePage>
   );
 }

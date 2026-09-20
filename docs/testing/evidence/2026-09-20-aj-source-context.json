@@ -1,0 +1,21 @@
+{
+  "head": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "workingTree": "dirty; includes preserved work from preceding tasks",
+  "toolchain": {
+    "bun": "1.2.17",
+    "node": "24.20.0",
+    "postgresTools": "18.6"
+  },
+  "files": {
+    "src/server/commerce.ts": "8ae711580bc22bac2f8fc887fee0597f75606ed1b1499e6011d2488cd615de51",
+    "src/server/pos-core.ts": "fd226c0b0ed68181a75f807884b30451077337a71abb0a0170b74a350484dcb4",
+    "src/server/pos.ts": "05ac8477555c27f30401bc1085b4a8c02ae31090fbd073d72af37017401c3da6",
+    "src/server/inventory-transfers.ts": "15384b65d953d3ce1a7239d13c11c761997087f5bbfc88af08309b5e10f59533",
+    "migrations/postgres/holding-write/0205_sales_stock_reservations.sql": "ec0f3be69e5bed2635fbf96076b0204ce1c8c0845364445ffc7d885d918918bf",
+    "tests/stock-reservations.test.ts": "7e69ed9b145e889ada6414037360ca02c80f7f902d216b01399100e1507d9068",
+    "tests/pos.test.ts": "aa2046250dd56c0af89ad74869a68f5a11ef483c20ef191a0a1f4d6507e13904",
+    "tests/recovery-simulation.test.ts": "81413582c4d9abe90ccca94bc2c8ce7a7d88cbafc7aacf5fe303d67ca7ea1184",
+    "src/server/business-readiness.ts": "ec0d75c8347beaaf94c962964661e1c3237e5e3c8589db3a76e7d608729b2472",
+    "scripts/generate-capability-matrix.ts": "27bb557e45597b0006459974b11b546c69fbf14f70ff5626800686a339b1e8bf"
+  }
+}

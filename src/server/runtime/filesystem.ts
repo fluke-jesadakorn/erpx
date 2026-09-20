@@ -4,12 +4,13 @@ import { mkdir, readFile, writeFile, rename, link, unlink, rm, stat, open, readd
 import { join, resolve } from 'node:path';
 import { Readable } from 'node:stream';
 import type { FileMetadata, FileStore, StoredFile } from './types';
+import type {PostgresDatabase} from './postgres';
 
 type Manifest = Omit<FileMetadata, 'uploaded'> & { uploaded: string; version: string };
 const missing = (error: unknown) => (error as NodeJS.ErrnoException).code === 'ENOENT';
 export class LocalFileStore implements FileStore {
   readonly root: string;
-  constructor(root: string) { this.root = resolve(root); }
+  constructor(root: string, private readonly preservationDb?: PostgresDatabase) { this.root = resolve(root); }
   private location(key: string) {
     if (!key || key.includes('\0') || key.split(/[\\/]/).some(p => p === '..' || p === '.')) throw new Error('INVALID_OBJECT_KEY');
     // Object keys never become filesystem paths. Even absolute keys cannot escape.
@@ -24,6 +25,11 @@ export class LocalFileStore implements FileStore {
   private metadata(value: Manifest): FileMetadata { const { version: _version, ...metadata } = value; void _version; return { ...metadata, uploaded: new Date(value.uploaded) }; }
   async head(key: string) { const value = await this.manifest(key); return value ? this.metadata(value) : null; }
   async put(key: string, value: Parameters<FileStore['put']>[1], options: Parameters<FileStore['put']>[2] = {}) {
+    if(this.preservationDb&&!options.onlyIf&&!key.startsWith('legal/'))return this.protect([key],()=>this.putUnchecked(key,value,options));
+    return this.putUnchecked(key,value,options);
+  }
+  private async putUnchecked(key: string, value: Parameters<FileStore['put']>[1], options: Parameters<FileStore['put']>[2] = {}) {
+    if (key.startsWith('legal/') && options.onlyIf?.etagDoesNotMatch !== '*') throw new Error('LEGAL_DOCUMENT_IMMUTABLE');
     if (options.onlyIf && options.onlyIf.etagDoesNotMatch !== '*') throw new Error('UNSUPPORTED_OBJECT_CONDITION');
     const directory = this.location(key), version = randomUUID();
     await mkdir(directory, { recursive: true, mode: 0o700 });
@@ -75,7 +81,24 @@ export class LocalFileStore implements FileStore {
       arrayBuffer: () => new Response(stream()).arrayBuffer(), text: () => new Response(stream()).text() };
   }
   async delete(key: string | string[]) {
-    for (const item of Array.isArray(key) ? key : [key]) await rm(this.location(item), { recursive: true, force: true });
+    if ((Array.isArray(key) ? key : [key]).some(item => item.startsWith('legal/'))) throw new Error('LEGAL_DOCUMENT_PRESERVATION_REQUIRED');
+    const keys=Array.isArray(key)?key:[key];
+    await this.protect(keys,async()=>{for (const item of keys) await rm(this.location(item), { recursive: true, force: true });});
+  }
+  private async protect<T>(keys:string[],operation:()=>Promise<T>):Promise<T>{
+    if(!this.preservationDb)return operation();
+    return this.preservationDb.transaction(async tx=>{
+      await tx.prepare("SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))").run();
+      for(const key of keys)if(await tx.prepare("SELECT 1 FROM legal_file_preservations p JOIN legal_hold_targets t ON t.item_id=p.item_id JOIN legal_holds h ON h.id=t.hold_id WHERE h.state!='released' AND (p.object_key=? OR (p.source_type='attachment' AND EXISTS(SELECT 1 FROM attachment_derivatives d WHERE d.attachment_id=p.source_id AND d.object_key=?)))").bind(key,key).first())throw new Error('LEGAL_HOLD_BLOCKS_FILE_MUTATION');
+      return operation();
+    });
+  }
+  async destroyPreserved(keys:string[],authorization:Parameters<NonNullable<FileStore['destroyPreserved']>>[1]){
+    const tx=authorization.database;
+    const row=await tx.prepare("SELECT x.manifest FROM legal_destructions x WHERE x.id=? AND x.state='executing' AND NOT EXISTS(SELECT 1 FROM legal_hold_targets t JOIN legal_holds h ON h.id=t.hold_id WHERE t.item_id=x.item_id AND h.state!='released')").bind(authorization.destructionId).first<{manifest:string}>();
+    if(!row)throw new Error('LEGAL_DESTRUCTION_NOT_AUTHORIZED');
+    const manifest=typeof row.manifest==='string'?JSON.parse(row.manifest):row.manifest;
+    for(const key of keys){if(!key.startsWith('legal/')||!manifest.keys.includes(key))throw new Error('LEGAL_DESTRUCTION_SCOPE');await rm(this.location(key),{recursive:true,force:true});}
   }
   async list(options: { prefix?: string; cursor?: string; limit?: number } = {}) {
     const objects: FileMetadata[] = [];

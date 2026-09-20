@@ -1,3 +1,4 @@
+import { selfServiceHref } from "@/lib/self-service";
 import "server-only";
 import {
   workCardCatalog,
@@ -49,7 +50,10 @@ export function buildWorkCards(
         id: card.id,
         title: card.title,
         icon: card.id,
-        href: `${base}/work?${query}#work-results`,
+        href:
+          ["leave","overtime"].includes(card.id)
+            ? selfServiceHref(base,card.id)!
+            : `${base}/work?${query}#work-results`,
         create,
         toDo: incomplete
           ? null

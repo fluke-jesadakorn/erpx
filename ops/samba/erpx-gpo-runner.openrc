@@ -1,0 +1,15 @@
+#!/sbin/openrc-run
+
+name="ERPX Samba directory runner"
+command="/usr/bin/python3"
+command_args="/opt/erpx/gpo_runner.py --config /etc/erpx-gpo/config.json"
+command_user="root:root"
+command_background="yes"
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/${RC_SVCNAME}.log"
+error_log="/var/log/${RC_SVCNAME}.log"
+
+depend() {
+    need samba
+    after networking
+}

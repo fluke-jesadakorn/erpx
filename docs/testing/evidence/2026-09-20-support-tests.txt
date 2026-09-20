@@ -1,0 +1,73 @@
+$ bun scripts/local/test.ts tests/support.test.ts tests/customer-timeline.test.ts tests/workplace-navigation.test.ts tests/work-views.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/work-views.test.ts > shows routing attention only to the source-authorized workflow manager 1ms
+ ✓ tests/work-views.test.ts > separates assigned actionable preparation from unassigned setup without changing source queues 0ms
+ ✓ tests/work-views.test.ts > keeps domain queries and return context together 0ms
+ ✓ tests/work-views.test.ts > shows only permission-filtered app cards before launcher search 1ms
+ ✓ tests/work-views.test.ts > searches deep destinations with owning-app context and no duplicate URLs 1ms
+ ✓ tests/work-views.test.ts > omits inaccessible launcher categories and scopes rail state by workspace 0ms
+ ✓ tests/workplace-navigation.test.ts > Side menu destination coverage > makes each visible destination unique and highlights its own entry 11ms
+ ✓ tests/workplace-navigation.test.ts > Side menu destination coverage > exposes missing pages by their feature names in the appropriate group 1ms
+ ✓ tests/workplace-navigation.test.ts > Side menu destination coverage > keeps feature permissions and scope restrictions in the side menu 1ms
+ ✓ tests/workplace-navigation.test.ts > Side menu destination coverage > keeps aliases, detail pages and query tabs under their current feature 1ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > keeps roster in People and cash sessions on compatible POS routes at every scope 1ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > keeps staff navigation compact and excludes inaccessible search results 0ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > shows authorized live areas without module capability results 0ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > assigns semantic icons to feature destinations 0ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > keeps Local workspaces operational and removes Company-only navigation 1ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > keeps beta and platform discovery inside their supported surfaces 0ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > maps collections, details, and query views to their canonical parents 1ms
+ ✓ tests/workplace-navigation.test.ts > Workplace discovery > does not expose generic workspace records as a Work type 0ms
+ ✓ tests/workplace-navigation.test.ts > filters mixed work without treating another queue as actionable 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves handbook and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves learn and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/settings and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/settings?section=templates and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/settings?section=attributes and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves settings?section=usage and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves settings?section=approvals and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/access and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/access?view=packages and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/access?view=groups and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/access?view=policies and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/access?view=devices and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/settings?section=connections and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/settings?section=roles and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/settings?section=matrix and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves people/settings?section=reviews and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves settings?section=ai and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves iam/groups and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves iam/mappings and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves iam/connections and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves iam/roles and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves iam/matrix and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves settings?section=people and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves settings?section=organization and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves iam/overview and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > resolves iam/users and discovers its feature once 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > keeps the exact group order, People contents, and a direct help link 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > maps app-level navigation into presentation categories without changing breadcrumbs 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > retains holding_owner authorization in Company, Branch and Department navigation 4ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > retains hr_admin authorization in Company, Branch and Department navigation 2ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > retains it_admin authorization in Company, Branch and Department navigation 2ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > retains employee authorization in Company, Branch and Department navigation 1ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > uses the server approval flag independently from the readable legacy section 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > builds Finance and Technology from individually allowed services 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > retains Beta and Platform feature organization 0ms
+ ✓ tests/workplace-navigation.test.ts > Services grouped by purpose > migrates retained expansion choices and defaults Technology to collapsed 0ms
+ ✓ tests/workplace-navigation.test.ts > keeps Executive hidden without eligibility or a named share, and resolves report breadcrumbs 0ms
+ ✓ tests/support.test.ts > hands off to Support and separates proposed resolution from independently reviewed customer confirmation 832ms
+ ✓ tests/support.test.ts > blocks inactive recipients and protects scope, event history and stale concurrent actions 142ms
+ ✓ tests/support.test.ts > does not allow the resolving manager to approve their own resolution after reassignment 286ms
+ ✓ tests/customer-timeline.test.ts > federates actual CRM, notes and follow-up source events without copying private payloads or mutating their owners 458ms
+ ✓ tests/customer-timeline.test.ts > hides customer identity, entries and counts outside company/branch/department scope and from non-commerce roles 114ms
+ ✓ tests/customer-timeline.test.ts > paginates source events deterministically without duplicates and rejects malformed cursors 282ms
+ ✓ tests/customer-timeline.test.ts > includes Support lifecycle only when the viewer also has the Support owner permission 217ms
+
+ Test Files  4 passed (4)
+      Tests  63 passed (63)
+   Start at  16:34:17
+   Duration  18.94s (transform 345ms, setup 91ms, import 408ms, tests 18.17s, environment 0ms)
+

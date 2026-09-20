@@ -1,0 +1,27 @@
+{
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "observedAt": "2026-09-20T07:14:54.687607+00:00",
+  "workingTree": "dirty",
+  "files": {
+    "src/server/commerce.ts": "04d798d80a23fa8ef5100217297516ec4d7f571d9f4de26c03ada958e4644da7",
+    "src/server/supplier-bill-matching.ts": "526240d8d54da8e473bfa859b234998fa906a14810ca78a90abb4e7ac63b072e",
+    "src/components/modules/supplier-bill-console.tsx": "ef0f9008808fb8555d9a8581d5ba245c6319bbb1daa9aecb06f20a8bde77d9f5",
+    "src/components/modules/invoice-controls.tsx": "be9c3eb6882ab4f3a012e5914ea964eaea142c8bca42cf14aeb200adbcfc85ec",
+    "src/components/modules/document-posting-preview.tsx": "aede4eb63ea5530991aae135698d6cc3cb58116e1494bfe5f1035d146c800aab",
+    "tests/supplier-bill-matching.test.ts": "29b336d3f25847b4256ebff264dd2de547cc4d70752e442931b9cf2a0989b868"
+  },
+  "results": {
+    "ownerTests": 6,
+    "evidenceValidationTests": 6,
+    "routingRegressionTests": 17,
+    "adjacentRegressionTests": 15,
+    "typecheck": "passed",
+    "lint": "0 errors; 3 pre-existing warnings",
+    "release": ".runtime/releases/2026-09-20T07-13-48-541Z"
+  },
+  "limitations": [
+    "Counts overlap across runs and must not be summed as distinct tests.",
+    "AP correction browser acceptance pending; public empty queue observed only.",
+    "Not full A-J or whole capability acceptance."
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "observedAt": "2026-09-20T06:25:55.030933+00:00",
+  "baseRevision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "workingTree": "Uncommitted implementation; source hashes identify final observed state",
+  "sourceSha256": {
+    "src/server/procurement-rfqs.ts": "f3bf4f950074b1b6c310efe25ee4e32339ec3fe0f4301b0481810130ad59b452",
+    "src/server/employee-requests.ts": "6f2a21ee31e7a2fc52c3e7eca7918e337698f20dfca166a95a6e44abedfec152",
+    "src/server/commerce.ts": "d7ce14303a8211c241153a691ea982d4431fed20b0f7cd6563f44c7293766e40",
+    "src/components/modules/procurement-rfq-console.tsx": "1ce90f1dc83d9d051c8790e1f66de429a0766b5381fcf34e65f9d16366eead5c",
+    "src/server/calendar/procurement-rfqs.ts": "719a33a459ec355a2dcc67874807c55a04a297cc333eefaed3b6cc53d1834e1d",
+    "migrations/postgres/holding-write/0209_procurement_rfqs.sql": "d76fa1b9b44ac04b948b3d84b78b750633769255fda11fc61a5073f69df2857a",
+    "migrations/postgres/holding-write/0210_rfq_requisition_links.sql": "1c2c0fb61030a4355e9fcd89055ffc2b21bf706cf7b4ae80e420bb66401c1761",
+    "tests/procurement-rfqs.test.ts": "87c5267444072c307a2d621707843c346f7d3606fe73427ddbe9e4d906daca04",
+    "tests/employee-services.test.ts": "316a52253732599ad9dc10a77bf88a69e1fde2830eff50dbcb53d0436daa03fb"
+  },
+  "testScope": {
+    "initialRfqOwnerRegression": "5 files / 29 passed, before typed PR mapping",
+    "initialRequisitionRegression": "3 files / 27 passed including complete/idempotent337-table baseline",
+    "finalSourceGuards": "2 files / 26 passed including request waiting/reply, comment-version handoff, active-RFQ bypass guards"
+  },
+  "typecheck": "passed",
+  "lint": "0 errors / 3 existing warnings before final source projection; final lint checked separately",
+  "release": ".runtime/releases/2026-09-20T06-22-57-097Z; isolated build passed, not deployed",
+  "browser": "Not verified: Chrome navigation/focus and tab recovery timed out; no authentication bypass.",
+  "limitations": [
+    "No complete A-J or S03 sign-off.",
+    "Partial/split request allocations, UOM conversion, supplier invitations/portal, invoice matching and full browser acceptance remain.",
+    "RFQ quote expiry uses UTC runtime date; business-calendar policy remains pending.",
+    "No real business, provider or production acceptance."
+  ]
+}

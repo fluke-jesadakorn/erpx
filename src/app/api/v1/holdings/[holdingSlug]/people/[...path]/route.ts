@@ -1,3 +1,9 @@
+import { rehireInput, createRehireEngagement, peopleLifecycleData, previewPackage, savePackage, bindPositionPackage, previewLifecycle, saveLifecycle, cancelLifecycle, requestLifecycleAccess, lifecycleSettingsInput, saveLifecycleSettings, completePreparationTask } from "@/server/people-lifecycle";
+import { packageInput, lifecycleInput } from "@/lib/people-lifecycle";
+import type { PostgresDatabase } from "@/server/runtime/postgres";
+import { directoryOperationsApi } from "@/server/directory-operations-api";
+import { peopleTemplatesData,saveHoldingTemplate,adoptHoldingTemplate,adoptTemplateInput } from "@/server/people-templates";
+import { iamActorFromWork } from "@/server/iam-context";
 import { saveSpendingTemplate, spendingTemplateSchema } from "@/server/spending-templates";
 import { expenseRoute } from "@/server/expense-routing";
 import { requestPublicOrigin } from "@/server/public-origin";
@@ -35,6 +41,8 @@ import {
   paymentConfirmationSchema,
   calculatePayrollRun,
   approvePayrollRun,
+  exportPayrollReview,
+  getPayrollReviewFile,
   payrollPostSchema,
   postPayroll,
   approvePaymentBatch,
@@ -65,6 +73,9 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request, context: Context) {
   try {
     const { holdingSlug, path } = await context.params; const actor = await requireWorkContext(holdingSlug); const p = parts(path);
+    if(p[0]==="directory-operations"){const {write}=await holdingResources(actor.holdingId);return Response.json({data:await directoryOperationsApi(write as PostgresDatabase,actor,p.slice(1))},{headers:{"Cache-Control":"private, no-store"}});}
+    if(p[0]==="templates"){const {write}=await holdingResources(actor.holdingId);return Response.json({data:await peopleTemplatesData(write as PostgresDatabase,iamActorFromWork(actor))},{headers:{"Cache-Control":"private, no-store"}});}
+    if(p[0]==="lifecycle" && p.length===1){const {write}=await holdingResources(actor.holdingId);return Response.json({data:await peopleLifecycleData(write,actor)},{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="organization" && p.length===1){const {write}=await holdingResources(actor.holdingId);return Response.json({data:await organizationOverview(write,actor)},{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="organization" && p[1]==="readiness") {const {write}=await holdingResources(actor.holdingId);const kind=new URL(request.url).searchParams.get("kind");const route=await expenseRoute(write,actor.companyId,actor.userId,[],false,kind==="purchase"||kind==="payment"?kind:"expense");return Response.json({data:{ready:!route.blockedReason,blockedReason:route.blockedReason,steps:route.steps}});}
     if (p.length === 0 || (p[0] === "people" && !p[1])) return Response.json({ data: await listPeople(actor) });
@@ -73,6 +84,7 @@ export async function GET(request: Request, context: Context) {
     if (p[0] === "summary") return Response.json({ data: await peopleSummary(actor) });
     if (p[0] === "country-packs") return Response.json({ data: await listCountryPacks(actor) });
     if (p[0] === "payroll" && p[1] === "runs" && p.length === 2) return Response.json({ data: await listPayrollRuns(actor) });
+    if (p[0] === "payroll" && p[1] === "runs" && p[2] && p[3] === "review-file") { const revision=Number(new URL(request.url).searchParams.get("revision"));if(!Number.isInteger(revision)||revision<1)throw new ApiError(422,"REVISION_REQUIRED","Choose a payroll revision.");const result=await getPayrollReviewFile(actor,p[2],revision);return new Response(result.object.body,{status:200,headers:{"Content-Type":"text/csv","Content-Disposition":`attachment; filename="payroll-${p[2]}-review-${revision}.csv"`,"Cache-Control":"private, no-store","ETag":result.checksum}}); }
     if (p[0] === "payroll" && p[1] === "runs" && p[2]) return Response.json({ data: await getPayrollRun(actor,p[2]) });
     if (p[0] === "payments" && p[1] === "batches" && p[3] === "file") { const result=await getPaymentFile(actor,p[2]); const headers=new Headers({"Content-Type":"text/csv","Content-Disposition":`attachment; filename="${p[2]}.csv"`,"Cache-Control":"private, no-store"}); if(result.checksum)headers.set("ETag",result.checksum); return new Response(result.object.body,{status:200,headers}); }
     throw new ApiError(404,"NOT_FOUND","People resource not found.");
@@ -83,6 +95,26 @@ export async function POST(request: Request, context: Context) {
   try {
     const origin=request.headers.get("origin"); if(origin && origin!==requestPublicOrigin(request)) throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin for this action.");
     const { holdingSlug, path } = await context.params; const actor = await requireWorkContext(holdingSlug); const p = parts(path); const input = await json(request); const id = command(request);
+    if(p[0]==="directory-operations"){const {write}=await holdingResources(actor.holdingId);return Response.json({data:await directoryOperationsApi(write as PostgresDatabase,actor,p.slice(1),input,id)});}
+    if(p[0]==="templates"&&p.length===2&&["publish","preview","adopt"].includes(p[1])){const {write}=await holdingResources(actor.holdingId),iam=iamActorFromWork(actor);return Response.json({data:p[1]==="publish"?await saveHoldingTemplate(write as PostgresDatabase,iam,input,id):await adoptHoldingTemplate(write as PostgresDatabase,iam,parsed(adoptTemplateInput.safeParse(input)),id,p[1]==="preview")});}
+    if(p[0]==="lifecycle") {
+      const {write}=await holdingResources(actor.holdingId),db=write as PostgresDatabase;
+      if(p[1]==="packages" && p[2]==="preview")return Response.json({data:await previewPackage(db,actor,parsed(packageInput.safeParse(input)))});
+      if(p[1]==="packages" && ["draft","publish"].includes(p[2]))return Response.json({data:await savePackage(db,actor,parsed(packageInput.safeParse(input)),id,p[2]==="publish",input.previewToken)});
+      if(p[1]==="position" && ["preview","bind"].includes(p[2]))return Response.json({data:await bindPositionPackage(db,actor,parsed(z.object({positionId:z.string().min(1),packageId:z.string().min(1),revision:z.number().int().positive(),expectedVersion:z.number().int().positive(),previewToken:z.string().optional()}).safeParse(input)),id,p[2]==="preview")});
+      if(p[1]==="placements" && p[2]==="preview")return Response.json({data:await previewLifecycle(db,actor,parsed(lifecycleInput.safeParse(input)),true)});
+      if(p[1]==="placements" && ["draft","submit"].includes(p[2]))return Response.json({data:await saveLifecycle(db,actor,parsed(lifecycleInput.safeParse(input)),id,p[2]==="submit",input.previewToken,true)});
+      if(p[1]==="placements" && p[3]==="cancel")return Response.json({data:await cancelLifecycle(db,actor,p[2],parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input)).expectedVersion,id)});
+      if(p[1]==="cases" && p[2]==="preview")return Response.json({data:await previewLifecycle(db,actor,parsed(lifecycleInput.safeParse(input)))});
+      if(p[1]==="cases" && ["draft","submit"].includes(p[2]))return Response.json({data:await saveLifecycle(db,actor,parsed(lifecycleInput.safeParse(input)),id,p[2]==="submit",input.previewToken)});
+      if(p[1]==="cases" && ["cancel","request-access"].includes(p[3])) {
+        const v=parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input));
+        return Response.json({data:p[3]==="cancel"?await cancelLifecycle(db,actor,p[2],v.expectedVersion,id):await requestLifecycleAccess(db,actor,p[2],v.expectedVersion,id)});
+      }
+      if(p[1]==="rehire")return Response.json({data:await createRehireEngagement(db,actor,parsed(rehireInput.safeParse(input)),id)});
+      if(p[1]==="settings")return Response.json({data:await saveLifecycleSettings(db,actor,parsed(lifecycleSettingsInput.safeParse(input)),id)});
+      if(p[1]==="tasks" && p[3]==="complete")return Response.json({data:await completePreparationTask(db,actor,p[2],parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input)).expectedVersion,id)});
+    }
     if(p[0]==="organization") {
       const {write}=await holdingResources(actor.holdingId);
       if(p[1]==="spending-template")return Response.json({data:await saveSpendingTemplate(write,actor,parsed(spendingTemplateSchema.safeParse(input)),id)});
@@ -114,6 +146,7 @@ export async function POST(request: Request, context: Context) {
     if (p[0] === "payroll" && p[1] === "runs" && p.length === 2) { const data=parsed(payrollRunSchema.safeParse(input)); return Response.json({data:await createPayrollRun(actor,data,id)},{status:201}); }
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "calculate") return Response.json({data:await calculatePayrollRun(actor,p[2],id)});
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "approve") { const data=parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input)); return Response.json({data:await approvePayrollRun(actor,p[2],data.expectedVersion,id)}); }
+    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "export-review") return Response.json({data:await exportPayrollReview(actor,p[2],id)});
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "post") { parsed(payrollPostSchema.safeParse(input)); return Response.json({data:await postPayroll(actor)}); }
     if (p[0] === "payments" && p[1] === "batches" && p.length === 2) { const data=parsed(paymentBatchSchema.safeParse(input)); return Response.json({data:await createPaymentBatch(actor,data,id)},{status:201}); }
     if (p[0] === "payments" && p[1] === "batches" && p[3] === "approve") { const data=parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input)); return Response.json({data:await approvePaymentBatch(actor,p[2],data.expectedVersion,id)}); }

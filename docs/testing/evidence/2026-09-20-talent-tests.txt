@@ -1,0 +1,47 @@
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/people-lifecycle.test.ts > creates one IT task on retried position creation and rename, without grants 1443ms
+ ✓ tests/people-lifecycle.test.ts > requires IT authority, published revisions, fresh previews, and Company ownership 158ms
+ ✓ tests/people-lifecycle.test.ts > keeps onboarding waiting for IT and identity verification without granting access 162ms
+ ✓ tests/people-lifecycle.test.ts > enforces all-account Company cutoffs on time even before worker execution and supports cancellation 180ms
+ ✓ tests/people-lifecycle.test.ts > applies offboarding once, retains history, and never waits for directory tasks 158ms
+ ✓ tests/people-lifecycle.test.ts > requires independent personal reviews and does not grant before the effective time 643ms
+ ✓ tests/people-lifecycle.test.ts > routes Company IAM to People while keeping advanced destinations explicit 0ms
+ ✓ tests/people-lifecycle.test.ts > preserves independent access on transfer and rejects changed engagement snapshots 222ms
+ ✓ tests/people-lifecycle.test.ts > requires new engagement and new grants on rehire, without reviving old direct access 250ms
+ ✓ tests/people-lifecycle.test.ts > does not let one failed placement delay another Company's departure 491ms
+ ✓ tests/people-lifecycle.test.ts > blocks protected administrator promotion after a departure was scheduled 292ms
+ ✓ tests/people-lifecycle.test.ts > allows IT to prepare groups without granting access-policy authority 1116ms
+ ✓ tests/people-lifecycle.test.ts > excludes superseded accounts from new grants but retains them in departure coverage 1458ms
+ ✓ tests/people-lifecycle.test.ts > closes rejected individual reviews without activating partial grants 1771ms
+ ✓ tests/people-lifecycle.test.ts > prevents legacy status controls from bypassing lifecycle cutoff or ending history early 1846ms
+ ✓ tests/people-lifecycle.test.ts > shares immutable packages across positions and preserves another occupant's membership after departure 2686ms
+ ✓ tests/people-lifecycle.test.ts > groups accounts by reviewed identity links rather than matching email 347ms
+ ✓ tests/people-lifecycle.test.ts > creates six retirement responsibilities, keeps cutoff independent and prevents IT from closing finance 628ms
+ ✓ tests/people-lifecycle.test.ts > retirement cancellation keeps history and cancels pending clearance before cutoff 295ms
+ ✓ tests/people-lifecycle.test.ts > reads retirement evidence through source permissions and never changes the financial document 884ms
+ ✓ tests/people-lifecycle.test.ts > revalidates clearance owners, rejects stale edits and keeps reassignment notifications attached to the same task 338ms
+ ✓ tests/people-lifecycle.test.ts > paginates the directory in SQL and resolves details outside the current page 278ms
+ ✓ tests/people-lifecycle.test.ts > HR placement works without a package, linked account or IT preparation and never grants access 287ms
+ ✓ tests/people-lifecycle.test.ts > IT applies pinned resources and requests independently reviewed ERPX roles, retaining them across HR transfers 558ms
+ ✓ tests/people-lifecycle.test.ts > keeps supplemental access independently and withdraws only its selected source 502ms
+ ✓ tests/people-lifecycle.test.ts > revalidates HR position scope before applying a scheduled placement 865ms
+ ✓ tests/people-lifecycle.test.ts > provisions a shared package for multiple positions only when IT selects their employees 432ms
+ ✓ tests/people-lifecycle.test.ts > keeps cutoffs effective after HR returns an employee and requires new IT access 679ms
+ ✓ tests/talent.test.ts > moves a consented candidate through proposal, reviewed offer and immutable hire handoff 1099ms
+ ✓ tests/talent.test.ts > restricts candidate workspace to reviewers and protects requisition source versions 560ms
+ ✓ tests/talent.test.ts > surfaces an ineligible application owner for reviewed reassignment 308ms
+ ✓ tests/staff-migration.test.ts > creates a complete, empty PostgreSQL baseline and preserves database invariants 11604ms
+ ✓ tests/work-views.test.ts > shows routing attention only to the source-authorized workflow manager 1ms
+ ✓ tests/work-views.test.ts > separates assigned actionable preparation from unassigned setup without changing source queues 0ms
+ ✓ tests/work-views.test.ts > keeps domain queries and return context together 0ms
+ ✓ tests/work-views.test.ts > shows only permission-filtered app cards before launcher search 1ms
+ ✓ tests/work-views.test.ts > searches deep destinations with owning-app context and no duplicate URLs 1ms
+ ✓ tests/work-views.test.ts > omits inaccessible launcher categories and scopes rail state by workspace 0ms
+
+ Test Files  4 passed (4)
+      Tests  38 passed (38)
+   Start at  23:50:37
+   Duration  79.82s (transform 464ms, setup 110ms, import 1.21s, tests 78.18s, environment 0ms)
+

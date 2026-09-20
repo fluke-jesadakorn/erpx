@@ -33,7 +33,7 @@ export function modelProtocol(preset: AiPreset, id: string): AiProtocol | "unsup
   return Object.hasOwn(common, id) ? common[id] : null;
 }
 
-export const unsupportedModelMessage = "ระบบยังไม่รองรับโมเดลนี้ กรุณาเลือกโมเดลอื่น";
+export const unsupportedModelMessage = "This model is not supported yet. Choose another model.";
 export function supportedModelProtocol(baseUrl: string, id: string): AiProtocol | null {
   const protocol = modelProtocol(presetForUrl(baseUrl), id.trim());
   return protocol && protocol !== "unsupported" ? protocol : null;

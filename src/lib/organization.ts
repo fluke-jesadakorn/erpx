@@ -3,6 +3,7 @@ export const staffLevelTitles = ["CEO", "Executive / Director", "Branch / Depart
 export type OrganizationPosition = {
   id: string; company_id: string; branch_id: string | null; department_id: string | null;
   title: string; level_id: string; level_number: number; reports_to_position_id: string | null;
+  requirements?: string;
   is_ceo: number; active: number; version: number;
 };
 export type OrganizationPerson = {
@@ -13,7 +14,7 @@ export type OrganizationPerson = {
   status: string; person_status: string; start_date: string; end_date: string | null; job_title: string;
   issues: string[];
 };
-export type OrganizationNode = { id: string; kind: string; display_name: string; branch_id: string | null };
+export type OrganizationNode = { id: string; kind: string; slug: string; display_name: string; branch_id: string | null };
 export type OrganizationTemplatePosition = {
   key: string; title: string; levelNumber: number; reportsToKey: string | null; isCeo: boolean;
 };

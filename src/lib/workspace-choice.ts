@@ -7,12 +7,15 @@ export type WorkspaceDepartmentChoice = {
   destination: string;
 };
 
+export type WorkspaceChoiceBrand = { label: string; initials: string; primaryUrl?: string };
+
 export type WorkspaceBranchChoice = {
   kind: "branch";
   id: string;
   label: string;
   destination?: string;
   departments: WorkspaceDepartmentChoice[];
+  brand?: WorkspaceChoiceBrand;
 };
 
 export type WorkspaceCompanyChoice = {
@@ -29,6 +32,7 @@ export type WorkspaceHoldingChoice = {
   holdingSlug: string;
   label: string;
   companies: WorkspaceCompanyChoice[];
+  brand?: WorkspaceChoiceBrand;
 };
 
 export type WorkspacePlatformChoice = {

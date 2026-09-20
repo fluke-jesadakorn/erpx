@@ -6,7 +6,7 @@ import type { WorkContext } from "./authorization";
 import { runtimeEnv, holdingResources } from "./runtime";
 import { ApiError } from "./http";
 import { levelChangeStatements } from "./staff-settings";
-import { assertion, executeCommand } from "./commands";
+import { assertion, executeCommand, replayCommand } from "./commands";
 import { requireCompanyAuthority, authorityGuard } from "./staff-policy";
 import { organizationGuard, validateStaffOrganization } from "./organization";
 
@@ -380,10 +380,20 @@ export async function setDirectoryStatus(
   commandId: string,
 ) {
   actor = manage(actor);
-  const person = await directoryPerson(actor, personId);
   const { write } = await holdingResources(actor.holdingId);
+  const replay = await replayCommand(write, actor, commandId, "people.directory.status", personId, input);
+  if (replay) return replay;
+  const person = await directoryPerson(actor, personId);
   const graphGuard = await organizationGuard(write, actor.companyId, commandId);
-  if(input.status === "active") await validateStaffOrganization(write,actor.companyId,{person_id:personId,branch_id:person.branch_id as string|null,department_id:person.department_id as string|null,position_id:person.position_id as string|null,level_id:person.level_id as string|null,manager_person_id:person.manager_person_id as string|null},true);
+  if (!actor.beta) {
+    if (input.status === "inactive")
+      throw new ApiError(409, "LIFECYCLE_REQUIRED", "Use Suspend access or End employment to review all linked accounts and the effective time.");
+    if (input.status === "archived" && person.engagement_status !== "ended")
+      throw new ApiError(409, "ENGAGEMENT_NOT_ENDED", "End employment before archiving its history.");
+    if (input.status === "active" && person.status !== "archived" && await write.prepare("SELECT 1 FROM people_access_cutoffs WHERE company_id=? AND person_id=? AND cancelled_at IS NULL AND restored_at IS NULL").bind(actor.companyId,personId).first())
+      throw new ApiError(409, "LIFECYCLE_REQUIRED", "Request new access through the lifecycle workflow before returning to work.");
+  }
+  if(input.status === "active" && person.engagement_status !== "ended") await validateStaffOrganization(write,actor.companyId,{person_id:personId,branch_id:person.branch_id as string|null,department_id:person.department_id as string|null,position_id:person.position_id as string|null,level_id:person.level_id as string|null,manager_person_id:person.manager_person_id as string|null},true);
   if (person.user_id === actor.userId && input.status !== "active")
     throw new ApiError(
       409,
@@ -401,6 +411,7 @@ export async function setDirectoryStatus(
     { id: personId, status: input.status, version: input.expectedVersion + 1 },
     [
       graphGuard,
+      ...(!actor.beta && input.status === "archived" ? [assertion(write,commandId,"ended-engagements","NOT EXISTS(SELECT 1 FROM hr_engagements WHERE company_id=? AND person_id=? AND status!='ended')",[actor.companyId,personId])] : []),
       assertion(
         write,
         commandId,
@@ -435,7 +446,7 @@ export async function setDirectoryStatus(
         ),
       write
         .prepare("UPDATE employees SET status=? WHERE person_id=?")
-        .bind(input.status === "active" ? "active" : "inactive", personId),
+        .bind(input.status === "active" && person.engagement_status !== "ended" ? "active" : "inactive", personId),
       // Revoke this company's access; restoration always requires an explicit new assignment.
       ...(input.status === "active" || !person.user_id
         ? []

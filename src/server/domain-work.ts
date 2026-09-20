@@ -124,6 +124,8 @@ export async function getDomainWork(
       href: `/expenses/${x.id}`,
       status,
       updatedAt: Number(x.updated_at),
+      canAct: actionable,
+      category: "operational",
       queue: actionable ? "todo" : terminal ? "completed" : "waiting",
     });
   }
@@ -160,6 +162,8 @@ export async function getDomainWork(
       href: `/stock-counts/${x.id}`,
       status,
       updatedAt: Number(x.updated_at),
+      canAct: editable || review,
+      category: "operational",
       queue: editable || review ? "todo" : terminal ? "completed" : "waiting",
     });
   }
@@ -196,6 +200,8 @@ export async function getDomainWork(
       href: `/stock-transfers/${x.id}`,
       status,
       updatedAt: Number(x.updated_at),
+      canAct: editable || review,
+      category: "operational",
       queue: editable || review ? "todo" : terminal ? "completed" : "waiting",
     });
   }
@@ -249,6 +255,8 @@ export async function getStaffWork(actor: WorkContext): Promise<DomainWork[]> {
       href: `/staff-tasks/${task.id}`,
       status: task.state,
       updatedAt: task.updated_at,
+      canAct: actionable,
+      category: "operational",
       queue: actionable ? "todo" : terminal ? "completed" : "waiting",
     });
   }

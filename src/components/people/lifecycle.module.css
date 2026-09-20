@@ -1,0 +1,177 @@
+.stack {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  padding: 8px 0;
+}
+.stack.stack > label:has(> input, > select, > textarea) {
+  margin: 0;
+}
+.stack:global(.card) {
+  padding: 24px;
+}
+.stack label,
+.grant label {
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.stack input:not([type="checkbox"]),
+.stack select,
+.stack textarea,
+.grant input,
+.grant select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  background: var(--surface, Canvas);
+  color: inherit;
+  font: inherit;
+}
+.stack textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+.stack fieldset {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+.heading h2 {
+  margin: 0 0 6px;
+}
+.heading a {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.positionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.positionCard {
+  display: grid;
+  gap: 10px;
+  text-align: left;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: inherit;
+  background: var(--surface, Canvas);
+  cursor: pointer;
+}
+.positionCard:hover {
+  border-color: var(--accent, #298978);
+}
+.positionCard strong {
+  font-size: 15px;
+}
+.positionCard span {
+  font-size: 12px;
+}
+.positionCard span[data-ready="true"] {
+  color: #22846f;
+}
+.positionCard span[data-ready="false"],
+.pending {
+  color: #a86514;
+}
+.recipe {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.recipe > div {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.recipe svg {
+  flex-shrink: 0;
+}
+.recipe p {
+  margin: 0;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.preview {
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+  background: color-mix(in srgb, #298978 7%, transparent);
+  border-radius: 10px;
+}
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 24px;
+}
+.steps span {
+  font-size: 11px;
+  color: var(--muted);
+  padding: 8px;
+  border-radius: 6px;
+}
+.steps span[data-active="true"] {
+  background: color-mix(in srgb, #298978 12%, transparent);
+  color: var(--text);
+}
+.grant {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.stack .check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.case {
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.case p {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 13px;
+}
+.empty {
+  padding: 28px 0;
+  color: var(--muted);
+}
+@media (max-width: 640px) {
+  .heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .positionGrid {
+    grid-template-columns: 1fr;
+  }
+  .actions > * {
+    flex: 1;
+  }
+}

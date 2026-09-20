@@ -48,6 +48,9 @@ export function liveDestination(
   workspaceBase?: string,
 ): string | undefined {
   if (workspaceBase === "/platform") return undefined;
+  if (moduleId === "pms") return `pms/${sectionId}`;
+  if (moduleId === "pos") return "pos";
+  if (moduleId === "legal") return "legal";
   if (
     moduleId === "people_payroll" &&
     [
@@ -123,11 +126,117 @@ export function liveDestination(
       "feature-issues-movements": "commerce?view=stock",
     },
     customer_360: {
-      profiles: "commerce?view=parties",
-      "feature-customer-profile": "commerce?view=parties",
+      profiles: "customers",
+      "feature-customer-profile": "customers",
+      "service-timeline": "customers",
       "sales-summary": "commerce?view=sales",
     },
+    customer_authority: {
+      "duplicate-review": "customer-duplicates",
+      "feature-identity-changes": "customer-identity",
+      "feature-authority-bindings": "customer-access",
+      "access-history": "customer-access",
+    },
+    support: {
+      "feature-attachments": "support",
+      "feature-support-sessions": "support/sessions",
+      "feature-capabilities": "support/sessions",
+      tickets: "support",
+      "sla-watch": "support/sla",
+      incidents: "support/incidents",
+    },
+    assets: {
+      "asset-register": "assets",
+      condition: "assets",
+      "feature-placement": "assets",
+      "feature-maintenance-lifecycle": "assets",
+      "feature-retirement": "assets",
+    },
+    maintenance: {
+      "work-orders": "maintenance",
+      downtime: "maintenance",
+      "feature-blocked-work": "maintenance",
+      "feature-completion": "maintenance",
+      "feature-maintenance-history": "maintenance",
+    },
+    field_service: {
+      "service-orders": "field-service",
+      "feature-agreements": "field-service",
+      "feature-dispatch": "field-service",
+      "feature-visits": "field-service",
+      "feature-exceptions": "field-service",
+      "feature-billing-release": "field-service",
+    },
+    collaboration: {
+      "feature-attachments": "inbox",
+      "feature-action-cards": "collaboration",
+      "feature-record-relations": "collaboration",
+    },
+    learning: {
+      "course-catalog": "learning",
+      "feature-assignments": "learning",
+      "feature-attendance-results": "learning",
+      "feature-completion": "learning",
+      "feature-eligibility-handoff": "learning",
+    },
+    benefits: {
+      dependents: "benefits",
+      coverage: "benefits",
+      "feature-plans": "benefits",
+      "feature-enrollment-windows": "benefits",
+      "feature-provider-payroll": "benefits",
+    },
+    talent: {
+      requisitions: "talent",
+      applications: "talent",
+      offers: "talent",
+      "feature-candidates-privacy": "talent",
+      "feature-hire-handoffs": "talent",
+      "feature-proposals": "talent",
+    },
+    agent: {
+      "agent-catalog": "agents",
+      versions: "agents",
+      assignments: "agents",
+      "feature-pools-routing": "agents",
+      "feature-private-sessions": "agents",
+      "feature-invocation-evidence": "agents",
+    },
+    marketing: {
+      "feature-forms-profiles": "marketing",
+      "feature-content-previews": "marketing",
+      "feature-domains": "marketing",
+      "feature-provider-readiness": "marketing",
+      "feature-lead-candidates": "marketing",
+      "feature-engagement": "marketing",
+    },
+    planning: {
+      scenarios: "planning",
+      shortages: "planning",
+      recommendations: "planning",
+      "feature-capacity": "planning",
+      "feature-plan-comparison": "planning",
+    },
+    manufacturing: {
+      orders: "manufacturing",
+      "material-readiness": "manufacturing",
+      "quality-disposition": "manufacturing",
+      "feature-specifications": "manufacturing",
+      "feature-labor-output": "manufacturing",
+      "feature-costs-genealogy": "manufacturing",
+    },
+    ecommerce: {
+      channels: "ecommerce",
+      listings: "ecommerce",
+      returns: "ecommerce",
+      "feature-carts": "ecommerce",
+      "feature-checkout": "ecommerce",
+      "feature-fulfillment": "ecommerce",
+    },
     crm: {
+      "feature-leads": "crm",
+      "feature-opportunities": "crm",
+      activities: "customer-followups",
       accounts: "commerce?view=parties",
       "feature-sales-handoff": "commerce?view=quote",
     },
@@ -166,7 +275,8 @@ export function moduleAvailability(
 ): CapabilityAvailability {
   return module.sections.some(
     (section) =>
-      capabilitySupport(module.id, section.id, workspaceBase).availability !== "preview",
+      capabilitySupport(module.id, section.id, workspaceBase).availability !==
+      "preview",
   )
     ? "partial"
     : "preview";
@@ -176,8 +286,23 @@ export function capabilitySupport(
   sectionId: string,
   workspaceBase?: string,
 ): CapabilitySupport {
-  if (workspaceBase === "/platform") return { availability: "preview", actions: [{ label: "Platform actions", availability: "preview" }] };
+  if (workspaceBase === "/platform")
+    return {
+      availability: "preview",
+      actions: [{ label: "Platform actions", availability: "preview" }],
+    };
   const destination = liveDestination(moduleId, sectionId);
+  if (moduleId === "pos")
+    return {
+      availability: "live",
+      actions: [
+        {
+          label: "Point of sale, kitchen, shifts and reconciliation",
+          availability: "live",
+          destination: "pos",
+        },
+      ],
+    };
   if (destination === "work" || destination === "work?type=leave")
     return {
       availability: "partial",
@@ -209,13 +334,11 @@ export function capabilitySupport(
     return {
       availability: "partial",
       actions: [
-        ...labels.map(
-          (label): ActionAvailability => ({
-            label,
-            availability: "live",
-            destination,
-          }),
-        ),
+        ...labels.map((label): ActionAvailability => ({
+          label,
+          availability: "live",
+          destination,
+        })),
         {
           label: /moderation/.test(sectionId)
             ? "Moderate team content"

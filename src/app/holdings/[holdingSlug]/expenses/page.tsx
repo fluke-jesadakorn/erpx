@@ -1,13 +1,14 @@
-import Link from "next/link";
-import { requireWorkContext, publicScope } from "@/server/authorization";
-import { listExpenses } from "@/server/expenses";
-import { workspaceBase } from "@/lib/workspace";
-import { minorToDecimal } from "@/lib/finance-money";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import {
-  PageHeader,
-  StatusBadge,
-  EmptyState,
+EmptyState,
+PageHeader,
+StatusBadge,
 } from "@/components/ui/primitives";
+import { minorToDecimal } from "@/lib/finance-money";
+import { workspaceBase } from "@/lib/workspace";
+import { publicScope,requireWorkContext } from "@/server/authorization";
+import { listExpenses } from "@/server/expenses";
+import Link from "next/link";
 export const dynamic = "force-dynamic";
 export default async function Expenses({
   params,
@@ -32,12 +33,12 @@ export default async function Expenses({
           .includes(search.q.toLowerCase())),
   );
   return (
-    <main className="content-stack" data-source="live">
+    <FeaturePage className="content-stack" data-source="live">
       <PageHeader
         eyebrow="People · Finance"
         title="Employee expenses"
         description="Claim business costs, review receipts, post the obligation, and track reimbursement."
-      />
+      /><FeatureTabs/><WidgetGrid pageKey="finance-expenses">
       <Link className="button" href={`${base}/work?type=expense&new=expense`}>
         New expense claim
       </Link>
@@ -71,7 +72,7 @@ export default async function Expenses({
         </label>
         <button className="button secondary">Filter claims</button>
       </form>
-      <section className="card">
+      <FeatureWidget id="finance-expenses-expense-claims" title="Expense claims">
         <div className="section-head">
           <h2>Expense claims</h2>
           <span className="badge">{filtered.length}</span>
@@ -108,7 +109,7 @@ export default async function Expenses({
             </Link>
           ))
         )}
-      </section>
-    </main>
+      </FeatureWidget>
+    </WidgetGrid></FeaturePage>
   );
 }

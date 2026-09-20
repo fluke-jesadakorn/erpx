@@ -1,24 +1,26 @@
-import { FlowPanel, documentFlow } from "@/components/workplace/flow-panel";
-import { commercePermissions } from "@/server/commerce";
-import { pageError } from "@/server/page-error";
-import { RequestAi } from "@/components/workplace/request-ai";
-import Link from "next/link";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { workspaceBase } from "@/lib/workspace";
-import { employeeRequestDetail } from "@/server/employee-requests";
-import { requestPageOptions } from "@/server/request-page";
-import {
-  RequestActions,
-  RequestEditor,
-  RequestFiles,
-  RequestHistory,
-  RequestState,
-} from "@/components/workplace/request-controls";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { PageHeader } from "@/components/ui/primitives";
-import { approvalAdminHref } from "@/lib/administration";
-import { categoryLabel, requestKinds } from "@/lib/employee-services";
+import { FlowPanel,documentFlow } from "@/components/workplace/flow-panel";
+import { RecordNextAction } from "@/components/workplace/record-next-action";
+import { RequestAi } from "@/components/workplace/request-ai";
+import {
+RequestActions,
+RequestEditor,
+RequestFiles,
+RequestHistory,
+RequestState,
+} from "@/components/workplace/request-controls";
 import styles from "@/components/workplace/services.module.css";
+import { approvalAdminHref } from "@/lib/administration";
+import { categoryLabel,requestKinds } from "@/lib/employee-services";
+import { workspaceBase } from "@/lib/workspace";
+import { publicScope,requireWorkContext } from "@/server/authorization";
+import { commercePermissions } from "@/server/commerce";
+import { employeeRequestDetail } from "@/server/employee-requests";
+import { pageError } from "@/server/page-error";
+import { requestPageOptions } from "@/server/request-page";
+import { holdingResources } from "@/server/runtime";
+import Link from "next/link";
 export default async function RequestPage({
   params,
   searchParams,
@@ -39,12 +41,13 @@ export default async function RequestPage({
     query = await searchParams;
   const back = new URLSearchParams(query.return ?? "");
   for (const key of [...back.keys()])
-    if (!["q", "queue", "type", "responsibility"].includes(key))
+    if (!["view", "q", "queue", "type", "responsibility"].includes(key))
       back.delete(key);
   const latestMessage = [...detail.events].reverse().find((e) => e.note);
   const flow = await documentFlow(actor,"request",id);
+  const quotation = row.kind === "purchase" && commercePermissions(actor).purchase ? await write.prepare("SELECT id FROM procurement_rfqs WHERE request_id=? AND company_id=? AND status<>'cancelled'").bind(id,actor.companyId).first<{id:string}>() : null;
   return (
-    <main className={`content ${styles.stack}`} data-source="live">
+    <FeaturePage className={`content ${styles.stack}`} data-source="live">
       <Link href={`${base}/work${back.size ? `?${back}` : ""}`}>
         ← Back to Work
       </Link>
@@ -52,6 +55,14 @@ export default async function RequestPage({
         title={row.title || "Untitled request"}
         description={`${requestKinds.find(([id]) => id === row.kind)?.[1]} · ${categoryLabel(row.category)}`}
         action={<RequestState state={row.state} />}
+      /><FeatureTabs/><WidgetGrid pageKey="requests-detail">
+      <FlowPanel flow={flow} actor={actor} kind="request" id={id} base={base}/>
+      {row.kind === "purchase" && <FeatureWidget id="requests-detail-purchase-progress" title="Purchase progress"><section className="card"><ol><li>Approval · Spending authorization under Company purchasing policy</li><li>Purchasing · {row.purchase_order_id ? "Purchase order linked" : "Awaiting purchase order"}</li><li>Fulfilment · {row.state === "completed" ? "Completed" : "Follow receipt and handover with the assigned team"}</li></ol><p>Approval authorizes the request. Ordering, receipt and payment are recorded separately.</p></section></FeatureWidget>}
+      <section data-critical-notice><RecordNextAction flow={flow}/></section><RequestActions
+        base={base}
+        detail={{...detail,actions:detail.actions.filter(a=>flow.canAct||["edit","cancel","repair","comment","resource-request"].includes(a))}}
+        userId={actor.userId}
+        companyId={actor.companyId}
       />
       <section className="card">
         <div className={styles.status}>
@@ -78,7 +89,7 @@ export default async function RequestPage({
               </Link>
             ) : (
               <p className={styles.quiet}>
-                A company owner can resolve this under Administration →
+                A company owner can resolve this under Projects & workflows →
                 Approvals.
               </p>
             )}
@@ -100,8 +111,8 @@ export default async function RequestPage({
           returnTo={back.toString()}
         />
       ) : (
-        <section className="card">
-          <h2>Request details</h2>
+        <FeatureWidget id="requests-detail-request-details" title="Request details"><section className="card">
+          
           <p className={styles.article}>{row.description}</p>
           {detail.items.map((item, i) => (
             <p key={i}>
@@ -119,13 +130,13 @@ export default async function RequestPage({
               {row.resolution}
             </p>
           )}
-        </section>
+        </section></FeatureWidget>
       )}
       {latestMessage && (
-        <section className="card">
-          <h2>Latest message</h2>
+        <FeatureWidget id="requests-detail-latest-message" title="Latest message"><section className="card">
+          
           <p className={styles.article}>{latestMessage.note}</p>
-        </section>
+        </section></FeatureWidget>
       )}
       <RequestAi
         base={base}
@@ -134,12 +145,7 @@ export default async function RequestPage({
         kind={row.kind}
         editable={detail.actions.includes("edit")}
       />
-      <RequestActions
-        base={base}
-        detail={{...detail,actions:detail.actions.filter(a=>flow.canAct||["edit","cancel","repair","comment","resource-request"].includes(a))}}
-        userId={actor.userId}
-        companyId={actor.companyId}
-      />
+
       {row.kind === "purchase" &&
         ![
           "draft",
@@ -149,8 +155,8 @@ export default async function RequestPage({
           "rejected",
           "cancelled",
         ].includes(row.state) && (
-          <section className="card">
-            <h2>Purchasing handoff</h2>
+          <FeatureWidget id="requests-detail-purchasing-handoff" title="Purchasing handoff"><section className="card">
+            
             {actor.beta ? (
               <p>
                 Purchasing execution is unavailable in this beta workspace. Your
@@ -163,12 +169,12 @@ export default async function RequestPage({
                 href={
                   row.purchase_order_id
                     ? `${base}/commerce/orders/${row.purchase_order_id}`
-                    : `${base}/commerce?view=purchase&request=${row.id}`
+                    : quotation ? `${base}/procurement-rfqs/${quotation.id}` : `${base}/commerce?view=purchase&request=${row.id}`
                 }
               >
                 {row.purchase_order_id
                   ? "Open linked purchase order"
-                  : "Prepare purchase order in Purchasing"}
+                  : quotation ? "Continue awarded quotation handoff" : "Prepare purchase order in Purchasing"}
               </Link>
             ) : (
               <p>
@@ -176,16 +182,17 @@ export default async function RequestPage({
                 fulfillment.
               </p>
             )}
+            {!actor.beta && !row.purchase_order_id && commercePermissions(actor).purchase && detail.actions.includes("link-order") && <p><Link href={quotation?`${base}/procurement-rfqs/${quotation.id}`:`${base}/procurement-rfqs?request=${row.id}`}>{quotation?"Continue supplier quotation review":"Compare supplier quotations before ordering"}</Link></p>}
             <p className={styles.quiet}>
               Existing purchasing, stock, and finance permissions apply.
             </p>
-          </section>
+          </section></FeatureWidget>
         )}
       {(detail.actions.includes("resource-request") ||
         row.parent_request_id ||
         detail.children.length > 0) && (
-        <section className="card">
-          <h2>Related requests</h2>
+        <FeatureWidget id="requests-detail-related-requests" title="Related requests"><section className="card">
+          
           {row.parent_request_id && (
             <Link href={`${base}/requests/${row.parent_request_id}`}>
               Original service request
@@ -213,9 +220,9 @@ export default async function RequestPage({
               </Link>
             </div>
           )}
-        </section>
+        </section></FeatureWidget>
       )}
       <RequestHistory detail={detail} />
-    <FlowPanel flow={flow} actor={actor} kind="request" id={id} base={base}/></main>
+    </WidgetGrid></FeaturePage>
   );
 }

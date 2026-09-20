@@ -1,0 +1,41 @@
+$ bun scripts/local/test.ts tests/customer-followups.test.ts tests/customer-notes.test.ts tests/work-views.test.ts tests/calendar.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/customer-followups.test.ts > hands a source-linked contact to the eligible owner via Work, Inbox and Calendar and records its outcome once 631ms
+ ✓ tests/customer-followups.test.ts > blocks revoked and ended owners until a manager explicitly reassigns eligible staff 329ms
+ ✓ tests/customer-followups.test.ts > hides details, counts, recipients and notifications outside source scope 352ms
+ ✓ tests/customer-followups.test.ts > serializes outcome against reassignment and preserves immutable history 348ms
+ ✓ tests/calendar.test.ts > reads all sources without causing workflow transitions and hides draft rosters from staff 762ms
+ ✓ tests/calendar.test.ts > preserves overnight shifts crossing adjacent weeks and stored timezone 430ms
+ ✓ tests/calendar.test.ts > lets active staff organize, scopes delegates, redacts availability before serialization and checks direct commands 237ms
+ ✓ tests/calendar.test.ts > uses stable receipts and versions for reschedule/cancel and rejects concurrent stale edits 171ms
+ ✓ tests/calendar.test.ts > reschedules through narrow commands while preserving appointment data and roster assignments 473ms
+ ✓ tests/calendar.test.ts > warns about overlaps and approved all-day leave without exposing reasons; meetings during shifts are allowed 127ms
+ ✓ tests/calendar.test.ts > shares announcement audience/state with the feed and enforces scoped publishing 236ms
+ ✓ tests/calendar.test.ts > preserves actual organizational nesting and reporting ids without duplicates or Company leakage 141ms
+ ✓ tests/calendar.test.ts > keeps legacy tasks privileged/undated, supports explicit ordinary assignees, and leaves cutoffs untouched 172ms
+ ✓ tests/calendar.test.ts > paginates deterministically and validates dates and nonexistent DST local times 197ms
+stderr | tests/calendar.test.ts > reports failed source loading explicitly
+Calendar source failed appointments Source temporarily unavailable
+
+ ✓ tests/calendar.test.ts > reports failed source loading explicitly 71ms
+ ✓ tests/calendar.test.ts > shows future joiners and ended engagement milestones while keeping each cutoff independent 140ms
+ ✓ tests/calendar.test.ts > scopes private detail even when an attendee is in another department and does not search redacted titles 231ms
+ ✓ tests/calendar.test.ts > shows verified directory work in its own week even after the departure window 63ms
+ ✓ tests/customer-notes.test.ts > records, corrects and archives contact evidence without rewriting source or history 589ms
+ ✓ tests/customer-notes.test.ts > protects company, branch, department, role and revoked authority 402ms
+ ✓ tests/customer-notes.test.ts > serializes competing corrections and rejects stale sources and future contact 390ms
+ ✓ tests/customer-notes.test.ts > keeps customer evidence attached to its original customer and limits corrections to author or manager 385ms
+ ✓ tests/work-views.test.ts > shows routing attention only to the source-authorized workflow manager 4ms
+ ✓ tests/work-views.test.ts > separates assigned actionable preparation from unassigned setup without changing source queues 1ms
+ ✓ tests/work-views.test.ts > keeps domain queries and return context together 1ms
+ ✓ tests/work-views.test.ts > shows only permission-filtered app cards before launcher search 2ms
+ ✓ tests/work-views.test.ts > searches deep destinations with owning-app context and no duplicate URLs 2ms
+ ✓ tests/work-views.test.ts > omits inaccessible launcher categories and scopes rail state by workspace 1ms
+
+ Test Files  4 passed (4)
+      Tests  28 passed (28)
+   Start at  15:49:55
+   Duration  37.56s (transform 963ms, setup 88ms, import 397ms, tests 36.74s, environment 0ms)
+

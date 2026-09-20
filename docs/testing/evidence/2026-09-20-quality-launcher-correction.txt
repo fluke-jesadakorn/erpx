@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/work-views.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  11:26:09
+   Duration  4.40s (transform 81ms, setup 53ms, import 102ms, tests 4.15s, environment 0ms)
+

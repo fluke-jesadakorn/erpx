@@ -18,29 +18,29 @@ export async function getWork(holdingId: string, context: WorkContext) {
     await approvalView(write, "leave", row.id, context);
   const result = await write
     .prepare(
-      `SELECT l.id,l.number,l.state,l.start_date,l.days,l.created_by,l.updated_at,l.handover_note FROM leave_requests l WHERE l.company_id=? AND (l.created_by=? OR l.decided_by=? OR ${participantSql("leave", "l", "?", "?")}) ORDER BY l.updated_at DESC,l.id LIMIT 250`,
+      `SELECT l.id,l.number,l.state,l.start_date,l.days,l.created_by,l.updated_at,l.handover_note,l.cancellation_state FROM leave_requests l WHERE l.company_id=? AND (l.created_by=? OR l.decided_by=? OR ${participantSql("leave", "l", "?", "?")} OR ${participantSql("leave_cancellation", "l", "?", "?")}) ORDER BY l.updated_at DESC,l.id LIMIT 250`,
     )
-    .bind(context.companyId, context.userId, context.userId, context.userId, context.assignmentId)
+    .bind(context.companyId, context.userId, context.userId, context.userId, context.assignmentId, context.userId, context.assignmentId)
     .all<WorkRow>();
   const rows = await Promise.all(
     result.results.map(async (row) => {
       const request = await getLeave(holdingId, row.id, context);
       const actionable = request.permittedActions.some((a) =>
-        ["save", "submit", "approve", "reject"].includes(a),
+        ["save", "submit", "approve", "reject", "approve_cancellation", "reject_cancellation"].includes(a),
       );
       const queue: "todo" | "waiting" | "completed" = actionable
         ? "todo"
-        : ["approved", "cancelled"].includes(row.state)
+        : request.cancellation_state === "pending_review" ? "waiting" : ["approved", "cancelled"].includes(row.state)
           ? "completed"
           : "waiting";
       return {
         ...row,
         queue,
-        isApproval: request.permittedActions.includes("approve"),
-        approvalStage: request.approval.currentApprover?.authority ?? null,
+        isApproval: request.permittedActions.includes("approve") || request.permittedActions.includes("approve_cancellation"),
+        approvalStage: (request.cancellationApproval??request.approval).currentApprover?.authority ?? null,
         currentApprover:
-          request.approval.currentApprover?.approver_name ?? null,
-        blockedReason: request.approval.blockedReason,
+          (request.cancellationApproval??request.approval).currentApprover?.approver_name ?? null,
+        blockedReason: (request.cancellationApproval??request.approval).blockedReason,
       };
     }),
   );

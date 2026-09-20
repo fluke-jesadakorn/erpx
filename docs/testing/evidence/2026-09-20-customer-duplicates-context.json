@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-09-20T11:09:32.562Z",
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "dirtyWorkspace": true,
+  "sourceHashes": {
+    "src/server/customer-duplicates.ts": "730efe1816c724b425b29faec7a9af2dc4dcbcc6a444e85c7446904e3acb04c9",
+    "src/components/modules/customer-duplicate-console.tsx": "ba0b859f4b8d1ccb1f8a199e7172d4f627a92525a8014fe1cd39e14f09cf6662",
+    "src/app/api/v1/holdings/[holdingSlug]/customer-duplicates/route.ts": "828ed53f18e7e9b2049be744a6d0050390e6b8e0b524f56f72cabbf886bce446",
+    "tests/customer-duplicates.test.ts": "9e9ba14bae670111449c7f8780ab23a60ff3aff3f4d98f5d1614b4047d4b0be6",
+    "migrations/postgres/holding-write/0222_customer_duplicate_reviews.sql": "88af4a147b8d611debebb2a28714e145f68fda9d412cece2dd27062279af855d"
+  },
+  "scope": "Customer duplicate review and canonical identity decision only",
+  "tests": "11 passed / 3 files; duplicate owner tests, Work views and 362-table baseline",
+  "typecheck": "passed",
+  "limitations": [
+    "No transactional customer merge or source-reference repointing",
+    "No browser, production or customer UAT"
+  ]
+}

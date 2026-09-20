@@ -1,8 +1,9 @@
+import { changeOrderReservation } from "@/server/commerce";
 import { requestPublicOrigin } from "@/server/public-origin";
 import { z } from "zod";
 import { requireWorkContext } from "@/server/authorization";
 import { ApiError,errorResponse } from "@/server/http";
-import { commerceOverview,getOrder,saveOrder,transitionOrder,fulfillOrder,invoiceFulfillment,settleInvoice,saveMaster,orderSchema,transitionSchema,fulfillmentSchema,invoiceFromDeliverySchema,settlementSchema } from "@/server/commerce";
+import { commerceOverview,getOrder,saveOrder,transitionOrder,fulfillOrder,invoiceFulfillment,settleInvoice,saveMaster,requestCommerceReturn,decideCommerceReturn,completeCommerceReturn,orderSchema,transitionSchema,fulfillmentSchema,invoiceFromDeliverySchema,settlementSchema,returnRequestSchema,returnDecisionSchema,returnCompleteSchema } from "@/server/commerce";
 type Context={params:Promise<{holdingSlug:string;path:string[]}>};
 export async function GET(_request:Request,context:Context) {
   try{const {holdingSlug,path}=await context.params;const actor=await requireWorkContext(holdingSlug);return Response.json({data:path[0]==="orders"&&path[1]?await getOrder(actor,path[1]):await commerceOverview(actor)},{headers:{"Cache-Control":"private, no-store"}});}catch(e){return errorResponse(e);}
@@ -14,9 +15,14 @@ export async function POST(request:Request,context:Context) {
     const input=await request.json();let data;
     if(p[0]==="orders"&&p.length<=2)data=await saveOrder(actor,p[1]??null,orderSchema.parse(input),key);
     else if(p[0]==="orders"&&p[2]==="transition")data=await transitionOrder(actor,p[1],transitionSchema.parse(input),key);
+    else if(p[0]==="orders"&&p[2]==="reservations")data=await changeOrderReservation(actor,p[1],input,key);
     else if(p[0]==="orders"&&p[2]==="fulfill")data=await fulfillOrder(actor,p[1],fulfillmentSchema.parse(input),key);
     else if(p[0]==="fulfillments"&&p[2]==="invoice")data=await invoiceFulfillment(actor,p[1],invoiceFromDeliverySchema.parse(input),key);
     else if(p[0]==="invoices"&&p[2]==="settle")data=await settleInvoice(actor,p[1],settlementSchema.parse(input),key);
+    else if(p[0]==="fulfillments"&&p[2]==="returns")data=await requestCommerceReturn(actor,p[1],returnRequestSchema.parse(input),key);
+    else if(p[0]==="returns"&&p[2]==="approve")data=await decideCommerceReturn(actor,p[1],"approve",returnDecisionSchema.parse(input),key);
+    else if(p[0]==="returns"&&p[2]==="reject")data=await decideCommerceReturn(actor,p[1],"reject",returnDecisionSchema.parse(input),key);
+    else if(p[0]==="returns"&&p[2]==="complete")data=await completeCommerceReturn(actor,p[1],returnCompleteSchema.parse(input),key);
     else if(["products","parties","warehouses"].includes(p[0])&&p.length<=2)data=await saveMaster(actor,p[0] as "products"|"parties"|"warehouses",p[1]??null,input,key);
     else throw new ApiError(404,"NOT_FOUND","Workflow action not found.");
     return Response.json({data});

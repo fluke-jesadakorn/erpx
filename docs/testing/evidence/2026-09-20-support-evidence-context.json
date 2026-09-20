@@ -1,0 +1,19 @@
+{
+  "observedAt": "2026-09-20T10:44:23.868190+00:00",
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "dirtyWorkspace": true,
+  "sourceHashes": {
+    "src/server/support-evidence.ts": "bf008adcc55c15e627c64370c1c1c459026de8bdd8fb331eb4b601289bace9e7",
+    "src/components/modules/support-evidence-console.tsx": "7cadd9aada5fb8b2c69668a11000db9b0d5b4b50d60d1a55dcb3237c7cba6c29",
+    "src/app/api/v1/holdings/[holdingSlug]/uploads/route.ts": "26d5a7d23d960072cdfc6596215bfb7e2f9e26b6b4739a0f6040e0a9616bcad4",
+    "src/app/api/v1/holdings/[holdingSlug]/uploads/[id]/content/route.ts": "60c090134cc338efee650bcf011105ac206c25a5dd516c2e8948dc35446245b4",
+    "src/app/api/v1/holdings/[holdingSlug]/attachments/[id]/content/route.ts": "242fea475ebaf688cbf5b97cc9280cf95fb23f76e4407650c53cf5aa077d4a13",
+    "tests/support-evidence.test.ts": "e693e812073e7dd443d525ebb5fa68cfe8ab46d9fa5858267ac926c62357ae9c",
+    "migrations/postgres/holding-write/0220_support_evidence.sql": "53385d8859dfda8c1d8854058b5439c96467b1e74805fab5a1db3735c93baa25"
+  },
+  "tests": "27 passed / 4 files; includes 5 Support evidence API tests and existing expense upload compatibility",
+  "typecheck": "passed before final expense compatibility test added; final refresh pending",
+  "lint": "0 errors / 3 existing warnings before final test addition",
+  "release": ".runtime/releases/2026-09-20T10-34-33-287Z",
+  "scope": "Private ticket evidence only; not customer sharing or incident files"
+}

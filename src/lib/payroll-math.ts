@@ -14,13 +14,20 @@ export function calculatePayrollAmounts(input: {
   hourlyMinor: number;
   regularHours: number;
   overtimeHours: number;
+  overtimeMultiplierBps?: number;
+  prorationNumerator?: number;
+  prorationDenominator?: number;
   components: PayrollComponentInput[];
 }) {
+  const base=input.prorationNumerator!==undefined&&input.prorationDenominator
+    ? Math.round(input.baseMinor*input.prorationNumerator/input.prorationDenominator)
+    : input.baseMinor;
+  const overtimeMultiplier=(input.overtimeMultiplierBps??15000)/10000;
   let gross = input.employmentType === "salaried"
-    ? input.baseMinor
+    ? base
     : input.employmentType === "contractor"
       ? input.baseMinor
-      : Math.round(input.hourlyMinor * (input.regularHours + input.overtimeHours * 1.5));
+      : Math.round(input.hourlyMinor * (input.regularHours + input.overtimeHours * overtimeMultiplier));
   let deductions = 0;
   let employer = 0;
   const applied = input.components.map((component) => {

@@ -4,6 +4,7 @@ import { ApiError } from "./http";
 import type { BetaEnvironment } from "./beta-config";
 
 export type AiEndpoint = {
+  timeoutMs?: number;
   protocol?: AiProtocol;
   sessionId?: string;
   baseUrl: string;
@@ -221,7 +222,7 @@ export async function generateProviderJson(
   messages: AiMessage[],
   maxTokens = 2000,
 ) {
-  const timeoutMs = messages.some(m => Array.isArray(m.content) && m.content.some(p => p.type === "image_url")) ? 90000 : 25000;
+  const timeoutMs = endpoint.timeoutMs ? Math.max(5000,Math.min(120000,endpoint.timeoutMs)) : messages.some(m => Array.isArray(m.content) && m.content.some(p => p.type === "image_url")) ? 90000 : 25000;
   const protocol = endpoint.protocol ?? "chat-completions";
   let rawText: string, inputTokens: unknown, outputTokens: unknown;
   const incomplete = () => new ApiError(503, "AI_INCOMPLETE", "The provider did not finish a usable response. Retry or continue manually.");

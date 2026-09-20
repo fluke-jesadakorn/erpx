@@ -1,0 +1,348 @@
+{
+  "run": "0b01cd73957f",
+  "exportedAt": "2026-09-20T07:02:40.230Z",
+  "scope": "Read-only source verification after normal browser transactions in disposable simulation databases. No credentials or sessions.",
+  "order": [
+    {
+      "id": "order-a3cab2a5-45c5-44b5-8acc-018f6eec87b3",
+      "company_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14",
+      "branch_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-branch",
+      "department_id": null,
+      "kind": "purchase",
+      "number": "PO-4B5615202E5600F5DC19167B",
+      "party_id": "parties-099644e5-440c-421c-8221-fd333e812644",
+      "warehouse_id": "warehouses-d53a24f1-de0d-4165-a91a-2f32ba2bdc85",
+      "currency": "THB",
+      "order_date": "2026-09-20",
+      "due_date": "2026-09-22",
+      "note": "RFQ rfq-554212db-1c9e-4dd8-bb22-8463495be67e: Simulation replenishment and supplier invoice",
+      "state": "fulfilled",
+      "subtotal_minor": "2000",
+      "tax_minor": "140",
+      "source_id": null,
+      "version": "5",
+      "created_by": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-owner",
+      "approved_by": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-it",
+      "created_at": "1789886990168",
+      "updated_at": "1789887294537"
+    }
+  ],
+  "orderLines": [
+    {
+      "id": "order-a3cab2a5-45c5-44b5-8acc-018f6eec87b3-line-0",
+      "order_id": "order-a3cab2a5-45c5-44b5-8acc-018f6eec87b3",
+      "product_id": "products-440b8171-0a16-433f-8f99-04954716a713",
+      "description": "Simulation stock only",
+      "quantity_milli": "2000",
+      "fulfilled_milli": "2000",
+      "price_minor": "1000",
+      "tax_bps": "700",
+      "subtotal_minor": "2000",
+      "tax_minor": "140",
+      "ordinal": "0"
+    }
+  ],
+  "rfq": [
+    {
+      "id": "rfq-554212db-1c9e-4dd8-bb22-8463495be67e",
+      "company_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14",
+      "branch_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-branch",
+      "department_id": null,
+      "warehouse_id": "warehouses-d53a24f1-de0d-4165-a91a-2f32ba2bdc85",
+      "currency": "THB",
+      "title": "Simulation replenishment and supplier invoice",
+      "demand_evidence": "Two units needed for simulated customer demand; compare price and delivery before ordering.",
+      "needed_date": "2026-09-22",
+      "status": "ordered",
+      "selected_offer_id": "rfq-offer-e0eead16-ecdb-43b4-9cfa-acae76fc50bf",
+      "selection_reason": "Offer meets required delivery date and simulation budget; independent buyer review requested.",
+      "submitted_by": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-owner",
+      "approved_by": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-it",
+      "order_id": "order-a3cab2a5-45c5-44b5-8acc-018f6eec87b3",
+      "created_by": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-owner",
+      "version": "5",
+      "created_at": "1789886824168",
+      "updated_at": "1789886990171",
+      "request_id": null,
+      "request_version": null,
+      "request_evidence_version": null,
+      "request_items_json": null
+    }
+  ],
+  "offers": [
+    {
+      "id": "rfq-offer-e0eead16-ecdb-43b4-9cfa-acae76fc50bf",
+      "rfq_id": "rfq-554212db-1c9e-4dd8-bb22-8463495be67e",
+      "supplier_id": "parties-099644e5-440c-421c-8221-fd333e812644",
+      "rfq_version": "1",
+      "reference": "SIM-QUOTE-001",
+      "evidence": "Supplier simulation offer THB 10 per unit, delivery by required date.",
+      "arrival_date": "2026-09-22",
+      "valid_until": "2026-09-30",
+      "currency": "THB",
+      "subtotal_minor": "2000",
+      "tax_minor": "140",
+      "recorded_by": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-owner",
+      "created_at": "1789886859530"
+    }
+  ],
+  "receipts": [
+    {
+      "id": "delivery-b2c02da9-7b49-48d0-b7c7-b1b79ef14423",
+      "order_id": "order-a3cab2a5-45c5-44b5-8acc-018f6eec87b3",
+      "number": "GR-654396B119579BD2C860F5EB",
+      "fulfillment_date": "2026-09-20",
+      "created_by": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-head",
+      "created_at": "1789887218138",
+      "journal_id": "journal-b2c02da9-7b49-48d0-b7c7-b1b79ef14423",
+      "invoice_id": "invoice-0fd42c86-29e5-4921-b3e3-1799f2328f93",
+      "version": "3"
+    }
+  ],
+  "matching": [
+    {
+      "id": "bill-match-a04d4527-4d0f-4ede-818d-9c8331e4eda2",
+      "company_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14",
+      "branch_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-branch",
+      "department_id": null,
+      "order_id": "order-a3cab2a5-45c5-44b5-8acc-018f6eec87b3",
+      "fulfillment_id": "delivery-b2c02da9-7b49-48d0-b7c7-b1b79ef14423",
+      "supplier_id": "parties-099644e5-440c-421c-8221-fd333e812644",
+      "currency": "THB",
+      "chart_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-chart",
+      "clearing_account_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-payable",
+      "payable_account_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-payable",
+      "tax_account_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-tax",
+      "reference": "SIM-INVOICE-001",
+      "invoice_date": "2026-09-20",
+      "due_date": "2026-09-25",
+      "evidence": "Simulated supplier invoice charges THB 12 per received unit; Finance must review THB 4 purchase price difference.",
+      "expected_subtotal_minor": "2000",
+      "subtotal_minor": "2400",
+      "tax_minor": "168",
+      "quantity_matches": true,
+      "variance_account_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-expense",
+      "reviewed_by": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-manager",
+      "review_reason": "Independent simulation review accepts THB 4 purchase price variance as expense; quantity and original receipt cost verified.",
+      "invoice_id": "invoice-0fd42c86-29e5-4921-b3e3-1799f2328f93",
+      "status": "posted",
+      "version": "4",
+      "created_by": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-owner",
+      "created_at": "1789887381526",
+      "updated_at": "1789887752906"
+    }
+  ],
+  "matchLines": [
+    {
+      "id": "bill-match-a04d4527-4d0f-4ede-818d-9c8331e4eda2-0",
+      "match_id": "bill-match-a04d4527-4d0f-4ede-818d-9c8331e4eda2",
+      "fulfillment_line_id": "delivery-b2c02da9-7b49-48d0-b7c7-b1b79ef14423-0",
+      "quantity_milli": "2000",
+      "expected_quantity_milli": "2000",
+      "price_minor": "1200",
+      "tax_bps": "700",
+      "expected_subtotal_minor": "2000",
+      "subtotal_minor": "2400",
+      "tax_minor": "168"
+    }
+  ],
+  "matchEvents": [
+    {
+      "id": "bill-event-a04d4527-4d0f-4ede-818d-9c8331e4eda2",
+      "match_id": "bill-match-a04d4527-4d0f-4ede-818d-9c8331e4eda2",
+      "version": "1",
+      "action": "capture",
+      "actor_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-owner",
+      "reason": "Simulated supplier invoice charges THB 12 per received unit; Finance must review THB 4 purchase price difference.",
+      "created_at": "1789887381526"
+    },
+    {
+      "id": "bill-event-ce5ee9d4-e2a8-4105-8f81-7bc5d152b85a",
+      "match_id": "bill-match-a04d4527-4d0f-4ede-818d-9c8331e4eda2",
+      "version": "2",
+      "action": "approve",
+      "actor_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-manager",
+      "reason": "Independent simulation review accepts THB 4 purchase price variance as expense; quantity and original receipt cost verified.",
+      "created_at": "1789887519556"
+    },
+    {
+      "id": "bill-event-0fd42c86-29e5-4921-b3e3-1799f2328f93",
+      "match_id": "bill-match-a04d4527-4d0f-4ede-818d-9c8331e4eda2",
+      "version": "3",
+      "action": "invoice-created",
+      "actor_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-owner",
+      "reason": "Draft invoice invoice-0fd42c86-29e5-4921-b3e3-1799f2328f93 prepared for independent GL posting",
+      "created_at": "1789887577503"
+    },
+    {
+      "id": "bill-event-bb0622c5-d1b3-4133-a99c-fa213e3ef534",
+      "match_id": "bill-match-a04d4527-4d0f-4ede-818d-9c8331e4eda2",
+      "version": "4",
+      "action": "posted",
+      "actor_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-manager",
+      "reason": "Matched invoice and price variance posted to GL",
+      "created_at": "1789887752906"
+    }
+  ],
+  "invoice": [
+    {
+      "id": "invoice-0fd42c86-29e5-4921-b3e3-1799f2328f93",
+      "company_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14",
+      "party_id": "parties-099644e5-440c-421c-8221-fd333e812644",
+      "kind": "payable",
+      "invoice_number": "SIM-INVOICE-001",
+      "invoice_date": "2026-09-20",
+      "due_date": "2026-09-25",
+      "currency": "THB",
+      "subtotal_minor": "2400",
+      "tax_minor": "168",
+      "total_minor": "2568",
+      "outstanding_minor": "2568",
+      "tax_code": null,
+      "debit_account_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-payable",
+      "credit_account_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-payable",
+      "source_type": "commerce_fulfillment",
+      "source_id": "delivery-b2c02da9-7b49-48d0-b7c7-b1b79ef14423",
+      "status": "posted",
+      "journal_id": "journal-bb0622c5-d1b3-4133-a99c-fa213e3ef534",
+      "version": "2",
+      "created_by": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-owner",
+      "approved_by": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-manager",
+      "posted_at": "1789887752908",
+      "created_at": "1789887577503",
+      "updated_at": "1789887752908",
+      "tax_account_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-tax"
+    }
+  ],
+  "stock": [
+    {
+      "warehouse_id": "warehouses-d53a24f1-de0d-4165-a91a-2f32ba2bdc85",
+      "product_id": "products-440b8171-0a16-433f-8f99-04954716a713",
+      "quantity_milli": "2000",
+      "value_minor": "2000",
+      "version": "2"
+    }
+  ],
+  "journals": [
+    {
+      "id": "journal-b2c02da9-7b49-48d0-b7c7-b1b79ef14423",
+      "company_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14",
+      "chart_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-chart",
+      "period_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-period",
+      "journal_number": "GL-b2c02da9-7b49-48d0-b7c7-b1b79ef14423",
+      "entry_date": "2026-09-20",
+      "currency": "THB",
+      "fx_rate_micros": null,
+      "source_type": "goods_receipt",
+      "source_id": "delivery-b2c02da9-7b49-48d0-b7c7-b1b79ef14423",
+      "memo": "goods_receipt delivery-b2c02da9-7b49-48d0-b7c7-b1b79ef14423",
+      "status": "posted",
+      "is_opening": "0",
+      "version": "2",
+      "created_by": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-head",
+      "posted_by": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-manager",
+      "posted_at": "1789887294298",
+      "reversed_by": null,
+      "reversed_at": null,
+      "created_at": "1789887218140",
+      "updated_at": "1789887294298"
+    },
+    {
+      "id": "journal-bb0622c5-d1b3-4133-a99c-fa213e3ef534",
+      "company_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14",
+      "chart_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-chart",
+      "period_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-period",
+      "journal_number": "J-bb0622c5-d1b3-4133-a99c-fa213e3ef534",
+      "entry_date": "2026-09-20",
+      "currency": "THB",
+      "fx_rate_micros": "1000000",
+      "source_type": "invoice",
+      "source_id": "invoice-0fd42c86-29e5-4921-b3e3-1799f2328f93",
+      "memo": "Invoice SIM-INVOICE-001",
+      "status": "posted",
+      "is_opening": "0",
+      "version": "1",
+      "created_by": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-manager",
+      "posted_by": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-manager",
+      "posted_at": "1789887752908",
+      "reversed_by": null,
+      "reversed_at": null,
+      "created_at": "1789887752908",
+      "updated_at": "1789887752908"
+    }
+  ],
+  "journalLines": [
+    {
+      "id": "journal-b2c02da9-7b49-48d0-b7c7-b1b79ef14423-0",
+      "journal_id": "journal-b2c02da9-7b49-48d0-b7c7-b1b79ef14423",
+      "account_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-inventory",
+      "description": "",
+      "debit_minor": "2000",
+      "credit_minor": "0",
+      "base_debit_minor": "2000",
+      "base_credit_minor": "0",
+      "dimension_json": "{}",
+      "ordinal": "0"
+    },
+    {
+      "id": "journal-b2c02da9-7b49-48d0-b7c7-b1b79ef14423-1",
+      "journal_id": "journal-b2c02da9-7b49-48d0-b7c7-b1b79ef14423",
+      "account_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-payable",
+      "description": "",
+      "debit_minor": "0",
+      "credit_minor": "2000",
+      "base_debit_minor": "0",
+      "base_credit_minor": "2000",
+      "dimension_json": "{}",
+      "ordinal": "1"
+    },
+    {
+      "id": "journal-bb0622c5-d1b3-4133-a99c-fa213e3ef534-0",
+      "journal_id": "journal-bb0622c5-d1b3-4133-a99c-fa213e3ef534",
+      "account_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-payable",
+      "description": "",
+      "debit_minor": "2000",
+      "credit_minor": "0",
+      "base_debit_minor": "2000",
+      "base_credit_minor": "0",
+      "dimension_json": "{}",
+      "ordinal": "0"
+    },
+    {
+      "id": "journal-bb0622c5-d1b3-4133-a99c-fa213e3ef534-1",
+      "journal_id": "journal-bb0622c5-d1b3-4133-a99c-fa213e3ef534",
+      "account_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-expense",
+      "description": "",
+      "debit_minor": "400",
+      "credit_minor": "0",
+      "base_debit_minor": "400",
+      "base_credit_minor": "0",
+      "dimension_json": "{}",
+      "ordinal": "1"
+    },
+    {
+      "id": "journal-bb0622c5-d1b3-4133-a99c-fa213e3ef534-2",
+      "journal_id": "journal-bb0622c5-d1b3-4133-a99c-fa213e3ef534",
+      "account_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-tax",
+      "description": "",
+      "debit_minor": "168",
+      "credit_minor": "0",
+      "base_debit_minor": "168",
+      "base_credit_minor": "0",
+      "dimension_json": "{}",
+      "ordinal": "2"
+    },
+    {
+      "id": "journal-bb0622c5-d1b3-4133-a99c-fa213e3ef534-3",
+      "journal_id": "journal-bb0622c5-d1b3-4133-a99c-fa213e3ef534",
+      "account_id": "expense-24d77407-7b2b-46e4-8159-8b3080973f14-payable",
+      "description": "",
+      "debit_minor": "0",
+      "credit_minor": "2568",
+      "base_debit_minor": "0",
+      "base_credit_minor": "2568",
+      "dimension_json": "{}",
+      "ordinal": "3"
+    }
+  ]
+}

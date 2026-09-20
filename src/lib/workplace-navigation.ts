@@ -1,6 +1,8 @@
 import { adminSections, type AdminSection } from "./administration";
 import { iamSections } from "./iam";
 import { hasPermission } from "./permissions";
+import { visiblePmsSections } from "./pms";
+import { peopleIamDestination } from "./people-lifecycle";
 
 export type NavigationScopeKind =
   | "platform"
@@ -15,18 +17,24 @@ export type NavigationContext = {
   role?: string;
   permissions?: readonly string[];
   adminSections?: AdminSection[];
+  /** From administrationAccess.manageOrganization, not readable section access. */
+  canManageApprovals?: boolean;
+  executiveVisible?: boolean;
 };
 
 export type NavigationIconId =
   | "home"
   | "work"
   | "inbox"
+  | "calendar"
   | "people"
   | "commerce"
   | "finance"
+  | "pms"
   | "learn"
   | "settings"
   | "feedback"
+  | "technology"
   | "projects"
   | "feed"
   | "organization"
@@ -64,7 +72,7 @@ export type NavigationItem = {
   keywords?: string[];
 };
 
-export type NavigationGroup = {
+export type NavigationApp = {
   id: string;
   label: string;
   icon: NavigationIconId;
@@ -74,11 +82,21 @@ export type NavigationGroup = {
   keywords?: string[];
 };
 
+/** Sidebar-only grouping. Categories never become route or breadcrumb parents. */
+export type NavigationCategory = {
+  id: "people-organization" | "operations" | "finance" | "management" | "system";
+  label: string;
+  icon: NavigationIconId;
+  apps: NavigationItem[];
+};
+
 export type WorkplaceNavigationModel = {
   primary: NavigationItem[];
-  groups: NavigationGroup[];
+  apps: NavigationApp[];
+  categories: NavigationCategory[];
   standalone: NavigationItem[];
   search: NavigationItem[];
+  settingsDefault?: AdminSection;
 };
 
 type SearchParamsLike = Pick<URLSearchParams, "get">;
@@ -153,7 +171,7 @@ export function workplaceNavigation(
       : allowedAdminSections.filter((section) =>
           ["people", "organization", "feedback"].includes(section),
         );
-  const actor = { role, permissions: context.permissions };
+  const actor = { role, permissions: context.permissions, assignmentScope: scopeKind };
   const item = (
     id: string,
     label: string,
@@ -174,10 +192,12 @@ export function workplaceNavigation(
     item("home", "Home", "home", "Workspace", "home"),
     item("work", "Work", "work", "Workspace", "work"),
     item("inbox", "Inbox", "inbox", "Workspace", "inbox"),
+    ...(!platform && !beta ? [item("calendar", "Calendar", "calendar", "Workspace", "calendar", ["shifts", "leave", "appointments", "onboarding"])] : []),
   ];
 
   if (platform) {
     const standalone = [
+      item("platform-billing", "Billing", "billing", "Platform", "settings", ["invoices", "support", "costs"]),
       item("learn", "Learn", "learn", "Platform", "learn"),
       item("feed", "Platform updates", "feed", "Platform", "feed", [
         "updates",
@@ -201,23 +221,24 @@ export function workplaceNavigation(
     ];
     return {
       primary,
-      groups: [],
+      apps: [],
+      categories: [],
       standalone,
       search: uniqueDestinations([...primary, ...standalone]),
     };
   }
 
-  const groups: NavigationGroup[] = [];
+  const apps: NavigationApp[] = [];
   const group = (
     id: string,
     label: string,
     icon: NavigationIconId,
-    placement: NavigationGroup["placement"],
+    placement: NavigationApp["placement"],
     items: NavigationItem[],
     href?: string,
     keywords?: string[],
   ) =>
-    groups.push({
+    items.length && apps.push({
       id,
       label,
       icon,
@@ -227,10 +248,16 @@ export function workplaceNavigation(
       ...(keywords?.length ? { keywords } : {}),
     });
 
+  if ((context.executiveVisible ?? hasPermission(actor, "executive.access"))) {
+    group("executive", "Executive", "finance", "business", [item("executive-canvas", "AI Live Canvas", "executive", "Executive", "finance", ["reports", "dashboard", "analytics", "AI", "widgets"])], `${base}/executive`);
+  }
+
   const peopleItems = [
+    item("people-directory", "People directory", "people", "People", "admin-people", ["employees", "staff", "profiles"]),
+    ...(!beta ? [item("people-roster", "Roster", "people/roster", "People", "routine", ["shifts", "schedule", "swap"])] : []),
     item(
       "people-organization",
-      "Organization",
+      "Organization & positions",
       "people/organization",
       "People",
       "organization",
@@ -249,17 +276,24 @@ export function workplaceNavigation(
           ),
         ]
       : []),
-    ...(hasPermission(actor, "iam.read")
+    ...(beta && hasPermission(actor, "iam.read")
       ? [
           item(
             "people-access",
-            "Directory & access",
+            "Access & devices",
             "people/access",
             "People",
             "access",
             ["employee access"],
           ),
         ]
+      : []),
+    ...(!beta ? [
+      item("handbook", "Company handbook", "handbook", "People", "handbook", ["policies", "knowledge"]),
+      item("learn", "Learn", "learn", "People", "education"),
+    ] : []),
+    ...(!beta && (hasPermission(actor, "iam.read") || hasPermission(actor, "organization.manage"))
+      ? [item("people-settings", "People settings", "people/settings", "People", "settings", ["HR templates", "lifecycle handoff", "custom attributes"])]
       : []),
   ];
   group(
@@ -277,15 +311,23 @@ export function workplaceNavigation(
       scopeKind !== "department" && hasPermission(actor, "inventory.read");
     group(
       "operations",
-      "Operations",
+      "Sales & purchasing",
       "commerce",
       "business",
       [
         item(
+          "operations-sales",
+          commerceViewLabel("sales"),
+          "commerce",
+          "Sales & purchasing",
+          "invoice",
+          ["orders", "sales"],
+        ),
+        item(
           "operations-quotations",
           commerceViewLabel("quote"),
           "commerce?view=quote",
-          "Operations",
+          "Sales & purchasing",
           "quotation",
           ["quotes", "sales"],
         ),
@@ -293,15 +335,33 @@ export function workplaceNavigation(
           "operations-purchasing",
           commerceViewLabel("purchase"),
           "commerce?view=purchase",
-          "Operations",
+          "Sales & purchasing",
           "purchasing",
           ["procurement", "purchasing"],
         ),
         item(
+          "operations-parties",
+          commerceViewLabel("parties"),
+          "commerce?view=parties",
+          "Sales & purchasing",
+          "parties",
+          ["partners", "customers", "suppliers"],
+        ),
+      ],
+      `${base}/commerce`,
+      ["operations", "sales orders", "procurement"],
+    );
+    group(
+      "inventory",
+      "Inventory",
+      "warehouse",
+      "business",
+      [
+        item(
           "operations-stock",
           commerceViewLabel("stock"),
           "commerce?view=stock",
-          "Operations",
+          "Inventory",
           "stock",
           ["inventory"],
         ),
@@ -311,7 +371,7 @@ export function workplaceNavigation(
                 "operations-counts",
                 "Stock counts",
                 "stock-counts",
-                "Operations",
+                "Inventory",
                 "stock-count",
                 ["inventory adjustments"],
               ),
@@ -319,7 +379,7 @@ export function workplaceNavigation(
                 "operations-transfers",
                 "Warehouse transfers",
                 "stock-transfers",
-                "Operations",
+                "Inventory",
                 "stock-transfer",
                 ["inventory transfers"],
               ),
@@ -329,7 +389,7 @@ export function workplaceNavigation(
           "operations-products",
           commerceViewLabel("products"),
           "commerce?view=products",
-          "Operations",
+          "Inventory",
           "product",
           ["catalog"],
         ),
@@ -337,31 +397,63 @@ export function workplaceNavigation(
           "operations-warehouses",
           commerceViewLabel("warehouses"),
           "commerce?view=warehouses",
-          "Operations",
+          "Inventory",
           "warehouse",
           ["locations"],
         ),
-        item(
-          "operations-parties",
-          commerceViewLabel("parties"),
-          "commerce?view=parties",
-          "Operations",
-          "parties",
-          ["partners", "customers", "suppliers"],
-        ),
       ],
-      `${base}/commerce`,
-      ["sales orders", "sales", "purchasing", "inventory"],
+      `${base}/commerce?view=stock`,
+      ["stock", "products", "warehouses"],
     );
   }
 
-  if (!beta && hasPermission(actor, "finance.read")) {
-    group(
-      "finance",
-      "Finance",
-      "finance",
-      "business",
-      [
+  // Counts and transfers have their own read permission, independent of commerce.
+  if (!beta && !hasPermission(actor, "commerce.read") && hasPermission(actor, "inventory.read")) {
+    group("inventory", "Inventory", "warehouse", "business", [
+      item("operations-counts", "Stock counts", "stock-counts", "Inventory", "stock-count"),
+      item("operations-transfers", "Warehouse transfers", "stock-transfers", "Inventory", "stock-transfer"),
+    ], `${base}/stock-counts`);
+  }
+
+  if (!beta && hasPermission(actor, "inventory.read") && scopeKind !== "department") {
+    const inventory=apps.find(app=>app.id==='inventory');
+    if(inventory)inventory.items.push(item('operations-transit','Stock in transit','stock-transit','Inventory','stock-transfer',['dispatch','receiving','discrepancy']));
+  }
+
+  if (!beta && hasPermission(actor, "commerce.read")) {
+    group("crm", "Customers & CRM", "parties", "business", [item("crm-pipeline","Leads & opportunities","crm","Customers & CRM","quotation"),item("customer-timeline","Customer 360","customers","Customers & CRM","parties"),item("customer-followups","Customer follow-ups","customer-followups","Customers & CRM","calendar")], `${base}/crm`);
+  }
+  if (!beta && hasPermission(actor, "support.read")) {
+    group("support", "Customer support", "feedback", "business", [item("support-cases","Support cases","support","Customer support","feedback")], `${base}/support`);
+  }
+
+  if (!beta && hasPermission(actor, "quality.read") && scopeKind !== "department") {
+    group("quality", "Quality", "warehouse", "business", [item("quality-holds", "Quality holds", "quality", "Quality", "stock-count", ["inspection", "quarantine", "release"])], `${base}/quality`);
+  }
+
+  if (!beta && hasPermission(actor, "pos.read")) {
+    group("pos", "POS", "commerce", "business", [
+      item("pos-sale", "Point of sale", "pos", "POS", "product", ["cashier", "sales floor"]),
+      item("pos-kitchen", "Kitchen", "pos?tab=kitchen", "POS", "routine"),
+      item("pos-shifts", "Cash sessions", "pos?tab=shifts", "POS", "bank"),
+      item("pos-history", "Receipts & refunds", "pos?tab=history", "POS", "invoice"),
+      ...(hasPermission(actor, "pos.reports") ? [item("pos-reports", "POS reports", "pos?tab=reports", "POS", "ledger")] : []),
+      ...(hasPermission(actor, "pos.configure") || hasPermission(actor, "pos.payments.configure") ? [item("pos-settings", "POS settings", "pos?tab=settings", "POS", "settings")] : []),
+    ], `${base}/pos`);
+  }
+
+  if (!beta && scopeKind !== "department" && hasPermission(actor,"pms.read")) {
+    const pmsIcons: Record<string, NavigationIconId> = {
+      dashboard: "home", reservations: "quotation", "front-desk": "people",
+      rooms: "warehouse", housekeeping: "staff-task", folios: "invoice",
+      cashier: "bank", inventory: "stock", guests: "parties", reports: "ledger",
+      "night-audit": "routine", settings: "settings",
+    };
+    group("pms", "Hotel PMS", "pms", "business", visiblePmsSections((permission) => hasPermission(actor, permission)).map(([key, label]) => item(`pms-${key}`, label, `pms/${key}`, "Hotel PMS", pmsIcons[key])), `${base}/pms/dashboard`, ["hotel", "reservation", "housekeeping", "rooms", "book room"]);
+  }
+  if (!beta) {
+    const financeItems = hasPermission(actor, "finance.read") ? [
+        item("finance-overview", "Finance overview", "finance", "Finance", "home", ["accounting", "payments"]),
         item(
           "finance-ledger",
           "Ledger & reports",
@@ -378,6 +470,8 @@ export function workplaceNavigation(
           "invoice",
           ["receivables", "payables", "payments"],
         ),
+        ...(scopeKind === "holding" ? [item("finance-supplier-batches", "Supplier payment batches", "finance/supplier-batches", "Finance", "bank", ["supplier payments", "bank export", "payment batches"])] : []),
+        item("finance-refunds", "Return refunds", "finance/refunds", "Finance", "bank", ["credit notes", "refund obligations", "return payments"]),
         item(
           "finance-bank",
           "Bank reconciliation",
@@ -394,24 +488,26 @@ export function workplaceNavigation(
           "expense",
           ["expense claims", "reimbursements"],
         ),
-      ],
-      `${base}/finance`,
-      ["finance overview", "accounting"],
+    ] : [];
+    if (visibleAdminSections.includes("usage")) financeItems.push(
+      item("administration-usage", "Usage & billing", "settings?section=usage", "Finance", "admin-usage", ["subscription", "costs"]),
     );
+    group("finance", "Finance", "finance", "business", financeItems, financeItems[0]?.href, ["accounting"]);
   }
 
   if (!beta) {
     group(
       "projects",
-      "Projects",
+      "Projects & workflows",
       "projects",
       "business",
       [
+        item("projects-list", "All projects", "projects", "Projects & workflows", "projects", ["project list"]),
         item(
           "projects-tasks",
           "Staff tasks",
           "staff-tasks",
-          "Projects",
+          "Projects & workflows",
           "staff-task",
           ["tasks", "handoffs"],
         ),
@@ -419,107 +515,145 @@ export function workplaceNavigation(
           "projects-routines",
           "Routine templates",
           "routine-templates",
-          "Projects",
+          "Projects & workflows",
           "routine",
           ["routines", "schedules"],
         ),
+        ...(context.canManageApprovals && visibleAdminSections.includes("approvals") ? [
+          item("administration-approvals", "Approvals", "settings?section=approvals", "Projects & workflows", "admin-approvals", ["approval queue", "requests"]),
+        ] : []),
       ],
       `${base}/projects`,
       ["project list"],
     );
+
+    const technologyItems = hasPermission(actor, "iam.read") ? [
+      item("technology-positions", "Positions", "technology?view=positions", "Technology", "access", ["employee access", "position access"]),
+      item("technology-employees", "Employees", "technology?view=employees", "Technology", "people", ["provisioning"]),
+      item("technology-groups", "Directory & GPO", "technology?view=directory", "Technology", "people", ["Windows policies", "directory groups", "mappings"]),
+      item("technology-devices", "Resources", "technology?view=resources", "Technology", "technology", ["equipment", "IT preparation"]),
+      item("technology-connections", "Directory connections", "people/settings?section=connections", "Technology", "admin-iam", ["Active Directory", "Entra", "UCS"]),
+      item("technology-roles", "Roles & permissions", "people/settings?section=roles", "Technology", "access", ["access matrix", "security"]),
+      item("technology-reviews", "Reviews & audit", "people/settings?section=reviews", "Technology", "stock-count", ["access reviews", "history"]),
+    ] : [];
+    if (visibleAdminSections.includes("ai")) technologyItems.push(
+      item("administration-ai", "AI providers", "settings?section=ai", "Technology", "admin-ai"),
+    );
+    if(scopeKind==='holding'&&hasPermission(actor,'organization.manage'))technologyItems.push(
+      item('technology-business-readiness','Business readiness','settings/business-readiness','Technology','stock-count',['acceptance','A–J','release gates']),
+    );
+    group("technology", "Technology", "technology", "business", technologyItems, technologyItems[0]?.href);
   }
 
-  group(
-    "resources",
-    "Resources",
-    "learn",
-    "secondary",
-    [
-      item(
-        "handbook",
-        "Company handbook",
-        "handbook",
-        "Resources",
-        "handbook",
-        ["policies", "knowledge"],
-      ),
-      ...(!beta
-        ? [item("learn", "Learn", "learn", "Resources", "education")]
-        : []),
-      item(
-        "feedback",
-        "Help & feedback",
-        "settings?section=feedback",
-        "Resources",
-        "feedback",
-        ["support", "reports"],
-      ),
-    ],
-    undefined,
-    ["knowledge", "support"],
-  );
-
-  const settingsItems = adminSections
-    .filter(
-      ([section]) =>
-        section !== "feedback" && visibleAdminSections.includes(section),
-    )
-    .map(([section, label]) =>
-      item(
-        `administration-${section}`,
-        label,
-        `settings?section=${section}`,
-        "Administration",
-        adminSectionIcons[section],
-      ),
-    );
-  const iamItem = hasPermission(actor, "iam.read")
-    ? item(
-        "administration-iam",
-        "Identity & access",
-        "iam",
-        "Administration",
-        "admin-iam",
-        ["users", "roles", "permissions", "access matrix"],
-      )
-    : null;
-  const administrationItems = [
-    ...settingsItems,
-    ...(iamItem ? [iamItem] : []),
-  ];
-  if (administrationItems.length) {
-    const [landing, ...children] = administrationItems;
+  if (beta) {
     group(
-      "administration",
-      "Administration",
-      "settings",
+      "resources",
+      "Resources",
+      "learn",
       "secondary",
-      children,
-      landing.href,
-      [landing.label, ...(landing.keywords ?? [])],
+      [
+        item(
+          "handbook",
+          "Company handbook",
+          "handbook",
+          "Resources",
+          "handbook",
+          ["policies", "knowledge"],
+        ),
+        item(
+          "feedback",
+          "Help & feedback",
+          "settings?section=feedback",
+          "Resources",
+          "feedback",
+          ["support", "reports"],
+        ),
+      ],
+      undefined,
+      ["knowledge", "support"],
     );
+
+    const settingsItems = adminSections
+      .filter(
+        ([section]) =>
+          section !== "feedback" && visibleAdminSections.includes(section),
+      )
+      .map(([section, label]) =>
+        item(
+          `administration-${section}`,
+          label,
+          `settings?section=${section}`,
+          "Administration",
+          adminSectionIcons[section],
+        ),
+      );
+    const administrationItems = settingsItems;
+    if (administrationItems.length) {
+      group(
+        "administration",
+        "Administration",
+        "settings",
+        "secondary",
+        administrationItems,
+        administrationItems[0].href,
+      );
+    }
   }
 
-  const groupDestinations = groups.flatMap((entry) => [
-    ...(entry.href
-      ? [
-          item(
-            entry.id,
-            entry.label,
-            entry.href,
-            entry.label,
-            entry.icon,
-            entry.keywords,
-          ),
-        ]
+  const standalone = beta ? [] : [
+    ...(hasPermission(actor, "legal.read")
+      ? [item("legal", "Legal", "legal", "Legal", "handbook", ["contracts", "cases", "compliance"])]
       : []),
-    ...entry.items,
-  ]);
+    item("feedback", "Help & feedback", "settings?section=feedback", "Help & feedback", "feedback", ["support", "reports"]),
+  ];
+
+  const appDestinations = apps.flatMap((entry) => entry.items.map((child) => ({
+    ...child,
+    keywords: [...(child.keywords ?? []), ...(entry.keywords ?? [])],
+  })));
+  const appItems = new Map(apps.map((app) => [app.id, {
+    id: app.id,
+    label: app.label,
+    icon: app.icon,
+    href: app.href ?? app.items[0].href,
+    group: "Apps",
+    keywords: app.keywords,
+  } satisfies NavigationItem]));
+  const destinationItems = new Map(
+    [...primary, ...standalone].map((entry) => [entry.id, entry]),
+  );
+  const category = (
+    id: NavigationCategory["id"],
+    label: string,
+    icon: NavigationIconId,
+    ids: string[],
+  ): NavigationCategory | null => {
+    const entries = ids.flatMap((entryId) => {
+      const entry = appItems.get(entryId) ?? destinationItems.get(entryId);
+      return entry ? [{ ...entry, group: label }] : [];
+    });
+    return entries.length ? { id, label, icon, apps: entries } : null;
+  };
+  const categories = (beta
+    ? [
+        category("people-organization", "People & organization", "people", ["people", "resources"]),
+        category("management", "Management", "projects", ["executive"]),
+        category("system", "System", "technology", ["administration"]),
+      ]
+    : [
+        category("people-organization", "People & organization", "people", ["people"]),
+        category("operations", "Operations", "commerce", ["operations", "crm", "support", "inventory", "quality", "pos", "pms"]),
+        category("finance", "Finance", "finance", ["finance"]),
+        category("management", "Management", "projects", ["executive", "projects", "legal"]),
+        category("system", "System", "technology", ["technology", "feedback"]),
+      ]).filter((entry): entry is NavigationCategory => entry !== null);
   return {
     primary,
-    groups,
-    standalone: [],
-    search: uniqueDestinations([...primary, ...groupDestinations]),
+    apps,
+    categories,
+    standalone,
+    search: uniqueDestinations([...primary, ...appDestinations, ...standalone]),
+    settingsDefault: visibleAdminSections.some((section) => ["people", "usage", "ai"].includes(section)) ? visibleAdminSections[0] : "feedback",
   };
 }
 
@@ -527,7 +661,8 @@ function queryValue(searchParams: SearchParamsLike | undefined, key: string) {
   return searchParams?.get(key) ?? "";
 }
 
-function relativeSegments(base: string, pathname: string) {
+function relativeSegments(base: string, pathname: string | null) {
+  pathname ??= `${base}/home`;
   const relative = pathname.startsWith(`${base}/`)
     ? pathname.slice(base.length + 1)
     : pathname.startsWith("/")
@@ -542,8 +677,8 @@ function relativeSegments(base: string, pathname: string) {
   });
 }
 
-function hasGroup(model: WorkplaceNavigationModel, id: string) {
-  return model.groups.some((entry) => entry.id === id);
+function hasApp(model: WorkplaceNavigationModel, id: string) {
+  return model.apps.some((entry) => entry.id === id);
 }
 
 export function resolveNavigation(
@@ -553,13 +688,19 @@ export function resolveNavigation(
   searchParams?: SearchParamsLike,
 ): NavigationResolution {
   const [route, second, third] = relativeSegments(base, pathname);
+  const standard = base !== "/platform" && !hasApp(model, "resources");
   if (!route || route === "home")
     return { activeId: "home" };
   if (route === "feed")
     return { activeId: base === "/platform" ? "feed" : "home" };
   if (route === "posts")
     return { activeId: "home", detailLabel: "Update" };
+  if (route === "executive") return { activeId: "executive-canvas", groupId: "executive", detailLabel: second === "reports" ? "Report" : undefined };
+  if (route === "legal") return { activeId: "legal" };
+  if (route === "calendar") return { activeId: "calendar" };
   if (route === "inbox") return { activeId: "inbox" };
+  if (route === "billing" && base === "/platform") return { activeId: "platform-billing" };
+  if (route === "my-access") return { activeId: "my-access" };
   if (route === "work") return { activeId: "work" };
   if (route === "requests")
     return { activeId: "work", detailLabel: second ? "Request" : undefined };
@@ -569,11 +710,27 @@ export function resolveNavigation(
       detailLabel:
         second === "people_payroll" ? "Annual leave request" : "Task",
     };
+  if (route === "technology") return {activeId: ({positions:"technology-positions",employees:"technology-employees",directory:"technology-groups",resources:"technology-devices"} as Record<string,string>)[searchParams?.get("view")??"positions"]??"technology-positions",groupId:"technology"};
   if (route === "people") {
+    if (second === "roster") return { activeId: "people-roster", groupId: "people" };
+    if (second === "settings") {
+      const section = queryValue(searchParams, "section");
+      const technologyId: Record<string, string> = {
+        connections: "technology-connections", roles: "technology-roles",
+        matrix: "technology-roles", reviews: "technology-reviews",
+        groups: "technology-groups",
+      };
+      if (standard && technologyId[section]) return { activeId: technologyId[section], groupId: "technology" };
+      return { activeId: "people-settings", groupId: "people" };
+    }
     if (second === "organization")
       return { activeId: "people-organization", groupId: "people" };
-    if (second === "access")
-      return { activeId: "people-access", groupId: "people" };
+    if (second === "access") {
+      const view = queryValue(searchParams, "view");
+      return standard
+        ? { activeId: `technology-${view === "devices" ? "devices" : ["groups", "policies"].includes(view) ? "groups" : "devices"}`, groupId: "technology" }
+        : { activeId: "people-access", groupId: "people" };
+    }
     if (second === "payroll")
       return {
         activeId: "people-payroll",
@@ -583,7 +740,7 @@ export function resolveNavigation(
     if (queryValue(searchParams, "view") === "payroll")
       return { activeId: "people-payroll", groupId: "people" };
     return {
-      activeId: "people",
+      activeId: "people-directory",
       groupId: "people",
       detailLabel: second ? "Person" : undefined,
     };
@@ -597,6 +754,7 @@ export function resolveNavigation(
       };
     const view = queryValue(searchParams, "view");
     const byView: Record<string, string> = {
+      sales: "operations-sales",
       quote: "operations-quotations",
       purchase: "operations-purchasing",
       stock: "operations-stock",
@@ -605,22 +763,32 @@ export function resolveNavigation(
       parties: "operations-parties",
     };
     return {
-      activeId: byView[view] ?? "operations",
-      groupId: "operations",
+      activeId: byView[view] ?? "operations-sales",
+      groupId: ["stock", "products", "warehouses"].includes(view) ? "inventory" : "operations",
     };
   }
+  if (route === "support") return {activeId:"support-cases",groupId:"support",detailLabel:second==="sla"?"Resolution-time watch":second==="incidents"?"Shared incidents":second?"Support case":undefined};
+  if (route === "crm") return {activeId:"crm-pipeline",groupId:"crm",detailLabel:second?"CRM case":undefined};
+  if (route === "customers") return {activeId:"customer-timeline",groupId:"crm",detailLabel:second?"Customer timeline":undefined};
+  if (route === "customer-followups") return {activeId:"customer-followups",groupId:"crm",detailLabel:second?"Customer follow-up":undefined};
+  if (route === "quality") return {activeId:"quality-holds",groupId:"quality",detailLabel:second?"Quality hold":undefined};
+  if (route === "stock-transit") return {activeId:"operations-transit",groupId:"inventory",detailLabel:second?"Transport":undefined};
   if (route === "stock-counts")
     return {
       activeId: "operations-counts",
-      groupId: "operations",
+      groupId: "inventory",
       detailLabel: second ? "Stock count" : undefined,
     };
+  if (route === "pos") return {activeId:`pos-${queryValue(searchParams, "tab") || "sale"}`,groupId:"pos"};
   if (route === "stock-transfers")
     return {
       activeId: "operations-transfers",
-      groupId: "operations",
+      groupId: "inventory",
       detailLabel: second ? "Warehouse transfer" : undefined,
     };
+  if (route === "pms") return second === "documents"
+    ? { activeId: "pms-folios", groupId: "pms", detailLabel: "Document" }
+    : { activeId: `pms-${second ?? "dashboard"}`, groupId: "pms" };
   if (route === "finance") {
     const bySection: Record<string, string> = {
       ledger: "finance-ledger",
@@ -628,8 +796,10 @@ export function resolveNavigation(
       invoices: "finance-invoices",
       payments: "finance-invoices",
       bank: "finance-bank",
+      refunds: "finance-refunds",
+      "supplier-batches": "finance-supplier-batches",
     };
-    const activeId = bySection[second ?? ""] ?? "finance";
+    const activeId = bySection[second ?? ""] ?? "finance-overview";
     return {
       activeId,
       groupId: "finance",
@@ -644,7 +814,7 @@ export function resolveNavigation(
     };
   }
   if (route === "expenses") {
-    if (hasGroup(model, "finance"))
+    if (model.search.some((item) => item.id === "finance-expenses"))
       return {
         activeId: "finance-expenses",
         groupId: "finance",
@@ -657,7 +827,7 @@ export function resolveNavigation(
   }
   if (route === "projects")
     return {
-      activeId: "projects",
+      activeId: "projects-list",
       groupId: "projects",
       detailLabel: second ? "Project" : undefined,
     };
@@ -676,54 +846,49 @@ export function resolveNavigation(
   if (route === "handbook")
     return {
       activeId: "handbook",
-      groupId: "resources",
+      groupId: standard ? "people" : "resources",
       detailLabel: second ? "Article" : undefined,
     };
   if (route === "learn")
     return {
       activeId: "learn",
-      groupId: hasGroup(model, "resources") ? "resources" : undefined,
+      groupId: standard ? "people" : hasApp(model, "resources") ? "resources" : undefined,
     };
   if (route === "settings") {
-    const section = queryValue(searchParams, "section");
-    const administration = model.groups.find(
+    if(second==='business-readiness')return {activeId:'technology-business-readiness',groupId:'technology'};
+    const section = queryValue(searchParams, "section") || (standard ? model.settingsDefault : "");
+    if (standard) {
+      if (section === "feedback") return { activeId: "feedback" };
+      if (section === "usage") return { activeId: "administration-usage", groupId: "finance" };
+      if (section === "ai") return { activeId: "administration-ai", groupId: "technology" };
+      if (section === "approvals") return model.search.some((item) => item.id === "administration-approvals")
+        ? { activeId: "administration-approvals", groupId: "projects" }
+        : { activeId: "projects-routines", groupId: "projects" };
+      return { activeId: section === "organization" ? "people-organization" : "people-settings", groupId: "people" };
+    }
+    const administration = model.apps.find(
       (entry) => entry.id === "administration",
     );
     if (!section)
       return administration
-        ? { activeId: "administration", groupId: "administration" }
+        ? { activeId: administration.items[0].id, groupId: "administration" }
         : { activeId: "feedback", groupId: "resources" };
     if (section === "feedback")
       return { activeId: "feedback", groupId: "resources" };
-    const landingSection = administration?.href
-      ? new URL(administration.href, "https://navigation.invalid").searchParams.get(
-          "section",
-        )
-      : null;
-    if (section === landingSection)
-      return {
-        activeId: "administration",
-        groupId: "administration",
-        detailLabel: adminSections.find(([id]) => id === section)?.[1],
-      };
+    if (["people", "organization"].includes(section) && !administration?.items.some((entry) => entry.id === `administration-${section}`))
+      return { activeId: section === "people" ? "people-settings" : "people-organization", groupId: "people" };
     return {
       activeId: `administration-${section}`,
       groupId: "administration",
     };
   }
   if (route === "iam") {
-    const administration = model.groups.find(
-      (entry) => entry.id === "administration",
-    );
-    const iamIsLanding = administration?.href?.split("?")[0] === `${base}/iam`;
+    if (base !== "/platform") {
+      const destination = new URL(`${base}/${peopleIamDestination(second ?? "overview")}`, "https://navigation.invalid");
+      return resolveNavigation(model, base, destination.pathname, destination.searchParams);
+    }
     return {
-      activeId:
-        base === "/platform"
-          ? "platform-iam"
-          : iamIsLanding
-            ? "administration"
-            : "administration-iam",
-      groupId: base === "/platform" ? undefined : "administration",
+      activeId: "platform-iam",
       detailLabel:
         second && second !== "overview"
           ? iamSections.find(([id]) => id === second)?.[1]
@@ -754,14 +919,14 @@ export function navigationTrail(
     (entry) => entry.id === resolved.activeId,
   );
   if (standalone) return [{ label: standalone.label }];
-  const group = model.groups.find((entry) => entry.id === resolved.groupId);
-  if (!group)
+  const app = model.apps.find((entry) => entry.id === resolved.groupId);
+  if (!app)
     return resolved.detailLabel ? [{ label: resolved.detailLabel }] : [];
-  const child = group.items.find((entry) => entry.id === resolved.activeId);
+  const child = app.items.find((entry) => entry.id === resolved.activeId);
   const trail: NavigationTrailItem[] = [
     {
-      label: group.label,
-      ...(child && group.href ? { href: group.href } : {}),
+      label: app.label,
+      ...(child && app.href ? { href: app.href } : {}),
     },
   ];
   if (child)
@@ -782,4 +947,33 @@ export function activeDestination(
   const model = workplaceNavigation({ workspaceBase: base });
   const resolved = resolveNavigation(model, base, pathname, searchParams);
   return (resolved.groupId ?? resolved.activeId) || "more";
+}
+
+export function navigationCategory(
+  model: WorkplaceNavigationModel,
+  resolved: NavigationResolution,
+) {
+  const activeAppId = resolved.groupId ?? resolved.activeId;
+  return model.categories.find((entry) =>
+    entry.apps.some((app) => app.id === activeAppId),
+  );
+}
+
+/** Carry forward retained groups' v2 preferences; new Technology starts closed. */
+export function navigationCollapsedValue(
+  current: string | null,
+  legacy: string | null,
+  groupIds: string[],
+) {
+  if (current !== null) return current;
+  if (legacy !== null) {
+    try {
+      const previous: unknown = JSON.parse(legacy);
+      if (Array.isArray(previous)) return JSON.stringify([...new Set([
+        ...previous.filter((id): id is string => typeof id === "string" && !["resources", "administration"].includes(id)),
+        "technology",
+      ])]);
+    } catch { /* Fall back to the default collapsed groups. */ }
+  }
+  return JSON.stringify([...new Set([...groupIds, "technology"])]);
 }

@@ -2,6 +2,9 @@ import type { SqlDatabase, SqlStatement } from "./runtime/types";
 import type { PoolClient, Pool } from "pg";
 const jsonColumns = new Set([
   "hierarchy_json",
+  "inventory",
+  "steps",
+  "review_snapshot",
   "config",
   "payload",
   "evidence",

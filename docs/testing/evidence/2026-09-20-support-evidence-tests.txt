@@ -1,0 +1,37 @@
+$ bun scripts/local/test.ts tests/support-evidence.test.ts tests/support.test.ts tests/support-incidents.test.ts tests/expense-ai-draft.test.ts "--reporter=verbose"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ ✓ tests/expense-ai-draft.test.ts > fills empty receipt fields and retains source page references 1ms
+ ✓ tests/expense-ai-draft.test.ts > preserves both typed values and fields explicitly cleared while AI runs 0ms
+ ✓ tests/expense-ai-draft.test.ts > replaces only on explicit use-suggestion and ignores unknown/null fields 0ms
+ ✓ tests/expense-ai-draft.test.ts > invalidates stale AI fields while keeping human edits and accepts new evidence 0ms
+ ✓ tests/expense-ai-draft.test.ts > retains provenance after browser recovery and does not invalidate the same proposal 0ms
+ ✓ tests/expense-ai-draft.test.ts > rejects unsupported or empty files before uploading 1ms
+ ✓ tests/expense-ai-draft.test.ts > retries an interrupted PUT with the same intent and avoids duplicate successful uploads 9ms
+ ✓ tests/expense-ai-draft.test.ts > retries failed PDF rendering without uploading another original 0ms
+ ✓ tests/expense-ai-draft.test.ts > recovers a lost draft response after reload with the original idempotency key and values 3ms
+ ✓ tests/expense-ai-draft.test.ts > allows correcting a definitively rejected draft without replaying invalid input 0ms
+ ✓ tests/expense-ai-draft.test.ts > fills the receipt total despite unknown VAT recoverability and preserves user amounts 0ms
+ ✓ tests/expense-ai-draft.test.ts > uses a recoverable tax edited while AI was running without counting it twice 0ms
+ ✓ tests/expense-ai-draft.test.ts > does not turn missing or invalid receipt total null into an amount 0ms
+ ✓ tests/expense-ai-draft.test.ts > does not turn missing or invalid receipt total -54.50 into an amount 0ms
+ ✓ tests/expense-ai-draft.test.ts > does not turn missing or invalid receipt total 999999999999999999999 into an amount 0ms
+ ✓ tests/expense-ai-draft.test.ts > does not turn missing or invalid receipt total invalid into an amount 0ms
+ ✓ tests/support-evidence.test.ts > uploads private evidence through existing routes, safely replays, preserves hashes/history and revokes access 469ms
+ ✓ tests/support-evidence.test.ts > rechecks source version and current assignment when completing a reserved upload 311ms
+ ✓ tests/support-evidence.test.ts > freezes evidence after proposed resolution and refuses signature mismatch or legal-hold revocation 291ms
+ ✓ tests/support-evidence.test.ts > recovers the last reservation response at capacity without allocating an eleventh intent 401ms
+ ✓ tests/support-evidence.test.ts > preserves the existing expense upload contract without a Support source version 190ms
+ ✓ tests/support.test.ts > hands off to Support and separates proposed resolution from independently reviewed customer confirmation 618ms
+ ✓ tests/support.test.ts > blocks inactive recipients and protects scope, event history and stale concurrent actions 160ms
+ ✓ tests/support.test.ts > does not allow the resolving manager to approve their own resolution after reassignment 167ms
+ ✓ tests/support-incidents.test.ts > hands off one incident across owners and reviewers while preserving separate customer cases 852ms
+ ✓ tests/support-incidents.test.ts > does not let the mitigating manager self-review through reassignment and requires current reviewer eligibility 373ms
+ ✓ tests/support-incidents.test.ts > protects source scope, versions, duplicate links and recipient withdrawal 376ms
+
+ Test Files  4 passed (4)
+      Tests  27 passed (27)
+   Start at  17:39:31
+   Duration  22.18s (transform 538ms, setup 152ms, import 1.14s, tests 20.56s, environment 0ms)
+

@@ -1,0 +1,27 @@
+{
+  "observedAt": "2026-09-20T08:57:30.127602+00:00",
+  "run": "6229eee3708d",
+  "environment": "isolated browser databases and normal password sessions",
+  "roles": [
+    "holding_owner (Source operator)",
+    "quality_manager (Quality release manager)"
+  ],
+  "sourceIds": {
+    "quotation": "order-7d8efe63-12df-45ad-b19e-857ac54569fd",
+    "followup": "followup-e0132574-ad49-4604-acb4-81a002b5daa2",
+    "hold": "quality-621944db-abf8-4221-92ce-c0fb5f2b758d"
+  },
+  "observations": [
+    "Source created phone contact, corrected Tuesday to Wednesday with reason, viewed both versions and archived without losing history.",
+    "Source assigned own follow-up in fixture, found it in Work and completed with contact outcome; quotation stayed draft version 1.",
+    "Source requested cancellation and could not approve it. Quality manager logged in separately, found cancellation in Home attention queue and approved with evidence.",
+    "Hold became cancelled version 3 with zero inspection records; stock stayed 3000 milli / 1000 minor.",
+    "Quality manager opening customer notes was redirected to ERPX_PERMISSION without note content."
+  ],
+  "limitations": [
+    "Follow-up browser uses same creator/assignee; separate recipient/reassignment and revocation are automated evidence only.",
+    "No provider messages, customer acceptance or production sign-off.",
+    "Browser initial login restored a previous disposable run URL and showed 404; navigating to this run source resolved it.",
+    "Source export uses PostgreSQL BIGINT strings; initial numeric equality assertion required normalization, then source checks passed."
+  ]
+}

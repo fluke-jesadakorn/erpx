@@ -240,6 +240,7 @@ beforeEach(async () => {
   owner = await staff("owner", "holding_owner");
   worker = await staff("worker", "treasury", otherDepartment);
   outsider = await staff("outsider", "people_manager");
+  await db.prepare("UPDATE hr_engagements SET manager_person_id=? WHERE person_id=?").bind(`person-${head.userId}`,`person-${requester.userId}`).run();
   await setDepartmentHead(
     db,
     owner,
@@ -336,7 +337,7 @@ describe("Staff request routing and approval transactions", () => {
       }
     }
   });
-  it("uses the engagement department, requires ordered independent HR, preserves scope across workspaces", async () => {
+  it("uses the reporting manager and engagement scope, requires ordered independent HR, preserves scope across workspaces", async () => {
     requester = { ...requester, departmentId: otherDepartment };
     const id = await leave();
     await submit(id);
@@ -396,8 +397,8 @@ describe("Staff request routing and approval transactions", () => {
   });
   it("keeps drafts when routing is missing, detects cycles and escalates a head's own request", async () => {
     await db
-      .prepare("DELETE FROM department_heads WHERE department_id=?")
-      .bind(department)
+      .prepare("UPDATE hr_engagements SET manager_person_id=NULL WHERE person_id=?")
+      .bind(`person-${requester.userId}`)
       .run();
     const id = await leave();
     await expect(submit(id)).rejects.toMatchObject({
@@ -410,11 +411,12 @@ describe("Staff request routing and approval transactions", () => {
       department,
       {
         personId: `person-${requester.userId}`,
-        expectedVersion: 0,
+        expectedVersion: 1,
         reason: "Head is requester",
       },
       key(),
     );
+    await db.prepare("UPDATE hr_engagements SET self_service_top_level=true WHERE person_id=?").bind(`person-${requester.userId}`).run();
     let route = await requestRoute(db, company, requester.userId, "leave");
     expect(route.steps[0].userId).toBe(owner.userId);
     await db
@@ -457,18 +459,18 @@ describe("Staff request routing and approval transactions", () => {
       code: "STAFF_LINK_REQUIRED",
     });
   });
-  it("blocks missing departments and missing independent HR configuration explicitly", async () => {
+  it("blocks missing reporting managers and independent HR explicitly", async () => {
     await db
-      .prepare("UPDATE hr_engagements SET department_id=NULL WHERE person_id=?")
+      .prepare("UPDATE hr_engagements SET manager_person_id=NULL WHERE person_id=?")
       .bind(`person-${requester.userId}`)
       .run();
     expect(
       (await requestRoute(db, company, requester.userId, "leave"))
         .blockedReason,
-    ).toMatch(/department/);
+    ).toMatch(/reporting manager/);
     await db
-      .prepare("UPDATE hr_engagements SET department_id=? WHERE person_id=?")
-      .bind(department, `person-${requester.userId}`)
+      .prepare("UPDATE hr_engagements SET manager_person_id=? WHERE person_id=?")
+      .bind(`person-${head.userId}`, `person-${requester.userId}`)
       .run();
     await db
       .prepare("UPDATE assignments SET revoked_at=1 WHERE id=?")
@@ -477,7 +479,7 @@ describe("Staff request routing and approval transactions", () => {
     expect(
       (await requestRoute(db, company, requester.userId, "leave"))
         .blockedReason,
-    ).toMatch(/HR administrator/);
+    ).toMatch(/HR reviewer/);
     expect(
       (await requestRoute(db, company, requester.userId, "expense")).steps,
     ).toHaveLength(1);
@@ -613,17 +615,7 @@ describe("Staff request routing and approval transactions", () => {
       route,
       2,
     );
-    await setDepartmentHead(
-      db,
-      owner,
-      department,
-      {
-        personId: `person-${worker.userId}`,
-        expectedVersion: 1,
-        reason: "New designated head",
-      },
-      key(),
-    );
+    await db.prepare("UPDATE hr_engagements SET manager_person_id=?,version=version+1 WHERE person_id=?").bind(`person-${worker.userId}`,`person-${requester.userId}`).run();
     await expect(
       executeCommand(
         db,
@@ -1133,4 +1125,34 @@ describe("Reusable levels and routine scheduling", () => {
       (await taskDetail(db, requester, String(blocked.id))).blockedReason,
     ).toBeTruthy();
   });
+});
+
+it('refreshes a persisted Work snapshot immediately after task submit, approval and reassignment', async () => {
+  const { workSnapshot } = await import('../src/server/work-items');
+  const { closeRedisCache } = await import('../src/server/runtime/redis-cache');
+  const previous = process.env.NODE_ENV, redisUrl = process.env.ERPX_REDIS_URL;
+  process.env.NODE_ENV = 'development';
+  try {
+    const id = await task([head.userId], [head.userId]);
+    const before = await workSnapshot(head);
+    expect(before.unavailableSources).toEqual([]);
+    expect(await workSnapshot(head)).toEqual(before);
+    await action(requester, id, 'submit');
+    const pending = await workSnapshot(head);
+    expect(pending.items.find(item => item.id === id)?.canAct).toBe(true);
+    await action(head, id, 'approve');
+    const approved = await workSnapshot(head);
+    expect(approved.items.find(item => item.id === id)?.canAct).not.toBe(true);
+    expect((await workSnapshot(worker)).items.find(item => item.id === id)?.canAct).toBe(true);
+    // Direct SQL represents an independently committed writer/job, not Redis invalidation in the API.
+    await db.prepare('UPDATE staff_tasks SET assignee_user_id=?,version=version+1 WHERE id=?').bind(requester.userId, id).run();
+    expect((await workSnapshot(worker)).items.find(item => item.id === id)?.canAct).not.toBe(true);
+    expect((await workSnapshot(requester)).items.find(item => item.id === id)?.canAct).toBe(true);
+    // Fail only this test process's ERPX Redis client; keep the shared native service running.
+    process.env.ERPX_REDIS_URL = 'redis://127.0.0.1:1';
+    await action(requester, id, 'cancel', 'Verify PostgreSQL fallback');
+    expect((await workSnapshot(requester)).items.find(item => item.id === id)?.status).toBe('cancelled');
+    if (redisUrl) process.env.ERPX_REDIS_URL = redisUrl;
+    expect((await workSnapshot(requester)).items.find(item => item.id === id)?.status).toBe('cancelled');
+  } finally { if (redisUrl === undefined) delete process.env.ERPX_REDIS_URL; else process.env.ERPX_REDIS_URL = redisUrl; await closeRedisCache(); if (previous === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previous; }
 });

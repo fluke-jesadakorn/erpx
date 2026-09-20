@@ -1,12 +1,13 @@
-import Link from "next/link";
-import { publicScope, requireWorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
-import { workspaceBase } from "@/lib/workspace";
-import { handbookArticle, handbookAccess } from "@/server/handbook";
-import { HandbookEditor } from "@/components/workplace/handbook-controls";
-import { pageError, accessPage } from "@/server/page-error";
+import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { PageHeader } from "@/components/ui/primitives";
+import { HandbookEditor } from "@/components/workplace/handbook-controls";
 import styles from "@/components/workplace/services.module.css";
+import { workspaceBase } from "@/lib/workspace";
+import { publicScope,requireWorkContext } from "@/server/authorization";
+import { handbookAccess,handbookArticle } from "@/server/handbook";
+import { accessPage,pageError } from "@/server/page-error";
+import { holdingResources } from "@/server/runtime";
+import Link from "next/link";
 export default async function Article({
   params,
   searchParams,
@@ -24,14 +25,14 @@ export default async function Article({
   if (id === "new") {
     if (!(await handbookAccess(write, actor)).editor) return accessPage("permission", actor.holdingSlug);
     return (
-      <main className={`content ${styles.stack}`}>
+      <FeaturePage className={`content ${styles.stack}`}>
         <Link href={`${base}/handbook?edit=1`}>← Company handbook</Link>
         <HandbookEditor
           base={base}
           companyId={actor.companyId}
           userId={actor.userId}
         />
-      </main>
+      </FeaturePage>
     );
   }
   let data;
@@ -47,7 +48,7 @@ export default async function Article({
     return pageError(e, actor.holdingSlug);
   }
   return (
-    <main className={`content ${styles.stack}`} data-source="live">
+    <FeaturePage className={`content ${styles.stack}`} data-source="live">
       <Link href={`${base}/handbook${editing ? "?edit=1" : ""}`}>
         ← Company handbook
       </Link>
@@ -71,9 +72,9 @@ export default async function Article({
             </Link>
           ) : undefined
         }
-      />
+      /><FeatureTabs/><WidgetGrid pageKey="handbook-detail">
       {editing && !historyView ? (
-        <HandbookEditor
+        <FeatureWidget id="handbook-detail-article" title="Article"><HandbookEditor
           base={base}
           companyId={actor.companyId}
           userId={actor.userId}
@@ -81,13 +82,13 @@ export default async function Article({
           version={data.article.version ?? 1}
           revision={data.revision}
           archived={!!data.article.archived}
-        />
+        /></FeatureWidget>
       ) : (
         <article className={`card ${styles.article}`}>
           {data.revision.body}
         </article>
       )}
-      <details className={`card ${styles.details}`}>
+      <FeatureWidget id="handbook-detail-revision-history" title="Revision history"><details className={`card ${styles.details}`}>
         <summary>Revision history</summary>
         {data.history.map((r) => (
           <p key={r.revision}>
@@ -103,7 +104,7 @@ export default async function Article({
             )}
           </p>
         ))}
-      </details>
-    </main>
+      </details></FeatureWidget>
+    </WidgetGrid></FeaturePage>
   );
 }

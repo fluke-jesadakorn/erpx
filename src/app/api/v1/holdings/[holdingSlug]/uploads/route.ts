@@ -1,9 +1,10 @@
+import {supportEvidenceGuard} from "@/server/support-evidence";
 import { invoiceEvidenceGuard } from "@/server/invoice-payment-evidence";
 import { requestPublicOrigin } from "@/server/public-origin";
 import { employeeRequestUpload } from "@/server/employee-requests";
 import { serviceAuthoritySnapshot } from "@/server/service-access";
 import { socialUploadOwner } from "@/server/social-home";
-import { assertion, executeCommand } from "@/server/commands";
+import { assertion, executeCommand, replayCommand } from "@/server/commands";
 import { getTask, canAttachTask } from "@/server/staff-tasks";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
@@ -13,6 +14,7 @@ import { canEditExpense, getExpense } from "@/server/expenses";
 import { getLeave } from "@/server/leave";
 import { paymentDraft, paymentGuards } from "@/server/expense-payments";
 import { z } from "zod";
+import { requireBrandManagement } from "@/server/branding";
 
 const allowedTypes = [
   "image/jpeg",
@@ -23,6 +25,7 @@ const allowedTypes = [
 ] as const;
 const schema = z.object({
   ownerType: z.enum([
+    "support_ticket",
     "employee_request",
     "leave_request",
     "expense_claim",
@@ -30,7 +33,10 @@ const schema = z.object({
     "invoice_payment",
     "staff_task",
     "social_draft",
+    "holding_brand",
+    "branch_brand",
   ]),
+  expectedVersion: z.number().int().positive().optional(),
   ownerId: z.string().min(1).max(128),
   purpose: z.string().min(1).max(64),
   filename: z.string().min(1).max(255),
@@ -64,7 +70,19 @@ export async function POST(
         parsed.error.issues[0]?.message ?? "Invalid upload.",
       );
     const requestSnapshot = parsed.data.ownerType === "employee_request" ? await serviceAuthoritySnapshot((await holdingResources(actor.holdingId)).write, actor.companyId) : null;
-    if (parsed.data.ownerType === "employee_request") {
+    if (parsed.data.ownerType === "holding_brand" || parsed.data.ownerType === "branch_brand") {
+      if (!(["image/png", "image/webp"] as string[]).includes(parsed.data.mediaType))
+        throw new ApiError(422, "LOGO_TYPE", "Workspace logos accept PNG and WebP images.");
+      if (parsed.data.bytes > 2 * 1024 * 1024)
+        throw new ApiError(422, "LOGO_SIZE", "Workspace logos must be at most 2 MB.");
+      if (!(["primary", "inverse"] as string[]).includes(parsed.data.purpose))
+        throw new ApiError(422, "LOGO_PURPOSE", "Choose a primary or inverse logo.");
+      const { write } = await holdingResources(actor.holdingId);
+      await requireBrandManagement(write, actor, parsed.data.ownerType, parsed.data.ownerId);
+    } else if (parsed.data.ownerType === "support_ticket") {
+      if(parsed.data.purpose!=="support_evidence")throw new ApiError(422,"SUPPORT_EVIDENCE_PURPOSE","Choose support evidence.");
+      await supportEvidenceGuard((await holdingResources(actor.holdingId)).write,actor,parsed.data.ownerId,parsed.data.expectedVersion!,"support-reserve-check");
+    } else if (parsed.data.ownerType === "employee_request") {
       await employeeRequestUpload((await holdingResources(actor.holdingId)).write, actor, parsed.data.ownerId, parsed.data.purpose);
     } else if (parsed.data.ownerType === "social_draft") {
       if (!parsed.data.mediaType.startsWith("image/"))
@@ -118,6 +136,8 @@ export async function POST(
         );
     }
     const { write } = await holdingResources(actor.holdingId);
+    const existingKey=request.headers.get("Idempotency-Key");
+    if(parsed.data.ownerType==="support_ticket"&&existingKey){const prior=await replayCommand(write,actor,existingKey,"attachment.reserve",parsed.data.ownerId,parsed.data);if(prior)return Response.json({data:prior},{status:201});}
     const current = await write
       .prepare(
         `SELECT count(*) AS count FROM upload_intents
@@ -151,6 +171,7 @@ export async function POST(
       result,
       [
         ...(requestSnapshot ? requestSnapshot(key) : []),
+        ...(parsed.data.ownerType==="support_ticket"?(await supportEvidenceGuard(write,actor,parsed.data.ownerId,parsed.data.expectedVersion!,key)).guards:[]),
         ...(parsed.data.ownerType==="invoice_payment"?(await invoiceEvidenceGuard(write,actor,parsed.data.ownerId,key)).guards:[]),
         ...(parsed.data.ownerType === "expense_payment"
           ? paymentGuards(
@@ -171,13 +192,13 @@ export async function POST(
           write,
           key,
           "file-count",
-          `(SELECT count(*) FROM upload_intents WHERE owner_type=? AND owner_id=? AND (status='ready' OR (status IN ('pending','uploaded') AND expires_at>?)))<10`,
+          `(SELECT count(*) FROM upload_intents WHERE owner_type=? AND owner_id=? AND ((status='ready' AND EXISTS(SELECT 1 FROM attachments a WHERE a.upload_id=upload_intents.id AND a.revoked_at IS NULL)) OR (status IN ('pending','uploaded') AND expires_at>?)))<10`,
           [parsed.data.ownerType, parsed.data.ownerId, now],
         ),
         write
           .prepare(
             `INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,
-      staging_key,status,created_by,expires_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      staging_key,status,created_by,expires_at,created_at,updated_at,owner_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           )
           .bind(
             id,
@@ -193,6 +214,7 @@ export async function POST(
             now + 15 * 60_000,
             now,
             now,
+            parsed.data.ownerType==="support_ticket"?parsed.data.expectedVersion:null,
           ),
       ],
     );

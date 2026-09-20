@@ -1,0 +1,22 @@
+#!/sbin/openrc-run
+
+description="Samba Active Directory domain controller"
+supervisor="supervise-daemon"
+command="/usr/sbin/samba"
+command_args="-i"
+pidfile="/run/samba/samba-supervise.pid"
+output_log="/var/log/samba/supervisor.log"
+error_log="/var/log/samba/supervisor.log"
+respawn_delay=5
+respawn_max=3
+respawn_period=60
+
+depend() {
+	need net
+	after firewall chronyd
+}
+
+start_pre() {
+	checkpath --directory --mode 0755 /run/samba
+	checkpath --directory --mode 0750 /var/log/samba
+}

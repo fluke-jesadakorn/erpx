@@ -25,6 +25,10 @@ export const attributeInput = z
     required: z.boolean().default(false),
     options: z.array(z.string().trim().min(1).max(100)).max(100).default([]),
     archived: z.boolean().default(false),
+    ownerRole: id.optional(),
+    readRoles: z.array(id).max(100).optional(),
+    writeRoles: z.array(id).max(100).optional(),
+    branchOverride: z.boolean().optional(),
   })
   .superRefine((v, c) => {
     if (
@@ -39,7 +43,25 @@ export const attributeInput = z
 export type AttributeDefinition = z.infer<typeof attributeInput> & {
   id: string;
   version: number;
+  canView?: boolean;
+  canEdit?: boolean;
 };
+
+/** Field ACLs narrow existing object permissions; they never grant a permission. */
+export function attributeAccess(
+  field: AttributeDefinition,
+  role: string,
+  scopeKind: string,
+) {
+  const canView = !field.readRoles?.length || field.readRoles.includes(role);
+  return {
+    canView,
+    canEdit:
+      canView &&
+      (!field.writeRoles?.length || field.writeRoles.includes(role)) &&
+      (scopeKind === "holding" || field.branchOverride !== false),
+  };
+}
 export const conditionInput = z.object({
   field: id,
   op: z.enum([
@@ -83,6 +105,7 @@ export type LocalGroup = z.infer<typeof groupInput> & {
   id: string;
   version: number;
   members: string[];
+  memberSources?: Record<string, string[]>;
 };
 export const policyGrantInput = z.object({
   roleId: id,
@@ -126,8 +149,12 @@ export const valuesInput = z.object({
   expectedVersion: z.number().int().nonnegative(),
   values: z.record(z.string(), z.unknown()),
   reason: base.reason,
+  inherit: z.array(id).max(100).optional(),
 });
-export type AttributeValues = z.infer<typeof valuesInput> & { version: number };
+export type AttributeValues = z.infer<typeof valuesInput> & {
+  version: number;
+  inheritedFrom?: Record<string, string>;
+};
 export const managementChange = z.discriminatedUnion("operation", [
   z.object({ operation: z.literal("attribute"), input: attributeInput }),
   z.object({ operation: z.literal("group"), input: groupInput }),
@@ -247,6 +274,7 @@ export type ManagementSnapshot = {
   nodes: { id: string; parentId: string | null; label: string; kind: string }[];
   candidates: PolicyCandidate[];
   canManage: boolean;
+  canManageGroups?: boolean;
   canDefine: boolean;
   canManagePeople: boolean;
   canManageOrganization: boolean;

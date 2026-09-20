@@ -1,0 +1,159 @@
+{
+  "run": "6229eee3708d",
+  "stage": "pending",
+  "exportedAt": "2026-09-20T08:54:59.356Z",
+  "scope": "Read-only verification of normal UI commands in disposable browser databases; no credentials or sessions.",
+  "order": [
+    {
+      "id": "order-7d8efe63-12df-45ad-b19e-857ac54569fd",
+      "company_id": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b",
+      "party_id": "parties-24ff7beb-8bbb-4238-afe7-f9a119fa9ec2",
+      "kind": "quote",
+      "state": "draft",
+      "version": "1",
+      "subtotal_minor": "1000",
+      "tax_minor": "0"
+    }
+  ],
+  "notes": [
+    {
+      "id": "contact-c5a92634-268d-4303-8385-a9af905452c5",
+      "company_id": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b",
+      "customer_id": "parties-24ff7beb-8bbb-4238-afe7-f9a119fa9ec2",
+      "order_id": "order-7d8efe63-12df-45ad-b19e-857ac54569fd",
+      "channel": "phone",
+      "occurred_at": "1789891200000",
+      "body": "SIMULATION: Customer requested Wednesday, subject to quotation approval.",
+      "status": "archived",
+      "version": "3",
+      "created_by": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b-owner",
+      "created_at": "1789894186613",
+      "updated_at": "1789894253767"
+    }
+  ],
+  "noteHistory": [
+    {
+      "id": "contact-event-c5a92634-268d-4303-8385-a9af905452c5",
+      "note_id": "contact-c5a92634-268d-4303-8385-a9af905452c5",
+      "version": "1",
+      "action": "create",
+      "body": "SIMULATION: Customer asked for a Tuesday installation proposal; no delivery commitment changed.",
+      "reason": "Initial contact record",
+      "actor_id": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b-owner",
+      "created_at": "1789894186613"
+    },
+    {
+      "id": "contact-event-4bf58005-6b5a-4743-9fe2-79e8e44061d6",
+      "note_id": "contact-c5a92634-268d-4303-8385-a9af905452c5",
+      "version": "2",
+      "action": "correct",
+      "body": "SIMULATION: Customer requested Wednesday, subject to quotation approval.",
+      "reason": "Corrected the weekday after reviewing simulated call evidence.",
+      "actor_id": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b-owner",
+      "created_at": "1789894211115"
+    },
+    {
+      "id": "contact-event-a9e25192-6424-40c9-b4a0-4cd226617aa2",
+      "note_id": "contact-c5a92634-268d-4303-8385-a9af905452c5",
+      "version": "3",
+      "action": "archive",
+      "body": "SIMULATION: Customer requested Wednesday, subject to quotation approval.",
+      "reason": "Superseded by the simulated quotation discussion; retain the contact history.",
+      "actor_id": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b-owner",
+      "created_at": "1789894253767"
+    }
+  ],
+  "followups": [
+    {
+      "id": "followup-e0132574-ad49-4604-acb4-81a002b5daa2",
+      "company_id": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b",
+      "order_id": "order-7d8efe63-12df-45ad-b19e-857ac54569fd",
+      "owner_id": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b-owner",
+      "due_date": "2026-09-22",
+      "next_action": "SIMULATION: Call customer to confirm installation access before quotation approval.",
+      "status": "completed",
+      "outcome": "SIMULATION: Customer confirmed Wednesday access; pricing remains subject to quotation approval.",
+      "version": "2",
+      "created_by": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b-owner",
+      "created_at": "1789894339976",
+      "updated_at": "1789894398165"
+    }
+  ],
+  "followupHistory": [
+    {
+      "id": "followup-event-e0132574-ad49-4604-acb4-81a002b5daa2",
+      "followup_id": "followup-e0132574-ad49-4604-acb4-81a002b5daa2",
+      "version": "1",
+      "action": "create",
+      "actor_id": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b-owner",
+      "owner_id": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b-owner",
+      "due_date": "2026-09-22",
+      "reason": "SIMULATION: Call customer to confirm installation access before quotation approval.",
+      "created_at": "1789894339976"
+    },
+    {
+      "id": "followup-event-84f57681-8d7f-481a-8592-8d30ec4e9e59",
+      "followup_id": "followup-e0132574-ad49-4604-acb4-81a002b5daa2",
+      "version": "2",
+      "action": "complete",
+      "actor_id": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b-owner",
+      "owner_id": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b-owner",
+      "due_date": "2026-09-22",
+      "reason": "SIMULATION: Customer confirmed Wednesday access; pricing remains subject to quotation approval.",
+      "created_at": "1789894398165"
+    }
+  ],
+  "hold": [
+    {
+      "id": "quality-621944db-abf8-4221-92ce-c0fb5f2b758d",
+      "company_id": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b",
+      "branch_id": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b-branch",
+      "warehouse_id": "warehouses-c5b8155d-26d2-4dd7-a9f7-205623fbaead",
+      "product_id": "products-61869b76-19ff-4cf6-99af-c40c5e1f3c20",
+      "reason": "SIMULATION: Hold entered against the wrong receiving document; cancellation will require review.",
+      "due_date": "2026-09-22",
+      "status": "cancel_pending",
+      "created_by": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b-owner",
+      "last_inspector": null,
+      "last_result": null,
+      "released_by": null,
+      "release_reason": null,
+      "released_at": null,
+      "version": "2",
+      "created_at": "1789894443821",
+      "updated_at": "1789894469352",
+      "cancel_requested_by": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b-owner",
+      "cancel_reason": "SIMULATION: Verified this receiving document was selected in error. Request independent cancellation before inspection.",
+      "cancelled_by": null,
+      "cancelled_at": null
+    }
+  ],
+  "cancellation": [
+    {
+      "id": "quality-cancel-35d2de83-5600-48c2-864b-0c1eb9f98e43",
+      "hold_id": "quality-621944db-abf8-4221-92ce-c0fb5f2b758d",
+      "version": "2",
+      "action": "request",
+      "reason": "SIMULATION: Verified this receiving document was selected in error. Request independent cancellation before inspection.",
+      "actor_id": "expense-5c5cdb41-a614-4db2-9ce0-a2b2d38c6e5b-owner",
+      "created_at": "1789894469352"
+    }
+  ],
+  "inspection": [],
+  "stock": [
+    {
+      "warehouse_id": "warehouses-c5b8155d-26d2-4dd7-a9f7-205623fbaead",
+      "product_id": "products-61869b76-19ff-4cf6-99af-c40c5e1f3c20",
+      "quantity_milli": "3000",
+      "value_minor": "1000",
+      "version": "3"
+    }
+  ],
+  "sourceHashes": {
+    "src/server/customer-notes.ts": "7d9a88748aa2baeba8f21337da0f21e67695a7b2d4abfbf1f0d1727e5a92c1f8",
+    "src/server/customer-followups.ts": "64ace77b8a8bedc94178aaba7ad6a477846e263af371ee7c73707bc6850549f6",
+    "src/server/quality.ts": "a1d9f1f28dca01b24a59bd0a159c4946cbd26e70f1b4a15cf552e9eec4a99e46",
+    "src/components/modules/customer-notes.tsx": "f6220b7a56cd25a719c9eb454129abca2a29e276609dd880e8ce2496fc686368",
+    "src/components/modules/customer-followups.tsx": "1737cad6f0cf025dcec95dfe427afcbd544377e1f00bf95ef069a1a4e7e9b488"
+  }
+}

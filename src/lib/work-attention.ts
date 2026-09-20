@@ -1,4 +1,4 @@
-import type { WorkItem } from "./work-item";
+import { isMyAction, compareWork, workInView, type WorkItem } from "./work-item";
 
 export type WorkAttention = {
   items: WorkItem[];
@@ -15,8 +15,9 @@ export function workBlocker(item: WorkItem) {
 export function workAttention(
   items: WorkItem[],
   incomplete = false,
-  now = Date.now(),
+  ..._clock: [now?: number]
 ): WorkAttention {
+  void _clock; // Retain the public clock argument for callers and tests.
   const unique = new Map<string, WorkItem>();
   for (const item of items) {
     const key = `${item.type}:${item.id}`;
@@ -25,17 +26,12 @@ export function workAttention(
   }
   const rows = [...unique.values()];
   const attention = rows
-    .filter((item) => item.queue !== "completed" && (item.queue === "todo" || workBlocker(item)))
-    .sort((a, b) =>
-      Number(!!workBlocker(b)) - Number(!!workBlocker(a)) ||
-      Number(b.dueAt != null && b.dueAt < now) - Number(a.dueAt != null && a.dueAt < now) ||
-      (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity) ||
-      b.updatedAt - a.updatedAt || `${a.type}:${a.id}`.localeCompare(`${b.type}:${b.id}`),
-    );
+    .filter(isMyAction)
+    .sort(compareWork);
   return {
     items: attention.slice(0, 3),
     total: attention.length,
-    waiting: rows.filter((item) => item.queue === "waiting").length,
+    waiting: workInView(rows, "waiting").length,
     incomplete,
   };
 }

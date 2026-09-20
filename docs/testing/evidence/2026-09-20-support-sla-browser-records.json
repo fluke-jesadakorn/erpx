@@ -1,0 +1,332 @@
+{
+  "run": "7431bb7d79de",
+  "exportedAt": "2026-09-20T10:11:55.579Z",
+  "ticket": {
+    "id": "ticket-94577e35-ea1b-4fa4-9d42-83c4b64a344c",
+    "company_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb",
+    "branch_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-branch",
+    "department_id": null,
+    "order_id": "order-cbe6dbd4-4ea1-47b7-a117-7c7aa9be0914",
+    "customer_id": "parties-6bb6d43c-d489-48a7-bc4d-57c5bce204d2",
+    "title": "SLA browser case",
+    "issue": "Simulation only: installation guidance needs a timed response",
+    "owner_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-claimant",
+    "due_date": "2026-09-21",
+    "status": "waiting_customer",
+    "blocked_reason": "Waiting for simulated customer serial number; retain the already breached target",
+    "resolution": null,
+    "resolved_by": null,
+    "resolved_at": null,
+    "confirmation_note_id": null,
+    "confirmation_note_version": null,
+    "version": "4",
+    "created_by": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-owner",
+    "created_at": "1789898809610",
+    "updated_at": "1789898995995",
+    "sla_policy_id": "support-policy-31ee8207-dac8-484e-aa4f-f6967ec228f9",
+    "sla_policy_version": "2",
+    "sla_clock_json": {
+      "dueAt": 1789898976616,
+      "state": "paused",
+      "snapshot": {
+        "calendar": {
+          "holidays": [],
+          "timezone": "Asia/Bangkok",
+          "weekdays": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "opensAtMinute": 0,
+          "closesAtMinute": 1439
+        },
+        "targetMinutes": 1,
+        "pauseWhileWaiting": true
+      },
+      "startedAt": null,
+      "breachedAt": 1789898976616,
+      "remainingMs": 0
+    }
+  },
+  "policy": {
+    "id": "support-policy-31ee8207-dac8-484e-aa4f-f6967ec228f9",
+    "company_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb",
+    "name": "Simulation one-minute resolution",
+    "policy_json": {
+      "calendar": {
+        "holidays": [],
+        "timezone": "Asia/Bangkok",
+        "weekdays": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "opensAtMinute": 0,
+        "closesAtMinute": 1439
+      },
+      "targetMinutes": 1,
+      "pauseWhileWaiting": true
+    },
+    "status": "approved",
+    "version": "2",
+    "created_by": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-owner",
+    "approved_by": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-tie",
+    "approved_at": "1789898895269",
+    "created_at": "1789898740589",
+    "updated_at": "1789898895269"
+  },
+  "alerts": [
+    {
+      "id": "support-breach-ticket-94577e35-ea1b-4fa4-9d42-83c4b64a344c",
+      "ticket_id": "ticket-94577e35-ea1b-4fa4-9d42-83c4b64a344c",
+      "source_version": "3",
+      "breached_at": "1789898976616",
+      "detected_at": "1789898986720",
+      "version": "2",
+      "acknowledged_by": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-tie",
+      "acknowledged_at": "1789899047970",
+      "reason": "Support manager owns follow-up: contact the simulated customer for serial number and coordinate recovery with the assigned agent"
+    }
+  ],
+  "events": [
+    {
+      "id": "ticket-event-94577e35-ea1b-4fa4-9d42-83c4b64a344c",
+      "ticket_id": "ticket-94577e35-ea1b-4fa4-9d42-83c4b64a344c",
+      "version": "1",
+      "action": "create",
+      "actor_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-owner",
+      "reason": "Simulation only: installation guidance needs a timed response",
+      "owner_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-claimant",
+      "due_date": "2026-09-21",
+      "status": "open",
+      "created_at": "1789898809610",
+      "evidence_json": {
+        "issue": "Simulation only: installation guidance needs a timed response",
+        "title": "SLA browser case",
+        "dueDate": "2026-09-21",
+        "orderId": "order-cbe6dbd4-4ea1-47b7-a117-7c7aa9be0914",
+        "ownerId": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-claimant",
+        "sourceVersion": 1
+      }
+    },
+    {
+      "id": "support-sla-event-c7db45c2-a4d6-41a3-9417-2e219939f29d",
+      "ticket_id": "ticket-94577e35-ea1b-4fa4-9d42-83c4b64a344c",
+      "version": "2",
+      "action": "sla-attach",
+      "actor_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-tie",
+      "reason": "Start measured target now on this simulated open case",
+      "owner_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-claimant",
+      "due_date": "2026-09-21",
+      "status": "open",
+      "created_at": "1789898916616",
+      "evidence_json": {
+        "clock": {
+          "dueAt": 1789898976616,
+          "state": "running",
+          "snapshot": {
+            "calendar": {
+              "holidays": [],
+              "timezone": "Asia/Bangkok",
+              "weekdays": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "opensAtMinute": 0,
+              "closesAtMinute": 1439
+            },
+            "targetMinutes": 1,
+            "pauseWhileWaiting": true
+          },
+          "startedAt": 1789898916616,
+          "breachedAt": null,
+          "remainingMs": 60000
+        },
+        "reason": "Start measured target now on this simulated open case",
+        "policyId": "support-policy-31ee8207-dac8-484e-aa4f-f6967ec228f9",
+        "policyVersion": 2
+      }
+    },
+    {
+      "id": "ticket-event-9ca2ea77-e2dc-4761-8b49-48524a644c02",
+      "ticket_id": "ticket-94577e35-ea1b-4fa4-9d42-83c4b64a344c",
+      "version": "3",
+      "action": "start",
+      "actor_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-claimant",
+      "reason": "Agent accepts simulated case after the measured deadline",
+      "owner_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-claimant",
+      "due_date": "2026-09-21",
+      "status": "in_progress",
+      "created_at": "1789898981131",
+      "evidence_json": {
+        "clock": {
+          "dueAt": 1789898976616,
+          "state": "running",
+          "snapshot": {
+            "calendar": {
+              "holidays": [],
+              "timezone": "Asia/Bangkok",
+              "weekdays": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "opensAtMinute": 0,
+              "closesAtMinute": 1439
+            },
+            "targetMinutes": 1,
+            "pauseWhileWaiting": true
+          },
+          "startedAt": 1789898981131,
+          "breachedAt": 1789898976616,
+          "remainingMs": 0
+        },
+        "action": "start",
+        "reason": "Agent accepts simulated case after the measured deadline",
+        "expectedVersion": 2
+      }
+    },
+    {
+      "id": "ticket-event-f218d373-a7f3-45a9-b1ee-4b09d48b2140",
+      "ticket_id": "ticket-94577e35-ea1b-4fa4-9d42-83c4b64a344c",
+      "version": "4",
+      "action": "wait-customer",
+      "actor_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-claimant",
+      "reason": "Waiting for simulated customer serial number; retain the already breached target",
+      "owner_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-claimant",
+      "due_date": "2026-09-21",
+      "status": "waiting_customer",
+      "created_at": "1789898995995",
+      "evidence_json": {
+        "clock": {
+          "dueAt": 1789898976616,
+          "state": "paused",
+          "snapshot": {
+            "calendar": {
+              "holidays": [],
+              "timezone": "Asia/Bangkok",
+              "weekdays": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6
+              ],
+              "opensAtMinute": 0,
+              "closesAtMinute": 1439
+            },
+            "targetMinutes": 1,
+            "pauseWhileWaiting": true
+          },
+          "startedAt": null,
+          "breachedAt": 1789898976616,
+          "remainingMs": 0
+        },
+        "action": "wait-customer",
+        "reason": "Waiting for simulated customer serial number; retain the already breached target",
+        "expectedVersion": 3
+      }
+    }
+  ],
+  "policyEvents": [
+    {
+      "id": "support-policy-event-31ee8207-dac8-484e-aa4f-f6967ec228f9",
+      "policy_id": "support-policy-31ee8207-dac8-484e-aa4f-f6967ec228f9",
+      "version": "1",
+      "action": "create",
+      "actor_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-owner",
+      "reason": "Disposable browser test only: short target to observe a real breach without changing system time",
+      "created_at": "1789898740589"
+    },
+    {
+      "id": "support-policy-event-218c24c6-b0da-4ae1-8f90-d8833ac25ae9",
+      "policy_id": "support-policy-31ee8207-dac8-484e-aa4f-f6967ec228f9",
+      "version": "2",
+      "action": "approve",
+      "actor_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-tie",
+      "reason": "Independent simulation review: one working minute, Bangkok calendar, pause on customer wait",
+      "created_at": "1789898895269"
+    }
+  ],
+  "notifications": [
+    {
+      "record_type": "support_policy",
+      "record_id": "support-policy-31ee8207-dac8-484e-aa4f-f6967ec228f9",
+      "user_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-owner",
+      "record_version": "2",
+      "count": "1"
+    },
+    {
+      "record_type": "support_policy",
+      "record_id": "support-policy-31ee8207-dac8-484e-aa4f-f6967ec228f9",
+      "user_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-tie",
+      "record_version": "1",
+      "count": "1"
+    },
+    {
+      "record_type": "support_sla_alert",
+      "record_id": "support-breach-ticket-94577e35-ea1b-4fa4-9d42-83c4b64a344c",
+      "user_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-owner",
+      "record_version": "1",
+      "count": "1"
+    },
+    {
+      "record_type": "support_sla_alert",
+      "record_id": "support-breach-ticket-94577e35-ea1b-4fa4-9d42-83c4b64a344c",
+      "user_id": "expense-d4c2e18e-de36-424e-9033-e9d383ad9eeb-tie",
+      "record_version": "1",
+      "count": "1"
+    }
+  ],
+  "source": [
+    {
+      "id": "order-cbe6dbd4-4ea1-47b7-a117-7c7aa9be0914",
+      "kind": "quote",
+      "state": "draft",
+      "version": "1",
+      "party_id": "parties-6bb6d43c-d489-48a7-bc4d-57c5bce204d2",
+      "subtotal_minor": "1000",
+      "currency": "THB"
+    }
+  ],
+  "migrations": [
+    {
+      "name": "0217_support_sla.sql",
+      "checksum": "5162c0791098d67fca15719cd4cad7ecd4abc595f0e55edbd7bad6978481eaf2"
+    },
+    {
+      "name": "0218_support_sla_alerts.sql",
+      "checksum": "769f5f66c3b659e89257a2be4cf8c10c69c9d87a338475c32a2dfe69fa0ac87c"
+    }
+  ],
+  "sourceHashes": {
+    "src/server/support.ts": "84a162702b6bf632a53b8b07ffc78abe5c664c58299a1f4bf06d61d6fc9d1884",
+    "src/server/support-sla.ts": "20002106906cbcb8b9a491d1a6c40f485d7791d28d808b928e6a4463d9053660",
+    "src/server/support-sla-alerts.ts": "a76bf5d5618d5bfa4894a98bb238487d473f0a06968516cab728fac1ca8641b0",
+    "src/lib/support-clock.ts": "545daef753d4d78300d458ecb960ce4d9e0acd0d4296d403afbeae62551314bc",
+    "src/lib/business-time.ts": "b126c64b7769b024145b4fee88ed468744c13626994acc98c12b06e6594dc760",
+    "src/components/modules/support-sla-console.tsx": "a53fa1768140dabcf3ec42ccf8225ce4e6a63c83d9aa77f8c3981ed32173d2ea",
+    "src/server/calendar/support.ts": "54eb143e150389603f086f9f025584830a5450d139d677e4faba49849549abef",
+    "migrations/postgres/holding-write/0217_support_sla.sql": "5162c0791098d67fca15719cd4cad7ecd4abc595f0e55edbd7bad6978481eaf2",
+    "migrations/postgres/holding-write/0218_support_sla_alerts.sql": "769f5f66c3b659e89257a2be4cf8c10c69c9d87a338475c32a2dfe69fa0ac87c"
+  }
+}

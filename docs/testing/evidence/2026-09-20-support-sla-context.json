@@ -1,0 +1,30 @@
+{
+  "observedAt": "2026-09-20T10:12:52.358078+00:00",
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "dirtyWorkspace": true,
+  "scope": "Support working-time resolution watch and durable escalation; no whole-capability acceptance",
+  "sourceHashes": {
+    "src/server/support-sla.ts": "20002106906cbcb8b9a491d1a6c40f485d7791d28d808b928e6a4463d9053660",
+    "src/server/support-sla-alerts.ts": "a76bf5d5618d5bfa4894a98bb238487d473f0a06968516cab728fac1ca8641b0",
+    "src/lib/business-time.ts": "b126c64b7769b024145b4fee88ed468744c13626994acc98c12b06e6594dc760",
+    "src/lib/support-clock.ts": "545daef753d4d78300d458ecb960ce4d9e0acd0d4296d403afbeae62551314bc",
+    "src/server/support.ts": "84a162702b6bf632a53b8b07ffc78abe5c664c58299a1f4bf06d61d6fc9d1884",
+    "src/server/runtime/jobs.ts": "e8ee4242de44666ba08c41c53c78e9c782644f11e6cfe4060ac6a6f11492fe79",
+    "scripts/local/jobs.ts": "270a69b012abf944d97a13bc7f3e667cf0c0c9adcc8225a110d3e388d5f3159a",
+    "tests/support-sla.test.ts": "f4cbbf369b704d84f4de224d2e16baeccf3d29a3b11d6fcf7a9ae156c6acf282",
+    "tests/business-time.test.ts": "50a778bf800bfa4b22e242102b7c000abd73beeea26959a2afe96c3ba069963c",
+    "tests/support-clock.test.ts": "d6019c9f88fbffd69b21414b59c40d01d3c2c77ed10f82f1e827291b2a38dee4",
+    "migrations/postgres/holding-write/0217_support_sla.sql": "5162c0791098d67fca15719cd4cad7ecd4abc595f0e55edbd7bad6978481eaf2",
+    "migrations/postgres/holding-write/0218_support_sla_alerts.sql": "769f5f66c3b659e89257a2be4cf8c10c69c9d87a338475c32a2dfe69fa0ac87c"
+  },
+  "automated": "29 passed / 6 files, isolated PostgreSQL baseline 353 tables",
+  "typecheck": "passed",
+  "lint": "0 errors / 3 pre-existing warnings",
+  "release": ".runtime/releases/2026-09-20T10-06-00-551Z",
+  "browserRun": "7431bb7d79de",
+  "health": {
+    "local": 200,
+    "public": 200,
+    "publicAffectedPage": "authenticated /holdings/acme/support/sla rendered, read-only"
+  }
+}

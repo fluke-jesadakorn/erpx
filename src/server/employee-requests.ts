@@ -86,6 +86,7 @@ export const requestActionSchema = z.object({
   assetReference: z.string().trim().max(180).default(""),
 });
 export type EmployeeRequest = RecordScope & {
+  engagement_id?:string|null;
   id: string;
   kind: RequestKind;
   category: string;
@@ -490,6 +491,8 @@ export async function saveEmployeeRequest(
       );
     requester = parent.requester_user_id;
   }
+  const engagement=input.kind === "purchase" ? await activeStaff(db,actor.companyId,requester) : null;
+  if(current?.engagement_id&&engagement&&current.engagement_id!==engagement.engagement_id)throw new ApiError(409,"ENGAGEMENT_CHANGED","Start a new request for the current engagement.");
   const scope = {
     company_id: actor.companyId,
     branch_id: input.branchId ?? actor.branchId,
@@ -537,11 +540,12 @@ export async function saveEmployeeRequest(
       : [
           db
             .prepare(
-              "INSERT INTO employee_requests(id,company_id,branch_id,department_id,category,title,description,location,impact,needed_date,items_json,currency,kind,requester_user_id,created_by,parent_request_id,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+              "INSERT INTO employee_requests(id,company_id,engagement_id,branch_id,department_id,category,title,description,location,impact,needed_date,items_json,currency,kind,requester_user_id,created_by,parent_request_id,version,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             )
             .bind(
               recordId,
               actor.companyId,
+              engagement?.engagement_id??null,
               ...values,
               input.kind,
               requester,
@@ -717,6 +721,11 @@ export async function actOnEmployeeRequest(
     );
   }
   if (input.action === "submit") {
+    if(row.kind==='purchase') {
+      const staff=await activeStaff(db,row.company_id,row.requester_user_id);
+      if(row.engagement_id&&row.engagement_id!==staff.engagement_id)throw new ApiError(409,'ENGAGEMENT_CHANGED','Start a new purchase request for the current engagement.');
+      statements.push(db.prepare('UPDATE employee_requests SET engagement_id=? WHERE id=? AND company_id=?').bind(staff.engagement_id,row.id,row.company_id));
+    }
     const route = await submittedRoute(db, row);
     if (route) {
       row.state = route.blockedReason ? "blocked" : "awaiting_approval";
@@ -889,6 +898,9 @@ export async function actOnEmployeeRequest(
         "Purchasing execution is unavailable in this beta workspace.",
       );
     actor = requirePermission(actor,"commerce.purchase");
+    const quotation = await db.prepare("SELECT id,order_id FROM procurement_rfqs WHERE request_id=? AND status<>'cancelled'").bind(row.id).first<{id:string;order_id:string|null}>();
+    if(quotation && quotation.order_id!==input.purchaseOrderId)
+      throw new ApiError(409,"REQUEST_RFQ_REQUIRED","The linked purchase order must come from the active approved supplier award.");
     if (!input.purchaseOrderId)
       throw new ApiError(422, "ORDER_REQUIRED", "Choose a purchase order.");
     const order=await db.prepare("SELECT kind,company_id,branch_id,department_id,state,version FROM commerce_orders WHERE id=? AND company_id=?").bind(input.purchaseOrderId,row.company_id).first<{kind:string;company_id:string;branch_id:string;department_id:string|null;state:string;version:number}>();
@@ -1125,6 +1137,7 @@ export async function prepareRequestOrderHandoff(
   key: string,
   expectedVersion?: number,
   editing = false,
+  rfqId?: string,
 ) {
   if (actor.beta)
     throw new ApiError(
@@ -1136,6 +1149,9 @@ export async function prepareRequestOrderHandoff(
   const snap = await serviceAuthoritySnapshot(db, actor.companyId),
     detail = await employeeRequestDetail(db, actor, requestId),
     row = detail.request;
+  const quotation = await db.prepare("SELECT id FROM procurement_rfqs WHERE request_id=? AND status<>'cancelled'").bind(requestId).first<{id:string}>();
+  if (!editing && quotation && quotation.id !== rfqId)
+    throw new ApiError(409,"REQUEST_RFQ_REQUIRED","Continue the active supplier quotation review before creating this request's purchase order.");
   if (
     row.kind !== "purchase" ||
     JSON.parse(row.approval_json).decision !== "approved" ||
@@ -1195,4 +1211,14 @@ export async function prepareRequestOrderHandoff(
         : []),
     ],
   };
+}
+
+/** Validate the existing request owner's approval and handler before sourcing quotations. */
+export async function requestQuotationSource(db:SqlDatabase,actor:WorkContext,id:string) {
+  requirePermission(actor,"commerce.purchase");
+  const detail=await employeeRequestDetail(db,actor,id),row=detail.request;
+  if(actor.beta||row.kind!=="purchase"||JSON.parse(row.approval_json).decision!=="approved"||!detail.actions.includes("link-order")||row.purchase_order_id)
+    throw new ApiError(403,"PURCHASE_REQUEST_REQUIRED","An approved purchase request assigned to you and in progress is required for quotations.");
+  await validateServiceScope(db,actor,row);
+  return {request:row,items:detail.items};
 }

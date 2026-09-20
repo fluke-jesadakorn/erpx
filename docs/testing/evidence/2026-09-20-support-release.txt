@@ -1,0 +1,238 @@
+$ bun scripts/prepare-pdf-assets.ts && bun scripts/local/build-release.ts
+Verified 183 capabilities to docs/status/capability-delivery-matrix.md
+▲ Next.js 16.3.4 (Turbopack)
+✓ Running next.config.ts took 1107ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 17.8s
+  Running TypeScript ...
+  Finished TypeScript in 9.9s ...
+  Collecting page data using 15 workers ...
+  Generating static pages using 15 workers (0/15) ...
+  Generating static pages using 15 workers (3/15) 
+  Generating static pages using 15 workers (7/15) 
+  Generating static pages using 15 workers (11/15) 
+✓ Generating static pages using 15 workers (15/15) in 112ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /access
+├ ƒ /activate
+├ ƒ /api/auth/[...all]
+├ ƒ /api/health
+├ ƒ /api/legal-portal/[holdingSlug]/[[...path]]
+├ ƒ /api/legal-portal/enroll
+├ ƒ /api/pos/stripe/webhook
+├ ƒ /api/public/booking/[holdingSlug]/[action]
+├ ƒ /api/ready
+├ ƒ /api/v1/account-invitations
+├ ƒ /api/v1/account/iam/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/ai-providers/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/approvals/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/assignments/active
+├ ƒ /api/v1/holdings/[holdingSlug]/assistant
+├ ƒ /api/v1/holdings/[holdingSlug]/attachments/[id]/content
+├ ƒ /api/v1/holdings/[holdingSlug]/attachments/[id]/derivatives
+├ ƒ /api/v1/holdings/[holdingSlug]/beta/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/billing/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/branding/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/business-readiness
+├ ƒ /api/v1/holdings/[holdingSlug]/calendar
+├ ƒ /api/v1/holdings/[holdingSlug]/calendar/[...path]
+├ ƒ /api/v1/holdings/[holdingSlug]/commerce/[...path]
+├ ƒ /api/v1/holdings/[holdingSlug]/companies/active
+├ ƒ /api/v1/holdings/[holdingSlug]/crm
+├ ƒ /api/v1/holdings/[holdingSlug]/customer-followups
+├ ƒ /api/v1/holdings/[holdingSlug]/customer-notes
+├ ƒ /api/v1/holdings/[holdingSlug]/customers
+├ ƒ /api/v1/holdings/[holdingSlug]/executive/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/expenses/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/feed
+├ ƒ /api/v1/holdings/[holdingSlug]/finance
+├ ƒ /api/v1/holdings/[holdingSlug]/finance/[...path]
+├ ƒ /api/v1/holdings/[holdingSlug]/flows/[kind]/[id]
+├ ƒ /api/v1/holdings/[holdingSlug]/handbook/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/iam/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/leave-requests
+├ ƒ /api/v1/holdings/[holdingSlug]/leave-requests/[id]
+├ ƒ /api/v1/holdings/[holdingSlug]/leave-requests/[id]/approve
+├ ƒ /api/v1/holdings/[holdingSlug]/leave-requests/[id]/cancellation-review
+├ ƒ /api/v1/holdings/[holdingSlug]/leave-requests/[id]/transition
+├ ƒ /api/v1/holdings/[holdingSlug]/leave-requests/preview
+├ ƒ /api/v1/holdings/[holdingSlug]/leave/admin
+├ ƒ /api/v1/holdings/[holdingSlug]/leave/summary
+├ ƒ /api/v1/holdings/[holdingSlug]/legal/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/messaging/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/navigation
+├ ƒ /api/v1/holdings/[holdingSlug]/overtime-requests/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/page-layouts/[pageKey]
+├ ƒ /api/v1/holdings/[holdingSlug]/people
+├ ƒ /api/v1/holdings/[holdingSlug]/people/[...path]
+├ ƒ /api/v1/holdings/[holdingSlug]/people/access/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/people/roster
+├ ƒ /api/v1/holdings/[holdingSlug]/pms
+├ ƒ /api/v1/holdings/[holdingSlug]/pms/[action]
+├ ƒ /api/v1/holdings/[holdingSlug]/pos
+├ ƒ /api/v1/holdings/[holdingSlug]/pos/[...path]
+├ ƒ /api/v1/holdings/[holdingSlug]/posts/[id]
+├ ƒ /api/v1/holdings/[holdingSlug]/posts/[id]/ai-drafts
+├ ƒ /api/v1/holdings/[holdingSlug]/posts/[id]/comments
+├ ƒ /api/v1/holdings/[holdingSlug]/posts/[id]/follow
+├ ƒ /api/v1/holdings/[holdingSlug]/posts/[id]/reaction
+├ ƒ /api/v1/holdings/[holdingSlug]/posts/[id]/task
+├ ƒ /api/v1/holdings/[holdingSlug]/posts/[id]/task-source
+├ ƒ /api/v1/holdings/[holdingSlug]/procurement-rfqs
+├ ƒ /api/v1/holdings/[holdingSlug]/procurement-rfqs/[id]
+├ ƒ /api/v1/holdings/[holdingSlug]/projects/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/quality/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/records/[module]
+├ ƒ /api/v1/holdings/[holdingSlug]/records/[module]/[id]
+├ ƒ /api/v1/holdings/[holdingSlug]/records/[module]/[id]/mentions
+├ ƒ /api/v1/holdings/[holdingSlug]/records/[module]/[id]/references
+├ ƒ /api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions
+├ ƒ /api/v1/holdings/[holdingSlug]/records/[module]/[id]/suggestions/[suggestionId]
+├ ƒ /api/v1/holdings/[holdingSlug]/records/[module]/[id]/transition
+├ ƒ /api/v1/holdings/[holdingSlug]/records/search
+├ ƒ /api/v1/holdings/[holdingSlug]/requests/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/routine-schedules/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/routine-templates/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/routing-attention
+├ ƒ /api/v1/holdings/[holdingSlug]/self-service/summary
+├ ƒ /api/v1/holdings/[holdingSlug]/service-teams/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/staff-tasks/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/staff/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/stock-counts/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/stock-transfers/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/stock-transit/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/stories
+├ ƒ /api/v1/holdings/[holdingSlug]/stories/[id]/archive
+├ ƒ /api/v1/holdings/[holdingSlug]/supplier-bills
+├ ƒ /api/v1/holdings/[holdingSlug]/supplier-bills/[id]
+├ ƒ /api/v1/holdings/[holdingSlug]/supplier-promises/[id]
+├ ƒ /api/v1/holdings/[holdingSlug]/support
+├ ƒ /api/v1/holdings/[holdingSlug]/technology/[[...path]]
+├ ƒ /api/v1/holdings/[holdingSlug]/uploads
+├ ƒ /api/v1/holdings/[holdingSlug]/uploads/[id]/content
+├ ƒ /api/v1/holdings/[holdingSlug]/work/card-preferences
+├ ƒ /api/v1/holdings/[holdingSlug]/work/summary
+├ ƒ /api/v1/join
+├ ƒ /api/v1/me/page-layouts/[pageKey]
+├ ƒ /api/v1/onboarding
+├ ƒ /api/v1/platform/assignments/active
+├ ƒ /api/v1/platform/billing/[[...path]]
+├ ƒ /api/v1/platform/iam/[[...path]]
+├ ƒ /api/v1/platform/page-layouts/[pageKey]
+├ ƒ /api/v1/stripe/webhook
+├ ƒ /api/v1/workspace-preference
+├ ○ /apple-icon.png
+├ ƒ /book/[holdingSlug]
+├ ƒ /book/[holdingSlug]/[propertyId]
+├ ƒ /book/[holdingSlug]/manage
+├ ƒ /forgot-password
+├ ƒ /holdings/[holdingSlug]/calendar
+├ ƒ /holdings/[holdingSlug]/commerce
+├ ƒ /holdings/[holdingSlug]/commerce/orders/[id]
+├ ƒ /holdings/[holdingSlug]/commerce/orders/[id]/notes
+├ ƒ /holdings/[holdingSlug]/crm
+├ ƒ /holdings/[holdingSlug]/crm/[id]
+├ ƒ /holdings/[holdingSlug]/customer-followups
+├ ƒ /holdings/[holdingSlug]/customer-followups/[id]
+├ ƒ /holdings/[holdingSlug]/customers
+├ ƒ /holdings/[holdingSlug]/customers/[id]
+├ ƒ /holdings/[holdingSlug]/executive
+├ ƒ /holdings/[holdingSlug]/executive/reports/[reportId]
+├ ƒ /holdings/[holdingSlug]/expenses
+├ ƒ /holdings/[holdingSlug]/expenses/[id]
+├ ƒ /holdings/[holdingSlug]/feed
+├ ƒ /holdings/[holdingSlug]/finance
+├ ƒ /holdings/[holdingSlug]/finance/bank
+├ ƒ /holdings/[holdingSlug]/finance/invoices
+├ ƒ /holdings/[holdingSlug]/finance/invoices/[id]
+├ ƒ /holdings/[holdingSlug]/finance/journals/[id]
+├ ƒ /holdings/[holdingSlug]/finance/ledger
+├ ƒ /holdings/[holdingSlug]/finance/payments/[id]
+├ ƒ /holdings/[holdingSlug]/finance/refunds
+├ ƒ /holdings/[holdingSlug]/finance/refunds/[id]
+├ ƒ /holdings/[holdingSlug]/finance/supplier-batches
+├ ƒ /holdings/[holdingSlug]/finance/supplier-batches/[id]
+├ ƒ /holdings/[holdingSlug]/handbook
+├ ƒ /holdings/[holdingSlug]/handbook/[id]
+├ ƒ /holdings/[holdingSlug]/home
+├ ƒ /holdings/[holdingSlug]/iam/[[...section]]
+├ ƒ /holdings/[holdingSlug]/inbox
+├ ƒ /holdings/[holdingSlug]/learn
+├ ƒ /holdings/[holdingSlug]/leave
+├ ƒ /holdings/[holdingSlug]/leave/new
+├ ƒ /holdings/[holdingSlug]/legal
+├ ƒ /holdings/[holdingSlug]/overtime
+├ ƒ /holdings/[holdingSlug]/overtime/[id]
+├ ƒ /holdings/[holdingSlug]/people
+├ ƒ /holdings/[holdingSlug]/people/[id]
+├ ƒ /holdings/[holdingSlug]/people/access
+├ ƒ /holdings/[holdingSlug]/people/clearance/[id]
+├ ƒ /holdings/[holdingSlug]/people/organization
+├ ƒ /holdings/[holdingSlug]/people/payroll/[id]
+├ ƒ /holdings/[holdingSlug]/people/roster
+├ ƒ /holdings/[holdingSlug]/people/settings
+├ ƒ /holdings/[holdingSlug]/pms/[[...section]]
+├ ƒ /holdings/[holdingSlug]/pms/documents/[id]
+├ ƒ /holdings/[holdingSlug]/pos
+├ ƒ /holdings/[holdingSlug]/posts/[id]
+├ ƒ /holdings/[holdingSlug]/procurement-rfqs
+├ ƒ /holdings/[holdingSlug]/procurement-rfqs/[id]
+├ ƒ /holdings/[holdingSlug]/projects
+├ ƒ /holdings/[holdingSlug]/projects/[id]
+├ ƒ /holdings/[holdingSlug]/quality
+├ ƒ /holdings/[holdingSlug]/quality/[id]
+├ ƒ /holdings/[holdingSlug]/requests
+├ ƒ /holdings/[holdingSlug]/requests/[id]
+├ ƒ /holdings/[holdingSlug]/routine-templates
+├ ƒ /holdings/[holdingSlug]/routine-templates/[id]
+├ ƒ /holdings/[holdingSlug]/settings
+├ ƒ /holdings/[holdingSlug]/settings/business-readiness
+├ ƒ /holdings/[holdingSlug]/staff-settings
+├ ƒ /holdings/[holdingSlug]/staff-tasks
+├ ƒ /holdings/[holdingSlug]/staff-tasks/[id]
+├ ƒ /holdings/[holdingSlug]/stock-counts
+├ ƒ /holdings/[holdingSlug]/stock-counts/[id]
+├ ƒ /holdings/[holdingSlug]/stock-transfers
+├ ƒ /holdings/[holdingSlug]/stock-transfers/[id]
+├ ƒ /holdings/[holdingSlug]/stock-transit
+├ ƒ /holdings/[holdingSlug]/stock-transit/[id]
+├ ƒ /holdings/[holdingSlug]/supplier-bills
+├ ƒ /holdings/[holdingSlug]/supplier-bills/[id]
+├ ƒ /holdings/[holdingSlug]/support
+├ ƒ /holdings/[holdingSlug]/support/[id]
+├ ƒ /holdings/[holdingSlug]/tasks/people_payroll/[id]
+├ ƒ /holdings/[holdingSlug]/technology
+├ ƒ /holdings/[holdingSlug]/work
+├ ƒ /holdings/[holdingSlug]/work/routing
+├ ƒ /holdings/[holdingSlug]/work/routing/[kind]/[id]
+├ ○ /icon.svg
+├ ƒ /join
+├ ƒ /legal-portal/[holdingSlug]
+├ ƒ /legal-portal/enroll
+├ ƒ /login
+├ ○ /manifest.webmanifest
+├ ƒ /my-access
+├ ƒ /onboarding
+├ ƒ /platform/[destination]
+├ ƒ /platform/billing
+├ ƒ /platform/iam/[[...section]]
+├ ƒ /platform/preview/[...path]
+├ ƒ /platform/tasks/[...path]
+├ ƒ /reset-password
+├ ƒ /security
+├ ƒ /signup
+├ ƒ /verify-email
+└ ƒ /work-role
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
+Release: /Users/fluke/Desktop/Work/erpx/.runtime/releases/2026-09-20T09-36-47-226Z

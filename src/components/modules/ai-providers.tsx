@@ -128,13 +128,13 @@ export function AiProviders({
                 {c.disabled
                   ? "Disabled"
                   : c.active_revision
-                    ? "Active"
+                    ? data.selection.mode === "custom" && data.selection.text_connection_id === c.id ? "Company default" : "Available"
                     : "Draft"}
               </span>
             </div>
             {c.active && c.active_revision !== c.draft_revision && (
               <div className="notice">
-                <strong>Currently in use</strong>
+                <strong>Activated revision</strong>
                 <p>{c.active.base_url}</p>
                 <p>
                   Text: {c.active.text_model} · Images:{" "}

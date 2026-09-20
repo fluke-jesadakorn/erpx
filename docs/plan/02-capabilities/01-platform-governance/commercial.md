@@ -1,32 +1,15 @@
 # Commercial
 
-**Purpose:** Owns Stripe-authoritative catalog/billing/entitlement mirrored locally.
+Commercial manages the Hosted service agreement for a Holding, reviewed actual costs and fixed monthly Support. One account covers all Companies and Branches. The current implementation is the Sandbox offering in [ADR-028](../../../adr/ADR-028-sandbox-cost-plus-support-billing.md); archived Rust RPC descriptions and seat pricing are not the active contract.
 
-**Group:** `01-platform-governance` · **Code:** `crates/contexts/commercial` · **Proto:** `crates/proto/proto/erpx/commercial/service.proto` · **Adapters:** `crates/adapters/commercial-sqlx` (where present) · **UI:** `apps/console/src/features/commercial` / `crates/ui-domains/*`
+ERPX owns enrollment, effective-month plan revisions, service periods, cost completeness, approvals and audits. Stripe owns invoice/payment state and stores payment details. A customer return URL never confirms payment. Infrastructure Only / Standard / Priority Support start at THB 0 / 500 / 1,500 per month plus actual costs. All modules are available regardless of tier. BYOK paid by customers is excluded.
 
-**Actors & scopes:** `AuthorityScope::{Platform, Holding, Company, Branch, Subtree}` via `crates/kernel`; RBAC through expiring `role_assignments` (ADR-004) where context is gated.
+Holding owners use Settings → Usage & billing. Platform administrators use Platform → Billing; auditors can read. Costs and evidence are isolated by Holding; evidence is private to Platform. Amounts are integer satang and periods use Asia/Bangkok. Missing cost review is not a zero-cost month. The first Support month is prorated by calendar day, while plan changes and termination are effective at month end and reversible until then.
 
-**Services & RPCs (22):** CommercialCommandService, CommercialQueryService
-- AllocateCompanyEntitlement, ActivateCompanyEntitlement, ActivateBranchEntitlement, CreateCheckoutSession, CreateCustomerPortalSession, GrantGraceExtension, CreateCatalogPlan, PublishCatalogPlan, CreateSubscription, ApplyBillingEvent, CreateEntitlement, ApplyEntitlementChange …
+The active control schema is `0009_billing.sql`. APIs are `/api/v1/holdings/{slug}/billing` and `/api/v1/platform/billing`, with Platform evidence under `/evidence/{id}`. Mutations require an expected account version, idempotency key and audit reason. The worker closes calendar periods, processes approved invoices and reconciles the durable Stripe inbox. There is no public clock override or early-month close action. Tests inject a clock into isolated fixture databases.
 
-**Invariants:**
-- Billing state is Stripe-authoritative; local state mirrors Stripe events.
+Draft costs may be corrected before approval. Approved invoice lines are immutable. Void unpaid invoices before issuing replacements; preserve paid invoices and add reviewed adjustments referencing them. Late provider costs use the original period, including after Hosted ends. Net credits stop for reviewed credit-note handling rather than creating negative invoices or automatic refunds.
 
+Existing Stripe customers are reused. Active legacy test subscriptions block enrollment; use Stripe to resolve them. The old THB 100 Subscription Checkout is disabled. Portal handles cards/history; ERPX handles plan and Hosted lifecycle. Sandbox termination simulates effects without changing actual workspace access.
 
-**Data owned:** `commercial_catalog_revisions + billing_lifecycles + entitlement_allocation_books + stripe_event_inbox`
-
-**Depends on / depended-by:** depends on `organization`/`identity_access` for scope; collaborators link via `ReferenceQueryService` + Typed Mentions (no direct table joins).
-
-**Referenceable:** yes — `@` + ctx + `/<id>` → `/reference/item/:id` (typed mention). ID example: `@commercial/example-28-01-2026-0001`.
-
-
-
-## Social surface (paradigm: `docs/plan/04-social-paradigm.md`)
-
-- **Post template:** `PLAN-… · {catalog} · {price} · {status}` — mirrors Stripe state, never edits billing.
-- **Hashtags:** `#billing #plan #entitlement` (holding scope).
-- **Follow:** catalog publishes + grace extensions; **Lane:** grace/overdue for `billing-owner`.
-
-**Verification:** `cargo xtask test-affected` (owns `crates/contexts/commercial`), `cargo xtask verify` for full gate. Traceability: `docs/plan/traceability.md`.
-
-ASCII: see `docs/plan/03-cross-cutting/@-and-ai/commercial.md`.
+Verification: `bun --env-file=.env.local run test:integration tests/billing.test.ts tests/billing-api.test.ts tests/beta-auth-billing.test.ts`; opt-in Stripe Sandbox tests are documented in `docs/contracts/next/billing.md`.

@@ -1,3 +1,4 @@
+import { policyRead, policyNow } from "./iam-read-snapshot";
 import { permissionForRoles } from "@/lib/permissions";
 import type { SqlDatabase } from "./runtime/types";
 import type { WorkContext } from "./authorization";
@@ -29,10 +30,11 @@ export type StaffPerson = RecordScope & {
   level_number?: number | null;
   position_id?: string | null;
   is_ceo?: number | null;
+  self_service_top_level?: boolean;
 };
 // Account access and employment eligibility are separate from the currently selected business role.
 export const activeStaffSelect = `SELECT p.id person_id,p.user_id,p.legal_name,e.id engagement_id,e.version engagement_version,
-  e.company_id,e.branch_id,e.department_id,e.worker_type,e.start_date,e.end_date,e.manager_person_id,e.level_id,l.name level_name,l.rank level_rank,l.level_number,e.position_id,pos.is_ceo
+  e.company_id,e.branch_id,e.department_id,e.worker_type,e.start_date,e.end_date,e.manager_person_id,e.level_id,l.name level_name,l.rank level_rank,l.level_number,e.position_id,pos.is_ceo,e.self_service_top_level
   FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id
   LEFT JOIN staff_levels l ON l.id=e.level_id AND l.company_id=e.company_id
   LEFT JOIN organization_positions pos ON pos.id=e.position_id AND pos.company_id=e.company_id AND pos.active=1
@@ -69,6 +71,9 @@ export async function activeStaff(
   companyId: string,
   userId: string,
 ): Promise<StaffPerson> {
+  return policyRead(db, JSON.stringify(["active-staff", companyId, userId]), () => readActiveStaff(db, companyId, userId));
+}
+async function readActiveStaff(db: SqlDatabase, companyId: string, userId: string): Promise<StaffPerson> {
   const now = Date.now();
   const { results } = await db
     .prepare(`${activeStaffSelect} AND iam_same_person(p.user_id,?,p.company_id)`)
@@ -108,7 +113,8 @@ export async function companyAuthority(
   actor: Pick<StaffActor, "userId" | "companyId" | "assignmentId" | "role">,
   roles:string[]|string = "organization.manage",
 ) {
-  const now = Date.now();
+  return policyRead(db, JSON.stringify(["company-authority", actor, roles]), async () => {
+  const now = policyNow();
   return !!(await db
     .prepare(
       `SELECT 1 FROM assignments WHERE id=? AND company_id=? AND iam_role_allows(role,company_id,?) AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
@@ -116,6 +122,7 @@ export async function companyAuthority(
     )
     .bind(actor.assignmentId, actor.companyId, (typeof roles==="string"?roles:roles.includes("it_admin")?"ai.manage":roles.length===2&&roles.includes("hr_admin")?"organization.manage":permissionForRoles(roles)), now, now)
     .first());
+  });
 }
 export function authorityGuard(
   db: SqlDatabase,
@@ -243,6 +250,55 @@ export async function requestRoute(
   try {
     const staff = await activeStaff(db, companyId, userId);
     scope = staff;
+    if (kind === "leave") {
+      const people = await staffPeople(db, companyId);
+      const chain = reportingChain(people, staff.person_id);
+      const forbidden = new Set([userId, staff.user_id, ...excluded]);
+      let manager = chain[0];
+      let authority: RouteStep["authority"] = "named";
+      if (!manager) {
+        if(!staff.self_service_top_level)throw new ApiError(409,"MANAGER_REQUIRED","Ask HR to set your reporting manager, or explicitly confirm a top-level engagement in People settings.");
+        const owners = await eligibleRoleUsers(db, scope, "holding_owner");
+        const owner = owners.find(
+          (id) => !forbidden.has(id) && people.filter((p) => p.user_id === id).length === 1,
+        );
+        if (!owner)
+          throw new ApiError(
+            409,
+            "OWNER_REQUIRED",
+            "Configure an independent company owner for this top-level staff member.",
+          );
+        manager = people.find((p) => p.user_id === owner)!;
+        authority = "holding_owner";
+      }
+      if (forbidden.has(manager.user_id))
+        throw new ApiError(409, "SELF_APPROVAL", "An independent reporting manager is required.");
+      if(authority==='named'&&!await db.prepare(`SELECT 1 FROM assignments WHERE user_id=? AND company_id=? AND iam_role_allows(role,company_id,'workflow.people_manager') AND revoked_at IS NULL AND valid_from<=? AND valid_until>? AND iam_assignment_active(id,?) AND (scope_kind='holding' OR scope_kind='branch' AND scope_node_id=? OR scope_kind='department' AND scope_node_id=?)`).bind(manager.user_id,companyId,Date.now(),Date.now(),Date.now(),scope.branch_id,scope.department_id).first())throw new ApiError(409,'MANAGER_AUTHORITY_REQUIRED','Ask HR to give the reporting manager approval authority for your Company scope.');
+      forbidden.add(manager.user_id);
+      const hrUsers = await eligibleRoleUsers(db, scope, "hr_admin");
+      const hrUser = hrUsers.find(
+        (id) => !forbidden.has(id) && people.filter((p) => p.user_id === id).length === 1,
+      );
+      if (!hrUser)
+        throw new ApiError(
+          409,
+          "HR_APPROVER_REQUIRED",
+          "Configure an eligible HR reviewer independent of the requester and reporting manager.",
+        );
+      return {
+        steps: [
+          { userId: manager.user_id, authority },
+          { userId: hrUser, authority: "hr_admin" },
+        ],
+        blockedReason: null,
+        scope,
+        checks: [staff, manager]
+          .map((person) => ({
+            query: "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=? AND version=? AND status='active')",
+            args: [person.engagement_id, companyId, person.engagement_version],
+          })),
+      };
+    }
     if (!staff.department_id)
       throw new ApiError(
         409,
@@ -299,22 +355,6 @@ export async function requestRoute(
         "An independent department approver is required.",
       );
     const steps: RouteStep[] = [{ userId: reviewer.user_id, authority }];
-    if (kind === "leave") {
-      forbidden.add(reviewer.user_id);
-      const hr = await eligibleRoleUsers(db, scope, "hr_admin");
-      const user = hr.find(
-        (id) =>
-          !forbidden.has(id) &&
-          people.filter((p) => p.user_id === id).length === 1,
-      );
-      if (!user)
-        throw new ApiError(
-          409,
-          "HR_APPROVER_REQUIRED",
-          "Configure an eligible HR administrator independent of the requester and department approver.",
-        );
-      steps.push({ userId: user, authority: "hr_admin" });
-    }
     return {
       steps,
       blockedReason: null,

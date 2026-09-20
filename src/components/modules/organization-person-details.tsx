@@ -4,7 +4,7 @@ import Link from "next/link";
 import { MessageCircle, ExternalLink } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import type { OrganizationOverview } from "@/lib/organization";
-import type { OrganizationGraph } from "@/lib/organization-chart";
+import { assignedLevel, type OrganizationGraph } from "@/lib/organization-chart";
 import styles from "./organization-chart.module.css";
 
 export function OrganizationPersonDetails({ base, data, graph, personId, onClose, onTeam }: {
@@ -23,7 +23,7 @@ export function OrganizationPersonDetails({ base, data, graph, personId, onClose
       <p className={styles.detailTitle}>{entry.title}</p>
       <dl className={styles.facts}>
         <div><dt>Email</dt><dd className={styles.detailEmail}>{person.email || "No email"}</dd></div>
-        <div><dt>Level</dt><dd>{person.level_number ? "Level " + person.level_number + (person.level_name ? " · " + person.level_name : "") : "Not mapped"}</dd></div>
+        <div><dt>Level</dt><dd>{assignedLevel(person.level_number) < 7 ? "Level " + person.level_number + (person.level_name ? " · " + person.level_name : "") : "Level not assigned"}</dd></div>
         <div><dt>Branch</dt><dd>{data.nodes.find(n => n.id === person.branch_id)?.display_name ?? "Not shown / company-wide"}</dd></div>
         <div><dt>Department</dt><dd>{data.nodes.find(n => n.id === person.department_id)?.display_name ?? "Not shown / unassigned"}</dd></div>
         <div><dt>Reports to</dt><dd>{parentId ? graph.entries.get(parentId)!.person.legal_name : entry.boundary ?? (entry.isCeo && !person.manager_person_id ? "Company leadership · no manager" : "Reporting relationship needs review")}</dd></div>

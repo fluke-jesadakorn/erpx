@@ -1,0 +1,42 @@
+{
+  "observedAt": "2026-09-20T07:03:48.333285+00:00",
+  "environment": "isolated simulation",
+  "run": "0b01cd73957f",
+  "browser": "Chrome normal password sessions through cua_repl",
+  "roles": [
+    "Source operator (holding_owner)",
+    "Purchasing manager (purchasing_manager)",
+    "Receiving operator (warehouse_manager)",
+    "Finance reviewer (finance_approver)"
+  ],
+  "sourceIds": {
+    "rfq": "rfq-554212db-1c9e-4dd8-bb22-8463495be67e",
+    "order": "order-a3cab2a5-45c5-44b5-8acc-018f6eec87b3",
+    "receipt": "delivery-b2c02da9-7b49-48d0-b7c7-b1b79ef14423",
+    "matching": "bill-match-a04d4527-4d0f-4ede-818d-9c8331e4eda2",
+    "invoice": "invoice-0fd42c86-29e5-4921-b3e3-1799f2328f93",
+    "invoiceJournal": "journal-bb0622c5-d1b3-4133-a99c-fa213e3ef534"
+  },
+  "observations": [
+    "Source created supplier, demand 2 units and quote THB10 plus 7% tax. Own award approval unavailable.",
+    "Purchasing manager received RFQ from Home queue, independently approved award. Source received approved handoff and created PO at unchanged terms.",
+    "Source assigned receiving and AP owners with reasons; buyer approved PO separately from RFQ.",
+    "Warehouse user found PO in own Work queue and received 2 units. Outstanding receipt quantity became 0.",
+    "Finance found stock GL in own Work and posted inventory THB20/clearing THB20.",
+    "Source captured supplier invoice at THB12 per unit. Matching displayed expected20,actual24,tax1.68,variance4,gross25.68; creator had no approval control.",
+    "Finance found matching in own Work, selected expense account and documented independent price review. Finance had no AP preparation button because PO named another owner.",
+    "Source found approved matching in queue and prepared AP. Preview showed clearing20+expense4+tax1.68=AP25.68.",
+    "Finance found AP draft in Work and independently posted it. Posted GL matched preview; source data confirms stock2000milli/value2000minor,invoice2568minor,statusposted,matchingstatusposted.",
+    "Public authenticated dev RFQ and supplier-bills pages displayed normally; local/public health200."
+  ],
+  "limitations": [
+    "Scoped browser observation, not complete S03, B/C or A-J acceptance.",
+    "One offer and complete receipt; browser did not exercise all negative cases or typed PR mapping. Automated evidence covers separate exception cases.",
+    "No payment completed: Treasury role absent in this fixture; invoice correctly displays no eligible owner and outstanding THB25.68.",
+    "Browser fixture maps receipt clearing and AP to the same payable account; dedicated clearing/inventory integration fixtures independently verify clearing netting and complete returns.",
+    "Finance account had to be re-added after switching to source. Installed multi-session code counts stale cookie names from previous disposable runs toward its device limit; no authentication bypass used.",
+    "No provider, real customer, device or production sign-off."
+  ],
+  "revision": "00b8f922797aff50de148f8badf0cf3d463a6ac9",
+  "dirtyWorkingTree": true
+}
