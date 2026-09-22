@@ -17,6 +17,10 @@ export type GeneralCompanyDemoInput = {
   movementProductId?: string;
   lotProductId: string;
   serialProductId: string;
+  qualityDueSoonHoldId?: string;
+  qualityOverdueHoldId?: string;
+  qualityInspector?: DemoActor;
+  qualityManager?: DemoActor;
   closePeriodIds: [string, string];
   controlledPaymentInvoiceId: string;
   actors: Record<
@@ -209,6 +213,22 @@ export function generalCompanyDemoGuide(input: GeneralCompanyDemoInput) {
             warehouses: { source: input.sourceWarehouseId, target: input.targetWarehouseId },
             productId: input.movementProductId,
             actors: { sourceWarehouse: input.actors.sourceWarehouse, warehouse: input.actors.warehouse },
+          }]
+        : []),
+      ...(input.qualityDueSoonHoldId && input.qualityOverdueHoldId && input.qualityInspector && input.qualityManager
+        ? [{
+            id: "quality-escalation-recovery",
+            title: "รับงาน Quality ที่ใกล้ครบกำหนดและเกินกำหนด พร้อมหลักฐานการกู้คืน",
+            sourceRecord: { type: "quality_alerts", id: input.qualityDueSoonHoldId },
+            startingState: "The isolated Demo company contains one active hold due today and another hold overdue by one day. Both are routed to independent Quality recipients and can be reset with the Demo run.",
+            steps: [
+              { order: 1, actor: "warehouse", action: "เปิด Work และตรวจ Quality escalations ของ hold ที่ใกล้ครบกำหนดและเกินกำหนด", href: `${base}/work?type=quality_alert`, expected: "แสดง due-soon และ overdue แยกกัน พร้อมวันครบกำหนด ผู้รับผิดชอบ และ next action" },
+              { order: 2, actor: "qualityInspector", action: "เปิด due-soon alert และ acknowledge พร้อมระบุผู้ตรวจและเวลาที่จะตรวจ", href: `${base}/quality/${input.qualityDueSoonHoldId}`, expected: "การรับงานถูกบันทึกครั้งเดียวหลัง reload และ alert เปลี่ยนเป็น acknowledged โดยไม่สร้าง notification ซ้ำ" },
+              { order: 3, actor: "qualityInspector", action: "เปิด overdue alert และ acknowledge พร้อมเหตุผลการกู้คืนที่ล่าช้า", href: `${base}/quality/${input.qualityOverdueHoldId}`, expected: "ระบบเก็บเหตุผลและผู้รับผิดชอบของ overdue escalation; retry ด้วย idempotency เดิมไม่ทำซ้ำ" },
+              { order: 4, actor: "qualityManager", action: "ตรวจ queue เดียวกันและยืนยันว่า alert ที่ถูก acknowledge แล้วมีแผน follow-up ต่อ", href: `${base}/quality`, expected: "ผู้จัดการเห็น source hold เดิมและสถานะ acknowledged แต่ไม่สามารถแก้หลักฐานของอีกคนโดยไม่ผ่าน version guard" },
+              { order: 5, actor: "administrator", action: "ถอนสิทธิ์ Quality inspector แล้ว reload Work", href: `${base}/work?type=quality_alert`, expected: "สิทธิ์ใหม่มีผลทันที; alert ที่ยังไม่รับงานจะไม่แสดงเป็น actionable และระบบบอกให้ administrator แต่งตั้งผู้รับใหม่" },
+            ],
+            actors: { warehouse: input.actors.warehouse, qualityInspector: input.qualityInspector, qualityManager: input.qualityManager, administrator: input.actors.administrator },
           }]
         : []),
     ],

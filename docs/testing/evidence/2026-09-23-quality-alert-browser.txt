@@ -1,0 +1,20 @@
+ERPX isolated Demo Quality escalation acceptance
+Run: 9711d21c2dd9
+Origin: http://127.0.0.1:3102
+Command: ERPX_DEMO_RUN=9711d21c2dd9 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-quality-alerts.spec.ts --project=desktop
+
+Result: 1 passed
+
+The resettable browser fixture created two real inventory quality holds in the
+isolated Demo database: one due today and one overdue by one day. The Quality
+inspector saw both Work items, opened each linked hold, acknowledged both
+escalations through the UI, and still saw the recorded acknowledgement after
+reload. The Work adapter regression that previously attempted to resolve a
+quality_alert through the generic flow table was fixed and the source is now
+available as an owner-specific Quality adapter.
+
+Fixture records:
+- quality-demo-quality-due-soon
+- quality-demo-quality-overdue
+- quality-alert-due-soon-quality-demo-quality-due-soon
+- quality-alert-overdue-quality-demo-quality-overdue

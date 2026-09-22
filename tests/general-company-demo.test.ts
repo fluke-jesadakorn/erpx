@@ -13,6 +13,10 @@ describe("general company working demo", () => {
       quotationId: "quote-1",
       lotProductId: "product-lot",
       serialProductId: "product-serial",
+      qualityDueSoonHoldId: "quality-due-soon",
+      qualityOverdueHoldId: "quality-overdue",
+      qualityInspector: actor("quality_inspector"),
+      qualityManager: actor("quality_manager"),
       closePeriodIds: ["period-jan", "period-feb"],
       controlledPaymentInvoiceId: "invoice-payment-demo",
       actors: {
@@ -47,5 +51,8 @@ describe("general company working demo", () => {
     const traceable = guide.scenarios[5];
     expect(traceable).toMatchObject({ id: "traceable-receipt-and-quality-release", products: { lotTracked: "product-lot", serialTracked: "product-serial" } });
     expect(traceable.steps.map(step=>step.order)).toEqual([1,2,3,4,5,6]);
+    const quality = guide.scenarios.at(-1);
+    expect(quality).toMatchObject({ id: "quality-escalation-recovery", sourceRecord: { type: "quality_alerts", id: "quality-due-soon" } });
+    expect(quality?.steps.map(step=>step.actor)).toEqual(["warehouse", "qualityInspector", "qualityInspector", "qualityManager", "administrator"]);
   });
 });
