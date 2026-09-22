@@ -391,7 +391,7 @@ const delivery: Record<string, ModuleDelivery> = {
     service: "src/server/commerce.ts",
     schema: "migrations/postgres/holding-write/0239_inventory_lot_serial.sql",
     test: "tests/inventory-lot-serial.test.ts",
-    gap: "Purchase receipt, Sales delivery, direct/staged transfers, physical counts, customer/supplier returns and independently reviewed landed-cost capitalization enforce quantity/value control totals, version guards and immutable item/lot evidence. Sales, POS, Field Service and Manufacturing share available/reserved stock; expiring and expired source reservations notify responsible users. Customer returns quarantine exact quantities for independent Quality release or controlled scrap. Multi-role browser and business acceptance remain incomplete.",
+    gap: "Purchase receipt, Sales delivery, direct/staged transfers, physical counts, customer/supplier returns and independently reviewed landed-cost capitalization enforce quantity/value control totals, version guards and immutable item/lot evidence. Sales, POS, Field Service and Manufacturing share available/reserved stock; expiring and expired source reservations notify responsible users. Customer returns quarantine exact quantities for independent Quality release or controlled scrap. A Demo Company browser journey now covers independent purchasing approval, warehouse lot quarantine, serial receipt and Quality visibility; full capability and Company business acceptance remain incomplete.",
     overrides: {
       availability: { status: "flow_accepted" },
       reservations: {
@@ -402,7 +402,7 @@ const delivery: Record<string, ModuleDelivery> = {
         schema:
           "migrations/postgres/holding-write/0233_planning_manufacturing.sql",
         test: "tests/stock-reservations.test.ts",
-        gap: "Sales, POS, Field Service and Manufacturing share atomic availability guards, release, expiry and consumption. The scheduled worker sends durable deduplicated Inbox links before expiry and again after availability protection ends; terminal and fully consumed/released sources are excluded. Multi-role browser and business acceptance remain incomplete.",
+        gap: "Sales, POS, Field Service and Manufacturing share atomic availability guards, release, expiry and consumption. The scheduled worker sends durable deduplicated Inbox links before expiry and again after availability protection ends; terminal and fully consumed/released sources are excluded. The Demo lot/serial browser journey verifies received quantity and quarantine visibility; broader availability and Company business acceptance remain incomplete.",
       },
       "feature-stock-register": { status: "flow_accepted" },
       "feature-receipts": { status: "flow_accepted" },
@@ -488,7 +488,7 @@ const delivery: Record<string, ModuleDelivery> = {
             schema:
               "migrations/postgres/holding-write/0244_quality_scrap_disposition.sql; migrations/postgres/holding-write/0281_quality_partial_disposition.sql; migrations/postgres/holding-write/0282_quality_partial_stock_guard.sql; migrations/postgres/holding-write/0283_quality_whole_hold_error.sql; migrations/postgres/holding-write/0284_quality_hold_alerts.sql",
             test: "tests/quality.test.ts",
-            gap: "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete or partial quantity scrap, stock/lot write-off and balanced GL; a partial posting creates a linked remainder hold that stays quarantined. Due-soon and overdue Quality alerts now recover through scheduled sweeps, route to current eligible recipients, and appear in Work/Inbox with acknowledgement evidence. Multi-role browser and business acceptance remain incomplete.",
+          gap: "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete or partial quantity scrap, stock/lot write-off and balanced GL; a partial posting creates a linked remainder hold that stays quarantined. Due-soon and overdue Quality alerts now recover through scheduled sweeps, route to current eligible recipients, and appear in Work/Inbox with acknowledgement evidence. A Demo Company browser journey now verifies lot quarantine visibility to an independent Quality inspector; complete inspection/release browser and Company business acceptance remain incomplete.",
           },
         ],
       ),

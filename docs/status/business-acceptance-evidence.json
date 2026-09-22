@@ -4112,6 +4112,38 @@
       "supersedes": null
     },
     {
+      "id": "inventory-lot-serial-browser-20260923",
+      "capabilityIds": [
+        "inventory/availability",
+        "inventory/feature-stock-register",
+        "inventory/feature-receipts",
+        "quality/inspections",
+        "quality/results",
+        "quality/release-gates"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S03"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "An isolated Demo Company browser scenario uses independent purchasing, warehouse and Quality accounts to create and approve lot- and serial-tracked purchase orders, record a quarantined lot and available serial receipt, verify persisted quantities after reload, render the stock register, and confirm the lot hold in the Quality queue.",
+      "observedAt": "2026-09-23T06:00:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-inventory-lot-serial-browser.txt",
+          "sha256": "ab2d37ce87d65dcd488c835ddcd78a0d5afa7b3a25f312d60bc945d7d2c588f2"
+        }
+      ],
+      "limitations": [
+        "The simulation run uses isolated Demo Company storage and sandbox accounts; it was destroyed after verification.",
+        "Inspection/release, transfers, returns, manufacturing, provider, production and Company business acceptance remain separate gates."
+      ],
+      "supersedes": null
+    },
+    {
       "id": "finance-consolidation-automated-20260923",
       "capabilityIds": [
         "finance/journals",

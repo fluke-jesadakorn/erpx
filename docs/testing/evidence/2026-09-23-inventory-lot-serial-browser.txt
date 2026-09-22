@@ -1,0 +1,21 @@
+ERPX browser evidence
+======================
+Run: 825a172762e2
+Observed: 2026-09-23 (Asia/Bangkok)
+Environment: isolated Demo Company browser simulation (http://127.0.0.1:3102)
+Command: ERPX_DEMO_RUN=825a172762e2 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 timeout 210s bunx playwright test tests/e2e/demo-inventory-lot-serial.spec.ts --project=desktop
+Result: PASS (1 test, 27.2s)
+
+Scenario
+--------
+- Purchasing operator created two purchase orders for SIM-LOT-MED (quantity 2) and SIM-SERIAL-DEVICE (quantity 1) through the real Commerce UI.
+- An independent purchasing manager approved both orders.
+- A warehouse manager recorded the lot receipt as DEMO-LOT-2026-01 with quantity 2 and quarantine disposition, then recorded DEMO-SERIAL-2026-01 with quantity 1 and available disposition.
+- The persisted order APIs confirmed 2,000 milli-units of quarantined lot stock and 1,000 milli-units of available serial stock after reload.
+- The warehouse stock screen rendered both tracking modes and quantities.
+- A separate Quality inspector account opened Quality holds and the authenticated API confirmed the quarantined lot hold and quantity.
+- The test attached the run result and all simulation data was destroyed after verification.
+
+Scope and limits
+----------------
+This is isolated Demo Company evidence for the lot/serial receipt and quarantine handoff. It does not constitute full Inventory, Quality, provider, production, or Company business acceptance; inspection/release, transfer, returns, manufacturing, and the wider downstream accounting journey remain separate gates.
