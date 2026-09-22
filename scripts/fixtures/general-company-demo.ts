@@ -233,7 +233,21 @@ export function generalCompanyDemoGuide(input: GeneralCompanyDemoInput) {
             ],
             actors: { warehouse: input.actors.warehouse, qualityInspector: input.qualityInspector, qualityManager: input.qualityManager, administrator: input.actors.administrator },
           }]
-        : []),
+          : []),
+      ...(input.qualityDueSoonHoldId && input.qualityInspector && input.qualityManager
+        ? [{
+            id: "quality-inspection-and-release",
+            title: "ตรวจ Quality แบบอิสระและปล่อย Stock หลังผ่านการตรวจ",
+            sourceRecord: { type: "quality_hold", id: input.qualityDueSoonHoldId },
+            startingState: "The isolated Demo company contains an active hold created by Warehouse. The hold is ready for an independent Quality inspector and a separate Quality manager release.",
+            steps: [
+              { order: 1, actor: "qualityInspector", action: "เปิด hold และบันทึกผล inspection เป็น Pass พร้อม evidence", href: `${base}/quality/${input.qualityDueSoonHoldId}`, expected: "สถานะเปลี่ยนเป็น awaiting_release และเก็บ inspector, version และหลักฐานแบบ immutable" },
+              { order: 2, actor: "qualityManager", action: "เปิด hold เดิม ตรวจผล Pass และอนุมัติปล่อย", href: `${base}/quality/${input.qualityDueSoonHoldId}`, expected: "ผู้ตรวจไม่สามารถปล่อย stock เอง; manager อีกคนต้องให้เหตุผลและใช้ version ล่าสุด" },
+              { order: 3, actor: "warehouse", action: "เปิด Stock register หลัง reload", href: `${base}/commerce?view=stock`, expected: "สถานะ quarantined ถูกตัดออกจาก available ตาม hold ที่ปล่อยแล้ว และประวัติ Quality ยังเชื่อมกับ lot หรือ product เดิม" },
+            ],
+            actors: { warehouse: input.actors.warehouse, qualityInspector: input.qualityInspector, qualityManager: input.qualityManager },
+          }]
+          : []),
       ...(input.customerId && input.customerOperator
         ? [{
             id: "customer-360-scoped-timeline",
