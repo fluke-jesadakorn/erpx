@@ -1,5 +1,5 @@
 {
-  "evidenceLedgerSha256": "5f613cc72fab5f73847795afff3e8c01045e00c91ad3c1e0290979d21313e0c8",
+  "evidenceLedgerSha256": "dd98bb18ab740f4262f676b0712b4f7b29077d188007d9743060b58ce40b7eef",
   "capabilities": [
     {
       "id": "brand/feature-draft-workspace",
@@ -13196,13 +13196,13 @@
       "gate": "automated",
       "environment": "simulation",
       "outcome": "partial",
-      "scope": "Holding-scoped Group Finance now creates source-linked intercompany items, requires active entities, and records independent match, settlement and elimination decisions with idempotency, version guards and immutable event history. The focused Finance regression passed 3 files and 13 tests.",
+      "scope": "Holding-scoped Group Finance now registers active organization Companies as Group entities with idempotent duplicate-protected setup, then creates source-linked intercompany items, requires active entities, and records independent match, settlement and elimination decisions with idempotency, version guards and immutable event history. The focused Finance regression passed 3 files and 13 tests.",
       "observedAt": "2026-09-23T02:45:00+07:00",
       "recordedBy": "Codex execution agent (automated service evidence, not business sign-off)",
       "evidence": [
         {
           "path": "docs/testing/evidence/2026-09-23-finance-intercompany-tests.txt",
-          "sha256": "8073e23450d53f65542cdc62bdc174e081d8097e3faeda7b1a06d1ffd6b2fde0"
+          "sha256": "ca4d2ab5c504388b2375e112b5887393c7aa5e81bd2b79167dbdda5743496e1f"
         }
       ],
       "limitations": [

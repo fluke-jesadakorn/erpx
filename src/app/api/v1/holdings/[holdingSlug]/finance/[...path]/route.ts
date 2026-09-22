@@ -75,7 +75,7 @@ import {
 import { z } from "zod";
 import { calculationDecisionSchema, calculationRunDetail, calculationRunSchema, createCalculationRun, decideCalculationRun, financeEngineWorkspace, snapshotCloseChecks } from "@/server/finance-engines";
 import { accrualRunPostSchema, accrualScheduleDecisionSchema, accrualSchedulePage, accrualScheduleSchema, createAccrualSchedule, decideAccrualSchedule, postAccrualRun, prepareAccrualRun } from "@/server/finance-accruals";
-import { createIntercompany, decideIntercompany, intercompanyDecisionSchema, intercompanyTransactionSchema, intercompanyWorkspace } from "@/server/finance-intercompany";
+import { createGroupEntity, createIntercompany, decideIntercompany, groupEntitySchema, intercompanyDecisionSchema, intercompanyTransactionSchema, intercompanyWorkspace } from "@/server/finance-intercompany";
 
 function command(request: Request) {
   return request.headers.get("Idempotency-Key");
@@ -132,6 +132,7 @@ export async function GET(request: Request, context: FinanceRouteContext) {
     if (parts[0] === "aging") { const kind = search.get("kind"); if (kind !== "payable" && kind !== "receivable") throw new ApiError(422, "INVALID_AGING_KIND", "kind must be payable or receivable."); return Response.json({ data: await aging(actor, kind, search.get("asOf") ?? new Date().toISOString().slice(0, 10)) }); }
     if(parts[0]==="engines")return Response.json({data:await financeEngineWorkspace(actor)});
     if(parts[0]==="intercompany")return Response.json({data:await intercompanyWorkspace(actor)});
+    if(parts[0]==="group-entities")return Response.json({data:await intercompanyWorkspace(actor)});
     if(parts[0]==="accrual-schedules")return Response.json({data:await accrualSchedulePage(actor)});
     if(parts[0]==="calculation-runs"&&parts[1])return Response.json({data:await calculationRunDetail(actor,parts[1])});
     throw new ApiError(404, "NOT_FOUND", "Finance resource not found.");
@@ -148,6 +149,7 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     if(parts[0]==="calculation-runs"&&parts.length===3&&["review","approve","reject"].includes(parts[2]))return Response.json({data:await decideCalculationRun(actor,parts[1],calculationDecisionSchema.parse(input),parts[2] as "review"|"approve"|"reject",needCommand(request))});
     if(parts[0]==="intercompany"&&parts.length===1){const parsed=intercompanyTransactionSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid intercompany transaction.");return Response.json({data:await createIntercompany(actor,parsed.data,needCommand(request))},{status:201});}
     if(parts[0]==="intercompany"&&parts.length===3&&["match","settle","eliminate"].includes(parts[2])){const parsed=intercompanyDecisionSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Intercompany decision evidence is required.");return Response.json({data:await decideIntercompany(actor,parts[1],parts[2] as "match"|"settle"|"eliminate",parsed.data,needCommand(request))});}
+    if(parts[0]==="group-entities"&&parts.length===1){const parsed=groupEntitySchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Group entity details are invalid.");return Response.json({data:await createGroupEntity(actor,parsed.data,needCommand(request))},{status:201});}
     if(parts[0]==="accrual-schedules"&&parts.length===1)return Response.json({data:await createAccrualSchedule(actor,accrualScheduleSchema.parse(input),needCommand(request))},{status:201});
     if(parts[0]==="accrual-schedules"&&parts.length===3&&["approve","cancel"].includes(parts[2]))return Response.json({data:await decideAccrualSchedule(actor,parts[1],accrualScheduleDecisionSchema.parse(input),parts[2] as "approve"|"cancel",needCommand(request))});
     if(parts[0]==="accrual-schedules"&&parts.length===3&&parts[2]==="prepare")return Response.json({data:await prepareAccrualRun(actor,parts[1],needCommand(request))},{status:201});

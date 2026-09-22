@@ -9,6 +9,7 @@ Result:
   13 tests passed
 
 Coverage:
+  - active organization Company → Group Finance entity setup with idempotent replay and duplicate protection
   - active Group Finance entity guard for both companies
   - idempotent source-linked creation
   - independent match, settlement and elimination handoffs

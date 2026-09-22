@@ -1,22 +1,36 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "./runtime-env";
 import { expenseDb as db, expenseFixture, key } from "./helpers/expense-fixture";
-import { createIntercompany, decideIntercompany, intercompanyTransactionSchema, intercompanyWorkspace } from "../src/server/finance-intercompany";
+import { createGroupEntity, createIntercompany, decideIntercompany, groupEntitySchema, intercompanyTransactionSchema, intercompanyWorkspace } from "../src/server/finance-intercompany";
 
 vi.mock("server-only", () => ({}));
 vi.mock("../src/server/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 
 let f: Awaited<ReturnType<typeof expenseFixture>>;
-let target: string;
+let target: string, setupCompany: string;
 
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 beforeEach(async () => {
   f = await expenseFixture();
   target = `target-${key()}`;
+  setupCompany = `setup-${key()}`;
   await db.batch([
+    db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,company_id,status) VALUES(?,'company',?,? ,?,'active')").bind(setupCompany, setupCompany, "Setup company", setupCompany),
     db.prepare("INSERT INTO finance_group_entities(id,holding_id,company_id,reporting_name,functional_currency,status,created_at) VALUES(?,?,?,?,?,'active',1)").bind(`entity-${f.company}`, "h001", f.company, "Source company", "THB"),
     db.prepare("INSERT INTO finance_group_entities(id,holding_id,company_id,reporting_name,functional_currency,status,created_at) VALUES(?,?,?,?,?,'active',1)").bind(`entity-${target}`, "h001", target, "Target company", "THB"),
   ]);
+});
+
+it("registers an active organization company as a Group entity with replay and duplicate protection", async () => {
+  const input = groupEntitySchema.parse({ companyId: setupCompany, reportingName: "Setup company", functionalCurrency: "usd" });
+  const commandId = key();
+  const created = await createGroupEntity(f.owner, input, commandId);
+  expect(created).toMatchObject({ companyId: setupCompany, status: "active", version: 1 });
+  expect(await createGroupEntity(f.owner, input, commandId)).toEqual(created);
+  const workspace = await intercompanyWorkspace(f.owner);
+  expect(workspace.entities.find(entity => entity.company_id === setupCompany)).toMatchObject({ reporting_name: "Setup company", functional_currency: "USD", version: 1 });
+  expect(workspace.availableCompanies.some(company => company.company_id === setupCompany)).toBe(false);
+  await expect(createGroupEntity(f.owner, input, key())).rejects.toMatchObject({ code: "GROUP_ENTITY_EXISTS" });
 });
 
 it("runs an idempotent intercompany create, independent match, settlement and elimination", async () => {

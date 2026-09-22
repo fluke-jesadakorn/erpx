@@ -22,6 +22,11 @@ export const intercompanyDecisionSchema = z.object({
   expectedVersion: z.number().int().positive(),
   reason: z.string().trim().min(3).max(2000),
 });
+export const groupEntitySchema = z.object({
+  companyId: z.string().trim().min(1).max(160),
+  reportingName: z.string().trim().min(2).max(160),
+  functionalCurrency: z.string().trim().length(3).transform(value => value.toUpperCase()),
+});
 
 export type IntercompanyRow = Record<string, string | number | null> & {
   id: string;
@@ -36,6 +41,16 @@ export type IntercompanyRow = Record<string, string | number | null> & {
   target_journal_id: string | null;
   created_by: string;
   created_at: number;
+};
+
+export type GroupEntity = {
+  company_id: string;
+  reporting_name: string;
+  functional_currency: string;
+  status: string;
+  version: number;
+  created_by: string;
+  updated_at: number;
 };
 
 function holdingActor(actor: WorkContext, permission: string) {
@@ -64,19 +79,38 @@ async function journalGuard(write: SqlDatabase, id: string | undefined, companyI
 export async function intercompanyWorkspace(actor: WorkContext) {
   actor = holdingActor(actor, "finance.read");
   const { write } = await holdingResources(actor.holdingId);
-  const [transactions, groupEntities] = await Promise.all([
+  const [transactions, groupEntities, availableCompanies] = await Promise.all([
     write.prepare("SELECT * FROM finance_intercompany_transactions WHERE holding_id=? ORDER BY created_at DESC,id DESC LIMIT 200").bind(actor.holdingId).all<IntercompanyRow>(),
-    write.prepare("SELECT company_id,reporting_name,functional_currency,status FROM finance_group_entities WHERE holding_id=? AND status='active' ORDER BY reporting_name,company_id").bind(actor.holdingId).all<{ company_id: string; reporting_name: string; functional_currency: string; status: string }>(),
+    write.prepare("SELECT company_id,reporting_name,functional_currency,status,version,created_by,updated_at FROM finance_group_entities WHERE holding_id=? AND status='active' ORDER BY reporting_name,company_id").bind(actor.holdingId).all<GroupEntity>(),
+    write.prepare("SELECT n.id AS company_id,n.display_name FROM organization_nodes n WHERE n.kind='company' AND n.status='active' AND NOT EXISTS (SELECT 1 FROM finance_group_entities e WHERE e.holding_id=? AND e.company_id=n.id) ORDER BY n.display_name,n.id").bind(actor.holdingId).all<{ company_id: string; display_name: string }>(),
   ]);
   return {
     companyId: actor.companyId,
     transactions: transactions.results,
     entities: groupEntities.results,
+    availableCompanies: availableCompanies.results,
     canWrite: hasPermission(actor, "finance.write"),
     canApprove: hasPermission(actor, "finance.approve"),
     canPay: hasPermission(actor, "finance.pay"),
     statusCounts: transactions.results.reduce<Record<string, number>>((result, row) => { result[row.status] = (result[row.status] ?? 0) + 1; return result; }, {}),
   };
+}
+
+export async function createGroupEntity(actor: WorkContext, input: z.infer<typeof groupEntitySchema>, key: string) {
+  actor = holdingActor(actor, "finance.write");
+  const { write } = await holdingResources(actor.holdingId);
+  const id = `group-entity-${key}`;
+  const previous = await replayCommand(write, actor, key, "finance.group-entity.create", id, input);
+  if (previous) return previous;
+  const company = await write.prepare("SELECT id FROM organization_nodes WHERE id=? AND kind='company' AND status='active'").bind(input.companyId).first<{ id: string }>();
+  if (!company) throw new ApiError(422, "GROUP_COMPANY_REQUIRED", "Choose an active Company organization node in this Holding.");
+  const existing = await write.prepare("SELECT id FROM finance_group_entities WHERE holding_id=? AND company_id=?").bind(actor.holdingId, input.companyId).first<{ id: string }>();
+  if (existing) throw new ApiError(409, "GROUP_ENTITY_EXISTS", "This company is already registered as a Group Finance entity.");
+  const now = Date.now();
+  return executeCommand(write, actor, key, "finance.group-entity.create", input, id, 1, { id, companyId: input.companyId, status: "active", version: 1 }, [
+    assertion(write, key, "group-entity-unique", "NOT EXISTS(SELECT 1 FROM finance_group_entities WHERE holding_id=? AND company_id=?)", [actor.holdingId, input.companyId]),
+    write.prepare("INSERT INTO finance_group_entities(id,holding_id,company_id,reporting_name,functional_currency,status,version,created_by,created_at,updated_at) VALUES(?,?,?,?,?,'active',1,?,?,?)").bind(id, actor.holdingId, input.companyId, input.reportingName, input.functionalCurrency, actor.userId, now, now),
+  ], { companyId: input.companyId, branchId: null, departmentId: null });
 }
 
 export async function createIntercompany(actor: WorkContext, input: z.infer<typeof intercompanyTransactionSchema>, key: string) {
