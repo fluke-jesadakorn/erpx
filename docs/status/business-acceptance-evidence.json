@@ -4081,6 +4081,35 @@
         "Country-specific statutory payroll, production operation, Company business acceptance and two consecutive Finance close approvals remain separate gates."
       ],
       "supersedes": null
+    },
+    {
+      "id": "inventory-transit-browser-20260923",
+      "capabilityIds": [
+        "inventory/availability",
+        "inventory/feature-stock-register",
+        "inventory/feature-receipts",
+        "inventory/feature-issues-movements"
+      ],
+      "scenarioIds": [
+        "S03"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "An isolated Demo Company browser scenario uses separate source and receiving warehouse managers to create, submit, approve, dispatch and partially receive a three-unit staged transfer. The final receipt completes the transit and the downstream stock API reports exactly 3,000 milli-units and the original value in the target warehouse.",
+      "observedAt": "2026-09-23T02:35:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-stock-transit-browser.txt",
+          "sha256": "4c1d78d52fe0d0751c6d76cbe48b85a5a229a84bda0d72cfbcb4776c4b65c804"
+        }
+      ],
+      "limitations": [
+        "Intercompany movement, live carrier/device integration and production operation were not exercised.",
+        "This is isolated Demo Company evidence; Company business acceptance and complete S03 acceptance remain separate gates."
+      ],
+      "supersedes": null
     }
   ]
 }

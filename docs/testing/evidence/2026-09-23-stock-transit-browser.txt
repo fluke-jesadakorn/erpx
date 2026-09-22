@@ -1,0 +1,21 @@
+ERPX Demo inventory transit — browser acceptance evidence
+
+Observed: 2026-09-23 (Asia/Bangkok)
+Environment: disposable browser simulation run da74fb84b66a, http://127.0.0.1:3102
+Command:
+  ERPX_DEMO_RUN=da74fb84b66a ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-stock-transit.spec.ts --project=desktop
+
+Result: 1 passed (22.4s)
+
+Scenario:
+  - An independent source warehouse manager created a transit transfer for three Demo stock units.
+  - The receiving warehouse manager reviewed and approved dispatch.
+  - The source manager recorded physical dispatch with tracking evidence.
+  - The receiving manager recorded one unit, then two units, as separate receipts.
+  - The real transit page and API showed partial then completed receipt state after reload.
+  - Downstream stock showed exactly 3,000 milli-units and the original value in the target warehouse.
+
+Scope and limitations:
+  This is isolated Demo Company browser evidence using fictional stock and two warehouse roles. It
+  covers the same-company staged transfer and partial receiving handoff. Intercompany movement,
+  live carrier/device integration and Company business acceptance remain separate gates.

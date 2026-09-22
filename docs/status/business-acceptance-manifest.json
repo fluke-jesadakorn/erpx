@@ -3628,7 +3628,8 @@
         "customer-return-quality-disposition-20260921",
         "inventory-reservation-expiry-alerts-20260921",
         "sales-to-collection-browser-acceptance-20260922",
-        "sales-return-refund-browser-acceptance-20260922"
+        "sales-return-refund-browser-acceptance-20260922",
+        "inventory-transit-browser-20260923"
       ]
     },
     {
@@ -3740,7 +3741,8 @@
       },
       "evidenceRecordIds": [
         "purchase-to-payment-automated-20260921",
-        "purchase-to-payment-multi-receipt-automated-20260921"
+        "purchase-to-payment-multi-receipt-automated-20260921",
+        "inventory-transit-browser-20260923"
       ]
     },
     {
@@ -3795,7 +3797,8 @@
       },
       "evidenceRecordIds": [
         "purchase-to-payment-automated-20260921",
-        "purchase-to-payment-multi-receipt-automated-20260921"
+        "purchase-to-payment-multi-receipt-automated-20260921",
+        "inventory-transit-browser-20260923"
       ]
     },
     {
@@ -3853,7 +3856,8 @@
         "transit-quality-multirole-browser-20260920",
         "full-regression-baseline-20260920",
         "sales-return-refund-browser-acceptance-20260922",
-        "inventory-transit-browser-20260922"
+        "inventory-transit-browser-20260922",
+        "inventory-transit-browser-20260923"
       ]
     },
     {
