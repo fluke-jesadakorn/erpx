@@ -307,7 +307,7 @@ const delivery: Record<string, ModuleDelivery> = {
     service: "src/server/finance.ts",
     schema: "migrations/postgres/holding-write/0001_baseline.sql",
     test: "tests/finance-money.test.ts",
-    gap: "Opening GL/subledger reconciliation, controlled realized settlement, independently approved period-end foreign-currency revaluation and recurring accrual schedules are implemented. Notes, consolidation and full close acceptance remain.",
+    gap: "Opening GL/subledger reconciliation, controlled realized settlement, independently approved period-end foreign-currency revaluation and recurring accrual schedules are implemented. Source-linked intercompany items now have independent match, settlement and elimination handoffs with immutable events; consolidation run preparation, notes and full close acceptance remain.",
     overrides: {
       journals: { status: "flow_accepted", schema:"migrations/postgres/holding-write/0262_finance_accrual_schedules.sql", test:"tests/finance-accruals.test.ts", gap:"Opening imports, recurring accrual journals and realized/unrealized FX journals are atomic and independently controlled; notes, consolidation and full business acceptance remain." },
       payables: { status: "flow_accepted", schema:"migrations/postgres/holding-write/0262_finance_accrual_schedules.sql", test:"tests/finance-accruals.test.ts", gap:"Opening, recurring accrual and foreign-currency payables retain source, period and posting evidence; consolidation and complete business acceptance remain." },

@@ -58,8 +58,10 @@ describe("capability delivery inventory", () => {
       for (const section of definition.sections.filter((item) => item.capability)) {
         const evidence = capabilityDelivery(definition.id, section.id);
         if (!evidence || evidence.status === "deferred") continue;
-        for (const key of ["ui", "api", "service", "schema", "test"] as const)
-          expect(existsSync(evidence[key]), `${definition.id}/${section.id} ${key}: ${evidence[key]}`).toBe(true);
+        for (const key of ["ui", "api", "service", "schema", "test"] as const) {
+          for (const path of evidence[key].split(/[;,]/).map(value => value.trim()).filter(Boolean))
+            expect(existsSync(path), `${definition.id}/${section.id} ${key}: ${path}`).toBe(true);
+        }
       }
     }
   });

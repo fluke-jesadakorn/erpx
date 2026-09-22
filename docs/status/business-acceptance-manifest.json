@@ -2262,7 +2262,8 @@
         "finance-fx-revaluation-automated-20260921",
         "finance-accrual-schedules-20260922",
         "finance-opening-balance-browser-acceptance-20260922",
-        "finance-opening-settlement-automated-20260922"
+        "finance-opening-settlement-automated-20260922",
+        "finance-intercompany-automated-20260923"
       ]
     },
     {
@@ -2333,7 +2334,8 @@
         "supplier-invoice-cross-po-automated-20260922",
         "purchase-request-consolidated-purchase-to-payment-browser-acceptance-20260922",
         "finance-opening-balance-browser-acceptance-20260922",
-        "finance-opening-settlement-automated-20260922"
+        "finance-opening-settlement-automated-20260922",
+        "finance-intercompany-automated-20260923"
       ]
     },
     {

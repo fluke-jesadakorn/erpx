@@ -1,0 +1,19 @@
+ERPX Finance intercompany workflow evidence
+Observed: 2026-09-23 Asia/Bangkok
+
+Command:
+  bun run test -- tests/finance-intercompany.test.ts tests/finance-calculation-engines.test.ts tests/finance-close-reconciliation.test.ts
+
+Result:
+  3 test files passed
+  13 tests passed
+
+Coverage:
+  - active Group Finance entity guard for both companies
+  - idempotent source-linked creation
+  - independent match, settlement and elimination handoffs
+  - optimistic version guard and self-review rejection
+  - immutable event sequence for every status transition
+  - Holding-scoped workspace visibility and status counts
+
+This is automated simulation evidence, not provider, production or Company business sign-off. Consolidation run preparation and posting remain separate work.

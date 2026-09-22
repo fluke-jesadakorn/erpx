@@ -6,6 +6,7 @@ import { ApiError } from "./http";
 import { requirePermission } from "./iam-permissions";
 import { holdingResources } from "./runtime";
 import { calculateCloseReconciliations, type CloseReconciliation } from "./finance";
+import { intercompanyWorkspace } from "./finance-intercompany";
 
 export type FinanceAttention = {
   id: string;
@@ -213,14 +214,9 @@ export async function groupFinanceWorkspace(actor: WorkContext) {
   const { write } = await holdingResources(actor.holdingId);
   const [runs, intercompany] = await Promise.all([
     write.prepare("SELECT * FROM finance_consolidation_runs WHERE holding_id=? ORDER BY as_of_date DESC,created_at DESC LIMIT 20").bind(actor.holdingId).all<Record<string, string | number | null>>(),
-    write.prepare("SELECT * FROM finance_intercompany_transactions WHERE holding_id=? ORDER BY created_at DESC LIMIT 50").bind(actor.holdingId).all<Record<string, string | number | null>>(),
+    intercompanyWorkspace(actor),
   ]);
-  const status = intercompany.results.reduce<Record<string, number>>((totals, row) => {
-    const key = String(row.status);
-    totals[key] = (totals[key] ?? 0) + 1;
-    return totals;
-  }, {});
-  return { runs: runs.results, intercompany: intercompany.results, intercompanyStatus: status };
+  return { runs: runs.results, ...intercompany, intercompanyStatus: intercompany.statusCounts };
 }
 
 export async function financeSetupWorkspace(actor: WorkContext) {

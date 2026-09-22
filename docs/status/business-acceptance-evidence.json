@@ -4110,6 +4110,36 @@
         "This is isolated Demo Company evidence; Company business acceptance and complete S03 acceptance remain separate gates."
       ],
       "supersedes": null
+    },
+    {
+      "id": "finance-intercompany-automated-20260923",
+      "capabilityIds": [
+        "finance/journals",
+        "finance/payables"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S14"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Holding-scoped Group Finance now creates source-linked intercompany items, requires active entities, and records independent match, settlement and elimination decisions with idempotency, version guards and immutable event history. The focused Finance regression passed 3 files and 13 tests.",
+      "observedAt": "2026-09-23T02:45:00+07:00",
+      "recordedBy": "Codex execution agent (automated service evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-finance-intercompany-tests.txt",
+          "sha256": "8073e23450d53f65542cdc62bdc174e081d8097e3faeda7b1a06d1ffd6b2fde0"
+        }
+      ],
+      "limitations": [
+        "The workflow does not constitute live provider, production or Company business acceptance.",
+        "Consolidation run preparation/posting, exchange-rate policy, account elimination journals and two consecutive Finance close sign-off remain separate gates.",
+        "No capability is promoted beyond the evidence scope.",
+        "Intercompany capability mapping is represented by the existing Finance journal/payables records until a dedicated register entry is added."
+      ],
+      "supersedes": null
     }
   ]
 }
