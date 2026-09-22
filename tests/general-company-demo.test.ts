@@ -13,6 +13,8 @@ describe("general company working demo", () => {
       quotationId: "quote-1",
       lotProductId: "product-lot",
       serialProductId: "product-serial",
+      customerId: "customer-1",
+      customerOperator: actor("sales_operator"),
       qualityDueSoonHoldId: "quality-due-soon",
       qualityOverdueHoldId: "quality-overdue",
       qualityInspector: actor("quality_inspector"),
@@ -51,8 +53,11 @@ describe("general company working demo", () => {
     const traceable = guide.scenarios[5];
     expect(traceable).toMatchObject({ id: "traceable-receipt-and-quality-release", products: { lotTracked: "product-lot", serialTracked: "product-serial" } });
     expect(traceable.steps.map(step=>step.order)).toEqual([1,2,3,4,5,6]);
-    const quality = guide.scenarios.at(-1);
+    const quality = guide.scenarios.find(s => s.id === "quality-escalation-recovery");
     expect(quality).toMatchObject({ id: "quality-escalation-recovery", sourceRecord: { type: "quality_alerts", id: "quality-due-soon" } });
     expect(quality?.steps.map(step=>step.actor)).toEqual(["warehouse", "qualityInspector", "qualityInspector", "qualityManager", "administrator"]);
+    const timeline = guide.scenarios.find(s => s.id === "customer-360-scoped-timeline");
+    expect(timeline).toMatchObject({ id: "customer-360-scoped-timeline", sourceRecord: { type: "finance_party", id: "customer-1" } });
+    expect(timeline?.steps.map(step=>step.actor)).toEqual(["customerOperator", "customerOperator", "salesManager", "customerOperator"]);
   });
 });

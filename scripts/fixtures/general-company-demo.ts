@@ -17,6 +17,8 @@ export type GeneralCompanyDemoInput = {
   movementProductId?: string;
   lotProductId: string;
   serialProductId: string;
+  customerId?: string;
+  customerOperator?: DemoActor;
   qualityDueSoonHoldId?: string;
   qualityOverdueHoldId?: string;
   qualityInspector?: DemoActor;
@@ -229,6 +231,21 @@ export function generalCompanyDemoGuide(input: GeneralCompanyDemoInput) {
               { order: 5, actor: "administrator", action: "ถอนสิทธิ์ Quality inspector แล้ว reload Work", href: `${base}/work?type=quality_alert`, expected: "สิทธิ์ใหม่มีผลทันที; alert ที่ยังไม่รับงานจะไม่แสดงเป็น actionable และระบบบอกให้ administrator แต่งตั้งผู้รับใหม่" },
             ],
             actors: { warehouse: input.actors.warehouse, qualityInspector: input.qualityInspector, qualityManager: input.qualityManager, administrator: input.actors.administrator },
+          }]
+        : []),
+      ...(input.customerId && input.customerOperator
+        ? [{
+            id: "customer-360-scoped-timeline",
+            title: "Customer 360 แสดงประวัติที่เชื่อมกันตามสิทธิ์",
+            sourceRecord: { type: "finance_party", id: input.customerId },
+            startingState: "The isolated Demo customer has a real quotation owned by Sales. The timeline projection is read-only, paginated, and keeps each source record authoritative.",
+            steps: [
+              { order: 1, actor: "customerOperator", action: "เปิด Customer 360 จากรายการลูกค้า", href: `${base}/customers/${input.customerId}`, expected: "เห็น quotation/order activity พร้อม status, version และเวลาที่เกิดเหตุการณ์" },
+              { order: 2, actor: "customerOperator", action: "เปิด source quotation จาก timeline", href: `${base}/customers/${input.customerId}`, expected: "ลิงก์พาไป source record เดิมเพื่อทำ action; timeline ไม่สร้างสำเนาเอกสาร" },
+              { order: 3, actor: "salesManager", action: "เปิด timeline ด้วย role อื่นที่มี Commerce read", href: `${base}/customers/${input.customerId}`, expected: "เห็นรายการที่อนุญาตเหมือนกัน แต่ไม่เห็นข้อมูลติดต่อ ต้นทุน หรือข้อมูลของ Finance/Legal ที่ role นี้ไม่มีสิทธิ์" },
+              { order: 4, actor: "customerOperator", action: "ใช้ Older activity เมื่อมี cursor และกลับ Latest activity", href: `${base}/customers/${input.customerId}`, expected: "pagination ใช้ cursor จาก server และไม่ข้าม scope หรือทำให้รายการซ้ำ" },
+            ],
+            actors: { customerOperator: input.customerOperator, salesManager: input.actors.salesManager },
           }]
         : []),
     ],

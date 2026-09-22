@@ -1,0 +1,15 @@
+ERPX isolated Demo Customer 360 timeline acceptance
+Run: 8b2ffd62f761
+Origin: http://127.0.0.1:3102
+Command: ERPX_DEMO_RUN=8b2ffd62f761 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-customer-timeline.spec.ts --project=desktop
+
+Result: 1 passed
+
+The real Demo quotation is visible from Customer 360 through two independent
+Sales assignments. Each role sees the same scoped source activity and can open
+the authoritative quotation record; the projection exposes only source title,
+status, timestamp and version and does not expose contact details, costs or
+payment beneficiaries. The fixture is resettable with the isolated database
+and the scenario is included in demo:verify:browser.
+
+Fixture customer: parties-35fcac84-6d47-4bc3-98a7-f3dc06ab8f54
