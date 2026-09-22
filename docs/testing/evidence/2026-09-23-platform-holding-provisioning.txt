@@ -1,0 +1,10 @@
+ERPX Platform Holding provisioning evidence — 2026-09-23
+
+- `bun run test -- tests/platform-operations.test.ts --reporter=verbose`: 7 tests passed.
+- The service validates the configured resource slot and activation reason, rejects Platform auditors, stores a durable receipt, and activates `holding_bindings` in the same PostgreSQL transaction as immutable `started`, `validated`, and `activated` events.
+- Replaying the same idempotency key returns the original activation result; changing the payload under that key is rejected with `IDEMPOTENCY_CONFLICT`.
+- `bun run db:migrate:local` applied control migration `0016_platform_holding_provisioning.sql` to the local six-database setup.
+- The authenticated public Platform page rendered the live “Provision a Holding” lifecycle card. The development environment correctly reported no unbound healthy slots because both configured local slots are already active.
+- Local and public health checks returned HTTP 200 from `/api/health`; the development listener remained on port 3100.
+
+This is automated/local operational evidence, not production Company sign-off. Physical database creation, off-machine durability, signed RPO/RTO and external provider acceptance remain separate gates.

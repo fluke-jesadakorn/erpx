@@ -3998,6 +3998,33 @@
         "Platform business acceptance remains separate from implementation and simulation evidence."
       ],
       "supersedes": null
+    },
+    {
+      "id": "platform-holding-provisioning-automated-20260923",
+      "capabilityIds": [
+        "platform_administration/provisioning"
+      ],
+      "scenarioIds": [
+        "S15",
+        "S19"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "A Platform administrator activates a configured healthy resource slot into a durable Holding binding. The transaction records receipt data and immutable started/validated/activated events, replaying the same idempotency key and rejecting auditors or changed payloads.",
+      "observedAt": "2026-09-23T00:45:00+07:00",
+      "recordedBy": "Codex execution agent (automated service and public UI observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-platform-holding-provisioning.txt",
+          "sha256": "79568d524a0c941ae7299723f1046b723dd3b9dfee58db5f54a85fd2e32e1743"
+        }
+      ],
+      "limitations": [
+        "The public local deployment had no unbound resource slot available for a browser activation; the UI rendered the real empty state while service activation was verified on disposable PostgreSQL databases.",
+        "Physical database creation, off-machine durability, signed RPO/RTO, provider acceptance and Company business acceptance remain separate gates."
+      ],
+      "supersedes": null
     }
   ]
 }

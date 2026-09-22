@@ -5,6 +5,7 @@ import type { PlatformContext } from "./authorization";
 import type { PostgresDatabase } from "./runtime/postgres";
 import type { SqlDatabase } from "./runtime/types";
 import { inspectMigrations, migrateDatabase } from "./runtime/migrations";
+import type { ResourceSlot } from "../lib/holding-registry";
 
 export type PlatformHoldingOperation = {
   id: string;
@@ -377,4 +378,196 @@ export async function runHoldingMigrations(
     ).bind(message, finishedAt, runId).run();
     throw new ApiError(500, "MIGRATION_FAILED", "The Holding migration failed. Review the platform migration receipt and database logs.");
   }
+}
+
+export type PlatformProvisioningRow = {
+  id: string;
+  holdingId: string;
+  slug: string;
+  displayName: string;
+  writeBinding: string;
+  readBinding: string;
+  filesBinding: string;
+  status: "provisioning" | "active" | "failed" | "suspended";
+  requestedBy: string;
+  reason: string;
+  error: string | null;
+  version: number;
+  requestedAt: number;
+  activatedAt: number | null;
+  updatedAt: number;
+};
+
+export type PlatformProvisioningSnapshot = {
+  rows: PlatformProvisioningRow[];
+  availableSlots: ResourceSlot[];
+};
+
+export type ProvisionHoldingInput = {
+  holdingId: string;
+  slug: string;
+  displayName: string;
+  writeBinding: string;
+  readBinding: string;
+  filesBinding: string;
+  reason: string;
+};
+
+export type ProvisionHoldingResult = {
+  id: string;
+  holdingId: string;
+  slug: string;
+  displayName: string;
+  status: "active";
+  version: number;
+  activatedAt: number;
+};
+
+type ProvisioningDbRow = {
+  id: string;
+  holding_id: string;
+  slug: string;
+  display_name: string;
+  write_binding: string;
+  read_binding: string;
+  files_binding: string;
+  status: PlatformProvisioningRow["status"];
+  requested_by: string;
+  reason: string;
+  error: string | null;
+  version: number;
+  requested_at: number;
+  activated_at: number | null;
+  updated_at: number;
+};
+
+function provisioningResult(row: ProvisioningDbRow): ProvisionHoldingResult {
+  if (row.status !== "active" || row.activated_at == null)
+    throw new ApiError(409, "PROVISIONING_INCOMPLETE", "Holding provisioning is still being prepared. Refresh the Platform operations page before continuing.");
+  return {
+    id: row.id,
+    holdingId: row.holding_id,
+    slug: row.slug,
+    displayName: row.display_name,
+    status: "active",
+    version: Number(row.version),
+    activatedAt: Number(row.activated_at),
+  };
+}
+
+function provisioningDigest(
+  actor: Pick<PlatformContext, "userId" | "assignmentId" | "role">,
+  idempotencyKey: string,
+  input: ProvisionHoldingInput,
+) {
+  return createHash("sha256")
+    .update(JSON.stringify({ actor: actor.userId, assignment: actor.assignmentId, role: actor.role, idempotencyKey, input }))
+    .digest("hex");
+}
+
+function mapProvisioningRow(row: ProvisioningDbRow): PlatformProvisioningRow {
+  return {
+    id: row.id,
+    holdingId: row.holding_id,
+    slug: row.slug,
+    displayName: row.display_name,
+    writeBinding: row.write_binding,
+    readBinding: row.read_binding,
+    filesBinding: row.files_binding,
+    status: row.status,
+    requestedBy: row.requested_by,
+    reason: row.reason,
+    error: row.error,
+    version: Number(row.version),
+    requestedAt: Number(row.requested_at),
+    activatedAt: row.activated_at == null ? null : Number(row.activated_at),
+    updatedAt: Number(row.updated_at),
+  };
+}
+
+/** Read provisioning receipts and the pre-provisioned resource slots not bound to a Holding. */
+export async function platformProvisioningSnapshot(
+  control: SqlDatabase,
+  slots: ResourceSlot[],
+): Promise<PlatformProvisioningSnapshot> {
+  const rows = (await control.prepare(
+    `SELECT id,holding_id,slug,display_name,write_binding,read_binding,files_binding,status,
+       requested_by,reason,error,version,requested_at,activated_at,updated_at
+       FROM platform_holding_provisioning ORDER BY updated_at DESC,id DESC`,
+  ).all<ProvisioningDbRow>()).results.map(mapProvisioningRow);
+  const used = new Set(
+    (await control.prepare("SELECT holding_id,write_binding,read_binding,files_binding FROM holding_bindings WHERE status IN ('active','suspended')").all<{ holding_id: string; write_binding: string; read_binding: string; files_binding: string }>()).results.flatMap((row) => [row.holding_id, row.write_binding, row.read_binding, row.files_binding]),
+  );
+  const pending = new Set(rows.filter((row) => row.status === "provisioning").flatMap((row) => [row.holdingId, row.writeBinding, row.readBinding, row.filesBinding]));
+  return { rows, availableSlots: slots.filter((slot) => !used.has(slot.id) && !used.has(slot.write) && !used.has(slot.read) && !used.has(slot.files) && !pending.has(slot.id)) };
+}
+
+/**
+ * Activate a pre-provisioned Holding resource in one control-plane transaction.
+ * The database and private file namespace are validated by the route before
+ * this command is called; this function owns the durable receipt and binding.
+ */
+export async function provisionHolding(
+  actor: Pick<PlatformContext, "userId" | "assignmentId" | "role">,
+  control: PostgresDatabase,
+  slot: ResourceSlot,
+  input: ProvisionHoldingInput,
+  idempotencyKey: string,
+  now = Date.now(),
+): Promise<ProvisionHoldingResult> {
+  if (actor.role !== "platform_admin") throw new ApiError(403, "FORBIDDEN", "Only a Platform administrator can provision a Holding.");
+  if (!/^[a-zA-Z0-9:_.-]{8,180}$/.test(idempotencyKey)) throw new ApiError(422, "COMMAND_KEY_REQUIRED", "Use a valid Idempotency-Key for this action.");
+  if (!/^[a-z0-9]{3,24}$/.test(input.holdingId) || input.holdingId !== slot.id) throw new ApiError(422, "VALIDATION_FAILED", "Choose a configured, unbound Holding resource slot.");
+  if (!/^[a-z][a-z0-9-]{2,39}$/.test(input.slug)) throw new ApiError(422, "VALIDATION_FAILED", "Use a lowercase company URL slug with 3–40 characters.");
+  if (input.displayName.trim().length < 2 || input.displayName.trim().length > 120) throw new ApiError(422, "VALIDATION_FAILED", "Enter a Holding display name between 2 and 120 characters.");
+  if (input.reason.trim().length < 10 || input.reason.length > 1000) throw new ApiError(422, "VALIDATION_FAILED", "Explain why this Holding should be activated.");
+  const expectedBindings = [slot.write, slot.read, slot.files];
+  if (input.writeBinding !== expectedBindings[0] || input.readBinding !== expectedBindings[1] || input.filesBinding !== expectedBindings[2]) throw new ApiError(422, "VALIDATION_FAILED", "The selected resource slot no longer matches the operator registry.");
+  const digest = provisioningDigest(actor, idempotencyKey, input);
+  const prior = await control.prepare("SELECT * FROM platform_holding_provisioning WHERE idempotency_key=?").bind(idempotencyKey).first<ProvisioningDbRow & { request_hash: string }>();
+  if (prior) {
+    if (prior.request_hash !== digest) throw new ApiError(409, "IDEMPOTENCY_CONFLICT", "This command key belongs to a different provisioning request.");
+    return provisioningResult(prior);
+  }
+  const result = await control.transaction(async (tx) => {
+    const existing = await tx.prepare("SELECT * FROM platform_holding_provisioning WHERE holding_id=? FOR UPDATE").bind(input.holdingId).first<ProvisioningDbRow & { request_hash: string; idempotency_key: string }>();
+    if (existing && existing.status === "active") {
+      if (existing.slug !== input.slug || existing.display_name !== input.displayName.trim()) throw new ApiError(409, "HOLDING_ALREADY_BOUND", "This resource slot is already bound to a different active Holding.");
+      return provisioningResult(existing);
+    }
+    const slugConflict = await tx.prepare("SELECT holding_id FROM holding_bindings WHERE slug=? AND holding_id<>?").bind(input.slug, input.holdingId).first<{ holding_id: string }>();
+    if (slugConflict) throw new ApiError(409, "SLUG_UNAVAILABLE", "Choose another company URL; it is already assigned to a Holding.");
+    const bindingConflict = await tx.prepare("SELECT holding_id FROM holding_bindings WHERE holding_id<>? AND (write_binding IN (?,?,?) OR read_binding IN (?,?,?) OR files_binding IN (?,?,?)) LIMIT 1").bind(input.holdingId, slot.write, slot.read, slot.files, slot.write, slot.read, slot.files, slot.write, slot.read, slot.files).first<{ holding_id: string }>();
+    if (bindingConflict) throw new ApiError(409, "RESOURCE_ALREADY_BOUND", "This resource slot is already bound to another Holding.");
+    const current = existing?.status === "failed" ? existing : null;
+    const id = current?.id ?? `holding-provisioning-${crypto.randomUUID()}`;
+    const version = Number(current?.version ?? 0) + 1;
+    const validatedAt = now + 1;
+    const activatedAt = now + 2;
+    await tx.batch([
+      current
+        ? tx.prepare("UPDATE platform_holding_provisioning SET slug=?,display_name=?,write_binding=?,read_binding=?,files_binding=?,status='provisioning',requested_by=?,assignment_id=?,reason=?,request_hash=?,idempotency_key=?,version=?,error=NULL,requested_at=?,updated_at=? WHERE id=?").bind(input.slug, input.displayName.trim(), slot.write, slot.read, slot.files, actor.userId, actor.assignmentId, input.reason.trim(), digest, idempotencyKey, version, now, now, id)
+        : tx.prepare("INSERT INTO platform_holding_provisioning(id,holding_id,slug,display_name,write_binding,read_binding,files_binding,status,requested_by,assignment_id,reason,request_hash,idempotency_key,requested_at,updated_at) VALUES(?,?,?,?,?,?,?,'provisioning',?,?,?,?,?,?,?)").bind(id, input.holdingId, input.slug, input.displayName.trim(), slot.write, slot.read, slot.files, actor.userId, actor.assignmentId, input.reason.trim(), digest, idempotencyKey, now, now),
+      tx.prepare("INSERT INTO platform_holding_provisioning_events(id,provisioning_id,holding_id,action,actor_id,assignment_id,reason,detail_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, input.holdingId, current ? "retry_started" : "started", actor.userId, actor.assignmentId, input.reason.trim(), JSON.stringify({ slug: input.slug, resourceSlot: slot.id }), now),
+      tx.prepare("INSERT INTO platform_holding_provisioning_events(id,provisioning_id,holding_id,action,actor_id,assignment_id,reason,detail_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, input.holdingId, "validated", actor.userId, actor.assignmentId, input.reason.trim(), JSON.stringify({ bindings: expectedBindings }), validatedAt),
+      tx.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES(?,?,?,?,?,?, 'active') ON CONFLICT(holding_id) DO UPDATE SET slug=excluded.slug,display_name=excluded.display_name,write_binding=excluded.write_binding,read_binding=excluded.read_binding,files_binding=excluded.files_binding,status='active'").bind(input.holdingId, input.slug, input.displayName.trim(), slot.write, slot.read, slot.files),
+      tx.prepare("UPDATE platform_holding_provisioning SET status='active',activated_at=?,updated_at=?,version=? WHERE id=?").bind(activatedAt, activatedAt, version + 1, id),
+      tx.prepare("INSERT INTO platform_holding_provisioning_events(id,provisioning_id,holding_id,action,actor_id,assignment_id,reason,detail_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(), id, input.holdingId, "activated", actor.userId, actor.assignmentId, input.reason.trim(), JSON.stringify({ version: version + 1 }), activatedAt),
+    ]);
+    return { id, holdingId: input.holdingId, slug: input.slug, displayName: input.displayName.trim(), status: "active" as const, version: version + 1, activatedAt };
+  }).catch(async (error) => {
+    if (error instanceof ApiError) throw error;
+    if ((error as { code?: string }).code === "23505") {
+      const raced = await control.prepare("SELECT * FROM platform_holding_provisioning WHERE idempotency_key=?").bind(idempotencyKey).first<ProvisioningDbRow & { request_hash: string }>();
+      if (raced?.request_hash !== digest) throw new ApiError(409, "IDEMPOTENCY_CONFLICT", "This command key belongs to a different provisioning request.");
+      if (raced?.status === "active") return provisioningResult(raced);
+      throw new ApiError(409, "PROVISIONING_IN_PROGRESS", "Another request is already provisioning this Holding. Refresh the Platform operations page and retry later.");
+    }
+    const message = (error instanceof Error ? error.message : "Holding provisioning failed").slice(0, 1000);
+    await control.prepare("UPDATE platform_holding_provisioning SET status='failed',error=?,updated_at=?,version=version+1 WHERE idempotency_key=? AND status='provisioning'").bind(message, Date.now(), idempotencyKey).run().catch(() => {});
+    const apiError = new ApiError(500, "PROVISIONING_FAILED", "Holding provisioning failed. Review the Platform receipt and resource health before retrying.");
+    apiError.cause = error;
+    throw apiError;
+  });
+  return result;
 }

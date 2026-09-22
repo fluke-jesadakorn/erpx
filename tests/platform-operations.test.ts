@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, expect, it } from "vitest";
 import { applyMigrations, env } from "./runtime-env";
-import { recoverDeadLetterJob, runHoldingMigrations, summarizePlatformOperations } from "../src/server/platform-operations";
+import { recoverDeadLetterJob, runHoldingMigrations, summarizePlatformOperations, platformProvisioningSnapshot, provisionHolding } from "../src/server/platform-operations";
 
 const now = 1_800_000_000_000;
 
@@ -16,6 +16,8 @@ beforeEach(async () => {
   await env.H001_DB.prepare("DELETE FROM command_receipts WHERE command_id LIKE 'platform-job-recovery-test-%'").run();
   await env.H001_DB.prepare("DELETE FROM audit_events WHERE command_id LIKE 'platform-job-recovery-test-%'").run();
   await env.CONTROL_DB.prepare("DELETE FROM platform_migration_runs WHERE idempotency_key LIKE 'platform-migration-test-%'").run();
+  await env.CONTROL_DB.prepare("DELETE FROM holding_bindings WHERE holding_id='h003'").run();
+  await env.CONTROL_DB.prepare("DELETE FROM holding_bindings WHERE holding_id='h004'").run();
 });
 
 async function event(suffix: string, createdAt: number) {
@@ -139,4 +141,35 @@ it("runs Holding migrations with a durable receipt and idempotent replay", async
   expect(await runHoldingMigrations(actor, env.CONTROL_DB, env.H001_DB, input, "platform-migration-test-1", now + 1)).toEqual(first);
   await expect(runHoldingMigrations({ userId: "platform-auditor", assignmentId: "platform-auditor", role: "platform_auditor" }, env.CONTROL_DB, env.H001_DB, input, "platform-migration-test-2", now)).rejects.toMatchObject({ code: "FORBIDDEN" });
   await expect(runHoldingMigrations(actor, env.CONTROL_DB, env.H001_DB, { ...input, reason: "A different request using the same key." }, "platform-migration-test-1", now + 2)).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+});
+
+it("provisions a healthy resource slot with a durable activation history", async () => {
+  const actor = { userId: "platform-operator", assignmentId: "platform-assignment", role: "platform_admin" } as const;
+  const slot = { id: "h003", write: "H003_DB", read: "H003_READ_DB", files: "H003_FILES" } as const;
+  const before = await platformProvisioningSnapshot(env.CONTROL_DB, [slot]);
+  expect(before.availableSlots).toEqual([slot]);
+  const input = {
+    holdingId: slot.id,
+    slug: "new-company",
+    displayName: "New Company",
+    writeBinding: slot.write,
+    readBinding: slot.read,
+    filesBinding: slot.files,
+    reason: "Reviewed onboarding request and verified the isolated resource health.",
+  };
+  const first = await provisionHolding(actor, env.CONTROL_DB, slot, input, "platform-provisioning-test-1", now);
+  expect(first).toMatchObject({ holdingId: "h003", slug: "new-company", status: "active" });
+  expect(await env.CONTROL_DB.prepare("SELECT status,slug,write_binding FROM holding_bindings WHERE holding_id='h003'").first()).toEqual({ status: "active", slug: "new-company", write_binding: "H003_DB" });
+  expect(await env.CONTROL_DB.prepare("SELECT action FROM platform_holding_provisioning_events WHERE provisioning_id=? ORDER BY created_at,id").bind(first.id).all()).toMatchObject({ results: [{ action: "started" }, { action: "validated" }, { action: "activated" }] });
+  expect(await provisionHolding(actor, env.CONTROL_DB, slot, input, "platform-provisioning-test-1", now + 1)).toEqual(first);
+  expect((await platformProvisioningSnapshot(env.CONTROL_DB, [slot])).availableSlots).toEqual([]);
+});
+
+it("does not allow auditors or a different slug to activate a slot", async () => {
+  const slot = { id: "h004", write: "H004_DB", read: "H004_READ_DB", files: "H004_FILES" } as const;
+  const input = { holdingId: slot.id, slug: "restricted-company", displayName: "Restricted Company", writeBinding: slot.write, readBinding: slot.read, filesBinding: slot.files, reason: "A sufficiently detailed reason for this controlled activation." };
+  await expect(provisionHolding({ userId: "auditor", assignmentId: "platform-auditor", role: "platform_auditor" }, env.CONTROL_DB, slot, input, "platform-provisioning-test-2", now)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  const actor = { userId: "platform-operator", assignmentId: "platform-assignment", role: "platform_admin" } as const;
+  await provisionHolding(actor, env.CONTROL_DB, slot, input, "platform-provisioning-test-3", now);
+  await expect(provisionHolding(actor, env.CONTROL_DB, slot, { ...input, slug: "different-company" }, "platform-provisioning-test-3", now + 1)).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
 });

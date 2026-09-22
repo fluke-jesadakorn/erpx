@@ -8,6 +8,9 @@ import { requirePlatformContext } from "@/server/authorization";
 import { summarizePlatformOperations } from "@/server/platform-operations";
 import { PlatformJobRecovery } from "@/components/platform/platform-job-recovery";
 import { PlatformMigrationRun } from "@/components/platform/platform-migration-run";
+import { PlatformHoldingProvisioning } from "@/components/platform/platform-holding-provisioning";
+import { platformProvisioningSnapshot } from "@/server/platform-operations";
+import { resourceSlots } from "@/lib/holding-registry";
 
 const destinations: Record<string, [string, string]> = {
   home: ["Platform overview", "Control-plane operations are separated from every customer Holding."],
@@ -24,6 +27,7 @@ export default async function PlatformDestinationPage({ params }: PageProps<"/pl
   if (destination === "home") {
     const actor = await requirePlatformContext();
     const env = await runtimeEnv();
+    const provisioning = await platformProvisioningSnapshot(env.CONTROL_DB, resourceSlots(env));
     const bindings = await activeHoldingBindings();
     const operations = await summarizePlatformOperations(
       actor,
@@ -67,6 +71,9 @@ export default async function PlatformDestinationPage({ params }: PageProps<"/pl
             <h4>{holding.displayName} <small>({holding.slug})</small></h4>
             <PlatformMigrationRun holdingId={holding.id} migration={holding.migrations} canRun={actor.role === "platform_admin"} />
           </section>)}
+        </FeatureWidget>
+        <FeatureWidget id="platform-provisioning" title="Holding lifecycle">
+          <PlatformHoldingProvisioning snapshot={provisioning} canProvision={actor.role === "platform_admin"} />
         </FeatureWidget>
         <FeatureWidget id="platform-workspaces" title="Business workspaces">
         {choices.length ? (
