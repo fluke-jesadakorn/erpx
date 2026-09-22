@@ -1,5 +1,5 @@
 {
-  "evidenceLedgerSha256": "42096df1a163649cbc1072b42221e0b18052a020ae49c77b99a4b919cd1107a8",
+  "evidenceLedgerSha256": "d2c077182f67b41de9ca884a77eb0c1b24c85cde654b475a1ca95eb6f1eb4766",
   "capabilities": [
     {
       "id": "brand/feature-draft-workspace",
@@ -13209,6 +13209,33 @@
         "The workflow does not constitute live provider, production or Company business acceptance.",
         "Provider operation and two consecutive Finance close sign-off remain separate gates; the report-level elimination journal intentionally stays separate from company ledgers.",
         "No capability is promoted beyond the evidence scope."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "customer-notes-browser-20260923",
+      "capabilityIds": [
+        "customer_360/feature-customer-notes"
+      ],
+      "scenarioIds": [
+        "S01",
+        "S20"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "An isolated Demo Company Sales operator created a standalone Customer 360 contact note through the real API and page, the note survived refresh, remained visible to an independent Sales manager, and the same page linked to the authoritative quotation.",
+      "observedAt": "2026-09-23T04:48:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-customer-notes-browser.txt",
+          "sha256": "746f09c7172b0daef5af4e58c960ce8d15200bd0d3c871ded59d132e1a403b38"
+        }
+      ],
+      "limitations": [
+        "This is isolated Demo Company evidence; provider delivery, customer merge/consent, broader cross-domain integration and Company business acceptance remain separate gates.",
+        "The browser scenario uses the sandbox adapter and does not constitute production sign-off."
       ],
       "supersedes": null
     },

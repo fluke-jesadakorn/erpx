@@ -43,6 +43,14 @@ test("isolated demo exposes a scoped Customer 360 timeline to independent Sales 
     await expect(operatorPage.getByText(/quote ·/i).first()).toBeVisible();
     await expect(operatorPage.getByText(/Sales quotations\/orders/).first()).toBeVisible();
     await expect(operatorPage.getByText(/payment beneficiary|contact details|ต้นทุน/i)).toHaveCount(0);
+    await expect(operatorPage.getByRole("heading", { name: "Record contact", exact: true })).toBeVisible();
+    await operatorPage.locator('input[name="occurred"]').fill(new Date(Date.now() - 60_000).toISOString().slice(0, 16));
+    await operatorPage.getByRole("textbox", { name: "Contact summary", exact: true }).fill("Demo customer asked for the updated service terms by email.");
+    await Promise.all([
+      operatorPage.waitForResponse((response) => response.url().includes("/api/v1/holdings/simulation/customer-notes") && response.request().method() === "POST"),
+      operatorPage.getByRole("button", { name: "Save internal note", exact: true }).click(),
+    ]);
+    await expect(operatorPage.getByRole("paragraph").filter({ hasText: "Demo customer asked for the updated service terms by email." }).first()).toBeVisible();
     const source = operatorPage.locator("section.card").filter({ hasText: "Visible source activity" }).getByRole("link").first();
     await expect(source).toHaveAttribute("href", /\/commerce\/orders\//);
     await source.click();
@@ -50,8 +58,9 @@ test("isolated demo exposes a scoped Customer 360 timeline to independent Sales 
     await signInRole(managerContext, managerPage, credentials, "sales_manager", path);
     await expect(managerPage.getByRole("heading", { name: "Visible source activity", exact: true })).toBeVisible();
     await expect(managerPage.getByText(/quote ·/i).first()).toBeVisible();
+    await expect(managerPage.getByRole("paragraph").filter({ hasText: "Demo customer asked for the updated service terms by email." }).first()).toBeVisible();
     await expect(managerPage.getByText(/payment beneficiary|contact details|ต้นทุน/i)).toHaveCount(0);
-    await testInfo.attach("customer-timeline-result", { contentType: "application/json", body: JSON.stringify({ run, customerId, roles: ["sales_operator", "sales_manager"], sourceLinkScoped: true, restrictedFieldsHidden: true }, null, 2) });
+    await testInfo.attach("customer-timeline-result", { contentType: "application/json", body: JSON.stringify({ run, customerId, roles: ["sales_operator", "sales_manager"], sourceLinkScoped: true, standaloneNoteCreatedAndReloaded: true, restrictedFieldsHidden: true }, null, 2) });
     await managerPage.screenshot({ path: testInfo.outputPath("customer-timeline.png"), fullPage: true });
   } finally {
     await Promise.allSettled([operatorContext.close(), managerContext.close()]);

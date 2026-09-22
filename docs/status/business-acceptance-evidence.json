@@ -4141,6 +4141,33 @@
       "supersedes": null
     },
     {
+      "id": "customer-notes-browser-20260923",
+      "capabilityIds": [
+        "customer_360/feature-customer-notes"
+      ],
+      "scenarioIds": [
+        "S01",
+        "S20"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "An isolated Demo Company Sales operator created a standalone Customer 360 contact note through the real API and page, the note survived refresh, remained visible to an independent Sales manager, and the same page linked to the authoritative quotation.",
+      "observedAt": "2026-09-23T04:48:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-customer-notes-browser.txt",
+          "sha256": "746f09c7172b0daef5af4e58c960ce8d15200bd0d3c871ded59d132e1a403b38"
+        }
+      ],
+      "limitations": [
+        "This is isolated Demo Company evidence; provider delivery, customer merge/consent, broader cross-domain integration and Company business acceptance remain separate gates.",
+        "The browser scenario uses the sandbox adapter and does not constitute production sign-off."
+      ],
+      "supersedes": null
+    },
+    {
       "id": "finance-intercompany-automated-20260923",
       "capabilityIds": [
         "finance/journals",

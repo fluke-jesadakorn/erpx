@@ -1,0 +1,15 @@
+ERPX isolated Demo Customer 360 standalone contact notes acceptance
+Run: 430090bcb01e
+Origin: http://127.0.0.1:3102
+Command: ERPX_DEMO_RUN=430090bcb01e ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-customer-timeline.spec.ts --project=desktop
+
+Result: 1 passed
+
+An isolated Demo Company Sales operator created a standalone internal customer
+contact note from Customer 360 without an order-specific page. The note survived
+the server refresh, remained visible to an independent Sales manager, and the
+same page still linked to the authoritative quotation. The test used the real
+API command, idempotency key, customer version guard, authorization scope and
+isolated database reset.
+
+Fixture customer: parties-d31b6413-82bc-4236-8ee2-b6432c767389

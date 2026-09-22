@@ -206,7 +206,7 @@ async function orderRow(db: SqlDatabase, actor: WorkContext, id: string) {
   const s = scope(actor);
   const row = await db
     .prepare(
-      `SELECT o.*,p.name party_name,p.notification_email,p.notification_consent,p.version party_version,w.name warehouse_name FROM commerce_orders o JOIN finance_parties p ON p.id=o.party_id JOIN commerce_warehouses w ON w.id=o.warehouse_id WHERE o.id=? AND ${s.sql}`,
+      `SELECT o.*,p.name party_name,p.code party_code,p.notification_email,p.notification_consent,p.version party_version,w.name warehouse_name FROM commerce_orders o JOIN finance_parties p ON p.id=o.party_id JOIN commerce_warehouses w ON w.id=o.warehouse_id WHERE o.id=? AND ${s.sql}`,
     )
     .bind(id, ...s.args)
     .first<Row>();
