@@ -153,7 +153,8 @@ export async function revokeCompanyBusinessAcceptance(db: SqlDatabase, actor: Wo
 }
 
 export async function companyBusinessAcceptanceWork(db: SqlDatabase, actor: WorkContext): Promise<WorkItem[]> {
-  if (actor.beta || actor.branchId || actor.departmentId || actor.scope.kind !== "holding" || !(await companyAuthority(db, actor))) return [];
+  if (actor.beta || actor.branchId || actor.departmentId || actor.scope.kind !== "holding" || !hasPermission(actor, "organization.manage")) return [];
+  if (!(await companyAuthority(db, actor))) return [];
   const row = await db.prepare("SELECT * FROM company_business_acceptance WHERE company_id=?").bind(actor.companyId).first<AcceptanceRow>();
   if (!row || row.status === "draft" || row.status === "revoked") return [];
   const requester = samePerson(actor, row.requested_by), review = row.status === "submitted" && !requester && hasPermission(actor, "organization.manage");

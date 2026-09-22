@@ -29,6 +29,7 @@ export type WorkItem = {
     | "landed_cost"
     | "inventory_transit"
     | "quality_hold"
+    | "quality_alert"
     | "supplier_batch"
     | "refund"
     | "legal"
@@ -90,6 +91,7 @@ export const workTypes = [
   ["refund", "Return refunds"],
   ["supplier_batch", "Supplier payment batches"],
   ["quality_hold", "Quality holds"],
+  ["quality_alert", "Quality escalations"],
   ["inventory_transit", "Stock in transit"],
   ["supplier_promise", "Supplier delivery confirmations"],
   ["procurement_rfq", "Supplier quotation reviews"],

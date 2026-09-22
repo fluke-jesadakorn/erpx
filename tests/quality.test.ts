@@ -79,6 +79,30 @@ it('hands inspection and release to scoped Work, Inbox and Calendar source queue
  await db.prepare('UPDATE assignments SET revoked_at=? WHERE id=?').bind(Date.now(),f.manager.assignmentId).run();
  expect((await qualityWork(f.owner)).find(w=>w.id===id)?.blocker).toContain('No eligible independent recipient');
 });
+it('recovers quality due-soon and overdue escalations with live routing and idempotent acknowledgement',async()=>{
+ const {drainQualityAlerts,qualityAlerts,qualityAlertWork,acknowledgeQualityAlert,getQualityAlert}=await import('../src/server/quality-alerts');
+ const due=await createQualityHold(f.owner,{warehouseId:warehouse,productId:product,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first('version')),dueDate:'2026-09-22',reason:'Prepare a quality inspection before the receiving deadline'},key());
+ const overdue=await createQualityHold(f.owner,{warehouseId:warehouse,productId:product,expectedStockVersion:Number(await db.prepare('SELECT version FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first('version')),dueDate:'2026-09-20',reason:'Recover a missed quality inspection and preserve the quarantine evidence'},key());
+ const now=Date.parse('2026-09-21T12:00:00Z');
+ const firstSweep=await drainQualityAlerts(db,now,86_400_000);
+ expect(firstSweep.dueSoon).toBeGreaterThanOrEqual(1);
+ expect(firstSweep.overdue).toBeGreaterThanOrEqual(1);
+ expect(await drainQualityAlerts(db,now,86_400_000)).toEqual({dueSoon:0,overdue:0});
+ const alerts=await qualityAlerts(f.manager),dueAlert=alerts.find(a=>a.hold_id===String(due.id)&&a.phase==='due_soon'),overdueAlert=alerts.find(a=>a.hold_id===String(overdue.id)&&a.phase==='overdue');
+ expect(dueAlert).toMatchObject({source_version:1,version:1,can_ack:1,recipients:2});
+ expect(overdueAlert).toMatchObject({source_version:1,version:1,can_ack:1,recipients:2});
+ expect((await qualityAlertWork(f.manager)).filter(w=>w.type==='quality_alert')).toEqual(expect.arrayContaining([expect.objectContaining({id:dueAlert?.id,queue:'todo',canAct:true,nextAction:'Prepare the next inspection or release action'}),expect.objectContaining({id:overdueAlert?.id,queue:'todo',canAct:true})]));
+ const {listStaffNotifications}=await import('../src/server/staff-notifications');
+ expect((await listStaffNotifications(db,f.manager)).filter(n=>n.record_type==='quality_alert'&&[dueAlert?.id,overdueAlert?.id].includes(n.record_id))).toHaveLength(2);
+ await expect(getQualityAlert({...f.manager,branchId:'unrelated-branch'},String(dueAlert?.id))).rejects.toMatchObject({status:404});
+ const input={expectedVersion:1,reason:'Quality manager accepted the escalation and will coordinate the inspection owner'},ackKey=key();
+ const receipt=await acknowledgeQualityAlert(f.manager,String(dueAlert?.id),input,ackKey);
+ expect(await acknowledgeQualityAlert(f.manager,String(dueAlert?.id),input,ackKey)).toEqual(receipt);
+ expect((await qualityAlertWork(f.manager)).find(w=>w.id===String(dueAlert?.id))).toMatchObject({queue:'completed',canAct:false});
+ await db.prepare('UPDATE assignments SET revoked_at=? WHERE id IN (?,?)').bind(Date.now(),f.manager.assignmentId,f.reviewer.assignmentId).run();
+ expect((await qualityAlertWork(f.owner)).find(w=>w.id===String(overdueAlert?.id))?.blocker).toContain('No eligible Quality recipient');
+ await expect(db.prepare('DELETE FROM inventory_quality_alerts WHERE id=?').bind(String(dueAlert?.id)).run()).rejects.toThrow('QUALITY_ALERT_IMMUTABLE');
+});
 it('serializes quarantine against a competing reservation and keeps either outcome safe',async()=>{
  const created=await saveOrder(f.owner,null,orderSchema.parse({kind:'sales',partyId:party,warehouseId:warehouse,orderDate:'2026-09-02',dueDate:'2026-09-03',lines:[{productId:product,quantity:'2',price:'10',taxBps:0}]}),key()),id=String(created.id);
  await transitionOrder(f.owner,id,{action:'submit',expectedVersion:1},key());await transitionOrder(f.head,id,{action:'approve',expectedVersion:2},key());const lineId=String((await getOrder(f.owner,id)).lines[0].id);

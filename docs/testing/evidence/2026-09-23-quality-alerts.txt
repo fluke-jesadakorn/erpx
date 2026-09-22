@@ -1,0 +1,30 @@
+ERPX Release 1 Quality escalation evidence — 2026-09-23
+
+Implementation:
+- migrations/postgres/holding-write/0284_quality_hold_alerts.sql
+- src/server/quality-alerts.ts
+- src/server/runtime/jobs.ts
+- src/server/work-items.ts
+- src/server/staff-notifications.ts
+- src/app/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts
+- src/components/modules/quality-console.tsx
+- src/app/holdings/[holdingSlug]/quality/page.tsx
+- src/app/holdings/[holdingSlug]/quality/[id]/page.tsx
+- tests/quality.test.ts
+
+Behavior covered:
+- A scheduled sweep creates one due-soon alert and one overdue alert per active hold.
+- Re-running the sweep after a partial run creates no duplicate alert or notification.
+- Current Quality assignments receive actionable Inbox notifications; branch scope and revoked assignments are rechecked on read and acknowledgement.
+- Work exposes next action, due date, responsible queue, and a no-recipient blocker.
+- Acknowledgement uses version, idempotency, command/audit evidence, and immutable alert history.
+
+Verification:
+- `bun run test -- tests/quality.test.ts` — 1 file, 12 tests passed.
+- `bun run test -- tests/quality.test.ts tests/work-sources.test.ts tests/work-views.test.ts tests/work-cards.test.ts tests/staff-work.test.ts tests/staff-task-alerts.test.ts` — 6 files, 55 tests passed.
+- `bun run typecheck` — passed.
+- `bun run lint` — passed with one pre-existing warning in `src/components/modules/service-navigation.tsx` (`_props` unused).
+- `bun run status:capabilities -- --check` — verified 183 capabilities.
+
+Acceptance boundary:
+- Multi-role browser transaction and independent business acceptance remain pending; this evidence does not promote those gates.

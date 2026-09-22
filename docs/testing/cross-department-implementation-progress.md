@@ -472,6 +472,12 @@ Sales, POS, Field Service และ Manufacturing ใช้ `inventory_active_re
 
 [Automated and public UI evidence](evidence/2026-09-21-inventory-reservation-expiry-alerts.txt) ครอบ reservation/Field Service/Manufacturing/POS/E-commerce/lot-serial/recovery 7 files/46 tests รวม dedupe, warning, expiry, consumed/released exclusion และ actionable notification links. Typecheck และ scoped lint ผ่าน. Public authenticated Inbox render ผ่านโดยไม่เขียน notification จำลองลงบริษัท Acme. Capability `inventory/reservations` จึงยกระดับเป็น Flow accepted ตาม integration evidence; multi-role browser transaction และ business acceptance ยัง pending.
 
+## Release 1 Quality — due-soon and overdue escalation (2026-09-23)
+
+Quality hold ที่ยังค้างอยู่มี alert record ถาวรสองระยะ: เตือนก่อน due date และยกระดับเมื่อเลยกำหนด. Scheduled worker สร้าง record แบบ unique ต่อ hold/phase และส่ง notification ให้ assignment Quality ที่ยัง active และอยู่ใน holding/branch scope; การรันซ้ำหลัง worker หยุดหรือบางส่วนสำเร็จไม่สร้างรายการซ้ำ. Work และ Inbox เปิดกลับไปยัง hold ต้นทาง ตรวจสิทธิ์ปัจจุบันทุกครั้ง และ Quality inspector/manager บันทึก acknowledgement ด้วย version, idempotency, audit และ immutable evidence. ถ้าไม่มีผู้รับ ระบบแสดง blocker ให้ Company administrator แก้ coverage.
+
+[Automated evidence](evidence/2026-09-23-quality-alerts.txt) ครอบ due-soon/overdue, retry recovery, live recipient scope, revoked coverage, Work/Inbox acknowledgement และ immutable alert evidence. Multi-role browser และ business acceptance ยังเป็น gate แยก.
+
 ## Release 1 Finance — opening balance reconciliation (2026-09-21)
 
 Opening import เชื่อม GL กับตารางลูกหนี้/เจ้าหนี้ใช้งานจริงแล้ว. ผังบัญชีแยก `receivable`/`payable` control account ออกจาก cash/inventory/tax control; preview ตรวจ active party, currency, reference, due date, account direction และยอด schedule ต่อบัญชีให้ตรง GL ทุกบาท. Import สร้าง draft opening journal กับ operational Finance invoices ใน transaction/idempotency boundary เดียว. ผู้อนุมัติ Finance คนละคน post ทั้งชุดพร้อมกันแล้วรายการเข้าสู่ Aging และรับ allocation ปกติ; reversal ทำให้รายการที่ยังไม่เคย settle เป็น void พร้อม GL และปฏิเสธเมื่อมี allocation history เพื่อกันยอดย่อยไม่ตรงบัญชีคุม.

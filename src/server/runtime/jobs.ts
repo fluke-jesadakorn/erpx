@@ -69,6 +69,7 @@ export async function scheduledWork(env: JobEnv) {
     const { write,files } = registeredResources(env,slot.id);
     await (await import("../leave-self-service")).runLeaveAccruals(write,new Date().toISOString().slice(0,10));
     await (await import("../inventory-reservation-alerts")).escalateInventoryReservations(write);
+    await (await import("../quality-alerts")).drainQualityAlerts(write);
     await (await import("../iam-access-review-alerts")).escalateAccessReviews(write);
     await (await import("../staff-task-alerts")).escalateStaffTasks(write);
     await generateOccurrences(write);

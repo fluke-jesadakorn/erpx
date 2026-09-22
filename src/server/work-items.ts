@@ -165,6 +165,7 @@ export async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot
   if (!actor.beta) jobs.push({label:"Supplier confirmations",load:async()=>(await import("./supplier-promises")).supplierPromiseWork(actor)});
   if (!actor.beta) jobs.push({label:"Stock in transit",load:async()=>(await import("./inventory-transit")).transitWork(actor)});
   if (!actor.beta) jobs.push({label:"Quality holds",load:async()=>(await import("./quality")).qualityWork(actor)});
+  if (!actor.beta) jobs.push({label:"Quality escalations",load:async()=>(await import("./quality-alerts")).qualityAlertWork(actor)});
   if (!actor.beta) jobs.push({label:"Supplier payment batches",load:async()=>(await import("./supplier-payments")).supplierBatchWork(actor)});
   if (!actor.beta) jobs.push({label:"Return refunds",load:async()=>(await import("./refunds")).refundWork(actor)});
   jobs.push({label:"Commercial and financial workflows",load:() => otherFlowWork(actor)});
