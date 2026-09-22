@@ -3635,7 +3635,8 @@
         "sales-to-collection-browser-acceptance-20260922",
         "sales-return-refund-browser-acceptance-20260922",
         "inventory-transit-browser-20260923",
-        "inventory-lot-serial-browser-20260923"
+        "inventory-lot-serial-browser-20260923",
+        "quality-inspection-release-browser-20260923"
       ]
     },
     {
@@ -4802,7 +4803,7 @@
         "service": "src/server/quality.ts; src/server/quality-alerts.ts",
         "schema": "migrations/postgres/holding-write/0244_quality_scrap_disposition.sql; migrations/postgres/holding-write/0281_quality_partial_disposition.sql; migrations/postgres/holding-write/0282_quality_partial_stock_guard.sql; migrations/postgres/holding-write/0283_quality_whole_hold_error.sql; migrations/postgres/holding-write/0284_quality_hold_alerts.sql",
         "test": "tests/quality.test.ts",
-        "gap": "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete or partial quantity scrap, stock/lot write-off and balanced GL; a partial posting creates a linked remainder hold that stays quarantined. Due-soon and overdue Quality alerts now recover through scheduled sweeps, route to current eligible recipients, and appear in Work/Inbox with acknowledgement evidence. A Demo Company browser journey now verifies lot quarantine visibility to an independent Quality inspector; complete inspection/release browser and Company business acceptance remain incomplete."
+        "gap": "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete or partial quantity scrap, stock/lot write-off and balanced GL; a partial posting creates a linked remainder hold that stays quarantined. Due-soon and overdue Quality alerts now recover through scheduled sweeps, route to current eligible recipients, and appear in Work/Inbox with acknowledgement evidence. Demo Company browser journeys now verify lot quarantine visibility plus independent inspection and third-person release; failed disposition, broader downstream handoffs and Company business acceptance remain incomplete."
       },
       "gates": {
         "automated": {
@@ -4836,7 +4837,8 @@
         "transit-quality-multirole-browser-20260920",
         "full-regression-baseline-20260920",
         "customer-return-quality-disposition-20260921",
-        "inventory-lot-serial-browser-20260923"
+        "inventory-lot-serial-browser-20260923",
+        "quality-inspection-release-browser-20260923"
       ]
     },
     {
@@ -4862,7 +4864,7 @@
         "service": "src/server/quality.ts; src/server/quality-alerts.ts",
         "schema": "migrations/postgres/holding-write/0244_quality_scrap_disposition.sql; migrations/postgres/holding-write/0281_quality_partial_disposition.sql; migrations/postgres/holding-write/0282_quality_partial_stock_guard.sql; migrations/postgres/holding-write/0283_quality_whole_hold_error.sql; migrations/postgres/holding-write/0284_quality_hold_alerts.sql",
         "test": "tests/quality.test.ts",
-        "gap": "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete or partial quantity scrap, stock/lot write-off and balanced GL; a partial posting creates a linked remainder hold that stays quarantined. Due-soon and overdue Quality alerts now recover through scheduled sweeps, route to current eligible recipients, and appear in Work/Inbox with acknowledgement evidence. A Demo Company browser journey now verifies lot quarantine visibility to an independent Quality inspector; complete inspection/release browser and Company business acceptance remain incomplete."
+        "gap": "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete or partial quantity scrap, stock/lot write-off and balanced GL; a partial posting creates a linked remainder hold that stays quarantined. Due-soon and overdue Quality alerts now recover through scheduled sweeps, route to current eligible recipients, and appear in Work/Inbox with acknowledgement evidence. Demo Company browser journeys now verify lot quarantine visibility plus independent inspection and third-person release; failed disposition, broader downstream handoffs and Company business acceptance remain incomplete."
       },
       "gates": {
         "automated": {
@@ -4896,7 +4898,8 @@
         "transit-quality-multirole-browser-20260920",
         "full-regression-baseline-20260920",
         "customer-return-quality-disposition-20260921",
-        "inventory-lot-serial-browser-20260923"
+        "inventory-lot-serial-browser-20260923",
+        "quality-inspection-release-browser-20260923"
       ]
     },
     {
@@ -4922,7 +4925,7 @@
         "service": "src/server/quality.ts; src/server/quality-alerts.ts",
         "schema": "migrations/postgres/holding-write/0244_quality_scrap_disposition.sql; migrations/postgres/holding-write/0281_quality_partial_disposition.sql; migrations/postgres/holding-write/0282_quality_partial_stock_guard.sql; migrations/postgres/holding-write/0283_quality_whole_hold_error.sql; migrations/postgres/holding-write/0284_quality_hold_alerts.sql",
         "test": "tests/quality.test.ts",
-        "gap": "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete or partial quantity scrap, stock/lot write-off and balanced GL; a partial posting creates a linked remainder hold that stays quarantined. Due-soon and overdue Quality alerts now recover through scheduled sweeps, route to current eligible recipients, and appear in Work/Inbox with acknowledgement evidence. A Demo Company browser journey now verifies lot quarantine visibility to an independent Quality inspector; complete inspection/release browser and Company business acceptance remain incomplete."
+        "gap": "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete or partial quantity scrap, stock/lot write-off and balanced GL; a partial posting creates a linked remainder hold that stays quarantined. Due-soon and overdue Quality alerts now recover through scheduled sweeps, route to current eligible recipients, and appear in Work/Inbox with acknowledgement evidence. Demo Company browser journeys now verify lot quarantine visibility plus independent inspection and third-person release; failed disposition, broader downstream handoffs and Company business acceptance remain incomplete."
       },
       "gates": {
         "automated": {
@@ -4956,7 +4959,8 @@
         "transit-quality-multirole-browser-20260920",
         "full-regression-baseline-20260920",
         "customer-return-quality-disposition-20260921",
-        "inventory-lot-serial-browser-20260923"
+        "inventory-lot-serial-browser-20260923",
+        "quality-inspection-release-browser-20260923"
       ]
     },
     {
@@ -4982,7 +4986,7 @@
         "service": "src/server/quality.ts; src/server/quality-alerts.ts",
         "schema": "migrations/postgres/holding-write/0244_quality_scrap_disposition.sql; migrations/postgres/holding-write/0281_quality_partial_disposition.sql; migrations/postgres/holding-write/0282_quality_partial_stock_guard.sql; migrations/postgres/holding-write/0283_quality_whole_hold_error.sql; migrations/postgres/holding-write/0284_quality_hold_alerts.sql",
         "test": "tests/quality.test.ts",
-        "gap": "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete or partial quantity scrap, stock/lot write-off and balanced GL; a partial posting creates a linked remainder hold that stays quarantined. Due-soon and overdue Quality alerts now recover through scheduled sweeps, route to current eligible recipients, and appear in Work/Inbox with acknowledgement evidence. A Demo Company browser journey now verifies lot quarantine visibility to an independent Quality inspector; complete inspection/release browser and Company business acceptance remain incomplete."
+        "gap": "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete or partial quantity scrap, stock/lot write-off and balanced GL; a partial posting creates a linked remainder hold that stays quarantined. Due-soon and overdue Quality alerts now recover through scheduled sweeps, route to current eligible recipients, and appear in Work/Inbox with acknowledgement evidence. Demo Company browser journeys now verify lot quarantine visibility plus independent inspection and third-person release; failed disposition, broader downstream handoffs and Company business acceptance remain incomplete."
       },
       "gates": {
         "automated": {

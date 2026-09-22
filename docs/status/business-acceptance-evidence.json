@@ -4144,6 +4144,36 @@
       "supersedes": null
     },
     {
+      "id": "quality-inspection-release-browser-20260923",
+      "capabilityIds": [
+        "quality/inspections",
+        "quality/results",
+        "quality/release-gates",
+        "inventory/availability"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S14"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "An isolated Demo Company browser scenario uses separate Quality inspector and Quality manager accounts to record a passing inspection on a persisted hold, verify the awaiting_release handoff, approve release with a third-person reason, and confirm the final released state after reload through the authenticated API.",
+      "observedAt": "2026-09-23T06:15:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-quality-inspection-release-browser.txt",
+          "sha256": "9cc98f9c93da68357440aadcbb054139742564c601d1e3381c4d4f4d7a622501"
+        }
+      ],
+      "limitations": [
+        "The simulation run uses isolated Demo Company storage and sandbox accounts; it was destroyed after verification.",
+        "Failed inspection disposition, partial scrap, transfer/return/manufacturing accounting, provider, production and Company business acceptance remain separate gates."
+      ],
+      "supersedes": null
+    },
+    {
       "id": "finance-consolidation-automated-20260923",
       "capabilityIds": [
         "finance/journals",
