@@ -1,0 +1,640 @@
+{
+  "desktop": {
+    "project": "desktop",
+    "run": "93219d8e2062",
+    "recordIds": [
+      "org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+      "org-change-0d9350b2-8df4-4017-be4f-dab7d93b541c",
+      "org-change-5e611a7b-c9e8-4efa-b918-ddfa6abf4d37",
+      "org-change-410fde2a-9f29-4c24-8b7e-b3e8d5e6d370",
+      "org-change-cbbc0f68-8379-4fbc-b5a3-07e200d6797c",
+      "org-change-8082b8c3-f4a2-4696-94e2-459395dc62d8",
+      "org-change-28c4ba89-b515-46bc-929f-e9ab0e5fb0b9",
+      "org-change-26404c53-d54e-4888-8aff-ac093d609a15"
+    ],
+    "branchId": "org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+    "requester": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+    "reviewer": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+    "finalBranchStatus": "active",
+    "finalDepartmentStatus": "active",
+    "blockedSuspensionStatus": 409,
+    "persisted": {
+      "changes": [
+        {
+          "id": "org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "target_node_id": null,
+          "action": "create",
+          "node_kind": "branch",
+          "display_name": "Reviewed service 1790087518774",
+          "branch_id": null,
+          "state": "applied",
+          "version": "5",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "reason": "Reviewed service region and its operating name.",
+          "review_reason": "Operating scope and business reason verified independently."
+        },
+        {
+          "id": "org-change-0d9350b2-8df4-4017-be4f-dab7d93b541c",
+          "target_node_id": "org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "action": "rename",
+          "node_kind": "branch",
+          "display_name": "Reviewed service 1790087518774 hub",
+          "branch_id": null,
+          "state": "applied",
+          "version": "2",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "reason": "rename branch after checking business dependencies.",
+          "review_reason": "The public operating name matches the reviewed location."
+        },
+        {
+          "id": "org-change-5e611a7b-c9e8-4efa-b918-ddfa6abf4d37",
+          "target_node_id": null,
+          "action": "create",
+          "node_kind": "department",
+          "display_name": "Repair team 1790087518774",
+          "branch_id": "org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "state": "applied",
+          "version": "2",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "reason": "Place the repair team under its reviewed branch.",
+          "review_reason": "Reviewed branch placement and team responsibility."
+        },
+        {
+          "id": "org-change-410fde2a-9f29-4c24-8b7e-b3e8d5e6d370",
+          "target_node_id": "org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "action": "suspend",
+          "node_kind": "branch",
+          "display_name": "Reviewed service 1790087518774 hub",
+          "branch_id": null,
+          "state": "cancelled",
+          "version": "2",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": null,
+          "reason": "suspend branch after checking business dependencies.",
+          "review_reason": null
+        },
+        {
+          "id": "org-change-cbbc0f68-8379-4fbc-b5a3-07e200d6797c",
+          "target_node_id": "org-node-org-change-5e611a7b-c9e8-4efa-b918-ddfa6abf4d37",
+          "action": "suspend",
+          "node_kind": "department",
+          "display_name": "Repair team 1790087518774",
+          "branch_id": "org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "state": "applied",
+          "version": "2",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "reason": "suspend department after checking business dependencies.",
+          "review_reason": "Reviewed current dependencies and intended operating status."
+        },
+        {
+          "id": "org-change-8082b8c3-f4a2-4696-94e2-459395dc62d8",
+          "target_node_id": "org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "action": "suspend",
+          "node_kind": "branch",
+          "display_name": "Reviewed service 1790087518774 hub",
+          "branch_id": null,
+          "state": "applied",
+          "version": "2",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "reason": "suspend branch after checking business dependencies.",
+          "review_reason": "Reviewed current dependencies and intended operating status."
+        },
+        {
+          "id": "org-change-28c4ba89-b515-46bc-929f-e9ab0e5fb0b9",
+          "target_node_id": "org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "action": "reactivate",
+          "node_kind": "branch",
+          "display_name": "Reviewed service 1790087518774 hub",
+          "branch_id": null,
+          "state": "applied",
+          "version": "2",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "reason": "reactivate branch after checking business dependencies.",
+          "review_reason": "Reviewed current dependencies and intended operating status."
+        },
+        {
+          "id": "org-change-26404c53-d54e-4888-8aff-ac093d609a15",
+          "target_node_id": "org-node-org-change-5e611a7b-c9e8-4efa-b918-ddfa6abf4d37",
+          "action": "reactivate",
+          "node_kind": "department",
+          "display_name": "Repair team 1790087518774",
+          "branch_id": "org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "state": "applied",
+          "version": "2",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "reason": "reactivate department after checking business dependencies.",
+          "review_reason": "Reviewed current dependencies and intended operating status."
+        }
+      ],
+      "events": [
+        {
+          "change_id": "org-change-0d9350b2-8df4-4017-be4f-dab7d93b541c",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"rename\",\"targetNodeId\":\"org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b\",\"kind\":\"branch\",\"slug\":null,\"displayName\":\"Reviewed service 1790087518774 hub\",\"branchId\":null,\"expectedNodeVersion\":1,\"expectedVersion\":0,\"reason\":\"rename branch after checking business dependencies.\",\"state\":\"submitted\"}",
+          "created_at": "1790087525613"
+        },
+        {
+          "change_id": "org-change-0d9350b2-8df4-4017-be4f-dab7d93b541c",
+          "action": "applied",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "2",
+          "snapshot_json": "{\"decision\":\"approve\",\"reason\":\"The public operating name matches the reviewed location.\",\"appliedNodeId\":\"org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b\"}",
+          "created_at": "1790087526503"
+        },
+        {
+          "change_id": "org-change-26404c53-d54e-4888-8aff-ac093d609a15",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"reactivate\",\"targetNodeId\":\"org-node-org-change-5e611a7b-c9e8-4efa-b918-ddfa6abf4d37\",\"kind\":\"department\",\"slug\":null,\"displayName\":\"Repair team 1790087518774\",\"branchId\":\"org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b\",\"expectedNodeVersion\":2,\"expectedVersion\":0,\"reason\":\"reactivate department after checking business dependencies.\",\"state\":\"submitted\"}",
+          "created_at": "1790087537004"
+        },
+        {
+          "change_id": "org-change-26404c53-d54e-4888-8aff-ac093d609a15",
+          "action": "applied",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "2",
+          "snapshot_json": "{\"decision\":\"approve\",\"reason\":\"Reviewed current dependencies and intended operating status.\",\"appliedNodeId\":\"org-node-org-change-5e611a7b-c9e8-4efa-b918-ddfa6abf4d37\"}",
+          "created_at": "1790087537723"
+        },
+        {
+          "change_id": "org-change-28c4ba89-b515-46bc-929f-e9ab0e5fb0b9",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"reactivate\",\"targetNodeId\":\"org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b\",\"kind\":\"branch\",\"slug\":null,\"displayName\":\"Reviewed service 1790087518774 hub\",\"branchId\":null,\"expectedNodeVersion\":3,\"expectedVersion\":0,\"reason\":\"reactivate branch after checking business dependencies.\",\"state\":\"submitted\"}",
+          "created_at": "1790087535118"
+        },
+        {
+          "change_id": "org-change-28c4ba89-b515-46bc-929f-e9ab0e5fb0b9",
+          "action": "applied",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "2",
+          "snapshot_json": "{\"decision\":\"approve\",\"reason\":\"Reviewed current dependencies and intended operating status.\",\"appliedNodeId\":\"org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b\"}",
+          "created_at": "1790087535804"
+        },
+        {
+          "change_id": "org-change-410fde2a-9f29-4c24-8b7e-b3e8d5e6d370",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"suspend\",\"targetNodeId\":\"org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b\",\"kind\":\"branch\",\"slug\":null,\"displayName\":\"Reviewed service 1790087518774 hub\",\"branchId\":null,\"expectedNodeVersion\":2,\"expectedVersion\":0,\"reason\":\"suspend branch after checking business dependencies.\",\"state\":\"submitted\"}",
+          "created_at": "1790087528501"
+        },
+        {
+          "change_id": "org-change-410fde2a-9f29-4c24-8b7e-b3e8d5e6d370",
+          "action": "cancelled",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "2",
+          "snapshot_json": "{\"expectedVersion\":1}",
+          "created_at": "1790087529815"
+        },
+        {
+          "change_id": "org-change-5e611a7b-c9e8-4efa-b918-ddfa6abf4d37",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"create\",\"targetNodeId\":null,\"kind\":\"department\",\"slug\":\"repair-1790087518774\",\"displayName\":\"Repair team 1790087518774\",\"branchId\":\"org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b\",\"expectedNodeVersion\":null,\"expectedVersion\":0,\"reason\":\"Place the repair team under its reviewed branch.\",\"state\":\"submitted\"}",
+          "created_at": "1790087527190"
+        },
+        {
+          "change_id": "org-change-5e611a7b-c9e8-4efa-b918-ddfa6abf4d37",
+          "action": "applied",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "2",
+          "snapshot_json": "{\"decision\":\"approve\",\"reason\":\"Reviewed branch placement and team responsibility.\",\"appliedNodeId\":\"org-node-org-change-5e611a7b-c9e8-4efa-b918-ddfa6abf4d37\"}",
+          "created_at": "1790087527782"
+        },
+        {
+          "change_id": "org-change-8082b8c3-f4a2-4696-94e2-459395dc62d8",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"suspend\",\"targetNodeId\":\"org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b\",\"kind\":\"branch\",\"slug\":null,\"displayName\":\"Reviewed service 1790087518774 hub\",\"branchId\":null,\"expectedNodeVersion\":2,\"expectedVersion\":0,\"reason\":\"suspend branch after checking business dependencies.\",\"state\":\"submitted\"}",
+          "created_at": "1790087533276"
+        },
+        {
+          "change_id": "org-change-8082b8c3-f4a2-4696-94e2-459395dc62d8",
+          "action": "applied",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "2",
+          "snapshot_json": "{\"decision\":\"approve\",\"reason\":\"Reviewed current dependencies and intended operating status.\",\"appliedNodeId\":\"org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b\"}",
+          "created_at": "1790087533947"
+        },
+        {
+          "change_id": "org-change-cbbc0f68-8379-4fbc-b5a3-07e200d6797c",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"suspend\",\"targetNodeId\":\"org-node-org-change-5e611a7b-c9e8-4efa-b918-ddfa6abf4d37\",\"kind\":\"department\",\"slug\":null,\"displayName\":\"Repair team 1790087518774\",\"branchId\":\"org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b\",\"expectedNodeVersion\":1,\"expectedVersion\":0,\"reason\":\"suspend department after checking business dependencies.\",\"state\":\"submitted\"}",
+          "created_at": "1790087531362"
+        },
+        {
+          "change_id": "org-change-cbbc0f68-8379-4fbc-b5a3-07e200d6797c",
+          "action": "applied",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "2",
+          "snapshot_json": "{\"decision\":\"approve\",\"reason\":\"Reviewed current dependencies and intended operating status.\",\"appliedNodeId\":\"org-node-org-change-5e611a7b-c9e8-4efa-b918-ddfa6abf4d37\"}",
+          "created_at": "1790087532105"
+        },
+        {
+          "change_id": "org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "action": "drafted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"create\",\"targetNodeId\":null,\"kind\":\"branch\",\"slug\":\"reviewed-1790087518774\",\"displayName\":\"Regional service 1790087518774\",\"branchId\":null,\"expectedNodeVersion\":null,\"expectedVersion\":0,\"reason\":\"Create regional service capacity after review.\",\"state\":\"draft\"}",
+          "created_at": "1790087519038"
+        },
+        {
+          "change_id": "org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "2",
+          "snapshot_json": "{\"action\":\"create\",\"targetNodeId\":null,\"kind\":\"branch\",\"slug\":\"reviewed-1790087518774\",\"displayName\":\"Regional service 1790087518774\",\"branchId\":null,\"expectedNodeVersion\":null,\"expectedVersion\":1,\"reason\":\"Create regional service capacity after review.\",\"state\":\"submitted\"}",
+          "created_at": "1790087519877"
+        },
+        {
+          "change_id": "org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "action": "rejected",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "3",
+          "snapshot_json": "{\"decision\":\"reject\",\"reason\":\"Clarify the operating branch name before opening.\",\"appliedNodeId\":null}",
+          "created_at": "1790087521096"
+        },
+        {
+          "change_id": "org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "4",
+          "snapshot_json": "{\"action\":\"create\",\"targetNodeId\":null,\"kind\":\"branch\",\"slug\":\"reviewed-1790087518774\",\"displayName\":\"Reviewed service 1790087518774\",\"branchId\":null,\"expectedNodeVersion\":null,\"expectedVersion\":3,\"reason\":\"Reviewed service region and its operating name.\",\"state\":\"submitted\"}",
+          "created_at": "1790087522167"
+        },
+        {
+          "change_id": "org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "action": "applied",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "5",
+          "snapshot_json": "{\"decision\":\"approve\",\"reason\":\"Operating scope and business reason verified independently.\",\"appliedNodeId\":\"org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b\"}",
+          "created_at": "1790087523025"
+        }
+      ],
+      "nodes": [
+        {
+          "id": "org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "kind": "branch",
+          "display_name": "Reviewed service 1790087518774 hub",
+          "branch_id": null,
+          "status": "active",
+          "hierarchy_revision": "4"
+        },
+        {
+          "id": "org-node-org-change-5e611a7b-c9e8-4efa-b918-ddfa6abf4d37",
+          "kind": "department",
+          "display_name": "Repair team 1790087518774",
+          "branch_id": "org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "status": "active",
+          "hierarchy_revision": "3"
+        }
+      ],
+      "channels": [
+        {
+          "organization_node_id": "org-node-org-change-5e611a7b-c9e8-4efa-b918-ddfa6abf4d37",
+          "name": "Repair team 1790087518774"
+        },
+        {
+          "organization_node_id": "org-node-org-change-d55c9cc3-8985-4013-8b2c-694f6b87898b",
+          "name": "Reviewed service 1790087518774 hub"
+        }
+      ]
+    }
+  },
+  "mobile": {
+    "project": "mobile",
+    "run": "93219d8e2062",
+    "recordIds": [
+      "org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+      "org-change-e8d04ca4-88b8-4ecb-97fe-e0adf52168e2",
+      "org-change-dac331d3-9006-4610-856a-75cf8e2baa4f",
+      "org-change-bd3d3130-5670-4613-9b67-0a70828cc7ad",
+      "org-change-4a4376c6-b648-470c-9692-bf3a2ec4125e",
+      "org-change-95ac5844-3177-47c0-8264-16d78af361cb",
+      "org-change-c0d2f03b-e986-4b74-b710-49758e0c631f",
+      "org-change-1acac240-cb17-46b5-9439-eb7ae7b30612"
+    ],
+    "branchId": "org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+    "requester": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+    "reviewer": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+    "finalBranchStatus": "active",
+    "finalDepartmentStatus": "active",
+    "blockedSuspensionStatus": 409,
+    "persisted": {
+      "changes": [
+        {
+          "id": "org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "target_node_id": null,
+          "action": "create",
+          "node_kind": "branch",
+          "display_name": "Reviewed service 1790087549043",
+          "branch_id": null,
+          "state": "applied",
+          "version": "5",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "reason": "Reviewed service region and its operating name.",
+          "review_reason": "Operating scope and business reason verified independently."
+        },
+        {
+          "id": "org-change-e8d04ca4-88b8-4ecb-97fe-e0adf52168e2",
+          "target_node_id": "org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "action": "rename",
+          "node_kind": "branch",
+          "display_name": "Reviewed service 1790087549043 hub",
+          "branch_id": null,
+          "state": "applied",
+          "version": "2",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "reason": "rename branch after checking business dependencies.",
+          "review_reason": "The public operating name matches the reviewed location."
+        },
+        {
+          "id": "org-change-dac331d3-9006-4610-856a-75cf8e2baa4f",
+          "target_node_id": null,
+          "action": "create",
+          "node_kind": "department",
+          "display_name": "Repair team 1790087549043",
+          "branch_id": "org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "state": "applied",
+          "version": "2",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "reason": "Place the repair team under its reviewed branch.",
+          "review_reason": "Reviewed branch placement and team responsibility."
+        },
+        {
+          "id": "org-change-bd3d3130-5670-4613-9b67-0a70828cc7ad",
+          "target_node_id": "org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "action": "suspend",
+          "node_kind": "branch",
+          "display_name": "Reviewed service 1790087549043 hub",
+          "branch_id": null,
+          "state": "cancelled",
+          "version": "2",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": null,
+          "reason": "suspend branch after checking business dependencies.",
+          "review_reason": null
+        },
+        {
+          "id": "org-change-4a4376c6-b648-470c-9692-bf3a2ec4125e",
+          "target_node_id": "org-node-org-change-dac331d3-9006-4610-856a-75cf8e2baa4f",
+          "action": "suspend",
+          "node_kind": "department",
+          "display_name": "Repair team 1790087549043",
+          "branch_id": "org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "state": "applied",
+          "version": "2",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "reason": "suspend department after checking business dependencies.",
+          "review_reason": "Reviewed current dependencies and intended operating status."
+        },
+        {
+          "id": "org-change-95ac5844-3177-47c0-8264-16d78af361cb",
+          "target_node_id": "org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "action": "suspend",
+          "node_kind": "branch",
+          "display_name": "Reviewed service 1790087549043 hub",
+          "branch_id": null,
+          "state": "applied",
+          "version": "2",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "reason": "suspend branch after checking business dependencies.",
+          "review_reason": "Reviewed current dependencies and intended operating status."
+        },
+        {
+          "id": "org-change-c0d2f03b-e986-4b74-b710-49758e0c631f",
+          "target_node_id": "org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "action": "reactivate",
+          "node_kind": "branch",
+          "display_name": "Reviewed service 1790087549043 hub",
+          "branch_id": null,
+          "state": "applied",
+          "version": "2",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "reason": "reactivate branch after checking business dependencies.",
+          "review_reason": "Reviewed current dependencies and intended operating status."
+        },
+        {
+          "id": "org-change-1acac240-cb17-46b5-9439-eb7ae7b30612",
+          "target_node_id": "org-node-org-change-dac331d3-9006-4610-856a-75cf8e2baa4f",
+          "action": "reactivate",
+          "node_kind": "department",
+          "display_name": "Repair team 1790087549043",
+          "branch_id": "org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "state": "applied",
+          "version": "2",
+          "requested_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "reviewed_by": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "reason": "reactivate department after checking business dependencies.",
+          "review_reason": "Reviewed current dependencies and intended operating status."
+        }
+      ],
+      "events": [
+        {
+          "change_id": "org-change-1acac240-cb17-46b5-9439-eb7ae7b30612",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"reactivate\",\"targetNodeId\":\"org-node-org-change-dac331d3-9006-4610-856a-75cf8e2baa4f\",\"kind\":\"department\",\"slug\":null,\"displayName\":\"Repair team 1790087549043\",\"branchId\":\"org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f\",\"expectedNodeVersion\":2,\"expectedVersion\":0,\"reason\":\"reactivate department after checking business dependencies.\",\"state\":\"submitted\"}",
+          "created_at": "1790087564244"
+        },
+        {
+          "change_id": "org-change-1acac240-cb17-46b5-9439-eb7ae7b30612",
+          "action": "applied",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "2",
+          "snapshot_json": "{\"decision\":\"approve\",\"reason\":\"Reviewed current dependencies and intended operating status.\",\"appliedNodeId\":\"org-node-org-change-dac331d3-9006-4610-856a-75cf8e2baa4f\"}",
+          "created_at": "1790087564929"
+        },
+        {
+          "change_id": "org-change-4a4376c6-b648-470c-9692-bf3a2ec4125e",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"suspend\",\"targetNodeId\":\"org-node-org-change-dac331d3-9006-4610-856a-75cf8e2baa4f\",\"kind\":\"department\",\"slug\":null,\"displayName\":\"Repair team 1790087549043\",\"branchId\":\"org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f\",\"expectedNodeVersion\":1,\"expectedVersion\":0,\"reason\":\"suspend department after checking business dependencies.\",\"state\":\"submitted\"}",
+          "created_at": "1790087559102"
+        },
+        {
+          "change_id": "org-change-4a4376c6-b648-470c-9692-bf3a2ec4125e",
+          "action": "applied",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "2",
+          "snapshot_json": "{\"decision\":\"approve\",\"reason\":\"Reviewed current dependencies and intended operating status.\",\"appliedNodeId\":\"org-node-org-change-dac331d3-9006-4610-856a-75cf8e2baa4f\"}",
+          "created_at": "1790087559672"
+        },
+        {
+          "change_id": "org-change-95ac5844-3177-47c0-8264-16d78af361cb",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"suspend\",\"targetNodeId\":\"org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f\",\"kind\":\"branch\",\"slug\":null,\"displayName\":\"Reviewed service 1790087549043 hub\",\"branchId\":null,\"expectedNodeVersion\":2,\"expectedVersion\":0,\"reason\":\"suspend branch after checking business dependencies.\",\"state\":\"submitted\"}",
+          "created_at": "1790087560764"
+        },
+        {
+          "change_id": "org-change-95ac5844-3177-47c0-8264-16d78af361cb",
+          "action": "applied",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "2",
+          "snapshot_json": "{\"decision\":\"approve\",\"reason\":\"Reviewed current dependencies and intended operating status.\",\"appliedNodeId\":\"org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f\"}",
+          "created_at": "1790087561373"
+        },
+        {
+          "change_id": "org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "action": "drafted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"create\",\"targetNodeId\":null,\"kind\":\"branch\",\"slug\":\"reviewed-1790087549043\",\"displayName\":\"Regional service 1790087549043\",\"branchId\":null,\"expectedNodeVersion\":null,\"expectedVersion\":0,\"reason\":\"Create regional service capacity after review.\",\"state\":\"draft\"}",
+          "created_at": "1790087549365"
+        },
+        {
+          "change_id": "org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "2",
+          "snapshot_json": "{\"action\":\"create\",\"targetNodeId\":null,\"kind\":\"branch\",\"slug\":\"reviewed-1790087549043\",\"displayName\":\"Regional service 1790087549043\",\"branchId\":null,\"expectedNodeVersion\":null,\"expectedVersion\":1,\"reason\":\"Create regional service capacity after review.\",\"state\":\"submitted\"}",
+          "created_at": "1790087550229"
+        },
+        {
+          "change_id": "org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "action": "rejected",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "3",
+          "snapshot_json": "{\"decision\":\"reject\",\"reason\":\"Clarify the operating branch name before opening.\",\"appliedNodeId\":null}",
+          "created_at": "1790087550927"
+        },
+        {
+          "change_id": "org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "4",
+          "snapshot_json": "{\"action\":\"create\",\"targetNodeId\":null,\"kind\":\"branch\",\"slug\":\"reviewed-1790087549043\",\"displayName\":\"Reviewed service 1790087549043\",\"branchId\":null,\"expectedNodeVersion\":null,\"expectedVersion\":3,\"reason\":\"Reviewed service region and its operating name.\",\"state\":\"submitted\"}",
+          "created_at": "1790087551553"
+        },
+        {
+          "change_id": "org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "action": "applied",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "5",
+          "snapshot_json": "{\"decision\":\"approve\",\"reason\":\"Operating scope and business reason verified independently.\",\"appliedNodeId\":\"org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f\"}",
+          "created_at": "1790087552086"
+        },
+        {
+          "change_id": "org-change-bd3d3130-5670-4613-9b67-0a70828cc7ad",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"suspend\",\"targetNodeId\":\"org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f\",\"kind\":\"branch\",\"slug\":null,\"displayName\":\"Reviewed service 1790087549043 hub\",\"branchId\":null,\"expectedNodeVersion\":2,\"expectedVersion\":0,\"reason\":\"suspend branch after checking business dependencies.\",\"state\":\"submitted\"}",
+          "created_at": "1790087556711"
+        },
+        {
+          "change_id": "org-change-bd3d3130-5670-4613-9b67-0a70828cc7ad",
+          "action": "cancelled",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "2",
+          "snapshot_json": "{\"expectedVersion\":1}",
+          "created_at": "1790087557857"
+        },
+        {
+          "change_id": "org-change-c0d2f03b-e986-4b74-b710-49758e0c631f",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"reactivate\",\"targetNodeId\":\"org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f\",\"kind\":\"branch\",\"slug\":null,\"displayName\":\"Reviewed service 1790087549043 hub\",\"branchId\":null,\"expectedNodeVersion\":3,\"expectedVersion\":0,\"reason\":\"reactivate branch after checking business dependencies.\",\"state\":\"submitted\"}",
+          "created_at": "1790087562512"
+        },
+        {
+          "change_id": "org-change-c0d2f03b-e986-4b74-b710-49758e0c631f",
+          "action": "applied",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "2",
+          "snapshot_json": "{\"decision\":\"approve\",\"reason\":\"Reviewed current dependencies and intended operating status.\",\"appliedNodeId\":\"org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f\"}",
+          "created_at": "1790087563124"
+        },
+        {
+          "change_id": "org-change-dac331d3-9006-4610-856a-75cf8e2baa4f",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"create\",\"targetNodeId\":null,\"kind\":\"department\",\"slug\":\"repair-1790087549043\",\"displayName\":\"Repair team 1790087549043\",\"branchId\":\"org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f\",\"expectedNodeVersion\":null,\"expectedVersion\":0,\"reason\":\"Place the repair team under its reviewed branch.\",\"state\":\"submitted\"}",
+          "created_at": "1790087555480"
+        },
+        {
+          "change_id": "org-change-dac331d3-9006-4610-856a-75cf8e2baa4f",
+          "action": "applied",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "2",
+          "snapshot_json": "{\"decision\":\"approve\",\"reason\":\"Reviewed branch placement and team responsibility.\",\"appliedNodeId\":\"org-node-org-change-dac331d3-9006-4610-856a-75cf8e2baa4f\"}",
+          "created_at": "1790087556064"
+        },
+        {
+          "change_id": "org-change-e8d04ca4-88b8-4ecb-97fe-e0adf52168e2",
+          "action": "submitted",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-owner",
+          "version": "1",
+          "snapshot_json": "{\"action\":\"rename\",\"targetNodeId\":\"org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f\",\"kind\":\"branch\",\"slug\":null,\"displayName\":\"Reviewed service 1790087549043 hub\",\"branchId\":null,\"expectedNodeVersion\":1,\"expectedVersion\":0,\"reason\":\"rename branch after checking business dependencies.\",\"state\":\"submitted\"}",
+          "created_at": "1790087553919"
+        },
+        {
+          "change_id": "org-change-e8d04ca4-88b8-4ecb-97fe-e0adf52168e2",
+          "action": "applied",
+          "actor_id": "expense-e92f9420-7f84-4111-bafa-362c860e7864-payer",
+          "version": "2",
+          "snapshot_json": "{\"decision\":\"approve\",\"reason\":\"The public operating name matches the reviewed location.\",\"appliedNodeId\":\"org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f\"}",
+          "created_at": "1790087554551"
+        }
+      ],
+      "nodes": [
+        {
+          "id": "org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "kind": "branch",
+          "display_name": "Reviewed service 1790087549043 hub",
+          "branch_id": null,
+          "status": "active",
+          "hierarchy_revision": "4"
+        },
+        {
+          "id": "org-node-org-change-dac331d3-9006-4610-856a-75cf8e2baa4f",
+          "kind": "department",
+          "display_name": "Repair team 1790087549043",
+          "branch_id": "org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "status": "active",
+          "hierarchy_revision": "3"
+        }
+      ],
+      "channels": [
+        {
+          "organization_node_id": "org-node-org-change-bb356a3a-c2d1-4d48-9f4a-f7adb5564d3f",
+          "name": "Reviewed service 1790087549043 hub"
+        },
+        {
+          "organization_node_id": "org-node-org-change-dac331d3-9006-4610-856a-75cf8e2baa4f",
+          "name": "Repair team 1790087549043"
+        }
+      ]
+    }
+  },
+  "observedAt": "2026-09-22T14:33:36.745Z",
+  "scope": "Fictional records created through isolated Demo desktop and mobile interfaces; no credentials or sessions included"
+}

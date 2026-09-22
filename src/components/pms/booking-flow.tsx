@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { money, plusDays, type Guest } from "@/lib/pms";
+import { money, plusDays, type Guest } from "@/lib/pms-model";
 import type { BookingQuote, RoomSelection } from "@/lib/pms-booking";
 import { workFetch } from "@/lib/work-fetch";
 import styles from "./booking.module.css";

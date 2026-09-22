@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { money } from "@/lib/pms";
+import { money } from "@/lib/pms-model";
 import type { manageBooking } from "@/server/pms-booking";
 import styles from "./booking.module.css";
 type Booking = Awaited<ReturnType<typeof manageBooking>>;

@@ -2,6 +2,7 @@ import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/
 import { PageHeader } from "@/components/ui/primitives";
 import { FlowPanel,documentFlow } from "@/components/workplace/flow-panel";
 import { RecordNextAction } from "@/components/workplace/record-next-action";
+import { PurchaseRequestProgress } from "@/components/workplace/purchase-request-progress";
 import { RequestAi } from "@/components/workplace/request-ai";
 import {
 RequestActions,
@@ -17,6 +18,7 @@ import { workspaceBase } from "@/lib/workspace";
 import { publicScope,requireWorkContext } from "@/server/authorization";
 import { commercePermissions } from "@/server/commerce";
 import { employeeRequestDetail } from "@/server/employee-requests";
+import { purchaseRequestProgress } from "@/server/purchase-request-progress";
 import { pageError } from "@/server/page-error";
 import { requestPageOptions } from "@/server/request-page";
 import { holdingResources } from "@/server/runtime";
@@ -39,6 +41,9 @@ export default async function RequestPage({
     ),
     row = detail.request,
     query = await searchParams;
+  const purchaseProgress = row.kind === "purchase"
+    ? await purchaseRequestProgress(write, actor, row.id)
+    : null;
   const back = new URLSearchParams(query.return ?? "");
   for (const key of [...back.keys()])
     if (!["view", "q", "queue", "type", "responsibility"].includes(key))
@@ -57,7 +62,7 @@ export default async function RequestPage({
         action={<RequestState state={row.state} />}
       /><FeatureTabs/><WidgetGrid pageKey="requests-detail">
       <FlowPanel flow={flow} actor={actor} kind="request" id={id} base={base}/>
-      {row.kind === "purchase" && <FeatureWidget id="requests-detail-purchase-progress" title="Purchase progress"><section className="card"><ol><li>Approval · Spending authorization under Company purchasing policy</li><li>Purchasing · {row.purchase_order_id ? "Purchase order linked" : "Awaiting purchase order"}</li><li>Fulfilment · {row.state === "completed" ? "Completed" : "Follow receipt and handover with the assigned team"}</li></ol><p>Approval authorizes the request. Ordering, receipt and payment are recorded separately.</p></section></FeatureWidget>}
+      {purchaseProgress && <FeatureWidget id="requests-detail-purchase-progress" title="Purchase-to-payment progress"><PurchaseRequestProgress base={base} progress={purchaseProgress}/></FeatureWidget>}
       <section data-critical-notice><RecordNextAction flow={flow}/></section><RequestActions
         base={base}
         detail={{...detail,actions:detail.actions.filter(a=>flow.canAct||["edit","cancel","repair","comment","resource-request"].includes(a))}}
@@ -116,7 +121,7 @@ export default async function RequestPage({
           <p className={styles.article}>{row.description}</p>
           {detail.items.map((item, i) => (
             <p key={i}>
-              {item.description} · {item.quantity}
+              {item.description} · {item.quantity} {item.unit ?? "each"}
               {item.estimatedCost
                 ? ` · Estimated ${row.currency} ${item.estimatedCost}`
                 : ""}

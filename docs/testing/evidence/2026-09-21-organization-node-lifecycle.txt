@@ -1,0 +1,43 @@
+ERPX Release 1 organization node lifecycle evidence
+Observed: 2026-09-21 21:53 Asia/Bangkok
+
+Implementation
+- Migration 0257 adds organization_node_changes and immutable organization_node_change_events.
+- Company-scoped Organization administrators can save drafts, submit, correct rejected changes and cancel their own requests.
+- A different company Organization administrator must approve or reject a submitted request.
+- Approved requests create branches/departments, rename units, suspend unused units or reactivate suspended units.
+- Node hierarchy_revision, request version, selected work context and IAM authority are checked in the committing transaction.
+- Suspension is blocked while active child units, staff engagements, positions, scoped assignments or warehouses remain.
+- Approved creation provisions the organization-managed room; rename updates its visible name. Membership remains derived from current staff placement and active assignment.
+- Command receipts, audit events, outbox events and immutable lifecycle events retain the decision trail.
+
+Automated acceptance
+Command:
+  bun run test -- tests/organization.test.ts tests/people-directory.test.ts tests/organization-channels.test.ts tests/user-management.test.ts tests/iam.test.ts
+Result:
+  Test Files 4 passed (4)
+  Tests 41 passed (41)
+
+Focused lifecycle assertions
+- Self approval is rejected.
+- Independent approval creates a branch and its organization-managed channel atomically.
+- A department can be created only under an active branch.
+- Branch suspension is rejected while the active department remains.
+- Drafts cannot be reviewed, rejected revisions require the current version, and the requester can cancel the corrected request.
+- Organization lifecycle events reject update/delete attempts.
+
+Static verification
+- bun run typecheck: passed.
+- Scoped ESLint for service, API, UI, types and tests: passed with no warnings or errors.
+- Local development migration 0257: applied successfully.
+
+Authenticated public browser observation
+- URL: https://erpx.jesadakorn.com/holdings/acme/people/organization
+- Account: Holding owner in the Acme fictional development company.
+- The public page rendered the live Branches & departments workspace, all current branches/departments, node state and hierarchy revision, create/rename/suspend/reactivate proposal controls, save-draft/submit actions and the review queue.
+- No synthetic organization request was submitted to Acme during this observation.
+
+Limitations
+- The complete approve/reject transaction was exercised with independent users in PostgreSQL integration tests, not in two public browser sessions.
+- No production-company business owner sign-off has been recorded.
+- Moving a unit to a different parent remains deliberately excluded because organization route identity is immutable; relocation requires creating the reviewed destination and moving dependencies explicitly.

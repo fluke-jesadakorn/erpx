@@ -1,0 +1,25 @@
+ERPX Release 1 Finance close reconciliation evidence
+Date: 2026-09-21 Asia/Bangkok
+
+Implemented
+- Explicit bank, receivable, and payable control-account kinds.
+- AR/AP as-of schedules compared with cumulative posted GL through period end.
+- Period-end bank statement closing balance compared with cumulative bank GL.
+- Immutable reconciliation snapshots bound to close version, actor, currency, source metadata, and digest.
+- Independent close approval recomputes evidence and rejects stale changes.
+- Finance Close UI exposes account-level GL, source, difference, and evidence state.
+
+Verification
+- bun run typecheck: pass
+- bun run lint: pass, 0 errors and 3 pre-existing warnings
+- tests/finance-close-reconciliation.test.ts: 2 passed
+- finance adjacent regression: 4 files, 22 passed
+- isolated acceptance closes January and February consecutively with zero AR/AP/bank differences
+- concurrent/late ledger mutation after preparation is rejected as CLOSE_RECONCILIATION_STALE
+- resettable browser simulation run f9abbfb7a9cf: desktop Chromium passed with separate Finance preparer and Finance approver sessions
+- browser evidence observed January statement DEMO-JAN-2027, February statement DEMO-FEB-2027, zero differences, closing transitions, reload persistence, and both final closed states
+- demo:destroy stopped the owned server, dropped the six run-specific PostgreSQL databases, and removed the private run directory; port 3102 was released without touching development data
+
+Remaining acceptance gates
+- The multi-role browser run is isolated at localhost and uses sandbox bank statements; it is not production or live-bank evidence.
+- Business owner acceptance and real bank-provider evidence remain separate.

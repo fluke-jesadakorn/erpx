@@ -1,0 +1,26 @@
+ERPX Finance browser acceptance — 2026-09-22
+
+Disposable demo run
+- Run: b9dbfdf4fee9
+- Origin: http://127.0.0.1:3102
+- Storage: isolated PostgreSQL databases and private local session/files
+- External integrations: sandbox/demo records only; no provider or real company data
+
+Command
+ERPX_DEMO_RUN=b9dbfdf4fee9 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bun run demo:verify:browser
+
+Result
+- controlled payment: passed (three independent accounts, approval/release/bank evidence, invoice settled)
+- two consecutive period closes: passed (Finance preparer and independent approver closed January and February 2027)
+- opening balance import: passed (Finance preparer previewed and created a reconciled opening journal; independent approver posted it)
+- total: 3 passed (30.4s)
+
+Workflow coverage
+1. Preparer creates and submits controlled payment evidence; approver and Treasury complete the payment against the exact sandbox bank row. Reload preserves the settled payment, zero invoice outstanding, allocation, bank match and posted journal.
+2. A Finance preparer begins January and February closes. A separate Finance approver reviews evidence and closes both periods. The browser test polls the owner API for the persisted `closing` state before loading the approval workspace, preventing stale-page races.
+3. A Finance preparer selects the browser-only chart of accounts, previews a balanced opening import and creates the reconciled journal. A separate Finance approver posts it. The posted opening journal remains visible after reload.
+
+Acceptance boundary
+- This is automated browser acceptance on the isolated working demo company, not business sign-off.
+- It does not prove a live bank provider, statutory payroll, external accounting export, production operation or public authenticated acceptance.
+- Demo reset destroys the disposable databases and private session/files; it cannot reach real company data.

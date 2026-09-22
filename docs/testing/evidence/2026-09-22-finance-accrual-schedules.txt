@@ -1,0 +1,35 @@
+ERPX Finance recurring accrual schedules implementation evidence
+Observed: 2026-09-22 (Asia/Bangkok)
+
+Automated command:
+  bun run test -- tests/finance-accruals.test.ts tests/payroll-core.test.ts
+  Test Files  2 passed (2)
+  Tests       5 passed (5)
+
+Coverage:
+  - draft schedule creation with monthly, quarterly and annual frequency
+  - balanced period allocation with currency and chart-of-accounts guards
+  - independent Finance approval and self-review rejection
+  - next-period preparation into a source-linked draft journal
+  - stale schedule/journal/period guards and idempotent preparation
+  - controlled posting, immutable events and final-period completion
+  - payroll regression remains green after the Finance migration
+
+Database:
+  bun run db:migrate:local
+  Local development databases h001/h002 applied holding-write migration 0262.
+  The existing 0260 receipt was reconciled to its already-present Final Pay schema before the runner continued; production was not touched.
+
+Build and health:
+  release: .runtime/releases/2026-09-21T17-04-00-207Z
+  server.js sha256: 66a3e3f82ace3bd392f9f494a0805d8d75846028747128e964f890a17aebbb77
+  http://127.0.0.1:3100/api/health: 200 {"status":"ok"}
+  https://erpx.jesadakorn.com/api/health: 200 {"status":"ok"}
+
+Browser observation:
+  The requested public Finance Engines URL redirected to the sign-in page because the previously authenticated browser session had expired. The page could not be inspected as an authenticated Finance user in this run; no demo-company transaction was submitted.
+
+Limitations:
+  - No independent multi-role public browser schedule-to-post transaction was performed.
+  - No live banking/provider integration or company business-owner sign-off.
+  - The feature remains demo/simulation evidence and is not a production Finance close approval.

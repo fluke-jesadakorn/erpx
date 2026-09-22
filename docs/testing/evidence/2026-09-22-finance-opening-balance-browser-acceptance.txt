@@ -1,0 +1,22 @@
+ERPX Finance opening-balance browser acceptance — 2026-09-22
+
+Disposable demo run
+- Run: 4a8543f96719
+- Origin: http://127.0.0.1:3102
+- Storage: isolated PostgreSQL databases and private local session/files
+- External integrations: sandbox/demo records only; no provider or real company data
+
+Command
+ERPX_DEMO_RUN=4a8543f96719 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-finance-opening-import.spec.ts --project=desktop
+
+Result
+- 1 Playwright test passed in 33.3 seconds.
+- Finance preparer selected the isolated opening chart, entered a balanced THB 100.00 debit/credit import, previewed reconciliation, and created a draft opening journal.
+- A separate Finance approver account opened the persisted journal, approved and posted it.
+- The test queried the posted-journal API and confirmed the source type remained opening_import after the handoff.
+- The disposable run was destroyed after the test; no real company data was changed.
+
+Acceptance boundary
+- This is isolated working-demo browser acceptance, not company business sign-off.
+- It does not prove live bank/provider, statutory, production, backup/restore or external accounting export behavior.
+- Opening-balance settlement and company-owner sign-off remain separate gates.

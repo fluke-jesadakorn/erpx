@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { Alert, Button, Field, TextInput } from "@/components/ui/foundation";
 
 export function LoginForm({ next }: { next?: string }) {
   const router = useRouter();
@@ -33,27 +34,19 @@ export function LoginForm({ next }: { next?: string }) {
   }
   return (
     <form className="form" onSubmit={submit}>
-      <label className="field">
-        Work email
-        <input name="email" type="email" autoComplete="username" required />
-      </label>
-      <label className="field">
-        Password
-        <input
+      <Field label="Work email" required>
+        <TextInput name="email" type="email" autoComplete="username" required />
+      </Field>
+      <Field label="Password" required>
+        <TextInput
           name="password"
           type="password"
           autoComplete="current-password"
           required
         />
-      </label>
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-      <button className="button" type="submit" disabled={pending}>
-        {pending ? "Signing in…" : "Sign in"}
-      </button>
+      </Field>
+      {error && <Alert tone="danger" title="Sign in failed" live>{error}</Alert>}
+      <Button type="submit" pending={pending}>Sign in</Button>
     </form>
   );
 }

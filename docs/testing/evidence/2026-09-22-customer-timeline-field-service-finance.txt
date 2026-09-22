@@ -1,0 +1,22 @@
+ERPX automated evidence — Customer 360 Field Service, Finance and Legal source state
+Date: 2026-09-22 (Asia/Bangkok)
+
+Scope
+- Extended `src/server/customer-timeline.ts` with scoped Field Service agreement events, Finance invoice state and Legal items linked to Commerce orders through `legal_native_references`.
+- Customer directory/detail includes a customer when a permitted source exists in the current company/branch/department scope.
+- Field Service projection requires the viewer's `field_service` module; Finance requires `finance.read`; Legal requires `legal.read` and the existing internal-or-membership classification rule.
+- Projection allowlist remains id, source_id, source_type, title, status, version, at, href. Owner records remain authoritative.
+
+Command
+bun run test -- tests/customer-timeline.test.ts
+
+Result
+- 1 test file passed; 5 tests passed.
+- Sales/CRM/Support privacy, scope, deterministic pagination and cursor checks passed.
+- The cross-domain test inserted real scoped Field Service, Finance and Legal order-linked records, verified source links/statuses and verified Field Service and Legal disappear when the viewer loses the relevant module/permission while Finance remains permission-gated.
+- No private event reason, note body, CRM contact data, invoice account data, Legal description or unrelated customer was returned.
+
+Limitations
+- Automated evidence only. Portal/customer authority, invoice transition history, external provider integration, multi-role browser and business acceptance remain separate gates.
+
+- Release: .runtime/releases/2026-09-21T19-43-25-242Z; server.js SHA-256: 9eb41708b49e6737ed86a99bfdc40140dfb63b47ad9699e7d45acb4ae67f4592

@@ -1,0 +1,16 @@
+$ bun scripts/local/test.ts tests/inventory-lot-serial.test.ts tests/quality.test.ts tests/stock-reservations.test.ts tests/general-company-demo.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+ Test Files  4 passed (4)
+      Tests  14 passed (14)
+   Duration  29.49s
+
+Additional adjacent regression observed before this final focused run:
+- tests/commerce-returns.test.ts
+- tests/supplier-bill-matching.test.ts
+- tests/purchase-to-payment.test.ts
+- 6 files, 26 passed and one stock-reservation compatibility failure
+- The compatibility failure expected STOCK_RESERVED but received the newly combined quarantine/reservation code.
+- The trigger was corrected to retain STOCK_RESERVED for reservation-only reductions; the final stock-reservation suite passed in the 14-test run above.
+

@@ -24,4 +24,8 @@ export async function sendBetaEmail(
     signal: AbortSignal.timeout(10000),
   });
   if (!response.ok) throw new Error("EMAIL_DELIVERY_FAILED");
+  const receipt = (await response.json().catch(() => null)) as
+    | { id?: unknown }
+    | null;
+  return typeof receipt?.id === "string" ? receipt.id : null;
 }

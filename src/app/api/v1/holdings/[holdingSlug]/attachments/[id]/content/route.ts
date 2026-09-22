@@ -9,6 +9,8 @@ import { requireWorkContext } from "@/server/authorization";
 import { holdingResources } from "@/server/runtime";
 import { ApiError, errorResponse } from "@/server/http";
 import { paymentDraft } from "@/server/expense-payments";
+import { getQualityHold } from "@/server/quality";
+import { getOrder } from "@/server/commerce";
 
 export async function GET(
   request: Request,
@@ -32,7 +34,9 @@ export async function GET(
       }>();
     if (!attachment)
       throw new ApiError(404, "NOT_FOUND", "Attachment not found.");
-    if (attachment.owner_type === "support_ticket") await getSupportTicket(actor,attachment.owner_id);
+    if (attachment.owner_type === "commerce_order_delivery") await getOrder(actor,attachment.owner_id);
+    else if (attachment.owner_type === "quality_hold") await getQualityHold(actor,attachment.owner_id);
+    else if (attachment.owner_type === "support_ticket") await getSupportTicket(actor,attachment.owner_id);
     else if (attachment.owner_type === "employee_request") await getEmployeeRequest(write,actor,attachment.owner_id);
     else if (attachment.owner_type === "social_draft")
       await socialUploadOwner(write, actor, attachment.owner_id);

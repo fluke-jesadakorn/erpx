@@ -1,0 +1,11 @@
+Authenticated public-development browser observation
+
+- Origin: https://erpx.jesadakorn.com
+- Account: holding owner using the existing normal authenticated Chrome session
+- Physical stock-count register loaded successfully and displayed 30 persistent records.
+- New physical count opened successfully through the public hostname.
+- A lot-tracked product could be added to the count.
+- The form exposed lot code, counted quantity, manufactured date, expiry date and verified unit cost for a newly found lot.
+- The tracked product total updated as a derived lot quantity and the save action remained available only after a product was added.
+
+This observation verifies the delivered public UI and authenticated access. Independent preparer/approver browser acceptance, receiver-selected partial-transit lots and business sign-off remain separate gates.

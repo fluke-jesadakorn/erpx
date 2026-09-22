@@ -1,0 +1,27 @@
+ERPX Customer Authority transactional duplicate merge — automated evidence
+Observed: 2026-09-22 Asia/Bangkok
+
+Implementation
+- Migration 0264 adds finance_parties merge lineage (merged_into_id, merged_at, merged_by) and permits the reviewed merged state.
+- Independent reviewer can merge only a duplicate review at the expected version, with same-company/same-currency active customer masters.
+- Safe source references are repointed atomically: Commerce orders, Finance invoices/payments/revenue contracts/refunds, ecommerce carts, CRM opportunities, expenses and POS sales.
+- The losing customer is retained as blocked lineage; duplicate review status and immutable event history move to merged.
+- Immutable customer notification snapshots, access bindings, Field Service agreements/releases and owner-controlled order evidence block the transaction with CUSTOMER_MERGE_BLOCKED.
+
+Verification
+- `bun run test -- tests/customer-duplicates.test.ts`
+- 6 tests passed.
+- The merge test created a real warehouse/product/order and Finance invoice, confirmed the duplicate by an independent manager, merged with idempotency, replayed the command, and verified repointed records, blocked lineage, merged review status and request/duplicate/merge history.
+- The blocker test created a Field Service agreement and verified merge rejection leaves the losing customer active.
+- `bun run typecheck` passed after the merge console UI was added.
+
+Limitations
+- This is automated simulation evidence, not browser, provider, production or customer business acceptance.
+- Balance reconciliation and reversal/correction workflows remain deferred; blocked owner workflows must correct their source before retrying.
+
+Release verification
+- Release: .runtime/releases/2026-09-21T19-43-25-242Z
+- server.js SHA-256: 9eb41708b49e6737ed86a99bfdc40140dfb63b47ad9699e7d45acb4ae67f4592
+- `bun run deploy:build` passed and generated the release above.
+- Merge reconciliation now records invoice/payment/refund counts, total amounts and outstanding amounts for both customer IDs before repointing, linked to the immutable review ID.
+- Reconciliation schema is delivered as migration 0265 so existing installations keep migration checksums stable while new databases receive the totals table.

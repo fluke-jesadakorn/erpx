@@ -52,3 +52,30 @@ it('includes Support lifecycle only when the viewer also has the Support owner p
  expect(buyer.items.some(e=>e.source_type==='support')).toBe(false);
  expect(buyer.coverage).not.toContain('Support case history');
 });
+it('federates scoped Field Service, Finance and Legal state with module and permission gates',async()=>{
+ const serviceId=key(),serviceEventId=key(),invoiceId=key(),legalId=key(),legalEventId=key();
+ await db.prepare(`INSERT INTO field_service_agreements(id,company_id,branch_id,department_id,customer_id,title,start_date,end_date,currency,visit_rate_minor,status,created_by,created_at,updated_at)
+   VALUES(?,?,?,?,?,?,?,?,?,?,'active',?,?,?)`).bind(serviceId,f.company,f.branch,f.department,customer,'Timeline service','2026-09-01','2027-09-01','THB',2500,f.owner.userId,Date.now(),Date.now()).run();
+ await db.prepare(`INSERT INTO field_service_agreement_events(id,agreement_id,version,action,actor_id,reason,status,created_at) VALUES(?,?,?,?,?,?,?,?)`).bind(serviceEventId,serviceId,1,'activate',f.owner.userId,'Service agreement accepted','active',Date.now()).run();
+ await db.prepare(`INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,source_type,status,version,created_by,created_at,updated_at)
+   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(invoiceId,f.company,customer,'receivable','TIMELINE-INV','2026-09-20','2026-10-20','THB',2500,0,2500,2500,f.accounts.revenue,f.accounts.cash,'standalone','posted',1,f.owner.userId,Date.now(),Date.now()).run();
+ await db.prepare(`INSERT INTO legal_items(id,company_id,branch_id,department_id,kind,title,description,classification,country,jurisdiction,language,currency,timezone,priority,due_date,owner_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(legalId,f.company,f.branch,f.department,'contract','Timeline legal contract','Scoped legal source','internal','TH','TH','th','THB','Asia/Bangkok','normal','2026-10-01',f.owner.userId,f.owner.userId,Date.now(),Date.now()).run();
+ await db.prepare('INSERT INTO legal_native_references(item_id,target_module,target_id,ordinal,created_by,created_at) VALUES(?,?,?,?,?,?)').bind(legalId,'commerce_order',order,0,f.owner.userId,Date.now()).run();
+ await db.prepare('INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) VALUES(?,?,?,?,?,?,?)').bind(legalEventId,legalId,'created',f.owner.userId,'Private legal evidence',1,Date.now()).run();
+ const serviceViewer={...f.owner,modules:['field_service']};
+ const visible=await customerTimeline(serviceViewer,customer);
+ expect(visible.items.map(item=>item.source_type)).toContain('field_service');
+ expect(visible.items.map(item=>item.source_type)).toContain('finance');
+ expect(visible.items.map(item=>item.source_type)).toContain('legal');
+ expect(visible.coverage).toContain('Field Service agreements and visits');
+ expect(visible.coverage).toContain('Finance invoice status');
+ expect(visible.coverage).toContain('Legal records linked to orders');
+ expect(visible.items.find(item=>item.source_type==='field_service')).toMatchObject({href:'/field-service',status:'activate'});
+ expect(visible.items.find(item=>item.source_type==='finance')).toMatchObject({href:`/finance/invoices/${invoiceId}`,status:'posted'});
+ expect(visible.items.find(item=>item.source_type==='legal')).toMatchObject({href:'/legal',status:'created'});
+ const commerceOnly=await customerTimeline({...f.owner,role:'finance_preparer',modules:[]},customer);
+ expect(commerceOnly.items.some(item=>item.source_type==='field_service')).toBe(false);
+ expect(commerceOnly.items.some(item=>item.source_type==='finance')).toBe(true);
+ expect(commerceOnly.items.some(item=>item.source_type==='legal')).toBe(false);
+ expect(commerceOnly.coverage).not.toContain('Field Service agreements and visits');
+});

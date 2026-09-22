@@ -1,3 +1,4 @@
+import { measureReadPhase } from "./runtime/read-metrics";
 import "server-only";
 
 import { cache } from "react";
@@ -8,7 +9,7 @@ import {
   type WorkspaceChoiceNode,
 } from "@/lib/workspace-choice";
 import { currentSession, requirePlatformContext } from "./authorization";
-import { iamRole } from "./iam-store";
+import { iamRoles } from "./iam-store";
 import {
   activeHoldingBindings,
   holdingResources,
@@ -72,9 +73,11 @@ async function businessWorkspaceChoice(
       .all<AssignmentRow>()
   ).results;
 
+  const definitions = new Map(await Promise.all([...new Set(rows.map(row=>row.company_id))].map(async companyId =>
+    [companyId, await iamRoles(write,companyId,rows.filter(row=>row.company_id===companyId).map(row=>row.role))] as const)));
   const assignments: WorkspaceChoiceAssignment[] = [];
   for (const row of rows) {
-    const role = await iamRole(write, row.company_id, row.role);
+    const role = definitions.get(row.company_id)?.get(row.role);
     if (!role?.scopes.includes(row.scope_kind)) continue;
     assignments.push({
       companyId: row.company_id,
@@ -130,7 +133,8 @@ async function businessWorkspaceChoice(
   };
 }
 
-export const workspaceChoices = cache(async (): Promise<WorkspaceChoice[]> => {
+export const workspaceChoices = cache(() => measureReadPhase("workspace_choices",readWorkspaceChoices));
+async function readWorkspaceChoices(): Promise<WorkspaceChoice[]> {
   const { session } = await currentSession();
   const business = (
     await Promise.all(
@@ -157,4 +161,4 @@ export const workspaceChoices = cache(async (): Promise<WorkspaceChoice[]> => {
     if (!(error instanceof Error) || error.message !== "FORBIDDEN") throw error;
   }
   return choices;
-});
+}

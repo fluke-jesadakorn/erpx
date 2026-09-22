@@ -37,6 +37,8 @@ export const orderSchema = z.object({
   orderDate: z.iso.date(),
   dueDate: z.iso.date(),
   note: z.string().max(2000).default(""),
+  priceListId: z.string().min(1).optional(),
+  discountReason: z.string().trim().max(1000).optional(),
   lines: z
     .array(
       z.object({
@@ -53,12 +55,29 @@ export const orderSchema = z.object({
 export const transitionSchema = z.object({
   action: z.enum(["submit", "approve", "return", "cancel", "convert"]),
   expectedVersion: z.number().int().positive(),
+  reason: z.string().trim().max(1000).optional(),
 });
 export const fulfillmentSchema = z.object({
   expectedVersion: z.number().int().positive(),
   date: z.iso.date(),
+  evidenceIds:z.array(z.string().min(1)).max(10).default([]),
+  evidenceNote:z.string().trim().max(1000).default(''),
   lines: z
-    .array(z.object({ lineId: z.string().min(1), quantity }))
+    .array(z.object({
+      lineId: z.string().min(1),
+      quantity,
+      allocations: z.array(z.object({
+        lotId: z.string().min(1).optional(),
+        lotCode: z.string().trim().min(1).max(100).optional(),
+        serialNumber: z.string().trim().min(1).max(160).optional(),
+        quantity,
+        manufacturedDate: z.union([z.iso.date(),z.literal("")]).default(""),
+        expiryDate: z.union([z.iso.date(),z.literal("")]).default(""),
+        disposition: z.enum(["available","quarantine"]).default("available"),
+        quarantineReason: z.string().trim().max(2000).default(""),
+        quarantineDueDate: z.union([z.iso.date(),z.literal("")]).default(""),
+      })).max(200).default([]),
+    }))
     .min(1)
     .max(20),
 });
@@ -80,7 +99,7 @@ export const returnRequestSchema=z.object({
   expectedVersion:z.number().int().positive(),
   date:z.iso.date(),
   reason:z.string().trim().min(3).max(500),
-  lines:z.array(z.object({lineId:z.string().min(1),quantity})).min(1).max(20),
+  lines:z.array(z.object({lineId:z.string().min(1),quantity,allocations:z.array(z.object({lotId:z.string().min(1),quantity})).max(200).default([]),condition:z.enum(['unopened','damaged','unknown']).default('unknown'),conditionNote:z.string().trim().max(500).default(''),qualityDueDate:z.union([z.iso.date(),z.literal('')]).default('')})).min(1).max(20),
 });
 export const returnDecisionSchema=z.object({expectedVersion:z.number().int().positive(),reason:z.string().trim().min(3).max(500)});
 export const returnCompleteSchema=z.object({expectedVersion:z.number().int().positive()});
@@ -88,6 +107,7 @@ export const productSchema = z.object({
   sku: z.string().trim().min(2).max(40),
   name: z.string().trim().min(2).max(160),
   unit: z.string().trim().min(1).max(30).default("each"),
+  trackingMode: z.enum(["none", "lot", "serial"]).default("none"),
   price: amount,
   taxBps: z.number().int().min(0).max(10000).default(0),
   status: z.enum(["active", "archived"]).default("active"),
@@ -100,6 +120,8 @@ export const partyMasterSchema = z.object({
   paymentTermsDays: z.number().int().min(0).max(365).default(30),
   creditLimit: amount.default("0"),
   status: z.enum(["active", "blocked"]).default("active"),
+  notificationEmail:z.string().trim().max(320).refine(value=>!value||z.email().safeParse(value).success,'Use a valid email address.').default(''),
+  notificationConsent:z.enum(['unknown','granted','revoked']).default('unknown'),
   expectedVersion: z.number().int().positive().optional(),
 });
 export const warehouseSchema = z.object({
@@ -184,7 +206,7 @@ async function orderRow(db: SqlDatabase, actor: WorkContext, id: string) {
   const s = scope(actor);
   const row = await db
     .prepare(
-      `SELECT o.*,p.name party_name,w.name warehouse_name FROM commerce_orders o JOIN finance_parties p ON p.id=o.party_id JOIN commerce_warehouses w ON w.id=o.warehouse_id WHERE o.id=? AND ${s.sql}`,
+      `SELECT o.*,p.name party_name,p.notification_email,p.notification_consent,p.version party_version,w.name warehouse_name FROM commerce_orders o JOIN finance_parties p ON p.id=o.party_id JOIN commerce_warehouses w ON w.id=o.warehouse_id WHERE o.id=? AND ${s.sql}`,
     )
     .bind(id, ...s.args)
     .first<Row>();
@@ -200,7 +222,7 @@ export async function commerceOverview(actor: WorkContext) {
   actor = allowed(actor, "read");
   const { write } = await holdingResources(actor.holdingId);
   const s = scope(actor);
-  const [orders, products, parties, warehouses, stock, moves, nodes, config] =
+  const [orders, products, parties, warehouses, stock, moves, nodes, config,priceLists,priceListItems] =
     await Promise.all([
       write
         .prepare(
@@ -228,7 +250,7 @@ export async function commerceOverview(actor: WorkContext) {
         .all<Row>(),
       write
         .prepare(
-          "SELECT s.*,COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0) reserved_milli,CASE WHEN EXISTS(SELECT 1 FROM inventory_quality_holds h WHERE h.warehouse_id=s.warehouse_id AND h.product_id=s.product_id AND h.status NOT IN ('released','cancelled')) THEN 1 ELSE 0 END quality_held,p.sku,p.name,w.name warehouse_name FROM commerce_stock s JOIN commerce_products p ON p.id=s.product_id JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=? AND (?::text IS NULL OR w.branch_id=?) ORDER BY p.sku,w.name",
+          "SELECT s.*,COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0) reserved_milli,CASE WHEN EXISTS(SELECT 1 FROM inventory_quality_holds h WHERE h.warehouse_id=s.warehouse_id AND h.product_id=s.product_id AND h.status NOT IN ('released','cancelled','disposed')) THEN 1 ELSE 0 END quality_held,p.sku,p.name,w.name warehouse_name FROM commerce_stock s JOIN commerce_products p ON p.id=s.product_id JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE w.company_id=? AND (?::text IS NULL OR w.branch_id=?) ORDER BY p.sku,w.name",
         )
         .bind(actor.companyId, actor.branchId, actor.branchId)
         .all<Row>(),
@@ -245,6 +267,8 @@ export async function commerceOverview(actor: WorkContext) {
         .bind(actor.companyId, actor.branchId, actor.branchId)
         .all<Row>(),
       settings(write, actor),
+      write.prepare("SELECT id,name,customer_id,valid_from,valid_until,max_auto_discount_bps,version FROM sales_price_lists WHERE company_id=? AND status='active' ORDER BY customer_id NULLS LAST,name").bind(actor.companyId).all<Row>(),
+      write.prepare("SELECT i.* FROM sales_price_list_items i JOIN sales_price_lists l ON l.id=i.price_list_id WHERE l.company_id=? AND l.status='active' ORDER BY i.price_list_id,i.ordinal").bind(actor.companyId).all<Row>(),
     ]);
   return {
     orders: orders.results,
@@ -255,22 +279,29 @@ export async function commerceOverview(actor: WorkContext) {
     moves: moves.results,
     nodes: nodes.results,
     currency: String(config.currency),
+    priceLists:priceLists.results,
+    priceListItems:priceListItems.results,
   };
+}
+export async function workOrderRows(actor: WorkContext) {
+  actor = allowed(actor, "read");
+  const { write } = await holdingResources(actor.holdingId), s = scope(actor);
+  return (await write.prepare(`SELECT o.* FROM commerce_orders o JOIN finance_parties p ON p.id=o.party_id JOIN commerce_warehouses w ON w.id=o.warehouse_id WHERE ${s.sql} ORDER BY o.updated_at DESC`).bind(...s.args).all<Row>()).results;
 }
 export async function getOrder(actor: WorkContext, id: string) {
   actor = allowed(actor, "read");
   const { write } = await holdingResources(actor.holdingId);
   const order = await orderRow(write, actor, id);
-  const [lines, fulfillments, fulfillmentLines, returns, history, children, reservations] = await Promise.all([
+  const [lines, fulfillments, fulfillmentLines, returns, history, children, reservations,lots,lotAllocations,returnLotAllocations,returnQualityHolds,fulfillmentEvidence,pendingDeliveryEvidence,customerNotifications,customerNotificationSettings] = await Promise.all([
     write
       .prepare(
-        "SELECT l.*,p.sku,COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.order_line_id=l.id),0) reserved_milli FROM commerce_order_lines l JOIN commerce_products p ON p.id=l.product_id WHERE l.order_id=? ORDER BY l.ordinal",
+        "SELECT l.*,p.sku,p.unit,p.tracking_mode,COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.order_line_id=l.id),0) reserved_milli FROM commerce_order_lines l JOIN commerce_products p ON p.id=l.product_id WHERE l.order_id=? ORDER BY l.ordinal",
       )
       .bind(id)
       .all<Row>(),
     write
       .prepare(
-        "SELECT f.*,i.invoice_number,i.total_minor,i.outstanding_minor,i.status invoice_status FROM commerce_fulfillments f LEFT JOIN finance_invoices i ON i.id=f.invoice_id WHERE f.order_id=? ORDER BY f.created_at DESC",
+        "SELECT f.*,i.invoice_number,i.total_minor,i.outstanding_minor,i.status invoice_status,j.status stock_journal_status FROM commerce_fulfillments f LEFT JOIN finance_invoices i ON i.id=f.invoice_id LEFT JOIN finance_journals j ON j.id=f.journal_id WHERE f.order_id=? ORDER BY f.created_at DESC",
       )
       .bind(id)
       .all<Row>(),
@@ -287,6 +318,14 @@ export async function getOrder(actor: WorkContext, id: string) {
       .bind(id)
       .all<Row>(),
     write.prepare('SELECT r.*,l.description FROM inventory_order_reservations r JOIN commerce_order_lines l ON l.id=r.order_line_id WHERE l.order_id=? ORDER BY r.created_at DESC,r.id').bind(id).all<Row>(),
+    write.prepare("SELECT l.*,b.warehouse_id,b.quantity_milli,b.value_minor,b.version balance_version,CASE WHEN EXISTS(SELECT 1 FROM inventory_quality_holds h WHERE h.lot_id=l.id AND h.warehouse_id=b.warehouse_id AND h.status NOT IN ('released','cancelled','disposed')) THEN 1 ELSE 0 END quality_held FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id JOIN commerce_order_lines ol ON ol.product_id=l.product_id WHERE ol.order_id=? AND b.warehouse_id=? AND b.quantity_milli>0 ORDER BY l.expiry_date NULLS LAST,l.created_at,l.id").bind(id,order.warehouse_id).all<Row>(),
+    write.prepare("SELECT a.*,l.lot_code,l.serial_number,l.expiry_date,COALESCE((SELECT SUM(ra.quantity_milli) FROM commerce_return_lot_allocations ra JOIN commerce_return_lines rl ON rl.id=ra.return_line_id JOIN commerce_returns r ON r.id=rl.return_id WHERE ra.fulfillment_allocation_id=a.id AND r.status!='rejected'),0) returned_milli FROM inventory_fulfillment_lot_allocations a JOIN inventory_lots l ON l.id=a.lot_id JOIN commerce_fulfillment_lines fl ON fl.id=a.fulfillment_line_id JOIN commerce_fulfillments f ON f.id=fl.fulfillment_id WHERE f.order_id=? ORDER BY f.created_at,a.id").bind(id).all<Row>(),
+    write.prepare("SELECT a.*,rl.return_id,l.lot_code,l.serial_number FROM commerce_return_lot_allocations a JOIN commerce_return_lines rl ON rl.id=a.return_line_id JOIN inventory_lots l ON l.id=a.lot_id JOIN commerce_returns r ON r.id=rl.return_id WHERE r.order_id=? ORDER BY r.created_at,a.id").bind(id).all<Row>(),
+    write.prepare("SELECT h.*,rl.return_id,rl.id return_line_id,rl.condition_code,rl.condition_note,rl.quality_due_date,l.lot_code,l.serial_number FROM inventory_quality_holds h LEFT JOIN commerce_return_lot_allocations a ON h.source_type='customer_return' AND h.source_id=a.id JOIN commerce_return_lines rl ON rl.id=COALESCE(a.return_line_id,h.source_id) JOIN commerce_returns r ON r.id=rl.return_id LEFT JOIN inventory_lots l ON l.id=h.lot_id WHERE h.source_type='customer_return' AND r.order_id=? ORDER BY h.created_at,h.id").bind(id).all<Row>(),
+    write.prepare("SELECT e.fulfillment_id,a.id attachment_id,a.original_name,a.media_type,a.bytes,a.checksum_sha256 FROM commerce_fulfillment_evidence e JOIN attachments a ON a.id=e.attachment_id AND a.revoked_at IS NULL JOIN commerce_fulfillments f ON f.id=e.fulfillment_id WHERE f.order_id=? ORDER BY e.linked_at,e.attachment_id").bind(id).all<Row>(),
+    write.prepare("SELECT a.id attachment_id,a.original_name,a.media_type,a.bytes,a.checksum_sha256,a.created_at FROM attachments a WHERE a.owner_type='commerce_order_delivery' AND a.owner_id=? AND a.purpose='proof_of_delivery' AND a.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM commerce_fulfillment_evidence e WHERE e.attachment_id=a.id) ORDER BY a.created_at DESC,a.id").bind(id).all<Row>(),
+    write.prepare('SELECT * FROM commerce_customer_notifications WHERE order_id=? ORDER BY created_at DESC,id').bind(id).all<Row>(),
+    write.prepare('SELECT * FROM commerce_customer_notification_settings WHERE company_id=?').bind(actor.companyId).first<Row>(),
   ]);
   return {
     order,
@@ -297,6 +336,14 @@ export async function getOrder(actor: WorkContext, id: string) {
     history: history.results,
     children: children.results,
     reservations: reservations.results,
+    lots: lots.results,
+    lotAllocations: lotAllocations.results,
+    returnLotAllocations: returnLotAllocations.results,
+    returnQualityHolds:returnQualityHolds.results,
+    fulfillmentEvidence:fulfillmentEvidence.results,
+    pendingDeliveryEvidence:pendingDeliveryEvidence.results,
+    customerNotifications:customerNotifications.results,
+    customerNotificationSettings:customerNotificationSettings??{company_id:actor.companyId,adapter:'disabled',version:0},
   };
 }
 
@@ -336,6 +383,7 @@ export async function changeOrderReservation(actor:WorkContext,id:string,raw:unk
 }
 
 export async function requestCommerceReturn(actor:WorkContext,fulfillmentId:string,input:z.infer<typeof returnRequestSchema>,key:string){
+  input=returnRequestSchema.parse(input);
   const commandInput={fulfillmentId,...input};const {write}=await holdingResources(actor.holdingId),previous=await replayCommand(write,actor,key,"commerce.return.request",`return-${key}`,commandInput);if(previous)return previous;
   const fulfillment=await write.prepare("SELECT f.*,i.status invoice_status,i.outstanding_minor,o.id order_id,o.kind,o.company_id,o.branch_id,o.warehouse_id,o.party_id FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id JOIN finance_invoices i ON i.id=f.invoice_id WHERE f.id=?").bind(fulfillmentId).first<Row>();
   if(!fulfillment)throw new ApiError(404,"INVOICED_FULFILLMENT_NOT_FOUND","An invoiced receipt or delivery was not found.");
@@ -343,17 +391,41 @@ export async function requestCommerceReturn(actor:WorkContext,fulfillmentId:stri
   if(!["posted","partially_paid","paid"].includes(String(fulfillment.invoice_status)))throw new ApiError(409,"POSTED_INVOICE_REQUIRED","Post the related invoice before requesting a return.");
   if(input.date<String(fulfillment.fulfillment_date))throw new ApiError(422,"INVALID_RETURN_DATE","Return date cannot precede the original stock movement.");
   if(new Set(input.lines.map(line=>line.lineId)).size!==input.lines.length)throw new ApiError(422,"DUPLICATE_LINE","Each fulfillment line may appear once.");
-  const id=`return-${key}`,lines:Array<Row&{quantity:number;returnValue:number;returnSubtotal:number;returnTax:number;index:number}>=[];let subtotal=0,tax=0;
+  const id=`return-${key}`,lines:Array<Row&{quantity:number;returnValue:number;returnSubtotal:number;returnTax:number;index:number}>=[],returnLots=new Map<string,Array<{id:string;fulfillmentAllocationId:string;lotId:string;quantity:number;value:number;snapshotQuantity:number;snapshotValue:number;snapshotVersion:number}>>();let subtotal=0,tax=0;
   for(const [index,entry] of input.lines.entries()){
-    const line=await write.prepare("SELECT fl.*,ol.product_id FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id WHERE fl.id=? AND fl.fulfillment_id=?").bind(entry.lineId,fulfillmentId).first<Row>();
+    const line=await write.prepare("SELECT fl.*,ol.product_id,p.tracking_mode FROM commerce_fulfillment_lines fl JOIN commerce_order_lines ol ON ol.id=fl.order_line_id JOIN commerce_products p ON p.id=ol.product_id WHERE fl.id=? AND fl.fulfillment_id=?").bind(entry.lineId,fulfillmentId).first<Row>();
     if(!line)throw new ApiError(422,"RETURN_LINE_INVALID","Fulfillment line not found.");
+    if(fulfillment.kind==='sales'){
+      if(!entry.qualityDueDate||entry.qualityDueDate<input.date)throw new ApiError(422,'RETURN_QUALITY_DUE_DATE_REQUIRED','Choose a Quality review date on or after the customer return date.');
+      if(entry.conditionNote.length<3)throw new ApiError(422,'RETURN_CONDITION_EVIDENCE_REQUIRED','Describe the returned item condition for Quality review.');
+    }
     // Financial credit follows the reviewed supplier bill; stock retains receipt cost.
     const matchedLine=fulfillment.kind==='purchase'?await write.prepare("SELECT l.subtotal_minor,l.tax_minor FROM procurement_bill_match_lines l JOIN procurement_bill_matches m ON m.id=l.match_id WHERE m.invoice_id=? AND m.status='posted' AND l.fulfillment_line_id=?").bind(fulfillment.invoice_id,line.id).first<Row>():null;
     const financialSubtotal=Number(matchedLine?.subtotal_minor??line.subtotal_minor),financialTax=Number(matchedLine?.tax_minor??line.tax_minor);
     const prior=await write.prepare("SELECT COALESCE(SUM(rl.quantity_milli),0) quantity,COALESCE(SUM(rl.value_minor),0) value,COALESCE(SUM(rl.subtotal_minor),0) subtotal,COALESCE(SUM(rl.tax_minor),0) tax FROM commerce_return_lines rl JOIN commerce_returns r ON r.id=rl.return_id WHERE rl.fulfillment_line_id=? AND r.status!='rejected'").bind(line.id).first<{quantity:number;value:number;subtotal:number;tax:number}>();
     const qty=quantityMilli(entry.quantity),remaining=Number(line.quantity_milli)-Number(prior?.quantity??0);if(qty>remaining)throw new ApiError(422,"OVER_RETURN","Return quantity exceeds the unreturned fulfillment quantity.");
-    const exact=qty===remaining,returnValue=exact?Number(line.value_minor)-Number(prior?.value??0):scaledAmount(Number(line.value_minor),qty,Number(line.quantity_milli)),returnSubtotal=exact?financialSubtotal-Number(prior?.subtotal??0):scaledAmount(financialSubtotal,qty,Number(line.quantity_milli)),returnTax=exact?financialTax-Number(prior?.tax??0):scaledAmount(financialTax,qty,Number(line.quantity_milli));
-    subtotal+=returnSubtotal;tax+=returnTax;lines.push({...line,quantity:qty,returnValue,returnSubtotal,returnTax,index});
+    const prepared:Array<{id:string;fulfillmentAllocationId:string;lotId:string;quantity:number;value:number;snapshotQuantity:number;snapshotValue:number;snapshotVersion:number}>=[];
+    let returnValue:number;
+    if(String(line.tracking_mode)==='none'){
+      if(entry.allocations.length)throw new ApiError(422,"RETURN_LOT_NOT_ALLOWED","Lot allocations are only valid for tracked products.");
+      returnValue=qty===remaining?Number(line.value_minor)-Number(prior?.value??0):scaledAmount(Number(line.value_minor),qty,Number(line.quantity_milli));
+    }else{
+      if(!entry.allocations.length)throw new ApiError(422,"RETURN_LOT_REQUIRED","Select the fulfilled lot or serial being returned.");
+      if(new Set(entry.allocations.map(a=>a.lotId)).size!==entry.allocations.length)throw new ApiError(422,"DUPLICATE_RETURN_LOT","Select each returned lot or serial once.");
+      let selectedQty=0;
+      for(const [lotIndex,selection] of entry.allocations.entries()){
+        const allocation=await write.prepare("SELECT a.*,l.tracking_mode FROM inventory_fulfillment_lot_allocations a JOIN inventory_lots l ON l.id=a.lot_id WHERE a.fulfillment_line_id=? AND a.lot_id=?").bind(line.id,selection.lotId).first<Row>();if(!allocation)throw new ApiError(422,"RETURN_LOT_INVALID","Choose a lot or serial from the original fulfillment.");
+        const previous=await write.prepare("SELECT COALESCE(SUM(a.quantity_milli),0) quantity,COALESCE(SUM(a.value_minor),0) value FROM commerce_return_lot_allocations a JOIN commerce_return_lines rl ON rl.id=a.return_line_id JOIN commerce_returns r ON r.id=rl.return_id WHERE a.fulfillment_allocation_id=? AND r.status!='rejected'").bind(allocation.id).first<{quantity:number;value:number}>(),lotQty=quantityMilli(selection.quantity),lotRemaining=Number(allocation.quantity_milli)-Number(previous?.quantity??0);
+        if(lotQty>lotRemaining)throw new ApiError(422,"OVER_RETURN_LOT","Returned lot or serial quantity exceeds the unreturned fulfillment allocation.");
+        if(String(allocation.tracking_mode)==='serial'&&lotQty!==1000)throw new ApiError(422,"SERIAL_QUANTITY_INVALID","Return a serial number as one whole unit.");
+        const lotValue=lotQty===lotRemaining?Number(allocation.value_minor)-Number(previous?.value??0):scaledAmount(Number(allocation.value_minor),lotQty,Number(allocation.quantity_milli)),balance=await write.prepare("SELECT * FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=?").bind(selection.lotId,fulfillment.warehouse_id).first<Row>();
+        if(fulfillment.kind==='purchase'&&(!balance||Number(balance.quantity_milli)<lotQty))throw new ApiError(409,"RETURN_LOT_STOCK_UNAVAILABLE","The selected supplier-return lot is no longer available in this warehouse.");
+        prepared.push({id:`${id}-${index}-lot-${lotIndex}`,fulfillmentAllocationId:String(allocation.id),lotId:selection.lotId,quantity:lotQty,value:lotValue,snapshotQuantity:Number(balance?.quantity_milli??0),snapshotValue:Number(balance?.value_minor??0),snapshotVersion:Number(balance?.version??0)});selectedQty+=lotQty;
+      }
+      if(selectedQty!==qty)throw new ApiError(422,"RETURN_LOT_TOTAL_MISMATCH","Returned lot or serial quantities must equal the fulfillment line return quantity.");returnValue=prepared.reduce((sum,lot)=>sum+lot.value,0);
+    }
+    const exact=qty===remaining,returnSubtotal=exact?financialSubtotal-Number(prior?.subtotal??0):scaledAmount(financialSubtotal,qty,Number(line.quantity_milli)),returnTax=exact?financialTax-Number(prior?.tax??0):scaledAmount(financialTax,qty,Number(line.quantity_milli));
+    subtotal+=returnSubtotal;tax+=returnTax;lines.push({...line,quantity:qty,returnValue,returnSubtotal,returnTax,index,condition:entry.condition,conditionNote:entry.conditionNote,qualityDueDate:entry.qualityDueDate});returnLots.set(`${id}-${index}`,prepared);
   }
   const total=subtotal+tax;
   const now=Date.now(),kind=fulfillment.kind==="purchase"?"supplier_return":"customer_return",number=`${kind==="supplier_return"?"SR":"CR"}-${(await sha256(key)).slice(0,24).toUpperCase()}`;
@@ -361,10 +433,10 @@ export async function requestCommerceReturn(actor:WorkContext,fulfillmentId:stri
     assertion(write,key,"fulfillment","EXISTS(SELECT 1 FROM commerce_fulfillments f JOIN finance_invoices i ON i.id=f.invoice_id WHERE f.id=? AND f.version=? AND i.status IN ('posted','partially_paid','paid'))",[fulfillmentId,input.expectedVersion]),
     write.prepare("INSERT INTO commerce_returns(id,company_id,branch_id,order_id,fulfillment_id,invoice_id,kind,number,return_date,reason,subtotal_minor,tax_minor,total_minor,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,actor.companyId,fulfillment.branch_id,fulfillment.order_id,fulfillmentId,fulfillment.invoice_id,kind,number,input.date,input.reason,subtotal,tax,total,actor.userId,now,now),
   ];
-  for(const line of lines)steps.push(
+  for(const line of lines){const returnLineId=`${id}-${line.index}`;steps.push(
     assertion(write,key,`return-line-${line.index}`,"(SELECT quantity_milli-COALESCE((SELECT SUM(rl.quantity_milli) FROM commerce_return_lines rl JOIN commerce_returns r ON r.id=rl.return_id WHERE rl.fulfillment_line_id=? AND r.status!='rejected'),0)>=? FROM commerce_fulfillment_lines WHERE id=? AND fulfillment_id=?)",[line.id,line.quantity,line.id,fulfillmentId]),
-    write.prepare("INSERT INTO commerce_return_lines(id,return_id,fulfillment_line_id,product_id,quantity_milli,value_minor,subtotal_minor,tax_minor,ordinal) VALUES(?,?,?,?,?,?,?,?,?)").bind(`${id}-${line.index}`,id,line.id,line.product_id,line.quantity,line.returnValue,line.returnSubtotal,line.returnTax,line.index),
-  );
+    write.prepare("INSERT INTO commerce_return_lines(id,return_id,fulfillment_line_id,product_id,quantity_milli,value_minor,subtotal_minor,tax_minor,ordinal,condition_code,condition_note,quality_due_date) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(returnLineId,id,line.id,line.product_id,line.quantity,line.returnValue,line.returnSubtotal,line.returnTax,line.index,line.condition,line.conditionNote||null,line.qualityDueDate||null),
+  );for(const lot of returnLots.get(returnLineId)??[])steps.push(write.prepare("INSERT INTO commerce_return_lot_allocations(id,return_line_id,fulfillment_allocation_id,lot_id,quantity_milli,value_minor,snapshot_quantity_milli,snapshot_value_minor,snapshot_version) VALUES(?,?,?,?,?,?,?,?,?)").bind(lot.id,returnLineId,lot.fulfillmentAllocationId,lot.lotId,lot.quantity,lot.value,lot.snapshotQuantity,lot.snapshotValue,lot.snapshotVersion));}
   return executeCommand(write,actor,key,"commerce.return.request",commandInput,id,1,{id,orderId:String(fulfillment.order_id),status:"requested",version:1},steps);
 }
 
@@ -399,6 +471,17 @@ export async function decideCommerceReturn(actor:WorkContext,returnId:string,act
     const stock=await write.prepare("SELECT * FROM commerce_stock WHERE warehouse_id=? AND product_id=?").bind(row.warehouse_id,line.product_id).first<Row>();
     if(!stock)throw new ApiError(409,"STOCK_NOT_FOUND","Stock record is unavailable for this return.");if(!incoming&&(Number(stock.quantity_milli)<Number(line.quantity_milli)||Number(stock.value_minor)<Number(line.value_minor)))throw new ApiError(409,"INSUFFICIENT_RETURN_STOCK","Supplier return quantity or value exceeds current stock.");
     steps.push(assertion(write,key,`return-date-${index}`,"NOT EXISTS(SELECT 1 FROM inventory_ledger WHERE warehouse_id=? AND product_id=? AND movement_date>?)",[row.warehouse_id,line.product_id,row.return_date]),assertion(write,key,`return-stock-${index}`,"EXISTS(SELECT 1 FROM commerce_stock WHERE warehouse_id=? AND product_id=? AND version=?)",[row.warehouse_id,line.product_id,stock.version]),write.prepare("UPDATE commerce_stock SET quantity_milli=quantity_milli+?,value_minor=value_minor+?,version=version+1 WHERE warehouse_id=? AND product_id=?").bind(incoming?line.quantity_milli:-Number(line.quantity_milli),incoming?line.value_minor:-Number(line.value_minor),row.warehouse_id,line.product_id),write.prepare("INSERT INTO commerce_return_stock_moves(id,return_id,warehouse_id,product_id,quantity_milli,value_minor,movement_date,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(`${returnId}-${index}`,returnId,row.warehouse_id,line.product_id,incoming?line.quantity_milli:-Number(line.quantity_milli),incoming?line.value_minor:-Number(line.value_minor),row.return_date,now));
+    const lotAllocations=(await write.prepare("SELECT a.*,l.tracking_mode FROM commerce_return_lot_allocations a JOIN inventory_lots l ON l.id=a.lot_id WHERE a.return_line_id=? ORDER BY a.id").bind(line.id).all<Row>()).results;
+    for(const [lotIndex,lot] of lotAllocations.entries()){
+      if(Number(lot.snapshot_version)===0)steps.push(assertion(write,key,`return-lot-${index}-${lotIndex}`,"NOT EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=?)",[lot.lot_id,row.warehouse_id]));
+      else steps.push(assertion(write,key,`return-lot-${index}-${lotIndex}`,"EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=? AND version=? AND quantity_milli=? AND value_minor=?)",[lot.lot_id,row.warehouse_id,lot.snapshot_version,lot.snapshot_quantity_milli,lot.snapshot_value_minor]));
+      if(!incoming&&(Number(lot.snapshot_quantity_milli)<Number(lot.quantity_milli)||Number(lot.snapshot_value_minor)<Number(lot.value_minor)))throw new ApiError(409,"RETURN_LOT_STOCK_UNAVAILABLE","The selected supplier-return lot quantity or value is no longer available.");
+      if(incoming)steps.push(write.prepare("INSERT INTO inventory_lot_balances(lot_id,warehouse_id,quantity_milli,value_minor) VALUES(?,?,?,?) ON CONFLICT(lot_id,warehouse_id) DO UPDATE SET quantity_milli=inventory_lot_balances.quantity_milli+EXCLUDED.quantity_milli,value_minor=inventory_lot_balances.value_minor+EXCLUDED.value_minor,version=inventory_lot_balances.version+1").bind(lot.lot_id,row.warehouse_id,lot.quantity_milli,lot.value_minor),write.prepare("UPDATE inventory_lots SET status='active' WHERE id=?").bind(lot.lot_id));
+      else steps.push(write.prepare("UPDATE inventory_lot_balances SET quantity_milli=quantity_milli-?,value_minor=value_minor-?,version=version+1 WHERE lot_id=? AND warehouse_id=?").bind(lot.quantity_milli,lot.value_minor,lot.lot_id,row.warehouse_id),write.prepare("UPDATE inventory_lots SET status=CASE WHEN EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND quantity_milli>0) THEN 'active' ELSE 'returned' END WHERE id=?").bind(lot.lot_id,lot.lot_id));
+      steps.push(write.prepare("INSERT INTO inventory_lot_moves(id,lot_id,warehouse_id,source_type,source_id,quantity_milli,value_minor,movement_date,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(`lot-return-${returnId}-${index}-${lotIndex}`,lot.lot_id,row.warehouse_id,row.kind,String(lot.id),incoming?lot.quantity_milli:-Number(lot.quantity_milli),incoming?lot.value_minor:-Number(lot.value_minor),row.return_date,actor.userId,now));
+      if(incoming)steps.push(...await (await import('./quality')).receiptQualityHoldSteps(write,actor,{id:`quality-return-${key}-${index}-${lotIndex}`,key:`${key}-quality-${index}-${lotIndex}`,branchId:String(row.branch_id),warehouseId:String(row.warehouse_id),productId:String(line.product_id),lotId:String(lot.lot_id),quantityMilli:Number(lot.quantity_milli),reason:`Customer return · ${String(line.condition_code)} · ${String(line.condition_note)}`,dueDate:String(line.quality_due_date),sourceType:'customer_return',sourceId:String(lot.id)}));
+    }
+    if(incoming&&!lotAllocations.length)steps.push(...await (await import('./quality')).receiptQualityHoldSteps(write,actor,{id:`quality-return-${key}-${index}`,key:`${key}-quality-${index}`,branchId:String(row.branch_id),warehouseId:String(row.warehouse_id),productId:String(line.product_id),quantityMilli:Number(line.quantity_milli),reason:`Customer return · ${String(line.condition_code)} · ${String(line.condition_note)}`,dueDate:String(line.quality_due_date),sourceType:'customer_return',sourceId:String(line.id)}));
   }
   steps.push(write.prepare("UPDATE commerce_returns SET status='approved',approved_by=?,stock_journal_id=?,credit_journal_id=?,version=version+1,updated_at=? WHERE id=?").bind(actor.userId,stockJournal,creditJournal,now,returnId));
   return executeCommand(write,actor,key,"commerce.return.approve",input,returnId,input.expectedVersion+1,{id:returnId,orderId:String(row.order_id),status:"approved",version:input.expectedVersion+1,stockJournalId:stockJournal,creditJournalId:creditJournal},steps);
@@ -428,7 +511,7 @@ export async function saveOrder(
   actor = allowed(actor, input.kind === "purchase" ? "purchase" : "sales");
   const { write } = await holdingResources(actor.holdingId);
   const orderId = id ?? `order-${key}`;
-  const linked = id ? await write.prepare("SELECT id FROM employee_requests WHERE company_id=? AND purchase_order_id=?").bind(actor.companyId,id).first<{id:string}>() : null;
+  const linked = id ? await write.prepare("SELECT r.id FROM employee_requests r WHERE r.company_id=? AND (r.purchase_order_id=? OR EXISTS(SELECT 1 FROM procurement_request_orders l WHERE l.request_id=r.id AND l.order_id=?))").bind(actor.companyId,id,id).first<{id:string}>() : null;
   const requestId = linked?.id ?? input.requestId;
   if (requestId) {
     const request = await (await import("./employee-requests")).getEmployeeRequest(write,actor,requestId);
@@ -476,6 +559,7 @@ export async function saveOrder(
   const record = id ?? `order-${key}`;
   const version = existing ? (input.expectedVersion ?? 0) + 1 : 1;
   const now = Date.now();
+  const pricing=await (await import('./sales-pricing')).resolveSalesPricing(write,actor,input);
   let subtotal = 0,
     tax = 0;
   const lineRows = [];
@@ -490,6 +574,7 @@ export async function saveOrder(
       throw new ApiError(422, "PRODUCT_INVALID", "Choose an active product.");
     const qty = quantityMilli(line.quantity);
     const price = decimalToMinor(line.price);
+    const priceItem=pricing.items.get(line.productId),listPrice=Number(priceItem?.price_minor??price),discountBps=listPrice>0&&price<listPrice?Math.floor((listPrice-price)*10000/listPrice):0;
     const values = lineAmounts(qty, price, line.taxBps);
     subtotal += values.subtotal;
     tax += values.tax;
@@ -499,6 +584,8 @@ export async function saveOrder(
       line,
       qty,
       price,
+      listPrice,
+      discountBps,
       ...values,
       index,
     });
@@ -523,6 +610,7 @@ export async function saveOrder(
       ],
     ),
   ];
+  if(pricing.list)steps.push(assertion(write,key,'price-list',"EXISTS(SELECT 1 FROM sales_price_lists WHERE id=? AND company_id=? AND version=? AND status='active' AND valid_from<=? AND valid_until>=?)",[pricing.list.id,actor.companyId,pricing.list.version,input.orderDate,input.orderDate]));
   if (existing) {
     steps.push(
       versionGuard(
@@ -537,7 +625,7 @@ export async function saveOrder(
     steps.push(
       write
         .prepare(
-          "UPDATE commerce_orders SET party_id=?,warehouse_id=?,branch_id=?,order_date=?,due_date=?,note=?,subtotal_minor=?,tax_minor=?,version=version+1,updated_at=? WHERE id=?",
+          "UPDATE commerce_orders SET party_id=?,warehouse_id=?,branch_id=?,order_date=?,due_date=?,note=?,subtotal_minor=?,tax_minor=?,price_list_id=?,price_list_version=?,discount_reason=?,discount_approval_required=?,discount_approved_by=NULL,discount_approved_at=NULL,version=version+1,updated_at=? WHERE id=?",
         )
         .bind(
           input.partyId,
@@ -548,6 +636,10 @@ export async function saveOrder(
           input.note,
           subtotal,
           tax,
+          pricing.list?.id??null,
+          pricing.list?.version??null,
+          input.discountReason?.trim()||null,
+          pricing.requiresApproval?1:0,
           now,
           record,
         ),
@@ -561,7 +653,7 @@ export async function saveOrder(
     steps.push(
       write
         .prepare(
-          "INSERT INTO commerce_orders(id,company_id,branch_id,department_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,note,subtotal_minor,tax_minor,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO commerce_orders(id,company_id,branch_id,department_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,note,subtotal_minor,tax_minor,price_list_id,price_list_version,discount_reason,discount_approval_required,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         )
         .bind(
           record,
@@ -578,6 +670,10 @@ export async function saveOrder(
           input.note,
           subtotal,
           tax,
+          pricing.list?.id??null,
+          pricing.list?.version??null,
+          input.discountReason?.trim()||null,
+          pricing.requiresApproval?1:0,
           actor.userId,
           now,
           now,
@@ -596,7 +692,7 @@ export async function saveOrder(
     steps.push(
       write
         .prepare(
-          "INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal) VALUES(?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,list_price_minor,discount_bps) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
         )
         .bind(
           l.id,
@@ -609,6 +705,8 @@ export async function saveOrder(
           l.subtotal,
           l.tax,
           l.index,
+          l.listPrice,
+          l.discountBps,
         ),
     );
   }
@@ -654,6 +752,7 @@ export async function transitionOrder(
       "INDEPENDENT_APPROVER_REQUIRED",
       "A different manager must approve this document.",
     );
+  if(input.action==='approve'&&Number(row.discount_approval_required)&&(!input.reason||input.reason.trim().length<5))throw new ApiError(422,'DISCOUNT_APPROVAL_REASON_REQUIRED','Record the independent discount approval reason.');
   if (
     input.action === "cancel" &&
     ["confirmed", "partially_fulfilled", "fulfilled"].includes(String(row.state)) &&
@@ -717,11 +816,13 @@ export async function transitionOrder(
     ...(input.action==='cancel'?[write.prepare("UPDATE inventory_order_reservations SET released_milli=quantity_milli-consumed_milli,release_reason='Source order cancelled' WHERE order_line_id IN (SELECT id FROM commerce_order_lines WHERE order_id=?) AND quantity_milli>consumed_milli+released_milli").bind(id)]:[]),
     write
       .prepare(
-        "UPDATE commerce_orders SET state=?,approved_by=?,version=version+1,updated_at=? WHERE id=?",
+        "UPDATE commerce_orders SET state=?,approved_by=?,discount_approved_by=CASE WHEN ? AND discount_approval_required=1 THEN ? WHEN ? THEN NULL ELSE discount_approved_by END,discount_approved_at=CASE WHEN ? AND discount_approval_required=1 THEN ? WHEN ? THEN NULL ELSE discount_approved_at END,version=version+1,updated_at=? WHERE id=?",
       )
       .bind(
         state,
         input.action === "approve" ? actor.userId : row.approved_by,
+        input.action==='approve',actor.userId,input.action==='return',
+        input.action==='approve',Date.now(),input.action==='return',
         Date.now(),
         id,
       ),
@@ -755,7 +856,7 @@ export async function transitionOrder(
     steps.push(
       write
         .prepare(
-          "INSERT INTO commerce_orders(id,company_id,branch_id,department_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,note,subtotal_minor,tax_minor,source_id,created_by,created_at,updated_at) SELECT ?,company_id,branch_id,department_id,'sales',?,party_id,warehouse_id,currency,order_date,due_date,note,subtotal_minor,tax_minor,id,?,?,? FROM commerce_orders WHERE id=?",
+          "INSERT INTO commerce_orders(id,company_id,branch_id,department_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,note,subtotal_minor,tax_minor,source_id,price_list_id,price_list_version,discount_reason,discount_approval_required,discount_approved_by,discount_approved_at,created_by,created_at,updated_at) SELECT ?,company_id,branch_id,department_id,'sales',?,party_id,warehouse_id,currency,order_date,due_date,note,subtotal_minor,tax_minor,id,price_list_id,price_list_version,discount_reason,discount_approval_required,discount_approved_by,discount_approved_at,?,?,? FROM commerce_orders WHERE id=?",
         )
         .bind(
           salesId,
@@ -769,7 +870,7 @@ export async function transitionOrder(
     steps.push(
       write
         .prepare(
-          "INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal) SELECT ?||'-'||ordinal,?,product_id,description,quantity_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal FROM commerce_order_lines WHERE order_id=?",
+          "INSERT INTO commerce_order_lines(id,order_id,product_id,description,quantity_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,list_price_minor,discount_bps) SELECT ?||'-'||ordinal,?,product_id,description,quantity_milli,price_minor,tax_bps,subtotal_minor,tax_minor,ordinal,list_price_minor,discount_bps FROM commerce_order_lines WHERE order_id=?",
         )
         .bind(salesId, salesId, id),
     );
@@ -876,6 +977,7 @@ export async function fulfillOrder(
   input: z.infer<typeof fulfillmentSchema>,
   key: string,
 ) {
+  input = fulfillmentSchema.parse(input);
   actor = allowed(actor, "stock");
   const { write } = await holdingResources(actor.holdingId);
   const previous = await replayCommand(
@@ -899,6 +1001,12 @@ export async function fulfillOrder(
   const fulfillment = `delivery-${key}`;
   const journal = `journal-${key}`;
   const incoming = order.kind === "purchase";
+  if(!incoming&&(!input.evidenceIds.length||input.evidenceNote.length<3))throw new ApiError(422,'DELIVERY_EVIDENCE_REQUIRED','Attach proof of delivery and record who or what confirmed receipt.');
+  if(new Set(input.evidenceIds).size!==input.evidenceIds.length)throw new ApiError(422,'DELIVERY_EVIDENCE_DUPLICATE','Use each delivery evidence file once.');
+  if(!incoming)for(const attachmentId of input.evidenceIds){
+    const valid=await write.prepare("SELECT 1 ok FROM attachments a WHERE a.id=? AND a.owner_type='commerce_order_delivery' AND a.owner_id=? AND a.purpose='proof_of_delivery' AND a.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM commerce_fulfillment_evidence e WHERE e.attachment_id=a.id)").bind(attachmentId,id).first('ok');
+    if(!valid)throw new ApiError(422,'DELIVERY_EVIDENCE_INVALID','The selected proof is missing, revoked, belongs to another order, or is already linked to a delivery.');
+  }
   if (new Set(input.lines.map((l) => l.lineId)).size !== input.lines.length)
     throw new ApiError(
       422,
@@ -912,7 +1020,7 @@ export async function fulfillOrder(
     ]),
     write
       .prepare(
-        "INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,created_at) VALUES(?,?,?,?,?,?)",
+        "INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,created_at,evidence_note) VALUES(?,?,?,?,?,?,?)",
       )
       .bind(
         fulfillment,
@@ -921,12 +1029,14 @@ export async function fulfillOrder(
         input.date,
         actor.userId,
         Date.now(),
+        incoming?null:input.evidenceNote,
       ),
   ];
+  if(!incoming)for(const [index,attachmentId] of input.evidenceIds.entries())steps.push(assertion(write,key,`delivery-evidence-${index}`,"EXISTS(SELECT 1 FROM attachments a WHERE a.id=? AND a.owner_type='commerce_order_delivery' AND a.owner_id=? AND a.purpose='proof_of_delivery' AND a.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM commerce_fulfillment_evidence e WHERE e.attachment_id=a.id))",[attachmentId,id]));
   let value = 0;
   for (const [i, entry] of input.lines.entries()) {
     const line = await write
-      .prepare("SELECT * FROM commerce_order_lines WHERE id=? AND order_id=?")
+      .prepare("SELECT l.*,p.tracking_mode,p.unit FROM commerce_order_lines l JOIN commerce_products p ON p.id=l.product_id WHERE l.id=? AND l.order_id=?")
       .bind(entry.lineId, id)
       .first<Row>();
     if (!line) throw new ApiError(422, "LINE_INVALID", "Order line not found.");
@@ -941,7 +1051,7 @@ export async function fulfillOrder(
       );
     const stock = await write
       .prepare(
-        "SELECT s.*,COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0) reserved_milli,CASE WHEN EXISTS(SELECT 1 FROM inventory_quality_holds h WHERE h.warehouse_id=s.warehouse_id AND h.product_id=s.product_id AND h.status NOT IN ('released','cancelled')) THEN 1 ELSE 0 END quality_held FROM commerce_stock s WHERE warehouse_id=? AND product_id=?",
+        "SELECT s.*,COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0) reserved_milli,CASE WHEN EXISTS(SELECT 1 FROM inventory_quality_holds h WHERE h.warehouse_id=s.warehouse_id AND h.product_id=s.product_id AND h.status NOT IN ('released','cancelled','disposed')) THEN 1 ELSE 0 END quality_held FROM commerce_stock s WHERE warehouse_id=? AND product_id=?",
       )
       .bind(order.warehouse_id, line.product_id)
       .first<Row>();
@@ -967,15 +1077,29 @@ export async function fulfillOrder(
             tax: Number(line.tax_minor) - Number(previous?.tax ?? 0),
           }
         : lineAmounts(qty, Number(line.price_minor), Number(line.tax_bps));
-    const cost = incoming
-      ? amounts.subtotal
-      : qty === Number(stock?.quantity_milli)
-        ? Number(stock?.value_minor)
-        : scaledAmount(
-            Number(stock?.value_minor ?? 0),
-            qty,
-            Number(stock?.quantity_milli ?? 1),
-          );
+    const tracking=String(line.tracking_mode??'none'),allocations=entry.allocations??[];
+    if(tracking==='none'&&allocations.length)throw new ApiError(422,'LOT_ALLOCATION_UNEXPECTED','This product does not use lot or serial tracking.');
+    if(tracking!=='none'&&allocations.reduce((sum,a)=>sum+quantityMilli(a.quantity),0)!==qty)throw new ApiError(422,'LOT_ALLOCATION_REQUIRED','Allocate the full movement quantity to lots or serial numbers.');
+    if(tracking==='serial'&&allocations.some(a=>quantityMilli(a.quantity)!==1000))throw new ApiError(422,'SERIAL_QUANTITY_INVALID','Each serial allocation must be exactly one unit.');
+    const lotPrepared:Array<{lotId:string;quantityMilli:number;valueMinor:number;disposition:'available'|'quarantine';reason:string;dueDate:string;existing:Row|null;lotCode:string|null;serialNumber:string|null;manufacturedDate:string|null;expiryDate:string|null}>=[];
+    let cost=tracking==='none'?(incoming?amounts.subtotal:qty===Number(stock?.quantity_milli)?Number(stock?.value_minor):scaledAmount(Number(stock?.value_minor??0),qty,Number(stock?.quantity_milli??1))):0;
+    if(tracking!=='none'){
+      const identities=new Set<string>();let allocatedValue=0;
+      for(const [allocationIndex,allocation] of allocations.entries()){
+        const allocationQty=quantityMilli(allocation.quantity),identity=incoming?(tracking==='serial'?allocation.serialNumber:allocation.lotCode):allocation.lotId;
+        if(!identity||identities.has(identity))throw new ApiError(422,'LOT_ALLOCATION_DUPLICATE','Use each lot or serial once per movement line.');identities.add(identity);
+        let existing:Row|null;
+        if(incoming)existing=await write.prepare(`SELECT l.*,b.quantity_milli,b.value_minor,b.version balance_version,b.warehouse_id FROM inventory_lots l LEFT JOIN inventory_lot_balances b ON b.lot_id=l.id AND b.warehouse_id=? WHERE l.company_id=? AND l.product_id=? AND ${tracking==='serial'?"l.serial_number=?":"l.lot_code=?"}`).bind(order.warehouse_id,actor.companyId,line.product_id,identity).first<Row>()??null;
+        else existing=await write.prepare("SELECT l.*,b.quantity_milli,b.value_minor,b.version balance_version,b.warehouse_id,CASE WHEN EXISTS(SELECT 1 FROM inventory_quality_holds h WHERE h.lot_id=l.id AND h.warehouse_id=b.warehouse_id AND h.status NOT IN ('released','cancelled','disposed')) THEN 1 ELSE 0 END quality_held FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id WHERE l.id=? AND l.company_id=? AND l.product_id=? AND b.warehouse_id=?").bind(allocation.lotId??'',actor.companyId,line.product_id,order.warehouse_id).first<Row>()??null;
+        if(!incoming&&(!existing||Number(existing.quantity_milli)<allocationQty||Number(existing.quality_held)))throw new ApiError(409,'LOT_UNAVAILABLE','The selected lot or serial is unavailable, quarantined, or has insufficient quantity.');
+        if(incoming&&tracking==='serial'&&existing)throw new ApiError(409,'SERIAL_ALREADY_RECEIVED','This serial number already exists for the product.');
+        if(incoming&&allocation.disposition==='quarantine'&&(!allocation.quarantineReason||!allocation.quarantineDueDate))throw new ApiError(422,'QUARANTINE_EVIDENCE_REQUIRED','Quarantined receipt allocations require a reason and review due date.');
+        const lotId=String(existing?.id??`lot-${(await sha256(`${actor.companyId}:${line.product_id}:${tracking}:${identity}`)).slice(0,48)}`),allocationValue=incoming?(allocationIndex===allocations.length-1?amounts.subtotal-allocatedValue:scaledAmount(amounts.subtotal,allocationQty,qty)):(allocationQty===Number(existing!.quantity_milli)?Number(existing!.value_minor):scaledAmount(Number(existing!.value_minor),allocationQty,Number(existing!.quantity_milli)));
+        allocatedValue+=allocationValue;cost+=incoming?0:allocationValue;
+        lotPrepared.push({lotId,quantityMilli:allocationQty,valueMinor:allocationValue,disposition:allocation.disposition,reason:allocation.quarantineReason,dueDate:allocation.quarantineDueDate,existing,lotCode:tracking==='lot'?String(allocation.lotCode):null,serialNumber:tracking==='serial'?String(allocation.serialNumber):null,manufacturedDate:allocation.manufacturedDate||String(existing?.manufactured_date??'')||null,expiryDate:allocation.expiryDate||String(existing?.expiry_date??'')||null});
+      }
+      if(incoming)cost=allocatedValue;
+    }
     value += cost;
     steps.push(
       assertion(
@@ -1031,13 +1155,6 @@ export async function fulfillOrder(
     steps.push(
       write
         .prepare(
-          "UPDATE commerce_order_lines SET fulfilled_milli=fulfilled_milli+? WHERE id=?",
-        )
-        .bind(qty, line.id),
-    );
-    steps.push(
-      write
-        .prepare(
           "INSERT INTO commerce_fulfillment_lines(id,fulfillment_id,order_line_id,quantity_milli,value_minor,subtotal_minor,tax_minor) VALUES(?,?,?,?,?,?,?)",
         )
         .bind(
@@ -1049,6 +1166,27 @@ export async function fulfillOrder(
           amounts.subtotal,
           amounts.tax,
         ),
+    );
+    for(const [allocationIndex,allocation] of lotPrepared.entries()){
+      const allocationId=`${fulfillment}-${i}-${allocationIndex}`,lineId=`${fulfillment}-${i}`;
+      if(incoming){
+        if(!allocation.existing)steps.push(write.prepare("INSERT INTO inventory_lots(id,company_id,product_id,tracking_mode,lot_code,serial_number,manufactured_date,expiry_date,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(allocation.lotId,actor.companyId,line.product_id,tracking,allocation.lotCode,allocation.serialNumber,allocation.manufacturedDate,allocation.expiryDate,actor.userId,Date.now()));
+        else steps.push(assertion(write,key,`lot-${i}-${allocationIndex}`,"EXISTS(SELECT 1 FROM inventory_lots WHERE id=? AND company_id=? AND product_id=? AND tracking_mode=? AND lot_code IS NOT DISTINCT FROM ? AND serial_number IS NOT DISTINCT FROM ? AND manufactured_date IS NOT DISTINCT FROM ? AND expiry_date IS NOT DISTINCT FROM ?)",[allocation.lotId,actor.companyId,line.product_id,tracking,allocation.lotCode,allocation.serialNumber,allocation.manufacturedDate,allocation.expiryDate]),write.prepare("UPDATE inventory_lots SET status='active' WHERE id=? AND status='depleted'").bind(allocation.lotId));
+        if(allocation.existing?.balance_version)steps.push(assertion(write,key,`lot-balance-${i}-${allocationIndex}`,"EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=? AND version=?)",[allocation.lotId,order.warehouse_id,allocation.existing.balance_version]));
+        steps.push(write.prepare("INSERT INTO inventory_lot_balances(lot_id,warehouse_id,quantity_milli,value_minor) VALUES(?,?,?,?) ON CONFLICT(lot_id,warehouse_id) DO UPDATE SET quantity_milli=inventory_lot_balances.quantity_milli+EXCLUDED.quantity_milli,value_minor=inventory_lot_balances.value_minor+EXCLUDED.value_minor,version=inventory_lot_balances.version+1").bind(allocation.lotId,order.warehouse_id,allocation.quantityMilli,allocation.valueMinor));
+      }else{
+        steps.push(assertion(write,key,`lot-balance-${i}-${allocationIndex}`,"EXISTS(SELECT 1 FROM inventory_lot_balances b WHERE b.lot_id=? AND b.warehouse_id=? AND b.version=? AND b.quantity_milli>=? AND NOT EXISTS(SELECT 1 FROM inventory_quality_holds h WHERE h.lot_id=b.lot_id AND h.warehouse_id=b.warehouse_id AND h.status NOT IN ('released','cancelled','disposed')))",[allocation.lotId,order.warehouse_id,allocation.existing!.balance_version,allocation.quantityMilli]),write.prepare("UPDATE inventory_lot_balances SET quantity_milli=quantity_milli-?,value_minor=value_minor-?,version=version+1 WHERE lot_id=? AND warehouse_id=?").bind(allocation.quantityMilli,allocation.valueMinor,allocation.lotId,order.warehouse_id),write.prepare("UPDATE inventory_lots SET status=CASE WHEN NOT EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND quantity_milli>0) THEN 'depleted' ELSE status END WHERE id=?").bind(allocation.lotId,allocation.lotId));
+      }
+      const qualityHoldId=incoming&&allocation.disposition==='quarantine'?`quality-${key}-${i}-${allocationIndex}`:null;
+      if(qualityHoldId)steps.push(...await (await import('./quality')).receiptQualityHoldSteps(write,actor,{id:qualityHoldId,key:`${key}-${i}-${allocationIndex}`,branchId:String(order.branch_id),warehouseId:String(order.warehouse_id),productId:String(line.product_id),lotId:allocation.lotId,quantityMilli:allocation.quantityMilli,reason:allocation.reason,dueDate:allocation.dueDate,sourceId:allocationId}));
+      steps.push(write.prepare("INSERT INTO inventory_lot_moves(id,lot_id,warehouse_id,source_type,source_id,quantity_milli,value_minor,movement_date,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(`lot-move-${allocationId}`,allocation.lotId,order.warehouse_id,incoming?'goods_receipt':'delivery',lineId,incoming?allocation.quantityMilli:-allocation.quantityMilli,incoming?allocation.valueMinor:-allocation.valueMinor,input.date,actor.userId,Date.now()),write.prepare("INSERT INTO inventory_fulfillment_lot_allocations(id,fulfillment_line_id,lot_id,quantity_milli,value_minor,disposition,quality_hold_id) VALUES(?,?,?,?,?,?,?)").bind(`lot-allocation-${allocationId}`,lineId,allocation.lotId,allocation.quantityMilli,allocation.valueMinor,allocation.disposition,qualityHoldId));
+    }
+    steps.push(
+      write
+        .prepare(
+          "UPDATE commerce_order_lines SET fulfilled_milli=fulfilled_milli+? WHERE id=?",
+        )
+        .bind(qty, line.id),
     );
     steps.push(
       write
@@ -1094,6 +1232,7 @@ export async function fulfillOrder(
       "draft",
     ),
   );
+  if(!incoming)for(const attachmentId of input.evidenceIds)steps.push(write.prepare('INSERT INTO commerce_fulfillment_evidence(fulfillment_id,attachment_id,linked_by,linked_at) VALUES(?,?,?,?)').bind(fulfillment,attachmentId,actor.userId,Date.now()));
   steps.push(
     write
       .prepare("UPDATE commerce_fulfillments SET journal_id=? WHERE id=?")
@@ -1201,12 +1340,13 @@ export async function invoiceFulfillment(
         Date.now(),
         Date.now(),
       ),
-    write
-      .prepare(
-        "UPDATE commerce_fulfillments SET invoice_id=?,version=version+1 WHERE id=?",
-      )
-      .bind(invoice, fulfillmentId),
-    ...(matching?.steps??[]),
+    ...(matching?.steps ?? [
+      write
+        .prepare(
+          "UPDATE commerce_fulfillments SET invoice_id=?,version=version+1 WHERE id=?",
+        )
+        .bind(invoice, fulfillmentId),
+    ]),
   ];
   return executeCommand(
     write,
@@ -1531,12 +1671,13 @@ export async function saveMaster(
       id
         ? write
             .prepare(
-              "UPDATE commerce_products SET sku=?,name=?,unit=?,price_minor=?,tax_bps=?,status=?,version=version+1 WHERE id=?",
+              "UPDATE commerce_products SET sku=?,name=?,unit=?,tracking_mode=?,price_minor=?,tax_bps=?,status=?,version=version+1 WHERE id=?",
             )
             .bind(
               v.sku,
               v.name,
               v.unit,
+              v.trackingMode,
               decimalToMinor(v.price),
               v.taxBps,
               v.status,
@@ -1544,7 +1685,7 @@ export async function saveMaster(
             )
         : write
             .prepare(
-              "INSERT INTO commerce_products(id,company_id,sku,name,unit,price_minor,tax_bps,status) VALUES(?,?,?,?,?,?,?,?)",
+              "INSERT INTO commerce_products(id,company_id,sku,name,unit,tracking_mode,price_minor,tax_bps,status) VALUES(?,?,?,?,?,?,?,?,?)",
             )
             .bind(
               record,
@@ -1552,6 +1693,7 @@ export async function saveMaster(
               v.sku,
               v.name,
               v.unit,
+              v.trackingMode,
               decimalToMinor(v.price),
               v.taxBps,
               v.status,
@@ -1575,12 +1717,12 @@ export async function saveMaster(
       id
         ? write
             .prepare(
-              "UPDATE finance_parties SET code=?,name=?,payment_terms_days=?,credit_limit_minor=?,status=?,version=version+1,updated_at=? WHERE id=?",
+              "UPDATE finance_parties SET code=?,name=?,payment_terms_days=?,credit_limit_minor=?,status=?,notification_email=?,notification_consent=?,version=version+1,updated_at=? WHERE id=?",
             )
-            .bind(v.code, v.name, v.paymentTermsDays, decimalToMinor(v.creditLimit), v.status, Date.now(), id)
+            .bind(v.code, v.name, v.paymentTermsDays, decimalToMinor(v.creditLimit), v.status, v.kind==='customer'?(v.notificationEmail||null):null,v.kind==='customer'?v.notificationConsent:'unknown', Date.now(), id)
         : write
             .prepare(
-              "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,payment_terms_days,credit_limit_minor,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+              "INSERT INTO finance_parties(id,company_id,kind,code,name,currency,payment_terms_days,credit_limit_minor,status,notification_email,notification_consent,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
             )
             .bind(
               record,
@@ -1592,6 +1734,8 @@ export async function saveMaster(
               v.paymentTermsDays,
               decimalToMinor(v.creditLimit),
               v.status,
+              v.kind==='customer'?(v.notificationEmail||null):null,
+              v.kind==='customer'?v.notificationConsent:'unknown',
               Date.now(),
               Date.now(),
             ),
@@ -1682,8 +1826,10 @@ export async function commercePage(actor:WorkContext,query:{view:string;q?:strin
     warehouses:{sql:'SELECT *,name AS page_key FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?)',args:branchArgs},
     stock:{sql:`SELECT s.*,s.warehouse_id||':'||s.product_id AS id,p.sku||':'||w.name AS page_key,
       COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0) reserved_milli,
-      CASE WHEN EXISTS(SELECT 1 FROM inventory_quality_holds h WHERE h.warehouse_id=s.warehouse_id AND h.product_id=s.product_id AND h.status NOT IN ('released','cancelled')) THEN 1 ELSE 0 END quality_held,
-      p.sku,p.name,w.name warehouse_name FROM commerce_stock s JOIN commerce_products p ON p.id=s.product_id JOIN commerce_warehouses w ON w.id=s.warehouse_id
+      inventory_quarantined_quantity(s.warehouse_id,s.product_id) quarantined_milli,
+      CASE WHEN inventory_quarantined_quantity(s.warehouse_id,s.product_id)>0 THEN 1 ELSE 0 END quality_held,
+      COALESCE((SELECT SUM(tl.quantity_milli-tl.received_milli-tl.lost_milli) FROM inventory_transit t JOIN inventory_transit_lines tl ON tl.transit_id=t.id WHERE t.status='in_transit' AND t.target_warehouse_id=s.warehouse_id AND tl.product_id=s.product_id),0) in_transit_milli,
+      p.sku,p.name,p.unit,p.tracking_mode,w.name warehouse_name FROM commerce_stock s JOIN commerce_products p ON p.id=s.product_id JOIN commerce_warehouses w ON w.id=s.warehouse_id
       WHERE w.company_id=? AND (?::text IS NULL OR w.branch_id=?)`,args:branchArgs},
   };
   const list=orderView?'orders':query.view;

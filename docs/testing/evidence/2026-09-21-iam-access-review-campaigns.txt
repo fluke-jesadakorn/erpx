@@ -1,0 +1,49 @@
+ERPX Release 1 periodic access review evidence
+Observed: 2026-09-21 22:04 Asia/Bangkok
+
+Implementation
+- Migration 0258 adds access review campaigns, assignment snapshots and immutable review events.
+- A company IAM reviewer starts a named campaign with a due date and business reason.
+- The campaign captures every currently active assignment with user, role, scope, source, expiry and assignment version.
+- The campaign creator cannot certify the campaign and a reviewer cannot certify their own Person/assignment.
+- Each item supports keep or immediate revoke with a required reason and fresh MFA.
+- Revoke uses the existing protected revocation service, invalidates the selected work context and preserves last-administrator/recovery safeguards.
+- Every decision increments the campaign version; changed or revoked source assignments fail closed and require a fresh campaign.
+- An untouched campaign can be cancelled by its creator. A campaign with a recorded decision cannot be cancelled.
+- The campaign completes automatically when no pending assignment remains.
+- IAM command receipts, IAM audit/outbox and immutable campaign events preserve evidence and idempotent replay.
+
+Automated acceptance
+Command:
+  bun run test -- tests/iam.test.ts tests/user-management.test.ts tests/work-role.test.ts tests/authorization.test.ts
+Resolved test files:
+  tests/iam.test.ts
+  tests/user-management.test.ts
+Result:
+  Test Files 2 passed (2)
+  Tests 31 passed (31)
+
+Focused campaign assertions
+- Campaign captures four active assignments.
+- Campaign creator and affected reviewer self-certification are rejected.
+- Revoke is idempotent, timestamps the assignment and clears its active work context.
+- Independent reviewers keep the remaining assignments and complete the campaign at version 5.
+- Stale assignment evidence is rejected.
+- Only the creator cancels an untouched campaign.
+- Review events reject update/delete attempts.
+
+Static and runtime verification
+- bun run typecheck: passed.
+- Scoped ESLint for IAM service, API, UI and tests: passed with no warnings or errors.
+- Local development migration 0258: applied successfully.
+
+Authenticated public browser observation
+- URL: https://erpx.jesadakorn.com/holdings/acme/people/settings?section=reviews
+- Account: Holding owner in the Acme fictional development company.
+- The live page rendered Periodic access certification, campaign name, due date, reason and Start access review controls alongside independent reviews and IAM audit history.
+- No synthetic campaign was submitted to Acme during this observation.
+
+Limitations
+- The complete campaign was exercised with independent users in PostgreSQL integration tests, not through multiple public browser sessions.
+- Due-date reminder notifications and company business-owner sign-off remain separate acceptance work.
+- No production acceptance.

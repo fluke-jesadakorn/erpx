@@ -1,0 +1,25 @@
+{
+  "observedAt": "2026-09-21T14:06:10+07:00",
+  "environment": "development company with fictional data through https://erpx.jesadakorn.com",
+  "command": "ERPX_E2E_BASE_URL=https://erpx.jesadakorn.com bunx playwright test tests/e2e/supplier-invoice-policy.spec.ts --project=desktop",
+  "result": {
+    "projectsPassed": 1,
+    "testsPassed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "scope": [
+    "authenticated holding owner reaches the real supplier invoice review page through the public Tunnel",
+    "policy controls wait for client hydration before submission",
+    "required policy saved through the public browser UI",
+    "required control explanation rendered after reload",
+    "optional policy restored through the public browser UI",
+    "both reasons visible in immutable policy history",
+    "final development policy restored to optional"
+  ],
+  "limitations": [
+    "This observation covers the policy UI rather than the complete purchase-to-payment browser journey",
+    "No external supplier, payment or bank provider was contacted",
+    "No production or business sign-off"
+  ]
+}

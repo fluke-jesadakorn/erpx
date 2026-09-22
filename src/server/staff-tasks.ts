@@ -59,6 +59,17 @@ export const taskActionSchema = z.object({
   expectedVersion: z.number().int().positive(),
   note: z.string().trim().max(10000).default(""),
 });
+export const taskDelegationSchema = z.object({
+  delegateUserId: z.string().min(1),
+  expiresAt: z.iso.datetime({ offset: true }),
+  expectedVersion: z.number().int().positive(),
+  reason: z.string().trim().min(3).max(2000),
+});
+export const taskDelegationRevokeSchema = z.object({
+  delegationId: z.string().min(1),
+  expectedVersion: z.number().int().positive(),
+  reason: z.string().trim().min(3).max(2000),
+});
 export type TaskRow = RecordScope & {
   source_post_id?: string | null;
   id: string;
@@ -84,12 +95,38 @@ export type TaskRow = RecordScope & {
   template_version: number | null;
   schedule_id: string | null;
   occurrence_at: number | null;
+  active_delegation_id: string | null;
+  active_delegate_user_id: string | null;
+  active_delegate_name: string | null;
+  active_delegate_expires_at: number | null;
+  active_delegate_reason?: string | null;
+  active_delegate_version?: number | null;
 };
 export type TaskDetail = {
   task: TaskRow;
   approval: ApprovalView;
   permittedActions: string[];
   blockedReason: string | null;
+  delegation: {
+    id: string;
+    delegate_user_id: string;
+    delegate_name: string;
+    expires_at: number;
+    reason: string;
+    version: number;
+  } | null;
+  delegationHistory: {
+    id: string;
+    delegate_name: string;
+    delegator_name: string;
+    starts_at: number;
+    expires_at: number;
+    reason: string;
+    status: "active" | "expired" | "revoked";
+    revoked_by_name: string | null;
+    revoked_at: number | null;
+    revoke_reason: string | null;
+  }[];
   attachments: {
     id: string;
     original_name: string;
@@ -110,8 +147,8 @@ const scope = (r: RecordScope) => ({
   branchId: r.branch_id,
   departmentId: r.department_id,
 });
-const taskSelect = `SELECT t.*,o.post_id source_post_id,p.title project_title,p.owner_user_id project_owner_id,COALESCE(a.legal_name,t.assignee_user_id) assignee_name,COALESCE(c.legal_name,t.creator_user_id) creator_name FROM staff_tasks t LEFT JOIN social_task_origins o ON o.task_id=t.id LEFT JOIN staff_projects p ON p.id=t.project_id AND p.company_id=t.company_id LEFT JOIN hr_people a ON a.user_id=t.assignee_user_id AND a.company_id=t.company_id AND a.merged_into_id IS NULL LEFT JOIN hr_people c ON c.user_id=t.creator_user_id AND c.company_id=t.company_id AND c.merged_into_id IS NULL`;
-const taskAccess = `(iam_same_person(t.creator_user_id,?,t.company_id) OR iam_same_person(t.assignee_user_id,?,t.company_id) OR iam_same_person(p.owner_user_id,?,t.company_id) OR EXISTS(SELECT 1 FROM staff_project_members pm WHERE pm.project_id=t.project_id AND pm.user_id=?) OR EXISTS(SELECT 1 FROM erpx_json_each(t.start_approvers_json) WHERE value=?) OR EXISTS(SELECT 1 FROM erpx_json_each(t.completion_approvers_json) WHERE value=?) OR ${participantSql("task", "t")})`;
+const taskSelect = `SELECT t.*,o.post_id source_post_id,p.title project_title,p.owner_user_id project_owner_id,COALESCE(a.legal_name,t.assignee_user_id) assignee_name,COALESCE(c.legal_name,t.creator_user_id) creator_name,d.id active_delegation_id,d.delegate_user_id active_delegate_user_id,COALESCE(da.legal_name,d.delegate_user_id) active_delegate_name,d.expires_at active_delegate_expires_at,d.reason active_delegate_reason,d.version active_delegate_version FROM staff_tasks t LEFT JOIN social_task_origins o ON o.task_id=t.id LEFT JOIN staff_projects p ON p.id=t.project_id AND p.company_id=t.company_id LEFT JOIN LATERAL (SELECT sd.id,sd.delegate_user_id,sd.expires_at,sd.reason,sd.version FROM staff_task_delegations sd WHERE sd.task_id=t.id AND sd.company_id=t.company_id AND sd.status='active' AND sd.starts_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND sd.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1) d ON TRUE LEFT JOIN hr_people a ON a.user_id=t.assignee_user_id AND a.company_id=t.company_id AND a.merged_into_id IS NULL LEFT JOIN hr_people c ON c.user_id=t.creator_user_id AND c.company_id=t.company_id AND c.merged_into_id IS NULL LEFT JOIN hr_people da ON da.user_id=d.delegate_user_id AND da.company_id=t.company_id AND da.merged_into_id IS NULL`;
+const taskAccess = `(iam_same_person(t.creator_user_id,?,t.company_id) OR iam_same_person(t.assignee_user_id,?,t.company_id) OR iam_same_person(d.delegate_user_id,?,t.company_id) OR iam_same_person(p.owner_user_id,?,t.company_id) OR EXISTS(SELECT 1 FROM staff_project_members pm WHERE pm.project_id=t.project_id AND pm.user_id=?) OR EXISTS(SELECT 1 FROM erpx_json_each(t.start_approvers_json) WHERE value=?) OR EXISTS(SELECT 1 FROM erpx_json_each(t.completion_approvers_json) WHERE value=?) OR ${participantSql("task", "t")})`;
 export async function listTasks(
   db: SqlDatabase,
   actor: StaffActor,
@@ -123,6 +160,7 @@ export async function listTasks(
     )
     .bind(
       actor.companyId,
+      actor.userId,
       actor.userId,
       actor.userId,
       actor.userId,
@@ -150,6 +188,7 @@ export async function getTask(db: SqlDatabase, actor: StaffActor, id: string) {
       actor.userId,
       actor.userId,
       actor.userId,
+      actor.userId,
     )
     .first<TaskRow>();
   if (!row) throw new ApiError(404, "TASK_NOT_FOUND", "Task not found.");
@@ -161,6 +200,81 @@ export function canConfigureTask(actor: StaffActor, task: TaskRow) {
     samePerson(actor,task.creator_user_id) ||
     samePerson(actor,task.project_owner_id)
   );
+}
+function isActiveDelegate(actor: StaffActor, task: TaskRow) {
+  return Boolean(
+    task.active_delegate_user_id &&
+      samePerson(actor, task.active_delegate_user_id),
+  );
+}
+
+export async function delegateTask(
+  db: SqlDatabase,
+  actor: StaffActor,
+  id: string,
+  input: z.infer<typeof taskDelegationSchema>,
+  key: string,
+) {
+  const prior = await replayCommand(db, actor, key, "task.delegate", id, input);
+  if (prior) return prior;
+  const task = await getTask(db, actor, id);
+  if (!canConfigureTask(actor, task))
+    throw new ApiError(403, "TASK_DELEGATION_REQUIRED", "Only the task creator or project owner can delegate this task.");
+  if (["completed", "cancelled"].includes(task.state))
+    throw new ApiError(409, "TASK_TERMINAL", "Completed or cancelled tasks cannot be delegated.");
+  if (samePerson(actor, input.delegateUserId) || samePerson({ ...actor, userId: input.delegateUserId }, task.assignee_user_id))
+    throw new ApiError(422, "TASK_DELEGATE_INVALID", "Choose a different active staff member as the temporary delegate.");
+  const approvers = [
+    ...JSON.parse(task.start_approvers_json) as string[],
+    ...JSON.parse(task.completion_approvers_json) as string[],
+  ];
+  if (approvers.some((userId) => userId === input.delegateUserId))
+    throw new ApiError(422, "TASK_DELEGATE_INDEPENDENCE", "A configured approver cannot also receive temporary task ownership.");
+  const expiresAt = Date.parse(input.expiresAt), now = Date.now();
+  if (!Number.isFinite(expiresAt) || expiresAt <= now)
+    throw new ApiError(422, "TASK_DELEGATE_EXPIRY", "Delegation expiry must be in the future.");
+  if (expiresAt > now + 90 * 86_400_000)
+    throw new ApiError(422, "TASK_DELEGATE_EXPIRY", "Delegation expiry cannot be more than 90 days away.");
+  await activeStaff(db, actor.companyId, input.delegateUserId);
+  const delegationId = `task-delegation-${key}`;
+  const result = { id, delegationId, version: input.expectedVersion + 1, expiresAt };
+  return executeCommand(db, actor, key, "task.delegate", input, id, result.version, result, [
+    staffGuard(db, key, actor.companyId, actor.userId),
+    staffGuard(db, key, actor.companyId, input.delegateUserId, "delegate-staff"),
+    configurationGuard(db, key, actor, task),
+    taskVersionGuard(db, key, id, input.expectedVersion, [task.state]),
+    assertion(db, key, "task-delegation-unique", `NOT EXISTS(SELECT 1 FROM staff_task_delegations WHERE company_id=? AND task_id=? AND status='active' AND starts_at<=? AND expires_at>?)`, [actor.companyId, id, now, now]),
+    db.prepare("INSERT INTO staff_task_delegations(id,company_id,task_id,delegator_user_id,delegate_user_id,starts_at,expires_at,reason,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(delegationId, actor.companyId, id, actor.userId, input.delegateUserId, now, expiresAt, input.reason, now, now),
+    db.prepare("UPDATE staff_tasks SET version=version+1,updated_at=? WHERE id=? AND company_id=?").bind(now, id, actor.companyId),
+    notification(db, task, input.delegateUserId, "task", id, result.version, `Task delegated to you until ${new Date(expiresAt).toISOString()}`),
+  ], scope(task));
+}
+
+export async function revokeTaskDelegation(
+  db: SqlDatabase,
+  actor: StaffActor,
+  id: string,
+  input: z.infer<typeof taskDelegationRevokeSchema>,
+  key: string,
+) {
+  const recordId = `${id}:${input.delegationId}`;
+  const prior = await replayCommand(db, actor, key, "task.delegate-revoke", recordId, input);
+  if (prior) return prior;
+  const task = await getTask(db, actor, id);
+  if (!canConfigureTask(actor, task))
+    throw new ApiError(403, "TASK_DELEGATION_REQUIRED", "Only the task creator or project owner can revoke this delegation.");
+  const delegation = await db.prepare("SELECT * FROM staff_task_delegations WHERE id=? AND company_id=? AND task_id=? AND status='active' AND starts_at<=? AND expires_at>?").bind(input.delegationId, actor.companyId, id, Date.now(), Date.now()).first<{id:string;delegate_user_id:string;version:number}>();
+  if (!delegation) throw new ApiError(404, "TASK_DELEGATION_NOT_FOUND", "Active task delegation not found.");
+  const result = { id, delegationId: delegation.id, version: input.expectedVersion + 1, status: "revoked" };
+  return executeCommand(db, actor, key, "task.delegate-revoke", input, recordId, result.version, result, [
+    staffGuard(db, key, actor.companyId, actor.userId),
+    configurationGuard(db, key, actor, task),
+    taskVersionGuard(db, key, id, input.expectedVersion, [task.state]),
+    assertion(db, key, "task-delegation-active", "EXISTS(SELECT 1 FROM staff_task_delegations WHERE id=? AND company_id=? AND task_id=? AND status='active' AND starts_at<=? AND expires_at>?)", [delegation.id, actor.companyId, id, Date.now(), Date.now()]),
+    db.prepare("UPDATE staff_task_delegations SET status='revoked',revoked_by=?,revoke_reason=?,revoked_at=?,updated_at=?,version=version+1 WHERE id=? AND company_id=?").bind(actor.userId, input.reason, Date.now(), Date.now(), delegation.id, actor.companyId),
+    db.prepare("UPDATE staff_tasks SET version=version+1,updated_at=? WHERE id=? AND company_id=?").bind(Date.now(), id, actor.companyId),
+    notification(db, task, delegation.delegate_user_id, "task", id, result.version, "Task delegation revoked; the accountable assignee resumes ownership."),
+  ], scope(task));
 }
 function configurationGuard(
   db: SqlDatabase,
@@ -495,7 +609,7 @@ export async function taskDetail(
   const task = await getTask(db, actor, id),
     approval = await approvalView(db, "task", id, actor),
     manage = canConfigureTask(actor, task),
-    assigned = samePerson(actor,task.assignee_user_id);
+    assigned = samePerson(actor,task.assignee_user_id) || isActiveDelegate(actor, task);
   let blockedReason = approval.blockedReason ?? task.blocked_reason;
   if (!["completed", "cancelled"].includes(task.state)) {
     const phases: ("start" | "completion")[] =
@@ -529,6 +643,9 @@ export async function taskDetail(
     ...(manage && !["completed", "cancelled"].includes(task.state)
       ? ["revise", "cancel"]
       : []),
+    ...(manage && !["completed", "cancelled"].includes(task.state)
+      ? ["delegate"]
+      : []),
     ...(assigned && task.state === "ready" && !blockedReason ? ["start"] : []),
     ...(assigned && ["in_progress", "rework"].includes(task.state)
       ? ["save-progress", ...(!blockedReason ? ["complete"] : [])]
@@ -543,7 +660,31 @@ export async function taskDetail(
       .bind(id)
       .all<TaskDetail["attachments"][number]>()
   ).results;
-  return { task, approval, permittedActions, blockedReason, attachments };
+  const delegation = task.active_delegation_id
+    ? {
+        id: task.active_delegation_id,
+        delegate_user_id: task.active_delegate_user_id!,
+        delegate_name: task.active_delegate_name ?? task.active_delegate_user_id!,
+        expires_at: Number(task.active_delegate_expires_at),
+        reason: task.active_delegate_reason ?? "",
+        version: Number(task.active_delegate_version ?? 1),
+      }
+    : null;
+  const delegationHistory = (await db.prepare(`
+    SELECT d.id,COALESCE(recipient.legal_name,d.delegate_user_id) delegate_name,
+      COALESCE(grantor.legal_name,d.delegator_user_id) delegator_name,
+      d.starts_at,d.expires_at,d.reason,d.revoked_at,d.revoke_reason,
+      COALESCE(revoker.legal_name,d.revoked_by) revoked_by_name,
+      CASE WHEN d.status='revoked' THEN 'revoked'
+        WHEN d.expires_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint THEN 'expired'
+        ELSE 'active' END status
+    FROM staff_task_delegations d
+    LEFT JOIN hr_people recipient ON recipient.company_id=d.company_id AND recipient.user_id=d.delegate_user_id AND recipient.merged_into_id IS NULL
+    LEFT JOIN hr_people grantor ON grantor.company_id=d.company_id AND grantor.user_id=d.delegator_user_id AND grantor.merged_into_id IS NULL
+    LEFT JOIN hr_people revoker ON revoker.company_id=d.company_id AND revoker.user_id=d.revoked_by AND revoker.merged_into_id IS NULL
+    WHERE d.company_id=? AND d.task_id=? ORDER BY d.created_at DESC,d.id DESC LIMIT 50
+  `).bind(actor.companyId, id).all<TaskDetail["delegationHistory"][number]>()).results;
+  return { task, approval, permittedActions, blockedReason, delegation, delegationHistory, attachments };
 }
 export async function transitionTask(
   db: SqlDatabase,
@@ -713,6 +854,6 @@ export function canAttachTask(actor: StaffActor, task: TaskRow) {
   return (
     (task.state === "draft" && canConfigureTask(actor, task)) ||
     (["in_progress", "rework"].includes(task.state) &&
-      samePerson(actor,task.assignee_user_id))
+      (samePerson(actor,task.assignee_user_id) || isActiveDelegate(actor, task)))
   );
 }

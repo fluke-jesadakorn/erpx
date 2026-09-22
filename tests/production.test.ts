@@ -15,6 +15,7 @@ import {
   reviewSpecification,
 } from "../src/server/production";
 import type { WorkContext } from "../src/server/authorization";
+import { escalateInventoryReservations } from "../src/server/inventory-reservation-alerts";
 vi.mock("../src/server/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
@@ -262,4 +263,13 @@ it("serializes last-material reservations across competing released orders", asy
         .first("n"),
     ),
   ).toBe(6000);
+});
+it("warns the manufacturing owner before material protection expires and escalates the released availability", async () => {
+  const now = Date.now(), { id } = await order();
+  await changeManufacturingOrder(owner, id, { action: "reserve", expectedVersion: 1, expiresAt: now + 3600000, reason: "Reserve materials for approved production" }, key());
+  expect((await escalateInventoryReservations(db, now)).expiring).toBeGreaterThanOrEqual(1);
+  expect(await db.prepare("SELECT record_type,message FROM staff_notifications WHERE record_id=? AND user_id=? AND message LIKE 'Stock reservation%'").bind(id,owner.userId).first()).toMatchObject({ record_type: "manufacturing_order", message: expect.stringContaining("expires within 24 hours") });
+  await db.prepare("UPDATE manufacturing_material_reservations SET expires_at=? WHERE order_id=?").bind(now - 1, id).run();
+  expect((await escalateInventoryReservations(db, now)).expired).toBeGreaterThanOrEqual(1);
+  expect(await escalateInventoryReservations(db, now)).toEqual({ expiring: 0, expired: 0 });
 });

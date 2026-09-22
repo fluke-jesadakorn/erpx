@@ -1,0 +1,31 @@
+ERPX Release 1 Home / Work — staff-task delegation with expiry
+Observed: 2026-09-22 Asia/Bangkok
+
+Implementation:
+- migrations/postgres/holding-write/0263_staff_task_delegations.sql
+- src/server/staff-tasks.ts
+- src/server/staff-api.ts
+- src/server/flow-routing.ts
+- src/server/staff-task-alerts.ts
+- src/components/modules/staff-work-controls.tsx
+- src/app/holdings/[holdingSlug]/staff-tasks/[id]/page.tsx
+
+Automated evidence:
+- tests/staff-work.test.ts: 25 tests passed, including delegation handoff, active delegate action ownership, revoke idempotency, version guards and expiry access removal.
+- tests/staff-task-alerts.test.ts plus tests/staff-work.test.ts: 27 tests passed.
+- bun run typecheck: passed.
+- scoped ESLint: passed with 0 errors.
+- bun run db:migrate:local: passed; staff_task_delegations exists in local h001 and h002 holding-write databases.
+- bun run deploy:build: passed isolated release `.runtime/releases/2026-09-21T17-55-17-526Z`; server.js sha256 `0c98d8f933181a97007da52ad71ddc34a4658667e1c288314aa168cdae462da3`.
+
+Business behavior:
+- A creator or project owner can delegate a non-terminal task to one active staff member for up to 90 days with a required reason.
+- The task version increments and the command writes an immutable audit event, outbox event, notification and delegation record atomically.
+- The active delegate becomes the current Flow work owner and can start, save progress, complete and upload evidence while the delegation is active.
+- Revoke uses the task version and idempotency receipt; expiration or revoke immediately removes task visibility/action access for the delegate and returns work ownership to the original assignee.
+- A second overlapping active delegation is rejected, and terminal tasks cannot be delegated.
+
+Limitations:
+- Queue policy configuration, resolution summaries and delegated approval administration remain separate gaps.
+- No authenticated multi-role browser transaction was submitted because the existing public session is expired.
+- No production scheduler or business-owner sign-off; local migration and simulation evidence do not certify production readiness.

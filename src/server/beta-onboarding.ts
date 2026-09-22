@@ -220,49 +220,130 @@ export async function onboard(
     company = `company-${slot.holding_id}`,
     branch = `branch-${slot.holding_id}`,
     limits = betaLimits(env);
-  // Both transactions are repeatable. A tenant never becomes discoverable before its minimal graph commits.
+  // The holding transaction is the authoritative bootstrap boundary. The
+  // control-plane activation below is deliberately retriable: a completed
+  // receipt means the graph is safe to expose even when binding activation
+  // previously failed.
   const bootstrapKey = `bootstrap-${slot.holding_id}`;
-  await write.batch([
-    assertion(
-      write,
-      bootstrapKey,
-      "bootstrap-owner",
-      "NOT EXISTS(SELECT 1 FROM beta_bootstrap WHERE holding_id<>? OR owner_user_id<>?) AND (EXISTS(SELECT 1 FROM beta_bootstrap WHERE holding_id=? AND owner_user_id=?) OR NOT EXISTS(SELECT 1 FROM organization_nodes))",
-      [slot.holding_id, user.id, slot.holding_id, user.id],
-    ),
-    write
-      .prepare(
-        "INSERT INTO beta_bootstrap(singleton,holding_id,owner_user_id,created_at) VALUES(1,?,?,?) ON CONFLICT DO NOTHING",
-      )
-      .bind(slot.holding_id, user.id, now),
-    write
-      .prepare(
-        "INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES(?,'company',?,?,?) ON CONFLICT DO NOTHING",
-      )
-      .bind(company, slot.slug, slot.company_name, company),
-    ...branchStatements(write, company, branch, slot.branch_name, "main"),
-    write
-      .prepare(
-        "INSERT INTO staff_levels(id,company_id,code,name,rank,created_at,updated_at) VALUES(?,?,'member','Team member',1,?,?) ON CONFLICT DO NOTHING",
-      )
-      .bind(`level-${company}`, company, now, now),
-    write
-      .prepare(
-        "INSERT INTO beta_policy(company_id,member_limit,branch_limit,ai_monthly_limit,storage_bytes,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT DO NOTHING",
-      )
-      .bind(
-        company,
-        limits.members,
-        limits.branches,
-        limits.ai,
-        limits.storage,
-        now,
+  const receipt = await write
+    .prepare("SELECT status FROM company_provisioning WHERE company_id=? AND holding_id=?")
+    .bind(company, slot.holding_id)
+    .first<{ status: string }>();
+  if (receipt?.status !== "active") {
+    await write.batch([
+      assertion(
+        write,
+        bootstrapKey,
+        "bootstrap-owner",
+        "NOT EXISTS(SELECT 1 FROM beta_bootstrap WHERE holding_id<>? OR owner_user_id<>?) AND (EXISTS(SELECT 1 FROM beta_bootstrap WHERE holding_id=? AND owner_user_id=?) OR NOT EXISTS(SELECT 1 FROM organization_nodes))",
+        [slot.holding_id, user.id, slot.holding_id, user.id],
       ),
-    ...memberStatements(write, company, branch, user, true, null),
-    write
-      .prepare("DELETE FROM command_assertions WHERE command_id=?")
-      .bind(bootstrapKey),
-  ]);
+      write
+        .prepare(
+          "INSERT INTO company_provisioning(company_id,holding_id,owner_user_id,status,version,requested_at,updated_at) VALUES(?,?,?,'provisioning',1,?,?) ON CONFLICT(company_id) DO NOTHING",
+        )
+        .bind(company, slot.holding_id, user.id, now, now),
+      write
+        .prepare(
+          "INSERT INTO company_provisioning_events(id,company_id,holding_id,action,version,actor_id,detail_json,created_at) VALUES(?,?,?,'started',1,?,?,?) ON CONFLICT DO NOTHING",
+        )
+        .bind(
+          `company-provisioning-started-${slot.holding_id}`,
+          company,
+          slot.holding_id,
+          user.id,
+          JSON.stringify({ companyName: slot.company_name, branchName: slot.branch_name, slug: slot.slug }),
+          now,
+        ),
+      write
+        .prepare(
+          "INSERT INTO beta_bootstrap(singleton,holding_id,owner_user_id,created_at) VALUES(1,?,?,?) ON CONFLICT DO NOTHING",
+        )
+        .bind(slot.holding_id, user.id, now),
+      write
+        .prepare(
+          "INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES(?,'company',?,?,?) ON CONFLICT DO NOTHING",
+        )
+        .bind(company, slot.slug, slot.company_name, company),
+      ...branchStatements(write, company, branch, slot.branch_name, "main"),
+      write
+        .prepare(
+          "INSERT INTO staff_levels(id,company_id,code,name,rank,level_number,created_at,updated_at) VALUES(?,?,'member','Team member',1,NULL,?,?) ON CONFLICT DO NOTHING",
+        )
+        .bind(`level-${company}`, company, now, now),
+      ...[
+        [1, "CEO"],
+        [2, "Executive / Director"],
+        [3, "Branch / Department Manager"],
+        [4, "Supervisor"],
+        [5, "Senior Staff"],
+        [6, "Staff"],
+      ].map(([number, name]) =>
+        write
+          .prepare(
+            "INSERT INTO staff_levels(id,company_id,code,name,rank,level_number,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(company_id,code) DO UPDATE SET name=excluded.name,rank=excluded.rank,level_number=excluded.level_number,active=1,updated_at=excluded.updated_at",
+          )
+          .bind(
+            `org-level-${company}-${number}`,
+            company,
+            `ORG_L${number}`,
+            name,
+            -Number(number),
+            Number(number),
+            now,
+            now,
+          ),
+      ),
+      write
+        .prepare(
+          "INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,reports_to_position_id,is_ceo,active,version,created_by,created_at,updated_at) VALUES(?,?,NULL,NULL,'Chief Executive Officer',?,NULL,1,1,1,?,?,?) ON CONFLICT(id) DO UPDATE SET level_id=excluded.level_id,is_ceo=1,active=1,version=organization_positions.version+1,updated_at=excluded.updated_at",
+        )
+        .bind(`company-ceo-${company}`, company, `org-level-${company}-1`, user.id, now, now),
+      write
+        .prepare(
+          "INSERT INTO beta_policy(company_id,member_limit,branch_limit,ai_monthly_limit,storage_bytes,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT DO NOTHING",
+        )
+        .bind(
+          company,
+          limits.members,
+          limits.branches,
+          limits.ai,
+          limits.storage,
+          now,
+        ),
+      ...memberStatements(write, company, branch, user, true, null),
+      write
+        .prepare(
+          "UPDATE hr_engagements SET level_id=?,position_id=?,job_title='Chief Executive Officer',updated_at=? WHERE id=? AND company_id=?",
+        )
+        .bind(`org-level-${company}-1`, `company-ceo-${company}`, now, `engagement-${user.id}`, company),
+      write
+        .prepare(
+          "UPDATE company_provisioning SET status='active',version=2,completed_at=?,updated_at=?,last_error=NULL WHERE company_id=? AND holding_id=?",
+        )
+        .bind(now + 1, now + 1, company, slot.holding_id),
+      write
+        .prepare(
+          "INSERT INTO company_provisioning_events(id,company_id,holding_id,action,version,actor_id,detail_json,created_at) VALUES(?,?,?,'completed',2,?,?,?) ON CONFLICT DO NOTHING",
+        )
+        .bind(
+          `company-provisioning-completed-${slot.holding_id}`,
+          company,
+          slot.holding_id,
+          user.id,
+          JSON.stringify({ levels: 6, ceoPositions: 1, branches: 1, departments: 1, owner: user.id }),
+          now + 1,
+        ),
+      write
+        .prepare("DELETE FROM command_assertions WHERE command_id=?")
+        .bind(bootstrapKey),
+    ]);
+  }
+  const completed = await write
+    .prepare("SELECT status FROM company_provisioning WHERE company_id=? AND holding_id=? AND status='active'")
+    .bind(company, slot.holding_id)
+    .first<{ status: string }>();
+  if (!completed) throw new ApiError(503, "PROVISIONING_INCOMPLETE", "Company setup is still being prepared. Try again shortly.");
   await db.batch([
     db
       .prepare(

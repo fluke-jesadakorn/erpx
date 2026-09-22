@@ -1,166 +1,49 @@
-import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { FeaturePage } from "@/components/features/feature-page";
+import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
 import { minorToDecimal } from "@/lib/finance-money";
 import { workspaceBase } from "@/lib/workspace";
-import { publicScope,requireWorkContext } from "@/server/authorization";
-import {
-financeOverviewCounts,
-listCharts,
-listInvoices,
-listPayments,
-statements,
-} from "@/server/finance";
+import { publicScope, requireWorkContext } from "@/server/authorization";
+import { financeWorkbench } from "@/server/finance-workspace";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-export default async function FinanceOverview({
-  params,
-}: {
-  params: Promise<{ holdingSlug: string }>;
-}) {
-  const { holdingSlug } = await params;
-  const actor = await requireWorkContext(holdingSlug);
+const roleDescription = (data: Awaited<ReturnType<typeof financeWorkbench>>) => {
+  if (data.canApprove) return "Decisions and exceptions blocking posting or period close";
+  if (data.canPay) return "Payment obligations, bank results, and unreconciled items";
+  if (data.canPrepare) return "Documents and accounting entries to prepare and submit for approval";
+  return "Financial status and records available to review";
+};
+
+export default async function FinanceWorkbenchPage({ params }: { params: Promise<{ holdingSlug: string }> }) {
+  const actor = await requireWorkContext((await params).holdingSlug);
   const base = workspaceBase(publicScope(actor));
-  const charts = await listCharts(actor);
-  const chart = charts.find((c) => c.name === "Operations ledger") ?? charts[0];
-  const [counts, report, invoices, payments] = await Promise.all([
-    financeOverviewCounts(actor),
-    statements(actor, undefined, String(chart?.id)),
-    listInvoices(actor,8),
-    listPayments(actor,6),
-  ]);
-  const queues=[
-    {id:"receivable",title:"To collect",count:counts.receivable,href:`${base}/finance/invoices?kind=receivable&queue=open`,detail:"Posted customer balances"},
-    {id:"payable",title:"To pay",count:counts.payable,href:`${base}/finance/invoices?kind=payable&queue=open`,detail:"Posted supplier balances"},
-    {id:"posting",title:"To post",count:counts.posting,href:`${base}/finance/ledger?status=draft`,detail:"Independent ledger review"},
-    {id:"reconcile",title:"To reconcile",count:counts.reconcile,href:`${base}/finance/bank`,detail:"Match bank evidence with payments"},
-  ];
-  const cards = [
-    ["Charts", charts.length, "Chart of accounts and posting profiles"],
-    ["Journals", counts.journals, "Draft, posted and reversed entries"],
-    [
-      "Assets",
-      `${String(chart?.base_currency)} ${report.balanceSheet.assets}`,
-      "Current posted asset balance",
-    ],
-    [
-      "Revenue",
-      `${String(chart?.base_currency)} ${report.profitAndLoss.revenue}`,
-      "Posted revenue balance",
-    ],
-    ["Invoices", counts.invoices, "Receivables and payables in this Company"],
-    ["Payments", counts.payments, "Receipts, settlements, and releases"],
-  ];
-  return (
-    <FeaturePage className="content-stack" data-source="live" data-module="finance">
-      <div className="section-head">
-        <div>
-          <p className="eyebrow">Finance · General ledger</p>
-          <h1>Finance overview</h1>{!actor.branchId&&!actor.departmentId&&<Link href={`${base}/finance/supplier-batches`}>Supplier payment batches · approve and reconcile</Link>}<Link href={`${base}/finance/refunds`}>Return refunds · review, export and reconcile</Link>
-          <p className="muted">
-            Company accounting, controlled posting and period close.
-          </p>
-        </div>
-      </div><FeatureTabs/><WidgetGrid pageKey="finance-overview">
-      <FeatureWidget id="finance-overview-finance-work-queues" title="Finance work queues">{queues.map(queue=><Link className="card" key={queue.id} href={queue.href}><span className="eyebrow">{queue.title}</span><strong>{queue.count}</strong><span className="muted">{queue.detail}</span></Link>)}</FeatureWidget>
-      <FeatureWidget id="finance-overview-finance-health" title="Finance health">
-        {cards.map(([label, value, detail]) => (
-          <article className="card" key={label}>
-            <span className="eyebrow">{label}</span>
-            <strong>{value}</strong>
-            <span className="muted">{detail}</span>
-          </article>
-        ))}
-      </FeatureWidget>
-      <FeatureWidget id="finance-overview-recent-invoices" title="Recent invoices">
-        <article className="card" style={{ gridColumn: "span 2" }}>
-          <div className="section-head">
-            <h2>Recent invoices</h2>
-            <span className="badge">{invoices.length}</span>
-          </div>
-          {invoices.length === 0 ? (
-            <p className="muted">No invoices for this company.</p>
-          ) : (
-            invoices.slice(0, 8).map((invoice) => (
-              <Link
-                className="row"
-                href={`${base}/finance/invoices/${encodeURIComponent(String(invoice.id))}`}
-                key={String(invoice.id)}
-              >
-                <div className="row-main">
-                  <strong className="row-title">
-                    {String(invoice.invoice_number)}
-                  </strong>
-                  <span className="muted">
-                    {String(invoice.party_name)} · {String(invoice.kind)}
-                  </span>
-                </div>
-                <strong>
-                  {String(invoice.currency)}{" "}
-                  {minorToDecimal(Number(invoice.total_minor))}
-                </strong>
-                <span className="badge">{String(invoice.status)}</span>
-              </Link>
-            ))
-          )}
-        </article>
-        <article className="card">
-          <div className="section-head">
-            <h2>Payment control</h2>
-            <span className="badge">{payments.length}</span>
-          </div>
-          {payments.length === 0 ? (
-            <p className="muted">No payments for this company.</p>
-          ) : (
-            payments.slice(0, 6).map((payment) => (
-              <Link
-                className="row"
-                href={`${base}/finance/payments/${encodeURIComponent(String(payment.id))}`}
-                key={String(payment.id)}
-              >
-                <div className="row-main">
-                  <strong className="row-title">
-                    {String(payment.payment_number)}
-                  </strong>
-                  <span className="muted">
-                    {String(payment.party_name ?? "Unassigned party")}
-                  </span>
-                </div>
-                <span>
-                  {String(payment.currency)}{" "}
-                  {minorToDecimal(Number(payment.amount_minor))}
-                </span>
-              </Link>
-            ))
-          )}
-        </article>
-      </FeatureWidget>
-      <section className="card-grid">
-        {[
-          [
-            "Ledger & reports",
-            "Journals, chart of accounts, reports and period close",
-            "finance/ledger",
-          ],
-          [
-            "Invoices",
-            "Receivables, payables and payment records",
-            "finance/invoices",
-          ],
-          [
-            "Bank reconciliation",
-            "Statements and human-reviewed matches",
-            "finance/bank",
-          ],
-          ["Employee expenses", "Claims and reimbursements", "expenses"],
-        ].map(([title, detail, route]) => (
-          <Link className="card" href={`${base}/${route}`} key={route}>
-            <strong>{title}</strong>
-            <span className="muted">{detail}</span>
-            <span className="text-link">Open →</span>
-          </Link>
-        ))}
+  const data = await financeWorkbench(actor);
+  return <FeaturePage className="content-stack" data-source="live" data-module="finance">
+    <FinanceWorkspace base={base} active="work" title="My finance work" description={roleDescription(data)} actions={data.canPrepare ? <Link className="button" href={`${base}/finance/invoices?new=1`}>Add document</Link> : undefined}>
+      <section className={styles.hero}>
+        <div><p className="eyebrow">Needs attention</p><strong>{data.totalAttention}</strong><p>Current queue ordered by cash impact and period-close impact</p></div>
+        <aside><span className="muted">Current role</span><b>{actor.role}</b><span className="muted">Company {actor.companyId} · {data.currency ?? "Currency not configured"}</span></aside>
       </section>
-    </WidgetGrid></FeaturePage>
-  );
+      <section className={styles.section} aria-labelledby="attention-title">
+        <div className={styles.sectionHead}><div><h2 id="attention-title">Next actions</h2><p className="muted">Select a card to open the records that need attention</p></div></div>
+        <div className={styles.grid}>
+          {data.attention.map(item => <Link className={styles.queue} data-tone={item.tone} href={`${base}/${item.href}`} key={item.id}>
+            <div><span className="eyebrow">{item.label}</span><p>{item.description}</p></div>
+            <footer><strong>{item.count}</strong>{item.amountMinor !== null && item.amountMinor > 0 ? <small>{item.currency} {minorToDecimal(item.amountMinor)}</small> : <small>Open records →</small>}</footer>
+          </Link>)}
+        </div>
+      </section>
+      <section className={styles.section} aria-labelledby="flow-title">
+        <div className={styles.sectionHead}><div><h2 id="flow-title">Invoice-to-bank workflow</h2><p className="muted">Every step has an owner, evidence, and next status</p></div></div>
+        <div className={styles.process}>
+          <article><b>Capture document</b><p className="muted">Record the source, party, dates, tax, and amount</p></article>
+          <article><b>Review and approve</b><p className="muted">Review the proposal and posting result before confirming</p></article>
+          <article><b>Schedule payment</b><p className="muted">Group approved obligations, export the file, and record the bank result</p></article>
+          <article><b>Reconcile and close</b><p className="muted">Match evidence, resolve differences, and lock the period</p></article>
+        </div>
+      </section>
+      <section className={styles.panel} aria-labelledby="ai-title"><div className={styles.sectionHead}><div><p className="eyebrow">Auditable AI</p><h2 id="ai-title">Let AI prepare; let people decide</h2></div><Link href={`${base}/expenses`}>Open document proposals →</Link></div><p className="muted">Receipt proposals pin the source version and evidence that was actually read. A changed document invalidates the old proposal. AI cannot approve, post, pay, reconcile, or close a period, and the normal workflow remains available when AI is unavailable.</p></section>
+    </FinanceWorkspace>
+  </FeaturePage>;
 }

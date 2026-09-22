@@ -1,6 +1,72 @@
 # ERPX — ความคืบหน้าการพัฒนา flow ข้ามแผนก
 
-วันที่ 2026-09-20 · สถานะ: กำลังพัฒนา ยังไม่ครบแผนช่วง 0–8
+วันที่ 2026-09-22 · สถานะ: กำลังพัฒนา ยังไม่ครบแผนช่วง 0–8
+
+## Finance browser acceptance — 2026-09-22
+
+ปิด browser acceptance ของชุด Finance ในบริษัทจำลองแบบแยกฐานข้อมูลครบ 3 เส้นทาง: controlled payment ที่ใช้บัญชี Finance preparer, Finance approver และ Treasury แยกกัน; period close สองงวดต่อเนื่องที่ผู้เตรียมเริ่มและผู้อนุมัติอิสระปิด January/February 2027; และ opening balance import ที่ผู้เตรียม preview/create แล้วผู้อนุมัติคนละคน post. ผลลัพธ์ยังคงอยู่หลัง reload และตรวจผ่าน owner API ว่ายอดคงเหลือ, bank match, journal และสถานะงวดตรงกับ record ต้นทาง.
+
+คำสั่ง `bun run demo:verify:browser` ผ่าน 3/3 ใน run `b9dbfdf4fee9` ใช้เวลา 30.4 วินาที. เพิ่มการรอ state `closing` จาก API ก่อนเปิด approval workspace เพื่อให้การทดสอบสะท้อน handoff ที่บันทึกจริงและไม่รับ state เก่าจากหน้าเว็บ. หลักฐานอยู่ที่ [Finance browser acceptance](evidence/2026-09-22-finance-browser-acceptance.txt).
+
+ขอบเขตยังเป็น automated browser acceptance ของ working demo company ไม่ใช่ business sign-off, live bank/provider, statutory payroll หรือ production certification; demo reset แยกจากข้อมูลบริษัทจริง.
+
+## Procurement RFQ browser acceptance — 2026-09-22
+
+เพิ่ม browser acceptance ของ Release 1 สำหรับ sourcing ที่เชื่อมกับ PO: Purchasing manager สร้าง RFQ จากแบบฟอร์มจริง, บันทึก quotation ครบทุก demand line, ส่งเหตุผล award, Purchasing manager อีกคนอนุมัติ และผู้สร้างสร้าง awarded draft PO ต่อได้. ตรวจสถานะ RFQ เป็น `ordered` จาก API หลัง handoff เพื่อยืนยันว่าการเปลี่ยนแปลงอยู่ในฐานข้อมูลจริงและไม่ใช่เพียงข้อความบนหน้าเว็บ.
+
+คำสั่ง `bun run demo:verify:browser` ผ่าน 4/4 ใน run `b848b9a1229d` ใช้เวลา 37.3 วินาที โดยเพิ่ม procurement flow เป็น test ที่สี่. หลักฐานอยู่ที่ [Procurement RFQ browser acceptance](evidence/2026-09-22-procurement-rfq-browser-acceptance.txt).
+
+ขอบเขตยังเป็น isolated demo acceptance ไม่ใช่ supplier/provider, production operation หรือ business sign-off; การสร้าง PO ยังต้องผ่าน approval/receiving/AP workflow ต่อไป.
+
+## Source-linked purchase request → partial RFQ browser acceptance — 2026-09-22
+
+เพิ่ม browser acceptance ที่เริ่มจากใบขอซื้อจริงใน working demo: employee submit → people manager approve → Finance preparer และ Finance approver อนุมัติแยกกัน → Purchasing assign/start work → จับคู่ demand 6 จาก 10 หน่วยกับสินค้าและคลัง → สร้าง RFQ ที่เก็บ source request link → บันทึก quotation และ award → purchasing manager อีกคนอนุมัติ → สร้าง awarded draft PO. หลัง handoff ตรวจ owner API ว่า RFQ เป็น `ordered` และยังผูกกับ request เดิม.
+
+รัน `bun run demo:verify:browser` ใน run `53ef5742a0b6` ผ่าน 5/5 ใช้เวลา 47.8 วินาที โดย source-linked flow ใช้ 17.3 วินาที. หลักฐานอยู่ที่ [source-linked purchase request RFQ browser acceptance](evidence/2026-09-22-purchase-request-rfq-browser-acceptance.txt) และบันทึกใน evidence ledger แล้ว.
+
+ขอบเขตนี้ยืนยันเฉพาะ partial allocation 6/10 และ draft-PO handoff; remaining four-unit split, receipts/AP/payment ต่อเนื่อง, supplier/provider, production และ business sign-off ยังเป็น gates แยก.
+
+## Source-linked purchase request → posted AP browser acceptance — 2026-09-22
+
+ขยาย flow เดิมผ่านหน้าจอจริงต่อจาก draft PO: buyer ส่ง PO และ purchasing manager อนุมัติ, warehouse รับสินค้า 6 หน่วย, Finance approver เปิดและ post goods movement journal, Finance preparer จับคู่ supplier invoice กับ receipt ที่ post แล้ว, Finance approver ตรวจ match แบบอิสระ, จากนั้นเตรียมและ post AP invoice ในงวดบัญชี 2026. Owner API ตรวจซ้ำว่า RFQ เป็น `ordered` และยังผูกกับ purchase request เดิม.
+
+รัน `bun run demo:verify:browser` ใน run `263a5fce0f12` ผ่าน 5/5 ใช้เวลา 57.8 วินาที; source-linked flow ใช้ 26.1 วินาที. หลักฐานอยู่ที่ [source-linked purchase-to-AP browser acceptance](evidence/2026-09-22-purchase-request-purchase-to-ap-browser-acceptance.txt) และบันทึกใน evidence ledger แล้ว.
+
+ขอบเขตนี้ยืนยัน PO ที่จัดสรร 6/10, receipt ที่ post GL แล้ว และ AP invoice ที่ post แล้วหนึ่งใบ; remaining four-unit split, supplier payment/export, provider, production และ business sign-off ยังเป็น gates แยก.
+
+## Source-linked purchase request → supplier payment browser acceptance — 2026-09-22
+
+ขยายเส้นทางเดียวกันผ่านปลายทาง Finance จริงใน working demo: หลังโพสต์ AP invoice แล้ว Finance preparer สร้าง supplier payment batch, Finance approver ตรวจและอนุมัติ beneficiary/amount, Treasury export คำสั่ง, Finance preparer import sandbox bank statement และ Treasury เลือก debit ที่ตรงกันเพื่อ settle invoice. การทดสอบใช้ browser contexts แยก employee, people manager, Finance preparer, Finance approver, purchasing operator, purchasing manager, warehouse manager และ Treasury; หลัง reload ตรวจ batch item เป็น `confirmed`, payment/allocation link และ API ของ invoice เป็น `paid` พร้อม outstanding เป็นศูนย์.
+
+คำสั่ง `ERPX_DEMO_RUN=57b31d4eaffa ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-purchase-request-rfq.spec.ts --project=desktop` ผ่าน 1/1 ใน 46.6 วินาที (Playwright summary 47.2 วินาที). หลักฐานอยู่ที่ [purchase request → payment browser acceptance](evidence/2026-09-22-purchase-request-purchase-to-payment-browser-acceptance.txt).
+
+ขอบเขตยังเป็น isolated simulation ไม่ใช่ supplier/bank provider, statutory procurement, production operation หรือ business sign-off; browser ใช้ branch รับของ 6/10 ส่วน split allocation และ receipt 6+4 มี owner regression แยกต่างหาก.
+
+## Source-linked split purchase request → full receipt and supplier payment browser acceptance — 2026-09-22
+
+ปิด browser acceptance ของตัวอย่างเดียวกันให้ครบยอด 10 หน่วยผ่านหน้าจอจริง: Purchasing แบ่ง demand เป็น RFQ/PO สองชุด (6 + 4), ได้ quotation และ purchasing-manager approval แยกกัน, Warehouse รับของครบทั้งสองใบ, Finance approver โพสต์ goods-movement GL สอง journal, Finance จับคู่และโพสต์ AP invoice แบบ receipt-specific สองใบ (THB 150,000 และ THB 100,000), Finance รวมสอง invoice ใน supplier payment batch THB 250,000, Treasury export และยืนยัน bank debit จาก statement sandbox สองรายการ. หลัง reload ตรวจ instruction ทั้งสองเป็น `confirmed` และ API ของ invoice ทั้งสองเป็น `paid` พร้อม outstanding เป็นศูนย์.
+
+คำสั่ง `ERPX_DEMO_RUN=d48f9000053f ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-purchase-request-rfq.spec.ts --project=desktop` ผ่าน 1/1 ในประมาณ 1 นาที. หลักฐานอยู่ที่ [split purchase request → payment browser acceptance](evidence/2026-09-22-purchase-request-split-purchase-to-payment-browser-acceptance.txt) และบันทึกใน evidence ledger แล้ว. Demo seed เพิ่ม default Finance invoice reviewer เพื่อไม่ให้เอกสาร AP ใหม่ค้างโดยไม่มี primary owner.
+
+ขอบเขตยังเป็น isolated simulation ไม่ใช่ supplier/bank provider, statutory procurement, production operation หรือ business sign-off; ใบแจ้งหนี้ยังเป็นสองใบผูกกับ receipt แต่ละ PO และการรวมเป็น supplier invoice เดียวข้ามหลาย PO ยังคงเป็น capability gate แยก.
+
+## Expense browser acceptance — 2026-09-22
+
+ปิดการตรวจ browser ของบริษัทจำลองสำหรับ expense workflow 4/4 กรณี: draft ที่ข้อมูล People ยังไม่ครบและคงอยู่หลัง reload, claimant → department reviewer → Accounts preparer → Accounts approver → GL posting → Treasury จ่ายสองหลักฐาน, IT สร้าง AI provider draft ที่ mask secret และ employee ถูกปฏิเสธ, และ AI receipt suggestions ที่เติมเฉพาะช่องว่างพร้อมให้ผู้ใช้แทนค่าด้วยตนเองเมื่อ source เปลี่ยน. Fixture แยกติดตั้ง staff levels/positions/reporting lines เพื่อให้ route ใช้กติกา organization จริง ไม่ bypass validation. หลักฐานอยู่ที่ [expense browser acceptance](evidence/2026-09-22-expense-browser-acceptance.txt).
+
+ยังเป็น local/demo acceptance: provider, bank, payment, statutory payroll และ company sign-off จริงยังไม่ผ่าน และไม่ยกระดับเป็น production หรือ live-provider verification.
+
+## Field Service warranty-to-Finance handoff — 2026-09-22
+
+เพิ่ม warranty pricing ที่ใช้งานจริงใน service agreement โดยเก็บส่วนลดแบบ immutable และคำนวณจาก `warranty_end` ของ asset ฝั่ง server. งานที่อยู่ใน warranty สร้าง billing release และ Finance receivable ตามจำนวนหลังส่วนลด พร้อมเก็บหลักฐานว่าใช้ policy ใด; งานที่หมด warranty คิด visit rate เต็ม. Reviewer คนละคนปล่อย billing แล้ว Finance approver คนละคน post invoice ต่อใน workflow Finance ปกติ โดยยังคง source linkage ของ service order.
+
+`bun run test -- tests/field-service.test.ts` ผ่าน 5/5 รวม chargeable path, warranty 50% (150000 → 75000), invoice source linkage และ posting. หลักฐานอยู่ที่ [Field Service warranty pricing](evidence/2026-09-22-field-service-warranty-pricing.txt). Browser หลายบทบาท, provider และ business/UAT acceptance ยังคงเป็น gate แยก.
+
+## Purchase-to-payment acceptance — 2026-09-21
+
+เพิ่ม owner-service acceptance ที่เริ่มจากใบขอซื้อ Laptop 10 เครื่องและเดินครบผ่านการอนุมัติอิสระ, RFQ/award, PO, รับของ 6+4, post stock GL สองชุด, match ใบแจ้งหนี้ผู้ขายหนึ่งใบกับ receipt ทั้งสอง, สร้างและ post AP invoice รวมหนึ่งใบ, อนุมัติและ export supplier batch, จับคู่ bank evidence ยอด THB 250,000 และตรวจ invoice paid, stock quantity/value, balanced journals กับ progress 6/6 จาก source recordsเดิม.
+
+ผลทดสอบ `tests/purchase-to-payment.test.ts` ผ่าน 1/1 และ `tests/supplier-bill-matching.test.ts` ผ่าน 8/8 บน disposable PostgreSQL simulation. กรณีเฉพาะครอบคลุมการแข่งขันจับคู่ receipt, การคืน AP draft, การปล่อย receipt ทั้งสองกลับมาแก้ไขแบบ atomic และ Company policy ที่บังคับ matching พร้อม version/idempotency/immutable history. Browser acceptance ผ่านทั้ง Desktop Chrome และ Pixel 7 โดยเปิด required, ตรวจคำอธิบาย control, คืนค่า optional และตรวจประวัติผ่าน UI จริง. บันทึกผลและ scope แบบ checksum ใน evidence ledger แล้ว. Partial/split requisition allocation และ UOM conversion ปิดด้วย migration 0238 และ owner-service acceptance แล้ว; multi-role purchase-to-payment browser, provider, production และ business sign-off ยังคงค้าง.
 
 ผู้ใช้ยืนยันให้ใช้ข้อมูลจำลองก่อน ยังไม่พร้อมระบุบริษัท/สาขา pilot ผู้รับรอง Finance/Payroll/Operations หรือ public production hostname จึงเก็บ production acceptance เป็น pending และคง `https://erpx.jesadakorn.com` เป็น development บน 3100 ส่วน production 3101 ไม่เปลี่ยน
 
@@ -233,9 +299,15 @@ Supplier browser observation เสร็จในขอบเขตสี่บ
 - PR mapping รอบแรก: 3 files / 27 tests ผ่าน รวม complete/idempotent migration337tables. หลังเพิ่ม source-waiting projection ทวน RFQ/employee 2 files / 26 tests ผ่าน.
 - Typecheck ผ่าน; lint 0 errors / 3 warningsเดิม. RFQ releaseก่อน PR mapping `.runtime/releases/2026-09-20T06-11-00-649Z` ผ่าน; releaseหลังเพิ่ม PR `.runtime/releases/2026-09-20T06-22-57-097Z` ผ่าน ไม่ deploy.
 - **Browser RFQ ยังยืนยันไม่ได้:** Chrome connection timeout ทั้ง navigation/focus และการผูกแท็บเดิม; ไม่มีการ bypass authentication. Provider/production gates ยัง pending. Supplier promise browser สี่บทบาทก่อนหน้านี้มีหลักฐานแยกและไม่ถูกนับเป็น RFQ browser acceptance.
-- ยังเหลือ partial/split requisition allocations, UOM conversion, supplier invitations/portal, price/quantity invoice variance, lot/serial/landed cost และชุด A–J ส่วนอื่น. ไม่ประกาศปิด C หรือทั้งแผน.
+- Partial/split requisition allocation และ UOM conversion ส่งมอบแล้วในรอบ 0238; ยังเหลือ supplier invitations/portal, browser หลายบทบาท, lot/serial/landed cost และชุด A–J ส่วนอื่น. ไม่ประกาศปิด C หรือทั้งแผน.
 
 คู่มือและขอบเขต [RFQ simulation](procurement-rfq-simulation.md). Migrations0209–0210ใช้กับdevแบบadditive; production3101/Tunnelไม่เปลี่ยน.
+
+## ต่อชุด C — split requisition / multi-award / UOM conversion
+
+หนึ่งรายการคำขอสามารถแบ่งปริมาณไปหลาย RFQ, หลาย supplier award และหลาย PO ได้แล้ว โดยแต่ละ RFQ line เก็บ requested quantity/unit, product quantity/unit และอัตราแปลงแบบ immutable. PostgreSQL commitment counter ล็อกและบวกจำนวนแบบ atomic จึงมีผู้ชนะหนึ่งรายเมื่อจัดสรรพร้อมกัน และการยกเลิก RFQ คืนจำนวนให้ sourcing ใหม่. Legacy `purchase_order_id` คงเป็น pointer ใบแรกเพื่อ compatibility ขณะที่ `procurement_request_orders` เป็นความสัมพันธ์หลายใบจริง; progress รวมทุก PO/receipt/invoice/payment.
+
+Owner-service acceptance ใช้ 24 each แบ่งเป็น 1 case ที่ 12 each/case และ 12 each จากผู้ขายอีกคน ตรวจ over-allocation, concurrent race, cancellation release, independent award และ PO สองใบ. Demo Company เพิ่มสินค้าหน่วย each/case, ผู้ขายสองราย และทางเลือก scenario ที่ reset ได้. Browser/provider/production/UAT gates ยังแยกและยังไม่ยกระดับ.
 
 
 ## ต่อชุด B/C — Supplier invoice matching และ purchase price variance
@@ -290,11 +362,19 @@ Support incidents เพิ่มแล้ว เหลือ **71 Deferred** (8
 
 Full regression หลัง SLA+incidents จบแล้ว **99 files passed /2 skipped;817 tests passed /3 skipped** ([ผล](evidence/2026-09-20-cross-department-full-817.txt), [scope](evidence/2026-09-20-cross-department-full-817-context.json)). ชุดทดสอบถูกค้นตอนเริ่มก่อนเพิ่ม Support attachments; ระหว่างรันมีงาน attachments ต่อใน working tree จึงไม่ใช่ immutable final release acceptance และไม่นับว่า817ครอบคลุม attachments. งานไฟล์หลักฐานมี targeted evidence แยก. Skipped provider3รายการยังไม่ผ่านgate.
 
-Customer access/authority เพิ่มแล้ว เหลือ **68 Deferred**: [คู่มือ](customer-access.md), [23 tests](evidence/2026-09-20-customer-access-tests.txt), [context](evidence/2026-09-20-customer-access-context.json), [browser 3 บทบาท](evidence/2026-09-20-customer-access-browser.json) และ [source records](evidence/2026-09-20-customer-access-browser-records.json). Binding ผูก approved source+verified email+expiry, ต้อง independent review, first verified account ถูก bind ชัดเจน, ทุก portal view มี audit และ revoke แล้ว projection หายทันที. Portal ใช้ explicit field allowlist; internal notes/cost/HR/Legal/private Support evidence ไม่ถูกส่ง. ยังเหลือ consent, delegated customer admin, reply/upload/email และ UAT จริง.
+Finance generic controlled payment ปิดช่องว่างที่ draft payment เดิมไม่มี journal จึง allocate/reconcile ต่อไม่ได้: preparer→independent approver→third-person Treasury release→exact bank confirmation ทำ posted GL, multi-invoice allocation, invoice status, payment settlement และ bank match ใน transaction เดียว พร้อม version/idempotency/audit/decision evidence. [หลักฐาน 3 tests + related regression 10 tests + public UI](evidence/2026-09-21-finance-generic-controlled-payments.txt). หน้า posted invoice แสดงฟอร์ม controlled settlement และจำกัดตัวเลือกเฉพาะ bank control account. Multi-role resettable browser ส่งมอบในหลักฐานถัดไป; live provider และ business sign-off ยังไม่ผ่าน gate.
 
-Customer duplicate review เพิ่มแล้ว เหลือ **67 Deferred**: [คู่มือ](customer-duplicate-reviews.md), [11 tests](evidence/2026-09-20-customer-duplicates-tests.txt) และ [context](evidence/2026-09-20-customer-duplicates-context.json). คู่ customer ถูก canonicalize กันยื่นกลับด้าน, independent current manager ตัดสิน distinct/duplicate/reopen และเก็บ canonical choice/history; ยังไม่ย้าย source records หรือกระทบยอด จึงไม่อ้างว่า merge transaction เสร็จ.
+Finance generic controlled payment ผ่าน [resettable browser 3 บัญชี](evidence/2026-09-21-finance-controlled-payment-browser.txt) บน isolated run `ec2aae319bce`: preparer สร้างจาก posted payable→approver อนุมัติ→Treasury release และ confirm exact bank row→reload เห็น settled/outstanding 0/allocation/journal. [DB records](evidence/2026-09-21-finance-controlled-payment-browser-records.json) ยืนยันคนละ created/approved/released user, AP debit=bank credit 12500, invoice paid และ bank matched. จากนั้น two-close browser ยังผ่านบน run เดิม จึงไม่มีการปนยอดย้อนหลัง. Live provider, production และ business sign-off ยังไม่ผ่าน gate.
 
-Customer identity change เพิ่มแล้ว เหลือ **66 Deferred**: [คู่มือ](customer-identity-changes.md), [19-test combined regression](evidence/2026-09-20-customer-identity-tests.txt) และ [context](evidence/2026-09-20-customer-identity-context.json). Legal name/tax registration ใช้ before/after snapshot, independent review, reject/resubmit และ customer-version guard; apply เปลี่ยน master กับ immutable evidence ใน transaction เดียว. Address/contact identity, consent, external registry, browser/business acceptance ยังเหลือ.
+Finance multi-currency รองรับ invoice และ payment ที่ใช้ transaction currency ต่างจาก functional currency แล้ว. ผู้อนุมัติ invoice ระบุ recognition-date rate; Treasury ระบุ bank-date rate; allocation เก็บ transaction amount, carrying-base amount, settlement-base amount และ realized difference แยกกัน. การ confirm สร้าง payment journal กับ realized gain/loss journal, update invoice/payment/bank ใน transaction เดียว และ correction คืนทั้งสอง journal กับ functional outstanding. Statement ต่างสกุลเก็บ closing rate/base close สำหรับ reconciliation. [หลักฐาน 5 files / 12 tests](evidence/2026-09-21-finance-multi-currency.txt) รวม USD payable ที่รับรู้ 35 THB/USD และจ่าย 36 THB/USD จน AP เป็นศูนย์และลง realized loss THB 100. รายการต่างสกุลที่ยังเปิดจะบล็อก close อย่างชัดเจนจนกว่าจะทำ unrealized period-end revaluation; browser หลายบทบาท, provider และ business sign-off ยังเหลือ.
+
+Backup/restore operational rehearsal เพิ่มจากเดิมที่พิสูจน์เฉพาะ Holding DB: [2 tests](evidence/2026-09-21-backup-restore-operations.txt), [full CLI result](evidence/2026-09-21-backup-restore-operations.json), [477-table business restore](evidence/2026-09-21-business-restore-records.json). Operator CLI จริงสำรองและคืน database/private files/application secret/release pointer, เก็บ current database credential manifest, สร้าง safety backup ก่อน restore และปฏิเสธ snapshot ที่ checksum เปลี่ยนโดยไม่ทิ้ง maintenance ค้าง. ยังไม่ใช่ production host, off-machine/disk-loss/WAL-PITR หรือ signed RPO/RTO acceptance.
+
+Customer access/authority เพิ่มแล้ว เหลือ **68 Deferred**: [คู่มือ](customer-access.md), [23 tests](evidence/2026-09-20-customer-access-tests.txt), [portal actions 6 tests](evidence/2026-09-22-customer-portal-actions.txt), [context](evidence/2026-09-20-customer-access-context.json), [browser 3 บทบาท](evidence/2026-09-20-customer-access-browser.json) และ [source records](evidence/2026-09-20-customer-access-browser-records.json). Binding ผูก approved source+verified email+expiry, ต้อง independent review, first verified account ถูก bind ชัดเจน, ทุก portal view มี audit และ revoke แล้ว projection หายทันที. Portal ใช้ explicit field allowlist; acknowledge delivery/request support เขียน immutable evidence และแจ้ง staff ตาม order scope. Internal notes/cost/HR/Legal/private Support evidence ไม่ถูกส่ง. ยังเหลือ consent, delegated customer admin, reply/upload/email และ UAT จริง.
+
+Customer duplicate review และ transactional merge เพิ่มแล้ว เหลือ **67 Deferred**: [คู่มือ](customer-duplicate-reviews.md), [focused merge tests](evidence/2026-09-22-customer-duplicate-merge.txt), [11-test baseline](evidence/2026-09-20-customer-duplicates-tests.txt) และ [context](evidence/2026-09-20-customer-duplicates-context.json). คู่ customer ถูก canonicalize กันยื่นกลับด้าน, independent current manager ตัดสิน distinct/duplicate/reopen และ merge safe orders/invoices/payments/refunds/carts/opportunities/expenses/POS sales ใน transaction เดียว พร้อม blocked lineage, version/idempotency/audit และ immutable-owner blockers; balance reconciliation, browser/business acceptance และ owner correction workflows ยังเหลือ.
+
+Customer identity change เพิ่มแล้ว เหลือ **65 Deferred**: [คู่มือ](customer-identity-changes.md), [4 focused tests](evidence/2026-09-22-customer-identity-consent.txt) และ [context](evidence/2026-09-20-customer-identity-context.json). Legal name/tax registration/phone/structured address/notification email/consent ใช้ before/after snapshot, independent review, reject/resubmit และ customer-version guard; apply เปลี่ยน master กับ immutable evidence ใน transaction เดียว. External registry, browser/business acceptance ยังเหลือ.
 
 Support sessions และ scoped capabilities เพิ่มแล้ว เหลือ **64 Deferred**: [คู่มือ](support-sessions-capabilities.md), [14-test regression](evidence/2026-09-20-support-sessions-tests.txt) และ [context](evidence/2026-09-20-support-sessions-context.json). Ticket owner ขอ session ให้ตนเองได้ไม่เกิน 8 ชั่วโมง, independent current manager อนุมัติ, แล้วออก allowlisted order-context/evidence-metadata grant แยกกัน; ทุก read ตรวจ expiry, ticket state, scope, IAM/assignment/HR eligibility และ active grant ใหม่. Revoke/reissue/session cascade มี optimistic version กับ immutable events. ยังไม่มี customer consent, remote-control/write/file-byte grant, Calendar, browser/business acceptance จึงไม่ยกระดับ S10.
 
@@ -321,3 +401,303 @@ E-commerce lifecycle เพิ่ม owner implementation ครบหกรา�
 รอบปิด Deferred ตรวจซ้ำทั้งระบบแล้ว: **114 test files passed / 2 skipped, 870 tests passed / 3 skipped**, typecheck ผ่าน, lint 0 errors / 3 warnings เดิม และ isolated release `.runtime/releases/2026-09-20T18-15-18-853Z` ผ่าน. [Full regression](evidence/2026-09-21-full-regression-zero-deferred.txt), [release build](evidence/2026-09-21-zero-deferred-release.txt), [context/checksums](evidence/2026-09-21-zero-deferred-context.json). Browser ผ่าน authenticated public dev สำหรับ E-commerce, Planning และ Manufacturing โดยไม่เขียนธุรกรรมจริง. Provider tests ที่ skipped, UAT, migration rehearsal และ production sign-off ยังคง pending ตาม gate และไม่ถูกนับรวมใน 0 Deferred.
 
 Support private evidence เพิ่มแล้ว เหลือ **70 Deferred** (80→70): [คู่มือ](support-evidence.md), [27tests/4files](evidence/2026-09-20-support-evidence-tests.txt), [context](evidence/2026-09-20-support-evidence-context.json). จอง/upload/download/withdraw ใช้ private storage เดิม ตรวจ source version/current eligibility, signature/checksum, legal hold, retryเมื่อครบ10ไฟล์ และ frozenหลังresolution; expense uploadเดิมไม่ต้องส่งversionและยังผ่าน. [BrowserบัญชีSupportagent](evidence/2026-09-20-support-evidence-browser.json) เลือกCSV70bytesผ่านnativepicker แนบ→ถอนพร้อมเหตุผล→เสนอresolutionv5; [records](evidence/2026-09-20-support-evidence-browser-records.json) เก็บeventsและmetadataที่ถอนแล้ว. ยังไม่ใช่customerconfirmationหรือmulti-roleacceptance; Portal sharing/revocation, incidentfiles และ retentionยังค้าง. Release `.runtime/releases/2026-09-20T10-34-33-287Z` ผ่าน; public Supportqueueเปิดได้ ไม่มีธุรกรรมเขียนในpublicdev.
+
+## Release 1 Inventory — lot, serial และ receipt quarantine (2026-09-21)
+
+Product master เลือก `none`, `lot` หรือ `serial` ได้แล้วและเปลี่ยน mode หลังมี stock history ไม่ได้. Purchase receipt บังคับจัดสรรเต็มจำนวนไปยัง lot/serial, serial หนึ่งรายการเท่ากับหนึ่งหน่วย, ปฏิเสธเลขซ้ำ และสร้าง Quality hold จาก receipt disposition แบบ quarantine ได้ใน transaction เดียว. Sales delivery ต้องเลือก lot/serial ที่มีจริงและปล่อยจาก Quality แล้ว มูลค่าต้นทุนใช้ balance ของ lot ที่เลือก. Aggregate stock เป็น control total ของผลรวม lot quantity/value และ lot movements/fulfillment allocations แก้ย้อนหลังไม่ได้.
+
+หน้าสต็อกแสดง On hand, Reserved, Quarantined, In transit และ Available แยกกัน; หน้า Quality เลือก hold ทั้งสินค้า หรือ lot/serial เฉพาะรายการได้. Demo Company เตรียมสินค้า lot/serial และ scenario ตามบทบาทเพิ่มแล้ว. [Automated 14 tests](evidence/2026-09-21-inventory-lot-serial-automated.txt), [automated context](evidence/2026-09-21-inventory-lot-serial-automated-context.json), [browser local/public](evidence/2026-09-21-inventory-lot-serial-browser.txt) และ [browser context](evidence/2026-09-21-inventory-lot-serial-browser-context.json). Typecheck ผ่าน, lint 0 errors/3 warnings เดิม, release `.runtime/releases/2026-09-21T08-00-39-762Z` ผ่าน.
+
+ยังไม่ปิด Inventory ทั้งหมด: transfer, physical count, return, Production และ Field Service ยังต้องส่ง lot allocation เข้า owner workflow; landed cost และ structured scrap/return disposition ยังเหลือ. Browser รอบนี้ยืนยัน product/stock/Quality UI บน local desktop/mobile และ public desktop แต่ยังไม่ใช่ multi-role business acceptance ของ receipt→inspection→release→delivery ทั้งสาย.
+
+## Release 1 Inventory — transfer, transit และ physical count ตาม lot/serial (2026-09-21)
+
+Direct transfer และ staged transit รักษา lot/serial identity กับมูลค่าตั้งแต่ source allocation, dispatch, partial receipt จนถึง approved loss แล้ว. Physical count บังคับนับทุก lot/serial ที่มีอยู่ รองรับระบุศูนย์สำหรับรายการที่หาไม่พบและเพิ่ม lot/serial ที่พบใหม่พร้อม verified unit cost; posting ปรับ aggregate stock, lot balances, immutable movements และ GL variance ใน transaction เดียว. Version guards ปฏิเสธการอนุมัติเมื่อ stock หรือ lot เปลี่ยนหลังบันทึก.
+
+[Automated 23 tests](evidence/2026-09-21-inventory-transfer-count-automated.txt), [public authenticated browser](evidence/2026-09-21-inventory-transfer-count-browser.txt) และ [context/checksums](evidence/2026-09-21-inventory-transfer-count-context.json). Typecheck ผ่าน, lint 0 errors/3 warnings เดิม, migrations 0240–0241 ใช้กับ dev แล้ว และ isolated release `.runtime/releases/2026-09-21T08-29-08-879Z` ผ่าน.
+
+Inventory ยังไม่ครบทั้ง roadmap: returns, Production/Field Service adapters, landed cost, structured scrap/return disposition, browser หลายบทบาทและ business acceptance ยังเหลือ จึงไม่ยกระดับ gate เกินหลักฐานที่ตรวจจริง.
+
+Receiver-selected transit allocation เพิ่มต่อแล้ว: receiving operator ต้องเลือก lot/serial จริงสำหรับ partial receipt และ loss report; server ตรวจว่า identifier อยู่ใน transport line, จำนวนรวมตรง line outcome, ไม่ซ้ำ, ไม่เกิน undisputed balance และ serial ต้องเป็นหนึ่งหน่วยเต็ม. Regression จงใจเลือก `ROAD-B` รับเข้าก่อน `ROAD-A` แล้วตรวจ destination balanceเพื่อยืนยันว่าไม่มี FIFO แฝง. Targeted transfer/transit regression 12 tests ผ่าน, typecheck และ lint ผ่าน, isolated release `.runtime/releases/2026-09-21T08-38-09-867Z` ผ่าน. Public authenticated stock-transit list เปิดได้ แต่ dev company ไม่มี staged record ที่กำลังเดินทาง จึงยังไม่มี browser transaction evidence ของฟอร์ม selection รอบนี้.
+
+Customer และ supplier returns รักษา fulfilled lot/serial identity แล้ว. ผู้ขอเลือกได้เฉพาะ allocation จาก fulfillment เดิม, ระบบหัก prior non-rejected returns ราย lot, บังคับ serial เต็มหนึ่งหน่วย และ snapshot warehouse lot balance ไว้ตรวจ stale edit ตอนอนุมัติ. Supplier return ตัด selected lot; customer returnรับ lot เดิมกลับ พร้อม aggregate stock, lot balance, immutable lot movement และ stock reversal GL จากมูลค่าเดียวกัน. หน้า order แสดง returnable lot/serial และหลักฐาน identity/value ของ return. [Automated evidence](evidence/2026-09-21-lot-aware-returns.txt) 2 files/11 tests ผ่าน; migration 0242 applied dev, typecheck/lint/build ผ่าน และ release `.runtime/releases/2026-09-21T08-48-06-567Z` ผ่าน. Public authenticated order detail render ผ่านหลัง migration แต่ record ที่ตรวจยัง awaiting invoice จึงไม่ใช่ browser transaction acceptance ของ return.
+
+## Release 1 Inventory / Quality — failed-stock scrap disposition (2026-09-21)
+
+ผลตรวจ Quality แบบ fail มีทางจบที่ควบคุมได้แล้ว. ผู้สร้าง hold และผู้ตรวจห้ามขอทำลายเอง; Quality manager คนที่สามส่งจำนวนที่ถูกกักทั้งหมดเข้า stock count ที่สถานะ submitted พร้อม snapshot ของ stock และ lot/serial. Company Finance คนละคนต้อง approve แล้ว post ก่อนระบบเปลี่ยน hold เป็น disposed, ตัด quantity/value, ทำ lot เป็น scrapped เมื่อหมด, สร้าง immutable stock movement และลง Debit stock variance / Credit inventory ที่สมดุล. การ reject คืนงานให้ Quality ขอ disposition ใหม่ได้โดยไม่ลบประวัติเดิม; disposed hold และ disposition evidence แก้ย้อนหลังไม่ได้.
+
+Automated regression ครอบ Quality, flow routing, physical count และ lot/serial 26 tests. ยังเหลือ structured measurement, attachment, return disposition, Production/Field Service adapters, multi-role browser และ business acceptance จึงคงสถานะ capability ตาม gate เดิม.
+
+## Release 1 Quality — structured measurements and private evidence (2026-09-21)
+
+Company Quality สามารถสร้าง product inspection specification ที่มี code, label, unit, minimum/maximum หลายค่าได้. ผู้สร้างห้าม activate เอง; reviewer คนละคนต้องบันทึกเหตุผลก่อนใช้จริง. Hold ใหม่จับ spec id/version ณ เวลาสร้าง แม้มาตรฐานรุ่นใหม่มาแทนภายหลัง ผู้ตรวจต้องกรอกค่าครบทุก metric และ server เป็นผู้คำนวณ pass/fail จาก limits. ค่าวัด, spec ที่ active/superseded และไฟล์ที่ bind กับ inspection แก้ย้อนหลังไม่ได้. ไฟล์ JPEG/PNG/WebP/PDF/CSV ใช้ private storage, signature/size/checksum, owner/version/current-authority guards เดิม และดาวน์โหลดต้องผ่าน Quality scope ของ hold.
+
+Automated regression ครอบ Quality, private upload regression และ lot/serial 22 tests. Return disposition, escalation, browser หลายบทบาทและ business acceptance ยังเหลือ จึงคง capability gate เดิม.
+
+## Release 1 Sales — versioned price lists and discount approval (2026-09-21)
+
+Company Sales สร้าง price list แบบมีช่วงวันที่ ใช้ทั้งบริษัทหรือเจาะจงลูกค้า และกำหนดส่วนลดที่อนุมัติอัตโนมัติได้. ผู้สร้างห้าม activate เอง; sales manager คนละคนต้องตรวจราคา ภาษี และเหตุผลก่อนใช้จริง. ใบเสนอราคาและ sales order เลือกรายการที่ active ตามลูกค้า/วันที่ จับ price-list id/version, list price และ discount ต่อบรรทัดไว้เป็นหลักฐาน. ส่วนลดเกินเกณฑ์ต้องมีเหตุผลจากผู้เตรียมและเหตุผลอนุมัติจากผู้จัดการอิสระก่อนยืนยันเอกสาร.
+
+Draft แก้ไขได้ก่อนอนุมัติด้วย optimistic version และ idempotency โดยระบบเก็บผู้เตรียมล่าสุดไว้บังคับ maker-checker. รายการราคาปัจจุบันกับรายการราคาอนาคตสามารถอยู่ในสถานะอนุมัติพร้อมกันได้; ระบบเลือกอัตโนมัติตามลูกค้า วันที่เอกสาร วันเริ่มใช้ และลำดับการอนุมัติ. Browser acceptance ใช้ Holding owner เตรียมและแก้ v1 → v2, Sofia Ramirez ใน session แยกอนุมัติเป็น v3 และใบเสนอราคาเดือนตุลาคมจับ snapshot v3 ได้จริง.
+
+แก้ routing สำหรับเจ้าของบริษัทหรือผู้เชี่ยวชาญที่มี account assignment แต่ยังไม่มี HR engagement: บุคคลที่ถูกระบุเป็นเจ้าของเอกสารยังทำ draft ของตนเองได้ โดย candidate pools ตาม role ยังต้องอาศัย active staff เหมือนเดิม. Browser acceptance ส่ง QT-928B7E00B6FB544C50AED73B จากเจ้าของ, มอบหมาย Sofia พร้อมเหตุผล และอนุมัติจาก session ของ Sofia จนสถานะ `confirmed`.
+
+[Automated and browser evidence](evidence/2026-09-21-sales-pricing-discount-controls.txt) ครอบ 4 files/22 tests และ public authenticated browser. Customer notification, independent-manager browser run และ business acceptance ยังเหลือ จึงไม่ยกระดับ Sales ทั้ง capability เกินหลักฐานที่ตรวจจริง.
+
+## Release 1 Sales — proof of delivery (2026-09-21)
+
+Sales delivery บังคับหลักฐาน JPEG/PNG/WebP/PDF แบบ private และข้อความยืนยันผู้รับหรือ carrier ก่อนตัด stock. ไฟล์ต้องเป็นของ sales order เดียวกัน, ไม่ถูก revoke, ใช้กับ delivery ได้ครั้งเดียว และความสัมพันธ์กับ fulfillment แก้หรือลบย้อนหลังไม่ได้. หน้า order แสดงหลักฐานของแต่ละ delivery พร้อมลิงก์ดาวน์โหลดที่ตรวจสิทธิ์ และแสดงไฟล์ที่อัปโหลดค้างไว้ให้เลือกต่อหลัง reload เพื่อรองรับการหลุดระหว่างกรอกฟอร์ม.
+
+[Automated and browser evidence](evidence/2026-09-21-sales-delivery-evidence.txt) ครอบ regression ที่เกี่ยวข้อง 7 files/29 tests, focused lifecycle 1 test และ public browser สามบทบาท: Holding owner สร้าง/ส่ง/มอบหมาย, Sofia Ramirez อนุมัติ, Owen Brooks เปิดงาน fulfillment จาก Home แล้วเห็นฟอร์มที่บังคับไฟล์กับ confirmation note. เครื่องมือ browser รอบนี้ใส่ native file input ไม่ได้ จึงยังไม่นับ completed browser transaction; upload→link→ห้ามใช้ซ้ำพิสูจน์ใน integration. Customer notification และ business acceptance ยังเหลือ.
+
+## Release 1 Sales — customer delivery notifications (2026-09-21)
+
+Sales ส่งข้อความสถานะ delivery ได้จาก fulfillment จริงหลังมีอีเมลที่ตรวจแล้ว, consent เป็น granted และ manager เปิด adapter. ข้อความเก็บ snapshot ของ order, delivery, ลูกค้า, ผู้รับและ note แบบแก้ย้อนหลังไม่ได้; ก่อนแตะ provider ระบบตรวจอีเมลและ consent ปัจจุบันซ้ำ ถ้าเปลี่ยนจะ cancel. Worker รองรับ lease recovery, exponential retry และ provider idempotency key เดิม; หน้า order แสดง pending/sent/failed/cancelled, attempts, error และปุ่ม retry ที่ตรวจ version กับสิทธิ์. Sandbox adapter ไม่เรียก network ส่วน Resend ยังเป็น provider gate แยก.
+
+[Automated, worker and public-browser evidence](evidence/2026-09-21-sales-customer-notifications.txt) ครอบ 5 files/16 tests. Holding owner เข้าคิวจาก public order SO-61D4770158966A46313FB419, อยู่ที่ route เดิม, เห็น pending จากนั้น detached jobs worker เปลี่ยนเป็น sent/attempt 1 และหน้า public แสดงผลหลัง reload. รอบนี้ยังไม่ใช่ real-email, Resend หรือ customer business acceptance; consent governance เต็มรูปแบบยังอยู่ Release 2 Customer Authority.
+
+## Release 1 Sales / Inventory / Quality — customer-return disposition (2026-09-21)
+
+สินค้าที่ลูกค้าคืนไม่กลับเป็น available stock ทันทีแล้ว. ผู้รับเรื่องต้องบันทึกสภาพ, หลักฐานสภาพ และวันครบกำหนดตรวจต่อบรรทัด; Commerce approver คนละคนคืน quantity/value และ lot/serial เดิมพร้อมสร้าง partial Quality hold ใน transaction เดียว. ของยังอยู่ใน stock control total แต่ถูกหักจาก available/reservable quantity. Quality inspector คนละคนตรวจ และ Quality manager คนที่สาม release เมื่อผ่าน; ถ้า fail ใช้ controlled scrap → independent Finance → stock count/GL เดิม. Condition, due date และ source link แก้ย้อนหลังไม่ได้ และหน้า order ลิงก์ไป disposition จริง.
+
+[Automated and public-browser evidence](evidence/2026-09-21-customer-return-quality-disposition.txt) ครอบ Commerce returns, lot/serial, Quality, reservations และ E-commerce 5 files/27 tests. Public paid order SO-61F7BB88D96CAF6039D8F26A แสดงฟอร์ม condition/evidence/due date กับคำอธิบาย quarantine จริงโดยไม่สร้างรายการค้างใน demo. Independent multi-role public transaction และ business acceptance ยังเป็น gate แยก.
+
+## Release 1 Inventory — shared reservation expiry escalation (2026-09-21)
+
+Sales, POS, Field Service และ Manufacturing ใช้ `inventory_active_reservations` ชุดเดียวกันอยู่แล้ว. เพิ่ม scheduled escalation ให้ reservation ของ Sales, Field Service และ Manufacturing ที่ยังมียอดคงเหลือแจ้งผู้สร้าง/ผู้รับผิดชอบก่อนหมดอายุ 24 ชั่วโมง และแจ้งอีกครั้งเมื่อหมดอายุจนไม่กัน available stock แล้ว. Notification id ผูก source, reservation, expiry, phase และผู้รับ จึงเรียก worker ซ้ำได้โดยไม่สร้างข้อความซ้ำ. รายการที่ใช้หมด, release หมด หรือ source จบแล้วไม่ถูกเตือน และแต่ละข้อความเปิดกลับไปยัง source workflow ที่มีสิทธิ์จริงผ่าน Inbox.
+
+[Automated and public UI evidence](evidence/2026-09-21-inventory-reservation-expiry-alerts.txt) ครอบ reservation/Field Service/Manufacturing/POS/E-commerce/lot-serial/recovery 7 files/46 tests รวม dedupe, warning, expiry, consumed/released exclusion และ actionable notification links. Typecheck และ scoped lint ผ่าน. Public authenticated Inbox render ผ่านโดยไม่เขียน notification จำลองลงบริษัท Acme. Capability `inventory/reservations` จึงยกระดับเป็น Flow accepted ตาม integration evidence; multi-role browser transaction และ business acceptance ยัง pending.
+
+## Release 1 Finance — opening balance reconciliation (2026-09-21)
+
+Opening import เชื่อม GL กับตารางลูกหนี้/เจ้าหนี้ใช้งานจริงแล้ว. ผังบัญชีแยก `receivable`/`payable` control account ออกจาก cash/inventory/tax control; preview ตรวจ active party, currency, reference, due date, account direction และยอด schedule ต่อบัญชีให้ตรง GL ทุกบาท. Import สร้าง draft opening journal กับ operational Finance invoices ใน transaction/idempotency boundary เดียว. ผู้อนุมัติ Finance คนละคน post ทั้งชุดพร้อมกันแล้วรายการเข้าสู่ Aging และรับ allocation ปกติ; reversal ทำให้รายการที่ยังไม่เคย settle เป็น void พร้อม GL และปฏิเสธเมื่อมี allocation history เพื่อกันยอดย่อยไม่ตรงบัญชีคุม.
+
+[Automated and public-browser evidence](evidence/2026-09-21-finance-opening-reconciliation.txt) ครอบ 4 files/19 tests, typecheck, lint และหน้า public Finance Setup ที่ล็อกอินจริง. หน้า UI แสดง account 1200 เป็น receivable โดยอัตโนมัติและเปิดฟอร์ม customer/reference/due date/control/offset/amount ครบ โดยไม่ submit ข้อมูลลงบริษัท Demo. ยังเหลือ independent multi-role browser import→post→settle, สองรอบปิดบัญชีที่กระทบยอด, migration/provider/production และ business acceptance จึงคง capability gate ตามหลักฐานจริง.
+
+## Release 1 Finance — controlled period-close reconciliation (2026-09-21)
+
+Period close ตรวจยอดสะสม GL ถึงวันสิ้นงวดเทียบกับลูกหนี้และเจ้าหนี้แบบ as-of โดยหัก allocation ตามวันที่ชำระ และตรวจบัญชีธนาคารที่กำหนดเป็น `bank` กับ statement วันสิ้นงวด. ระบบปฏิเสธยอดต่าง, เอกสารต่างสกุลที่ยังไม่มีฐานแปลง, statement ขาดวันสิ้นงวด และข้อมูลที่เปลี่ยนหลังผู้เตรียมเริ่ม close. Snapshot เก็บ account, currency, GL, source, difference, source metadata, ผู้ตรวจ และ close version; หน้า Close แสดงตารางหลักฐานเดียวกับที่ service ใช้ตัดสิน.
+
+[Automated and isolated-browser evidence](evidence/2026-09-21-finance-close-reconciliation.txt) พิสูจน์ AR/AP/bank difference เป็นศูนย์, maker-checker และปิด January/February ต่อเนื่องสองงวด รวมทั้ง stale-evidence rejection. Browser simulation ใช้ Finance preparer และ Finance approver คนละ session, ผ่าน reload และเห็นสองงวดเป็น closed จริง จึงยกระดับ Period close เป็น Flow accepted. Real-bank provider และ business acceptance ยังเป็น gate แยก.
+
+## Release 1 Finance — period-end foreign-currency revaluation (2026-09-21)
+
+หน้า Period close แสดง foreign AR/AP ที่ยังไม่ถูกประเมินค่าและไม่ยอมเริ่ม close จนกว่าจะมีรายการของงวดนั้น. Company Finance ระบุอัตราปิดงวดแยกตามสกุล, บัญชีกำไร/ขาดทุนในสกุลเงินใช้งาน และหลักฐานต้นทาง. ระบบจับยอดคงค้าง transaction/functional, เวอร์ชันเอกสาร และ source hash ไว้; ผู้จัดทำอนุมัติเองไม่ได้. ผู้อนุมัติ Finance คนอื่นเลือก approve เพื่อสร้าง balanced unrealized FX journal พร้อมปรับ carrying balance หรือ reject เพื่อจัดทำใหม่. ถ้ายอดคงค้างเปลี่ยนระหว่างรอ ระบบปฏิเสธเป็น stale และไม่ลงบัญชี.
+
+[Automated evidence](evidence/2026-09-21-finance-fx-revaluation.txt) ครอบ payable loss, receivable gain, mixed exposure, self-review, stale source, rejection, idempotent approval, close reconciliation และ regression ของ controlled payment/payment correction/two-close รวม 4 files/9 tests. Local migration ใช้สำเร็จแล้ว. Public authenticated UI observation และ business acceptance ยังคงเป็น gate แยกจนกว่าจะตรวจรอบท้าย.
+
+## Release 1 Organization — controlled branch and department lifecycle (2026-09-21)
+
+Company Organization administrator สร้าง draft, submit, แก้หลัง reject และ cancel คำขอของตนเองได้แล้ว ผู้อนุมัติต้องเป็น administrator อีกคนและใช้ revision ปัจจุบันก่อน apply. Workflow รองรับสร้าง branch/department, rename, suspend และ reactivate; การ suspend ถูกปฏิเสธถ้ายังมี child unit, active staff, position, scoped assignment หรือ warehouse. การสร้างหน่วยงาน provision organization-managed channel ใน transaction เดียว และการเปลี่ยนชื่ออัปเดตชื่อห้อง ขณะที่สมาชิกยังคำนวณจาก placement กับ assignment ปัจจุบัน. ทุกขั้นมี command receipt, audit, outbox และ immutable lifecycle event.
+
+[Automated and public UI evidence](evidence/2026-09-21-organization-node-lifecycle.txt) ครอบ Organization, organization channels, User Management และ IAM 4 files/41 tests. Typecheck, scoped lint และ local migration 0257 ผ่าน. Public authenticated Acme page แสดง branch/department จริง, status/revision, draft/submit controls และ review queue โดยไม่เขียนข้อมูลจำลอง. Organization ทั้ง 4 capabilities จึงเป็น Flow accepted ตาม integration และ browser-render evidence; ยังเหลือ independent two-session browser transaction และ company business acceptance.
+
+## Release 1 Identity & Access — periodic access certification (2026-09-21)
+
+Company IAM reviewer เปิด campaign ที่จับ snapshot ของ active assignment ทุกใบพร้อม user, role, scope, source, expiry และ version ได้แล้ว. ผู้เปิด campaign รับรองเองไม่ได้ และ reviewer รับรองสิทธิ์ของ Person ตนเองไม่ได้. แต่ละรายการเลือก keep หรือ revoke พร้อมเหตุผลและ fresh MFA; revoke เรียก protected revocation เดิม, ตัด active work context ทันที และยังรักษา last administrator/recovery safeguards. Source ที่เปลี่ยนหลังเริ่ม campaign จะ fail closed, ทุก decision เพิ่ม campaign version, event แก้ย้อนหลังไม่ได้ และ campaign ปิดอัตโนมัติเมื่อครบทุก assignment.
+
+[Automated and public UI evidence](evidence/2026-09-21-iam-access-review-campaigns.txt) ครอบ IAM กับ User Management 2 files/31 tests. Typecheck, scoped lint และ migration 0258 ผ่าน. Public authenticated Reviews & audit แสดงฟอร์ม campaign และ audit จริงโดยไม่สร้างข้อมูลจำลอง. Capability `identity_access/access-reviews` จึงเป็น Flow accepted; due reminder, public multi-session transaction และ company business acceptance ยัง pending.
+
+## Release 1 Identity & Access — reviewed invitation delivery (2026-09-21)
+
+คำเชิญพนักงานสร้าง durable delivery job ใน control database พร้อมกับ invitation และรอ review `invitation.authorize` จากผู้ดูแลคนอื่นก่อนเข้าคิวส่งอีเมล. Worker สร้าง activation token ซ้ำได้จาก secret โดยไม่เก็บ token ดิบ, ใช้ provider idempotency key, lease recovery, exponential backoff, จำกัดหกครั้ง และ cancel เมื่อคำเชิญถูกปฏิเสธ หมดอายุ ถูก revoke หรือถูกคำเชิญใหม่แทนที่. ผู้ดูแลเห็น waiting/queued/sending/sent/failed/cancelled, จำนวนครั้ง, error และเวลาส่งใน Reviews & audit พร้อม retry failed delivery หรือ revoke คำเชิญด้วย fresh MFA และ IAM audit.
+
+[Automated and public UI evidence](evidence/2026-09-21-account-invitation-delivery.txt) ครอบ worker และ IAM/User Management 3 files/34 tests. Typecheck, scoped lint, control migrations 0012–0013 และ authenticated public Reviews & audit ผ่าน. รอบนี้ไม่ส่งอีเมลจริงและไม่สร้างคำเชิญใน Acme; live Resend, independent multi-session invite→approve→activate, account recovery และ company business acceptance ยังเป็น gate แยก.
+
+## Release 1 Identity & Access — durable account recovery (2026-09-21)
+
+การขอเปลี่ยนรหัสผ่านไม่เปิดเผยว่ามีบัญชีหรือไม่ และสร้าง delivery job ที่เก็บ reset URL แบบ AES-256-GCM แทน plaintext. คำขอใหม่ยกเลิกลิงก์และงานส่งเดิมทันที; worker ใช้ lease recovery, provider idempotency, exponential retry สูงสุดหกครั้ง และเก็บ provider/error evidence โดยไม่เขียน token ลง event หรือ log. ลิงก์หมดอายุในหนึ่งชั่วโมง และเมื่อเปลี่ยนรหัสผ่านสำเร็จ ระบบยกเลิก session ทุกเครื่องพร้อม immutable completion event โดยมี fail-safe session deletion หาก audit เขียนไม่ได้.
+
+[Automated and public-browser evidence](evidence/2026-09-21-account-recovery.txt) ครอบ recovery, Better Auth, invitation, IAM, User Management และ active work context 6 files/51 tests พร้อม Playwright ตรวจ invalid/superseded link UI. Typecheck, scoped lint และ control migration 0014 ผ่าน. Public page แสดงเหตุผลแบบไม่เปิดเผยข้อมูลบัญชีและลิงก์ขอใหม่โดยไม่มีช่องรหัสผ่าน. ยังไม่ส่งผ่าน live Resend, ไม่ทำ public multi-session reset จริง และยังไม่มี company business acceptance.
+
+## Release 1 Identity & Access — access-review due escalation (2026-09-21)
+
+Scheduled worker แจ้งผู้มีสิทธิ์ `iam.review` ระดับบริษัทก่อน campaign ครบกำหนดเจ็ดวัน และแจ้งอีกครั้งเมื่อ overdue. ผู้รับคำนวณจาก assignment chain, role revision และ principal ปัจจุบันทุกครั้ง; การรันซ้ำไม่สร้างข้อความซ้ำ และเมื่อถอนสิทธิ์แล้ว notification เดิมจะไม่ผ่านการตรวจ visibility ใน Inbox. ลิงก์พากลับ Reviews & audit พร้อม campaign anchor และหน้า campaign แสดงสถานะ overdue จากเวลาปัจจุบัน.
+
+[Automated and public UI evidence](evidence/2026-09-21-iam-access-review-alerts.txt) ครอบ IAM, inventory notification regression, active work context และ User Management 4 files/47 tests พร้อม rerun IAM 22 tests หลังยืนยัน canonical public route. Typecheck และ scoped lint ผ่าน. Public authenticated Reviews & audit แสดง campaign form, due date, independent-review guidance และ empty state จริงโดยไม่สร้าง campaign ใน Acme. ยังเหลือ independent two-session public campaign transaction และ company business acceptance.
+
+## Release 1 Home / Work — staff-task reminders and overdue escalation (2026-09-22)
+
+งาน Staff task ที่ยังไม่เสร็จจะถูก sweep จาก scheduled worker ก่อนครบกำหนด 24 ชั่วโมง และเมื่อเลยกำหนดจะสร้าง escalation ถึงผู้รับผิดชอบ ผู้สร้าง และเจ้าของ project. ถ้ามี approval ที่กำลังรออยู่ ผู้อนุมัติคนนั้นได้รับ alert ด้วย. Notification ผูกกับ task version และ phase ทำให้ retry ไม่สร้างซ้ำ; ตอนเปิดจาก Inbox ระบบเรียก `getTask` เพื่อตรวจ scope และ authorization ปัจจุบันอีกครั้ง จึงไม่เปิดงานให้ผู้ที่ถูกถอนสิทธิ์.
+
+[Automated evidence](evidence/2026-09-22-staff-task-alerts.txt) ผ่าน 1 file/2 tests ครอบ due-soon, overdue, owner escalation และ retry deduplication. Delegation ที่มี expiry มีหลักฐานแยกในหัวข้อถัดไป; policy-owned queue administration, resolution summaries, production scheduler และ multi-role browser/business acceptance ยังเหลือ.
+
+## Release 1 Finance — recurring accrual schedules (2026-09-22)
+
+Finance สร้าง draft schedule แบบรายเดือน/ไตรมาส/ปีได้ โดยตรวจ chart of accounts เดียวกัน, สกุลเงิน, วันเริ่ม–สิ้นสุด และยอดรวมก่อนบันทึก. ผู้อนุมัติที่ไม่ใช่ผู้สร้างต้อง approve ก่อนระบบจะเตรียมงวดถัดไป; การเตรียมสร้าง draft journal ที่สมดุลพร้อม source hash, period snapshot และ run event. การ post ตรวจ journal/period/schedule version และผู้อนุมัติปัจจุบันอีกครั้ง จากนั้นเลื่อน cursor งวดและปิด schedule เมื่อครบงวด. การยกเลิก, stale edit, duplicate prepare และ event แก้ย้อนหลังถูกกั้นด้วย version/idempotency/immutable history.
+
+[Automated evidence](evidence/2026-09-22-finance-accrual-schedules.txt) ครอบ Finance accrual กับ Payroll regression 2 files/5 tests และ migration 0262 ที่ใช้จริงบนฐาน dev h001/h002. Local และ public health เป็น 200. หน้า public Finance Engines รอบนี้ redirect ไป sign-in เพราะ session เดิมหมดอายุ จึงยังไม่มี authenticated browser transaction และไม่ยกระดับเป็น business acceptance; live bank/provider, two-role schedule→post browser journey และ production Finance sign-off ยังคงเป็น gate แยก.
+
+## Release 1 People & Payroll — controlled post-approval correction (2026-09-21)
+
+Payroll preview ที่อนุมัติแล้วมี correction request แบบ maker-checker แล้ว. คำขอจับ run version, calculation revision, input digest, totals และเหตุผลเป็นหลักฐาน ผู้ขออนุมัติงานตัวเองไม่ได้ ผู้อนุมัติระดับ Company อีกคนต้องตัดสินพร้อมเหตุผล และระบบตรวจ source evidence ซ้ำก่อน commit. เมื่ออนุมัติ run กลับเป็น `calculating`, เพิ่ม version และต้องคำนวณ/อนุมัติใหม่ ขณะที่ review export รุ่นเดิมยังอ่านและตรวจ checksum ได้. Request/decision รองรับ idempotency, optimistic version, immutable events และ Inbox link ที่ตรวจ authority ปัจจุบันอีกครั้ง.
+
+[Automated, build และ public UI evidence](evidence/2026-09-21-payroll-controlled-corrections.txt) ครอบ core calculation, independent decision, self-review denial, notification target, recalculation revision, retained export และ immutable history. เพิ่ม final-pay preparation จาก retirement clearance แล้ว: ตรวจ task owner/version, pay group/currency, last working day, สร้าง `final_pay` run ที่ scope เฉพาะคน และป้องกันการเตรียมซ้ำ. เพิ่ม Payroll Advance: ผู้ขอส่งคำขอ, ผู้อนุมัติคนอื่นตัดสิน, สร้างตารางหัก 1–24 งวด, รวมงวดที่ถึงกำหนดใน payroll input snapshot และป้องกัน event ลบ/แก้ไข. หน้ารายละเอียด approved run บน public dev แสดง Reviewed corrections, source-evidence form, next action และ calculation totals โดยไม่เขียน Acme data. Country packs/statutory adapters, multi-role browser transaction และ company business acceptance ยังเหลือ จึงไม่ถือว่า Payroll พร้อม production ทั้งโดเมน.
+
+## Release 1 Home / Work — task delegation with expiry (2026-09-22)
+
+ผู้สร้างหรือเจ้าของ project มอบหมาย task ที่ยังไม่จบให้ active staff ได้หนึ่งคน โดยต้องระบุเหตุผลและวันหมดอายุไม่เกิน 90 วัน. ระบบเพิ่ม task version และเขียน delegation, audit event, outbox และ notification ใน command เดียว; Flow เปลี่ยนผู้รับผิดชอบชั่วคราวให้ผู้รับมอบหมายทำ start/save-progress/complete และแนบหลักฐานได้. Revoke ใช้ version guard และ idempotency receipt เดิม ส่วน expiry จะตัด visibility/action access และคืน work ownership ให้ assignee เดิมโดยไม่ลบประวัติ.
+
+[Automated evidence](evidence/2026-09-22-staff-task-delegation.txt) ผ่าน staff-work 25 tests และ regression staff-work + staff-task-alerts 27 tests. Migration 0263 ถูก apply ใน dev h001/h002, typecheck และ scoped lint ผ่าน. ยังไม่ปิด queue policy administration, resolution summaries, production scheduler หรือ multi-role browser/business acceptance; public session เดิมหมดอายุจึงไม่ได้อ้าง browser transaction.
+
+## Release 1 Platform Administration — live operations visibility (2026-09-22)
+
+Platform overview เปลี่ยนจาก sample preview เป็นข้อมูลจริงแบบ live จาก control plane และ Holding ที่ active. Platform role ที่ผ่าน `requirePlatformContext` เห็น heartbeat ของ control services, จำนวน outbox ที่รอ, กำลังถูก lease, dead-letter และ event เก่าที่สุดของแต่ละ Holding; ถ้าฐานใดอ่านไม่ได้จะแสดง `unavailable` แยกโดยไม่ซ่อน Holding อื่น. API `/api/v1/platform/operations` ใช้ private no-store response และหน้าเดียวกันใช้ summary owner เดียวกัน จึงไม่เปิดสิทธิ์ customer data เพิ่ม. Platform administrator กู้ dead-letter ได้ทีละงานจากหน้าเดียว โดยต้องระบุเหตุผล, expected attempts/error และ idempotency key; ระบบล้าง lease/error, คืนงานเข้าคิวด้วย transaction เดียวใน Holding พร้อม command receipt และ audit event. Auditor ยังเป็น read-only และ stale snapshot ถูกปฏิเสธ.
+
+[Automated evidence](evidence/2026-09-22-platform-operations-dashboard.txt) ผ่าน 4 tests, typecheck และ scoped lint. Provisioning, migration, temporary-access commands, public multi-role browser และ production RPO/RTO acceptance ยังเหลือ; browser session เดิมหมดอายุ.
+
+## Release 2 Customer 360 — Field Service and Finance source state (2026-09-22)
+
+Customer timeline เชื่อม owner records เพิ่มสองแหล่ง: Field Service agreement events และสถานะล่าสุดของ Finance invoice. Directory และ detail จะรวมลูกค้าที่มีแหล่งดังกล่าวตาม Company/Branch/Department scope; Field Service ต้องมีโมดูล `field_service` และ Finance ต้องมี `finance.read`. Projection ส่งเฉพาะ id, title, status, version, time และ source link จึงไม่คัดลอกเหตุผล/ต้นทุน/ข้อมูลลับ และต้นทางยังตรวจสิทธิ์ซ้ำเมื่อเปิดรายละเอียด.
+
+[Automated evidence](evidence/2026-09-22-customer-timeline-field-service-finance.txt) ผ่าน customer timeline 5 tests รวม scope, source links, privacy และ permission gates. Timeline เชื่อม Legal order-linked records เพิ่มแล้ว โดยเคารพ legal.read กับ internal/membership classification. Portal/customer authority, invoice transition history, external integrations และ multi-role/browser/business acceptance ยังเหลือ.
+
+## Release 2 — Field Service → Finance invoice handoff (2026-09-22)
+
+Independent billing release จาก service order ที่ completed แล้วสร้าง immutable billing obligation และ draft receivable invoice ใน Finance ใน transaction เดียว. Invoice ผูก `source_type=field_service` กับ service order, customer, currency, amount, receivable control account และ revenue account; command ใช้ idempotency/version/audit เดิมของ Field Service และปฏิเสธการ release หาก Finance account setup ไม่ครบ. Finance reviewer ยังต้อง post และดำเนิน collection ตาม workflow แยก.
+
+[Automated evidence](evidence/2026-09-22-field-service-finance-handoff.txt) ผ่าน `tests/field-service.test.ts` 4 tests รวม invoice linkage และ account mapping. Warranty/chargeable policy, posting/collection, browser และ business acceptance ยังเหลือ.
+
+## Release 1 Procurement / Finance — one supplier invoice across multiple POs (2026-09-22)
+
+Supplier invoice matching now supports one reviewed invoice covering posted goods receipts from multiple purchase orders. Capture loads each source order through the existing authorization path, requires the same supplier, currency, branch and department, checks every receipt version and posted goods GL, and matches every selected receipt line exactly once. The AP handoff prepares one payable invoice from the consolidated totals and links every selected receipt to that invoice; correction and posting guards continue to release or settle all linked receipts atomically.
+
+Finance can start this workflow from the real Supplier invoice reviews page. The capture form lists eligible posted receipts across purchase orders, keeps incompatible supplier/scope rows disabled, and shows PO and receipt references in the review detail. The existing order page remains available for one-order matching.
+
+[Automated evidence](evidence/2026-09-22-consolidated-supplier-invoice-cross-po.txt) passed `tests/supplier-bill-matching.test.ts` and `tests/purchase-to-payment.test.ts` (10 tests). Independent browser business acceptance, live provider, statutory and production backup/restore gates remain separate.
+
+## Release 1 Procurement / Finance — consolidated bill browser acceptance (2026-09-22)
+
+The resettable browser demo now exercises the same cross-PO path through the actual Finance workspace. Eight role contexts complete the ten-unit request, split 6 + 4 RFQs/POs, receipts and goods GL posting. Finance selects both receipts on Supplier invoice reviews, captures one consolidated supplier invoice, obtains independent review, prepares/posts one THB 250,000 AP invoice, exports one supplier instruction, imports one exact sandbox bank debit and confirms the invoice as paid with zero outstanding. The demo run is destroyed after the test.
+
+[Browser evidence](evidence/2026-09-22-purchase-request-consolidated-purchase-to-payment-browser-acceptance.txt) passed 1/1 in run `7dec41784873`. Live providers, statutory controls, production operation, backup/restore certification and company business sign-off remain separate gates.
+
+## Release 1 Sales / Finance — Sales to Collection browser acceptance (2026-09-22)
+
+The resettable browser demo now exercises the connected Sales-to-Collection path through the actual workspace. Independent Sales operator, Sales manager, warehouse, Finance preparer/approver, and Treasury contexts submit and approve a quotation, convert and approve the order, retain valid PDF proof of delivery, post the goods-movement GL, prepare and post the customer invoice, and record the receipt. After reload the invoice is paid with THB 0.00 outstanding, and the delivery evidence remains on the order timeline.
+
+[Browser evidence](evidence/2026-09-22-sales-to-collection-browser-acceptance.txt) passed 1/1 in isolated demo run `7216c4a30af1`. Live payment/email providers, statutory controls, production operation, and company business sign-off remain separate gates; the return/refund continuation is recorded in the next section.
+
+## Release 1 Sales / Finance — customer return and controlled refund browser acceptance (2026-09-22)
+
+The resettable browser demo now continues the accepted sale through return and refund. Independent Sales operator, Sales manager, Warehouse manager, Finance preparer/approver, Treasury, and Holding owner contexts submit and approve a customer return, post the stock-reversal and credit-note GL journals, approve the refund obligation, export the refund instruction, match the exact sandbox bank transaction, and settle the refund with zero outstanding. Return evidence and the refund bank match remain linked to the same order history.
+
+[Browser evidence](evidence/2026-09-22-sales-return-refund-browser-acceptance.txt) passed 1/1 in isolated demo run `fd43f46711e7`. This is simulation evidence only; live payment/bank providers, statutory controls, quality release or scrap disposition, production operation, exception/retry acceptance, and company business sign-off remain separate gates.
+
+## Release 1 Organization — guided readiness checklist (2026-09-22)
+
+หน้า Organization แสดง readiness checklist จากข้อมูลจริงของบริษัท โดยแยกสถานะพร้อมใช้งานกับรายการที่ต้องเตรียม พร้อมระบุ owner, เหตุผล และลิงก์ไปยังหน้าตั้งค่าที่แก้ได้ ครอบคลุม staff levels, branch/department structure, CEO/reporting anchor, staff profiles และ approval coverage ทำให้ผู้ดูแลเห็นจุดที่บล็อก workflow ก่อนเปิดใช้งานและรู้ว่าต้องส่งต่อให้ใคร
+
+[Automated and authenticated public-browser evidence](evidence/2026-09-22-organization-readiness-checklist.txt) ผ่าน organization และ organization-chart 17 tests, typecheck, scoped lint และ diff check. Public Acme workspace แสดง 3 รายการพร้อม และ 2 รายการต้องเตรียม (7 staff profiles และ 4 reporting teams) โดยไม่ได้แก้ข้อมูลบริษัท. Independent multi-role transaction, external-provider validation และ company business acceptance ยังเป็น gate แยก.
+
+## Release 1 Finance — opening-balance browser handoff (2026-09-22)
+
+Finance opening balances เลื่อนจาก `Implemented` เป็น `Flow accepted` หลังทดสอบผ่าน demo browser แบบ isolated จริง: Finance preparer เลือก chart, กรอกยอด THB ที่สมดุล, preview reconciliation และสร้าง draft opening journal; Finance approver คนละบัญชีเปิด journal ที่บันทึกแล้ว อนุมัติและ post จากหน้า Finance จริง จากนั้น API ยืนยัน `source_type=opening_import` และการรันถูกทำลายหลังจบเพื่อกันข้อมูลรั่วไปยังบริษัทจริง
+
+[Browser evidence](evidence/2026-09-22-finance-opening-balance-browser-acceptance.txt) ผ่าน 1/1 test ใน run `4a8543f96719`. Opening-balance settlement, live/provider validation, production operation, backup/restore และ company business sign-off ยังคงเป็น gate แยก.
+
+## Release 1 Finance — opening-balance settlement integrity (2026-09-22)
+
+ระหว่างทดสอบ settlement พบและแก้ bug ใน `importOpeningTrialBalance`: invoice ของ opening subledger ไม่ได้บันทึก `base_total_minor` และ `base_outstanding_minor` ทำให้การรับชำระ THB เดียวกันอาจถูกคำนวณเป็น realized FX gain. ระบบบันทึก functional balances ตั้งแต่ import แล้ว และ regression ยืนยันว่า Treasury รับชำระจน invoice เป็น paid, ยอดคงเหลือเป็นศูนย์ และการ reverse opening journal หลัง settlement ถูกปฏิเสธด้วย `OPENING_SUBLEDGER_SETTLED` เพื่อรักษาประวัติและยอดบัญชีต้นทาง
+
+[Automated evidence](evidence/2026-09-22-finance-opening-settlement.txt) ผ่าน `tests/finance-opening-balances.test.ts` 6 tests. Live bank/provider, production operation, backup/restore และ company business sign-off ยังคงเป็น gate แยก.
+
+## Release 1 Inventory — browser accepted staged transfer (2026-09-22)
+
+Inventory Issues & movements now has a real Demo Company browser acceptance run in addition to the owner-service regression. Separate source and receiving warehouse-manager accounts created a 3-unit staged transfer, submitted it, approved it independently, recorded dispatch evidence, received one unit, reloaded the record, and received the remaining two units. The completed transport detail reconciled to 3 received units and no loss; the downstream stock projection showed 3 units and THB 10.00 at the receiving warehouse. The isolated run and its databases were destroyed after verification. [Browser evidence](evidence/2026-09-22-inventory-transit-browser.txt) and [ledger record](../status/business-acceptance-evidence.json) are retained. Intercompany documents, customer proof of delivery, provider/production operation and company business acceptance remain separate gates.
+
+## Release 1 Finance — receivables and payables aging browser acceptance (2026-09-22)
+
+The Finance invoice workspace now presents live aging summaries for both receivables and payables. Each summary groups open posted documents by overdue bucket, keeps amounts separate by currency, shows document count and oldest due date, and links directly to the filtered queue. An authenticated Demo Company browser check matched the receivable summary to the protected `aging` API response (current THB 300.00) and rendered the payable summary (two current THB 325.00 documents). [Browser evidence](evidence/2026-09-22-finance-aging-browser.txt) and [ledger record](../status/business-acceptance-evidence.json) are retained. Exact AR/AP-to-control reconciliation, schedules, provider/production operation, and company business acceptance remain separate gates.
+
+## Capability register reconciliation — three Release 1 flows promoted to Flow accepted (2026-09-22)
+
+The capability register now reflects existing acceptance evidence instead of leaving three completed internal journeys at `Implemented`. `finance/feature-receivables-aging` is backed by opening-balance, FX settlement/revaluation, Sales-to-Collection, and the authenticated aging workspace/API checks. `procurement/requisitions` is backed by the independent source-linked 6 + 4 purchase browser journey, consolidated cross-PO invoice/payment browser evidence, and owner concurrency tests. `procurement/feature-supplier-history` is backed by immutable commitment, replacement/withdrawal, partial-receipt owner tests and the four-account browser journey. Their remaining live-provider, statutory, production-operation and company business gates stay explicit; no capability was promoted based on mockup-only evidence.
+
+## Release 1 Finance — reports linked to supporting ledger entries (2026-09-22)
+
+Finance Reports now makes the report-to-source handoff explicit. Statement cards and the trial balance link to the selected chart’s Accounting journal workspace while preserving the chart identifier, so a reviewer can move from a total to the supporting posted entries without losing the reporting boundary. An authenticated Acme browser observation rendered live USD totals and verified the links on the public development hostname. [Browser evidence](evidence/2026-09-22-finance-reports-linked-ledger-browser.txt) and [ledger record](../status/business-acceptance-evidence.json) are retained. Full report reconciliation, close approval, provider/production operation and company business acceptance remain separate gates.
+
+## Release 1 Platform Administration — backup and recovery flow accepted (2026-09-22)
+
+The capability register now reflects the existing operational recovery evidence. The macOS operator backup/restore flow passed isolated PostgreSQL 18 rehearsals for database dumps, private files, application secret, retained credentials, release selection, automatic pre-restore safety backup and checksum fail-closed behavior. A source-linked Holding restore also verified table digests, stock reservations and application invariants without reposting transactions. `platform_administration/feature-backup-recovery` and `feature-infrastructure` are now `Flow accepted`; off-machine durability, WAL/PITR, live restart, every production database and signed RPO/RTO remain explicit gates. The focused regression passed 3 files / 3 tests in this run. [This rerun evidence](evidence/2026-09-22-backup-restore-regression.txt) and the existing [backup evidence](evidence/2026-09-21-backup-restore-operations.txt) remain retained.
+
+## Release 1 Finance — usable chart-of-accounts setup controls (2026-09-22)
+
+Finance setup now exposes the existing chart and account owner APIs through the real workspace for authorized Finance users. A user can create a reporting chart, add a posting or control account, inspect the selected chart’s account table, preview a CSV import with row-level validation before submitting an idempotent upsert, and activate or deactivate an account with a reason and expected-version guard. The selected chart remains in the setup URL after creation, while account creation, status changes and import refresh the connected opening-balance workspace. The isolated Demo browser journey exercised all three mutations against the protected APIs without changing Acme data, so `finance/feature-chart-of-accounts` is now `Flow accepted`. [Browser evidence](evidence/2026-09-22-finance-chart-setup-browser.txt) and [ledger record](../status/business-acceptance-evidence.json) are retained. Full chart migration, opening/subledger reconciliation, period close, provider/statutory setup, production operation and Company business acceptance remain separate gates.
+
+## Release 1 Finance — Reports source-trace browser acceptance (2026-09-22)
+
+The Reports workspace now has an isolated Demo browser acceptance for the complete read path: protected statements and trial-balance responses are checked for the selected chart, the rendered trial-balance row count matches the API, and every statement total links to Accounting with the same chart and journal-entry anchor. The run used the real Finance approver interface and was destroyed after verification. [Browser evidence](evidence/2026-09-22-finance-reports-browser.txt) and [ledger record](../status/business-acceptance-evidence.json) are retained. Period-close evidence, notes, consolidation, provider/statutory operation, production controls and Company business acceptance remain separate gates.
+
+## Release 1 Collaboration — record-linked action-card browser acceptance (2026-09-22)
+
+The real Cross-record collaboration workspace now has an isolated two-role Demo journey for a source-linked next action. A Holding owner creates an action card against the Demo Sales quotation and assigns it to a separate employee account; after reload, that employee sees the same card, records completion evidence, and completes it through the owner-only action path. The command keeps the existing source version, authorization and idempotency guards. [Browser evidence](evidence/2026-09-22-collaboration-action-card-browser.txt) and [ledger record](../status/business-acceptance-evidence.json) are retained. More source adapters, Calendar linkage, retention/export, provider/production operation and Company business acceptance remain separate gates.
+
+## Release 1 Collaboration — record relation browser acceptance (2026-09-22)
+
+The Cross-record collaboration workspace now has an isolated Demo journey for a real cross-department backlink. A Holding owner creates a Support case from the Demo Sales quotation, assigns it to the Support agent account, links the quotation to the case as a typed `related` relation, reloads the relation so both source and target remain visible, and removes it with correction evidence. The journey uses the existing source-version, authorization, idempotency and immutable-history controls. [Browser evidence](evidence/2026-09-22-collaboration-record-relations-browser.txt) and [ledger record](../status/business-acceptance-evidence.json) are retained. Additional source adapters, relation graph views, retention/export, provider/production operation and Company business acceptance remain separate gates.
+
+## Release 1 Collaboration — threads and mentions browser acceptance (2026-09-22)
+
+The real Home workspace now has an isolated two-role Demo journey for persisted team conversation. A Holding owner publishes an update mentioning the Support agent; an employee account sees it after reload, replies, toggles Thanks and follows the conversation, then reloads and still sees the reply and both states. The run exercises the existing feed APIs and person-mention resolver through the actual interface. [Browser evidence](evidence/2026-09-22-collaboration-social-browser.txt) and [ledger record](../status/business-acceptance-evidence.json) are retained. Record/agent mention adapters, retention/export, provider/production operation and Company business acceptance remain separate gates.
+
+## Release 1 People & Payroll — payroll preview and independent approval (2026-09-22)
+
+The Demo Company now starts with a monthly THB pay group, an active pay-group engagement and separate Payroll preparer/approver assignments. The real People → Payroll interface creates a run, calculates a gross-pay preview with live totals, routes the pending review through the workflow-responsibility page, and lets a different Payroll approver approve it; the preparer sees the approved run after reload. This is global payroll-core evidence only, so statutory country packs, GL/payment posting, provider/production operation and Company business acceptance remain separate gates. [Browser evidence](evidence/2026-09-22-payroll-runs-browser.txt) and [ledger record](../status/business-acceptance-evidence.json) are retained.
+
+## Release 1 Collaboration — conversation attachment browser acceptance (2026-09-22)
+
+The real Inbox now has an isolated two-role Demo journey for protected conversation files. A Holding owner creates a direct chat with the Support agent, sends a CSV attachment, and the employee opens the same conversation, downloads the protected bytes and still sees the file after reload. The owner-service regression remains the source for draft isolation, one-time binding and membership revocation; this browser run verifies the actual upload/send/read path. [Browser evidence](evidence/2026-09-22-collaboration-attachments-browser.txt) and [ledger record](../status/business-acceptance-evidence.json) are retained. Retention/export, legal hold, provider/production operation and Company business acceptance remain separate gates.
+
+## Release 1 Operations — delegation handback and retained history (2026-09-22)
+
+Temporary task delegation now retains the operator's reason for revocation and exposes authorized history with participants, dates and active/expired/revoked status. Earlier revocations without stored reasons are labelled explicitly; revoked evidence is immutable. An isolated four-account browser journey verifies delegation, partial progress, revocation, immediate loss of the delegate's read access, accountable handback and independent completion approval, including reload persistence. The service regression passes 27 tests with expiry, stale-version rollback, retry deduplication and unauthorized history access. The resettable Demo guide includes role-specific steps. [Evidence](evidence/2026-09-22-task-delegation-history.txt) and [scoped records](evidence/2026-09-22-support-and-delegation-history-browser-records.json) are retained. General queue policies, exception/resolution summaries, production scheduling and Company business acceptance remain.
+
+## Existing Support flow — correction and confirmation browser coverage (2026-09-22)
+
+The isolated Demo now exercises source-linked case creation, acceptance, waiting/resume, proposed resolution, independent return for correction, a second resolution, staff-recorded customer contact, independent confirmation, reopen and cancellation. Contact time accepts seconds so a note made after resolution in the same minute does not get truncated before the resolution. Browser reloads preserve contact evidence and the final version 10 history. [Evidence](evidence/2026-09-22-support-lifecycle-browser.txt) is partial browser acceptance of the existing flow; Portal replies, email, first-response SLA, incident/postmortem evidence, Field Service fulfillment and business acceptance remain separate. The combined Support/delegation browser run passed both scenarios and its isolated run was destroyed. Public read-only checks confirmed Support/contact screens and the authorized Work empty state; this session has no visible task detail records.
+
+## Release 1 Organization — reviewed setup through the real interface (2026-09-22)
+
+Branch/department proposal forms now retain which submit button was used; the previous FormData construction sent Save draft and Submit for review to an unsupported route. Company administrators can now search and paginate open, applied and cancelled requests, inspect named immutable decision history, and retry failed commands without losing inputs. The read surface and command guard require Company authority in the Company workspace; linked accounts cannot self-review.
+
+Independent Demo owner/HR accounts passed draft, submit, rejection, correction, approval, rename, department creation, blocked branch suspension, cancellation, dependency-ordered suspension and reactivation on desktop and mobile. The protected ordinary employee view excludes Company review evidence. The owner-service regression passes 14 tests, including a 21-request pagination case, literal search, stale-version rollback and scoped/linked-account authorization. The Demo guide now includes an eight-step reviewed-organization-setup exercise. [Browser/service evidence](evidence/2026-09-22-organization-lifecycle-browser.txt) and [persisted records](evidence/2026-09-22-organization-lifecycle-browser-records.json) are retained. Public verification was read-only; initial Company provisioning, archive/relocation, Work/Inbox review routing and Company business sign-off remain. The shared mobile header's overlapping context text remains a UI gap even though the organization controls are operable.
+
+
+### 2026-09-22 — Organization Work/Inbox handoff
+
+เชื่อมคำขอเปลี่ยนองค์กรเข้าคิว Work ตามผู้ขอและผู้อนุมัติ พร้อมแจ้งเตือน submit, return, apply และ cancel ใน transaction เดียวกับ owner command. ลิงก์ changeId เปิดตรงคำขอและยังใช้ได้หลังเปลี่ยนสถานะหรือข้ามหน้ารายการ. Work, Inbox และหน้าหลักฐานตรวจ Company grant ปัจจุบัน รวม expiry/revocation และ linked-person self-review ที่ฐานข้อมูลอีกครั้ง.
+
+Service/guide regression ผ่าน 17 tests (47.84s); browser desktop/mobile ผ่าน 2 scenarios (1.0m) โดยเปิด review จาก Work และ correction จาก Inbox ก่อนทำ lifecycle เดิมจนครบ. เก็บ 16 requests, 38 immutable events และ 36 notices ใน `docs/testing/evidence/2026-09-22-organization-work-inbox-records.json`; รายละเอียดและข้อจำกัดอยู่ใน `2026-09-22-organization-work-inbox.txt`. Typecheck และ scoped ESLint ผ่าน. Public Work แสดงตัวกรองใหม่ผ่าน session จริง; local/public health HTTP 200. Goal Release 1–4 ยัง active และไม่ได้ยกระดับ Company/provider acceptance.
+
+งานถัดไป: แก้ shared mobile header ที่ข้อความทับกัน จากนั้นปิดช่องว่าง setup/provisioning และการเปลี่ยนองค์กรที่ยังค้างตาม inventory. งาน performance อยู่กับ task อื่น.
+
+### 2026-09-22 — Atomic Company provisioning receipt
+
+เส้นทางเริ่มต้น Company ใน beta onboarding ตอนนี้สร้างกราฟขั้นต่ำใน Holding transaction เดียว: Company, สาขา, แผนกเริ่มต้น, policy, numbered staff levels 1–6, CEO position และการวางเจ้าของเป็น CEO. `company_provisioning` เก็บสถานะและ version พร้อม immutable started/completed events และรายละเอียดจำนวนกราฟ. Control-plane จะเปิด binding เป็น active หลังอ่าน receipt ที่เป็น active เท่านั้น จึง retry หลัง control write ล้มเหลวได้โดยไม่สร้าง Company หรือ access ซ้ำ.
+
+`tests/social-beta.test.ts` ผ่าน 30 tests รวม injected write failure, isolated slots, waitlist, six levels, CEO placement, receipt events และ retry idempotency. เก็บหลักฐานไว้ที่ `evidence/2026-09-22-company-provisioning.txt`. งานนี้ปิดช่องว่าง initial provisioning ระดับ implementation/simulation; archive/relocation, Company business-owner, provider และ production acceptance ยังเป็น gate แยก. งาน performance ยังคงอยู่กับ task อื่น.
+
+
+### 2026-09-22 — Shared mobile header and Company context
+
+แก้ข้อความทับกันในหัว workspace โดยแยก breadcrumb ลงแถวที่สองบนหน้าจอไม่เกิน 1000px ขนาดปุ่มหลักอย่างน้อย 44×44 และ current page ย่อภายในพื้นที่ของตนเอง. Loading chooser ใช้ปุ่ม disabled ที่ขนาดสอดคล้องกัน. ระยะ focus/anchor ของ Organization ปรับตามความสูงหัวหน้า. แก้ชื่อ Company ใน Branch/Department context ให้ดึงบริษัทปัจจุบัน แทน fallback เป็นชื่อ Holding.
+
+`demo-workspace-header.spec.ts` ผ่าน desktop/mobile (2 tests, 14.1s) ทั้ง light/dark และ 9 widths รวม 36 ชุดตรวจ geometry/hit target พร้อมเส้นทาง Search, breadcrumb Escape, Branch→Company, HR→Treasury→reload→HR และลิงก์ตรงคิว. Typecheck/scoped ESLint/diff check ผ่าน. Public Organization ตรวจจริงที่ 320/393/768px; ไม่เปลี่ยนบทบาทหรือ workspace ของผู้ใช้. หลักฐานอยู่ใน `docs/testing/evidence/2026-09-22-workspace-header-browser.txt` และ `...-records.json`.
+
+แก้ข้อจำกัด shared header ที่รายงานไว้ในหลักฐาน Organization ก่อนหน้าแล้ว แต่ไม่ได้รับรอง responsive/accessibility ของทุกหน้า. เพิ่ม test นี้ใน `demo:verify:browser`. Goal Release 1–4 ยัง active; งานถัดไปคือ Company setup/provisioning และ safe organization changes ที่ยังค้างตาม capability inventory. งาน performance ยังคงอยู่กับ task อื่น.
+
+Public recheck พบ session database connection timeout หนึ่งครั้ง (reference 3914836991) ตรวจ log แล้วกด Try again ผ่าน UI กลับมาโหลด Organization และ desktop header ได้; ไม่แก้ performance/runtime configuration และไม่ถือว่า root cause ของ timeout ปิดแล้ว.
+
+### 2026-09-22 — Company setup acceptance
+
+เพิ่ม Company setup acceptance ในหน้า Business readiness และ API จริง. ระบบคำนวณ checklist จาก Company identity, active branch, numbered staff levels, CEO position และ staff placement; ถ้ายังไม่ครบจะบล็อกการส่งพร้อมเหตุผล. เมื่อครบ ผู้มีอำนาจ Company ส่งคำขอได้ ผู้มีอำนาจอีกคนต้อง Accept หรือ Return for correction และเจ้าของสามารถ Revoke ภายหลังได้. ทุก transition ใช้ idempotency, optimistic version, current Company authority, independent-person guard, audit/outbox และ immutable event history. สถานะที่ส่งแล้วแสดงต่อใน Work และ Inbox พร้อม deep link เดิม.
+
+`tests/organization.test.ts` ผ่าน 14 tests รวม blocker → submit → independent review → accept → revoke; typecheck และ scoped ESLint ผ่าน. `docs/testing/evidence/2026-09-22-company-business-acceptance.txt` เก็บผล service และ public readiness-page observation. งานนี้ปิดช่องว่าง Company business acceptance ของ Organization workflow ในระดับ implementation แต่ยังไม่ยกระดับ capability/provider/production gate และยังเหลือ initial provisioning กับ archive/relocation.
+
+### 2026-09-22 — Organization archive and relocation
+
+เพิ่ม action `archive` และ `relocate` เข้า reviewed organization workflow. Archive เก็บ node และ history ไว้ในสถานะ archived พร้อม reactivation ที่ผ่าน independent review และยังบล็อกถ้ามี child, staff, position, assignment หรือ warehouse ที่ใช้งานอยู่. Relocation ของ department รักษา route เดิมเป็น archived history แล้วสร้าง node ที่ destination branch ใน transaction เดียว พร้อมย้าย active engagements, employee placement, positions และ department-scoped assignments โดยไม่เขียนทับ route เก่า.
+
+`tests/organization.test.ts` ผ่าน 14 tests รวม relocation พร้อม dependency handoff, archive/reactivate, blocked suspension, optimistic version, independent review และ immutable history. เก็บหลักฐานที่ `evidence/2026-09-22-organization-archive-relocation.txt`. งานนี้ปิดช่องว่าง archive/relocation ระดับ implementation/simulation; business-owner, provider, production และ downstream policy gates ยังแยกจากกัน. งาน performance ยังคงอยู่กับ task อื่น.

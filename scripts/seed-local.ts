@@ -99,14 +99,17 @@ async function seedControl(db: Db) {
   const statements: SqlStatement[] = [];
   for (const [id, name, email, password] of people) {
     const hash = await hashPassword(password);
-    statements.push(db.prepare("INSERT INTO \"user\"(id,name,email,emailVerified,createdAt,updatedAt) VALUES(?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(id, name, email, 1, now, now));
-    statements.push(db.prepare("INSERT INTO account(id,accountId,providerId,issuer,userId,password,createdAt,updatedAt) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(`acc_${id}`, id, "credential", "local:credential", id, hash, now, now));
+    statements.push(db.prepare("INSERT INTO \"user\"(id,name,email,emailVerified,createdAt,updatedAt) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,email=excluded.email,emailVerified=excluded.emailVerified,updatedAt=excluded.updatedAt").bind(id, name, email, 1, now, now));
+    // Demo credentials are deterministic so a reset can always restore a usable
+    // account. Only the fixture's stable acc_<usr_*> rows are updated; real
+    // application accounts are never selected by this local seed.
+    statements.push(db.prepare("INSERT INTO account(id,accountId,providerId,issuer,userId,password,createdAt,updatedAt) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET password=excluded.password,updatedAt=excluded.updatedAt").bind(`acc_${id}`, id, "credential", "local:credential", id, hash, now, now));
     statements.push(db.prepare("INSERT INTO principals(id,user_id,display_name,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT DO NOTHING").bind(`pri_${id}`, id, name, "active", now));
     if (id === "usr_mali") statements.push(db.prepare("INSERT INTO platform_assignments(id,user_id,role,modules_json,valid_from,valid_until,version) VALUES(?,?,?,?,?,?,1) ON CONFLICT DO NOTHING").bind(`platform_${id}`, id, "platform_admin", allModules, now - 1_000, validUntil));
   }
   const devHash = await hashPassword(devSuperuser.password);
-  statements.push(db.prepare("INSERT INTO \"user\"(id,name,email,emailVerified,createdAt,updatedAt) VALUES(?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(devSuperuser.id, devSuperuser.name, devSuperuser.email, 1, now, now));
-  statements.push(db.prepare("INSERT INTO account(id,accountId,providerId,issuer,userId,password,createdAt,updatedAt) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(`acc_${devSuperuser.id}`, devSuperuser.id, "credential", "local:credential", devSuperuser.id, devHash, now, now));
+  statements.push(db.prepare("INSERT INTO \"user\"(id,name,email,emailVerified,createdAt,updatedAt) VALUES(?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET name=excluded.name,email=excluded.email,emailVerified=excluded.emailVerified,updatedAt=excluded.updatedAt").bind(devSuperuser.id, devSuperuser.name, devSuperuser.email, 1, now, now));
+  statements.push(db.prepare("INSERT INTO account(id,accountId,providerId,issuer,userId,password,createdAt,updatedAt) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET password=excluded.password,updatedAt=excluded.updatedAt").bind(`acc_${devSuperuser.id}`, devSuperuser.id, "credential", "local:credential", devSuperuser.id, devHash, now, now));
   statements.push(db.prepare("INSERT INTO principals(id,user_id,display_name,status,created_at) VALUES(?,?,?,?,?) ON CONFLICT DO NOTHING").bind(`pri_${devSuperuser.id}`, devSuperuser.id, devSuperuser.name, "active", now));
   statements.push(db.prepare("INSERT INTO platform_assignments(id,user_id,role,modules_json,valid_from,valid_until,version) VALUES(?,?,?,?,?,?,1) ON CONFLICT DO NOTHING").bind(`platform_${devSuperuser.id}`, devSuperuser.id, "platform_admin", allModules, now - 1_000, validUntil));
   statements.push(db.prepare("UPDATE platform_assignments SET role=?,modules_json=?,valid_from=?,valid_until=?,revoked_at=NULL WHERE id=? AND user_id=?").bind("platform_admin", allModules, now - 1_000, validUntil, `platform_${devSuperuser.id}`, devSuperuser.id));
@@ -260,12 +263,12 @@ function financeStatements(db: Db, holding: string) {
     // deterministic key so this richer reconciliation can reference it safely.
     const period = company.id === "acme-co" ? "period_2026_09" : `period-${company.id}-2026-09`;
     const accounts = [
-      ["1100", "Operating cash", "asset", 1], ["1200", "Trade receivables", "asset", 1], ["1300", "Inventory", "asset", 1], ["1500", "Equipment", "asset", 0],
-      ["2100", "Trade payables", "liability", 1], ["2200", "Tax payable", "liability", 1], ["3000", "Retained earnings", "equity", 0], ["4000", "Product revenue", "revenue", 0], ["5000", "Cost of sales", "expense", 0], ["5100", "Operating expenses", "expense", 0],
+      ["1100", "Operating cash", "asset", 1, "bank"], ["1200", "Trade receivables", "asset", 1, "receivable"], ["1300", "Inventory", "asset", 1, "none"], ["1500", "Equipment", "asset", 0, "none"],
+      ["2100", "Trade payables", "liability", 1, "payable"], ["2200", "Tax payable", "liability", 1, "none"], ["3000", "Retained earnings", "equity", 0, "none"], ["4000", "Product revenue", "revenue", 0, "none"], ["5000", "Cost of sales", "expense", 0, "none"], ["5100", "Operating expenses", "expense", 0, "none"],
     ] as const;
     statements.push(db.prepare("INSERT INTO finance_charts(id,company_id,name,base_currency,accounting_basis,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(chart, company.id, `${company.name} IFRS`, "USD", "IFRS", actor, now, now));
     statements.push(db.prepare("INSERT INTO finance_periods(id,company_id,name,start_date,end_date,state,created_at) VALUES(?,?,?,?,?,'open',?) ON CONFLICT DO NOTHING").bind(period, company.id, "September 2026", "2026-09-01", "2026-09-30", now));
-    for (const [code, name, category, control] of accounts) statements.push(db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,is_control,currency,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(`acct-${company.id}-${code}`, chart, company.id, code, name, category, control, currency, now, now));
+    for (const [code, name, category, control, controlKind] of accounts) statements.push(db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,is_control,control_kind,currency,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET is_control=excluded.is_control,control_kind=excluded.control_kind,updated_at=excluded.updated_at").bind(`acct-${company.id}-${code}`, chart, company.id, code, name, category, control, controlKind, currency, now, now));
     const cash = `acct-${company.id}-1100`, revenue = `acct-${company.id}-4000`, expense = `acct-${company.id}-5100`, ar = `acct-${company.id}-1200`, ap = `acct-${company.id}-2100`;
     const partyCustomer = company.id === "acme-co" ? "party_customer_demo" : `party-${company.id}-customer`;
     const partySupplier = company.id === "acme-co" ? "party_supplier_demo" : `party-${company.id}-supplier`;

@@ -1,0 +1,34 @@
+ERPX Release 1 Identity & Access — access-review due escalation
+Observed: 2026-09-21 Asia/Bangkok
+
+Implementation
+- src/server/iam-access-review-alerts.ts emits a durable reminder seven days before due and a separate overdue escalation.
+- Eligible recipients are recomputed from active company-level assignments, current role revisions containing iam.review, the complete assignment chain and current principal state.
+- Notification IDs bind campaign, due time, phase and recipient, so repeated scheduled runs are idempotent while due-soon and overdue remain separate events.
+- src/server/runtime/jobs.ts invokes escalation through the existing scheduled worker pulse.
+- src/server/staff-notifications.ts rechecks current authority before exposing the alert and links to the canonical Reviews & audit route with the campaign anchor.
+- Reviews & audit gives each campaign an anchor and renders open campaigns past their deadline as overdue.
+
+Automated verification
+$ bun run test -- tests/iam.test.ts tests/stock-reservations.test.ts tests/active-work-context.test.ts tests/user-management.test.ts
+Test Files 4 passed (4)
+Tests 47 passed (47)
+
+Focused behavior
+- Two current company reviewers receive one due-soon reminder each.
+- A repeated scheduled pass emits no duplicate.
+- The overdue phase creates one further alert only for the remaining authorized reviewer.
+- A reviewer whose assignment is revoked cannot read the earlier Inbox notification.
+- Immediate work-context revocation and existing inventory alert behavior remain green.
+- A focused IAM rerun after correcting the canonical notification URL passed 22 tests.
+
+Static and public UI verification
+- bun run typecheck: passed.
+- Scoped ESLint for the alert service, worker, Inbox authorization, campaign UI and IAM tests: passed with zero warnings.
+- Authenticated URL: https://erpx.jesadakorn.com/holdings/acme/people/settings?section=reviews
+- The live Acme page rendered Periodic access certification, due-date input, independent-review instructions and “No access certification campaigns yet.”
+- No synthetic campaign or notification was created in Acme during public observation.
+
+Limits
+- No complete independent two-session public browser campaign was performed.
+- No company business-owner or production acceptance.

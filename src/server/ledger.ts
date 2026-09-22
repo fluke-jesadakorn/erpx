@@ -19,6 +19,11 @@ export async function ledgerWorkspace(actor:WorkContext,chartId?:string,query?:{
     statements(actor,undefined,String(chart.id)),
   ]);return {charts:charts as LedgerRow[],chart:chart as LedgerRow,accounts:accounts.results,periods:periods.results,journals:journals.results,journalPage:journals.page,report};
 }
+export async function workJournalRows(actor: WorkContext) {
+  await listCharts(actor);
+  const { write } = await holdingResources(actor.holdingId);
+  return (await write.prepare("SELECT * FROM finance_journals WHERE company_id=? ORDER BY created_at DESC").bind(actor.companyId).all<LedgerRow>()).results;
+}
 export async function journalDetail(actor:WorkContext,id:string) {
   await listCharts(actor);const {write}=await holdingResources(actor.holdingId);const journal=await write.prepare("SELECT j.*,COALESCE((SELECT p.legal_name FROM hr_people p WHERE p.user_id=j.created_by AND p.company_id=j.company_id AND p.merged_into_id IS NULL LIMIT 1),'Unlinked account') created_by_name,COALESCE((SELECT p.legal_name FROM hr_people p WHERE p.user_id=j.posted_by AND p.company_id=j.company_id AND p.merged_into_id IS NULL LIMIT 1),'Unlinked account') posted_by_name FROM finance_journals j WHERE j.id=? AND j.company_id=?").bind(id,actor.companyId).first<LedgerRow>();if(!journal)throw new ApiError(404,"JOURNAL_NOT_FOUND","Journal not found.");
   const lines=await write.prepare("SELECT l.*,a.code,a.name FROM finance_journal_lines l JOIN finance_accounts a ON a.id=l.account_id WHERE l.journal_id=? ORDER BY l.ordinal").bind(id).all<LedgerRow>();return {journal,lines:lines.results};

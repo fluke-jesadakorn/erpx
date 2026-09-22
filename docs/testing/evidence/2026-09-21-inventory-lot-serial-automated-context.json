@@ -1,0 +1,24 @@
+{
+  "observedAt": "2026-09-21T15:04:30+07:00",
+  "repositoryHead": "b7a295104a0b5731b29454a82baec887967b7374",
+  "workingTree": "Modified development workspace; evidence applies to the uncommitted implementation present at observation time.",
+  "environment": "Disposable PostgreSQL test databases on loopback, created and removed by the guarded ERPX integration harness.",
+  "result": "4 files and 14 tests passed; typecheck passed; lint had zero errors and three pre-existing unrelated warnings; isolated release build passed at .runtime/releases/2026-09-21T08-00-39-762Z.",
+  "scope": [
+    "Lot and serial product master modes with a database lock after stock history exists.",
+    "Purchase receipt allocation to lots or one-unit serials, including duplicate serial rejection.",
+    "Immutable lot movements and fulfillment allocations.",
+    "Aggregate stock quantity and value reconciled to lot balance control totals.",
+    "Receipt-level quarantine, lot-specific Quality inspection and independent release.",
+    "Sales delivery rejects quarantined or insufficient lots and consumes released selected lots at their controlled value.",
+    "Existing whole-stock Quality and stock reservation behavior remains compatible.",
+    "Resettable Demo Company guide includes lot and serial product examples and a role-specific scenario."
+  ],
+  "notCovered": [
+    "Lot-aware warehouse transfers, physical counts, returns, Production and Field Service consumption",
+    "Landed-cost allocation and structured scrap/return disposition",
+    "Independent multi-role business acceptance",
+    "External provider or production acceptance"
+  ]
+}
+

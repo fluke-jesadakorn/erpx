@@ -1,0 +1,10 @@
+{
+  "kind": "isolated_postgres_restore",
+  "sourceId": "order-a1a04042-0c4d-4df9-a0c0-18b6d0f9041d",
+  "fulfillmentId": "delivery-f39399f4-9c83-471e-89a8-a075b116dd6b",
+  "tables": 477,
+  "archiveSha256": "897a2cdf58df87137b95cf31e4d2a1536ab49397f2766ad35da82035078ed5bc",
+  "tableDigestSha256": "63e302a709af616c775ca161083af6dc199b23855030c5e91d9663ab3d7d27a8",
+  "elapsedMs": 5609,
+  "scope": "Single holding database simulation; excludes files/control databases/WAL/provider recovery and production RPO/RTO sign-off"
+}

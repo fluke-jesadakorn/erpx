@@ -1,17 +1,14 @@
 import { BetaSettings } from "@/components/beta/settings";
 import { FeatureTabBar, FeaturePage, FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
-import { AccountInvitations } from "@/components/modules/account-invitations";
 import { AiProviders } from "@/components/modules/ai-providers";
 import { ApprovalAdministration } from "@/components/modules/approval-administration";
 import { BrandAdministration } from "@/components/modules/brand-administration";
 import { ServiceNavigation } from "@/components/modules/service-navigation";
 import { StaffSettingsControls } from "@/components/modules/staff-settings-controls";
 import { PageHeader } from "@/components/ui/primitives";
-import styles from "@/components/workplace/pages.module.css";
 import { RequestAdministration } from "@/components/workplace/request-administration";
 import { ServiceTeams } from "@/components/workplace/service-teams";
 import { adminSections,type AdminSection } from "@/lib/administration";
-import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
 import { administrationAccess } from "@/server/administration";
 import { aiProviderOverview } from "@/server/ai-providers";
@@ -105,8 +102,9 @@ export default async function Settings({
           {!actor.beta && (
             <p className="muted">
               To invite someone, open their profile and choose Invite to ERPX.
-              Activation links must be shared privately; this flow does not send
-              email.
+              An independent administrator approves the request before ERPX
+              sends the activation email. Delivery status and recovery actions
+              appear below.
             </p>
           )}
         </section></FeatureWidget>
@@ -118,11 +116,6 @@ export default async function Settings({
           data={await aiProviderOverview(write, actor, await runtimeEnv())}
         />
       )}
-      {section === "people" &&
-        !actor.beta &&
-        hasPermission(actor,"iam.roles.manage") && (
-          <AccountInvitations actor={actor} base={base} />
-        )}
       {section === "organization" && options && (
         <>
           <BrandAdministration

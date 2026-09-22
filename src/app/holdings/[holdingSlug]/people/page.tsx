@@ -1,7 +1,7 @@
 import { BetaPeople } from "@/components/beta/people-page";
 import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { MemberProfile } from "@/components/modules/member-profile";
-import { PayGroupEditor,PayrollRunEditor } from "@/components/modules/payroll-controls";
+import { PayGroupEditor,PayrollRunEditor,PayrollAdvanceConsole } from "@/components/modules/payroll-controls";
 import { PeopleNavigation } from "@/components/modules/people-navigation";
 import { PeopleDirectory } from "@/components/people/people-directory";
 import { ListPagination } from "@/components/ui/list-pagination";
@@ -22,6 +22,7 @@ import { peopleLifecycleData } from "@/server/people-lifecycle";
 import {
 payrollOptions,
 payrollRunsPage,
+payrollAdvancePage,
 getPerson,
 } from "@/server/people-payroll";
 import { holdingResources } from "@/server/runtime";
@@ -61,7 +62,8 @@ export default async function PeoplePage({
   if (actor.beta) return <BetaPeople actor={actor} member={search.member} />;
   const base = workspaceBase(publicScope(actor));
   const canPayroll = ["holding_owner","hr_admin","people_manager","payroll_preparer","payroll_approver","auditor"].includes(actor.role) && !actor.branchId && !actor.departmentId;
-  const payroll = search.view === "payroll" && canPayroll;
+  const canPayrollAdvance = hasPermission(actor,"self.requests");
+  const payroll = search.view === "payroll" && (canPayroll || canPayrollAdvance);
   const archived = search.status === "archived";
   const canManage = canManagePeople(actor);
   const editing = !payroll && canManage && (search.new === "person" || !!search.position);
@@ -69,7 +71,7 @@ export default async function PeoplePage({
   const canExplore = !payroll && ["people.read","people.manage"].some(p=>hasPermission(actor,p));
   const exploring = canExplore && search.display === "explorer";
   const { write } = await holdingResources(actor.holdingId);
-  const [directoryPage, runsPage, staffOptions, nodes, organization, lifecycle, selectedPersonData] = await Promise.all([
+  const [directoryPage, runsPage, advanceData, staffOptions, nodes, organization, lifecycle, selectedPersonData] = await Promise.all([
     !payroll ? peopleDirectoryPage(actor,{
       ...search,
       status: archived ? "archived" : "current",
@@ -77,7 +79,8 @@ export default async function PeoplePage({
       retirement: archived ? search["archived.retirement"] ?? search.retirement : search.retirement,
       cursor: archived ? search["archived.cursor"] ?? search.cursor : search.cursor,
     }) : null,
-    payroll ? payrollRunsPage(actor,search.cursor) : null,
+    payroll && canPayroll ? payrollRunsPage(actor,search.cursor) : null,
+    payroll ? payrollAdvancePage(actor).catch(() => ({items:[],options:[]})) : null,
     editing || editingSelectedPerson ? staffSettings(write,actor) : null,
     editing || editingSelectedPerson ? directoryOptions(actor) : [],
     editing || editingSelectedPerson ? organizationOverview(write,actor) : undefined,
@@ -94,7 +97,7 @@ export default async function PeoplePage({
         description="Manage people, positions, and employment changes. IT prepares their resources in Technology."
         action={!payroll && !editing && canManage ? <Link className="button" href={`${base}/people?new=person`}>Add person</Link> : undefined}
       />
-      <PeopleNavigation base={base} actor={actor} scopeKind={actor.scope.kind} active={payroll ? "payroll" : "directory"} canPayroll={canPayroll}/>
+      <PeopleNavigation base={base} actor={actor} scopeKind={actor.scope.kind} active={payroll ? "payroll" : "directory"} canPayroll={canPayroll || canPayrollAdvance}/>
       {!payroll && (
         <div className={directory.directory}>
           {selectedMember && !selectedMember.personId && (
@@ -160,8 +163,8 @@ export default async function PeoplePage({
                 base={base}
                 groups={await payrollOptions(actor)}
               /></FeatureWidget></>
-            )}
-          <FeatureWidget id="payroll-runs" title="Recent payroll runs"><section className="card" id="payroll-runs-content" style={{ marginTop: 24 }}>
+          )}
+          {canPayroll && <FeatureWidget id="payroll-runs" title="Recent payroll runs"><section className="card" id="payroll-runs-content" style={{ marginTop: 24 }}>
             <div className={styles.panelHead}>
               <h2>Recent payroll runs</h2>
               <span className="badge">{runs.length}</span>
@@ -193,7 +196,8 @@ export default async function PeoplePage({
               ))
             )}
             {runsPage&&<ListPagination {...runsPage} query={search} count={runs.length}/>}
-          </section></FeatureWidget>
+          </section></FeatureWidget>}
+          <PayrollAdvanceConsole base={base} data={advanceData ?? {items:[],options:[]}} userId={actor.userId} canPrepare={hasPermission(actor,"payroll.prepare")} canApprove={hasPermission(actor,"payroll.approve")}/>
         </WidgetGrid>
       )}
     </FeaturePage>

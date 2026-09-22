@@ -5,12 +5,13 @@ import { decodeJwt } from "jose";
 import { createAuthEndpoint, APIError } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
 import type { GenericOAuthConfig } from "better-auth/plugins/generic-oauth";
-import { routedConnection, synchronizeConnection } from "./iam-directories";
-import { directorySecret, verifyLdapPassword } from "./iam-providers";
+
+
 import { iamDb } from "./iam-db";
 import { runtimeEnv } from "./runtime";
 
 async function directoryUser(connectionId: string, externalId: string) {
+  const { routedConnection, synchronizeConnection } = await import("./iam-directories");
   const { db, connection } = await routedConnection(connectionId);
   if (connection.status !== "active")
     throw new APIError("FORBIDDEN", {
@@ -49,6 +50,8 @@ export function directoryAuthPlugin() {
             ctx.body.connectionId + ":" + ctx.body.username,
           );
           try {
+            const { routedConnection } = await import("./iam-directories");
+            const { verifyLdapPassword } = await import("./iam-providers");
             const { connection } = await routedConnection(
               ctx.body.connectionId,
             );
@@ -87,6 +90,8 @@ export function directoryAuthPlugin() {
 export async function directoryOidcConfig(
   id: string,
 ): Promise<GenericOAuthConfig> {
+  const { routedConnection } = await import("./iam-directories");
+  const { directorySecret } = await import("./iam-providers");
   const { connection } = await routedConnection(id);
   if (connection.status !== "active" || connection.config.mode !== "oidc")
     throw new APIError("FORBIDDEN", {

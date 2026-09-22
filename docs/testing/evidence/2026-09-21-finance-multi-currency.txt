@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/finance-generic-payments.test.ts tests/finance-close-reconciliation.test.ts tests/finance-payment-corrections.test.ts tests/supplier-payments.test.ts tests/purchase-to-payment.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  5 passed (5)
+      Tests  12 passed (12)
+   Start at  21:09:31
+   Duration  57.49s (transform 377ms, setup 122ms, import 591ms, tests 56.31s, environment 0ms)
+

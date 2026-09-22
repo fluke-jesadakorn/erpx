@@ -11,12 +11,12 @@ operationPermission,
 plusDays,
 pmsAccountKeys,
 records,
-visiblePmsSections,
 type DataMap,
 type Kind,
 type PmsRecord,
-} from "@/lib/pms";
-import { availability,dailyRoomReport,nightBlockers } from "@/lib/pms-engine";
+} from "@/lib/pms-model";
+import { availability } from "@/lib/pms-inventory";
+import { dailyRoomReport, nightBlockers } from "@/lib/pms-read";
 import { workFetch } from "@/lib/work-fetch";
 import type { PmsWorkspace } from "@/server/pms";
 import {
@@ -32,8 +32,9 @@ Wallet,
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect,useRef,useState,type ReactNode } from "react";
-import { BookingFlow } from "./booking-flow";
-import { BookingSettings } from "./booking-settings";
+import dynamic from "next/dynamic";
+const BookingFlow = dynamic(() => import("./booking-flow").then(module => module.BookingFlow));
+const BookingSettings = dynamic(() => import("./booking-settings").then(module => module.BookingSettings));
 import styles from "./workspace.module.css";
 
 type Option = { id: string; name: string };

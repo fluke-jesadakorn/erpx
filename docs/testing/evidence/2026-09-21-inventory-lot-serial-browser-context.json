@@ -1,0 +1,21 @@
+{
+  "observedAt": "2026-09-21T15:04:30+07:00",
+  "repositoryHead": "b7a295104a0b5731b29454a82baec887967b7374",
+  "workingTree": "Modified development workspace; evidence applies to the uncommitted implementation present at observation time.",
+  "sessions": [
+    {"origin": "http://127.0.0.1:3100", "projects": ["Desktop Chrome", "Pixel 7"], "result": "2 passed"},
+    {"origin": "https://erpx.jesadakorn.com", "projects": ["Desktop Chrome"], "result": "1 passed"}
+  ],
+  "scope": [
+    "Normal authenticated Product master creation with lot traceability.",
+    "Responsive stock-position table labels for on-hand, reserved, quarantined, in-transit and available quantities.",
+    "Quality hold selector includes product, lot or serial, and warehouse semantics.",
+    "Local desktop, local mobile and public-Tunnel desktop navigation rendered successfully."
+  ],
+  "notCovered": [
+    "Completing the receipt, independent inspection and delivery journey through several independent browser accounts",
+    "External provider integration",
+    "Production acceptance",
+    "Business sign-off"
+  ]
+}

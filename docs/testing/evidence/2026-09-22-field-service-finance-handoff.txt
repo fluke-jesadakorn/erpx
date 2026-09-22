@@ -1,0 +1,13 @@
+# Field Service → Finance invoice handoff — 2026-09-22
+
+## Automated evidence
+
+- `bun run test -- tests/field-service.test.ts` — 4 tests passed.
+- The owner flow completes agreement activation → Support ticket service order → dispatch/visit → customer confirmation → independent billing release.
+- Billing release now writes the immutable `field_service_billing_releases` obligation and a linked draft `finance_invoices` receivable in the same command transaction. The invoice carries `source_type=field_service`, `source_id=<service-order-id>`, the configured receivable control account, revenue account, currency and amount.
+- Missing or stale Finance account setup is rejected before the release. Command replay remains idempotent and the service order keeps its optimistic version and immutable event history.
+- Isolated deploy build passed: `.runtime/releases/2026-09-21T18-52-18-443Z`; `server.js` SHA-256 `8e90fed33d406df54f15b90b5f72e2d861c0c0ab752789b352f7144a7ce165fc`.
+
+## Remaining acceptance gates
+
+Finance posting, collection, warranty/chargeable policy, multi-role browser evidence and business acceptance remain separate gates. The invoice is intentionally draft until an independent Finance reviewer posts it.

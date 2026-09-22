@@ -1,0 +1,24 @@
+ERPX organization readiness checklist evidence
+Observed: 2026-09-22 (Asia/Bangkok)
+
+Change
+- The authenticated Organization workspace now renders a guided readiness checklist from live organization data.
+- Each check exposes its current state, responsible owner, explanation, and a setup link when action is needed.
+- The checklist covers staff levels, branch/department structure, an active CEO/reporting anchor, staff profiles ready for work, and approval coverage.
+
+Public browser observation
+- URL: https://erpx.jesadakorn.com/holdings/acme/people/organization
+- Authenticated Acme workspace loaded through the real public dev host.
+- The page showed 3 of 5 checks ready and 2 requiring preparation.
+- The outstanding checks identified 7 staff profiles needing work and 4 reporting teams needing approval coverage.
+- No company record was mutated during this observation.
+
+Automated verification
+- bun run test -- tests/organization.test.ts tests/organization-chart.test.ts (17 tests passed)
+- bun run typecheck (passed)
+- bunx eslint src/components/modules/organization-workspace.tsx (passed)
+- git diff --check (passed)
+
+Gate status
+- This is implementation and browser evidence for the Organization readiness capability.
+- Independent multi-role transaction, external provider validation, and company business acceptance remain separate gates.

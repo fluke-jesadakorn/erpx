@@ -238,6 +238,7 @@ export function ExpenseEditor({
             <label>
               Merchant
               <input
+                aria-label="Merchant"
                 maxLength={200}
                 value={fields.merchant}
                 onChange={(e) => change("merchant", e.target.value)}
@@ -246,7 +247,8 @@ export function ExpenseEditor({
             </label>
             <label>
               Receipt / supporting document number
-              <input
+                <input
+                aria-label="Receipt number"
                 maxLength={100}
                 value={fields.receiptReference}
                 onChange={(e) => change("receiptReference", e.target.value)}

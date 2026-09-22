@@ -22,8 +22,12 @@ import {
   saveProject,
   saveTask,
   taskActionSchema,
+  taskDelegationRevokeSchema,
+  taskDelegationSchema,
   taskDetail,
   taskSchema,
+  delegateTask,
+  revokeTaskDelegation,
   transitionTask,
 } from "./staff-tasks";
 import {
@@ -188,6 +192,22 @@ export function staffHandler(
             actor,
             p[0],
             taskActionSchema.parse(input),
+            key,
+          );
+        else if (resource === "staff-tasks" && p[1] === "delegate" && p[2] === "revoke")
+          data = await revokeTaskDelegation(
+            db,
+            actor,
+            p[0],
+            taskDelegationRevokeSchema.parse({ ...input, delegationId: p[3] }),
+            key,
+          );
+        else if (resource === "staff-tasks" && p[1] === "delegate")
+          data = await delegateTask(
+            db,
+            actor,
+            p[0],
+            taskDelegationSchema.parse(input),
             key,
           );
         else if (

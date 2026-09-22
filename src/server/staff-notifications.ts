@@ -39,6 +39,16 @@ async function visibleNotifications(db:SqlDatabase,actor:WorkContext,rows:Omit<S
   const visible: StaffNotification[] = [];
   for (const row of rows) {
     try {
+      if(row.record_type === "organization_change") {
+        const href=await (await import("./organization-work")).organizationChangeNotificationTarget(db,actor,row.record_id);
+        if(href)visible.push({...row,href});
+        continue;
+      }
+      if(row.record_type === "company_business_acceptance") {
+        const item=(await (await import("./company-business-acceptance")).companyBusinessAcceptanceWork(db,actor)).find(work=>work.id===row.record_id);
+        if(item)visible.push({...row,href:item.href});
+        continue;
+      }
       if(row.record_type === "customer_identity") {await (await import("./customer-identity-changes")).customerIdentityDetail(actor,row.record_id);visible.push({...row,href:`/customer-identity/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "customer_duplicate") {await (await import("./customer-duplicates")).customerDuplicateDetail(actor,row.record_id);visible.push({...row,href:`/customer-duplicates/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "customer_access") {await (await import("./customer-access")).customerAccessBinding(actor,row.record_id);visible.push({...row,href:`/customer-access/${encodeURIComponent(row.record_id)}`});continue;}
@@ -47,8 +57,28 @@ async function visibleNotifications(db:SqlDatabase,actor:WorkContext,rows:Omit<S
       if(row.record_type === "support_policy") {await (await import("./support-sla")).getSupportPolicy(actor,row.record_id);visible.push({...row,href:"/support/sla"});continue;}
       if(row.record_type === "support_ticket") {await (await import("./support")).getSupportTicket(actor,row.record_id);visible.push({...row,href:`/support/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "support_session") {await (await import("./support-sessions")).supportSessionDetail(actor,row.record_id);visible.push({...row,href:`/support/sessions/${encodeURIComponent(row.record_id)}`});continue;}
+      if(row.record_type === "iam_access_review") {
+        if(await (await import("./iam-access-review-alerts")).canReadAccessReviewAlert(db,actor.companyId,actor.userId,row.record_id))visible.push({...row,href:`/people/settings?section=reviews#${encodeURIComponent(row.record_id)}`});
+        continue;
+      }
+      if(row.record_type === "payroll_correction") {
+        const runId=await (await import("./people-payroll")).payrollCorrectionAlertTarget(db,actor.companyId,actor.userId,row.record_id);
+        if(runId)visible.push({...row,href:`/people/payroll/${encodeURIComponent(runId)}#correction-${encodeURIComponent(row.record_id)}`});
+        continue;
+      }
+      if(row.record_type === "payroll_advance") {
+        const advanceId=await (await import("./people-payroll")).payrollAdvanceAlertTarget(db,actor.companyId,actor.userId,row.record_id);
+        if(advanceId)visible.push({...row,href:`/people?view=payroll#payroll-advances`});
+        continue;
+      }
+      if(row.record_type === "staff_task_alert") {
+        await getTask(db, actor, row.record_id);
+        visible.push({...row,href:`/staff-tasks/${encodeURIComponent(row.record_id)}`});
+        continue;
+      }
       if(row.record_type === "maintenance_work") {await (await import("./asset-maintenance")).maintenanceDetail(actor,row.record_id);visible.push({...row,href:`/maintenance/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "field_service_order") {await (await import("./field-service")).fieldServiceDetail(actor,row.record_id);visible.push({...row,href:`/field-service/${encodeURIComponent(row.record_id)}`});continue;}
+      if(row.record_type === "commerce_order") {await (await import("./commerce")).getOrder(actor,row.record_id);visible.push({...row,href:`/commerce/orders/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "collaboration_action") {await (await import("./collaboration-work")).collaborationActionDetail(actor,row.record_id);visible.push({...row,href:"/collaboration"});continue;}
       if(row.record_type === "learning_assignment") {await (await import("./learning")).learningAssignmentDetail(actor,row.record_id);visible.push({...row,href:`/learning/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "benefit_election") {await (await import("./benefits")).benefitDetail(actor,row.record_id);visible.push({...row,href:`/benefits/${encodeURIComponent(row.record_id)}`});continue;}

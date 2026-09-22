@@ -1,0 +1,18 @@
+# ERPX consolidated purchase request → supplier payment browser acceptance
+
+- Disposable demo run: `7dec41784873`
+- Browser origin: `http://127.0.0.1:3102`
+- Command: `ERPX_DEMO_RUN=7dec41784873 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-purchase-request-rfq.spec.ts --project=desktop`
+- Result: 1 passed in 1.1 minutes
+
+## Verified workflow
+
+Eight independent role contexts completed the employee request, People Manager/Finance approvals, Purchasing allocation into two RFQs, two supplier awards, two approved POs, six-unit and four-unit goods receipts, and independent goods-movement GL posting.
+
+Finance then used the real Supplier invoice reviews workspace to select receipts from both purchase orders and capture one supplier invoice (`DEMO-REQUEST-INVOICE-CONSOLIDATED`). The review showed both PO/receipt lines, an independent Finance approver approved it, and the purchase-order invoicing owner prepared one AP invoice for THB 250,000. Finance posted that invoice, created one approved supplier payment instruction, exported it, imported one exact sandbox bank debit for THB 250,000, and Treasury confirmed the instruction. Reloaded API evidence showed the consolidated invoice `paid` with zero outstanding and the source RFQ remained `ordered`.
+
+The run was isolated to the resettable simulation database and was destroyed after the test.
+
+## Remaining gates
+
+This is browser simulation evidence, not live supplier/bank provider certification, statutory procurement validation, production operation, backup/restore certification or company business sign-off.

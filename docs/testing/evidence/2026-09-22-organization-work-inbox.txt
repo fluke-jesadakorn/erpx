@@ -1,0 +1,36 @@
+ERPX Release 1: organization change Work and Inbox handoffs
+Date: 2026-09-22 (Asia/Bangkok)
+Scope: internal organization changes; isolated Demo run 67467b9bc1ad; no provider delivery or Company business sign-off.
+
+Implemented
+- Work has an Organization changes filter and owner projection: own drafts/returned changes are actionable, own submissions wait for independent Company HR, eligible independent reviewers receive approval work, applied/cancelled requests retain completed requester history.
+- Submission notices go to current eligible independent Company HR users. Applied/returned decisions notify the requester; cancellation notifies previously notified reviewers who remain eligible. Notices, owner changes and immutable events commit atomically and command replay creates no duplicates.
+- Work and Inbox share an exact changeId link and record anchor. Links keep working after state transitions and regardless of the 20-item list page. The linked view offers a return to all open requests.
+- Work, Inbox and organization review evidence recheck the selected Company grant, current permission, assignment/parent validity, principal state and Company workspace boundary. Expired/revoked access is hidden immediately on fresh reads.
+- Review eligibility also checks current database person linkage; stale context aliases cannot review their own person's request. The transaction asserts independent identity again.
+
+Automated regression
+bun run test -- tests/organization.test.ts tests/organization-channels.test.ts tests/general-company-demo.test.ts
+Result: 3 files, 17 tests passed (47.84s).
+Includes Work transitions, transactional notice replay, cancellation delivery, exact links across decisions, missing IDs, scoped/cross-company/expired/revoked access, linked identity freshness, immutable history, stale edits and organization channels.
+
+Browser acceptance
+ERPX_DEMO_RUN=67467b9bc1ad ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-organization-lifecycle.spec.ts --project=desktop --project=mobile
+Result: 2 passed (1.0m); desktop 29.8s, mobile 31.3s.
+Independent owner, Company HR reviewer and employee contexts used the actual interfaces.
+The reviewer opens a submitted request from Work; the requester opens its correction notice from Inbox Updates, corrects and resubmits it. The remaining lifecycle covers independent approval, retained history, rename, department creation, blocked branch suspension (409), cancellation, ordered suspension/reactivation and employee denial.
+The final browser run includes the current database identity checks (the isolated source copy was updated before the run).
+Earlier attempts failed on test navigation: the full accessible Work link includes type/status text, and revisiting an identical anchor URL does not reload external changes. Selectors and explicit reload behavior were corrected; the final complete scenarios passed.
+
+Persisted evidence
+2026-09-22-organization-work-inbox-records.json contains the final scenarios only.
+Each project: 8 requests, 19 immutable events, 18 notifications, 2 active units and 2 matching organization channels. No credentials, session cookies or provider secrets are included.
+The same isolated run also contains partial records from the earlier navigation failures; these are excluded from the accepted scenario evidence.
+
+Verification
+Typecheck passed; scoped ESLint passed; git diff --check passed.
+Public authenticated read-only inspection: https://erpx.jesadakorn.com/holdings/acme/work?type=organization_change&view=actions renders the selected Organization changes filter, counts and normal empty state. No public business record was created.
+Local /api/health and public https://erpx.jesadakorn.com/api/health returned HTTP 200. Existing detached development listener on 3100 was preserved; production 3101 and Tunnel origin were not changed.
+
+Remaining
+Company provisioning, archive/relocation, broader Release 1 acceptance and the overall Release 1–4 roadmap remain open. Shared mobile header text still overlaps; functional mobile workflow results are not complete responsive-layout acceptance. No provider or Company business-acceptance gate is promoted by this evidence.

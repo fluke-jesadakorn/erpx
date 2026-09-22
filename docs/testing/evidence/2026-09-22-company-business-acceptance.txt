@@ -1,0 +1,18 @@
+ERPX Company setup acceptance — 2026-09-22
+
+The Company readiness service was exercised against an isolated PostgreSQL holding database using the real owner services and WorkContext authorization.
+
+Checks:
+- An incomplete active-staff placement blocks submission with COMPANY_SETUP_INCOMPLETE.
+- A complete Company structure can be submitted once; the command is idempotent and creates an immutable submitted event.
+- The requester cannot review their own acceptance; a separate Company HR authority can accept or return it.
+- Acceptance stores reviewer, reason, version and audit/outbox evidence.
+- The acceptance owner can revoke an accepted setup with an optimistic version guard.
+- Company business-acceptance Work and Inbox notification projections use current Company authority.
+
+Automated result: `bun run test -- tests/organization.test.ts` — 1 file, 14 tests passed.
+Typecheck and scoped ESLint passed. The migration was applied to local development with `bun run db:migrate:local`.
+
+Browser result: the authenticated Acme Company readiness page rendered the new Company setup acceptance card, five live checks and the explicit “Not submitted” state at `https://erpx.jesadakorn.com/holdings/acme/settings/business-readiness`. The seeded Acme data correctly showed three active staff records still needing a level or position, so the submit control remained unavailable until setup is complete. No Company acceptance was submitted to Acme during this observation.
+
+This is workflow implementation and simulation evidence, not production or business-owner sign-off. Initial Company provisioning, archive/relocation, provider acceptance and production certification remain separate gates.

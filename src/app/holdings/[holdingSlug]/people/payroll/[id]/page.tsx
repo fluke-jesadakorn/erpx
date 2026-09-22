@@ -1,6 +1,6 @@
 import { BusinessDocumentBranding } from "@/components/brand/business-document";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
-import { PayrollActions } from "@/components/modules/payroll-controls";
+import { PayrollActions,PayrollCorrectionControls } from "@/components/modules/payroll-controls";
 import { StatusBadge } from "@/components/ui/primitives";
 import { FlowPanel,documentFlow } from "@/components/workplace/flow-panel";
 import { RecordNextAction } from "@/components/workplace/record-next-action";
@@ -35,6 +35,7 @@ export default async function PayrollRunDetail({ params, searchParams }: { param
         {[["Gross", totals.gross], ["Deductions", totals.deductions], ["Employer cost", totals.employer], ["Net pay", totals.net]].map(([label, value]) => <article className="card" key={String(label)}><span className="eyebrow">{String(label)}</span><strong>{String(run.currency)} {minorToDecimal(Number(value ?? 0))}</strong></article>)}
       </section>
       <PayrollActions base={base} run={run} canCalculate={flow.steps.find(s=>s.key==="calculate")?.primary?.userId===actor.userId&&hasPermission(actor,"payroll.prepare")} canApprove={flow.canAct&&hasPermission(actor,"payroll.approve")&&run.created_by!==actor.userId} canExport={hasPermission(actor,"payroll.read")}/>
+      <PayrollCorrectionControls base={base} run={run} corrections={data.corrections} userId={actor.userId} canRequest={hasPermission(actor,"payroll.prepare")} canReview={hasPermission(actor,"payroll.approve")}/>
       <FeatureWidget id="people-payroll-detail-calculation-policy" title="Calculation policy"><section className="card"><p><strong>Overtime {Number(run.overtime_multiplier_bps)/10000}×</strong> · Proration {String(run.proration_method).replaceAll("_"," ")} · Input revision {String(run.revision)}</p><p className="muted">These are company payroll-core settings, not a statutory country pack.</p>{data.exports.map(item=><Link className="button secondary" key={String(item.id)} href={`/api/v1${base}/people/payroll/runs/${run.id}/review-file?revision=${item.run_revision}`}>Download review revision {String(item.run_revision)}</Link>)}</section></FeatureWidget>
       <FeatureWidget id="people-payroll-detail-calculated-items" title="Calculated items">
         <div className="section-head"><h2>Calculated items</h2><span className="badge">{data.items.length}</span></div>

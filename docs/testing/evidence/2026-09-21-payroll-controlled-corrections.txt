@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/payroll-core.test.ts tests/flow-routing.test.ts tests/people-lifecycle.test.ts tests/active-work-context.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  4 passed (4)
+      Tests  53 passed (53)
+   Start at  22:55:18
+   Duration  64.24s (transform 701ms, setup 98ms, import 1.16s, tests 62.65s, environment 0ms)
+

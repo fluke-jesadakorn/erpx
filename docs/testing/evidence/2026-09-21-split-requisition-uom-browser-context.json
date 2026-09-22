@@ -1,0 +1,20 @@
+{
+  "observedAt": "2026-09-21T14:34:09+07:00",
+  "repositoryHead": "b7a295104a0b5731b29454a82baec887967b7374",
+  "workingTree": "Modified development workspace; evidence applies to the uncommitted implementation present at observation time.",
+  "sessions": [
+    {"origin": "http://127.0.0.1:3100", "projects": ["Desktop Chrome", "Pixel 7"], "result": "2 passed"},
+    {"origin": "https://erpx.jesadakorn.com", "projects": ["Desktop Chrome"], "result": "1 passed"}
+  ],
+  "scope": [
+    "Authenticated real workspace purchase-request form renders a required Unit input with each as its default.",
+    "Authenticated RFQ list/create page renders partial remaining-demand guidance.",
+    "Local desktop, local mobile and public-Tunnel desktop navigation rendered successfully."
+  ],
+  "notCovered": [
+    "Completing the split award journey through several independent browser accounts",
+    "External supplier or provider integration",
+    "Production acceptance",
+    "Business sign-off"
+  ]
+}

@@ -1,5 +1,28 @@
 @import "tailwindcss";
 :root {
+  /* Canonical ERPX foundations. Component styles consume these semantic tokens. */
+  --font-sans: var(--font-geist-sans), Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --control-height-compact: 36px;
+  --control-height: 44px;
+  --control-height-spacious: 48px;
+  --content-max: 1536px;
+  --motion-fast: 140ms;
+  --motion-normal: 200ms;
+  --ease-standard: cubic-bezier(.2, 0, 0, 1);
+  --focus-ring: 0 0 0 3px var(--brand-glow);
   --ink: #414640;
   --ink-strong: #242824;
   --muted: #656B64;
@@ -99,7 +122,7 @@ body {
 body {
   background: var(--paper);
   color: var(--ink);
-  font-family: var(--font-geist-sans), Arial, sans-serif;
+  font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
@@ -126,6 +149,13 @@ button {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+}
+button,
+[role="button"],
+input,
+select,
+textarea {
+  accent-color: var(--brand);
 }
 
 @media print {
@@ -197,7 +227,7 @@ svg {
   color: var(--ink-strong);
 }
 .content {
-  max-width: 1536px;
+  max-width: var(--content-max);
   padding: 32px 40px 60px;
   margin: auto;
 }
@@ -224,7 +254,7 @@ svg {
 .card {
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   padding: 22px;
 }
 .button {
@@ -232,9 +262,9 @@ svg {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 40px;
+  min-height: var(--control-height);
   padding: 9px 15px;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid transparent;
   background: var(--brand);
   color: var(--on-brand);
@@ -242,11 +272,13 @@ svg {
   font-weight: 600;
   white-space: nowrap;
   transition:
-    background 0.15s,
-    box-shadow 0.15s;
+    background var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
 }
 .button:hover:not(:disabled) {
-  box-shadow: 0 0 0 3px var(--brand-glow);
+  box-shadow: var(--focus-ring);
 }
 .button.secondary {
   border-color: var(--line);
@@ -313,11 +345,12 @@ svg {
   min-width: 0;
   width: 100%;
   border: 1px solid var(--control-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   background: var(--card);
   padding: 11px 12px;
   color: var(--ink);
   font-size: 13px;
+  min-height: var(--control-height);
 }
 .field textarea {
   min-height: 112px;
@@ -468,7 +501,7 @@ input[type="search"]::-webkit-search-cancel-button {
 }
 button,
 a {
-  scroll-margin-block: 90px;
+  scroll-margin-block: var(--workspace-scroll-offset, 90px);
 }
 table {
   border-collapse: collapse;
@@ -529,7 +562,7 @@ time {
     align-items: flex-start;
   }
   .button {
-    min-height: 42px;
+    min-height: var(--control-height);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -544,7 +577,7 @@ time {
 
 .business-form { display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;padding:20px 0;align-items:end; }
 .business-form label { display:flex;flex-direction:column;gap:7px;font-size:13px;color:var(--muted); }
-.business-form input,.business-form select,.business-form textarea { width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--control-border);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;min-height:42px; }
+.business-form input,.business-form select,.business-form textarea { width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--control-border);border-radius:var(--radius-md);background:var(--card);color:var(--ink);font:inherit;min-height:var(--control-height); }
 .form-actions { display:flex;align-items:center;gap:12px;flex-wrap:wrap;grid-column:1/-1; }
 .business-table { width:100%;border-collapse:collapse;font-size:13px; }
 .business-table td,.business-table th { text-align:left;border-bottom:1px solid var(--line);padding:13px 10px; }
@@ -560,7 +593,7 @@ time {
 .content-stack details > summary { cursor:pointer;font-weight:650;color:var(--ink-strong); }
 .content-stack details[open] > summary { margin-bottom:12px; }
 .content-stack label:has(>textarea) { display:flex;flex-direction:column;gap:8px;color:var(--muted);font-size:13px;margin-bottom:16px; }
-.content-stack textarea { width:100%;min-height:90px;box-sizing:border-box;padding:10px 12px;border:1px solid var(--control-border);border-radius:8px;background:var(--card);color:var(--ink);font:inherit;resize:vertical; }
+.content-stack textarea { width:100%;min-height:90px;box-sizing:border-box;padding:10px 12px;border:1px solid var(--control-border);border-radius:var(--radius-md);background:var(--card);color:var(--ink);font:inherit;resize:vertical; }
 .business-form input,.business-form select { background:var(--card);color:var(--ink); }
 @media(max-width:750px){.content-stack{padding:24px;gap:20px}.card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.business-form{grid-template-columns:1fr}}
 @media(max-width:480px){.content-stack{padding:20px 16px}.card-grid{grid-template-columns:1fr}}
@@ -581,7 +614,7 @@ time {
 @media (max-width: 900px) { .content-stack { padding-bottom: calc(110px + env(safe-area-inset-bottom)); } }
 
 .staff-picker > label, .content-stack form > label:has(> select), .content-stack form > label:has(> input:not([type="checkbox"])) { display:flex;flex-direction:column;gap:7px;margin:14px 0;font-size:13px;color:var(--muted); }
-.staff-picker > label > select, .content-stack form > label > select, .content-stack form > label > input:not([type="checkbox"]) { width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--control-border);border-radius:8px;background:var(--card);color:var(--ink);font:inherit; }
+.staff-picker > label > select, .content-stack form > label > select, .content-stack form > label > input:not([type="checkbox"]) { width:100%;min-height:var(--control-height);padding:10px 12px;border:1px solid var(--control-border);border-radius:var(--radius-md);background:var(--card);color:var(--ink);font:inherit; }
 
 /* Shared interaction rhythm; motion never delays an action. */
 :where(button, a, summary, input, select, textarea) {

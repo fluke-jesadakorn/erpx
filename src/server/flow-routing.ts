@@ -27,6 +27,27 @@ const str = (value: Row[string]) => value == null ? "" : String(value);
 const scopeFor = (row: Row): RecordScope => ({ company_id: str(row.company_id), branch_id: str(row.branch_id) || null, department_id: str(row.department_id) || null });
 const json = <T,>(value: Row[string], fallback: T): T => value ? JSON.parse(String(value)) as T : fallback;
 
+/** Read fulfillment state once for all commercial workflows in this snapshot. */
+async function workFulfillments(db: SqlDatabase, companyId: string) {
+  return policyRead(db, JSON.stringify(["work-fulfillments", companyId]), async () => {
+    const rows = (await db.prepare(`SELECT f.id,f.order_id,f.invoice_id,j.status journal_status,
+      (NOT EXISTS(SELECT 1 FROM procurement_bill_match_receipts br WHERE br.fulfillment_id=f.id AND br.active=TRUE)
+       OR EXISTS(SELECT 1 FROM procurement_bill_match_receipts br JOIN procurement_bill_matches m ON m.id=br.match_id WHERE br.fulfillment_id=f.id AND br.active=TRUE AND m.status='approved')) ready
+      FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id
+      LEFT JOIN finance_journals j ON j.id=f.journal_id WHERE o.company_id=?`).bind(companyId)
+      .all<{id:string;order_id:string;invoice_id:string|null;journal_status:string|null;ready:boolean}>()).results;
+    const orders = new Map<string, { pending:boolean; ready:boolean; stockGl:boolean }>();
+    for (const row of rows) {
+      const state = orders.get(row.order_id) ?? {pending:false,ready:false,stockGl:false};
+      state.pending ||= row.invoice_id === null;
+      state.ready ||= row.invoice_id === null && row.ready;
+      state.stockGl ||= ["draft","in_review"].includes(row.journal_status ?? "");
+      orders.set(row.order_id,state);
+    }
+    return {orders, byId:new Map(rows.map(row=>[row.id,row]))};
+  });
+}
+
 async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:StaffActor) {
   const scope = scopeFor(row), owner = str(row.requester_user_id || row.claimant_user_id || row.creator_user_id || row.created_by);
   const draftOwner = str(row.created_by || row.creator_user_id) || owner;
@@ -77,7 +98,9 @@ async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:Staf
     } else {
       const start = json<string[]>(row.start_approvers_json, []), complete = json<string[]>(row.completion_approvers_json, []);
       start.forEach((id,i) => add(`start_${i}`, "Approve task start", "personal_approver", [id], id));
-      add("work", "Start / complete assigned work", "assignee", [str(row.assignee_user_id)], str(row.assignee_user_id));
+      const delegation = await db.prepare("SELECT delegate_user_id FROM staff_task_delegations WHERE company_id=? AND task_id=? AND status='active' AND starts_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint ORDER BY created_at DESC,id DESC LIMIT 1").bind(scope.company_id,row.id).first<{delegate_user_id:string}>();
+      const workOwner = delegation?.delegate_user_id ?? str(row.assignee_user_id);
+      add("work", "Start / complete assigned work", "assignee", [workOwner], workOwner);
       complete.forEach((id,i) => add(`completion_${i}`, "Approve task completion", "personal_approver", [id], id));
       current = current === "start_approval" ? `start_${instance?.current_step ?? 0}` : current === "completion_approval" ? `completion_${instance?.current_step ?? 0}` : ["ready","in_progress","rework"].includes(current) ? "work" : current;
       // Rerouted named approvals remain authoritative.
@@ -131,12 +154,14 @@ async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:Staf
     add("confirmed", row.kind === "quote" ? "Convert quotation to sales order" : purchase ? "Receive goods" : "Fulfil sales order", row.kind === "quote" ? "sales_operator" : "warehouse_manager", await roles(row.kind === "quote" ? ["sales_operator","sales_manager","holding_owner"] : ["warehouse_manager","operations_manager","holding_owner"]));
     add("stock_gl", "Review and post goods movement GL", "finance_approver", await roles(["finance_approver","holding_owner"],true));
     add("invoicing", "Prepare invoice for independent GL review", "finance_preparer", await roles(["finance_preparer","finance_approver","holding_owner"]));
-    const pending = await db.prepare("SELECT 1 FROM commerce_fulfillments WHERE order_id=? AND invoice_id IS NULL LIMIT 1").bind(row.id).first();
+    const sharedFulfillments = hasPolicyReadSnapshot() ? await workFulfillments(db,scope.company_id) : null;
+    const state = sharedFulfillments?.orders.get(str(row.id));
+    const pending = sharedFulfillments ? !!state?.pending : await db.prepare("SELECT 1 FROM commerce_fulfillments WHERE order_id=? AND invoice_id IS NULL LIMIT 1").bind(row.id).first();
     if(purchase&&pending){
-      const ready=await db.prepare("SELECT 1 FROM commerce_fulfillments f WHERE f.order_id=? AND f.invoice_id IS NULL AND (NOT EXISTS(SELECT 1 FROM procurement_bill_matches m WHERE m.fulfillment_id=f.id) OR EXISTS(SELECT 1 FROM procurement_bill_matches m WHERE m.fulfillment_id=f.id AND m.status='approved')) LIMIT 1").bind(row.id).first();
+      const ready=sharedFulfillments ? !!state?.ready : await db.prepare("SELECT 1 FROM commerce_fulfillments f WHERE f.order_id=? AND f.invoice_id IS NULL AND (NOT EXISTS(SELECT 1 FROM procurement_bill_match_receipts br WHERE br.fulfillment_id=f.id AND br.active=TRUE) OR EXISTS(SELECT 1 FROM procurement_bill_match_receipts br JOIN procurement_bill_matches m ON m.id=br.match_id WHERE br.fulfillment_id=f.id AND br.active=TRUE AND m.status='approved')) LIMIT 1").bind(row.id).first();
       if(!ready){const step=steps.find(s=>s.key==='invoicing');if(step)step.blocker='Supplier invoice matching requires independent review or supplier correction before AP preparation.';}
     }
-    const stockGl = await db.prepare("SELECT 1 FROM commerce_fulfillments f JOIN finance_journals j ON j.id=f.journal_id WHERE f.order_id=? AND j.status IN ('draft','in_review') LIMIT 1").bind(row.id).first();
+    const stockGl = sharedFulfillments ? !!state?.stockGl : await db.prepare("SELECT 1 FROM commerce_fulfillments f JOIN finance_journals j ON j.id=f.journal_id WHERE f.order_id=? AND j.status IN ('draft','in_review') LIMIT 1").bind(row.id).first();
     if (current === "fulfilled" && stockGl) current = "stock_gl";
     else if (current === "fulfilled" && pending) current = "invoicing";
     terminal ||= ["fulfilled","converted"].includes(current);
@@ -156,7 +181,7 @@ async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:Staf
   } else if (kind === "journal") {
     let sourcePrimary:string|undefined;
     if (["goods_receipt","delivery"].includes(str(row.source_type))) {
-      const delivery=await db.prepare("SELECT order_id FROM commerce_fulfillments WHERE id=?").bind(row.source_id).first<{order_id:string}>();
+      const delivery=(hasPolicyReadSnapshot() ? (await workFulfillments(db,scope.company_id)).byId.get(str(row.source_id)) : null) ?? await db.prepare("SELECT order_id FROM commerce_fulfillments WHERE id=?").bind(row.source_id).first<{order_id:string}>();
       if (delivery) sourcePrimary=(await resolveFlow(db,actor,"order",delivery.order_id)).steps.find(s=>s.key==="stock_gl")?.primary?.userId;
     }
     add("draft", "Review Debit / Credit and post GL", "finance_approver", await roles(["finance_approver","holding_owner"], true),sourcePrimary);
@@ -215,10 +240,11 @@ async function readFlow(db: SqlDatabase, actor: StaffActor, kind: FlowKind, id: 
   const now = policyNow();
   const people = await policyRead(db, JSON.stringify(["flow-people",actor.companyId]), async () => (await db.prepare(`SELECT s.user_id,s.legal_name,s.department_id,n.display_name team_name FROM (${activeStaffSelect}) s LEFT JOIN organization_nodes n ON n.company_id=s.company_id AND n.id=s.department_id AND n.status='active'`).bind(actor.companyId,now,now).all<{user_id:string;legal_name:string;department_id:string|null;team_name:string|null}>()).results);
   const known = new Map(people.map(p => [p.user_id, {userId:p.user_id,name:p.legal_name,teamId:p.department_id,teamName:p.team_name ?? "Company"} satisfies FlowPerson]));
-  if (kind === "request") {
-    const members = await policyRead(db, JSON.stringify(["flow-members",actor.companyId]), async () => (await db.prepare("SELECT DISTINCT a.user_id,COALESCE(p.legal_name,a.user_id) name FROM assignments a LEFT JOIN hr_people p ON p.company_id=a.company_id AND p.user_id=a.user_id AND p.merged_into_id IS NULL WHERE a.company_id=? AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_from<=? AND a.valid_until>?").bind(actor.companyId,now,now).all<{user_id:string;name:string}>()).results);
-    for (const member of members) if (!known.has(member.user_id)) known.set(member.user_id,{userId:member.user_id,name:member.name,teamId:null,teamName:"Company"});
-  }
+  // A company owner or invited specialist can own work before they have an HR
+  // engagement. Keep role pools employment-backed, but retain explicitly named
+  // owners while their account assignment and principal are active.
+  const members = await policyRead(db, JSON.stringify(["flow-members",actor.companyId]), async () => (await db.prepare("SELECT DISTINCT a.user_id,COALESCE(p.legal_name,a.user_id) name FROM assignments a LEFT JOIN hr_people p ON p.company_id=a.company_id AND p.user_id=a.user_id AND p.merged_into_id IS NULL WHERE a.company_id=? AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_from<=? AND a.valid_until>?").bind(actor.companyId,now,now).all<{user_id:string;name:string}>()).results);
+  for (const member of members) if (!known.has(member.user_id)) known.set(member.user_id,{userId:member.user_id,name:member.user_id===actor.userId&&'name' in actor&&typeof actor.name==='string'?actor.name:member.name,teamId:null,teamName:"Company"});
   const historyRows = shared ? shared.histories.get(`${kind}:${id}`) ?? [] : (await db.prepare("SELECT action,actor_name,created_at,reason,step_key FROM flow_events WHERE company_id=? AND kind=? AND record_id=? ORDER BY created_at,id").bind(actor.companyId,kind,id).all<{action:string;actor_name:string;created_at:number;reason:string;step_key:string}>()).results;
   const history = historyRows.map(e => ({action:e.action,actorName:e.actor_name,at:e.created_at,reason:e.reason,step:e.step_key}));
   const identities=await currentPersonPrincipals(db,actor.companyId,[...d.steps.flatMap(s=>[...s.ids,...(s.preferred?[s.preferred]:[])]),...Object.values(saved).flatMap(s=>s.primaryUserId?[s.primaryUserId]:[]),...defaults.map(d=>d.primary_user_id)]);
@@ -324,6 +350,6 @@ export function flowCommandTarget(operation: string, id: string, input: unknown)
   if (!rule) return null;
   let action = operation.slice(rule[0].endsWith(".") ? rule[0].length : operation.lastIndexOf(".")+1);
   if (action === "transition" && input && typeof input === "object") action = String((input as Record<string,unknown>).action ?? "");
-  if (["create","update","revise","attachment.remove","ai","post.reverse","recalculate","review-export"].includes(action) || action.startsWith("ai.") || action.startsWith("payment.") || action === "reverse") return null;
+  if (["create","update","revise","attachment.remove","ai","post.reverse","recalculate","review-export","delegate","delegate-revoke"].includes(action) || action.startsWith("ai.") || action.startsWith("payment.") || action.startsWith("correction.") || action.startsWith("final-pay.") || action.startsWith("advance.") || action.startsWith("accrual.") || action === "reverse") return null;
   return {kind:rule[1],id,action};
 }

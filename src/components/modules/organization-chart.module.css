@@ -9,7 +9,7 @@
 .searchBox input { font: inherit; font-size: 14px; background: transparent; color: var(--ink); border: 0; outline: none; min-width: 0; width: 100%; padding: 12px 8px 12px 0; }
 .searchBox:focus-within { outline: 2px solid var(--brand); outline-offset: 2px; }
 .searchBox button { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border: 0; border-radius: 8px; color: var(--ink); background: transparent; cursor: pointer; }
-.chartContent { min-width: 0; scroll-margin-top: 90px; }
+.chartContent { min-width: 0; scroll-margin-top: var(--workspace-scroll-offset,90px); }
 .chartContent:focus { outline: none; }
 .teamView { display: flex; flex-direction: column; gap: 24px; padding: 6px 24px 24px; }
 .teamHeading { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; color: var(--ink-strong); }

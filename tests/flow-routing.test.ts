@@ -122,6 +122,18 @@ async function choose(kind:"stock_count"|"order"|"invoice",id:string,stepKey:str
   const view=await resolveFlow(db,f.owner,kind,id);
   await assignFlowPrimary(db,f.owner,kind,id,{stepKey,userId,reason:"Assign eligible test responsibility",saveDefault:false,expectedVersion:view.version,recordVersion:view.recordVersion},key());
 }
+it("keeps an active company account eligible to submit its own draft before an HR engagement exists",async()=>{
+  const externalOwner=await f.member("external-owner","holding_owner",10,f.accountsDepartment,false);
+  const {saveMaster,saveOrder,orderSchema}=await import("../src/server/commerce");
+  const warehouse=await saveMaster(externalOwner,"warehouses",null,{branchId:f.branch,code:key(),name:"External owner warehouse"},key());
+  const product=await saveMaster(externalOwner,"products",null,{sku:key(),name:"External owner product",price:"10"},key());
+  const customer=await saveMaster(externalOwner,"parties",null,{kind:"customer",code:key(),name:"External owner customer"},key());
+  const order=await saveOrder(externalOwner,null,orderSchema.parse({kind:"sales",partyId:customer.id,warehouseId:warehouse.id,orderDate:"2026-09-02",dueDate:"2026-09-03",lines:[{productId:product.id,quantity:"1",price:"10",taxBps:0}]}),key());
+  const flow=await resolveFlow(db,externalOwner,"order",String(order.id));
+  expect(flow.current?.primary).toMatchObject({userId:externalOwner.userId,name:externalOwner.name});
+  expect(flow.canAct).toBe(true);
+  expect(flow.blocker).toBeNull();
+});
 it("requires stock approval before balanced GL and posts the counted stock only once",async()=>{
   const {saveCount,transitionCount}=await import("../src/server/inventory-counts");
   const stock=await stockFixture();
@@ -198,4 +210,31 @@ it("enforces a versioned customer credit limit when sales approval creates expos
   await expect(transitionOrder(f.head,id,{action:"approve",expectedVersion:2},key())).rejects.toBeDefined();
   await saveMaster(f.owner,"parties",String(party.id),{kind:"customer",code:String((await db.prepare("SELECT code FROM finance_parties WHERE id=?").bind(party.id).first("code"))),name:"Credit customer",paymentTermsDays:30,creditLimit:"30",status:"active",expectedVersion:1},key());
   await expect(transitionOrder(f.head,id,{action:"approve",expectedVersion:2},key())).resolves.toMatchObject({state:"confirmed"});
+});
+
+it("keeps batched Work equal to detail-authorized flows across roles and scopes", async () => {
+  const { otherFlowWork } = await import("../src/server/flow-work");
+  const { withPolicyReadSnapshot } = await import("../src/server/iam-read-snapshot");
+  const { workOrderRows, getOrder } = await import("../src/server/commerce");
+  const { workInvoiceRows, getInvoice } = await import("../src/server/finance");
+  const { workJournalRows, journalDetail } = await import("../src/server/ledger");
+  const { workPayrollRows, getPayrollRun } = await import("../src/server/people-payroll");
+  const party = `party-${key()}`;
+  await db.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at) VALUES(?,?,'supplier',?,'Work parity supplier','THB',1,1)").bind(party,f.company,party).run();
+  await createInvoice(f.reviewer,invoiceSchema.parse({partyId:party,kind:"payable",invoiceNumber:key(),invoiceDate:"2026-09-01",dueDate:"2026-09-03",currency:"THB",subtotal:"100",tax:"7",taxAccountId:f.accounts.tax,debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable}),key());
+  const {saveMaster,saveOrder,orderSchema} = await import("../src/server/commerce");
+  const stock = await stockFixture();
+  const supplier = await saveMaster(f.owner,"parties",null,{kind:"supplier",code:key(),name:"Batch parity supplier"},key());
+  await saveOrder(f.owner,null,orderSchema.parse({kind:"purchase",partyId:supplier.id,warehouseId:stock.warehouseId,orderDate:"2026-09-02",dueDate:"2026-09-03",lines:[{productId:stock.productId,quantity:"2",price:"10",taxBps:0}]}),key());
+  for (const actor of [f.owner, f.claimant, f.reviewer, f.payer, { ...f.owner, branchId: f.branch }]) {
+    const reference = await otherFlowWork(actor, true);
+    expect(await withPolicyReadSnapshot(() => otherFlowWork(actor))).toEqual(reference);
+    for (const [list, detail] of [[workOrderRows,getOrder],[workInvoiceRows,getInvoice],[workJournalRows,journalDetail],[workPayrollRows,getPayrollRun]] as const) {
+      let rows;
+      try { rows = await list(actor); } catch (error) {
+        expect(error).toMatchObject({status:403}); continue;
+      }
+      for (const row of rows) await expect(detail(actor,String(row.id))).resolves.toBeDefined();
+    }
+  }
 });

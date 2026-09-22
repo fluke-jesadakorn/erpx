@@ -1,0 +1,20 @@
+{
+  "observedAt": "2026-09-21T15:35:00+07:00",
+  "repositoryHead": "b7a295104a0b5731b29454a82baec887967b7374",
+  "workingTree": "Modified development workspace; evidence applies to the uncommitted implementation present at verification time.",
+  "release": ".runtime/releases/2026-09-21T08-29-08-879Z",
+  "sourceHashes": {
+    "src/server/inventory-counts.ts": "fa76c4117bb15f1ac9a5d541b2237c179fc09113db4613b06458c1d14fae519f",
+    "src/server/inventory-transfers.ts": "450cca789cadbd95d59cc67971862ee06e086149b836afe4733388647be21379",
+    "src/server/inventory-transit.ts": "61b25268e12181224bc1d8139b864f6b39ce633da06edd4688be9136244d6aca",
+    "src/components/modules/stock-count-controls.tsx": "7f86c02e8ba72d1452fa5a8208c28505364e07e0b21893705304b1273b751f13",
+    "migrations/postgres/holding-write/0240_transfer_lot_allocations.sql": "f307cae03827ea28a6dc07d90b1338ebcd29cd64005652ac5323841273717b0d",
+    "migrations/postgres/holding-write/0241_zero_stock_quality_holds.sql": "9be959bd51c920c330abec6fe36de46f9a972e71859883f61b695e6418111bf6",
+    "tests/inventory-lot-serial.test.ts": "c3d6951f00df0383adb278a2a200f52038f8ba1186f60c8e36db9ef07f831a7f"
+  },
+  "limitations": [
+    "Public browser observation used one holding-owner account.",
+    "Partial transit receipt and loss consume displayed lots FIFO; explicit receiver lot selection is not yet delivered.",
+    "External-provider, production and business-acceptance gates are not passed."
+  ]
+}

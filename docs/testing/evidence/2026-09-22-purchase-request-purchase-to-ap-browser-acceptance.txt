@@ -1,0 +1,33 @@
+ERPX Release 1 source-linked purchase request → receipt → AP browser acceptance — 2026-09-22
+
+Disposable demo run
+- Run: 263a5fce0f12
+- Origin: http://127.0.0.1:3102
+- Storage: isolated PostgreSQL databases and private local session/files
+- External integrations: sandbox/demo records only; no provider or real company data
+
+Command
+ERPX_DEMO_RUN=263a5fce0f12 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bun run demo:verify:browser
+
+Result
+- controlled payment: passed
+- two consecutive period closes: passed
+- opening balance import: passed
+- standalone purchase request sourcing: passed
+- source-linked purchase request through posted AP invoice: passed (26.1s)
+- total: 5 passed (57.8s)
+
+Source-linked workflow coverage
+1. An employee submits the seeded ten-laptop request from the real request page.
+2. A people manager, Finance preparer and Finance approver independently approve the request.
+3. Purchasing assigns the active handler, starts work, allocates six of ten requested units and creates an RFQ from the approved request.
+4. The buyer records a supplier quotation, submits the partial award and a separate purchasing manager approves it.
+5. The buyer creates the awarded PO, submits it for approval and the purchasing manager approves it.
+6. Warehouse records the six-unit receipt; Finance independently opens and posts the goods movement journal.
+7. Finance preparer captures the supplier invoice against the posted receipt; Finance approver reviews the match, prepares the matched AP invoice, and posts it in the 2026 accounting period.
+8. The owner API confirms the RFQ is persisted as `ordered` with the original request ID.
+
+Acceptance boundary
+- This is automated browser acceptance on the isolated working demo company, not business sign-off.
+- It covers the allocated six-unit PO and one posted receipt/AP invoice; it does not prove the remaining four-unit split RFQ, supplier payment/export, live supplier integrations, statutory procurement rules or production operation.
+- Demo reset destroys the disposable databases and private session/files; it cannot reach real company data.

@@ -98,7 +98,7 @@ export const payrollRunSchema = z.object({
   periodEnd: date,
   payDate: date,
   currency,
-  mode: z.enum(["preview", "production"]).default("preview"),
+  mode: z.enum(["preview", "final_pay", "production"]).default("preview"),
 });
 
 export const paymentBatchSchema = z.object({
@@ -131,6 +131,39 @@ export const payrollPostSchema = z.object({
   netPayableAccountId: z.string().min(1),
   taxPayableAccountId: z.string().min(1).optional(),
   employerContributionAccountId: z.string().min(1).optional(),
+});
+
+export const payrollCorrectionRequestSchema = z.object({
+  expectedVersion: z.number().int().positive(),
+  reason: z.string().trim().min(3).max(2000),
+});
+export const payrollCorrectionDecisionSchema = z.object({
+  expectedVersion: z.number().int().positive(),
+  action: z.enum(["approve", "reject", "cancel"]),
+  reason: z.string().trim().min(3).max(2000),
+});
+export const finalPayPreparationSchema = z.object({
+  taskId: z.string().min(1),
+  expectedTaskVersion: z.number().int().positive(),
+  payGroupId: z.string().min(1),
+  periodStart: date,
+  periodEnd: date,
+  payDate: date,
+  currency,
+  reason: z.string().trim().min(3).max(2000),
+});
+export const payrollAdvanceRequestSchema = z.object({
+  engagementId: z.string().min(1),
+  amount: z.string().regex(/^\d+(\.\d{1,2})?$/),
+  installmentCount: z.number().int().min(1).max(24),
+  firstDeductionPeriod: date,
+  currency,
+  reason: z.string().trim().min(3).max(2000),
+});
+export const payrollAdvanceDecisionSchema = z.object({
+  expectedVersion: z.number().int().positive(),
+  action: z.enum(["approve", "reject", "cancel"]),
+  reason: z.string().trim().min(3).max(2000),
 });
 
 
@@ -336,7 +369,7 @@ export async function createCountryPack(actor: WorkContext, input: z.infer<typeo
 export async function listCountryPacks(actor: WorkContext){actor = requirePermission(actor,"payroll.configuration.read");const {write}=await holdingResources(actor.holdingId);return (await write.prepare("SELECT id,country_code,version,status,effective_from,export_formats_json,validated_by,updated_at FROM hr_country_packs ORDER BY country_code,version DESC").all()).results;}
 export async function transitionCountryPack(actor: WorkContext,packId:string,input:z.infer<typeof countryPackTransitionSchema>,commandId:string){actor = requirePermission(actor,"people.compensation.approve");const {write}=await holdingResources(actor.holdingId);const prior=await replayCommand(write,actor,commandId,`people.country-pack.${input.status}`,packId,input);if(prior)return prior;const pack=await write.prepare("SELECT status FROM hr_country_packs WHERE id=?").bind(packId).first<{status:string}>();if(!pack)throw new ApiError(404,"COUNTRY_PACK_NOT_FOUND","Country pack not found.");const allowed=(pack.status==="testing"&&input.status==="validated")||(pack.status==="validated"&&input.status==="active")||(pack.status==="active"&&input.status==="superseded");if(!allowed)throw new ApiError(409,"INVALID_COUNTRY_PACK_TRANSITION","Country pack status must progress testing → validated → active.");const now=Date.now();await executeCommand(write,actor,commandId,`people.country-pack.${input.status}`,input,packId,1,{id:packId,status:input.status},[assertion(write,commandId,"pack-status","EXISTS(SELECT 1 FROM hr_country_packs WHERE id=? AND status=?)",[packId,pack.status]),write.prepare("UPDATE hr_country_packs SET status=?,approval_evidence=?,validated_by=?,effective_from=CASE WHEN ?='active' THEN COALESCE(effective_from,?) ELSE effective_from END,updated_at=? WHERE id=? AND status=?").bind(input.status,input.proof,actor.userId,input.status,new Date().toISOString().slice(0,10),now,packId,pack.status)]);return {id:packId,status:input.status};}
 
-async function calculateItem(write: SqlDatabase, run: { id: string; period_start: string; period_end: string; currency: string }, engagement: { id: string; version:number; person_id: string; worker_type: string; employment_type: string; start_date: string; end_date: string | null; job_title: string },policy:{overtimeMultiplierBps:number;prorationMethod:"calendar_days"|"none"}) {
+async function calculateItem(write: SqlDatabase, run: { id: string; company_id: string; period_start: string; period_end: string; currency: string }, engagement: { id: string; version:number; person_id: string; worker_type: string; employment_type: string; start_date: string; end_date: string | null; job_title: string },policy:{overtimeMultiplierBps:number;prorationMethod:"calendar_days"|"none"}) {
   const compensation = await write.prepare(`SELECT * FROM hr_compensation_revisions WHERE engagement_id=? AND status IN ('active','approved') AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC LIMIT 1`).bind(engagement.id,run.period_end,run.period_start).first<Record<string, string | number | null>>();
   const time = await write.prepare("SELECT id,version,regular_hours,overtime_hours FROM hr_time_entries WHERE engagement_id=? AND work_date BETWEEN ? AND ? AND status='approved' ORDER BY id").bind(engagement.id,run.period_start,run.period_end).all<{id:string;version:number;regular_hours:number;overtime_hours:number}>();
   const handoffs=(await write.prepare('SELECT id,request_id,request_version,minutes,work_date FROM overtime_payroll_handoffs WHERE engagement_id=? AND work_date BETWEEN ? AND ? ORDER BY id').bind(engagement.id,run.period_start,run.period_end).all<{id:string;request_id:string;request_version:number;minutes:number;work_date:string}>()).results;
@@ -348,10 +381,18 @@ async function calculateItem(write: SqlDatabase, run: { id: string; period_start
     if(Number(benefit.employee_deduction_minor)>0)components.push({code:`benefit-deduction:${benefit.id}`,label:`Benefit · ${benefit.plan_name}`,kind:"deduction",amount:minorToDecimal(Number(benefit.employee_deduction_minor))});
     if(Number(benefit.employer_cost_minor)>0)components.push({code:`benefit-employer:${benefit.id}`,label:`Benefit employer cost · ${benefit.plan_name}`,kind:"employer",amount:minorToDecimal(Number(benefit.employer_cost_minor))});
   }
+  const advanceRepayments=(await write.prepare(`SELECT r.id,r.version,r.amount_minor,r.due_period_start,r.due_period_end,a.reason
+      FROM hr_payroll_advance_repayments r JOIN hr_payroll_advances a ON a.id=r.advance_id
+      WHERE r.company_id=? AND a.engagement_id=? AND a.status='approved' AND r.status IN ('open','reserved')
+        AND r.due_period_start<=? AND r.due_period_end>=? AND (r.payroll_run_id IS NULL OR r.payroll_run_id=?)
+      ORDER BY r.sequence`).bind(run.company_id,engagement.id,run.period_end,run.period_start,run.id).all<{id:string;version:number;amount_minor:number;due_period_start:string;due_period_end:string;reason:string}>()).results;
+  for(const repayment of advanceRepayments){
+    components.push({code:`payroll-advance:${repayment.id}`,label:`Payroll advance repayment · ${repayment.due_period_start}`,kind:"deduction",amount:minorToDecimal(Number(repayment.amount_minor))});
+  }
   const day=86400000,periodDays=Math.floor((Date.parse(run.period_end)-Date.parse(run.period_start))/day)+1,activeStart=engagement.start_date>run.period_start?engagement.start_date:run.period_start,activeEnd=engagement.end_date&&engagement.end_date<run.period_end?engagement.end_date:run.period_end,activeDays=Math.floor((Date.parse(activeEnd)-Date.parse(activeStart))/day)+1,partial=activeDays!==periodDays;
   if(partial&&policy.prorationMethod==="none")throw new ApiError(422,"PRORATION_REQUIRED","This pay group does not permit automatic proration for partial-period employment.");
   const calculated = calculatePayrollAmounts({ employmentType: engagement.employment_type as "salaried"|"hourly"|"shift"|"contractor", baseMinor: base, hourlyMinor: hourly, regularHours: regular, overtimeHours: overtime,overtimeMultiplierBps:policy.overtimeMultiplierBps,...(partial&&policy.prorationMethod==="calendar_days"?{prorationNumerator:activeDays,prorationDenominator:periodDays}:{}), components: components.filter((component): component is {code:string;label:string;kind:"earning"|"deduction"|"employer";amount:string} => ["earning","deduction","employer"].includes(component.kind)) });
-  const { gross, deductions, employer, net } = calculated; const inputSnapshot={engagement,compensation,hours,benefitInputs,period:{start:run.period_start,end:run.period_end},policy:{...policy,activeDays,periodDays}}; const result={grossMinor:gross,deductionsMinor:deductions,employerCostMinor:employer,netMinor:net,explanation:{baseMinor:base,hourlyRateMinor:hourly,regularHours:regular,overtimeHours:overtime,overtimeMultiplierBps:policy.overtimeMultiplierBps,activeDays,periodDays,components:calculated.applied}};
+  const { gross, deductions, employer, net } = calculated; const inputSnapshot={engagement,compensation,hours,benefitInputs,advanceRepayments,period:{start:run.period_start,end:run.period_end},policy:{...policy,activeDays,periodDays}}; const result={grossMinor:gross,deductionsMinor:deductions,employerCostMinor:employer,netMinor:net,explanation:{baseMinor:base,hourlyRateMinor:hourly,regularHours:regular,overtimeHours:overtime,overtimeMultiplierBps:policy.overtimeMultiplierBps,activeDays,periodDays,components:calculated.applied}};
   return { itemId:`payitem-${crypto.randomUUID()}`, engagementId:engagement.id, personId:engagement.person_id, workerType:engagement.worker_type, inputSnapshot, result, gross, deductions, employer, net };
 }
 
@@ -361,17 +402,108 @@ export async function createPayrollRun(actor:WorkContext,input:z.infer<typeof pa
   if(input.periodEnd<input.periodStart||input.payDate<input.periodEnd)throw new ApiError(422,"INVALID_PAYROLL_PERIOD","Review the period and pay date.");
   const now=Date.now();return executeCommand(write,actor,key,"people.payroll.create",input,id,1,{id,status:"calculating",mode:"preview",version:1},[
     assertion(write,key,"pay-group","EXISTS(SELECT 1 FROM hr_pay_groups WHERE id=? AND company_id=? AND currency=? AND status='active')",[input.payGroupId,actor.companyId,input.currency]),
-    assertion(write,key,"duplicate-period","NOT EXISTS(SELECT 1 FROM hr_payroll_runs WHERE company_id=? AND pay_group_id=? AND status!='cancelled' AND period_start<=? AND period_end>=?)",[actor.companyId,input.payGroupId,input.periodEnd,input.periodStart]),
+    assertion(write,key,"duplicate-period","NOT EXISTS(SELECT 1 FROM hr_payroll_runs WHERE company_id=? AND pay_group_id=? AND mode!='final_pay' AND status!='cancelled' AND period_start<=? AND period_end>=?)",[actor.companyId,input.payGroupId,input.periodEnd,input.periodStart]),
     write.prepare("INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,country_pack_id,period_start,period_end,pay_date,currency,mode,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,'preview','calculating',?,?,?)").bind(id,actor.companyId,input.payGroupId,input.countryPackId??null,input.periodStart,input.periodEnd,input.payDate,input.currency,actor.userId,now,now),
   ]);
 }
+
+export async function prepareFinalPay(actor:WorkContext,input:z.infer<typeof finalPayPreparationSchema>,key:string){
+  actor=requirePermission(actor,"payroll.prepare");if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Final payroll requires a holding-level assignment.");
+  const {write}=await holdingResources(actor.holdingId),prepId=`final-pay-${key}`,runId=`payrun-final-${key}`,previous=await replayCommand(write,actor,key,"people.payroll.final-pay.prepare",prepId,input);if(previous)return previous;
+  if(input.periodEnd<input.periodStart||input.payDate<input.periodEnd)throw new ApiError(422,"INVALID_PAYROLL_PERIOD","Review the final-pay period and pay date.");
+  const task=await write.prepare(`SELECT t.id,t.version,t.status,t.assignee_id,t.clearance_type,t.case_id,c.person_id,c.definition,e.id engagement_id,e.pay_group_id,e.currency,e.end_date
+    FROM people_preparation_tasks t JOIN people_lifecycle_cases c ON c.id=t.case_id AND c.company_id=t.company_id
+    JOIN hr_engagements e ON e.id=c.engagement_id AND e.company_id=c.company_id
+    WHERE t.id=? AND t.company_id=?`).bind(input.taskId,actor.companyId).first<{id:string;version:number;status:string;assignee_id:string|null;clearance_type:string|null;case_id:string;person_id:string;definition:string;engagement_id:string;pay_group_id:string|null;currency:string;end_date:string|null}>();
+  if(!task)throw new ApiError(404,"CLEARANCE_TASK_NOT_FOUND","Final payroll clearance task not found.");
+  if(task.clearance_type!=="payroll"||task.status!=="pending"||task.assignee_id!==actor.userId)throw new ApiError(403,"FINAL_PAY_OWNER_REQUIRED","Only the assigned Payroll clearance owner can prepare final pay.");
+  if(task.version!==input.expectedTaskVersion)throw new ApiError(409,"CLEARANCE_TASK_CHANGED","Refresh the clearance task before preparing final pay.");
+  if(task.pay_group_id!==input.payGroupId||task.currency!==input.currency)throw new ApiError(422,"FINAL_PAY_POLICY_MISMATCH","Final pay must use the engagement pay group and currency.");
+  const definition=typeof task.definition==="string"?JSON.parse(task.definition) as {lastWorkingDate?:string}:task.definition;
+  const lastWorking=definition.lastWorkingDate??task.end_date;if(!lastWorking||input.periodEnd>lastWorking)throw new ApiError(422,"FINAL_PAY_AFTER_LAST_DAY","Final-pay period cannot extend beyond the last working day.");
+  const now=Date.now(),result={id:prepId,taskId:input.taskId,runId,status:"prepared",version:1};
+  return executeCommand(write,actor,key,"people.payroll.final-pay.prepare",input,prepId,1,result,[
+    assertion(write,key,"task-version","EXISTS(SELECT 1 FROM people_preparation_tasks WHERE id=? AND company_id=? AND version=? AND status='pending' AND clearance_type='payroll' AND assignee_id=?)",[input.taskId,actor.companyId,input.expectedTaskVersion,actor.userId]),
+    assertion(write,key,"engagement-pay-group","EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=? AND pay_group_id=? AND currency=?)",[task.engagement_id,actor.companyId,input.payGroupId,input.currency]),
+    assertion(write,key,"one-final-pay","NOT EXISTS(SELECT 1 FROM hr_payroll_final_pay_preparations WHERE task_id=? AND status!='cancelled')",[input.taskId]),
+    write.prepare("INSERT INTO hr_payroll_runs(id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'final_pay','calculating',?,?,?)").bind(runId,actor.companyId,input.payGroupId,null,task.engagement_id,input.periodStart,input.periodEnd,input.payDate,input.currency,actor.userId,now,now),
+    write.prepare("INSERT INTO hr_payroll_final_pay_preparations(id,company_id,task_id,case_id,engagement_id,run_id,reason,prepared_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind(prepId,actor.companyId,input.taskId,task.case_id,task.engagement_id,runId,input.reason,actor.userId,now,now),
+    write.prepare("INSERT INTO hr_payroll_final_pay_events(id,preparation_id,task_id,run_id,company_id,action,actor_id,task_version,evidence_json,created_at) VALUES(?,?,?,?,?,'prepared',?,?,?,?)").bind(`final-pay-event-${key}`,prepId,input.taskId,runId,actor.companyId,actor.userId,input.expectedTaskVersion,JSON.stringify({periodStart:input.periodStart,periodEnd:input.periodEnd,payDate:input.payDate,currency:input.currency,reason:input.reason}),now),
+  ]);
+}
+
+function advancePeriodStart(first:string,months:number){const value=new Date(`${first}T00:00:00Z`);value.setUTCMonth(value.getUTCMonth()+months);return value.toISOString().slice(0,10);}
+function advancePeriodEnd(first:string,months:number){const value=new Date(`${first}T00:00:00Z`);value.setUTCMonth(value.getUTCMonth()+months+1);value.setUTCDate(0);return value.toISOString().slice(0,10);}
+
+export async function requestPayrollAdvance(actor:WorkContext,input:z.infer<typeof payrollAdvanceRequestSchema>,key:string){
+  const {write}=await holdingResources(actor.holdingId),id=`payroll-advance-${key}`,previous=await replayCommand(write,actor,key,"people.payroll.advance.request",id,input);if(previous)return previous;
+  const engagement=await write.prepare(`SELECT e.id,e.company_id,e.currency,e.status,e.pay_group_id,p.id person_id,p.user_id,p.legal_name
+    FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id AND p.company_id=e.company_id
+    WHERE e.id=? AND e.company_id=? AND p.status='active'`).bind(input.engagementId,actor.companyId).first<{id:string;company_id:string;currency:string;status:string;pay_group_id:string|null;person_id:string;user_id:string;legal_name:string}>();
+  if(!engagement)throw new ApiError(404,"ENGAGEMENT_NOT_FOUND","Employee engagement not found in this Company.");
+  const payrollOwner=hasPermission(actor,"payroll.prepare"),ownRequest=hasPermission(actor,"self.requests")&&samePerson(actor,engagement.user_id);
+  if(!payrollOwner&&!ownRequest)throw new ApiError(403,"PAYROLL_ADVANCE_REQUEST_FORBIDDEN","Request your own advance or use an authorized Payroll preparation role.");
+  if(!["active","suspended"].includes(engagement.status))throw new ApiError(409,"ENGAGEMENT_NOT_ACTIVE","Only an active employee can request a payroll advance.");
+  if(!engagement.pay_group_id)throw new ApiError(409,"PAY_GROUP_REQUIRED","Assign a pay group before requesting an advance.");
+  if(input.currency!==engagement.currency)throw new ApiError(422,"CURRENCY_MISMATCH","Advance currency must match the engagement payroll currency.");
+  let amountMinor:number;try{amountMinor=decimalToMinor(input.amount);}catch{throw new ApiError(422,"INVALID_ADVANCE_AMOUNT","Enter a valid advance amount.");}
+  if(amountMinor<=0)throw new ApiError(422,"INVALID_ADVANCE_AMOUNT","Advance amount must be greater than zero.");
+  const now=Date.now(),result={id,engagementId:engagement.id,personId:engagement.person_id,status:"pending",version:1,amountMinor};
+  return executeCommand(write,actor,key,"people.payroll.advance.request",input,id,1,result,[
+    assertion(write,key,"engagement","EXISTS(SELECT 1 FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.id=? AND e.company_id=? AND e.currency=? AND e.status IN ('active','suspended') AND p.status='active')",[input.engagementId,actor.companyId,input.currency]),
+    assertion(write,key,"no-pending-advance","NOT EXISTS(SELECT 1 FROM hr_payroll_advances WHERE engagement_id=? AND status='pending')",[input.engagementId]),
+    write.prepare("INSERT INTO hr_payroll_advances(id,company_id,engagement_id,person_id,amount_minor,installment_count,first_deduction_period,currency,reason,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,actor.companyId,engagement.id,engagement.person_id,amountMinor,input.installmentCount,input.firstDeductionPeriod,input.currency,input.reason,actor.userId,now,now),
+    write.prepare("INSERT INTO hr_payroll_advance_events(id,advance_id,company_id,action,actor_id,advance_version,evidence_json,created_at) VALUES(?,?,?,'requested',?,?,?,?)").bind(`payroll-advance-event-${key}`,id,actor.companyId,actor.userId,1,JSON.stringify({amountMinor,installmentCount:input.installmentCount,firstDeductionPeriod:input.firstDeductionPeriod,currency:input.currency,reason:input.reason}),now),
+    write.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)
+      SELECT 'payroll-advance-review-'||md5(?||':'||a.user_id),?,a.user_id,'payroll_advance',?,1,'Payroll advance needs an independent decision',?
+      FROM assignments a WHERE a.company_id=? AND a.scope_kind='holding' AND a.revoked_at IS NULL AND iam_assignment_active(a.id,?) AND iam_role_allows(a.role,a.company_id,'payroll.approve') AND NOT iam_same_person(a.user_id,?,a.company_id)
+      GROUP BY a.user_id ON CONFLICT DO NOTHING`).bind(id,actor.companyId,id,now,actor.companyId,now,actor.userId),
+  ]);
+}
+
+export async function decidePayrollAdvance(actor:WorkContext,advanceId:string,input:z.infer<typeof payrollAdvanceDecisionSchema>,key:string){
+  if(input.action!=="cancel")actor=requirePermission(actor,"payroll.approve");else if(!hasPermission(actor,"self.requests")&&!hasPermission(actor,"payroll.prepare"))throw new ApiError(403,"PAYROLL_ADVANCE_CANCEL_FORBIDDEN","Only the requester or Payroll owner can cancel this advance.");
+  const {write}=await holdingResources(actor.holdingId),previous=await replayCommand(write,actor,key,`people.payroll.advance.${input.action}`,advanceId,input);if(previous)return previous;
+  const row=await write.prepare("SELECT a.*,p.user_id FROM hr_payroll_advances a JOIN hr_people p ON p.id=a.person_id WHERE a.id=? AND a.company_id=?").bind(advanceId,actor.companyId).first<Record<string,string|number|null>>();
+  if(!row)throw new ApiError(404,"PAYROLL_ADVANCE_NOT_FOUND","Payroll advance not found.");
+  if(row.status!=="pending"||Number(row.version)!==input.expectedVersion)throw new ApiError(409,"PAYROLL_ADVANCE_CHANGED","This advance changed. Reload before deciding.");
+  if(input.action==="cancel"&&!samePerson(actor,row.requested_by)&&!hasPermission(actor,"payroll.prepare"))throw new ApiError(403,"PAYROLL_ADVANCE_OWNER_REQUIRED","Only the requester or Payroll owner can cancel this advance.");
+  if(input.action!=="cancel"&&samePerson(actor,row.requested_by))throw new ApiError(409,"SELF_REVIEW_FORBIDDEN","A different person must decide the payroll advance.");
+  const status=input.action==="approve"?"approved":input.action==="reject"?"rejected":"cancelled",version=input.expectedVersion+1,now=Date.now();
+  const statements:SqlStatement[]=[
+    assertion(write,key,"advance-version","EXISTS(SELECT 1 FROM hr_payroll_advances WHERE id=? AND company_id=? AND status='pending' AND version=?)",[advanceId,actor.companyId,input.expectedVersion]),
+    write.prepare("UPDATE hr_payroll_advances SET status=?,version=version+1,approved_by=CASE WHEN ?='approved' THEN ? ELSE approved_by END,review_reason=?,reviewed_at=?,updated_at=? WHERE id=?").bind(status,status,actor.userId,input.reason,now,now,advanceId),
+    write.prepare("INSERT INTO hr_payroll_advance_events(id,advance_id,company_id,action,actor_id,advance_version,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(`payroll-advance-event-${key}`,advanceId,actor.companyId,input.action==="approve"?"approved":status,actor.userId,version,JSON.stringify({reason:input.reason,status}),now),
+    write.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,?,?,?,?,?,?,? ON CONFLICT DO NOTHING").bind(`payroll-advance-result-${key}`,actor.companyId,row.requested_by,"payroll_advance",advanceId,version,status==="approved"?"Payroll advance approved; deductions will appear in payroll":"Payroll advance decision recorded",now),
+  ];
+  if(input.action==="approve"){
+    const total=Number(row.amount_minor),count=Number(row.installment_count),base=Math.floor(total/count),remainder=total%count;
+    for(let index=0;index<count;index++)statements.push(write.prepare("INSERT INTO hr_payroll_advance_repayments(id,advance_id,company_id,sequence,due_period_start,due_period_end,amount_minor,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(`payroll-advance-repayment-${key}-${index+1}`,advanceId,actor.companyId,index+1,advancePeriodStart(String(row.first_deduction_period),index),advancePeriodEnd(String(row.first_deduction_period),index),base+(index<remainder?1:0),now));
+  }
+  return executeCommand(write,actor,key,`people.payroll.advance.${input.action}`,input,advanceId,version,{id:advanceId,status,version},statements);
+}
+
+export async function payrollAdvancePage(actor:WorkContext){
+  const privileged=hasPermission(actor,"payroll.read");if(!privileged&&!hasPermission(actor,"self.requests"))throw new ApiError(403,"PAYROLL_ADVANCE_READ_FORBIDDEN","Payroll advance access is not available for this role.");
+  const {write}=await holdingResources(actor.holdingId),rows=(await write.prepare(`SELECT a.*,p.legal_name,e.job_title,e.currency,e.pay_group_id FROM hr_payroll_advances a JOIN hr_people p ON p.id=a.person_id JOIN hr_engagements e ON e.id=a.engagement_id WHERE a.company_id=? AND (${privileged?"TRUE":"p.user_id=?"}) ORDER BY a.created_at DESC,a.id DESC`).bind(...(privileged?[actor.companyId]:[actor.companyId,actor.userId])).all()).results;
+  const options=(await write.prepare(`SELECT e.id engagement_id,p.legal_name,e.currency,e.pay_group_id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.status IN ('active','suspended') AND e.pay_group_id IS NOT NULL AND p.status='active' AND ${privileged?"TRUE":"p.user_id=?"} ORDER BY p.legal_name,e.id`).bind(...(privileged?[actor.companyId]:[actor.companyId,actor.userId])).all()).results;
+  return {items:rows,options};
+}
+
+export async function payrollAdvanceAlertTarget(db:SqlDatabase,companyId:string,userId:string,advanceId:string,now=Date.now()){
+  return (await db.prepare(`SELECT a.id FROM hr_payroll_advances a JOIN hr_people p ON p.id=a.person_id
+    WHERE a.id=? AND a.company_id=? AND (p.user_id=? OR EXISTS(
+      SELECT 1 FROM assignments x WHERE x.company_id=a.company_id AND x.user_id=? AND x.scope_kind='holding' AND x.revoked_at IS NULL
+      AND iam_assignment_active(x.id,?) AND iam_role_allows(x.role,x.company_id,'payroll.read')
+    )) LIMIT 1`).bind(advanceId,companyId,userId,userId,now).first<string>("id"))??null;
+}
 export async function calculatePayrollRun(actor:WorkContext,runId:string,key=crypto.randomUUID()) {
   actor = requirePermission(actor,"payroll.prepare");const {write}=await holdingResources(actor.holdingId);const previous=await replayCommand(write,actor,key,"people.payroll.calculate",runId,{});if(previous)return previous;
-  const run=await write.prepare("SELECT * FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,actor.companyId).first<{id:string;pay_group_id:string;period_start:string;period_end:string;currency:string;mode:string;status:string;version:number}>();if(!run)throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found.");
-  if(!["draft","calculating","preview","failed"].includes(run.status)||run.mode!=="preview")throw new ApiError(409,"PAYROLL_LOCKED","Only an unapproved preview can be recalculated.");
+  const run=await write.prepare("SELECT * FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,actor.companyId).first<{id:string;company_id:string;pay_group_id:string;period_start:string;period_end:string;currency:string;mode:string;status:string;version:number}>();if(!run)throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found.");
+  if(!["draft","calculating","preview","failed"].includes(run.status)||!["preview","final_pay"].includes(run.mode))throw new ApiError(409,"PAYROLL_LOCKED","Only an unapproved payroll preview can be recalculated.");
   // A run is company-wide; a branch preparer may not read or calculate other branches.
   if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Use a holding-level payroll assignment for company-wide runs.");
-  const engagements=await write.prepare("SELECT e.id,e.version,e.person_id,e.worker_type,e.employment_type,e.start_date,e.end_date,e.job_title FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.status='active' AND p.status='active' AND p.merged_into_id IS NULL AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?) ORDER BY e.id").bind(actor.companyId,run.pay_group_id,run.currency,run.period_end,run.period_start).all<{id:string;version:number;person_id:string;worker_type:string;employment_type:string;start_date:string;end_date:string|null;job_title:string}>();
+  const engagements=await write.prepare("SELECT e.id,e.version,e.person_id,e.worker_type,e.employment_type,e.start_date,e.end_date,e.job_title FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.status IN ('active','ended') AND p.status='active' AND p.merged_into_id IS NULL AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?) AND (?::text IS NULL OR e.id=?) ORDER BY e.id").bind(actor.companyId,run.pay_group_id,run.currency,run.period_end,run.period_start,(run as Record<string,unknown>).scope_engagement_id??null,(run as Record<string,unknown>).scope_engagement_id??null).all<{id:string;version:number;person_id:string;worker_type:string;employment_type:string;start_date:string;end_date:string|null;job_title:string}>();
   if(!engagements.results.length)throw new ApiError(422,"PAYROLL_EMPTY","Assign active employees to this pay group before calculating.");
   const group=await write.prepare("SELECT overtime_multiplier_bps,proration_method FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(run.pay_group_id,actor.companyId).first<{overtime_multiplier_bps:number;proration_method:"calendar_days"|"none"}>();if(!group)throw new ApiError(409,"PAY_GROUP_CHANGED","The pay group is no longer active.");
   const policy={overtimeMultiplierBps:Number(group.overtime_multiplier_bps),prorationMethod:group.proration_method};
@@ -383,10 +515,11 @@ export async function calculatePayrollRun(actor:WorkContext,runId:string,key=cry
   return executeCommand(write,actor,key,"people.payroll.calculate",{},runId,run.version+1,{id:runId,status:"preview",version:run.version+1,totals:{...total,headcount:items.length}},[
     assertion(write,key,"run","EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND version=? AND status IN ('draft','calculating','preview','failed'))",[runId,run.version]),
     ...items.flatMap((i,index)=>[
-      assertion(write,key,`engagement-${index}`,"EXISTS(SELECT 1 FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.id=? AND e.version=? AND e.status='active' AND p.status='active')",[i.engagementId,i.inputSnapshot.engagement.version]),
+      assertion(write,key,`engagement-${index}`,"EXISTS(SELECT 1 FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.id=? AND e.version=? AND e.status IN ('active','ended') AND p.status='active')",[i.engagementId,i.inputSnapshot.engagement.version]),
       assertion(write,key,`time-count-${index}`,"(SELECT COUNT(*) FROM hr_time_entries WHERE engagement_id=? AND work_date BETWEEN ? AND ? AND status='approved')=?",[i.engagementId,run.period_start,run.period_end,i.inputSnapshot.hours.entries.length]),
       assertion(write,key,`handoff-count-${index}`,"(SELECT COUNT(*) FROM overtime_payroll_handoffs WHERE engagement_id=? AND work_date BETWEEN ? AND ?)=?",[i.engagementId,run.period_start,run.period_end,i.inputSnapshot.hours.handoffs.length]),
       ...i.inputSnapshot.hours.entries.map(t=>assertion(write,key,`time-${index}-${t.id}`,"EXISTS(SELECT 1 FROM hr_time_entries WHERE id=? AND version=? AND status='approved')",[t.id,t.version])),
+      ...i.inputSnapshot.advanceRepayments.map(repayment=>assertion(write,key,`advance-repayment-${index}-${repayment.id}`,"EXISTS(SELECT 1 FROM hr_payroll_advance_repayments r JOIN hr_payroll_advances a ON a.id=r.advance_id WHERE r.id=? AND r.version=? AND r.status IN ('open','reserved') AND a.status='approved' AND a.engagement_id=? AND a.company_id=?)",[repayment.id,repayment.version,i.engagementId,actor.companyId])),
     ]),
     ...items.map((i,index)=>assertion(write,key,`compensation-${index}`,"EXISTS(SELECT 1 FROM hr_compensation_revisions WHERE id=? AND version=? AND status IN ('active','approved'))",[i.inputSnapshot.compensation!.id,i.inputSnapshot.compensation!.version])),
     write.prepare("DELETE FROM hr_payroll_items WHERE run_id=?").bind(runId),
@@ -395,7 +528,13 @@ export async function calculatePayrollRun(actor:WorkContext,runId:string,key=cry
   ]);
 }
 
-export async function getPayrollRun(actor: WorkContext, runId: string) { if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment."); actor = requirePermission(actor,"payroll.read"); const {write}=await holdingResources(actor.holdingId); const run=await write.prepare("SELECT r.*,g.overtime_multiplier_bps,g.proration_method FROM hr_payroll_runs r JOIN hr_pay_groups g ON g.id=r.pay_group_id WHERE r.id=? AND r.company_id=?").bind(runId,actor.companyId).first(); if(!run)throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found."); const [items,exports]=await Promise.all([write.prepare("SELECT i.*,p.legal_name,p.id person_id FROM hr_payroll_items i JOIN hr_engagements e ON e.id=i.engagement_id JOIN hr_people p ON p.id=e.person_id WHERE i.run_id=? ORDER BY p.legal_name").bind(runId).all(),write.prepare("SELECT id,run_revision,checksum_sha256,created_at FROM hr_payroll_review_exports WHERE run_id=? ORDER BY run_revision DESC").bind(runId).all()]); return {run,items:items.results,exports:exports.results}; }
+export async function workPayrollRows(actor: WorkContext) {
+  if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");
+  actor = requirePermission(actor,"payroll.read");
+  const { write } = await holdingResources(actor.holdingId);
+  return (await write.prepare("SELECT r.* FROM hr_payroll_runs r JOIN hr_pay_groups g ON g.id=r.pay_group_id WHERE r.company_id=? ORDER BY r.updated_at DESC").bind(actor.companyId).all<Record<string,string|number|null>>()).results;
+}
+export async function getPayrollRun(actor: WorkContext, runId: string) { if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment."); actor = requirePermission(actor,"payroll.read"); const {write}=await holdingResources(actor.holdingId); const run=await write.prepare("SELECT r.*,g.overtime_multiplier_bps,g.proration_method FROM hr_payroll_runs r JOIN hr_pay_groups g ON g.id=r.pay_group_id WHERE r.id=? AND r.company_id=?").bind(runId,actor.companyId).first(); if(!run)throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found."); const [items,exports,corrections]=await Promise.all([write.prepare("SELECT i.*,p.legal_name,p.id person_id FROM hr_payroll_items i JOIN hr_engagements e ON e.id=i.engagement_id JOIN hr_people p ON p.id=e.person_id WHERE i.run_id=? ORDER BY p.legal_name").bind(runId).all(),write.prepare("SELECT id,run_revision,checksum_sha256,created_at FROM hr_payroll_review_exports WHERE run_id=? ORDER BY run_revision DESC").bind(runId).all(),write.prepare("SELECT * FROM hr_payroll_corrections WHERE run_id=? AND company_id=? ORDER BY created_at DESC,id DESC").bind(runId,actor.companyId).all()]); return {run,items:items.results,exports:exports.results,corrections:corrections.results}; }
 export async function listPayrollRuns(actor: WorkContext) { actor = requirePermission(actor,"payroll.read"); if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment."); const {write}=await holdingResources(actor.holdingId); return (await write.prepare("SELECT * FROM hr_payroll_runs WHERE company_id=? ORDER BY pay_date DESC,created_at DESC").bind(actor.companyId).all()).results; }
 
 export async function postPayroll(actor: WorkContext) {
@@ -411,6 +550,48 @@ export async function approvePayrollRun(actor:WorkContext,runId:string,expectedV
     write.prepare("UPDATE hr_payroll_runs SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=?").bind(actor.userId,Date.now(),runId),
     write.prepare("INSERT INTO decision_evidence(id,command_id,record_id,action,actor_id,assignment_id,reviewed_version,input_digest,created_at) SELECT ?,?,?,?,?,?,?,input_digest,? FROM hr_payroll_runs WHERE id=?").bind(crypto.randomUUID(),key,runId,"people.payroll.approve",actor.userId,actor.assignmentId,expectedVersion,Date.now(),runId),
   ]);
+}
+
+export async function requestPayrollCorrection(actor:WorkContext,runId:string,input:z.infer<typeof payrollCorrectionRequestSchema>,key:string){
+  actor=requirePermission(actor,"payroll.prepare");if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");
+  const {write}=await holdingResources(actor.holdingId),id=`payroll-correction-${key}`,previous=await replayCommand(write,actor,key,"people.payroll.correction.request",id,input);if(previous)return previous;
+  const run=await write.prepare("SELECT id,status,version,revision,input_digest,totals_json FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,actor.companyId).first<{id:string;status:string;version:number;revision:number;input_digest:string|null;totals_json:string}>();
+  if(!run)throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found.");if(run.status!=="approved"||run.version!==input.expectedVersion||!run.input_digest)throw new ApiError(409,"PAYROLL_CORRECTION_SOURCE_CHANGED","Only the current approved payroll revision can be returned for correction.");
+  const now=Date.now(),result={id,runId,status:"pending",version:1};
+  return executeCommand(write,actor,key,"people.payroll.correction.request",input,id,1,result,[
+    assertion(write,key,"approved-run","EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='approved' AND version=? AND revision=? AND input_digest=?)",[runId,actor.companyId,input.expectedVersion,run.revision,run.input_digest]),
+    write.prepare("INSERT INTO hr_payroll_corrections(id,run_id,company_id,run_version,run_revision,input_digest,totals_json,reason,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(id,runId,actor.companyId,run.version,run.revision,run.input_digest,run.totals_json,input.reason,actor.userId,now,now),
+    write.prepare("INSERT INTO hr_payroll_correction_events(id,correction_id,run_id,company_id,action,actor_id,run_version,evidence_json,created_at) VALUES(?,?,?,?, 'requested',?,?,?,?)").bind(`payroll-correction-event-${key}`,id,runId,actor.companyId,actor.userId,run.version,JSON.stringify({reason:input.reason,runRevision:run.revision,inputDigest:run.input_digest,totals:JSON.parse(run.totals_json)}),now),
+    write.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)
+      SELECT 'payroll-correction-review-'||md5(?||':'||a.user_id),?,a.user_id,'payroll_correction',?,1,'Approved payroll needs an independent correction decision',?
+      FROM assignments a WHERE a.company_id=? AND a.scope_kind='holding' AND a.revoked_at IS NULL AND iam_assignment_active(a.id,?) AND iam_role_allows(a.role,a.company_id,'payroll.approve') AND NOT iam_same_person(a.user_id,?,a.company_id)
+      GROUP BY a.user_id ON CONFLICT DO NOTHING`).bind(id,actor.companyId,id,now,actor.companyId,now,actor.userId),
+  ]);
+}
+
+export async function decidePayrollCorrection(actor:WorkContext,correctionId:string,input:z.infer<typeof payrollCorrectionDecisionSchema>,key:string){
+  const permission=input.action==="cancel"?"payroll.prepare":"payroll.approve";actor=requirePermission(actor,permission);if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");
+  const {write}=await holdingResources(actor.holdingId),previous=await replayCommand(write,actor,key,`people.payroll.correction.${input.action}`,correctionId,input);if(previous)return previous;
+  const row=await write.prepare("SELECT c.*,r.status run_status,r.version current_run_version,r.revision current_run_revision,r.input_digest current_input_digest FROM hr_payroll_corrections c JOIN hr_payroll_runs r ON r.id=c.run_id WHERE c.id=? AND c.company_id=?").bind(correctionId,actor.companyId).first<Record<string,string|number|null>>();
+  if(!row)throw new ApiError(404,"PAYROLL_CORRECTION_NOT_FOUND","Payroll correction request not found.");if(row.status!=="pending"||Number(row.version)!==input.expectedVersion)throw new ApiError(409,"PAYROLL_CORRECTION_CHANGED","This correction request changed. Reload before deciding.");
+  if(input.action==="cancel"&&!samePerson(actor,row.requested_by))throw new ApiError(403,"PAYROLL_CORRECTION_OWNER_REQUIRED","Only the requester can cancel this correction request.");
+  if(input.action!=="cancel"&&samePerson(actor,row.requested_by))throw new ApiError(409,"SELF_REVIEW_FORBIDDEN","A different person must decide the payroll correction.");
+  if(row.run_status!=="approved"||Number(row.current_run_version)!==Number(row.run_version)||Number(row.current_run_revision)!==Number(row.run_revision)||row.current_input_digest!==row.input_digest)throw new ApiError(409,"PAYROLL_CORRECTION_SOURCE_CHANGED","The approved payroll evidence changed. Start a new correction review.");
+  const status=input.action==="cancel"?"cancelled":input.action==="approve"?"approved":"rejected",now=Date.now(),version=input.expectedVersion+1,result={id:correctionId,runId:String(row.run_id),status,version,runStatus:input.action==="approve"?"calculating":"approved"};
+  const statements:SqlStatement[]=[
+    assertion(write,key,"correction-version","EXISTS(SELECT 1 FROM hr_payroll_corrections WHERE id=? AND company_id=? AND status='pending' AND version=?)",[correctionId,actor.companyId,input.expectedVersion]),
+    assertion(write,key,"run-evidence","EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='approved' AND version=? AND revision=? AND input_digest=?)",[row.run_id,actor.companyId,row.run_version,row.run_revision,row.input_digest]),
+    write.prepare("UPDATE hr_payroll_corrections SET status=?,version=version+1,reviewed_by=?,review_reason=?,reviewed_at=?,updated_at=? WHERE id=?").bind(status,actor.userId,input.reason,now,now,correctionId),
+    write.prepare("INSERT INTO hr_payroll_correction_events(id,correction_id,run_id,company_id,action,actor_id,run_version,evidence_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(`payroll-correction-event-${key}`,correctionId,row.run_id,actor.companyId,status,actor.userId,row.run_version,JSON.stringify({reason:input.reason,runRevision:row.run_revision,inputDigest:row.input_digest}),now),
+    write.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(`payroll-correction-result-${key}`,actor.companyId,row.requested_by,"payroll_correction",correctionId,version,input.action==="approve"?"Payroll correction approved; recalculate the run with current inputs":input.action==="reject"?"Payroll correction rejected; review the decision reason":"Payroll correction request cancelled",now),
+  ];
+  if(input.action==="approve")statements.push(write.prepare("UPDATE hr_payroll_runs SET status='calculating',approved_by=NULL,version=version+1,error_message=?,updated_at=? WHERE id=?").bind(`Correction approved: ${input.reason}`,now,row.run_id));
+  return executeCommand(write,actor,key,`people.payroll.correction.${input.action}`,input,correctionId,version,result,statements);
+}
+
+export async function payrollCorrectionAlertTarget(db:SqlDatabase,companyId:string,userId:string,correctionId:string,now=Date.now()){
+  return (await db.prepare(`SELECT c.run_id FROM hr_payroll_corrections c JOIN assignments a ON a.company_id=c.company_id AND a.user_id=?
+    WHERE c.id=? AND c.company_id=? AND a.scope_kind='holding' AND a.revoked_at IS NULL AND iam_assignment_active(a.id,?) AND iam_role_allows(a.role,a.company_id,'payroll.read') LIMIT 1`).bind(userId,correctionId,companyId,now).first<string>("run_id"))??null;
 }
 
 export async function exportPayrollReview(actor:WorkContext,runId:string,key:string){

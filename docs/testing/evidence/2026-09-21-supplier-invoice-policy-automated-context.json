@@ -1,0 +1,26 @@
+{
+  "observedAt": "2026-09-21T13:57:18+07:00",
+  "environment": "disposable PostgreSQL simulation",
+  "command": "bun scripts/local/test.ts tests/supplier-bill-matching.test.ts",
+  "result": {
+    "filesPassed": 1,
+    "testsPassed": 8,
+    "failed": 0,
+    "skipped": 0
+  },
+  "scope": [
+    "company-wide required or optional supplier matching policy",
+    "holding-scoped Finance authority",
+    "optimistic version and idempotency checks",
+    "concurrent policy update with one winner",
+    "direct AP blocked while matching is required",
+    "direct AP restored while matching is optional",
+    "immutable policy change history",
+    "single- and multi-receipt supplier matching, correction and posting"
+  ],
+  "limitations": [
+    "No whole-capability or S03 business acceptance",
+    "Provider and production acceptance were not exercised",
+    "Partial/split requisition allocation and UOM conversion remain"
+  ]
+}

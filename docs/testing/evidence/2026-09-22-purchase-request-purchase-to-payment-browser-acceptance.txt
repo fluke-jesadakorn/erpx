@@ -1,0 +1,35 @@
+ERPX browser acceptance evidence
+Observed: 2026-09-22 (Asia/Bangkok)
+Run: 57b31d4eaffa
+Origin: http://127.0.0.1:3102
+Command: ERPX_DEMO_RUN=57b31d4eaffa ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-purchase-request-rfq.spec.ts --project=desktop
+Result: 1 passed in 46.6 seconds (Playwright summary: 47.2 seconds)
+
+The isolated Demo Company used separate authenticated browser contexts for employee,
+people manager, Finance preparer, Finance approver, purchasing operator, purchasing
+manager, warehouse manager and Treasury. The actual interface completed this connected
+workflow:
+
+1. Employee submitted a ten-laptop purchase request.
+2. People manager, Finance preparer and Finance approver independently approved it.
+3. Purchasing assigned and started the work, allocated six of ten units to a source-linked RFQ,
+   recorded the supplier quotation, submitted the award and obtained independent purchasing
+   manager approval.
+4. Purchasing created and submitted the awarded PO; the purchasing manager approved it.
+5. Warehouse recorded a six-unit receipt. Finance independently posted the goods-movement GL.
+6. Finance prepared a supplier bill from the posted receipt. A different Finance approver
+   reviewed the match and Finance prepared and independently posted the AP invoice in the 2026
+   period.
+7. Finance prepared a supplier payment batch for the posted AP invoice. A different Finance
+   approver approved the beneficiary and amount; Treasury exported the approved instruction.
+8. Finance imported a sandbox bank statement through the bank-reconciliation UI. Treasury
+   selected the exact outgoing debit, confirmed evidence and settled the supplier instruction.
+
+After reload, the batch item showed `confirmed`, the payment and allocation link was present,
+and the authenticated API assertion showed the source AP invoice as `paid` with
+`outstanding_minor: 0`. The same test also asserted that the source-linked RFQ remained
+`ordered` and retained the purchase-request id.
+
+This is isolated simulation evidence, not supplier-provider, live-bank, statutory, production
+or company business sign-off. The remaining four-unit split allocation and a second receipt are
+covered by owner tests; the browser run intentionally exercises the six-unit partial branch.

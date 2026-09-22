@@ -1,0 +1,18 @@
+ERPX automated evidence — final pay preparation
+Observed: 2026-09-21 23:12 Asia/Bangkok
+
+Command:
+  bun run test -- tests/payroll-core.test.ts
+
+Result:
+  Test Files 1 passed (1)
+  Tests 3 passed (3)
+
+Coverage:
+- Creates a retirement payroll clearance task assigned to the Payroll preparer.
+- Verifies task owner and optimistic task version, engagement pay group/currency, and last working day.
+- Creates one linked person-scoped `final_pay` payroll run.
+- Calculates only the ended employee and preserves the final-pay run scope.
+- Rejects a second active final-pay preparation for the same clearance task.
+
+The test uses isolated PostgreSQL fixtures. Statutory calculation, posting, bank payment and production business acceptance remain separate gates.

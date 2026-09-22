@@ -15,6 +15,8 @@ import { getLeave } from "@/server/leave";
 import { paymentDraft, paymentGuards } from "@/server/expense-payments";
 import { z } from "zod";
 import { requireBrandManagement } from "@/server/branding";
+import { qualityEvidenceGuard } from "@/server/quality";
+import { deliveryEvidenceGuard } from "@/server/commerce-delivery-evidence";
 
 const allowedTypes = [
   "image/jpeg",
@@ -35,6 +37,8 @@ const schema = z.object({
     "social_draft",
     "holding_brand",
     "branch_brand",
+    "quality_hold",
+    "commerce_order_delivery",
   ]),
   expectedVersion: z.number().int().positive().optional(),
   ownerId: z.string().min(1).max(128),
@@ -79,6 +83,14 @@ export async function POST(
         throw new ApiError(422, "LOGO_PURPOSE", "Choose a primary or inverse logo.");
       const { write } = await holdingResources(actor.holdingId);
       await requireBrandManagement(write, actor, parsed.data.ownerType, parsed.data.ownerId);
+    } else if (parsed.data.ownerType === "commerce_order_delivery") {
+      if(parsed.data.purpose!=="proof_of_delivery")throw new ApiError(422,"DELIVERY_EVIDENCE_PURPOSE","Choose proof of delivery evidence.");
+      if(!parsed.data.expectedVersion)throw new ApiError(422,"VERSION_REQUIRED","Refresh the sales order before attaching delivery evidence.");
+      await deliveryEvidenceGuard((await holdingResources(actor.holdingId)).write,actor,parsed.data.ownerId,parsed.data.expectedVersion,"delivery-reserve-check");
+    } else if (parsed.data.ownerType === "quality_hold") {
+      if(parsed.data.purpose!=="quality_inspection_evidence")throw new ApiError(422,"QUALITY_EVIDENCE_PURPOSE","Choose quality inspection evidence.");
+      if(!parsed.data.expectedVersion)throw new ApiError(422,"VERSION_REQUIRED","Refresh the quality hold before attaching evidence.");
+      await qualityEvidenceGuard((await holdingResources(actor.holdingId)).write,actor,parsed.data.ownerId,parsed.data.expectedVersion,"quality-reserve-check");
     } else if (parsed.data.ownerType === "support_ticket") {
       if(parsed.data.purpose!=="support_evidence")throw new ApiError(422,"SUPPORT_EVIDENCE_PURPOSE","Choose support evidence.");
       await supportEvidenceGuard((await holdingResources(actor.holdingId)).write,actor,parsed.data.ownerId,parsed.data.expectedVersion!,"support-reserve-check");
@@ -172,6 +184,8 @@ export async function POST(
       [
         ...(requestSnapshot ? requestSnapshot(key) : []),
         ...(parsed.data.ownerType==="support_ticket"?(await supportEvidenceGuard(write,actor,parsed.data.ownerId,parsed.data.expectedVersion!,key)).guards:[]),
+        ...(parsed.data.ownerType==="quality_hold"?(await qualityEvidenceGuard(write,actor,parsed.data.ownerId,parsed.data.expectedVersion!,key)).guards:[]),
+        ...(parsed.data.ownerType==="commerce_order_delivery"?(await deliveryEvidenceGuard(write,actor,parsed.data.ownerId,parsed.data.expectedVersion!,key)).guards:[]),
         ...(parsed.data.ownerType==="invoice_payment"?(await invoiceEvidenceGuard(write,actor,parsed.data.ownerId,key)).guards:[]),
         ...(parsed.data.ownerType === "expense_payment"
           ? paymentGuards(
@@ -214,7 +228,7 @@ export async function POST(
             now + 15 * 60_000,
             now,
             now,
-            parsed.data.ownerType==="support_ticket"?parsed.data.expectedVersion:null,
+            ["support_ticket","quality_hold","commerce_order_delivery"].includes(parsed.data.ownerType)?parsed.data.expectedVersion:null,
           ),
       ],
     );

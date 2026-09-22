@@ -337,7 +337,7 @@ P0 = ขวางบริการหลักของ scenario หรือ�
 | `finance/feature-bank-reconciliation` | Bank reconciliation | flow_accepted | S02/S04/S14 | E02/E04/E10 | G04/G12 |
 | `finance/feature-reports` | Reports | implemented | S02/S04/S14 | E02/E04/E10 | G04/G12 |
 | `finance/feature-period-close` | Period close | implemented | S02/S04/S14 | E02/E04/E10 | G04/G12 |
-| `finance/feature-opening-balances` | Opening balances | implemented | S02/S04/S14 | E02/E04/E10 | G04/G12 |
+| `finance/feature-opening-balances` | Opening balances | flow_accepted | S02/S04/S14 | E02/E04/E10 | G04/G12 |
 | `pos/refunds` | Refunds | flow_accepted | S05/S06/S08 | E05/E07 | G06/G08/G13 |
 | `pos/feature-register-session` | Register session | flow_accepted | S05/S06/S08 | E05/E07 | G06/G08/G13 |
 | `pos/feature-sales-baskets` | Sales & baskets | flow_accepted | S05/S06/S08 | E05/E07 | G06/G08/G13 |

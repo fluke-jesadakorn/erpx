@@ -1,0 +1,42 @@
+ERPX temporary task delegation, handback and retained history
+Date: 2026-09-22 (Asia/Bangkok)
+Environment: isolated PostgreSQL and Demo Company run 218c35f220ae
+
+Service regression:
+bun run test -- tests/staff-work.test.ts tests/staff-task-alerts.test.ts
+2 files, 27 tests passed (49.98s).
+Includes active/expired/revoked history, stale-version rollback, revoke retry idempotency, retained revoke reason, immutable revoked evidence, revoked/outsider read denial, access expiry and durable task reminder/escalation regressions. Expiry is exercised by moving the disposable test record's expiry into the past; it is not a timed browser acceptance.
+
+Browser regression:
+ERPX_DEMO_RUN=218c35f220ae ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-support-lifecycle.spec.ts tests/e2e/demo-task-delegation.spec.ts --project=desktop
+2 passed (36.0s); delegation scenario 9.7s.
+- Four independent people: creator, accountable assignee, temporary delegate, completion approver.
+- Creator creates/submits a task and delegates with a bounded expiry and reason.
+- Delegate starts work and saves partial progress.
+- Creator revokes with their own reason, opens history and reloads; the reason remains.
+- The revoked delegate's normal authenticated task endpoint returns 404.
+- Accountable assignee sees the delegate's saved progress and submits completion.
+- Independent reviewer approves; assignee reloads completed status and retained delegation history.
+- Business writes use the real interface, with normal authenticated APIs for setup and read-only permission checks.
+
+Implementation:
+- Migration 0271 adds nullable revoke_reason for legacy compatibility. Earlier missing reasons are displayed explicitly as unknown.
+- Newly revoked evidence cannot be updated, including attempts to alter the recorded reason.
+- Authorized task details return the latest 50 delegations with active/expired/revoked state, named participants, dates and reasons; readers must pass existing task authorization first.
+- Revoke form retains the operator's input on failure and uses existing command version/idempotency controls.
+- Demo guide adds temporary-task-delegation with role-specific steps and reset instructions.
+
+Other checks:
+bun run typecheck: passed.
+bun run lint: 0 errors, one existing unused _props warning in service-navigation.tsx.
+bun run test -- tests/general-company-demo.test.ts: 1 passed (7.76s).
+bun run db:migrate:local: completed for six local development databases (two Holding slots); no production migration performed.
+
+Evidence:
+docs/testing/evidence/2026-09-22-support-and-delegation-history-browser-records.json
+
+Public read-only check: /holdings/acme/staff-tasks redirects to the authorized Work task list and displays its empty state. This session has no visible task records, so the changed detail form/history is verified in the isolated multi-account browser run, not against public company records.
+
+Limitations: this does not accept general queue policy management, all Operations exception/resolution reporting, production scheduler/provider operation or Company business sign-off.
+
+Cleanup: Demo runs 1fb3b93eb768 and 218c35f220ae were destroyed after verification; both commands returned destroyed=true.

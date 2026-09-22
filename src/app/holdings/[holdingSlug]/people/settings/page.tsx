@@ -1,6 +1,7 @@
 import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { IamConsole } from "@/components/iam/iam-console";
 import { OrganizationWorkspace } from "@/components/modules/organization-workspace";
+import { AccountInvitations } from "@/components/modules/account-invitations";
 import { PeopleNavigation } from "@/components/modules/people-navigation";
 import { ServiceNavigation } from "@/components/modules/service-navigation";
 import { DirectoryWorkspace } from "@/components/people/directory-workspace";
@@ -173,6 +174,11 @@ export default async function PeopleSettings({
           api={`/api/v1${base}/iam`}
           section={panel}
         /></FeatureWidget>)}
+      {section === "reviews" && hasPermission(actor,"iam.roles.manage") && (
+        <FeatureWidget id="account-invitations" title="Activation invitations">
+          <AccountInvitations actor={actor} base={base} />
+        </FeatureWidget>
+      )}
       {section === "connections" && iam?.actor.scopeKind === "holding" && (
         <DirectoryWorkspace
           base={base}

@@ -1,0 +1,52 @@
+ERPX Release 1: usable reviewed organization changes
+Date: 2026-09-22 (Asia/Bangkok)
+Environment: isolated Demo Company, run 93219d8e2062; real owner services and PostgreSQL persistence
+
+Problem and change
+- The proposal form used FormData without the submitter. Save draft and Submit for review therefore lost their mode and addressed an unsupported command route. The actual submitter is now included, with draft as the safe implicit-submit default.
+- Successfully saved new proposals clear their inputs; failed commands retain the entered values. Existing proposal/unit forms remount only when their authoritative revision changes.
+- The old last-100 mixed queue hid applied/cancelled requests. Company administrators now have a 20-item paginated list with status filters and literal name/reason search, plus immutable decision history showing names, revisions, times and reasons.
+- Company review evidence is unavailable to ordinary staff, scoped HR assignments and branch/department workspaces. The Company command guard enforces the same workspace boundary.
+- An account linked to the requester's person cannot independently approve the request. Review controls use the server-derived permission decision.
+
+Browser command
+ERPX_DEMO_RUN=93219d8e2062 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-organization-lifecycle.spec.ts --project=desktop --project=mobile
+Result: 2 passed (53.6s). Desktop 25.9s, mobile 26.4s.
+
+Each scenario uses an independent Holding owner, Company HR reviewer and ordinary employee:
+1. Save a branch draft, reload, then submit it through the real form.
+2. Reviewer returns it with a reason. Requester corrects the name/reason and resubmits; independent approval applies revision 5.
+3. Filter Applied and open all five immutable decision events, including the original rejection and final decision.
+4. Rename the branch, create its child department and approve both independently.
+5. Attempt to suspend the branch while its child department is active: HTTP 409, visible dependency explanation, unchanged active branch and pending request. Requester cancels; Cancelled filter retains it.
+6. Suspend the department, suspend the branch, reactivate the branch and then the department through separate reviewed requests.
+7. Ordinary employee sees no Company change queue or request evidence from the protected overview API.
+8. Search the completed/cancelled branch history after reload.
+
+Retained read-only records:
+docs/testing/evidence/2026-09-22-organization-lifecycle-browser-records.json
+Each project created 8 requests, 19 immutable events, one branch and one department with 2 matching organization channels. Final branch revision 4 and department revision 3 are active.
+
+Service regression
+bun run test -- tests/organization.test.ts tests/organization-channels.test.ts tests/general-company-demo.test.ts
+3 files, 14 tests passed (34.79s).
+Includes stale draft rollback, linked-identity independence, Company/workspace scope, 21 requests across two pages, literal percent/underscore search, immutable events and channel membership. The final Company-workspace guard is covered by this service run; browser scenarios operate in the Company workspace.
+
+Static checks
+bun run typecheck: passed.
+Scoped ESLint for changed service, API, types, UI, fixtures and tests: passed.
+Full lint: 0 errors, one existing unused _props warning in service-navigation.tsx.
+
+Working example
+Demo preparation now gives a distinct colleague an explicit hr_admin assignment. The generated reviewed-organization-setup guide has 8 role-specific steps, expected outcomes and exact-run reset commands. It does not grant any real account access.
+
+Public read-only verification
+https://erpx.jesadakorn.com/holdings/acme/people/organization
+The existing authenticated Company owner session renders live units/readiness and the new queue. Selecting All requests updates the URL and retains the selected filter, the empty state and page count. The filter section is visible below the fixed header. No public company transaction was submitted.
+
+Limitations
+- This is isolated browser/service acceptance, not Company business-owner or production sign-off.
+- Initial Company provisioning, archival/relocation and dedicated Work/Inbox review routing remain separate implementation gaps.
+- Mobile forms and lifecycle actions pass; the shared mobile workspace header still has overlapping/truncated context text and needs separate layout work.
+
+Cleanup: exact owned Demo runs ee1005243f8f and 93219d8e2062 were destroyed after verification; their cleanup commands returned destroyed=true.

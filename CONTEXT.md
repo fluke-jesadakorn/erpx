@@ -128,6 +128,20 @@ Business language for ERPX, independent of implementation. People and spending t
 - **Leave Balance Entry** — An immutable change to an Engagement's entitlement, reservation, use, or reversal for one Leave Type.
 - **Leave Cancellation Review** — The manager-and-HR review required to reverse approved leave; the absence and consumed entitlement remain effective until the review succeeds.
 
+## Finance
+
+- **Finance Workbench** — A role-aware list of accounting work that needs attention, ordered by business consequence and due date. It is distinct from a dashboard of record counts.
+- **Accounting Period** — A Company-owned date interval that gates posting and close. A Group Reporting Period references Company periods without changing them.
+- **Close Checklist** — The attributable set of reconciliations, evidence, owners, and blockers required before an Accounting Period may close.
+- **Group Reporting Period** — A Holding reporting boundary that snapshots approved Company balances, ownership, policies, exchange rates, and consolidation adjustments for one reproducible consolidation run.
+- **Consolidation Run** — One versioned calculation of Group financial statements for a Group Reporting Period and presentation currency. It never edits Company ledgers.
+- **Group Account** — A reporting account in the Holding chart to which Company accounts are effective-dated mapped for consolidation.
+- **Ownership Interest** — An effective-dated economic and control relationship between Holding entities, including the approved accounting treatment. Percentage ownership alone does not decide consolidation treatment.
+- **Intercompany Pair** — Two independently posted Company records identified as opposite sides of the same Group transaction.
+- **Consolidation Adjustment** — A versioned Group-only entry for eliminations, currency translation, non-controlling interests, equity accounting, or acquisition accounting. _Avoid_: Group journal, which suggests a Company-ledger posting.
+- **Finance Proposal** — A human-reviewed suggestion derived from pinned record versions and evidence. It may prepare or explain work but cannot approve, post, pay, reconcile, or close.
+- **Finance Country Pack** — A versioned jurisdiction rule set for tax, statutory documents, and filing exports. Activation requires accountable review and does not itself certify regulatory compliance.
+
 ## Commercial & platform
 
 - **Commercial Catalog Revision** — A version of a Hosted Support package and monthly fee, effective for new service periods without changing earlier agreements.
@@ -211,3 +225,9 @@ _Avoid_: Invoice; an invoice is an issued document summarizing a Folio.
 **Payroll Handoff**: The uniquely linked, auditable contribution of finally approved overtime hours to payroll preview. It supplies hours, not a pay rate, statutory calculation, or authority to pay.
 
 **Leave Entitlement**: A Company policy's grant or accrual for an eligible Engagement and entitlement year. A Position supplies neither entitlement nor approval authority.
+- **Calculation Policy** — An approved, effective-dated set of rules used by a deterministic Finance calculation. Changing a policy creates a new version rather than changing prior results.
+- **Calculation Run** — A reproducible Finance result pinned to its input, source hash, policy version, currency scale and human decisions. A Run is evidence for a later accounting, filing or publication action; approval alone does not post it.
+- **Statutory Package** — A versioned set of tax-return figures, export data and evidence prepared for a jurisdiction and filing period. Exporting a package is distinct from filing or paying it.
+- **Bank Match Group** — A reviewed allocation connecting one or more bank movements to one or more accounting targets. It retains its allocation evidence when reversed.
+- **Close Check** — A dated, source-versioned result that either passes, warns or blocks an Accounting Period close. A later source change requires a new Check.
+- **Manufacturing Cost Movement** — An immutable quantity-and-value event that moves actual cost among raw material, work in progress, finished goods, abnormal loss and cost of sales.

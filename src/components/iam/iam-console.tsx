@@ -1984,6 +1984,23 @@ export function IamConsole({
       )}
       {section === "reviews" && (
         <>
+          {!data.platform&&can("iam.review")&&companyScope&&<section className={styles.panel}>
+            <h3>Periodic access certification</h3>
+            <p>Capture every active assignment, then have a different administrator keep or revoke each one against the frozen role, scope, source and expiry.</p>
+            <form className={styles.form} onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget),due=new Date(field(f,"dueAt")+"T23:59:59").getTime();void send("access-reviews",{name:field(f,"name"),dueAt:due,reason:field(f,"reason")});}}>
+              <label>Campaign name<input name="name" required minLength={3} maxLength={120} placeholder="Quarterly access review"/></label>
+              <label>Due date<input name="dueAt" type="date" required min={day(data.evaluatedAt+86400000)} max={day(data.evaluatedAt+366*86400000)}/></label>
+              {renderReason()}{submit("Start access review")}
+            </form>
+            {data.accessReviewCampaigns.length?data.accessReviewCampaigns.map(c=>{const items=data.accessReviewItems.filter(i=>i.campaign_id===c.id),pending=items.filter(i=>i.decision==="pending").length,decided=items.length-pending,overdue=c.status==="open"&&Number(c.due_at)<data.evaluatedAt;return <article id={text(c.id)} className={styles.review} key={text(c.id)}>
+              <div className={styles.sectionHeading}><h4>{text(c.name)}</h4><span className={styles.badge}>{overdue?"overdue":text(c.status)}</span></div>
+              <p>{text(c.reason)}</p><small>{decided}/{items.length} certified · due {date(c.due_at)} · revision {text(c.version)}</small>
+              <details open={c.status==="open"}><summary>Review assignments ({pending} pending)</summary>{items.map(item=><div className={styles.item} key={text(item.id)}><div><strong>{data.users.find(u=>u.id===item.user_id)?.name??text(item.user_id)}</strong><p>{text(item.role)} · {text(item.scope_kind)}{item.scope_node_id?` · ${data.nodes.find(n=>n.id===item.scope_node_id)?.display_name??text(item.scope_node_id)}`:""} · {text(item.source)} · until {date(item.valid_until)}</p><span className={styles.badge}>{text(item.decision)}</span>{Boolean(item.decision_reason)&&<small>{text(item.decision_reason)}</small>}</div>
+                {c.status==="open"&&item.decision==="pending"&&c.created_by!==data.currentUserId&&item.user_id!==data.currentUserId&&<form className={styles.form} onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void send(`access-review-items/${item.id}/decide`,{expectedCampaignVersion:Number(c.version),decision:field(f,"decision"),reason:field(f,"reason")});}}><label>Decision<select name="decision"><option value="keep">Keep access</option><option value="revoke">Revoke immediately</option></select></label>{renderReason()}{submit("Record certification")}</form>}
+              </div>)}</details>
+              {c.status==="open"&&c.created_by===data.currentUserId&&decided===0&&<form className={styles.form} onSubmit={e=>{e.preventDefault();void send(`access-reviews/${c.id}/cancel`,{expectedVersion:Number(c.version),reason:field(new FormData(e.currentTarget),"reason")});}}>{renderReason()}{submit("Cancel untouched campaign")}</form>}
+            </article>}):<Empty>No access certification campaigns yet.</Empty>}
+          </section>}
           <section className={styles.panel}>
             <h3>Independent reviews</h3>
             <p>

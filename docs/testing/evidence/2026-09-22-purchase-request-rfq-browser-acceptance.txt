@@ -1,0 +1,30 @@
+ERPX Release 1 source-linked purchase request browser acceptance — 2026-09-22
+
+Disposable demo run
+- Run: 53ef5742a0b6
+- Origin: http://127.0.0.1:3102
+- Storage: isolated PostgreSQL databases and private local session/files
+- External integrations: sandbox/demo records only; no provider or real company data
+
+Command
+ERPX_DEMO_RUN=53ef5742a0b6 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bun run demo:verify:browser
+
+Result
+- controlled payment: passed
+- two consecutive period closes: passed
+- opening balance import: passed
+- standalone purchase request sourcing: passed
+- source-linked purchase request to partial RFQ and draft PO: passed (17.3s)
+- total: 5 passed (47.8s)
+
+Source-linked workflow coverage
+1. An employee submits the seeded ten-laptop request from the real request page.
+2. A people manager, Finance preparer and Finance approver independently approve the request.
+3. Purchasing assigns the active handler, starts work, allocates six of ten requested units and creates an RFQ from the approved request.
+4. The buyer records a supplier quotation, submits the partial award and a separate purchasing manager approves it.
+5. The buyer creates the awarded draft PO; the owner API confirms the RFQ is persisted as `ordered` with the original request ID.
+
+Acceptance boundary
+- This is automated browser acceptance on the isolated working demo company, not business sign-off.
+- It does not prove the remaining four-unit split RFQ, full receipts/AP/payment, live supplier integrations, statutory procurement rules or production operation.
+- Demo reset destroys the disposable databases and private session/files; it cannot reach real company data.

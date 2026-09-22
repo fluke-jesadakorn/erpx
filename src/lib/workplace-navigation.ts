@@ -1,7 +1,7 @@
 import { adminSections, type AdminSection } from "./administration";
 import { iamSections } from "./iam";
 import { hasPermission } from "./permissions";
-import { visiblePmsSections } from "./pms";
+import { visiblePmsSections } from "./pms-model";
 import { peopleIamDestination } from "./people-lifecycle";
 
 export type NavigationScopeKind =
@@ -115,6 +115,7 @@ export type NavigationTrailItem = {
 export const commerceNavigationViews = [
   ["sales", "Sales orders"],
   ["quote", "Quotations"],
+  ["pricing", "Price lists"],
   ["purchase", "Purchase orders"],
   ["stock", "Stock & movements"],
   ["products", "Products"],
@@ -331,6 +332,14 @@ export function workplaceNavigation(
           "quotation",
           ["quotes", "sales"],
         ),
+        ...(hasPermission(actor,"commerce.sales") ? [item(
+          "operations-pricing",
+          commerceViewLabel("pricing"),
+          "commerce?view=pricing",
+          "Sales & purchasing",
+          "invoice",
+          ["price lists", "discount approvals"],
+        )] : []),
         item(
           "operations-purchasing",
           commerceViewLabel("purchase"),
@@ -453,33 +462,23 @@ export function workplaceNavigation(
   }
   if (!beta) {
     const financeItems = hasPermission(actor, "finance.read") ? [
-        item("finance-overview", "Finance overview", "finance", "Finance", "home", ["accounting", "payments"]),
+        item("finance-overview", "My work", "finance", "Finance", "home", ["finance work", "accounting"]),
+        item("finance-receivables", "Receivables", "finance/invoices?kind=receivable&queue=open", "Finance", "invoice", ["accounts receivable", "collections"]),
+        item("finance-payables", "Payables", "finance/invoices?kind=payable&queue=open", "Finance", "invoice", ["accounts payable", "supplier invoices"]),
+        item("finance-bank", "Cash & banking", "finance/bank", "Finance", "bank", ["bank statements", "cash", "reconciliation", "bank reconciliation"]),
         item(
           "finance-ledger",
-          "Ledger & reports",
-          "finance/ledger",
+          "Accounting",
+          "finance/accounting",
           "Finance",
           "ledger",
-          ["journals", "general ledger", "period close"],
+          ["journals", "general ledger"],
         ),
-        item(
-          "finance-invoices",
-          "Invoices",
-          "finance/invoices",
-          "Finance",
-          "invoice",
-          ["receivables", "payables", "payments"],
-        ),
-        ...(scopeKind === "holding" ? [item("finance-supplier-batches", "Supplier payment batches", "finance/supplier-batches", "Finance", "bank", ["supplier payments", "bank export", "payment batches"])] : []),
-        item("finance-refunds", "Return refunds", "finance/refunds", "Finance", "bank", ["credit notes", "refund obligations", "return payments"]),
-        item(
-          "finance-bank",
-          "Bank reconciliation",
-          "finance/bank",
-          "Finance",
-          "bank",
-          ["bank statements"],
-        ),
+        item("finance-close", "Period close", "finance/close", "Finance", "routine", ["period close", "close checklist"]),
+        item("finance-reports", "Reports", "finance/reports", "Finance", "ledger", ["trial balance", "financial statements", "aging"]),
+        item("finance-engines", "Calculation engines", "finance/engines", "Finance", "routine", ["cash flow", "statutory", "goodwill", "NCI", "equity method", "manufacturing costing"]),
+        ...(scopeKind === "holding" ? [item("finance-group", "Group reporting", "finance/group", "Finance", "organization", ["consolidation", "intercompany", "NCI"])] : []),
+        item("finance-setup", "Setup", "finance/setup", "Finance", "settings", ["chart of accounts", "opening balances", "tax"]),
         item(
           "finance-expenses",
           "Employee expenses",
@@ -756,6 +755,7 @@ export function resolveNavigation(
     const byView: Record<string, string> = {
       sales: "operations-sales",
       quote: "operations-quotations",
+      pricing: "operations-pricing",
       purchase: "operations-purchasing",
       stock: "operations-stock",
       products: "operations-products",
@@ -792,12 +792,18 @@ export function resolveNavigation(
   if (route === "finance") {
     const bySection: Record<string, string> = {
       ledger: "finance-ledger",
+      accounting: "finance-ledger",
       journals: "finance-ledger",
-      invoices: "finance-invoices",
-      payments: "finance-invoices",
+      invoices: queryValue(searchParams, "kind") === "payable" ? "finance-payables" : "finance-receivables",
+      payments: "finance-payables",
       bank: "finance-bank",
-      refunds: "finance-refunds",
-      "supplier-batches": "finance-supplier-batches",
+      close: "finance-close",
+      reports: "finance-reports",
+      engines: "finance-engines",
+      group: "finance-group",
+      setup: "finance-setup",
+      refunds: "finance-payables",
+      "supplier-batches": "finance-payables",
     };
     const activeId = bySection[second ?? ""] ?? "finance-overview";
     return {

@@ -1,0 +1,19 @@
+
+Running 2 tests using 1 worker
+
+(node:35178) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop] › tests/e2e/split-requisition-uom.spec.ts:3:5 › purchase request and RFQ screens expose units and partial sourcing guidance (4.9s)
+(node:35216) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 [mobile] › tests/e2e/split-requisition-uom.spec.ts:3:5 › purchase request and RFQ screens expose units and partial sourcing guidance (2.5s)
+
+  2 passed (8.0s)
+
+Running 1 test using 1 worker
+
+(node:35235) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop] › tests/e2e/split-requisition-uom.spec.ts:3:5 › purchase request and RFQ screens expose units and partial sourcing guidance (2.8s)
+
+  1 passed (3.1s)

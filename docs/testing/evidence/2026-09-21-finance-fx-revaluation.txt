@@ -1,0 +1,40 @@
+ERPX Release 1 Finance — controlled period-end FX revaluation
+Observed: 2026-09-21 Asia/Bangkok
+Environment: isolated PostgreSQL integration databases plus local development database
+
+Delivered behavior
+- Company Finance prepares closing rates per foreign currency, selects functional-currency other-income and other-expense accounts, and records preparation proof.
+- The preparation stores each invoice's transaction outstanding, prior functional carrying amount, revalued amount, adjustment, rate, version, and a deterministic source hash.
+- The preparer cannot approve the run. An independent Finance approver can reject it or approve it into a balanced posted journal.
+- Approval rejects changed foreign exposure, a closed period, stale version, duplicate posted period/chart, invalid accounts, and non-period-end dates.
+- Approval updates each open invoice's functional carrying balance atomically with the journal and decision evidence.
+- Period close includes posted revaluation adjustments in AR/AP source balances and keeps unrevalued open foreign monetary items as explicit blockers.
+
+Focused and adjacent regression command
+$ bun run test -- tests/finance-fx-revaluation.test.ts tests/finance-generic-payments.test.ts tests/finance-close-reconciliation.test.ts tests/finance-payment-corrections.test.ts
+
+Result
+Test Files  4 passed (4)
+Tests       9 passed (9)
+Duration    46.53s
+
+Additional verification
+- bun run typecheck: passed
+- scoped ESLint for the Finance service, API, close page, client control and focused test: passed with no output
+- bun run db:migrate:local: passed; six local databases provisioned and migration 0256 applied by the repository migrator
+- Authenticated public browser at https://erpx.jesadakorn.com/holdings/acme/finance/close rendered the period-close reconciliation table, explicit per-control-account foreign-item counts, the revaluation section and its no-exposure state. The Acme fixture ledger uses USD as its base currency, so this observation did not submit a revaluation run.
+- Visual inspection found the period metric cards constrained to single grid columns; the close page now uses responsive minimum-width metric cards and was rechecked after hot reload.
+
+Covered cases
+- USD payable recognized at THB 35 and revalued at THB 36 posts Dr unrealized FX loss / Cr AP and changes the functional outstanding amount from THB 3,500 to THB 3,600.
+- USD receivable recognized at THB 35 and revalued at THB 36 posts Dr AR / Cr unrealized FX gain.
+- A mixed receivable/payable run balances control and gain/loss accounts.
+- Self-approval is rejected.
+- A newly posted foreign invoice after preparation makes the source hash stale; approval is rejected, then rejection and a fresh run succeed.
+- Replaying the same approval idempotency key returns the original result.
+- The close reconciliation changes foreignOpenCount from one to zero and reconciles the revalued control balance.
+
+Limitations
+- This is implementation and automated simulation evidence, not Company business-owner sign-off.
+- The public authenticated observation covered the real empty state; preparation and independent approval controls are covered by service/API integration rather than a browser transaction in this evidence.
+- No external FX-rate or bank provider was contacted; a responsible Finance user supplies and evidences the closing rate.

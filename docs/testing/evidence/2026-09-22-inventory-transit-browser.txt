@@ -1,0 +1,21 @@
+ERPX inventory transit browser acceptance — 2026-09-22
+
+Scope: isolated Demo Company browser simulation only. This is flow acceptance evidence, not production or company business sign-off.
+
+Run: 13e9ac7b70a6 (temporary PostgreSQL databases and sessions; destroyed after verification)
+Command:
+  ERPX_DEMO_RUN=13e9ac7b70a6 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bun run test:e2e:local tests/e2e/demo-stock-transit.spec.ts --project=desktop
+
+Result:
+  1 passed (11.5s)
+
+Verified through the actual authenticated interface with independent accounts:
+- source warehouse manager created a staged warehouse transfer for 3 SIM-ITEM units;
+- source operator submitted the document for review;
+- separate receiving warehouse manager approved transport;
+- source operator recorded dispatch tracking and physical evidence;
+- receiving operator recorded a 1-unit partial receipt, reloaded the record, then received the remaining 2 units;
+- the transit record reached completed, API detail showed received_milli=3000 and lost_milli=0;
+- the downstream stock projection showed 3 units and THB 10.00 in the receiving warehouse.
+
+Limitations kept separate from this gate: intercompany documents, customer proof of delivery, carrier/provider integration, production operation, and company business acceptance.

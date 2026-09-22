@@ -10,6 +10,8 @@ Directory & access at scoped /people/access owns the People, Groups, Access poli
 |---|---|---|---|---|
 | `/api/auth/[...all]` | GET/POST | identity | Better Auth handler with device multi-session account switching | Implemented |
 | `/api/v1/platform/assignments/active` | POST | platform identity/access | Select an active Platform-only assignment | Implemented |
+| `/api/v1/platform/operations` | GET | platform operations | Read-only live control-plane and per-Holding outbox health; requires Platform context and returns private no-store data | Implemented |
+| `/api/v1/platform/operations/recover` | POST | platform operations | Platform-admin reviewed dead-letter recovery with reason, expected attempt/error snapshot, idempotency and Holding audit | Implemented |
 | `/api/v1/holdings/{holdingSlug}/assignments/active` | POST | identity/access | Select an active assignment for the authenticated account; D1 eligibility is rechecked | Implemented |
 | `/api/v1/holdings/{holdingSlug}/companies/active` | POST | organization | Select a validated Company in a Holding workspace; Local workspaces reject overrides | Implemented |
 | `/api/v1/holdings/{holdingSlug}/leave-requests/{id}` | GET | people/payroll | Authorized owner read | Implemented |
@@ -35,7 +37,8 @@ Directory & access at scoped /people/access owns the People, Groups, Access poli
 | `/api/v1/holdings/{holdingSlug}/records/{module}/{id}/mentions` | POST | collaboration | Attach a typed, server-resolved person mention from the current Holding | Implemented |
 | `/api/v1/holdings/{holdingSlug}/records/{module}/{id}/suggestions` | POST | agent | Create an evidence-pinned development-provider suggestion | Implemented |
 | `/api/v1/holdings/{holdingSlug}/records/{module}/{id}/suggestions/{suggestionId}` | POST | agent | Human apply/reject with host and evidence version checks | Implemented |
-| `/api/v1/holdings/{holdingSlug}/people/*` | GET/POST | people/payroll | People directory, engagements, compensation, pay groups, time entries, country-pack lifecycle, payroll previews and legacy payment export/confirmation; production payroll gated | Partial domain implementation |
+| `/api/v1/holdings/{holdingSlug}/people/*` | GET/POST | people/payroll | People directory, engagements, compensation, pay groups, time entries, country-pack lifecycle, payroll previews, immutable review exports, controlled correction requests, payroll advances and legacy payment export/confirmation; production payroll gated | Partial domain implementation |
+| `/api/v1/holdings/{holdingSlug}/people/lifecycle/tasks/{taskId}/final-pay` | POST | people/payroll and retirement clearance | Assigned Payroll owner creates one person-scoped `final_pay` preview through the last working day; idempotent and task-version checked | Implemented |
 | `/api/v1/holdings/{holdingSlug}/finance/{...path}` | GET/POST | finance | Chart, accounts, periods, journals, posting/reversal, AP/AR invoices and aging, payments, bank CSV/reconciliation, reports; remaining tax/asset/budget/lease/loan/revenue APIs require domain hardening | Partial domain implementation |
 
 Expense routes (also available through authorized branch/department bases):
@@ -90,8 +93,15 @@ Slugs are immutable and unique within their route parent. Opaque IDs do not appe
 | `/holdings/{holdingSlug}/work?queue=todo\|waiting\|completed\|all&q=...` | Role-specific leave, expense, count and transfer queues sharing status/search filters |
 | `/holdings/{holdingSlug}/stock-counts` and `/stock-counts/{id}` | Physical-count register, typed preparation, correction and independent posting |
 | `/holdings/{holdingSlug}/stock-transfers` and `/stock-transfers/{id}` | Warehouse transfer register, source preparation and independent receipt confirmation |
-| `/holdings/{holdingSlug}/finance` | IFRS finance dashboard with chart, journal, balance and close navigation |
+| `/holdings/{holdingSlug}/finance` | Role-aware finance workbench with live receivable, payable, posting, payment, bank and close queues |
+| `/holdings/{holdingSlug}/finance/accounting` | Manual journals and journal review; legacy `/finance/ledger` redirects here |
+| `/holdings/{holdingSlug}/finance/close` | Period blockers, close readiness and independently approved close/reopen controls |
+| `/holdings/{holdingSlug}/finance/reports` | Company/chart-scoped statements and trial balance |
+| `/holdings/{holdingSlug}/finance/engines` | Versioned calculation runs for allocation, cash flow, Thai tax, consolidation, costing, and reconciliation |
+| `/holdings/{holdingSlug}/finance/group` | Holding intercompany status and consolidation-run snapshots |
+| `/holdings/{holdingSlug}/finance/setup` | Finance readiness and opening-balance import |
 | `/holdings/{holdingSlug}/tasks/people_payroll/{id}` | Live leave details, evidence, submission review and independent approval |
+| `/holdings/{holdingSlug}/people/payroll/{id}` | Payroll calculation evidence, immutable review exports and independently approved correction/recalculation history |
 | `/holdings/{holdingSlug}/feed` | Live updates, comments, reactions, follows and Stories |
 | `/holdings/{holdingSlug}/learn` | Captioned sample learning videos |
 | `/holdings/{holdingSlug}/inbox` | Explicit notification preview |
@@ -175,6 +185,16 @@ Company Finance/Treasury scope only; mutation commands require `Idempotency-Key`
 | `/supplier-batches/{id}/export` | POST / GET | Third-person export / recover immutable receipt |
 | `/supplier-instructions/{id}/result` | POST | Unknown retains reservation; independently verified failure releases it |
 | `/supplier-instructions/{id}/confirm` | POST | Bank evidence, payment, allocation, invoice and GL commit together |
+
+## Recurring accrual schedules
+
+| Route under `/api/v1/holdings/{holdingSlug}/finance` | Method | Behavior |
+| --- | --- | --- |
+| `/accrual-schedules` | GET | Finance-scoped schedules, due runs and active account options |
+| `/accrual-schedules` | POST | Save a draft recurring schedule with amount, frequency and source accounts |
+| `/accrual-schedules/{id}/approve`, `/cancel` | POST | Independent Finance approval or controlled cancellation |
+| `/accrual-schedules/{id}/prepare` | POST | Prepare the next due period as a draft journal in an open accounting period |
+| `/accrual-runs/{id}/post` | POST | Independent approval posts the balanced journal and advances the schedule cursor |
 
 ## Company routing attention
 

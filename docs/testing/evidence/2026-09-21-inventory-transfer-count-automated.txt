@@ -1,0 +1,25 @@
+Inventory transfer, transit and physical-count verification
+
+Command:
+bun --env-file=.env.local run test:integration tests/inventory-lot-serial.test.ts tests/inventory-transit.test.ts tests/flow-routing.test.ts
+
+Result:
+- Test files: 3 passed
+- Tests: 23 passed
+- Duration: 66.91s
+
+Covered behavior:
+- selected-lot direct transfer with quantity/value reconciliation
+- staged dispatch preserving two lot identities
+- partial receipt and independently approved transit loss
+- tracked physical count with a missing lot and a newly found lot
+- aggregate stock equals lot quantity/value after posting
+- stock-count adjustment journal and immutable lot/count evidence
+- existing untracked transfer, transit and count regressions
+
+Additional checks:
+- bun run typecheck: passed
+- bun run lint: passed with 0 errors and 3 pre-existing warnings
+- bun run deploy:build: passed
+- release: .runtime/releases/2026-09-21T08-29-08-879Z
+- bun run db:migrate:local: passed for migrations 0240 and 0241

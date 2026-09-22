@@ -1,0 +1,6 @@
+Public browser observation (authenticated Acme development workspace)
+Observed URL: https://erpx.jesadakorn.com/holdings/acme/people?view=payroll
+
+The actual Payroll page rendered the live Payroll advances panel with the explanation that approved advances create versioned monthly deductions. The Acme demo currently has no active pay-group engagement eligible for a request, so the page correctly showed “No active pay-group engagement is available for a payroll advance” and “No payroll advances yet.” Existing pay-group and payroll-run panels still rendered, with two payroll runs listed.
+
+No Acme transaction was submitted. This is UI observation only; the multi-role request/approval transaction is covered by the isolated PostgreSQL test fixture.

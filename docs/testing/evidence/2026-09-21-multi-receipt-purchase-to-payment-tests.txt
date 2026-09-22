@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/purchase-to-payment.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed (1)
+   Start at  13:36:21
+   Duration  9.15s (transform 204ms, setup 42ms, import 239ms, tests 8.80s, environment 0ms)
+

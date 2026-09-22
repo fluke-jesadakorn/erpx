@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/supplier-bill-matching.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  1 passed (1)
+      Tests  8 passed (8)
+   Start at  13:56:52
+   Duration  20.37s (transform 403ms, setup 42ms, import 267ms, tests 19.99s, environment 0ms)
+

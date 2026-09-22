@@ -608,6 +608,103 @@ export function TaskActions({
     </>
   );
 }
+export function TaskDelegationControls({
+  base,
+  detail,
+  options,
+}: {
+  base: string;
+  detail: TaskDetail;
+  options: StaffOptions;
+}) {
+  const { send, busy, error } = useStaffCommand(base),
+    canDelegate = detail.permittedActions.includes("delegate"),
+    [expiry, setExpiry] = useState(() => localInput(Date.now() + 86_400_000)),
+    [delegate, setDelegate] = useState(""),
+    [reason, setReason] = useState(""),
+    [revokeReason, setRevokeReason] = useState("");
+  const timestamp = (value: number) => new Date(value).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+  return (
+    <section className="card">
+      <h2>Temporary delegation</h2>
+      {detail.delegation ? (
+        <>
+          <p className="notice">
+            This task is delegated to <strong>{detail.delegation.delegate_name}</strong> until {new Date(detail.delegation.expires_at).toISOString().replace("T", " ").slice(0, 16)} UTC.
+          </p>
+          <p className="muted">Reason: {detail.delegation.reason}</p>
+          {canDelegate && (
+            <form className="business-form" onSubmit={(event) => {
+              event.preventDefault();
+                void send(`staff-tasks/${detail.task.id}/delegate/revoke/${detail.delegation!.id}`, {
+                  expectedVersion: detail.task.version,
+                  reason: revokeReason,
+                }).then((result) => { if (result) setRevokeReason(""); });
+            }}>
+              <label>
+                Reason for revoking
+                <textarea value={revokeReason} onChange={(event) => setRevokeReason(event.target.value)} minLength={3} maxLength={2000} required />
+              </label>
+              <button className="button secondary" disabled={busy}>Revoke delegation</button>
+            </form>
+          )}
+        </>
+      ) : canDelegate ? (
+        <form
+          className="business-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void send(`staff-tasks/${detail.task.id}/delegate`, {
+              delegateUserId: delegate,
+              expiresAt: new Date(expiry).toISOString(),
+              expectedVersion: detail.task.version,
+              reason,
+            });
+          }}
+        >
+          <label>
+            Delegate to
+            <select value={delegate} onChange={(event) => setDelegate(event.target.value)} required>
+              <option value="">Choose active staff</option>
+              {options.people
+                .filter((person, index, people) => people.findIndex((candidate) => candidate.user_id === person.user_id) === index && person.user_id !== detail.task.assignee_user_id)
+                .map((person) => <option key={person.user_id} value={person.user_id}>{person.legal_name}</option>)}
+            </select>
+          </label>
+          <label>
+            Expires
+            <input type="datetime-local" value={expiry} onChange={(event) => setExpiry(event.target.value)} required />
+          </label>
+          <label>
+            Reason
+            <textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={2000} required />
+          </label>
+          {error && <p className="error" role="alert">{error}</p>}
+          <button className="button" disabled={busy || !delegate}>Delegate task</button>
+        </form>
+      ) : (
+        <p className="muted">No active delegation. The creator or project owner can temporarily assign coverage.</p>
+      )}
+      {error && detail.delegation && <p className="error" role="alert">{error}</p>}
+      {detail.delegationHistory.length > 0 && (
+        <details>
+          <summary>Delegation history</summary>
+          {detail.delegationHistory.length === 50 && <p className="muted">Showing the 50 most recent delegations.</p>}
+          <ol>
+            {detail.delegationHistory.map((entry) => (
+              <li key={entry.id}>
+                <p><strong>{entry.delegate_name}</strong> · {entry.status}</p>
+                <p>Delegated by {entry.delegator_name} from {timestamp(entry.starts_at)} until {timestamp(entry.expires_at)}.</p>
+                <p>Reason: {entry.reason}</p>
+                {entry.status === "revoked" && <p>Revoked by {entry.revoked_by_name} {entry.revoked_at ? `at ${timestamp(entry.revoked_at)}` : ""}. Reason: {entry.revoke_reason ?? "No reason retained for this earlier revocation."}</p>}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+    </section>
+  );
+}
 export function ProjectEditor({
   base,
   options,

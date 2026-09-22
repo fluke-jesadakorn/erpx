@@ -40,6 +40,7 @@ import {
 import {
   resourceSlots,
   registeredDatabases,
+  registeredResources,
 } from "../src/lib/holding-registry";
 import type { WorkContext } from "../src/server/authorization";
 vi.mock("../src/server/runtime", () => ({ runtimeEnv: async () => env, holdingResources: async () => ({write:env.H001_DB,read:env.H001_READ_DB,files:env.H001_FILES}) }));
@@ -604,6 +605,51 @@ describe("tenant admission and verified invitations", () => {
     );
     expect(results.filter((x) => x.state === "active")).toHaveLength(2);
     expect(results.filter((x) => x.state === "waitlisted")).toHaveLength(1);
+    const activeSlots = (
+      await control
+        .prepare("SELECT holding_id,owner_user_id FROM beta_slots WHERE state='active' ORDER BY holding_id")
+        .all<{ holding_id: string; owner_user_id: string }>()
+    ).results;
+    for (const activeSlot of activeSlots) {
+      const holding = registeredResources(betaEnv, activeSlot.holding_id).write;
+      const companyId = `company-${activeSlot.holding_id}`;
+      expect(
+        await holding
+          .prepare("SELECT status,version FROM company_provisioning WHERE company_id=? AND holding_id=?")
+          .bind(companyId, activeSlot.holding_id)
+          .first(),
+      ).toEqual({ status: "active", version: 2 });
+      expect(
+        await holding
+          .prepare("SELECT count(*) count FROM staff_levels WHERE company_id=? AND active=1 AND level_number BETWEEN 1 AND 6")
+          .bind(companyId)
+          .first("count"),
+      ).toBe(6);
+      expect(
+        await holding
+          .prepare("SELECT count(*) count FROM organization_positions WHERE company_id=? AND active=1 AND is_ceo=1")
+          .bind(companyId)
+          .first("count"),
+      ).toBe(1);
+      expect(
+        await holding
+          .prepare("SELECT level_id,position_id,job_title FROM hr_engagements WHERE company_id=? AND id=?")
+          .bind(companyId, `engagement-${activeSlot.owner_user_id}`)
+          .first(),
+      ).toMatchObject({
+        level_id: `org-level-${companyId}-1`,
+        position_id: `company-ceo-${companyId}`,
+        job_title: "Chief Executive Officer",
+      });
+      expect(
+        (
+          await holding
+            .prepare("SELECT action FROM company_provisioning_events WHERE company_id=? ORDER BY created_at,id")
+            .bind(companyId)
+            .all<{ action: string }>()
+        ).results.map((event) => event.action),
+      ).toEqual(["started", "completed"]);
+    }
     const accepted = results.findIndex((x) => x.state === "active");
     await expect(
       onboard(betaEnv, users[accepted], inputs[accepted]),

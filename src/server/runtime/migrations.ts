@@ -26,5 +26,7 @@ export async function migrateDatabase(db: PostgresDatabase, track: string, root 
       try { await client.query(sql); await client.query('INSERT INTO erpx_migrations(name,checksum) VALUES($1,$2)', [name,checksum]); await client.query('COMMIT'); }
       catch (error) { await client.query('ROLLBACK'); throw error; }
     }
+    if (track === 'holding-write' && (await client.query("SELECT to_regprocedure('ensure_work_cache_coverage()') present")).rows[0].present)
+      await client.query('SELECT ensure_work_cache_coverage()');
   } finally { await client.query('SELECT pg_advisory_unlock(714928001)').catch(() => {}); client.release(); }
 }

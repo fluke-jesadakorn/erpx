@@ -42,6 +42,12 @@ export async function clearanceCase(db:SqlDatabase,actor:WorkContext,id:string) 
  const row=await db.prepare(`SELECT c.id,c.status,c.effective_at,c.definition,p.legal_name FROM people_lifecycle_cases c JOIN hr_people p ON p.id=c.person_id AND p.company_id=c.company_id WHERE c.id=? AND c.company_id=?`).bind(id,actor.companyId).first<{id:string;status:string;effective_at:number;definition:string;legal_name:string}>();
  if(!row)throw new ApiError(404,"NOT_FOUND","Case not found.");
  const tasks=(await db.prepare("SELECT * FROM people_preparation_tasks WHERE case_id=? AND company_id=? ORDER BY id").bind(id,actor.companyId).all<PreparationTask>()).results;
+ const finalPays=(await db.prepare(`SELECT fp.task_id,fp.id preparation_id,fp.run_id,fp.status,fp.version,r.pay_group_id,r.currency,r.period_start,r.period_end,r.pay_date,r.status run_status,r.version run_version
+   FROM hr_payroll_final_pay_preparations fp JOIN hr_payroll_runs r ON r.id=fp.run_id
+   WHERE fp.company_id=? AND fp.case_id=? ORDER BY fp.created_at DESC`).bind(actor.companyId,id).all<{task_id:string;preparation_id:string;run_id:string;status:string;version:number;pay_group_id:string;currency:string;period_start:string;period_end:string;pay_date:string;run_status:string;run_version:number}>()).results;
+ const finalPayOptions=(await db.prepare(`SELECT t.id task_id,e.pay_group_id,e.currency,COALESCE(e.end_date,c.definition->>'lastWorkingDate') last_working_date
+   FROM people_preparation_tasks t JOIN people_lifecycle_cases c ON c.id=t.case_id AND c.company_id=t.company_id JOIN hr_engagements e ON e.id=c.engagement_id AND e.company_id=c.company_id
+   WHERE t.company_id=? AND t.case_id=? AND t.clearance_type='payroll'`).bind(actor.companyId,id).all<{task_id:string;pay_group_id:string|null;currency:string;last_working_date:string|null}>()).results;
  const detailed=await Promise.all(tasks.map(async t=>{
   const refs=typeof t.document_references === "string" ? JSON.parse(t.document_references) as ClearanceReference[] : t.document_references??[];
   const evidence=await Promise.all(refs.map(async ref=>{
@@ -52,7 +58,7 @@ export async function clearanceCase(db:SqlDatabase,actor:WorkContext,id:string) 
     return {label:source?.label??ref.kind,status:source?.status??"Unavailable",href:`${path}${ref.id}`};
    } catch(e){if(!(e instanceof ApiError)||![403,404].includes(e.status))throw e; return {label:"Restricted source document",status:"Read permission required",href:null};}
   }));
-  return {...t,completion_reason:["finance","payroll"].includes(t.clearance_type ?? "") && (!hasPermission(actor,t.clearance_type === "payroll" ? "payroll.read" : "finance.read") || evidence.some(e=>!e.href)) ? null : t.completion_reason,document_references:undefined,evidence,canComplete:t.status==="pending" && canCompleteClearance(actor,t),canPlan:t.status==="pending" && (hasPermission(actor,"people.manage") || !!clearancePermissions[t.clearance_type!] && hasPermission(actor,clearancePermissions[t.clearance_type!]!))};
+  return {...t,completion_reason:["finance","payroll"].includes(t.clearance_type ?? "") && (!hasPermission(actor,t.clearance_type === "payroll" ? "payroll.read" : "finance.read") || evidence.some(e=>!e.href)) ? null : t.completion_reason,document_references:undefined,evidence,finalPay:finalPays.find(fp=>fp.task_id===t.id)??null,finalPayOptions:finalPayOptions.find(fp=>fp.task_id===t.id)??null,canComplete:t.status==="pending" && canCompleteClearance(actor,t),canPlan:t.status==="pending" && (hasPermission(actor,"people.manage") || !!clearancePermissions[t.clearance_type!] && hasPermission(actor,clearancePermissions[t.clearance_type!]!))};
  }));
  const definition = typeof row.definition === "string" ? JSON.parse(row.definition) : row.definition;
  const accessEnded = !!await db.prepare("SELECT 1 FROM people_access_cutoffs WHERE company_id=? AND case_id=? AND cancelled_at IS NULL AND effective_at<=? AND restored_at IS NULL").bind(actor.companyId,id,Date.now()).first();

@@ -12,6 +12,8 @@ The read-only inspector accepts person/user, assignment, workspace, action and o
 
 Reviews & audit searches the complete scoped IAM history by action, actor ID or target ID. Results use a stable timestamp/ID cursor in pages of 100 events; loading older events retains the search and Company boundary.
 
+Open access-certification campaigns notify every currently eligible company-level `iam.review` holder seven days before the due time and again after the campaign becomes overdue. The scheduled worker rechecks the assignment chain, role revision and principal state on every run, emits each campaign/phase/user alert once, and stops alerting completed or cancelled campaigns. Inbox rechecks the same current authority before exposing a notification and links directly to the campaign in Reviews & audit.
+
 ## Policy and storage
 
 - `src/lib/iam.ts` owns shared contracts; `src/lib/permissions.ts` owns live and preview capabilities and built-in compatibility definitions. Preview modules cannot supply executable grants.
@@ -77,6 +79,14 @@ Group mappings are independently reviewed and carry role revision, parent assign
 The shared local authentication account may still sign in for another Company. It cannot regain access to the migrated Company through old sessions, a password reset, invitation activation, or a direct API. Group removal and disabling the connection never undo migration. Failed activation rolls back customer changes; an idempotently created control identity without customer grants has no access and is safe to retry. Expired or obsolete approvals need a new proposal.
 
 Recovery and access renewal must be arranged before parent authority expires. Assignments default to 90 days capped by authorizing validity, and renewals create new assignments. There is no automatic expiry extension, directory fallback, or authentication/MFA bypass.
+
+## Account recovery
+
+Password recovery accepts an email address without revealing whether an account exists. For an eligible local account, ERPX creates a one-hour Better Auth verification and an account-recovery delivery job in the control database. A newer request deletes the older verification and cancels older pending delivery work, so only the latest link can be used.
+
+The delivery job stores the reset URL encrypted with an account-recovery key derived from `BETTER_AUTH_SECRET`; plaintext tokens are not retained in the delivery table, events or logs. The directory worker claims jobs with a lease, uses the stable job ID as the provider idempotency key, records the provider message ID, recovers interrupted claims and retries with exponential backoff for at most six attempts. Expired jobs and deleted accounts are cancelled before a provider call.
+
+A successful password reset deletes every active session for the account and records immutable completion evidence. Session deletion has a fail-safe path if evidence insertion fails. Resetting a shared local credential never restores access removed by a Company directory migration or revoked assignment. Invalid, expired and superseded links show a clear replacement-link action without displaying a password form.
 
 ## Verification and deployment
 

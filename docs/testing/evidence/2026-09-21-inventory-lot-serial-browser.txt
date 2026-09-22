@@ -1,0 +1,14 @@
+Local authenticated browser acceptance
+- Desktop Chrome: passed
+- Pixel 7: passed
+- Product creation exposed Traceability and persisted a lot-tracked product.
+- Stock position exposed On hand, Reserved, Quarantined, In transit and Available columns.
+- Quality exposed a product/lot/serial/warehouse selector.
+
+Public Tunnel authenticated browser acceptance
+- https://erpx.jesadakorn.com
+- Desktop Chrome: passed
+- The same product, stock-position and Quality screens rendered and behaved through the public hostname.
+
+Direct Codex in-app browser observation reached the public login screen because that isolated browser had no authenticated session. No authentication bypass was attempted; the automated browser acceptance used the normal sign-in endpoint and configured test account.
+

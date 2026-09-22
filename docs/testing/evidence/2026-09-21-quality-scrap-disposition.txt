@@ -1,0 +1,31 @@
+ERPX Release 1 Quality scrap disposition evidence
+Date: 2026-09-21
+
+Automated targeted regression:
+- tests/quality.test.ts
+- tests/flow-routing.test.ts
+- tests/inventory-lot-serial.test.ts
+- 3 files passed, 26 tests passed
+
+Verified invariants:
+- hold creator and inspector cannot request their own failed-stock disposition
+- complete held quantity only; tracked stock requires the held lot/serial
+- independent Company Finance approval and posting
+- captured stock/lot versions reject stale changes
+- stock quantity and value move together
+- balanced stock-variance and inventory GL
+- immutable disposition events and terminal disposed hold
+- Work handoff links Quality to the controlled stock count
+
+This evidence is automated implementation evidence. Browser and independent business acceptance remain separate gates.
+
+Additional verification:
+- typecheck passed
+- lint passed with 0 errors and 3 pre-existing warnings
+- isolated release build passed: .runtime/releases/2026-09-21T09-40-54-184Z
+- migration 0244 applied to development databases
+- authenticated public browser verified Quality queue routes failed result to Independent Quality manager
+- authenticated public browser verified immutable inspection evidence, complete held quantity, and visible Send scrap to Finance action
+- local /api/health: 200
+- public /api/health: 200
+- public unauthenticated detail request: 307 to authentication; authenticated browser detail rendered successfully

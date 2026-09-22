@@ -25,6 +25,7 @@ const createAgreementSchema = z.object({
     .length(3)
     .transform((x) => x.toUpperCase()),
   visitRateMinor: z.number().int().nonnegative(),
+  warrantyDiscountBps: z.number().int().min(0).max(10000).default(0),
 });
 const agreementActionSchema = z.object({
   action: z.enum(["activate", "reject", "retire"]),
@@ -120,6 +121,7 @@ type Agreement = Row & {
   created_by: string;
   updated_at: number;
   can_review: number;
+  warranty_discount_bps: number;
 };
 type Order = Row & {
   id: string;
@@ -309,7 +311,7 @@ export async function createAgreement(
         : []),
       write
         .prepare(
-          "INSERT INTO field_service_agreements(id,company_id,branch_id,department_id,customer_id,asset_id,title,start_date,end_date,currency,visit_rate_minor,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO field_service_agreements(id,company_id,branch_id,department_id,customer_id,asset_id,title,start_date,end_date,currency,visit_rate_minor,warranty_discount_bps,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         )
         .bind(
           id,
@@ -323,6 +325,7 @@ export async function createAgreement(
           input.endDate,
           input.currency,
           input.visitRateMinor,
+          input.warrantyDiscountBps,
           a.userId,
           now,
           now,
@@ -530,13 +533,15 @@ export async function changeServiceOrder(
   if (prior) return prior;
   const row = await write
     .prepare(
-      `SELECT o.*,g.visit_rate_minor,g.currency,g.status agreement_status,CASE WHEN ${technician} THEN 1 ELSE 0 END technician_eligible,CASE WHEN ${reviewer("o")} THEN 1 ELSE 0 END can_review FROM field_service_orders o JOIN field_service_agreements g ON g.id=o.agreement_id WHERE o.id=? AND ${oScope}`,
+      `SELECT o.*,g.visit_rate_minor,g.warranty_discount_bps,g.currency,g.status agreement_status,a.warranty_end,CASE WHEN ${technician} THEN 1 ELSE 0 END technician_eligible,CASE WHEN ${reviewer("o")} THEN 1 ELSE 0 END can_review FROM field_service_orders o JOIN field_service_agreements g ON g.id=o.agreement_id LEFT JOIN operational_assets a ON a.id=o.asset_id WHERE o.id=? AND ${oScope}`,
     )
     .bind(a.userId, id, ...args(a))
     .first<
       Order & {
         agreement_id: string;
         visit_rate_minor: number;
+        warranty_discount_bps: number;
+        warranty_end: string | null;
         currency: string;
         agreement_status: string;
         ticket_id: string;
@@ -627,7 +632,7 @@ export async function changeServiceOrder(
         write,
         key,
         "available",
-        "EXISTS(SELECT 1 FROM commerce_stock s JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE s.warehouse_id=? AND s.product_id=? AND w.company_id=? AND w.branch_id=? AND s.quantity_milli-COALESCE((SELECT SUM(quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0)>=? AND NOT EXISTS(SELECT 1 FROM inventory_quality_holds h WHERE h.warehouse_id=s.warehouse_id AND h.product_id=s.product_id AND h.status NOT IN ('released','cancelled')))",
+        "EXISTS(SELECT 1 FROM commerce_stock s JOIN commerce_warehouses w ON w.id=s.warehouse_id WHERE s.warehouse_id=? AND s.product_id=? AND w.company_id=? AND w.branch_id=? AND s.quantity_milli-COALESCE((SELECT SUM(quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0)>=? AND NOT EXISTS(SELECT 1 FROM inventory_quality_holds h WHERE h.warehouse_id=s.warehouse_id AND h.product_id=s.product_id AND h.status NOT IN ('released','cancelled','disposed')))",
         [
           input.warehouseId,
           input.productId,
@@ -740,6 +745,30 @@ export async function changeServiceOrder(
         "A different eligible reviewer must release billing.",
       );
     status = "billed";
+    const invoiceDate = new Date(now).toISOString().slice(0, 10),
+      warrantyDiscountBps = Math.max(0, Math.min(10000, Number(row.warranty_discount_bps ?? 0))),
+      warrantyApplied = Boolean(row.warranty_end && String(row.warranty_end) >= invoiceDate),
+      amountMinor = warrantyApplied
+        ? Math.floor((Number(row.visit_rate_minor) * (10000 - warrantyDiscountBps)) / 10000)
+        : Number(row.visit_rate_minor);
+    const postingAccounts = await write
+      .prepare(
+        `SELECT ar.id receivable_account_id,rev.id revenue_account_id
+         FROM finance_accounts ar
+         JOIN finance_charts c ON c.id=ar.chart_id AND c.company_id=ar.company_id
+         JOIN finance_accounts rev ON rev.chart_id=ar.chart_id AND rev.company_id=ar.company_id
+         WHERE ar.company_id=? AND ar.status='active' AND ar.control_kind='receivable'
+           AND rev.status='active' AND rev.category='revenue' AND ar.currency=? AND rev.currency=? AND c.base_currency=?
+         ORDER BY ar.code,rev.code LIMIT 1`,
+      )
+      .bind(a.companyId, row.currency, row.currency, row.currency)
+      .first<{ receivable_account_id: string; revenue_account_id: string }>();
+    if (!postingAccounts)
+      throw new ApiError(
+        422,
+        "FIELD_SERVICE_FINANCE_SETUP_REQUIRED",
+        "Configure an active receivable control account and revenue account in Finance before releasing field service billing.",
+      );
     steps.push(
       assertion(
         write,
@@ -755,14 +784,53 @@ export async function changeServiceOrder(
         "EXISTS(SELECT 1 FROM field_service_agreements WHERE id=? AND status='active')",
         [row.agreement_id],
       ),
+      assertion(
+        write,
+        key,
+        "finance-accounts",
+        "EXISTS(SELECT 1 FROM finance_accounts ar JOIN finance_accounts rev ON rev.chart_id=ar.chart_id AND rev.company_id=ar.company_id JOIN finance_charts c ON c.id=ar.chart_id WHERE ar.id=? AND rev.id=? AND ar.company_id=? AND ar.status='active' AND ar.control_kind='receivable' AND rev.status='active' AND rev.category='revenue' AND ar.currency=? AND rev.currency=? AND c.base_currency=?)",
+        [
+          postingAccounts.receivable_account_id,
+          postingAccounts.revenue_account_id,
+          a.companyId,
+          row.currency,
+          row.currency,
+          row.currency,
+        ],
+      ),
       write
         .prepare(
-          "INSERT INTO field_service_billing_releases(id,order_id,agreement_id,customer_id,currency,amount_minor,source_order_version,released_by,reason,created_at) SELECT ?,o.id,o.agreement_id,t.customer_id,?,?,?, ?,?,? FROM field_service_orders o JOIN support_tickets t ON t.id=o.ticket_id WHERE o.id=?",
+          "INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,tax_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,source_type,source_id,status,created_by,created_at,updated_at) SELECT ?,o.company_id,t.customer_id,'receivable',?,?,?,?,?,0,?,?,?,?,'field_service',?,'draft',?,?,? FROM field_service_orders o JOIN support_tickets t ON t.id=o.ticket_id WHERE o.id=?",
+        )
+        .bind(
+          `field-invoice-${key}`,
+          `FS-${id}`,
+          invoiceDate,
+          new Date(now + 30 * 86400000).toISOString().slice(0, 10),
+          row.currency,
+          amountMinor,
+          amountMinor,
+          amountMinor,
+          postingAccounts.receivable_account_id,
+          postingAccounts.revenue_account_id,
+          id,
+          a.userId,
+          now,
+          now,
+          id,
+        ),
+      write
+        .prepare(
+          "INSERT INTO field_service_billing_releases(id,order_id,agreement_id,customer_id,currency,amount_minor,warranty_applied,warranty_discount_bps,warranty_end_snapshot,pricing_date,source_order_version,released_by,reason,created_at) SELECT ?,o.id,o.agreement_id,t.customer_id,?,?,?,?,?,?,?, ?,?,? FROM field_service_orders o JOIN support_tickets t ON t.id=o.ticket_id WHERE o.id=?",
         )
         .bind(
           `field-billing-${key}`,
           row.currency,
-          row.visit_rate_minor,
+          amountMinor,
+          warrantyApplied,
+          warrantyDiscountBps,
+          row.warranty_end ?? null,
+          invoiceDate,
           input.expectedVersion + 1,
           a.userId,
           input.reason,

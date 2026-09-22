@@ -1,0 +1,54 @@
+{
+  "run": "ec2aae319bce",
+  "scenario": "finance-controlled-bank-payment",
+  "payment": {
+    "id": "pay-6b578cf2-b56a-4bc6-92e3-ff5d0e01708e",
+    "status": "settled",
+    "amount_minor": "12500",
+    "outstanding_minor": "0",
+    "journal_id": "journal-0b3c9829-9f81-441e-8309-21393d73dcdf",
+    "created_by": "expense-68244894-f146-4d66-8151-025fb1ca3117-reviewer",
+    "approved_by": "expense-68244894-f146-4d66-8151-025fb1ca3117-manager",
+    "released_by": "expense-68244894-f146-4d66-8151-025fb1ca3117-payer",
+    "version": "4"
+  },
+  "invoice": {
+    "id": "expense-68244894-f146-4d66-8151-025fb1ca3117-payment-invoice",
+    "status": "paid",
+    "outstanding_minor": "0",
+    "version": "2"
+  },
+  "bank": {
+    "id": "expense-68244894-f146-4d66-8151-025fb1ca3117-payment-bank-row",
+    "match_status": "matched",
+    "matched_type": "payment",
+    "matched_id": "pay-6b578cf2-b56a-4bc6-92e3-ff5d0e01708e",
+    "version": "2"
+  },
+  "journalLines": [
+    {
+      "code": "CLOSE-AP",
+      "debit_minor": "12500",
+      "credit_minor": "0"
+    },
+    {
+      "code": "CLOSE-BANK",
+      "debit_minor": "0",
+      "credit_minor": "12500"
+    }
+  ],
+  "decisionEvidence": [
+    {
+      "action": "finance.payment.approve",
+      "count": 1
+    },
+    {
+      "action": "finance.payment.confirm",
+      "count": 1
+    },
+    {
+      "action": "finance.payment.release",
+      "count": 1
+    }
+  ]
+}

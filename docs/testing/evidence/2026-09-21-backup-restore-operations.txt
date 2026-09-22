@@ -1,0 +1,33 @@
+ERPX backup and restore operational rehearsal — 2026-09-21
+
+Command
+$ bun run test -- tests/backup-restore-operations.test.ts tests/recovery-simulation.test.ts
+
+Result
+Test Files  2 passed (2)
+Tests       2 passed (2)
+Duration    22.54s
+
+Full operator rehearsal
+- Constructed an isolated ERPX home and an independently owned `erpx_test_*` PostgreSQL database.
+- Used the shipped `ops/macos/erpxctl.py --offline-test backup` command with PostgreSQL 18 tools.
+- Verified the published snapshot contains backup metadata, checksums, a custom-format database dump, private files, data configuration, application configuration and release identity.
+- Mutated the database row, private file and application secret after backup.
+- Used the shipped restore command. It first created a current-state safety backup, verified the selected snapshot, restored the database transactionally, swapped private files, restored the application secret and selected the matching installed release.
+- Verified the database row, private file and application secret returned to their pre-backup values while the current cluster database credential manifest remained intact.
+- Copied and tampered with the snapshot, then verified restore failed on checksum validation before changing current data and did not leave maintenance active.
+
+Business-state restore rehearsal
+- Created a source-linked Sales order with stock, reservation and partial fulfillment using owner services.
+- Dumped and restored the complete Holding database into a new isolated database.
+- Compared count and SHA-256 digest for all 477 public tables.
+- Verified order version/state, stock quantity/value, active reservation and the stock-reservation database invariant after restore.
+- No owner command was replayed and no duplicate business transaction was posted.
+
+Structured evidence
+- `docs/testing/evidence/2026-09-21-backup-restore-operations.json`
+- `docs/testing/evidence/2026-09-21-business-restore-records.json`
+
+Acceptance boundary
+- The full CLI rehearsal uses one isolated database plus private files/configuration; the business rehearsal covers a complete 477-table Holding database.
+- It does not prove the installed production host, every configured production database, off-machine durability, disk-loss recovery, WAL/PITR, or signed production RPO/RTO.

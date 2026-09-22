@@ -31,6 +31,24 @@ test("invalid credentials show an error and allow another attempt", async ({ pag
   await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeEnabled();
 });
 
+test("invalid reset links explain how to request a replacement", async ({ page }) => {
+  await page.goto("/reset-password?error=INVALID_TOKEN");
+  await expect(
+    page.getByRole("heading", { name: "Choose a new password" }),
+  ).toBeVisible();
+  const recoveryAlert = page
+    .getByRole("alert")
+    .filter({ hasText: "Reset link unavailable" });
+  await expect(recoveryAlert).toContainText("Reset link unavailable");
+  await expect(recoveryAlert).toContainText(
+    "invalid, expired, or has been replaced",
+  );
+  await expect(
+    page.getByRole("link", { name: "Request a new reset link" }),
+  ).toHaveAttribute("href", "/forgot-password");
+  await expect(page.getByLabel("Password", { exact: true })).toHaveCount(0);
+});
+
 for (const destination of [
   { link: "Forgot password?", path: "/forgot-password", heading: "Reset your password" },
   { link: "Verify email", path: "/verify-email", heading: "Verify your email" },

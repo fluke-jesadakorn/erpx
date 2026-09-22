@@ -45,6 +45,31 @@ async function login(context: BrowserContext, who: string) {
       url: process.env.ERPX_E2E_BASE_URL ?? "http://localhost:8787",
     },
   ]);
+  const activeResponse = await context.request.get(`/api/v1/holdings/acme/assignments/active`);
+  expect(activeResponse.ok(), await activeResponse.text()).toBeTruthy();
+  const active = (await activeResponse.json()).data as { revision: number };
+  const selectedResponse = await context.request.post(`/api/v1/holdings/acme/assignments/active`, {
+    headers: { "x-erpx-context-company": fixture.company },
+    data: { assignmentId: fixture.actors[who].assignmentId, revision: Number(active.revision ?? 0) },
+  });
+  expect(selectedResponse.ok(), await selectedResponse.text()).toBeTruthy();
+}
+async function contextHeaders(context: BrowserContext, who: string) {
+  const activeResponse = await context.request.get(
+    `/api/v1/holdings/acme/assignments/active`,
+  );
+  expect(activeResponse.ok(), await activeResponse.text()).toBeTruthy();
+  const active = (await activeResponse.json()).data as {
+    revision: number;
+    companyId: string;
+    assignmentId: string;
+  };
+  return {
+    "x-erpx-context-revision": String(active.revision),
+    "x-erpx-context-company": active.companyId || fixture.company,
+    "x-erpx-context-assignment":
+      active.assignmentId || fixture.actors[who].assignmentId,
+  };
 }
 async function sampleImage(page: Page, text: string, format = "image/png") {
   return Buffer.from(
@@ -186,7 +211,7 @@ test("every member can preserve an incomplete claim and reach People setup", asy
     await page
       .getByRole("link", { name: "Open claimant profile in People" })
       .click();
-    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(page.getByRole("dialog").last()).toBeVisible();
     await page.goBack();
     await expect(
       page.getByRole("textbox", { name: "Business purpose", exact: true }),
@@ -254,13 +279,13 @@ test("expense goes through four independent people and two slip-backed payments"
       .getByRole("button", { name: "Submit for department approval" })
       .click();
     await expect(
-      page.getByRole("heading", { name: "Department approval", exact: true }),
+      page.getByRole("heading", { name: "Review and decide", exact: true }),
     ).toBeVisible();
     const flowEndpoint=`/api/v1${base}/flows/expense/${id}`;
     const flowResponse=await owner.request.get(flowEndpoint);
     expect(flowResponse.ok(),await flowResponse.text()).toBeTruthy();
     const flow=(await flowResponse.json()).data;
-    const assigned=await owner.request.post(flowEndpoint,{headers:{"Idempotency-Key":randomUUID()},data:{stepKey:"department_approval",userId:fixture.actors.head.userId,expectedVersion:flow.version,recordVersion:flow.recordVersion,reason:"Primary reviewer for this isolated browser test",saveDefault:false}});
+    const assigned=await owner.request.post(flowEndpoint,{headers:{...await contextHeaders(owner,"owner"),"Idempotency-Key":randomUUID()},data:{stepKey:"department_approval",userId:fixture.actors.head.userId,expectedVersion:flow.version,recordVersion:flow.recordVersion,reason:"Primary reviewer for this isolated browser test",saveDefault:false}});
     expect(assigned.ok(),await assigned.text()).toBeTruthy();
     const approve = await head.newPage();
     await approve.goto(url);
@@ -307,12 +332,13 @@ test("expense goes through four independent people and two slip-backed payments"
     await post.goto(url);
     await post
       .getByLabel("Decision reason")
+      .first()
       .fill("Approve accounting and payable posting");
     await post
       .getByRole("button", { name: "Approve accounting → GL review" })
       .click();
     await expect(post.getByRole("heading",{name:"Post general ledger",exact:true})).toBeVisible();
-    await post.getByRole("button",{name:"ยืนยัน Debit / Credit และบันทึก GL"}).click();
+    await post.getByRole("button",{name:"Confirm Debit / Credit and post to GL", exact:true}).click();
     await expect(
       post.getByRole("heading", { name: "Finance payment", exact: true }),
     ).toBeVisible();
@@ -327,7 +353,7 @@ test("expense goes through four independent people and two slip-backed payments"
       ).toBeVisible();
       await payment
         .getByLabel("Payment date", { exact: true })
-        .fill("2026-09-10");
+        .fill("2026-09-21");
       await payment
         .getByLabel("Amount paid (THB)", { exact: true })
         .fill(amount);
@@ -428,9 +454,9 @@ test("IT can save a masked custom provider draft while employees are denied", as
       .getByRole("article")
       .filter({ has: page.getByRole("heading", { name, exact: true }) });
     await expect(
-      card.getByRole("button", { name: "Activate revision" }),
+      card.getByRole("button", { name: "Activate", exact: true }),
     ).toBeDisabled();
-    await card.getByRole("button", { name: "Edit / replace key" }).click();
+    await card.getByRole("button", { name: "Edit connection", exact: true }).click();
     await expect(page.getByLabel("API key", { exact: true })).toHaveValue("");
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -447,7 +473,7 @@ test("AI suggestions fill blanks, preserve human edits and require explicit repl
   try {
     await login(context, "claimant");
     const created = await context.request.post(`/api/v1${base}/expenses`, {
-      headers: { "Idempotency-Key": randomUUID() },
+      headers: { ...(await contextHeaders(context,"claimant")), "Idempotency-Key": randomUUID() },
       data: { merchant: "Human merchant" },
     });
     expect(created.status()).toBe(201);
@@ -506,6 +532,12 @@ test("AI suggestions fill blanks, preserve human edits and require explicit repl
     await expect(
       page.getByRole("textbox", { name: "Business purpose", exact: true }),
     ).toHaveValue("");
+    await page
+      .getByText("Extraction details and sources", { exact: true })
+      .click();
+    await page
+      .getByText("Suggested fields and sources", { exact: true })
+      .click();
     await page
       .locator(".row")
       .filter({ has: page.getByText("AI merchant", { exact: true }) })

@@ -39,6 +39,7 @@ import {
 import { commercePermissions } from "../src/server/commerce";
 import { resourceRequestRoute } from "../src/server/expense-routing";
 
+vi.mock("server-only", () => ({}));
 vi.mock("../src/server/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
@@ -702,11 +703,12 @@ it("opens historical published handbook content and never exposes a requested dr
 it('maps an approved requisition into RFQ and atomically links the awarded PO without bypassing either owner',async()=>{
  const {createRfq,actRfq,rfqDetail}=await import('../src/server/procurement-rfqs');
  const {saveMaster,saveOrder,orderSchema,getOrder}=await import('../src/server/commerce');
+ const {purchaseRequestProgress}=await import('../src/server/purchase-request-progress');
  const r=await assigned('purchase'),purchaser={...f.it,role:'purchasing_operator',assignmentId:await f.grant(f.it,'purchasing_operator')};
  const source=await getEmployeeRequest(db,purchaser,r.id),warehouse=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Requisition warehouse'},key())).id),product=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Requested laptop',price:'100'},key())).id),party=String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:key(),name:'Approved supplier'},key())).id);
  const input={requestId:r.id,requestVersion:source.version,title:'Source requisition RFQ',warehouseId:warehouse,neededDate:'2026-09-20',demandEvidence:'Product mapped to the approved laptop request',lines:[{requestItemOrdinal:0,productId:product,quantity:'1'}]};
  await expect(createRfq(purchaser,{...input,lines:[{...input.lines[0],quantity:'2'}]},key())).rejects.toMatchObject({code:'RFQ_REQUEST_MAPPING_REQUIRED'});
- const id=String((await createRfq(purchaser,input,key())).id);await expect(createRfq(purchaser,input,key())).rejects.toMatchObject({status:409});
+ const id=String((await createRfq(purchaser,input,key())).id);await expect(createRfq(purchaser,input,key())).rejects.toMatchObject({status:422,code:'RFQ_REQUEST_MAPPING_REQUIRED'});
  const poInput=orderSchema.parse({kind:'purchase',requestId:r.id,requestVersion:source.version,partyId:party,warehouseId:warehouse,orderDate:'2026-09-20',dueDate:'2026-09-20',lines:[{productId:product,quantity:'1',price:'100',taxBps:0}]});
  await expect(saveOrder(purchaser,null,poInput,key())).rejects.toMatchObject({code:'REQUEST_RFQ_REQUIRED'});
  await expect(act(purchaser,r.id,'link-order',{purchaseOrderId:'unrelated-order'})).rejects.toMatchObject({code:'REQUEST_RFQ_REQUIRED'});
@@ -718,4 +720,51 @@ it('maps an approved requisition into RFQ and atomically links the awarded PO wi
  await act(f.it,r.id,'comment');detail=await rfqDetail(purchaser,id);expect(detail.currentRequestVersion).toBeGreaterThan(source.version);
  const handoff={...poInput,requestVersion:detail.currentRequestVersion!,rfqId:id,rfqVersion:4},command=key(),po=await saveOrder(purchaser,null,handoff,command);expect(await saveOrder(purchaser,null,handoff,command)).toEqual(po);
  expect((await getEmployeeRequest(db,purchaser,r.id)).purchase_order_id).toBe(po.id);expect((await rfqDetail(purchaser,id)).rfq.order_id).toBe(po.id);expect((await getOrder(purchaser,String(po.id))).order.state).toBe('draft');
+ const progress=await purchaseRequestProgress(db,purchaser,r.id);
+ expect(progress.steps.map(step=>[step.id,step.state])).toEqual([
+  ['approval','complete'],['sourcing','complete'],['order','current'],['receiving','waiting'],['invoice','waiting'],['payment','waiting'],
+ ]);
+ expect(progress.steps.find(step=>step.id==='sourcing')?.href).toBe(`/procurement-rfqs/${id}`);
+ const requesterProgress=await purchaseRequestProgress(db,f.claimant,r.id);
+ expect(requesterProgress.steps.find(step=>step.id==='sourcing')?.href).toBeNull();
+});
+it('splits one approved request across supplier awards and snapshots exact unit conversions for two purchase orders',async()=>{
+ const {createRfq,actRfq,rfqDetail}=await import('../src/server/procurement-rfqs');
+ const {requestQuotationSource}=await import('../src/server/employee-requests');
+ const {saveMaster,saveOrder,orderSchema}=await import('../src/server/commerce');
+ await team('purchasing');
+ const r=await request('purchase',f.claimant,{currency:'THB',items:[{description:'Laptop',quantity:'24',unit:'each',estimatedCost:'240000'}]});
+ await act(f.claimant,r.id,'submit');await act(f.head,r.id,'approve');await act(f.reviewer,r.id,'approve');await act(f.manager,r.id,'approve');await act(f.it,r.id,'assign',{assigneeUserId:f.it.userId});await act(f.it,r.id,'start');
+ const purchaser={...f.it,role:'purchasing_operator',assignmentId:await f.grant(f.it,'purchasing_operator')};
+ const warehouse=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Split request warehouse'},key())).id);
+ const caseProduct=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Laptop case of twelve',unit:'case',price:'120000'},key())).id);
+ const eachProduct=String((await saveMaster(f.owner,'products',null,{sku:key(),name:'Laptop single unit',unit:'each',price:'10000'},key())).id);
+ const suppliers=[String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:key(),name:'Case supplier'},key())).id),String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:key(),name:'Unit supplier'},key())).id)];
+ let source=await requestQuotationSource(db,purchaser,r.id);
+ const first=String((await createRfq(purchaser,{requestId:r.id,requestVersion:source.request.version,title:'First split award',warehouseId:warehouse,neededDate:'2026-09-20',demandEvidence:'Allocate half to case supplier',lines:[{requestItemOrdinal:0,requestQuantity:'12',requestUnit:'each',requestUnitsPerProductUnit:'12',productId:caseProduct,quantity:'1'}]},key())).id);
+ source=await requestQuotationSource(db,purchaser,r.id);expect(source.items[0]).toMatchObject({requestedMilli:24000,allocatedMilli:12000,remainingMilli:12000});
+ await expect(createRfq(purchaser,{requestId:r.id,requestVersion:source.request.version,title:'Excess allocation',warehouseId:warehouse,neededDate:'2026-09-20',demandEvidence:'Must not exceed approved quantity',lines:[{requestItemOrdinal:0,requestQuantity:'13',requestUnit:'each',requestUnitsPerProductUnit:'1',productId:eachProduct,quantity:'13'}]},key())).rejects.toMatchObject({code:'RFQ_REQUEST_MAPPING_REQUIRED'});
+ const cancelled=String((await createRfq(purchaser,{requestId:r.id,requestVersion:source.request.version,title:'Temporary second split',warehouseId:warehouse,neededDate:'2026-09-20',demandEvidence:'Temporary allocation to verify release',lines:[{requestItemOrdinal:0,requestQuantity:'12',requestUnit:'each',requestUnitsPerProductUnit:'1',productId:eachProduct,quantity:'12'}]},key())).id);
+ await actRfq(purchaser,cancelled,{action:'cancel',expectedVersion:1,reason:'Replace the temporary sourcing decision'},key());
+ source=await requestQuotationSource(db,purchaser,r.id);expect(source.items[0].remainingMilli).toBe(12000);
+ const raceInput=(title:string)=>({requestId:r.id,requestVersion:source.request.version,title,warehouseId:warehouse,neededDate:'2026-09-20',demandEvidence:'Concurrent allocation must have one winner',lines:[{requestItemOrdinal:0,requestQuantity:'12',requestUnit:'each',requestUnitsPerProductUnit:'1',productId:eachProduct,quantity:'12'}]});
+ const raced=await Promise.allSettled([createRfq(purchaser,raceInput('Concurrent allocation A'),key()),createRfq(purchaser,raceInput('Concurrent allocation B'),key())]);
+ expect(raced.filter(x=>x.status==='fulfilled')).toHaveLength(1);expect(raced.filter(x=>x.status==='rejected')).toHaveLength(1);
+ expect((raced.find(x=>x.status==='rejected') as PromiseRejectedResult).reason).toMatchObject({status:409,code:'RFQ_REQUEST_OVERALLOCATED'});
+ const raceWinner=String((raced.find(x=>x.status==='fulfilled') as PromiseFulfilledResult<{id:string}>).value.id);await actRfq(purchaser,raceWinner,{action:'cancel',expectedVersion:1,reason:'Concurrency proof complete; release allocation'},key());
+ source=await requestQuotationSource(db,purchaser,r.id);expect(source.items[0].remainingMilli).toBe(12000);
+ const second=String((await createRfq(purchaser,{requestId:r.id,requestVersion:source.request.version,title:'Second split award',warehouseId:warehouse,neededDate:'2026-09-20',demandEvidence:'Allocate remaining half to unit supplier',lines:[{requestItemOrdinal:0,requestQuantity:'12',requestUnit:'each',requestUnitsPerProductUnit:'1',productId:eachProduct,quantity:'12'}]},key())).id);
+ source=await requestQuotationSource(db,purchaser,r.id);expect(source.fullyAllocated).toBe(true);expect(source.items[0].remainingMilli).toBe(0);
+ const configs=[{id:first,supplier:suppliers[0],product:caseProduct,quantity:'1',price:'120000'},{id:second,supplier:suppliers[1],product:eachProduct,quantity:'12',price:'10000'}];
+ const orderIds:string[]=[];
+ for(const [index,config] of configs.entries()){
+  let detail=await rfqDetail(purchaser,config.id);expect(detail.lines[0]).toMatchObject({request_quantity_milli:12000,request_unit:'each'});
+  await actRfq(purchaser,config.id,{action:'offer',expectedVersion:1,supplierId:config.supplier,reference:`SPLIT-QUOTE-${index}`,evidence:'Supplier quote for allocated quantity',arrivalDate:'2026-09-20',validUntil:'2099-12-31',lines:[{lineId:String(detail.lines[0].id),price:config.price,taxBps:0}]},key());
+  detail=await rfqDetail(purchaser,config.id);await actRfq(purchaser,config.id,{action:'submit',expectedVersion:2,offerId:String(detail.current[0].id),reason:'Best offer for this allocated quantity'},key());await actRfq(f.owner,config.id,{action:'approve',expectedVersion:3,reason:'Independent review of split supplier award'},key());
+  detail=await rfqDetail(purchaser,config.id);const po=await saveOrder(purchaser,null,orderSchema.parse({kind:'purchase',requestId:r.id,requestVersion:detail.currentRequestVersion,rfqId:config.id,rfqVersion:4,partyId:config.supplier,warehouseId:warehouse,orderDate:'2026-09-19',dueDate:'2026-09-20',lines:[{productId:config.product,quantity:config.quantity,price:config.price,taxBps:0}]}),key());orderIds.push(String(po.id));
+ }
+ expect(new Set(orderIds).size).toBe(2);
+ expect(Number(await db.prepare('SELECT count(*) n FROM procurement_request_orders WHERE request_id=?').bind(r.id).first('n'))).toBe(2);
+ expect((await getEmployeeRequest(db,purchaser,r.id)).purchase_order_id).toBe(orderIds[0]);
+ const progress=await (await import('../src/server/purchase-request-progress')).purchaseRequestProgress(db,purchaser,r.id);expect(progress.steps.find(step=>step.id==='sourcing')?.state).toBe('complete');expect(progress.steps.find(step=>step.id==='order')?.detail).toContain('2 linked purchase orders');
 });

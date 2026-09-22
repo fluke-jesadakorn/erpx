@@ -1,0 +1,18 @@
+ERPX customer portal actions — automated evidence
+Observed: 2026-09-22 (Asia/Bangkok)
+
+Command:
+  bun run test -- tests/customer-access.test.ts
+
+Result:
+  PASS — 6 tests, including customer portal action coverage.
+
+Coverage:
+  - approved source-bound customer identity can acknowledge delivery;
+  - replaying the same Idempotency-Key returns the original result;
+  - a second acknowledgement is rejected as already recorded;
+  - support request is retained and creates scoped Commerce staff notifications;
+  - stale binding versions and revoked bindings are rejected;
+  - portal action update/delete attempts fail with CUSTOMER_PORTAL_ACTION_IMMUTABLE.
+
+The test runs against the local PostgreSQL holding database with migrations applied. Browser, provider and production/business acceptance gates remain separate.

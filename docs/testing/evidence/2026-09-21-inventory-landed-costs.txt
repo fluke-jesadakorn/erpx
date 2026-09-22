@@ -1,0 +1,27 @@
+ERPX inventory landed-cost evidence
+Observed: 2026-09-21T16:13:45+07:00
+Environment: disposable PostgreSQL integration database plus authenticated public development workspace
+
+Delivered behavior
+- A Finance preparer can allocate a positive freight, duty or handling amount to a posted purchase receipt by receipt value or received quantity.
+- Item and lot/serial allocation evidence stores stock quantity, value and version snapshots and cannot be updated or deleted.
+- A separate Company Finance approver must approve before posting; the preparer and their linked identities cannot self-approve.
+- Posting revalidates stock and lot snapshots, increases aggregate and lot inventory value by the same amount, and posts a balanced inventory debit and selected clearing/expense credit.
+- Creation, approval and posting stop if stock has left the receiving warehouse after the source receipt, so an unsupported retrospective COGS distortion cannot be introduced.
+- Submitted and approved records appear in Work with the responsible queue and next action; status changes notify the preparer.
+- Purchase-order and landed-cost detail screens expose creation, allocation, actions, source receipt, journal and immutable event history.
+
+Verification
+- bun --env-file=.env.local run test:integration tests/inventory-landed-costs.test.ts: 1 file, 1 test passed.
+- bun --env-file=.env.local run test:integration tests/inventory-landed-costs.test.ts tests/inventory-lot-serial.test.ts tests/commerce-returns.test.ts: 3 files, 12 tests passed before the final consumed-stock guard; the landed-cost test was rerun after that guard and passed.
+- bun run typecheck: passed.
+- bun run lint: zero errors; three unrelated existing unused-variable warnings.
+- bun run status:capabilities: 183 capabilities generated and checksum evidence verified.
+- bun run deploy:build: passed; release .runtime/releases/2026-09-21T09-15-48-589Z.
+- Local and public health: HTTP 200.
+- Authenticated public browser: purchase PO-1705FD573F3AD2F2B48ACECE rendered both posted receipts and the Landed costs widget. Before the final guard, the expanded form exposed cost date, description, receipt-value/quantity basis, amount, eligible credit account and independent-review posting explanation. After the guard, the same consumed-stock receipts visibly showed the exact blocked reason and directed Finance to a reviewed accounting adjustment.
+
+Acceptance boundary
+- This is implementation, integration and authenticated browser evidence in the development workspace.
+- Independent multi-role browser completion and Company business sign-off remain pending.
+- Consumed receipt stock requires a separately reviewed accounting adjustment; automatic retrospective COGS reallocation is not implemented.

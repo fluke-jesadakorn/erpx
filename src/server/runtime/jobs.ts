@@ -50,6 +50,8 @@ export async function activeSlots(env: JobEnv) {
   return active;
 }
 export async function directoryWork(env: JobEnv) {
+  const control=env.CONTROL_DB;
+  if(control){const delivery=await import("../account-invitation-delivery");for(const slot of await activeSlots(env))await delivery.promoteAccountInvitationDeliveries(control,registeredResources(env,slot.id).write,slot.id);await delivery.deliverAccountInvitation(control,env);await (await import("../account-recovery")).deliverAccountRecovery(control,env as JobEnv&{BETTER_AUTH_SECRET:string});}
   if(env.CONTROL_DB) await drainDirectoryJobs(env.CONTROL_DB as PostgresDatabase);
   for(const slot of await activeSlots(env)) {
     const db=registeredResources(env,slot.id).write as PostgresDatabase;
@@ -66,6 +68,9 @@ export async function scheduledWork(env: JobEnv) {
   for (const slot of await activeSlots(env)) {
     const { write,files } = registeredResources(env,slot.id);
     await (await import("../leave-self-service")).runLeaveAccruals(write,new Date().toISOString().slice(0,10));
+    await (await import("../inventory-reservation-alerts")).escalateInventoryReservations(write);
+    await (await import("../iam-access-review-alerts")).escalateAccessReviews(write);
+    await (await import("../staff-task-alerts")).escalateStaffTasks(write);
     await generateOccurrences(write);
     await drainRequestAi(write,env);
     await (await import("../executive/generation")).drainExecutiveGeneration(write,env);
@@ -105,4 +110,8 @@ export async function legalWork(env:JobEnv){for(const slot of await activeSlots(
 
 export async function supportWork(env:JobEnv) {
  for(const slot of await activeSlots(env)) await (await import('../support-sla-alerts')).drainSupportSla(registeredResources(env,slot.id).write);
+}
+
+export async function customerNotificationWork(env:JobEnv) {
+ for(const slot of await activeSlots(env)) await (await import('../sales-customer-notifications')).drainCustomerNotifications(registeredResources(env,slot.id).write,env);
 }

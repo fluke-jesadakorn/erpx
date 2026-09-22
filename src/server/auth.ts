@@ -9,8 +9,11 @@ import { PostgresDatabase } from "./runtime/postgres";
 
 import { betterAuth } from "better-auth";
 import { multiSession } from "better-auth/plugins";
-import { sendBetaEmail } from "./beta-email";
 import { runtimeEnv } from "./runtime";
+import {
+  queueAccountRecovery,
+  recordAccountRecoveryCompleted,
+} from "./account-recovery";
 
 export async function createAuth(requestOrigin?: string, directoryId?: string, legalInvitationEmail?:string) {
   const env = await runtimeEnv();
@@ -26,12 +29,34 @@ export async function createAuth(requestOrigin?: string, directoryId?: string, l
       enabled: true,
       disableSignUp: !beta && !legalInvitationEmail,
       requireEmailVerification: !local || beta || !!legalInvitationEmail,
-      sendResetPassword: async ({user,url}) => { await sendBetaEmail(env,user.email,"Reset your ERPX password",url); },
+      sendResetPassword: async ({user,url,token}) => {
+        await queueAccountRecovery(env.CONTROL_DB,env,user,url,token);
+      },
+      resetPasswordTokenExpiresIn: 3600,
+      revokeSessionsOnPasswordReset: true,
+      onPasswordReset: async ({user}) => {
+        try {
+          await recordAccountRecoveryCompleted(env.CONTROL_DB, user.id);
+        } catch {
+          await env.CONTROL_DB.prepare('DELETE FROM session WHERE "userId"=?')
+            .bind(user.id)
+            .run();
+          console.error(
+            JSON.stringify({
+              event: "account_recovery_audit_failed",
+              userId: user.id,
+            }),
+          );
+        }
+      },
       minPasswordLength: 12,
     },
     emailVerification: {
       sendOnSignUp: beta || !!legalInvitationEmail, autoSignInAfterVerification: true,
-      sendVerificationEmail: async ({user,url}) => { await sendBetaEmail(env,user.email,"Verify your ERPX email",url); },
+      sendVerificationEmail: async ({ user, url }) => {
+        const { sendBetaEmail } = await import("./beta-email");
+        await sendBetaEmail(env, user.email, "Verify your ERPX email", url);
+      },
     },
     session: {
       expiresIn: 60 * 60 * 12,

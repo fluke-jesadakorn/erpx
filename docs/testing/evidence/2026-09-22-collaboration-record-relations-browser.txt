@@ -1,0 +1,18 @@
+ERPX collaboration record-relations browser acceptance
+Date: 2026-09-22 (Asia/Bangkok)
+Environment: isolated Demo Company browser simulation (run 3b4106cc6aa1; destroyed after verification)
+Gate: browser
+
+Command:
+ERPX_DEMO_RUN=3b4106cc6aa1 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-collaboration-record-relations.spec.ts --project=desktop
+
+Result:
+1 passed (20.1s)
+
+Observed through an authenticated Holding owner browser context:
+- The owner opened the real Support workspace from the Demo Sales quotation and created a customer support case assigned to the separate Support agent account.
+- The owner opened Cross-record collaboration and created a typed `related` relation from the quotation (`commerce_order`) to the new Support case (`support_ticket`).
+- The relation reloaded as a visible backlink with both source and target ids, then the owner removed it with a correction reason.
+- Support creation, relation creation, and relation removal each returned HTTP 200 through the existing idempotent routes; the isolated run was destroyed afterward.
+
+This is isolated simulation evidence. It does not establish retention/export, provider, production or Company business acceptance.

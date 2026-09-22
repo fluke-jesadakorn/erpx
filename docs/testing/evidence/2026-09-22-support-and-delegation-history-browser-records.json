@@ -1,0 +1,142 @@
+{
+  "support-lifecycle-result": {
+    "run": "218c35f220ae",
+    "ticketId": "ticket-dd2bd510-a0a7-462f-8aa8-0193ed797a72",
+    "quoteId": "order-2c0b7e4a-3502-45d8-8651-fd429f91c5c6",
+    "noteId": "contact-a6ee59df-7a86-4ec1-92b1-4053261a6aed",
+    "agentId": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-claimant",
+    "managerId": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-tie",
+    "confirmedVersion": 8,
+    "finalVersion": 10,
+    "finalStatus": "cancelled"
+  },
+  "task-delegation-result": {
+    "run": "218c35f220ae",
+    "id": "task-18d229e9-be01-4192-9ff2-cbd3c0c3ae54",
+    "delegatedTo": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-head",
+    "accountableAssignee": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-claimant",
+    "reviewer": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-manager",
+    "revokedReadStatus": 404,
+    "finalStatus": "completed"
+  },
+  "persisted": {
+    "observedAt": "2026-09-22T14:18:34.205Z",
+    "scope": "Read-only verification of fictional records created through the isolated Demo interface",
+    "ticket": [
+      {
+        "id": "ticket-dd2bd510-a0a7-462f-8aa8-0193ed797a72",
+        "status": "cancelled",
+        "version": "10",
+        "owner_id": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-claimant",
+        "order_id": "order-2c0b7e4a-3502-45d8-8651-fd429f91c5c6"
+      }
+    ],
+    "supportEvents": [
+      {
+        "version": "1",
+        "action": "create",
+        "actor_id": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-owner",
+        "status": "open",
+        "reason": "Customer reports a faulty unit and needs a replacement delivery date.",
+        "created_at": "1790086630572"
+      },
+      {
+        "version": "2",
+        "action": "start",
+        "actor_id": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-claimant",
+        "status": "in_progress",
+        "reason": "Support has accepted ownership and will inspect the reported equipment.",
+        "created_at": "1790086632127"
+      },
+      {
+        "version": "3",
+        "action": "wait-customer",
+        "actor_id": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-claimant",
+        "status": "waiting_customer",
+        "reason": "Waiting for the equipment serial number and error code.",
+        "created_at": "1790086632413"
+      },
+      {
+        "version": "4",
+        "action": "resume",
+        "actor_id": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-claimant",
+        "status": "in_progress",
+        "reason": "Customer supplied the serial number and error code by phone.",
+        "created_at": "1790086633128"
+      },
+      {
+        "version": "5",
+        "action": "resolve",
+        "actor_id": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-claimant",
+        "status": "resolved",
+        "reason": "Reserve a replacement unit and confirm delivery with the customer.",
+        "created_at": "1790086633394"
+      },
+      {
+        "version": "6",
+        "action": "reject-resolution",
+        "actor_id": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-tie",
+        "status": "in_progress",
+        "reason": "Provide the replacement date before asking for customer confirmation.",
+        "created_at": "1790086634228"
+      },
+      {
+        "version": "7",
+        "action": "resolve",
+        "actor_id": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-claimant",
+        "status": "resolved",
+        "reason": "Customer will receive the replacement unit on October 6; delivery team confirmed the slot.",
+        "created_at": "1790086634842"
+      },
+      {
+        "version": "8",
+        "action": "confirm",
+        "actor_id": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-tie",
+        "status": "closed",
+        "reason": "Independently reviewed the customer confirmation and the proposed resolution.",
+        "created_at": "1790086637732"
+      },
+      {
+        "version": "9",
+        "action": "reopen",
+        "actor_id": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-tie",
+        "status": "in_progress",
+        "reason": "Customer asked to review the replacement date again.",
+        "created_at": "1790086638820"
+      },
+      {
+        "version": "10",
+        "action": "cancel",
+        "actor_id": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-tie",
+        "status": "cancelled",
+        "reason": "Customer withdrew the replacement request after further contact.",
+        "created_at": "1790086639084"
+      }
+    ],
+    "task": [
+      {
+        "id": "task-18d229e9-be01-4192-9ff2-cbd3c0c3ae54",
+        "state": "completed",
+        "version": "8",
+        "creator_user_id": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-owner",
+        "assignee_user_id": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-claimant",
+        "completion_note": "Reviewed all ten laptops and accepted the temporary colleague's evidence."
+      }
+    ],
+    "delegations": [
+      {
+        "id": "task-delegation-33f8ecb4-68b2-4cd0-8002-492b891b7daa",
+        "delegator_user_id": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-owner",
+        "delegate_user_id": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-head",
+        "starts_at": "1790086644354",
+        "expires_at": "1790173020000",
+        "reason": "Receiving colleague is away for one day; temporary coverage is required.",
+        "status": "revoked",
+        "revoked_by": "expense-bd90eb31-560a-4e91-8654-e80e92bd08b7-owner",
+        "revoked_at": "1790086646508",
+        "revoke_reason": "The accountable colleague returned and will verify the remaining four laptops.",
+        "version": "2"
+      }
+    ]
+  }
+}

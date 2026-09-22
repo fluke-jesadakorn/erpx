@@ -14,7 +14,16 @@ export type OrganizationPerson = {
   status: string; person_status: string; start_date: string; end_date: string | null; job_title: string;
   issues: string[];
 };
-export type OrganizationNode = { id: string; kind: string; slug: string; display_name: string; branch_id: string | null };
+export type OrganizationNode = { id: string; kind: string; slug: string; display_name: string; branch_id: string | null; status: string; hierarchy_revision: number };
+export type OrganizationNodeChange = {
+  id:string; target_node_id:string|null; action:"create"|"rename"|"suspend"|"reactivate"|"archive"|"relocate";
+  node_kind:"branch"|"department"; slug:string|null; display_name:string; branch_id:string|null; source_branch_id:string|null;
+  expected_node_version:number|null; state:"draft"|"submitted"|"applied"|"rejected"|"cancelled";
+  version:number; requested_by:string; reviewed_by:string|null; reason:string; review_reason:string|null;
+  created_at:number; updated_at:number; reviewed_at:number|null; applied_at:number|null;
+  events?: { action:string; actor_name:string; version:number; reason:string|null; created_at:number }[];
+  canReview?: boolean;
+};
 export type OrganizationTemplatePosition = {
   key: string; title: string; levelNumber: number; reportsToKey: string | null; isCeo: boolean;
 };
@@ -22,6 +31,10 @@ export type OrganizationOverview = {
   positions: OrganizationPosition[]; people: OrganizationPerson[]; nodes: OrganizationNode[];
   levels: {id: string; name: string; level_number: number}[];
   templates: {id: string; name: string; version: number; positions: OrganizationTemplatePosition[]}[];
+  nodeChanges: OrganizationNodeChange[];
+  changeQueue: { recordId:string|null; state:string; query:string; page:number; pageSize:number; total:number; pages:number };
+  canManageUnits: boolean;
+  actorId: string;
   canManage: boolean;
   authorizedChannelNodes?:string[];
   spendingTemplate?: SpendingTemplate;
@@ -52,4 +65,8 @@ export function reportingIssues(person: OrganizationPerson, people: Organization
     current = manager;
   }
   return issues;
+}
+
+export function organizationChangeHref(id:string) {
+  return `/people/organization?changeId=${encodeURIComponent(id)}#organization-change-${encodeURIComponent(id)}`;
 }

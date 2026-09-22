@@ -1,3 +1,4 @@
+import { measureReadPhase } from "@/server/runtime/read-metrics";
 import { ProductBrand } from "@/components/brand/product-brand";
 import { WorkspaceBrandMark } from "@/components/brand/workspace-brand";
 import { FeatureEnvironment } from "@/components/features/feature-page";
@@ -44,7 +45,7 @@ export default async function WorkplaceLayout({
   const { holdingSlug } = await params;
   let context;
   try {
-    context = await requireWorkContext(holdingSlug);
+    context = await measureReadPhase("work_context",()=>requireWorkContext(holdingSlug));
   } catch (error) {
     return pageError(error, holdingSlug);
   }
@@ -58,11 +59,11 @@ export default async function WorkplaceLayout({
         ? context.scope.branchName
         : "Holding";
   const { write } = await holdingResources(context.holdingId);
-  const [workspaceBrand, companies, admin] = await Promise.all([
+  const [workspaceBrand, companies, admin] = await measureReadPhase("layout",()=>Promise.all([
     resolveWorkspaceBrand(write, context),
     context.scope.kind === "holding" ? listWorkspaceCompanies(context.holdingId) : Promise.resolve([]),
     administrationAccess(context),
-  ]);
+  ]));
   const navigation = {
     executiveVisible: await executiveVisible(write,context),
     workspaceBase: base,
@@ -75,7 +76,8 @@ export default async function WorkplaceLayout({
   };
   const companyName =
     companies.find((company) => company.id === context.companyId)?.name ??
-    holdingName;
+    (await write.prepare("SELECT display_name FROM organization_nodes WHERE id=? AND kind='company' AND status='active'")
+      .bind(context.companyId).first<{display_name:string}>())?.display_name ?? "Company unavailable";
   const workspaceLabel =
     context.scope.kind === "holding"
       ? companyName
@@ -129,7 +131,7 @@ export default async function WorkplaceLayout({
         <header className={styles.topbar} data-app-chrome>
           <div className={styles.workspace}>
             <WorkspaceBrandMark brand={workspaceBrand} compact />
-            <Suspense fallback={<span>{workspaceLabel}</span>}>
+            <Suspense fallback={<button className={styles.workspaceTrigger} type="button" aria-label="Switch workspace" title={`Change workspace (currently ${workspaceLabel})`} disabled><Building2 size={18} aria-hidden="true"/><span className={styles.workspaceTriggerLabel}>{workspaceLabel}</span></button>}>
             <DeferredWorkspaceMenu
               label={workspaceLabel}
               current={

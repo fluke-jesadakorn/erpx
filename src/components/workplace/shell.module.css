@@ -1,4 +1,5 @@
 .shell {
+  --workspace-scroll-offset: 90px;
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   min-height: 100vh;
@@ -182,7 +183,7 @@
 }
 .nav .navChildLink,
 .mobileTree .navChildLink {
-  min-height: 36px;
+  min-height: var(--control-height);
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
@@ -316,8 +317,8 @@
 }
 .breadcrumbOverflowButton {
   display: grid;
-  width: 36px;
-  min-height: 36px;
+  width: 44px;
+  min-height: var(--control-height);
   place-items: center;
   border: 0;
   border-radius: 6px;
@@ -370,7 +371,7 @@
 .breadcrumbItem > span {
   display: inline-flex;
   align-items: center;
-  min-height: 36px;
+  min-height: var(--control-height);
   padding: 0 7px;
   color: var(--muted);
   border-radius: 6px;
@@ -436,6 +437,7 @@
   color: var(--muted);
   border-radius: 7px;
   padding: 7px 10px;
+  min-height: var(--control-height);
 }
 .searchButton kbd {
   font-family: inherit;
@@ -465,6 +467,7 @@
   font-size: 10px;
   color: var(--muted);
   border-radius: 6px;
+  min-height: var(--control-height);
 }
 .appearance button[aria-pressed="true"] {
   background: var(--card-2);
@@ -605,10 +608,13 @@
     display: flex;
   }
   .breadcrumbCompactCurrent {
+    flex: 1 1 0;
     min-width: 0;
   }
   .breadcrumbCompactCurrent > span {
+    display: block;
     min-width: 0;
+    line-height: 44px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1057,7 +1063,75 @@ a.workspaceChoice:hover {
 .appearanceCompact button[aria-pressed="true"] { background: transparent; color: var(--brand); box-shadow: inset 0 -2px var(--brand); border-radius: 0; }
 .appearanceCompact button svg { width: 16px; height: 16px; }
 
-@media (min-width:651px) and (max-width:1000px){.workspaceTrigger>span,.workspaceTrigger>svg:last-child,.searchButton>span,.searchButton kbd{display:none}.workspaceTrigger,.searchButton{flex-shrink:0;min-width:44px}.topbar{gap:8px}.actions{gap:8px}}
+/* Keep both the current work role and page path readable in narrow workspaces. */
+@media (max-width: 1000px) {
+  .shell {
+    --workspace-scroll-offset: 112px;
+  }
+  .topbar {
+    display: grid;
+    grid-template-columns: 30px 44px minmax(0, 1fr);
+    height: auto;
+    gap: 0 8px;
+    padding: 4px 12px;
+  }
+  .workspace {
+    display: contents;
+  }
+  .workspace > :first-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .workspaceTrigger {
+    grid-column: 2;
+    grid-row: 1;
+    width: 44px;
+    padding: 4px;
+  }
+  .workspaceTrigger > span,
+  .workspaceTrigger > svg:last-child,
+  .searchButton > span,
+  .searchButton kbd {
+    display: none;
+  }
+  .actions {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    gap: 8px;
+  }
+  .searchButton {
+    justify-content: center;
+    width: 44px;
+    padding: 8px;
+  }
+  .breadcrumb,
+  .breadcrumbFallback {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-width: 0;
+    padding: 0;
+  }
+  .breadcrumb .breadcrumbFullItem {
+    display: none;
+  }
+  .breadcrumb .breadcrumbCompactOverflow,
+  .breadcrumb .breadcrumbCompactCurrent {
+    display: flex;
+  }
+  .breadcrumb .breadcrumbCompactCurrent {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .breadcrumbCompactCurrent > span {
+    display: block;
+    min-width: 0;
+    line-height: 44px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
 
 /* Task-oriented business navigation. Categories are presentation only. */
 .shell { grid-template-columns: 260px minmax(0, 1fr); }

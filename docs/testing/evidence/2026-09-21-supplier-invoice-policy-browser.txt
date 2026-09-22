@@ -1,0 +1,11 @@
+
+Running 2 tests using 1 worker
+
+(node:29319) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [desktop] › tests/e2e/supplier-invoice-policy.spec.ts:3:5 › company Finance authority can require supplier matching and restore the policy with immutable history (7.5s)
+(node:29362) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 [mobile] › tests/e2e/supplier-invoice-policy.spec.ts:3:5 › company Finance authority can require supplier matching and restore the policy with immutable history (4.5s)
+
+  2 passed (12.6s)

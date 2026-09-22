@@ -18,6 +18,7 @@ vi.mock("../src/server/runtime", () => ({
   }),
 }));
 import { createAuth } from "../src/server/auth";
+import { deliverAccountRecovery } from "../src/server/account-recovery";
 beforeAll(async () => {
   await applyMigrations(
     env.CONTROL_DB,
@@ -68,6 +69,18 @@ it("registers, verifies email and recovers a password through actual Better Auth
         })
       ).status,
     ).toBe(200);
+    expect(emails).toHaveLength(1);
+    expect(
+      await deliverAccountRecovery(
+        env.CONTROL_DB,
+        {
+          ...env,
+          BETTER_AUTH_SECRET: "test-secret-at-least-thirty-two-characters",
+          RESEND_API_KEY: "mock-key",
+          RESEND_FROM: "ERPX <test@example.test>",
+        },
+      ),
+    ).toBe(true);
     const link = emails.at(-1)!.match(/http[^\s]+/)![0];
     const resetRedirect = await auth.handler(new Request(link));
     const target = new URL(
@@ -84,6 +97,19 @@ it("registers, verifies email and recovers a password through actual Better Auth
         })
       ).status,
     ).toBe(200);
+    const userId = await env.CONTROL_DB.prepare(
+      'SELECT id FROM "user" WHERE email=?',
+    ).bind(email).first<string>("id");
+    expect(
+      await env.CONTROL_DB.prepare(
+        'SELECT count(*)::int count FROM session WHERE "userId"=?',
+      ).bind(userId).first<number>("count"),
+    ).toBe(0);
+    expect(
+      await env.CONTROL_DB.prepare(
+        "SELECT count(*)::int count FROM account_recovery_events WHERE user_id=? AND action='completed'",
+      ).bind(userId).first<number>("count"),
+    ).toBe(1);
     expect((await post("sign-in/email", { email, password })).status).toBe(401);
     expect(
       (

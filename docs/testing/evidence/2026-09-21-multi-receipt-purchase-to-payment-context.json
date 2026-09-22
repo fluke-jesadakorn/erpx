@@ -1,0 +1,29 @@
+{
+  "observedAt": "2026-09-21T13:36:31+07:00",
+  "environment": "disposable PostgreSQL simulation",
+  "command": "bun scripts/local/test.ts tests/purchase-to-payment.test.ts",
+  "result": {
+    "filesPassed": 1,
+    "testsPassed": 1,
+    "failed": 0,
+    "skipped": 0
+  },
+  "scope": [
+    "employee purchase request and independent approvals",
+    "RFQ offer comparison and independent award",
+    "request-linked purchase order",
+    "partial goods receipts 6+4",
+    "independent stock journal posting",
+    "one supplier invoice matched to both goods receipts",
+    "one independently posted consolidated AP invoice linked to both receipts",
+    "one supplier payment batch instruction and export",
+    "one exact outgoing bank match for THB 250000",
+    "paid invoice, stock value and balanced journals",
+    "requester progress 6/6"
+  ],
+  "limitations": [
+    "Automated owner-service acceptance only; multi-role browser completion is pending",
+    "External supplier, bank and payment providers were not contacted",
+    "Partial/split requisition allocation, UOM conversion and mandatory matching policy remain"
+  ]
+}

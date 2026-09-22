@@ -5,7 +5,7 @@ type Entry,
 type Folio,
 type Guest,
 type PmsRecord,
-} from "@/lib/pms";
+} from "@/lib/pms-model";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope,requireWorkContext } from "@/server/authorization";
 import { resolveDocumentBrand } from "@/server/branding";

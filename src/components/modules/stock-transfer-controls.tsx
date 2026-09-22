@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { TransferRow as Row } from "@/server/inventory-transfers";
 import { minorToDecimal } from "@/lib/finance-money";
-type Options = { warehouses: Row[]; sources: Row[]; stock: Row[] };
+type Options = { warehouses: Row[]; sources: Row[]; stock: Row[]; lots: Row[] };
 function useTransferCommand(base: string) {
   const router = useRouter(),
     last = useRef<{ fingerprint: string; key: string } | null>(null),
@@ -49,12 +49,14 @@ export function TransferEditor({
   options,
   transfer,
   lines,
+  allocations,
   initialOpen = false,
 }: {
   base: string;
   options: Options;
   transfer?: Row;
   lines?: Row[];
+  allocations?: Row[];
   initialOpen?: boolean;
 }) {
   const { send, error, pending } = useTransferCommand(base),
@@ -68,6 +70,8 @@ export function TransferEditor({
       productId: String(l.product_id),
       quantity: String(Number(l.quantity_milli) / 1000),
       description: String(l.description),
+      trackingMode:String(l.tracking_mode??"none"),
+      allocations:(allocations??[]).filter(a=>a.transfer_line_id===l.id).map(a=>({lotId:String(a.lot_id),quantity:String(Number(a.quantity_milli)/1000)})),
     })),
   );
   const available = options.stock.filter(
@@ -102,7 +106,8 @@ export function TransferEditor({
               reason: f.get("reason"),
               lines: items.map((l) => ({
                 productId: l.productId,
-                quantity: l.quantity,
+                quantity: l.trackingMode==="none"?l.quantity:String(l.allocations.reduce((sum,a)=>sum+Number(a.quantity||0),0)),
+                allocations:l.allocations,
               })),
               ...(transfer ? { expectedVersion: transfer.version } : {}),
             },
@@ -204,6 +209,8 @@ export function TransferEditor({
                 {
                   productId: product,
                   quantity: "",
+                  trackingMode:String(available.find((s)=>s.product_id===product)?.tracking_mode??"none"),
+                  allocations:[],
                   description: String(
                     available.find((s) => s.product_id === product)?.name ?? "",
                   ),
@@ -229,7 +236,7 @@ export function TransferEditor({
                   {minorToDecimal(Number(s?.value_minor ?? 0))}
                 </p>
               </div>
-              <label>
+              {l.trackingMode==="none"?<label>
                 Transfer quantity {index + 1}
                 <input
                   type="number"
@@ -245,7 +252,8 @@ export function TransferEditor({
                     )
                   }
                 />
-              </label>
+              </label>:<div><strong>{l.trackingMode} allocations</strong><p className="muted">Allocated {l.allocations.reduce((sum,a)=>sum+Number(a.quantity||0),0)} {String(s?.unit??"")}</p></div>}
+              {l.trackingMode!=="none"&&<div className="content-stack">{l.allocations.map((allocation,allocationIndex)=>{const lot=options.lots.find(item=>item.id===allocation.lotId);return <div className="business-form" key={`${l.productId}-${allocationIndex}`}><label>{l.trackingMode==="serial"?"Serial number":"Lot"}<select required value={allocation.lotId} onChange={event=>setItems(items.map((item,itemIndex)=>itemIndex===index?{...item,allocations:item.allocations.map((entry,entryIndex)=>entryIndex===allocationIndex?{...entry,lotId:event.target.value}:entry)}:item))}><option value="">Select {l.trackingMode}</option>{options.lots.filter(item=>item.warehouse_id===source&&item.product_id===l.productId&&!Number(item.quality_held)&&!l.allocations.some((used,usedIndex)=>usedIndex!==allocationIndex&&used.lotId===item.id)).map(item=><option key={String(item.id)} value={String(item.id)}>{String(item.serial_number??item.lot_code)} · {Number(item.quantity_milli)/1000} available{item.expiry_date?` · expires ${item.expiry_date}`:""}</option>)}</select></label><label>Allocation quantity<input required type="number" min={l.trackingMode==="serial"?"1":"0.001"} max={l.trackingMode==="serial"?"1":Number(lot?.quantity_milli??0)/1000||undefined} step={l.trackingMode==="serial"?"1":"0.001"} readOnly={l.trackingMode==="serial"} value={allocation.quantity} onChange={event=>setItems(items.map((item,itemIndex)=>itemIndex===index?{...item,allocations:item.allocations.map((entry,entryIndex)=>entryIndex===allocationIndex?{...entry,quantity:event.target.value}:entry)}:item))}/></label><button type="button" className="button secondary" onClick={()=>setItems(items.map((item,itemIndex)=>itemIndex===index?{...item,allocations:item.allocations.filter((_,entryIndex)=>entryIndex!==allocationIndex)}:item))}>Remove allocation</button></div>})}<button type="button" className="button secondary" onClick={()=>setItems(items.map((item,itemIndex)=>itemIndex===index?{...item,allocations:[...item.allocations,{lotId:"",quantity:item.trackingMode==="serial"?"1":""}]}:item))}>Add {l.trackingMode}</button></div>}
               <button
                 type="button"
                 className="button secondary"

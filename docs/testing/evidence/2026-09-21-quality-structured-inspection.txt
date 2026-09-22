@@ -1,0 +1,37 @@
+ERPX Quality structured inspection evidence
+Date: 2026-09-21
+
+Targeted automated regression:
+- tests/quality.test.ts
+- tests/support-evidence.test.ts
+- tests/inventory-lot-serial.test.ts
+- 3 files passed, 22 tests passed
+
+Covered:
+- independently activated product measurement specifications
+- active specification version captured by new manual and receipt-created holds
+- complete metric set required
+- pass/fail derived by server from approved numeric limits
+- active/superseded specification and measured rows immutable
+- private inspection files restricted to current independent inspector and hold scope
+- attachment may bind to only one inspection
+- prior support private-evidence and lot/serial receipt flows remain green
+- disposed stock is terminal across Sales, Field Service, transfers, calendar, and notifications
+
+Static checks and release build:
+- bun run typecheck: passed
+- bun run lint: 0 errors; 3 pre-existing warnings outside this workflow
+- bun run deploy:build: passed
+- release: .runtime/releases/2026-09-21T10-04-07-107Z
+
+Authenticated public-browser verification:
+- https://erpx.jesadakorn.com/holdings/acme/quality
+- active product specification shows two approved numeric measurements
+- quality-demo-failed-scrap captures specification version 2
+- inspection form renders Fastener torque and Bracket alignment inputs
+- form explains server-derived pass/fail and accepts private inspection files
+
+Availability after verification:
+- http://127.0.0.1:3100/api/health: HTTP 200 {"status":"ok"}
+- https://erpx.jesadakorn.com/api/health: HTTP 200 {"status":"ok"}
+- port 3100 listener cwd: /Users/fluke/Desktop/Work/erpx

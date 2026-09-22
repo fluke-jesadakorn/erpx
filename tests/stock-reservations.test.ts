@@ -1,7 +1,10 @@
 import {beforeAll,beforeEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from './runtime-env';
 import {expenseDb as db,expenseFixture,key} from './helpers/expense-fixture';
+import {deliveryEvidence} from './helpers/delivery-evidence';
 import {changeOrderReservation,fulfillOrder,getOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from '../src/server/commerce';
+import {escalateInventoryReservations} from '../src/server/inventory-reservation-alerts';
+import {listStaffNotifications} from '../src/server/staff-notifications';
 vi.mock('../src/server/runtime',()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,warehouse:string,product:string,party:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
@@ -34,11 +37,11 @@ it('reserves the last stock once under competing orders and preserves source sco
 });
 it('consumes only its source reservation with partial deliveries and leaves quantities and costs consistent',async()=>{
  const a=await order(),b=await order();await reserve(String(a.order.id),String(a.lines[0].id));
- await expect(fulfillOrder(f.owner,String(b.order.id),{expectedVersion:3,date:'2026-09-02',lines:[{lineId:String(b.lines[0].id),quantity:'1'}]},key())).rejects.toMatchObject({code:'INSUFFICIENT_STOCK'});
- await fulfillOrder(f.owner,String(a.order.id),{expectedVersion:4,date:'2026-09-02',lines:[{lineId:String(a.lines[0].id),quantity:'1'}]},key());
+ await expect(fulfillOrder(f.owner,String(b.order.id),{expectedVersion:3,date:'2026-09-02',lines:[{lineId:String(b.lines[0].id),quantity:'1'}],...(await deliveryEvidence(db,f.owner,String(b.order.id)))},key())).rejects.toMatchObject({code:'INSUFFICIENT_STOCK'});
+ await fulfillOrder(f.owner,String(a.order.id),{expectedVersion:4,date:'2026-09-02',lines:[{lineId:String(a.lines[0].id),quantity:'1'}],...(await deliveryEvidence(db,f.owner,String(a.order.id)))},key());
  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:1000,value_minor:600});
  expect(await db.prepare('SELECT quantity_milli,consumed_milli,released_milli FROM inventory_order_reservations WHERE order_line_id=?').bind(a.lines[0].id).first()).toEqual({quantity_milli:2000,consumed_milli:1000,released_milli:0});
- await fulfillOrder(f.owner,String(a.order.id),{expectedVersion:5,date:'2026-09-02',lines:[{lineId:String(a.lines[0].id),quantity:'1'}]},key());
+ await fulfillOrder(f.owner,String(a.order.id),{expectedVersion:5,date:'2026-09-02',lines:[{lineId:String(a.lines[0].id),quantity:'1'}],...(await deliveryEvidence(db,f.owner,String(a.order.id)))},key());
  expect((await getOrder(f.owner,String(a.order.id))).order.state).toBe('fulfilled');
  expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:0,value_minor:0});
  expect(await db.prepare('SELECT COUNT(*) n FROM inventory_active_reservations WHERE warehouse_id=?').bind(warehouse).first('n')).toBe(0);
@@ -59,4 +62,13 @@ it('expires without requiring a worker, cancels atomically, and prevents direct 
  await transitionOrder(f.head,String(b.order.id),{action:'cancel',expectedVersion:4},key());
  expect(await db.prepare('SELECT released_milli,release_reason FROM inventory_order_reservations WHERE order_line_id=?').bind(b.lines[0].id).first()).toEqual({released_milli:2000,release_reason:'Source order cancelled'});
  expect(await db.prepare('SELECT SUM(quantity_milli) n FROM inventory_active_reservations WHERE warehouse_id=?').bind(warehouse).first('n')).toBeNull();
+});
+it('warns the sales owner before expiry, escalates after expiry, and deduplicates every alert',async()=>{
+ const now=Date.now(),a=await order();await reserve(String(a.order.id),String(a.lines[0].id),'2',3,now+3600000);
+ expect((await escalateInventoryReservations(db,now)).expiring).toBeGreaterThanOrEqual(1);
+ expect(await escalateInventoryReservations(db,now)).toEqual({expiring:0,expired:0});
+ expect((await listStaffNotifications(db,f.owner)).filter(n=>n.record_id===a.order.id)).toEqual([expect.objectContaining({record_type:'commerce_order',href:`/commerce/orders/${a.order.id}`,message:expect.stringContaining('expires within 24 hours')})]);
+ await db.prepare('UPDATE inventory_order_reservations SET created_at=?,expires_at=? WHERE order_line_id=?').bind(now-2,now-1,a.lines[0].id).run();
+ expect((await escalateInventoryReservations(db,now)).expired).toBeGreaterThanOrEqual(1);
+ expect((await listStaffNotifications(db,f.owner)).filter(n=>n.record_id===a.order.id)).toHaveLength(2);
 });

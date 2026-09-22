@@ -9,8 +9,11 @@ type Options = {
   warehouses: Row[];
   products: Row[];
   stock: Row[];
+  lots: Row[];
   currency: string;
 };
+type CountAllocation = { lotId?: string; lotCode: string; serialNumber: string; manufacturedDate: string; expiryDate: string; countedQuantity: string; unitCost: string };
+type CountItem = { productId: string; trackingMode: string; countedQuantity: string; unitCost: string; allocations: CountAllocation[] };
 function useCountCommand(base: string) {
   const router = useRouter(),
     last = useRef<{ fingerprint: string; key: string } | null>(null),
@@ -55,26 +58,36 @@ export function CountEditor({
   options,
   count,
   lines,
+  lotLines,
   initialOpen = false,
 }: {
   base: string;
   options: Options;
   count?: Row;
   lines?: Row[];
+  lotLines?: Row[];
   initialOpen?: boolean;
 }) {
   const { send, error, pending } = useCountCommand(base),
     [warehouse, setWarehouse] = useState(
       String(count?.warehouse_id ?? options.warehouses[0]?.id ?? ""),
     );
-  const [items, setItems] = useState(
+  const [items, setItems] = useState<CountItem[]>(
     (lines ?? []).map((l) => ({
       productId: String(l.product_id),
+      trackingMode: String(l.tracking_mode ?? "none"),
       countedQuantity: String(Number(l.counted_quantity_milli) / 1000),
       unitCost:
         l.unit_cost_minor == null
           ? ""
           : minorToDecimal(Number(l.unit_cost_minor)),
+      allocations: (lotLines ?? []).filter(a => a.count_line_id === l.id).map(a => ({
+        ...(a.source_lot_id ? { lotId: String(a.source_lot_id) } : {}),
+        lotCode: String(a.lot_code ?? ""), serialNumber: String(a.serial_number ?? ""),
+        manufacturedDate: String(a.manufactured_date ?? ""), expiryDate: String(a.expiry_date ?? ""),
+        countedQuantity: String(Number(a.counted_quantity_milli) / 1000),
+        unitCost: a.unit_cost_minor == null ? "" : minorToDecimal(Number(a.unit_cost_minor)),
+      })),
     })),
   );
   const [adding, setAdding] = useState(String(options.products[0]?.id ?? ""));
@@ -105,6 +118,11 @@ export function CountEditor({
                 productId: l.productId,
                 countedQuantity: l.countedQuantity,
                 ...(l.unitCost ? { unitCost: l.unitCost } : {}),
+                allocations: l.allocations.map(a => ({
+                  ...(a.lotId ? { lotId: a.lotId } : {}), ...(a.lotCode ? { lotCode: a.lotCode } : {}),
+                  ...(a.serialNumber ? { serialNumber: a.serialNumber } : {}), manufacturedDate: a.manufacturedDate,
+                  expiryDate: a.expiryDate, countedQuantity: a.countedQuantity, ...(a.unitCost ? { unitCost: a.unitCost } : {}),
+                })),
               })),
               ...(count ? { expectedVersion: count.version } : {}),
             },
@@ -173,12 +191,11 @@ export function CountEditor({
               items.length >= 50 ||
               items.some((l) => l.productId === adding)
             }
-            onClick={() =>
-              setItems([
-                ...items,
-                { productId: adding, countedQuantity: "", unitCost: "" },
-              ])
-            }
+            onClick={() => {
+              const product=options.products.find(p=>p.id===adding),trackingMode=String(product?.tracking_mode??"none");
+              const allocations:CountAllocation[]=trackingMode==="none"?[]:options.lots.filter(l=>l.product_id===adding&&l.warehouse_id===warehouse).map(l=>({lotId:String(l.id),lotCode:String(l.lot_code??""),serialNumber:String(l.serial_number??""),manufacturedDate:String(l.manufactured_date??""),expiryDate:String(l.expiry_date??""),countedQuantity:String(Number(l.quantity_milli)/1000),unitCost:""}));
+              setItems([...items,{productId:adding,trackingMode,countedQuantity:trackingMode==="none"?"":String(allocations.reduce((sum,a)=>sum+Number(a.countedQuantity),0)),unitCost:"",allocations}]);
+            }}
           >
             Add counted product
           </button>
@@ -201,26 +218,12 @@ export function CountEditor({
                   {minorToDecimal(Number(stock?.value_minor ?? 0))}
                 </p>
               </div>
-              <label>
+              {l.trackingMode==="none"&&<label>
                 Counted quantity {index + 1}
-                <input
-                  type="number"
-                  min="0"
-                  step="0.001"
-                  required
-                  value={l.countedQuantity}
-                  onChange={(e) =>
-                    setItems(
-                      items.map((x, i) =>
-                        i === index
-                          ? { ...x, countedQuantity: e.target.value }
-                          : x,
-                      ),
-                    )
-                  }
-                />
-              </label>
-              {Number(stock?.quantity_milli ?? 0) === 0 ? (
+                <input type="number" min="0" step="0.001" required value={l.countedQuantity}
+                  onChange={(e) => setItems(items.map((x, i) => i === index ? { ...x, countedQuantity: e.target.value } : x))}/>
+              </label>}
+              {l.trackingMode==="none"&&Number(stock?.quantity_milli ?? 0) === 0 ? (
                 <label>
                   Verified unit cost {index + 1} ({options.currency})
                   <input
@@ -238,11 +241,21 @@ export function CountEditor({
                     }
                   />
                 </label>
-              ) : (
+              ) : l.trackingMode==="none" ? (
                 <span className="muted">
                   Valuation follows the recorded average cost.
                 </span>
-              )}
+              ):null}
+              {l.trackingMode!=="none"&&<div className="content-stack">
+                <p><strong>{l.trackingMode==="serial"?"Serial count":"Lot count"}</strong> · total {l.countedQuantity||"0"} {String(p?.unit??"")}</p>
+                {l.allocations.map((a,allocationIndex)=><div className="business-form" key={a.lotId??`new-${allocationIndex}`}>
+                  <label>{l.trackingMode==="serial"?"Serial number":"Lot code"}<input required readOnly={!!a.lotId} value={l.trackingMode==="serial"?a.serialNumber:a.lotCode} onChange={e=>setItems(items.map((x,i)=>i!==index?x:{...x,allocations:x.allocations.map((v,j)=>j!==allocationIndex?v:{...v,...(l.trackingMode==="serial"?{serialNumber:e.target.value}:{lotCode:e.target.value})})}))}/></label>
+                  <label>Counted quantity<input type="number" min={a.lotId?"0":"0.001"} max={l.trackingMode==="serial"?"1":undefined} step={l.trackingMode==="serial"?"1":"0.001"} required value={a.countedQuantity} onChange={e=>setItems(items.map((x,i)=>{if(i!==index)return x;const allocations=x.allocations.map((v,j)=>j===allocationIndex?{...v,countedQuantity:e.target.value}:v);return {...x,allocations,countedQuantity:String(allocations.reduce((sum,v)=>sum+(Number(v.countedQuantity)||0),0))};}))}/></label>
+                  {!a.lotId&&<><label>Manufactured date<input type="date" value={a.manufacturedDate} onChange={e=>setItems(items.map((x,i)=>i!==index?x:{...x,allocations:x.allocations.map((v,j)=>j===allocationIndex?{...v,manufacturedDate:e.target.value}:v)}))}/></label><label>Expiry date<input type="date" value={a.expiryDate} onChange={e=>setItems(items.map((x,i)=>i!==index?x:{...x,allocations:x.allocations.map((v,j)=>j===allocationIndex?{...v,expiryDate:e.target.value}:v)}))}/></label><label>Verified unit cost ({options.currency})<input type="number" min="0.01" step="0.01" required value={a.unitCost} onChange={e=>setItems(items.map((x,i)=>i!==index?x:{...x,allocations:x.allocations.map((v,j)=>j===allocationIndex?{...v,unitCost:e.target.value}:v)}))}/></label></>}
+                  {!a.lotId&&<button type="button" className="button secondary" onClick={()=>setItems(items.map((x,i)=>{if(i!==index)return x;const allocations=x.allocations.filter((_,j)=>j!==allocationIndex);return {...x,allocations,countedQuantity:String(allocations.reduce((sum,v)=>sum+(Number(v.countedQuantity)||0),0))};}))}>Remove found {l.trackingMode}</button>}
+                </div>)}
+                <button type="button" className="button secondary" onClick={()=>setItems(items.map((x,i)=>i!==index?x:{...x,allocations:[...x.allocations,{lotCode:"",serialNumber:"",manufacturedDate:"",expiryDate:"",countedQuantity:l.trackingMode==="serial"?"1":"",unitCost:""}],countedQuantity:String(x.allocations.reduce((sum,v)=>sum+(Number(v.countedQuantity)||0),0)+(l.trackingMode==="serial"?1:0))}))}>Add found {l.trackingMode}</button>
+              </div>}
               <button
                 type="button"
                 className="button secondary"

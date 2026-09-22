@@ -1,5 +1,7 @@
+import { canReadOrganizationChanges, organizationChangeNotice } from "./organization-work";
 import { requirePermission } from "@/server/iam-permissions";
 import { hasPermission } from "@/lib/permissions";
+import { samePerson } from "@/lib/iam";
 import { organizationMemberSql } from "./organization-channels";
 import { spendingTemplate } from "./spending-templates";
 import { z } from "zod";
@@ -7,7 +9,7 @@ import type { WorkContext } from "./authorization";
 import type { SqlDatabase } from "./runtime/types";
 import { ApiError } from "./http";
 import { assertion, executeCommand, replayCommand } from "./commands";
-import { reportingIssues, staffLevelTitles, type OrganizationOverview, type OrganizationPerson, type OrganizationPosition, type OrganizationTemplatePosition, type OrganizationNode } from "@/lib/organization";
+import { reportingIssues, staffLevelTitles, type OrganizationOverview, type OrganizationPerson, type OrganizationPosition, type OrganizationTemplatePosition, type OrganizationNode, type OrganizationNodeChange } from "@/lib/organization";
 
 export const positionSchema = z.object({
   requirements: z.string().trim().max(3000).default(""),
@@ -18,6 +20,19 @@ export const positionSchema = z.object({
 const templatePositionSchema = z.object({key:z.string().min(1).max(100),title:z.string().trim().min(2).max(160),levelNumber:z.number().int().min(1).max(6),reportsToKey:z.string().nullable(),isCeo:z.boolean()});
 export const organizationTemplateSchema = z.object({name:z.string().trim().min(2).max(120),positions:z.array(templatePositionSchema).min(1).max(100),expectedVersion:z.number().int().min(0)});
 export const applyOrganizationTemplateSchema = z.object({expectedVersion:z.number().int().positive(),branchId:z.string().nullable(),departmentId:z.string().nullable(),reason:z.string().trim().min(3).max(1000)});
+export const organizationNodeChangeSchema=z.object({
+  action:z.enum(["create","rename","suspend","reactivate","archive","relocate"]),targetNodeId:z.string().min(1).nullable().default(null),
+  kind:z.enum(["branch","department"]),slug:z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80).nullable().default(null),
+  displayName:z.string().trim().min(2).max(120),branchId:z.string().min(1).nullable().default(null),
+  expectedNodeVersion:z.number().int().positive().nullable().default(null),expectedVersion:z.number().int().min(0),reason:z.string().trim().min(3).max(1000),
+});
+export const organizationNodeDecisionSchema=z.object({expectedVersion:z.number().int().positive(),decision:z.enum(["approve","reject"]),reason:z.string().trim().min(3).max(1000)});
+const organizationChangeFiltersSchema=z.object({
+  changeId:z.string().trim().min(1).max(200).nullable().catch(null),
+  changeState:z.enum(["open","all","draft","submitted","rejected","applied","cancelled"]).catch("open"),
+  changeQuery:z.string().trim().max(120).catch(""),
+  changePage:z.coerce.number().int().positive().max(100000).catch(1),
+});
 
 // One snapshot protects graph validation against concurrent edits in a command batch.
 const graphSql = `SELECT jsonb_build_object(
@@ -43,17 +58,162 @@ export async function organizationRoster(db: SqlDatabase, companyId: string) {
   ]);
   return {people:people.results,positions:positions.results};
 }
-export async function organizationOverview(db: SqlDatabase, actor: WorkContext): Promise<OrganizationOverview> {
+export async function organizationOverview(db: SqlDatabase, actor: WorkContext, query:Record<string,unknown> = {}): Promise<OrganizationOverview> {
   const {people,positions} = await organizationRoster(db,actor.companyId);
   const visible = (p:{branch_id:string|null;department_id:string|null}) => (!actor.branchId || p.branch_id === actor.branchId) && (!actor.departmentId || p.department_id === actor.departmentId);
   const canManage = hasPermission(actor,"organization.manage");
-  const nodes = (await db.prepare("SELECT id,kind,slug,display_name,branch_id FROM organization_nodes WHERE company_id=? AND status='active' AND kind IN ('company','branch','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR kind!='department' OR id=?) ORDER BY display_name").bind(actor.companyId,actor.branchId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).all<OrganizationNode>()).results;
+  const canManageUnits = await canReadOrganizationChanges(db,actor);
+  const nodes = (await db.prepare("SELECT id,kind,slug,display_name,branch_id,status,hierarchy_revision FROM organization_nodes WHERE company_id=? AND kind IN ('company','branch','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR kind!='department' OR id=?) ORDER BY status,display_name").bind(actor.companyId,actor.branchId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).all<OrganizationNode>()).results;
   const levels = (await db.prepare("SELECT id,name,level_number FROM staff_levels WHERE company_id=? AND active=1 AND level_number IS NOT NULL ORDER BY level_number").bind(actor.companyId).all<{id:string;name:string;level_number:number}>()).results;
   const templates = canManage ? (await db.prepare("SELECT id,name,version,positions_json FROM organization_templates WHERE company_id=? ORDER BY name").bind(actor.companyId).all<{id:string;name:string;version:number;positions_json:string}>()).results.map(t=>({id:t.id,name:t.name,version:t.version,positions:JSON.parse(t.positions_json) as OrganizationTemplatePosition[]})) : [];
   const authorizedChannelNodes=(await db.prepare(`SELECT n.id FROM organization_nodes n WHERE n.company_id=? AND n.status='active' AND n.kind IN ('company','branch','department') AND ${organizationMemberSql("n","?")}`).bind(actor.companyId,actor.userId).all<{id:string}>()).results.map(n=>n.id);
   const managerGrants = canManage ? (await db.prepare("SELECT user_id,scope_kind,scope_node_id FROM assignments WHERE company_id=? AND iam_role_allows(role,company_id,'spending.approve') AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>?").bind(actor.companyId,Date.now(),Date.now()).all<{user_id:string;scope_kind:string;scope_node_id:string|null}>()).results : [];
   const managerIssues = (person:OrganizationPerson) => canManage && people.filter(p=>p.manager_person_id===person.person_id && p.status==="active" && visible(p)).some(report=>!managerGrants.some(a=>a.user_id===person.user_id && (a.scope_kind==="holding" || a.scope_kind==="branch" && a.scope_node_id===report.branch_id || a.scope_kind==="department" && a.scope_node_id===report.department_id))) ? ["People Manager access is missing for one or more reporting teams. Open the profile and review scoped role assignments."] : [];
-  return {authorizedChannelNodes,spendingTemplate:canManage?await spendingTemplate(db,actor.companyId):undefined,canManageSpending:canManage&&actor.assignmentScope==="holding",positions:positions.filter(p=>(!actor.branchId||!p.branch_id||p.branch_id===actor.branchId)&&(!actor.departmentId||!p.department_id||p.department_id===actor.departmentId)),people:people.filter(visible).map(p=>({...p,issues:[...reportingIssues(p,people,positions),...managerIssues(p)]})),nodes,levels,templates,canManage};
+  const filters=organizationChangeFiltersSchema.parse(query),pageSize=20;
+  if(filters.changeId){filters.changeState="all";filters.changeQuery="";}
+  const stateFilter=filters.changeState==="open"?"state IN ('draft','submitted','rejected')":filters.changeState==="all"?"TRUE":"state=?";
+  const predicate=`company_id=? ${filters.changeId?"AND id=?":""} AND ${stateFilter} AND (display_name ILIKE ? OR reason ILIKE ?)`;
+  const search=`%${filters.changeQuery.replace(/[\\%_]/g,"\\$&")}%`;
+  const args=[actor.companyId,...(filters.changeId?[filters.changeId]:[]),...(["open","all"].includes(filters.changeState)?[]:[filters.changeState]),search,search];
+  const total=canManageUnits?Number((await db.prepare(`SELECT count(*) total FROM organization_node_changes WHERE ${predicate}`).bind(...args).first<{total:number}>())?.total??0):0;
+  const pages=Math.max(1,Math.ceil(total/pageSize)),page=Math.min(filters.changePage,pages);
+  const nodeChanges=canManageUnits?(await db.prepare(`SELECT *,NOT iam_same_person(requested_by,?,company_id) independent_reviewer FROM organization_node_changes WHERE ${predicate} ORDER BY updated_at DESC,id LIMIT ? OFFSET ?`).bind(actor.userId,...args,pageSize,(page-1)*pageSize).all<OrganizationNodeChange & {independent_reviewer:boolean}>()).results:[];
+  if(nodeChanges.length){
+    const events=(await db.prepare(`SELECT e.change_id,e.action,e.version,e.created_at,e.snapshot_json,COALESCE(p.legal_name,e.actor_id) actor_name
+      FROM organization_node_change_events e LEFT JOIN hr_people p ON p.user_id=e.actor_id AND p.company_id=e.company_id AND p.merged_into_id IS NULL
+      WHERE e.company_id=? AND e.change_id IN (${nodeChanges.map(()=>"?").join(",")}) ORDER BY e.version,e.created_at,e.id`)
+      .bind(actor.companyId,...nodeChanges.map(c=>c.id)).all<{change_id:string;action:string;version:number;created_at:number;snapshot_json:string;actor_name:string}>()).results;
+    for(const change of nodeChanges){change.canReview=change.state==="submitted"&&change.independent_reviewer&&!samePerson(actor,change.requested_by);change.events=events.filter(e=>e.change_id===change.id).map(e=>{
+      const snapshot=JSON.parse(e.snapshot_json) as {reason?:string};
+      return {action:e.action,actor_name:e.actor_name,version:e.version,created_at:e.created_at,reason:snapshot.reason??null};
+    });}
+  }
+  return {authorizedChannelNodes,spendingTemplate:canManage?await spendingTemplate(db,actor.companyId):undefined,canManageSpending:canManage&&actor.assignmentScope==="holding",positions:positions.filter(p=>(!actor.branchId||!p.branch_id||p.branch_id===actor.branchId)&&(!actor.departmentId||!p.department_id||p.department_id===actor.departmentId)),people:people.filter(visible).map(p=>({...p,issues:[...reportingIssues(p,people,positions),...managerIssues(p)]})),nodes,levels,templates,nodeChanges,changeQueue:{recordId:filters.changeId,state:filters.changeState,query:filters.changeQuery,page,pageSize,total,pages},actorId:actor.userId,canManage,canManageUnits};
+}
+
+function requireCompanyOrganizationAuthority(actor:WorkContext){
+  actor=requirePermission(actor,"organization.manage");
+  if(actor.assignmentScope!=="holding"||actor.scope.kind!=="holding")throw new ApiError(403,"COMPANY_AUTHORITY_REQUIRED","Open the Company workspace with Company HR authority to manage branches and departments.");
+  return actor;
+}
+async function validateNodeChange(db:SqlDatabase,actor:WorkContext,input:z.infer<typeof organizationNodeChangeSchema>){
+  const relocation=input.action==="relocate";
+  if(input.action==="create"){
+    if(input.targetNodeId||input.expectedNodeVersion)throw new ApiError(422,"NEW_NODE_INVALID","A new unit cannot reference an existing node version.");
+    if(!input.slug)throw new ApiError(422,"SLUG_REQUIRED","Choose a stable URL code for the new unit.");
+  }else if(!input.targetNodeId||!input.expectedNodeVersion)throw new ApiError(422,"NODE_VERSION_REQUIRED","Reload and choose the current organization unit.");
+  if(input.kind==="branch"&&input.branchId)throw new ApiError(422,"BRANCH_PARENT_INVALID","A branch belongs directly to the company.");
+  if(input.kind==="department"){
+    if(!input.branchId)throw new ApiError(422,"DEPARTMENT_BRANCH_REQUIRED","Choose the department's branch.");
+    if(!await db.prepare("SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'").bind(input.branchId,actor.companyId).first())throw new ApiError(422,"BRANCH_INVALID","Choose an active branch in this company.");
+  }
+  if(input.action!=="create"){
+    const node=await db.prepare("SELECT id,kind,display_name,branch_id,status,hierarchy_revision FROM organization_nodes WHERE id=? AND company_id=? AND kind IN ('branch','department')").bind(input.targetNodeId,actor.companyId).first<OrganizationNode>();
+    if(!node)throw new ApiError(404,"ORGANIZATION_NODE_NOT_FOUND","Organization unit not found.");
+    if(node.kind!==input.kind||(!relocation&&node.branch_id!==input.branchId))throw new ApiError(422,"NODE_PLACEMENT_CHANGED","Reload the organization unit and review its placement.");
+    if(relocation){
+      if(node.kind!=="department")throw new ApiError(422,"RELOCATION_REQUIRES_DEPARTMENT","Only a department can be relocated between branches.");
+      if(node.status!=="active")throw new ApiError(409,"NODE_STATE_CHANGED","Only an active department can be relocated.");
+      if(node.branch_id===input.branchId)throw new ApiError(409,"RELOCATION_UNCHANGED","Choose a different active branch for relocation.");
+    }else if(input.action==="suspend"&&node.status!=="active"||input.action==="archive"&&node.status!=="active"||input.action==="reactivate"&&!(["suspended","archived"] as string[]).includes(node.status))throw new ApiError(409,"NODE_STATE_CHANGED","The organization unit is already in the requested state.");
+  }
+}
+export async function saveOrganizationNodeChange(db:SqlDatabase,actor:WorkContext,id:string|null,input:z.infer<typeof organizationNodeChangeSchema>,key:string,submit:boolean){
+  actor=requireCompanyOrganizationAuthority(actor);const recordId=id??`org-change-${key}`,operation=`organization.node-change.${submit?"submit":"save"}`;
+  const prior=await replayCommand(db,actor,key,operation,recordId,input);if(prior)return prior;
+  await validateNodeChange(db,actor,input);
+  const current=id?await db.prepare("SELECT * FROM organization_node_changes WHERE id=? AND company_id=?").bind(id,actor.companyId).first<OrganizationNodeChange>():null;
+  if(id&&!current)throw new ApiError(404,"ORGANIZATION_CHANGE_NOT_FOUND","Organization change not found.");
+  if(current&&current.requested_by!==actor.userId)throw new ApiError(403,"CHANGE_OWNER_REQUIRED","Only the requester can correct this organization change.");
+  if(current&&!['draft','rejected'].includes(current.state))throw new ApiError(409,"CHANGE_LOCKED","Only draft or rejected changes can be edited.");
+  const target=input.targetNodeId?await db.prepare("SELECT branch_id,slug FROM organization_nodes WHERE id=? AND company_id=?").bind(input.targetNodeId,actor.companyId).first<{branch_id:string|null;slug:string}>():null;
+  const sourceBranchId=input.action==="relocate"?(target?.branch_id??current?.source_branch_id??null):null;
+  const slug=input.action==="relocate"?(target?.slug??current?.slug??null):input.slug;
+  const version=input.expectedVersion+1,state=submit?"submitted":"draft",now=Date.now();
+  const result={id:recordId,version,state};
+  return executeCommand(db,actor,key,operation,input,recordId,version,result,[
+    ...(id?[assertion(db,key,"change-version","EXISTS(SELECT 1 FROM organization_node_changes WHERE id=? AND company_id=? AND version=? AND state IN ('draft','rejected'))",[id,actor.companyId,input.expectedVersion])]:[]),
+    db.prepare(`INSERT INTO organization_node_changes(id,company_id,target_node_id,action,node_kind,slug,display_name,branch_id,source_branch_id,expected_node_version,state,version,requested_by,reason,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET target_node_id=excluded.target_node_id,action=excluded.action,node_kind=excluded.node_kind,slug=excluded.slug,display_name=excluded.display_name,branch_id=excluded.branch_id,source_branch_id=excluded.source_branch_id,expected_node_version=excluded.expected_node_version,state=excluded.state,version=excluded.version,reason=excluded.reason,reviewed_by=NULL,review_reason=NULL,reviewed_at=NULL,updated_at=excluded.updated_at`).bind(recordId,actor.companyId,input.targetNodeId,input.action,input.kind,slug,input.displayName,input.branchId,sourceBranchId,input.expectedNodeVersion,state,version,actor.userId,input.reason,now,now),
+    db.prepare("INSERT INTO organization_node_change_events(id,change_id,company_id,action,actor_id,version,snapshot_json,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(`org-change-event-${key}`,recordId,actor.companyId,submit?"submitted":"drafted",actor.userId,version,JSON.stringify({...input,state}),now),
+    ...(submit?[organizationChangeNotice(db,actor.companyId,recordId,key,"submitted")]:[]),
+  ]);
+}
+
+const nodeImpactSql=`SELECT
+ (SELECT count(*) FROM organization_nodes WHERE company_id=? AND parent_id=? AND status='active') child_nodes,
+ (SELECT count(*) FROM hr_engagements WHERE company_id=? AND status='active' AND (branch_id=? OR department_id=?)) staff,
+ (SELECT count(*) FROM organization_positions WHERE company_id=? AND active=1 AND (branch_id=? OR department_id=?)) positions,
+ (SELECT count(*) FROM assignments WHERE company_id=? AND revoked_at IS NULL AND scope_node_id=?) assignments,
+ (SELECT count(*) FROM commerce_warehouses WHERE company_id=? AND branch_id=?) warehouses`;
+export async function organizationNodeImpact(db:SqlDatabase,companyId:string,nodeId:string){
+  return (await db.prepare(nodeImpactSql).bind(companyId,nodeId,companyId,nodeId,nodeId,companyId,nodeId,nodeId,companyId,nodeId,companyId,nodeId).first<{child_nodes:number;staff:number;positions:number;assignments:number;warehouses:number}>())!;
+}
+export async function decideOrganizationNodeChange(db:SqlDatabase,actor:WorkContext,id:string,input:z.infer<typeof organizationNodeDecisionSchema>,key:string){
+  actor=requireCompanyOrganizationAuthority(actor);const operation="organization.node-change.review";
+  const prior=await replayCommand(db,actor,key,operation,id,input);if(prior)return prior;
+  const change=await db.prepare("SELECT * FROM organization_node_changes WHERE id=? AND company_id=?").bind(id,actor.companyId).first<OrganizationNodeChange>();
+  if(!change)throw new ApiError(404,"ORGANIZATION_CHANGE_NOT_FOUND","Organization change not found.");
+  if(change.state!=="submitted")throw new ApiError(409,"CHANGE_NOT_SUBMITTED","Only submitted organization changes can be reviewed.");
+  if(samePerson(actor,change.requested_by)||(await db.prepare("SELECT iam_same_person(?,?,?) same_person").bind(actor.userId,change.requested_by,actor.companyId).first<{same_person:boolean}>())?.same_person)throw new ApiError(403,"INDEPENDENT_REVIEW_REQUIRED","Another company HR administrator must review this change.");
+  if(change.version!==input.expectedVersion)throw new ApiError(409,"STALE_VERSION","The organization change was updated. Reload and review it again.");
+  const now=Date.now(),version=change.version+1,state=input.decision==="approve"?"applied":"rejected";
+  const statements=[assertion(db,key,"change-version","EXISTS(SELECT 1 FROM organization_node_changes WHERE id=? AND company_id=? AND version=? AND state='submitted')",[id,actor.companyId,input.expectedVersion]),assertion(db,key,"independent-review","NOT iam_same_person(?,?,?)",[actor.userId,change.requested_by,actor.companyId])];
+  let appliedNodeId=change.target_node_id;
+  if(input.decision==="approve"){
+    const candidate=organizationNodeChangeSchema.parse({action:change.action,targetNodeId:change.target_node_id,kind:change.node_kind,slug:change.slug,displayName:change.display_name,branchId:change.branch_id,expectedNodeVersion:change.expected_node_version,expectedVersion:change.version,reason:change.reason});
+    await validateNodeChange(db,actor,candidate);
+    if(change.action==="create"){
+      appliedNodeId=`org-node-${id}`;const parent=change.node_kind==="branch"?actor.companyId:change.branch_id;
+      statements.push(db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) VALUES(?,?,?,?,?,?,?,'active',1)").bind(appliedNodeId,change.node_kind,change.slug,change.display_name,parent,actor.companyId,change.branch_id));
+    }else{
+      const expectedBranch=change.action==="relocate"?change.source_branch_id:change.branch_id;
+      statements.push(assertion(db,key,"node-version","EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND hierarchy_revision=? AND kind=? AND branch_id IS NOT DISTINCT FROM ?)",[change.target_node_id,actor.companyId,change.expected_node_version!,change.node_kind,expectedBranch]));
+      if(change.action==="suspend"||change.action==="archive"){
+        const impact=await organizationNodeImpact(db,actor.companyId,change.target_node_id!);const blocking=Object.entries(impact).filter(([,count])=>Number(count)>0);
+        if(blocking.length)throw new ApiError(409,"ORGANIZATION_NODE_IN_USE",`Move or close active dependencies before ${change.action}: ${blocking.map(([name,count])=>`${name.replace('_',' ')} ${count}`).join(', ')}.`);
+      }
+      if(change.action==="relocate"){
+        appliedNodeId=`org-node-${id}`;
+        statements.push(
+          db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) SELECT ?,kind,slug,?,?,company_id,?,'active',1 FROM organization_nodes WHERE id=? AND company_id=?").bind(appliedNodeId,change.display_name,change.branch_id,change.branch_id,change.target_node_id,actor.companyId),
+          db.prepare("UPDATE organization_nodes SET status='archived',hierarchy_revision=hierarchy_revision+1 WHERE id=? AND company_id=?").bind(change.target_node_id,actor.companyId),
+          db.prepare("UPDATE hr_engagements SET branch_id=?,department_id=?,updated_at=? WHERE company_id=? AND department_id=? AND status IN ('draft','onboarding','active','suspended')").bind(change.branch_id,appliedNodeId,now,actor.companyId,change.target_node_id),
+          db.prepare("UPDATE employees SET branch_id=?,department_id=? WHERE company_id=? AND department_id=? AND status='active'").bind(change.branch_id,appliedNodeId,actor.companyId,change.target_node_id),
+          db.prepare("UPDATE organization_positions SET branch_id=?,department_id=?,updated_at=? WHERE company_id=? AND department_id=? AND active=1").bind(change.branch_id,appliedNodeId,now,actor.companyId,change.target_node_id),
+          db.prepare("UPDATE assignments SET branch_id=?,scope_node_id=?,version=version+1 WHERE company_id=? AND scope_kind='department' AND scope_node_id=? AND revoked_at IS NULL").bind(change.branch_id,appliedNodeId,actor.companyId,change.target_node_id),
+        );
+      }else{
+        const status=change.action==="suspend"?"suspended":change.action==="archive"?"archived":change.action==="reactivate"?"active":null;
+        statements.push(db.prepare("UPDATE organization_nodes SET display_name=?,status=COALESCE(?,status),hierarchy_revision=hierarchy_revision+1 WHERE id=? AND company_id=?").bind(change.display_name,status,change.target_node_id,actor.companyId));
+      }
+    }
+    statements.push(
+      db.prepare("INSERT INTO messaging_teams(id,company_id,name,owner_id,organization_managed,created_at) VALUES(?,?,'Organization','organization',true,?) ON CONFLICT DO NOTHING").bind(`org-team-${actor.companyId}`,actor.companyId,now),
+      db.prepare("INSERT INTO messaging_rooms(id,company_id,kind,name,owner_id,team_id,organization_node_id,created_at) SELECT ?,?,'channel',?,'organization',?,?,? WHERE EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND status='active') ON CONFLICT DO NOTHING").bind(`org-channel-${appliedNodeId}`,actor.companyId,change.display_name,`org-team-${actor.companyId}`,appliedNodeId,now,appliedNodeId,actor.companyId),
+      db.prepare("UPDATE messaging_rooms SET name=? WHERE company_id=? AND organization_node_id=?").bind(change.display_name,actor.companyId,appliedNodeId),
+    );
+  }
+  statements.push(
+    db.prepare("UPDATE organization_node_changes SET state=?,version=?,reviewed_by=?,review_reason=?,reviewed_at=?,applied_at=?,updated_at=? WHERE id=? AND company_id=?").bind(state,version,actor.userId,input.reason,now,input.decision==="approve"?now:null,now,id,actor.companyId),
+    db.prepare("INSERT INTO organization_node_change_events(id,change_id,company_id,action,actor_id,version,snapshot_json,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(`org-change-event-${key}`,id,actor.companyId,input.decision==="approve"?"applied":"rejected",actor.userId,version,JSON.stringify({decision:input.decision,reason:input.reason,appliedNodeId}),now),
+    organizationChangeNotice(db,actor.companyId,id,key,state),
+  );
+  return executeCommand(db,actor,key,operation,input,id,version,{id,version,state,nodeId:appliedNodeId},statements);
+}
+export async function cancelOrganizationNodeChange(db:SqlDatabase,actor:WorkContext,id:string,expectedVersion:number,key:string){
+  actor=requireCompanyOrganizationAuthority(actor);const operation="organization.node-change.cancel",input={expectedVersion};
+  const prior=await replayCommand(db,actor,key,operation,id,input);if(prior)return prior;
+  const current=await db.prepare("SELECT requested_by,state FROM organization_node_changes WHERE id=? AND company_id=?").bind(id,actor.companyId).first<{requested_by:string;state:string}>();
+  if(!current)throw new ApiError(404,"ORGANIZATION_CHANGE_NOT_FOUND","Organization change not found.");
+  if(current.requested_by!==actor.userId)throw new ApiError(403,"CHANGE_OWNER_REQUIRED","Only the requester can cancel this organization change.");
+  if(!['draft','submitted','rejected'].includes(current.state))throw new ApiError(409,"CHANGE_LOCKED","This organization change can no longer be cancelled.");
+  const version=expectedVersion+1,now=Date.now();return executeCommand(db,actor,key,operation,input,id,version,{id,version,state:"cancelled"},[
+    assertion(db,key,"change-version","EXISTS(SELECT 1 FROM organization_node_changes WHERE id=? AND company_id=? AND version=? AND state IN ('draft','submitted','rejected'))",[id,actor.companyId,expectedVersion]),
+    db.prepare("UPDATE organization_node_changes SET state='cancelled',version=?,updated_at=? WHERE id=? AND company_id=?").bind(version,now,id,actor.companyId),
+    db.prepare("INSERT INTO organization_node_change_events(id,change_id,company_id,action,actor_id,version,snapshot_json,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(`org-change-event-${key}`,id,actor.companyId,"cancelled",actor.userId,version,JSON.stringify(input),now),
+    organizationChangeNotice(db,actor.companyId,id,key,"cancelled"),
+  ]);
 }
 function checkScope(actor: WorkContext, branchId:string|null, departmentId:string|null) {
   if ((actor.branchId && actor.branchId!==branchId) || (actor.departmentId && actor.departmentId!==departmentId)) throw new ApiError(403,"SCOPE_FORBIDDEN","Choose a position in your authorized workspace.");

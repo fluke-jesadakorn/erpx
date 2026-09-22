@@ -5,6 +5,7 @@ import { ApprovalHistory } from "@/components/modules/approval-history";
 import {
 TaskActions,
 TaskEditor,
+TaskDelegationControls,
 } from "@/components/modules/staff-work-controls";
 import { StatusBadge } from "@/components/ui/primitives";
 import { FlowPanel,documentFlow } from "@/components/workplace/flow-panel";
@@ -66,7 +67,7 @@ export default async function Task({
           Open source conversation ↗
         </Link>
       )}
-      <section data-critical-notice><RecordNextAction flow={flow}/></section><TaskActions key={t.id} base={base} detail={{...detail,permittedActions:detail.permittedActions.filter(a=>flow.canAct||["edit","revise","cancel"].includes(a))}} /><FeatureWidget id="staff-tasks-detail-completion-note" title="Completion note">
+      <section data-critical-notice><RecordNextAction flow={flow}/></section><TaskActions key={t.id} base={base} detail={{...detail,permittedActions:detail.permittedActions.filter(a=>flow.canAct||detail.task.active_delegate_user_id===actor.userId||["edit","revise","cancel","delegate"].includes(a))}} /><TaskDelegationControls base={base} detail={detail} options={options} /><FeatureWidget id="staff-tasks-detail-completion-note" title="Completion note">
         <dl className="staff-facts">
           <dt>Accountable assignee</dt>
           <dd>{t.assignee_name}</dd>

@@ -1,5 +1,5 @@
 {
-  "evidenceLedgerSha256": "d0c7dc156d23f795c7988a9cfe7198472f24c184c7999adeae4c65bd293236ec",
+  "evidenceLedgerSha256": "2c74e05d33b48451214c0a0bf2b304d89ad830e1ca02da480b42df886609a701",
   "capabilities": [
     {
       "id": "brand/feature-draft-workspace",
@@ -404,10 +404,10 @@
         "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/iam/[[...section]]/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/iam/[[...path]]/route.ts",
-        "service": "src/server/iam-service.ts",
-        "schema": "migrations/postgres/holding-write/0029_people_directory_operations.sql",
-        "test": "tests/iam.test.ts",
-        "gap": "Complete recovery, invitation delivery and production provider acceptance."
+        "service": "src/server/account-access.ts",
+        "schema": "migrations/postgres/control/0012_account_invitation_delivery.sql",
+        "test": "tests/account-invitation-delivery.test.ts",
+        "gap": "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence; password reset invalidates every session. A live Resend run, independent public multi-session activation/recovery and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -452,13 +452,13 @@
       ],
       "implementation": {
         "stage": 2,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/iam/[[...section]]/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/iam/[[...path]]/route.ts",
         "service": "src/server/iam-service.ts",
-        "schema": "migrations/postgres/holding-write/0029_people_directory_operations.sql",
+        "schema": "migrations/postgres/holding-write/0258_iam_access_review_campaigns.sql",
         "test": "tests/iam.test.ts",
-        "gap": "Complete recovery, invitation delivery and production provider acceptance."
+        "gap": "Periodic company access campaigns snapshot every active assignment, require fresh-MFA independent per-item keep/revoke decisions, invalidate revoked work contexts, reject stale evidence, retain immutable events and close only when every item is certified. Scheduled seven-day and overdue Inbox alerts recheck current reviewer authority and deduplicate each phase. Independent public multi-session execution and company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -506,10 +506,10 @@
         "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/iam/[[...section]]/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/iam/[[...path]]/route.ts",
-        "service": "src/server/iam-service.ts",
-        "schema": "migrations/postgres/holding-write/0029_people_directory_operations.sql",
-        "test": "tests/iam.test.ts",
-        "gap": "Complete recovery, invitation delivery and production provider acceptance."
+        "service": "src/server/account-recovery.ts",
+        "schema": "migrations/postgres/control/0014_account_recovery_delivery.sql",
+        "test": "tests/account-recovery.test.ts",
+        "gap": "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence; password reset invalidates every session. A live Resend run, independent public multi-session activation/recovery and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -560,7 +560,7 @@
         "service": "src/server/iam-service.ts",
         "schema": "migrations/postgres/holding-write/0029_people_directory_operations.sql",
         "test": "tests/iam.test.ts",
-        "gap": "Complete recovery, invitation delivery and production provider acceptance."
+        "gap": "Complete live email-provider and company business acceptance."
       },
       "gates": {
         "automated": {
@@ -662,7 +662,7 @@
         "service": "src/server/iam-service.ts",
         "schema": "migrations/postgres/holding-write/0029_people_directory_operations.sql",
         "test": "tests/iam.test.ts",
-        "gap": "Complete recovery, invitation delivery and production provider acceptance."
+        "gap": "Complete live email-provider and company business acceptance."
       },
       "gates": {
         "automated": {
@@ -705,13 +705,13 @@
       ],
       "implementation": {
         "stage": 2,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/people/organization/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
-        "service": "src/server/organization.ts",
-        "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql",
-        "test": "tests/organization.test.ts",
-        "gap": "Finish explicit sharing and full node lifecycle acceptance beyond the People workspace."
+        "service": "src/server/organization.ts; src/server/company-business-acceptance.ts; src/server/beta-onboarding.ts",
+        "schema": "migrations/postgres/holding-write/0257_organization_node_changes.sql; migrations/postgres/holding-write/0272_company_business_acceptance.sql; migrations/postgres/holding-write/0273_company_provisioning_receipts.sql; migrations/postgres/holding-write/0274_organization_archive_relocation.sql",
+        "test": "tests/organization.test.ts; tests/social-beta.test.ts; tests/e2e/demo-organization-lifecycle.spec.ts",
+        "gap": "Independent branch/department draft, submit, return/correct, apply, cancel, rename, dependency-checked suspension, archive/reactivation and relocation have isolated multi-role service coverage with route history, dependency guards and downstream placement handoff. Company administrators can search and paginate open/completed requests, inspect immutable named decision history and enter exact requests from Work or transactional Inbox notices. Company setup now has a persisted readiness checklist, independently reviewed acceptance/rejection, revoke, version guards, audit events and actionable Work/Inbox handoff. Initial Company provisioning atomically installs the minimum Company graph, six staff levels, CEO placement and a retriable Holding receipt before control binding activation. Capability, provider, production and downstream business acceptance gates remain separate."
       },
       "gates": {
         "automated": {
@@ -754,13 +754,13 @@
       ],
       "implementation": {
         "stage": 2,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/people/organization/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
-        "service": "src/server/organization.ts",
-        "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql",
-        "test": "tests/organization.test.ts",
-        "gap": "Finish explicit sharing and full node lifecycle acceptance beyond the People workspace."
+        "service": "src/server/organization.ts; src/server/company-business-acceptance.ts; src/server/beta-onboarding.ts",
+        "schema": "migrations/postgres/holding-write/0257_organization_node_changes.sql; migrations/postgres/holding-write/0272_company_business_acceptance.sql; migrations/postgres/holding-write/0273_company_provisioning_receipts.sql; migrations/postgres/holding-write/0274_organization_archive_relocation.sql",
+        "test": "tests/organization.test.ts; tests/social-beta.test.ts; tests/e2e/demo-organization-lifecycle.spec.ts",
+        "gap": "Independent branch/department draft, submit, return/correct, apply, cancel, rename, dependency-checked suspension, archive/reactivation and relocation have isolated multi-role service coverage with route history, dependency guards and downstream placement handoff. Company administrators can search and paginate open/completed requests, inspect immutable named decision history and enter exact requests from Work or transactional Inbox notices. Company setup now has a persisted readiness checklist, independently reviewed acceptance/rejection, revoke, version guards, audit events and actionable Work/Inbox handoff. Initial Company provisioning atomically installs the minimum Company graph, six staff levels, CEO placement and a retriable Holding receipt before control binding activation. Capability, provider, production and downstream business acceptance gates remain separate."
       },
       "gates": {
         "automated": {
@@ -803,13 +803,13 @@
       ],
       "implementation": {
         "stage": 2,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/people/organization/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
-        "service": "src/server/organization.ts",
-        "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql",
-        "test": "tests/organization.test.ts",
-        "gap": "Finish explicit sharing and full node lifecycle acceptance beyond the People workspace."
+        "service": "src/server/organization.ts; src/server/company-business-acceptance.ts; src/server/beta-onboarding.ts",
+        "schema": "migrations/postgres/holding-write/0257_organization_node_changes.sql; migrations/postgres/holding-write/0272_company_business_acceptance.sql; migrations/postgres/holding-write/0273_company_provisioning_receipts.sql; migrations/postgres/holding-write/0274_organization_archive_relocation.sql",
+        "test": "tests/organization.test.ts; tests/social-beta.test.ts; tests/e2e/demo-organization-lifecycle.spec.ts",
+        "gap": "Independent branch/department draft, submit, return/correct, apply, cancel, rename, dependency-checked suspension, archive/reactivation and relocation have isolated multi-role service coverage with route history, dependency guards and downstream placement handoff. Company administrators can search and paginate open/completed requests, inspect immutable named decision history and enter exact requests from Work or transactional Inbox notices. Company setup now has a persisted readiness checklist, independently reviewed acceptance/rejection, revoke, version guards, audit events and actionable Work/Inbox handoff. Initial Company provisioning atomically installs the minimum Company graph, six staff levels, CEO placement and a retriable Holding receipt before control binding activation. Capability, provider, production and downstream business acceptance gates remain separate."
       },
       "gates": {
         "automated": {
@@ -852,13 +852,13 @@
       ],
       "implementation": {
         "stage": 2,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/people/organization/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
-        "service": "src/server/organization.ts",
-        "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql",
-        "test": "tests/organization.test.ts",
-        "gap": "Finish explicit sharing and full node lifecycle acceptance beyond the People workspace."
+        "service": "src/server/organization.ts; src/server/company-business-acceptance.ts; src/server/beta-onboarding.ts",
+        "schema": "migrations/postgres/holding-write/0257_organization_node_changes.sql; migrations/postgres/holding-write/0272_company_business_acceptance.sql; migrations/postgres/holding-write/0273_company_provisioning_receipts.sql; migrations/postgres/holding-write/0274_organization_archive_relocation.sql",
+        "test": "tests/organization.test.ts; tests/social-beta.test.ts; tests/e2e/demo-organization-lifecycle.spec.ts",
+        "gap": "Independent branch/department draft, submit, return/correct, apply, cancel, rename, dependency-checked suspension, archive/reactivation and relocation have isolated multi-role service coverage with route history, dependency guards and downstream placement handoff. Company administrators can search and paginate open/completed requests, inspect immutable named decision history and enter exact requests from Work or transactional Inbox notices. Company setup now has a persisted readiness checklist, independently reviewed acceptance/rejection, revoke, version guards, audit events and actionable Work/Inbox handoff. Initial Company provisioning atomically installs the minimum Company graph, six staff levels, CEO placement and a retriable Holding receipt before control binding activation. Capability, provider, production and downstream business acceptance gates remain separate."
       },
       "gates": {
         "automated": {
@@ -905,11 +905,11 @@
         "stage": 6,
         "status": "implemented",
         "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/onboarding/route.ts",
-        "service": "src/server/administration.ts",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts",
+        "service": "src/server/platform-operations.ts",
         "schema": "migrations/postgres/control",
-        "test": "tests/native-recovery.test.ts",
-        "gap": "Replace remaining sample consoles with operational provisioning, migration, projection, temporary-access and recovery views."
+        "test": "tests/platform-operations.test.ts",
+        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and unavailable bindings. Platform administrators can recover one dead-letter job with a reason, optimistic attempt/error guard, idempotency and Holding audit. Provisioning, migration, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
       },
       "gates": {
         "automated": {
@@ -956,11 +956,11 @@
         "stage": 6,
         "status": "implemented",
         "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/onboarding/route.ts",
-        "service": "src/server/administration.ts",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts",
+        "service": "src/server/platform-operations.ts",
         "schema": "migrations/postgres/control",
-        "test": "tests/native-recovery.test.ts",
-        "gap": "Replace remaining sample consoles with operational provisioning, migration, projection, temporary-access and recovery views."
+        "test": "tests/platform-operations.test.ts",
+        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and unavailable bindings. Platform administrators can recover one dead-letter job with a reason, optimistic attempt/error guard, idempotency and Holding audit. Provisioning, migration, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
       },
       "gates": {
         "automated": {
@@ -1007,11 +1007,11 @@
         "stage": 6,
         "status": "implemented",
         "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/onboarding/route.ts",
-        "service": "src/server/administration.ts",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts",
+        "service": "src/server/platform-operations.ts",
         "schema": "migrations/postgres/control",
-        "test": "tests/native-recovery.test.ts",
-        "gap": "Replace remaining sample consoles with operational provisioning, migration, projection, temporary-access and recovery views."
+        "test": "tests/platform-operations.test.ts",
+        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and unavailable bindings. Platform administrators can recover one dead-letter job with a reason, optimistic attempt/error guard, idempotency and Holding audit. Provisioning, migration, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
       },
       "gates": {
         "automated": {
@@ -1056,13 +1056,13 @@
       ],
       "implementation": {
         "stage": 6,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/onboarding/route.ts",
-        "service": "src/server/administration.ts",
+        "api": "ops/macos/erpxctl.py",
+        "service": "ops/macos/erpxctl.py",
         "schema": "migrations/postgres/control",
-        "test": "tests/native-recovery.test.ts",
-        "gap": "Replace remaining sample consoles with operational provisioning, migration, projection, temporary-access and recovery views."
+        "test": "tests/recovery-simulation.test.ts",
+        "gap": "Isolated recovery restores a source-linked Holding database and verifies table digests, stock reservations and application state without reposting transactions. Installed-host restart, off-machine durability, WAL/PITR, every production database and signed RPO/RTO remain."
       },
       "gates": {
         "automated": {
@@ -1107,13 +1107,13 @@
       ],
       "implementation": {
         "stage": 6,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/onboarding/route.ts",
-        "service": "src/server/administration.ts",
+        "api": "ops/macos/erpxctl.py",
+        "service": "ops/macos/erpxctl.py",
         "schema": "migrations/postgres/control",
-        "test": "tests/native-recovery.test.ts",
-        "gap": "Replace remaining sample consoles with operational provisioning, migration, projection, temporary-access and recovery views."
+        "test": "tests/backup-restore-operations.test.ts",
+        "gap": "The shipped operator backup/restore flow is accepted through isolated PostgreSQL 18 rehearsal: database dump, private files, application secret, retained credentials, release selection, pre-restore safety backup and checksum fail-closed behavior, plus source-linked Holding restore and business invariants. Off-machine durability, WAL/PITR, live restart, every production database and signed RPO/RTO remain."
       },
       "gates": {
         "automated": {
@@ -1160,11 +1160,11 @@
         "stage": 6,
         "status": "implemented",
         "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/onboarding/route.ts",
-        "service": "src/server/administration.ts",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts",
+        "service": "src/server/platform-operations.ts",
         "schema": "migrations/postgres/control",
-        "test": "tests/native-recovery.test.ts",
-        "gap": "Replace remaining sample consoles with operational provisioning, migration, projection, temporary-access and recovery views."
+        "test": "tests/platform-operations.test.ts",
+        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and unavailable bindings. Platform administrators can recover one dead-letter job with a reason, optimistic attempt/error guard, idempotency and Holding audit. Provisioning, migration, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
       },
       "gates": {
         "automated": {
@@ -1211,11 +1211,11 @@
         "stage": 6,
         "status": "implemented",
         "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/onboarding/route.ts",
-        "service": "src/server/administration.ts",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts",
+        "service": "src/server/platform-operations.ts",
         "schema": "migrations/postgres/control",
-        "test": "tests/native-recovery.test.ts",
-        "gap": "Replace remaining sample consoles with operational provisioning, migration, projection, temporary-access and recovery views."
+        "test": "tests/platform-operations.test.ts",
+        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and unavailable bindings. Platform administrators can recover one dead-letter job with a reason, optimistic attempt/error guard, idempotency and Holding audit. Provisioning, migration, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
       },
       "gates": {
         "automated": {
@@ -1262,11 +1262,11 @@
         "stage": 6,
         "status": "implemented",
         "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/onboarding/route.ts",
-        "service": "src/server/administration.ts",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts",
+        "service": "src/server/platform-operations.ts",
         "schema": "migrations/postgres/control",
-        "test": "tests/native-recovery.test.ts",
-        "gap": "Replace remaining sample consoles with operational provisioning, migration, projection, temporary-access and recovery views."
+        "test": "tests/platform-operations.test.ts",
+        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and unavailable bindings. Platform administrators can recover one dead-letter job with a reason, optimistic attempt/error guard, idempotency and Holding audit. Provisioning, migration, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
       },
       "gates": {
         "automated": {
@@ -1313,11 +1313,11 @@
         "stage": 6,
         "status": "implemented",
         "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/onboarding/route.ts",
-        "service": "src/server/administration.ts",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts",
+        "service": "src/server/platform-operations.ts",
         "schema": "migrations/postgres/control",
-        "test": "tests/native-recovery.test.ts",
-        "gap": "Replace remaining sample consoles with operational provisioning, migration, projection, temporary-access and recovery views."
+        "test": "tests/platform-operations.test.ts",
+        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and unavailable bindings. Platform administrators can recover one dead-letter job with a reason, optimistic attempt/error guard, idempotency and Holding audit. Provisioning, migration, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
       },
       "gates": {
         "automated": {
@@ -1413,9 +1413,9 @@
         "ui": "src/app/holdings/[holdingSlug]/customers/[id]/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/customers/route.ts",
         "service": "src/server/customer-timeline.ts",
-        "schema": "migrations/postgres/holding-write/0215_crm_leads_opportunities.sql",
+        "schema": "migrations/postgres/holding-write/0215_crm_leads_opportunities.sql, migrations/postgres/holding-write/0059_legal.sql, migrations/postgres/holding-write/0071_legal_native_references.sql",
         "test": "tests/customer-timeline.test.ts",
-        "gap": "Scoped source projection for sales/fulfillment/returns/contact/follow-up/qualified CRM, explicit field allowlist and pagination. Support/Field Service/Legal/Finance integrations, customer identity and Portal authority, full multi-role/business acceptance remain."
+        "gap": "Scoped source projection for sales/fulfillment/returns/contact/follow-up/qualified CRM plus permission-gated Support, Field Service agreement, Finance invoice and Legal order-linked state, with explicit field allowlist and pagination. Portal/customer authority, invoice transition history, full multi-role/browser and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -1560,9 +1560,9 @@
         "ui": "src/app/holdings/[holdingSlug]/customer-duplicates/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/customer-duplicates/route.ts",
         "service": "src/server/customer-duplicates.ts",
-        "schema": "migrations/postgres/holding-write/0222_customer_duplicate_reviews.sql",
+        "schema": "migrations/postgres/holding-write/0222_customer_duplicate_reviews.sql, migrations/postgres/holding-write/0264_customer_duplicate_merge.sql, migrations/postgres/holding-write/0265_customer_duplicate_reconciliation.sql",
         "test": "tests/customer-duplicates.test.ts",
-        "gap": "Ordered customer pair, independent current reviewer, duplicate/distinct/reopen decisions, canonical selection and immutable history. Transactional merge/repoint/reconciliation, identity changes, browser and business acceptance remain."
+        "gap": "Ordered customer pair, independent current reviewer, duplicate/distinct/reopen decisions, canonical selection and immutable history, plus transactional merge/repoint of safe source records with merge lineage and immutable-owner blockers. Balance reconciliation, address/contact changes, browser and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -1606,12 +1606,12 @@
       "implementation": {
         "stage": 3,
         "status": "implemented",
-        "ui": "src/app/holdings/[holdingSlug]/customer-access/[id]/page.tsx",
-        "api": "src/app/api/v1/holdings/[holdingSlug]/customer-access/route.ts",
+        "ui": "src/app/holdings/[holdingSlug]/customer-access/[id]/page.tsx, src/app/customer-portal/[holdingSlug]/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/customer-access/route.ts, src/app/api/customer-portal/[holdingSlug]/route.ts",
         "service": "src/server/customer-portal.ts",
-        "schema": "migrations/postgres/holding-write/0221_customer_access.sql",
+        "schema": "migrations/postgres/holding-write/0221_customer_access.sql, migrations/postgres/holding-write/0267_customer_portal_actions.sql",
         "test": "tests/customer-access.test.ts",
-        "gap": "Immutable request/review/revoke events and per-view portal audit are available to scoped staff. Search/export/retention policy and privacy-officer acceptance remain."
+        "gap": "Immutable request/review/revoke events, per-view portal audit, customer actions and actionable staff notifications are available to scoped staff. Search/export/retention policy and privacy-officer acceptance remain."
       },
       "gates": {
         "automated": {
@@ -1655,12 +1655,12 @@
       "implementation": {
         "stage": 3,
         "status": "implemented",
-        "ui": "src/app/holdings/[holdingSlug]/customer-access/page.tsx",
-        "api": "src/app/api/v1/holdings/[holdingSlug]/customer-access/route.ts",
-        "service": "src/server/customer-access.ts",
-        "schema": "migrations/postgres/holding-write/0221_customer_access.sql",
+        "ui": "src/app/holdings/[holdingSlug]/customer-access/page.tsx, src/app/customer-portal/[holdingSlug]/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/customer-access/route.ts, src/app/api/customer-portal/[holdingSlug]/route.ts",
+        "service": "src/server/customer-access.ts, src/server/customer-portal.ts",
+        "schema": "migrations/postgres/holding-write/0221_customer_access.sql, migrations/postgres/holding-write/0267_customer_portal_actions.sql",
         "test": "tests/customer-access.test.ts",
-        "gap": "Source-bound email authority with independent review, expiry, immediate revocation, first verified-account binding and allowlisted customer projection. Consent preferences, delegated customer administrators, multi-source grants, notifications and business acceptance remain."
+        "gap": "Source-bound email authority with independent review, expiry, immediate revocation, first verified-account binding, allowlisted projection and customer acknowledgement/support actions with staff handoff are implemented. Consent preferences, delegated customer administrators, multi-source grants, provider delivery and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -1707,9 +1707,9 @@
         "ui": "src/app/holdings/[holdingSlug]/customer-identity/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/customer-identity/route.ts",
         "service": "src/server/customer-identity-changes.ts",
-        "schema": "migrations/postgres/holding-write/0223_customer_identity_changes.sql",
+        "schema": "migrations/postgres/holding-write/0223_customer_identity_changes.sql, migrations/postgres/holding-write/0266_customer_contact_identity.sql",
         "test": "tests/customer-identity-changes.test.ts",
-        "gap": "Before/after snapshot, independent current review, reject/resubmit, optimistic customer-version guard and atomic name/tax update with immutable history. Address/contact identity, consent, external registry checks, browser and business acceptance remain."
+        "gap": "Before/after snapshot, independent current review, reject/resubmit, optimistic customer-version guard and atomic name/tax/phone/address/notification-email/consent update with immutable history. External registry checks, browser and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2064,9 +2064,9 @@
         "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
-        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/finance-money.test.ts",
-        "gap": "Add opening imports/reconciliation, notes, schedules, multi-currency precision, consolidation and full close acceptance."
+        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql",
+        "test": "tests/finance-accruals.test.ts",
+        "gap": "Opening imports, recurring accrual journals and realized/unrealized FX journals are atomic and independently controlled; notes, consolidation and full business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2115,9 +2115,9 @@
         "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
-        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/finance-money.test.ts",
-        "gap": "Add opening imports/reconciliation, notes, schedules, multi-currency precision, consolidation and full close acceptance."
+        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql",
+        "test": "tests/finance-accruals.test.ts",
+        "gap": "Opening, recurring accrual and foreign-currency payables retain source, period and posting evidence; consolidation and complete business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2162,13 +2162,13 @@
       ],
       "implementation": {
         "stage": 1,
-        "status": "implemented",
-        "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
+        "status": "flow_accepted",
+        "ui": "src/app/holdings/[holdingSlug]/finance/setup/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/finance-money.test.ts",
-        "gap": "Add opening imports/reconciliation, notes, schedules, multi-currency precision, consolidation and full close acceptance."
+        "test": "tests/e2e/demo-finance-chart-setup.spec.ts",
+        "gap": "Authorized Finance users can create charts, add posting/control accounts, preview and import validated CSV rows, and safely activate or deactivate accounts with version/reason/audit guards. The isolated Demo browser journey covers create, status change and import. Chart migration, opening/subledger reconciliation, period close, provider/statutory setup, production operation and Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2217,9 +2217,9 @@
         "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
-        "schema": "migrations/postgres/holding-write/0200_finance_payment_corrections.sql",
-        "test": "tests/finance-payment-corrections.test.ts",
-        "gap": "Payment settlement and independent correction have acceptance evidence. Paid-return refund obligations, manual instructions and matched bank GL are implemented in src/server/refunds.ts with tests/commerce-returns.test.ts; Invoice-linked supplier batches with independent approval, export and per-item bank/GL settlement are implemented in src/server/supplier-payments.ts with tests/supplier-payments.test.ts. Payroll/batch unification, FX, provider refunds and multi-role browser acceptance remain."
+        "schema": "migrations/postgres/holding-write/0255_finance_multi_currency.sql",
+        "test": "tests/finance-generic-payments.test.ts",
+        "gap": "Generic Company receipts/payments require preparer, independent approver and third-person Treasury release; exact bank confirmation posts bank/AR/AP GL, transaction/functional allocations and realized FX, settles the payment and matches the bank row atomically. Supplier batches also reserve posted AP balances, require independent beneficiary review, export a recoverable instruction register and settle only against exact imported bank evidence; the isolated multi-role demo browser path passes a split 6+4 purchase through two instructions and paid invoices. Automated integration also posts one AP invoice consolidated across two purchase orders. Payroll/batch unification, live providers and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2264,13 +2264,13 @@
       ],
       "implementation": {
         "stage": 1,
-        "status": "implemented",
-        "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
+        "status": "flow_accepted",
+        "ui": "src/app/holdings/[holdingSlug]/finance/invoices/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
-        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/finance-money.test.ts",
-        "gap": "Add opening imports/reconciliation, notes, schedules, multi-currency precision, consolidation and full close acceptance."
+        "schema": "migrations/postgres/holding-write/0256_finance_fx_revaluation.sql",
+        "test": "tests/finance-fx-revaluation.test.ts",
+        "gap": "Opening, foreign-currency settlement/revaluation, Sales-to-Collection and the authenticated Demo aging workspace now reconcile transaction/functional balances and show currency-separated overdue buckets linked to open records. Notes, schedules, live/provider operation and full business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2319,9 +2319,9 @@
         "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
-        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/finance-money.test.ts",
-        "gap": "Add opening imports/reconciliation, notes, schedules, multi-currency precision, consolidation and full close acceptance."
+        "schema": "migrations/postgres/holding-write/0255_finance_multi_currency.sql",
+        "test": "tests/finance-close-reconciliation.test.ts",
+        "gap": "Configured bank control accounts require a period-end statement whose functional closing balance equals cumulative posted GL. Foreign statements retain the closing FX rate. Live provider and complete business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2366,13 +2366,13 @@
       ],
       "implementation": {
         "stage": 1,
-        "status": "implemented",
-        "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
+        "status": "flow_accepted",
+        "ui": "src/app/holdings/[holdingSlug]/finance/reports/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
-        "service": "src/server/finance.ts",
+        "service": "src/server/ledger.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/finance-money.test.ts",
-        "gap": "Add opening imports/reconciliation, notes, schedules, multi-currency precision, consolidation and full close acceptance."
+        "test": "tests/e2e/demo-finance-reports.spec.ts",
+        "gap": "The selected chart’s statement totals and trial balance reconcile to the protected report APIs, and every total links to the supporting Accounting journal entries in an isolated Demo browser journey. Period-close evidence, notes, consolidation, provider/production operation and full Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2417,13 +2417,13 @@
       ],
       "implementation": {
         "stage": 1,
-        "status": "implemented",
-        "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
+        "status": "flow_accepted",
+        "ui": "src/app/holdings/[holdingSlug]/finance/close/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
-        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/finance-money.test.ts",
-        "gap": "Add opening imports/reconciliation, notes, schedules, multi-currency precision, consolidation and full close acceptance."
+        "schema": "migrations/postgres/holding-write/0256_finance_fx_revaluation.sql",
+        "test": "tests/finance-fx-revaluation.test.ts",
+        "gap": "Close preparation snapshots exact AR/AP-to-control and period-end bank-to-GL evidence; open foreign items require source-hashed closing rates and an independently posted revaluation. Final close approval recomputes and rejects stale evidence. Two consecutive closes pass in isolated integration and independent Finance preparer/approver browser sessions. Real-bank provider and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2468,13 +2468,13 @@
       ],
       "implementation": {
         "stage": 1,
-        "status": "implemented",
-        "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
+        "status": "flow_accepted",
+        "ui": "src/app/holdings/[holdingSlug]/finance/setup/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
-        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
+        "schema": "migrations/postgres/holding-write/0253_finance_control_account_kinds.sql",
         "test": "tests/finance-opening-balances.test.ts",
-        "gap": "Opening import is previewed, revision-bound and auditable; add opening subledger reconciliation and browser acceptance before Flow accepted."
+        "gap": "Exact AR/AP schedule-to-control reconciliation, revision-bound preview, atomic journal/invoice import, independent posting into Aging, Treasury settlement with functional-currency balances, controlled reversal and the independent two-role demo browser import/post journey are flow accepted. Live/provider validation, production operation and company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2785,7 +2785,7 @@
         "service": "src/server/commerce.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
         "test": "tests/business-commands.test.ts",
-        "gap": "Customer returns now split invoice credit and paid-amount refund obligations with independent approval, manual instructions and bank reconciliation. Add price-list/discount policy, quality disposition, customer notification and multi-role browser acceptance."
+        "gap": "Versioned company/customer price lists capture effective dates, approved tax, delegated discount limits and immutable order snapshots; exceptional discounts require an independent manager reason. Customer returns split invoice credit and paid-amount refund obligations, quarantine exact returned quantities for independent Quality release or controlled scrap, and preserve bank reconciliation. Consent-aware delivery notifications use immutable snapshots, a durable worker, sandbox delivery and controlled retry. Live email-provider acceptance, complete multi-role browser acceptance and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2836,7 +2836,7 @@
         "service": "src/server/commerce.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
         "test": "tests/flow-routing.test.ts",
-        "gap": "Customer returns now split invoice credit and paid-amount refund obligations with independent approval, manual instructions and bank reconciliation. Add price-list/discount policy, quality disposition, customer notification and multi-role browser acceptance."
+        "gap": "Versioned company/customer price lists capture effective dates, approved tax, delegated discount limits and immutable order snapshots; exceptional discounts require an independent manager reason. Customer returns split invoice credit and paid-amount refund obligations, quarantine exact returned quantities for independent Quality release or controlled scrap, and preserve bank reconciliation. Consent-aware delivery notifications use immutable snapshots, a durable worker, sandbox delivery and controlled retry. Live email-provider acceptance, complete multi-role browser acceptance and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2887,7 +2887,7 @@
         "service": "src/server/commerce.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
         "test": "tests/business-commands.test.ts",
-        "gap": "Customer returns now split invoice credit and paid-amount refund obligations with independent approval, manual instructions and bank reconciliation. Add price-list/discount policy, quality disposition, customer notification and multi-role browser acceptance."
+        "gap": "Versioned company/customer price lists capture effective dates, approved tax, delegated discount limits and immutable order snapshots; exceptional discounts require an independent manager reason. Customer returns split invoice credit and paid-amount refund obligations, quarantine exact returned quantities for independent Quality release or controlled scrap, and preserve bank reconciliation. Consent-aware delivery notifications use immutable snapshots, a durable worker, sandbox delivery and controlled retry. Live email-provider acceptance, complete multi-role browser acceptance and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2938,7 +2938,7 @@
         "service": "src/server/commerce.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
         "test": "tests/flow-routing.test.ts",
-        "gap": "Customer returns now split invoice credit and paid-amount refund obligations with independent approval, manual instructions and bank reconciliation. Add price-list/discount policy, quality disposition, customer notification and multi-role browser acceptance."
+        "gap": "Versioned company/customer price lists capture effective dates, approved tax, delegated discount limits and immutable order snapshots; exceptional discounts require an independent manager reason. Customer returns split invoice credit and paid-amount refund obligations, quarantine exact returned quantities for independent Quality release or controlled scrap, and preserve bank reconciliation. Consent-aware delivery notifications use immutable snapshots, a durable worker, sandbox delivery and controlled retry. Live email-provider acceptance, complete multi-role browser acceptance and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2989,7 +2989,7 @@
         "service": "src/server/commerce.ts",
         "schema": "migrations/postgres/holding-write/0201_commerce_returns.sql",
         "test": "tests/commerce-returns.test.ts",
-        "gap": "Customer returns now split invoice credit and paid-amount refund obligations with independent approval, manual instructions and bank reconciliation. Add price-list/discount policy, quality disposition, customer notification and multi-role browser acceptance."
+        "gap": "Versioned company/customer price lists capture effective dates, approved tax, delegated discount limits and immutable order snapshots; exceptional discounts require an independent manager reason. Customer returns split invoice credit and paid-amount refund obligations, quarantine exact returned quantities for independent Quality release or controlled scrap, and preserve bank reconciliation. Consent-aware delivery notifications use immutable snapshots, a durable worker, sandbox delivery and controlled retry. Live email-provider acceptance, complete multi-role browser acceptance and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -3280,12 +3280,12 @@
       "implementation": {
         "stage": 1,
         "status": "flow_accepted",
-        "ui": "src/app/holdings/[holdingSlug]/stock-counts/page.tsx",
-        "api": "src/app/api/v1/holdings/[holdingSlug]/stock-counts/[[...path]]/route.ts",
-        "service": "src/server/inventory-counts.ts",
-        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/business-commands.test.ts",
-        "gap": "Sales and POS now share reservation availability. Add Production/Field Service adapters, lot-level quality disposition, lot/serial, supplier partial receiving and landed-cost workflows. Staged warehouse transport now supports independent dispatch/partial receipt/discrepancy accounting."
+        "ui": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+        "service": "src/server/commerce.ts",
+        "schema": "migrations/postgres/holding-write/0239_inventory_lot_serial.sql",
+        "test": "tests/inventory-lot-serial.test.ts",
+        "gap": "Purchase receipt, Sales delivery, direct/staged transfers, physical counts, customer/supplier returns and independently reviewed landed-cost capitalization enforce quantity/value control totals, version guards and immutable item/lot evidence. Sales, POS, Field Service and Manufacturing share available/reserved stock; expiring and expired source reservations notify responsible users. Customer returns quarantine exact quantities for independent Quality release or controlled scrap. Multi-role browser and business acceptance remain incomplete."
       },
       "gates": {
         "automated": {
@@ -3330,13 +3330,13 @@
       ],
       "implementation": {
         "stage": 1,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/commerce/orders/[id]/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
-        "service": "src/server/commerce.ts",
-        "schema": "migrations/postgres/holding-write/0205_sales_stock_reservations.sql",
+        "service": "src/server/inventory-reservation-alerts.ts",
+        "schema": "migrations/postgres/holding-write/0233_planning_manufacturing.sql",
         "test": "tests/stock-reservations.test.ts",
-        "gap": "Sales/POS reserve, release, expiry and partial consumption implemented. Production/Field Service adapters, quality disposition, proactive expiry escalation and multi-role browser acceptance remain incomplete."
+        "gap": "Sales, POS, Field Service and Manufacturing share atomic availability guards, release, expiry and consumption. The scheduled worker sends durable deduplicated Inbox links before expiry and again after availability protection ends; terminal and fully consumed/released sources are excluded. Multi-role browser and business acceptance remain incomplete."
       },
       "gates": {
         "automated": {
@@ -3382,12 +3382,12 @@
       "implementation": {
         "stage": 1,
         "status": "flow_accepted",
-        "ui": "src/app/holdings/[holdingSlug]/stock-counts/page.tsx",
-        "api": "src/app/api/v1/holdings/[holdingSlug]/stock-counts/[[...path]]/route.ts",
-        "service": "src/server/inventory-counts.ts",
-        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/business-commands.test.ts",
-        "gap": "Sales and POS now share reservation availability. Add Production/Field Service adapters, lot-level quality disposition, lot/serial, supplier partial receiving and landed-cost workflows. Staged warehouse transport now supports independent dispatch/partial receipt/discrepancy accounting."
+        "ui": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+        "service": "src/server/commerce.ts",
+        "schema": "migrations/postgres/holding-write/0239_inventory_lot_serial.sql",
+        "test": "tests/inventory-lot-serial.test.ts",
+        "gap": "Purchase receipt, Sales delivery, direct/staged transfers, physical counts, customer/supplier returns and independently reviewed landed-cost capitalization enforce quantity/value control totals, version guards and immutable item/lot evidence. Sales, POS, Field Service and Manufacturing share available/reserved stock; expiring and expired source reservations notify responsible users. Customer returns quarantine exact quantities for independent Quality release or controlled scrap. Multi-role browser and business acceptance remain incomplete."
       },
       "gates": {
         "automated": {
@@ -3433,12 +3433,12 @@
       "implementation": {
         "stage": 1,
         "status": "flow_accepted",
-        "ui": "src/app/holdings/[holdingSlug]/stock-counts/page.tsx",
-        "api": "src/app/api/v1/holdings/[holdingSlug]/stock-counts/[[...path]]/route.ts",
-        "service": "src/server/inventory-counts.ts",
-        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/business-commands.test.ts",
-        "gap": "Sales and POS now share reservation availability. Add Production/Field Service adapters, lot-level quality disposition, lot/serial, supplier partial receiving and landed-cost workflows. Staged warehouse transport now supports independent dispatch/partial receipt/discrepancy accounting."
+        "ui": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
+        "service": "src/server/commerce.ts",
+        "schema": "migrations/postgres/holding-write/0239_inventory_lot_serial.sql",
+        "test": "tests/inventory-lot-serial.test.ts",
+        "gap": "Purchase receipt, Sales delivery, direct/staged transfers, physical counts, customer/supplier returns and independently reviewed landed-cost capitalization enforce quantity/value control totals, version guards and immutable item/lot evidence. Sales, POS, Field Service and Manufacturing share available/reserved stock; expiring and expired source reservations notify responsible users. Customer returns quarantine exact quantities for independent Quality release or controlled scrap. Multi-role browser and business acceptance remain incomplete."
       },
       "gates": {
         "automated": {
@@ -3483,13 +3483,13 @@
       ],
       "implementation": {
         "stage": 1,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/stock-transit/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/stock-transit/[[...path]]/route.ts",
         "service": "src/server/inventory-transit.ts",
         "schema": "migrations/postgres/holding-write/0207_inventory_transit.sql",
         "test": "tests/inventory-transit.test.ts",
-        "gap": "Direct transfer compatibility plus approved dispatch, in-transit balances, partial receipt and independently posted loss. Lot/serial traceability, intercompany documents, customer POD and multi-role browser/business acceptance remain incomplete."
+        "gap": "Same-company staged transfer is accepted through the real Demo Company UI with separate source and receiving warehouse managers: draft, submit, independent approval, dispatch, partial receipt, final receipt and downstream stock/value verification. Intercompany documents, customer POD, structured carrier evidence, provider/production and company business acceptance remain incomplete."
       },
       "gates": {
         "automated": {
@@ -3784,9 +3784,9 @@
         "ui": "src/app/holdings/[holdingSlug]/staff-tasks/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route.ts",
         "service": "src/server/staff-tasks.ts",
-        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/staff-work.test.ts",
-        "gap": "Add policy-owned escalation, resolution, exception summaries and queue administration."
+        "schema": "migrations/postgres/holding-write/0263_staff_task_delegations.sql; migrations/postgres/holding-write/0271_staff_task_delegation_history.sql",
+        "test": "tests/staff-work.test.ts; tests/e2e/demo-task-delegation.spec.ts",
+        "gap": "Staff tasks support bounded temporary delegation, versioned revoke with retained reason, protected active/expired/revoked history, current authorization and Flow ownership switching. A four-account Demo browser journey verifies delegation, partial progress, immediate access revocation, accountable handback and independent completion review. Resolution summaries, exception queues, policy-owned queue administration, production scheduling and Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -3836,9 +3836,9 @@
         "ui": "src/app/holdings/[holdingSlug]/staff-tasks/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route.ts",
         "service": "src/server/staff-tasks.ts",
-        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/staff-work.test.ts",
-        "gap": "Add policy-owned escalation, resolution, exception summaries and queue administration."
+        "schema": "migrations/postgres/holding-write/0263_staff_task_delegations.sql; migrations/postgres/holding-write/0271_staff_task_delegation_history.sql",
+        "test": "tests/staff-work.test.ts; tests/e2e/demo-task-delegation.spec.ts",
+        "gap": "Staff tasks support bounded temporary delegation, versioned revoke with retained reason, protected active/expired/revoked history, current authorization and Flow ownership switching. A four-account Demo browser journey verifies delegation, partial progress, immediate access revocation, accountable handback and independent completion review. Resolution summaries, exception queues, policy-owned queue administration, production scheduling and Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -3888,9 +3888,9 @@
         "ui": "src/app/holdings/[holdingSlug]/staff-tasks/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route.ts",
         "service": "src/server/staff-tasks.ts",
-        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/staff-work.test.ts",
-        "gap": "Add policy-owned escalation, resolution, exception summaries and queue administration."
+        "schema": "migrations/postgres/holding-write/0263_staff_task_delegations.sql; migrations/postgres/holding-write/0271_staff_task_delegation_history.sql",
+        "test": "tests/staff-work.test.ts; tests/e2e/demo-task-delegation.spec.ts",
+        "gap": "Staff tasks support bounded temporary delegation, versioned revoke with retained reason, protected active/expired/revoked history, current authorization and Flow ownership switching. A four-account Demo browser journey verifies delegation, partial progress, immediate access revocation, accountable handback and independent completion review. Resolution summaries, exception queues, policy-owned queue administration, production scheduling and Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -3940,9 +3940,9 @@
         "ui": "src/app/holdings/[holdingSlug]/staff-tasks/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route.ts",
         "service": "src/server/staff-tasks.ts",
-        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/staff-work.test.ts",
-        "gap": "Add policy-owned escalation, resolution, exception summaries and queue administration."
+        "schema": "migrations/postgres/holding-write/0263_staff_task_delegations.sql; migrations/postgres/holding-write/0271_staff_task_delegation_history.sql",
+        "test": "tests/staff-work.test.ts; tests/e2e/demo-task-delegation.spec.ts",
+        "gap": "Staff tasks support bounded temporary delegation, versioned revoke with retained reason, protected active/expired/revoked history, current authorization and Flow ownership switching. A four-account Demo browser journey verifies delegation, partial progress, immediate access revocation, accountable handback and independent completion review. Resolution summaries, exception queues, policy-owned queue administration, production scheduling and Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -3992,9 +3992,9 @@
         "ui": "src/app/holdings/[holdingSlug]/staff-tasks/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route.ts",
         "service": "src/server/staff-tasks.ts",
-        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/staff-work.test.ts",
-        "gap": "Add policy-owned escalation, resolution, exception summaries and queue administration."
+        "schema": "migrations/postgres/holding-write/0263_staff_task_delegations.sql; migrations/postgres/holding-write/0271_staff_task_delegation_history.sql",
+        "test": "tests/staff-work.test.ts; tests/e2e/demo-task-delegation.spec.ts",
+        "gap": "Staff tasks support bounded temporary delegation, versioned revoke with retained reason, protected active/expired/revoked history, current authorization and Flow ownership switching. A four-account Demo browser journey verifies delegation, partial progress, immediate access revocation, accountable handback and independent completion review. Resolution summaries, exception queues, policy-owned queue administration, production scheduling and Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -4044,9 +4044,9 @@
         "ui": "src/app/holdings/[holdingSlug]/staff-tasks/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/staff/[[...path]]/route.ts",
         "service": "src/server/staff-tasks.ts",
-        "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/staff-work.test.ts",
-        "gap": "Add policy-owned escalation, resolution, exception summaries and queue administration."
+        "schema": "migrations/postgres/holding-write/0263_staff_task_delegations.sql; migrations/postgres/holding-write/0271_staff_task_delegation_history.sql",
+        "test": "tests/staff-work.test.ts; tests/e2e/demo-task-delegation.spec.ts",
+        "gap": "Staff tasks support bounded temporary delegation, versioned revoke with retained reason, protected active/expired/revoked history, current authorization and Flow ownership switching. A four-account Demo browser journey verifies delegation, partial progress, immediate access revocation, accountable handback and independent completion review. Resolution summaries, exception queues, policy-owned queue administration, production scheduling and Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -4089,13 +4089,13 @@
       ],
       "implementation": {
         "stage": 1,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/requests/[id]/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/requests/[[...path]]/route.ts",
         "service": "src/server/employee-requests.ts",
-        "schema": "migrations/postgres/holding-write/0210_rfq_requisition_links.sql",
+        "schema": "migrations/postgres/holding-write/0238_split_requisition_uom.sql",
         "test": "tests/employee-services.test.ts",
-        "gap": "Approved employee requisition maps every item to RFQ product/quantity and atomically links an independently awarded draft PO. Partial allocations, split awards, UOM conversion and full multi-role browser acceptance remain."
+        "gap": "Approved request items support partial allocation across several RFQs, independently reviewed supplier awards and linked POs. Immutable lines retain requested and purchasing units plus exact conversion; database counters prevent concurrent over-allocation and cancellation releases demand. The isolated Demo browser journey covers the source-linked employee request → split 6+4 RFQs → independent awards → approved POs → all receipts and receipt-specific GL journals → independently matched and posted AP invoices → approved supplier batch → exact bank evidence → paid handoff, including one consolidated invoice across both POs. Live provider, statutory, production operation and company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -4143,8 +4143,8 @@
         "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
         "service": "src/server/commerce.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/business-commands.test.ts",
-        "gap": "Supplier returns, debit-note GL and versioned supplier delivery commitments are implemented; reviewed supplier invoice price/quantity matching and AP/GL handoff are implemented with original-cost returns. Partial/split requisition allocation, mandatory matching policy, multi-receipt invoices and complete browser/provider acceptance remain."
+        "test": "tests/purchase-to-payment.test.ts",
+        "gap": "A request can split immutable item allocations across several RFQs, supplier awards and POs, with exact request-unit to purchasing-unit conversion evidence, concurrent over-allocation protection and cancellation release. Browser acceptance covers standalone RFQ → independent award → draft-PO and the source-linked employee request → split 6+4 RFQs/POs → all receipts → posted receipt GL journals → matched AP → supplier payment → exact bank evidence → paid reconciliation, including one consolidated supplier invoice across two purchase orders. Live provider, statutory, production operation and company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -4192,8 +4192,8 @@
         "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
         "service": "src/server/commerce.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/business-commands.test.ts",
-        "gap": "Supplier returns, debit-note GL and versioned supplier delivery commitments are implemented; reviewed supplier invoice price/quantity matching and AP/GL handoff are implemented with original-cost returns. Partial/split requisition allocation, mandatory matching policy, multi-receipt invoices and complete browser/provider acceptance remain."
+        "test": "tests/purchase-to-payment.test.ts",
+        "gap": "A request can split immutable item allocations across several RFQs, supplier awards and POs, with exact request-unit to purchasing-unit conversion evidence, concurrent over-allocation protection and cancellation release. Browser acceptance covers standalone RFQ → independent award → draft-PO and the source-linked employee request → split 6+4 RFQs/POs → all receipts → posted receipt GL journals → matched AP → supplier payment → exact bank evidence → paid reconciliation, including one consolidated supplier invoice across two purchase orders. Live provider, statutory, production operation and company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -4236,13 +4236,13 @@
       ],
       "implementation": {
         "stage": 1,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/commerce/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/commerce/[...path]/route.ts",
         "service": "src/server/commerce.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/business-commands.test.ts",
-        "gap": "Supplier returns, debit-note GL and versioned supplier delivery commitments are implemented; reviewed supplier invoice price/quantity matching and AP/GL handoff are implemented with original-cost returns. Partial/split requisition allocation, mandatory matching policy, multi-receipt invoices and complete browser/provider acceptance remain."
+        "test": "tests/purchase-to-payment.test.ts",
+        "gap": "A request can split immutable item allocations across several RFQs, supplier awards and POs, with exact request-unit to purchasing-unit conversion evidence, concurrent over-allocation protection and cancellation release. Browser acceptance covers standalone RFQ → independent award → draft-PO and the source-linked employee request → split 6+4 RFQs/POs → all receipts → posted receipt GL journals → matched AP → supplier payment → exact bank evidence → paid reconciliation, including one consolidated supplier invoice across two purchase orders. Live provider, statutory, production operation and company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -4285,13 +4285,13 @@
       ],
       "implementation": {
         "stage": 1,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/commerce/orders/[id]/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/supplier-promises/[id]/route.ts",
         "service": "src/server/supplier-promises.ts",
         "schema": "migrations/postgres/holding-write/0208_supplier_promises.sql",
         "test": "tests/supplier-promises.test.ts",
-        "gap": "Immutable manual supplier commitments, split dates, partial receipts and scoped Work/Inbox/Calendar implemented. RFQ comparison and independent award-to-PO handoff implemented separately. Partial/split requisition allocation, supplier portal/email evidence and performance reporting remain."
+        "gap": "Immutable manual supplier commitments, split dates, replacement/withdrawal, partial receipts and scoped Work/Inbox/Calendar are covered by owner regression and a four-account browser journey. RFQ comparison supports partial request allocation, independent multi-supplier awards and separate PO handoffs. Supplier portal/email evidence, performance reporting, live providers and company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -4341,9 +4341,9 @@
         "ui": "src/app/holdings/[holdingSlug]/quality/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
         "service": "src/server/quality.ts",
-        "schema": "migrations/postgres/holding-write/0213_quality_hold_cancellation.sql",
+        "schema": "migrations/postgres/holding-write/0244_quality_scrap_disposition.sql",
         "test": "tests/quality.test.ts",
-        "gap": "Whole warehouse/product hold, immutable pass/fail evidence, independent release, uninspected hold cancellation request/reject/approve, and Work/Inbox/Calendar implemented. Lot/serial-level inspection, structured measurements, attachments, scrap/return disposition, escalation and multi-role browser/business acceptance remain incomplete."
+        "gap": "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete-quantity scrap, stock/lot write-off and balanced GL. Return disposition, escalation and multi-role business acceptance remain incomplete."
       },
       "gates": {
         "automated": {
@@ -4393,9 +4393,9 @@
         "ui": "src/app/holdings/[holdingSlug]/quality/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
         "service": "src/server/quality.ts",
-        "schema": "migrations/postgres/holding-write/0213_quality_hold_cancellation.sql",
+        "schema": "migrations/postgres/holding-write/0244_quality_scrap_disposition.sql",
         "test": "tests/quality.test.ts",
-        "gap": "Whole warehouse/product hold, immutable pass/fail evidence, independent release, uninspected hold cancellation request/reject/approve, and Work/Inbox/Calendar implemented. Lot/serial-level inspection, structured measurements, attachments, scrap/return disposition, escalation and multi-role browser/business acceptance remain incomplete."
+        "gap": "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete-quantity scrap, stock/lot write-off and balanced GL. Return disposition, escalation and multi-role business acceptance remain incomplete."
       },
       "gates": {
         "automated": {
@@ -4445,9 +4445,9 @@
         "ui": "src/app/holdings/[holdingSlug]/quality/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
         "service": "src/server/quality.ts",
-        "schema": "migrations/postgres/holding-write/0213_quality_hold_cancellation.sql",
+        "schema": "migrations/postgres/holding-write/0244_quality_scrap_disposition.sql",
         "test": "tests/quality.test.ts",
-        "gap": "Whole warehouse/product hold, immutable pass/fail evidence, independent release, uninspected hold cancellation request/reject/approve, and Work/Inbox/Calendar implemented. Lot/serial-level inspection, structured measurements, attachments, scrap/return disposition, escalation and multi-role browser/business acceptance remain incomplete."
+        "gap": "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete-quantity scrap, stock/lot write-off and balanced GL. Return disposition, escalation and multi-role business acceptance remain incomplete."
       },
       "gates": {
         "automated": {
@@ -4497,9 +4497,9 @@
         "ui": "src/app/holdings/[holdingSlug]/quality/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
         "service": "src/server/quality.ts",
-        "schema": "migrations/postgres/holding-write/0213_quality_hold_cancellation.sql",
+        "schema": "migrations/postgres/holding-write/0244_quality_scrap_disposition.sql",
         "test": "tests/quality.test.ts",
-        "gap": "Whole warehouse/product hold, immutable pass/fail evidence, independent release, uninspected hold cancellation request/reject/approve, and Work/Inbox/Calendar implemented. Lot/serial-level inspection, structured measurements, attachments, scrap/return disposition, escalation and multi-role browser/business acceptance remain incomplete."
+        "gap": "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete-quantity scrap, stock/lot write-off and balanced GL. Return disposition, escalation and multi-role business acceptance remain incomplete."
       },
       "gates": {
         "automated": {
@@ -4803,7 +4803,7 @@
         "service": "src/server/people-payroll.ts",
         "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql",
         "test": "tests/people-lifecycle.test.ts",
-        "gap": "Versioned payroll inputs, configurable overtime, calendar-day proration, deductions and immutable review exports are implemented; add advances, final-pay preparation and post-approval correction. Country packs remain deferred."
+        "gap": "Versioned payroll inputs, configurable overtime, calendar-day proration, deductions, immutable review exports, independently approved post-approval correction, person-scoped final-pay preparation and scheduled payroll advances are implemented. Country packs and statutory adapters remain deferred."
       },
       "gates": {
         "automated": {
@@ -4846,13 +4846,13 @@
       ],
       "implementation": {
         "stage": 2,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/people/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
         "service": "src/server/people-payroll.ts",
-        "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql",
-        "test": "tests/people-lifecycle.test.ts",
-        "gap": "Versioned payroll inputs, configurable overtime, calendar-day proration, deductions and immutable review exports are implemented; add advances, final-pay preparation and post-approval correction. Country packs remain deferred."
+        "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql",
+        "test": "tests/e2e/demo-payroll-runs.spec.ts",
+        "gap": "People → Payroll renders live gross, deductions, employer cost, net and headcount totals from the calculated run and keeps the selected run after reload. Statutory country packs, GL/payment posting, provider/production operation and Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -4901,7 +4901,7 @@
         "service": "src/server/people-payroll.ts",
         "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql",
         "test": "tests/people-lifecycle.test.ts",
-        "gap": "Versioned payroll inputs, configurable overtime, calendar-day proration, deductions and immutable review exports are implemented; add advances, final-pay preparation and post-approval correction. Country packs remain deferred."
+        "gap": "Versioned payroll inputs, configurable overtime, calendar-day proration, deductions, immutable review exports, independently approved post-approval correction, person-scoped final-pay preparation and scheduled payroll advances are implemented. Country packs and statutory adapters remain deferred."
       },
       "gates": {
         "automated": {
@@ -4950,7 +4950,7 @@
         "service": "src/server/people-payroll.ts",
         "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql",
         "test": "tests/people-lifecycle.test.ts",
-        "gap": "Versioned payroll inputs, configurable overtime, calendar-day proration, deductions and immutable review exports are implemented; add advances, final-pay preparation and post-approval correction. Country packs remain deferred."
+        "gap": "Versioned payroll inputs, configurable overtime, calendar-day proration, deductions, immutable review exports, independently approved post-approval correction, person-scoped final-pay preparation and scheduled payroll advances are implemented. Country packs and statutory adapters remain deferred."
       },
       "gates": {
         "automated": {
@@ -4993,13 +4993,13 @@
       ],
       "implementation": {
         "stage": 2,
-        "status": "implemented",
-        "ui": "src/app/holdings/[holdingSlug]/people/page.tsx",
+        "status": "flow_accepted",
+        "ui": "src/app/holdings/[holdingSlug]/people/page.tsx, src/app/holdings/[holdingSlug]/people/payroll/[id]/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
         "service": "src/server/people-payroll.ts",
-        "schema": "migrations/postgres/holding-write/0202_payroll_core_configuration.sql",
-        "test": "tests/payroll-core.test.ts",
-        "gap": "Versioned payroll inputs, configurable overtime, calendar-day proration, deductions and immutable review exports are implemented; add advances, final-pay preparation and post-approval correction. Country packs remain deferred."
+        "schema": "migrations/postgres/holding-write/0261_payroll_advances.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql",
+        "test": "tests/e2e/demo-payroll-runs.spec.ts",
+        "gap": "Demo browser flow covers a real monthly global gross-pay preview, workflow-owner assignment, independent approval and reload persistence. Statutory payroll, GL/payment posting, provider/production operation and Company business acceptance remain separately gated."
       },
       "gates": {
         "automated": {
@@ -7472,9 +7472,9 @@
         "ui": "src/app/holdings/[holdingSlug]/field-service/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/field-service/route.ts",
         "service": "src/server/field-service.ts",
-        "schema": "migrations/postgres/holding-write/0226_field_service.sql",
+        "schema": "migrations/postgres/holding-write/0226_field_service.sql, migrations/postgres/holding-write/0268_field_service_warranty_pricing.sql, migrations/postgres/holding-write/0269_field_service_warranty_snapshots.sql",
         "test": "tests/field-service.test.ts",
-        "gap": "Agreement activation, ticket-bound service orders, current technician dispatch, shared part reservation/issue, site exceptions, customer-confirmed completion and independent billing release are implemented with Work/Inbox. Invoice creation, warranty pricing, Calendar, attachment bytes, browser and business acceptance remain."
+        "gap": "Agreement activation, ticket-bound service orders, current technician dispatch, shared part reservation/issue, site exceptions, customer-confirmed completion, server-calculated warranty pricing and independent billing release are implemented with Work/Inbox. Reviewed billing release now creates a draft receivable Finance invoice using configured control/revenue accounts with source linkage; posting/collection, travel/labor costing, Calendar, attachment bytes, browser and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -7520,9 +7520,9 @@
         "ui": "src/app/holdings/[holdingSlug]/field-service/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/field-service/route.ts",
         "service": "src/server/field-service.ts",
-        "schema": "migrations/postgres/holding-write/0226_field_service.sql",
+        "schema": "migrations/postgres/holding-write/0226_field_service.sql, migrations/postgres/holding-write/0268_field_service_warranty_pricing.sql, migrations/postgres/holding-write/0269_field_service_warranty_snapshots.sql",
         "test": "tests/field-service.test.ts",
-        "gap": "Agreement activation, ticket-bound service orders, current technician dispatch, shared part reservation/issue, site exceptions, customer-confirmed completion and independent billing release are implemented with Work/Inbox. Invoice creation, warranty pricing, Calendar, attachment bytes, browser and business acceptance remain."
+        "gap": "Agreement activation, ticket-bound service orders, current technician dispatch, shared part reservation/issue, site exceptions, customer-confirmed completion, server-calculated warranty pricing and independent billing release are implemented with Work/Inbox. Reviewed billing release now creates a draft receivable Finance invoice using configured control/revenue accounts with source linkage; posting/collection, travel/labor costing, Calendar, attachment bytes, browser and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -7568,9 +7568,9 @@
         "ui": "src/app/holdings/[holdingSlug]/field-service/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/field-service/route.ts",
         "service": "src/server/field-service.ts",
-        "schema": "migrations/postgres/holding-write/0226_field_service.sql",
+        "schema": "migrations/postgres/holding-write/0226_field_service.sql, migrations/postgres/holding-write/0268_field_service_warranty_pricing.sql, migrations/postgres/holding-write/0269_field_service_warranty_snapshots.sql",
         "test": "tests/field-service.test.ts",
-        "gap": "Agreement activation, ticket-bound service orders, current technician dispatch, shared part reservation/issue, site exceptions, customer-confirmed completion and independent billing release are implemented with Work/Inbox. Invoice creation, warranty pricing, Calendar, attachment bytes, browser and business acceptance remain."
+        "gap": "Agreement activation, ticket-bound service orders, current technician dispatch, shared part reservation/issue, site exceptions, customer-confirmed completion, server-calculated warranty pricing and independent billing release are implemented with Work/Inbox. Reviewed billing release now creates a draft receivable Finance invoice using configured control/revenue accounts with source linkage; posting/collection, travel/labor costing, Calendar, attachment bytes, browser and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -7616,9 +7616,9 @@
         "ui": "src/app/holdings/[holdingSlug]/field-service/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/field-service/route.ts",
         "service": "src/server/field-service.ts",
-        "schema": "migrations/postgres/holding-write/0226_field_service.sql",
+        "schema": "migrations/postgres/holding-write/0226_field_service.sql, migrations/postgres/holding-write/0268_field_service_warranty_pricing.sql, migrations/postgres/holding-write/0269_field_service_warranty_snapshots.sql",
         "test": "tests/field-service.test.ts",
-        "gap": "Agreement activation, ticket-bound service orders, current technician dispatch, shared part reservation/issue, site exceptions, customer-confirmed completion and independent billing release are implemented with Work/Inbox. Invoice creation, warranty pricing, Calendar, attachment bytes, browser and business acceptance remain."
+        "gap": "Agreement activation, ticket-bound service orders, current technician dispatch, shared part reservation/issue, site exceptions, customer-confirmed completion, server-calculated warranty pricing and independent billing release are implemented with Work/Inbox. Reviewed billing release now creates a draft receivable Finance invoice using configured control/revenue accounts with source linkage; posting/collection, travel/labor costing, Calendar, attachment bytes, browser and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -7664,9 +7664,9 @@
         "ui": "src/app/holdings/[holdingSlug]/field-service/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/field-service/route.ts",
         "service": "src/server/field-service.ts",
-        "schema": "migrations/postgres/holding-write/0226_field_service.sql",
+        "schema": "migrations/postgres/holding-write/0226_field_service.sql, migrations/postgres/holding-write/0268_field_service_warranty_pricing.sql, migrations/postgres/holding-write/0269_field_service_warranty_snapshots.sql",
         "test": "tests/field-service.test.ts",
-        "gap": "Agreement activation, ticket-bound service orders, current technician dispatch, shared part reservation/issue, site exceptions, customer-confirmed completion and independent billing release are implemented with Work/Inbox. Invoice creation, warranty pricing, Calendar, attachment bytes, browser and business acceptance remain."
+        "gap": "Agreement activation, ticket-bound service orders, current technician dispatch, shared part reservation/issue, site exceptions, customer-confirmed completion, server-calculated warranty pricing and independent billing release are implemented with Work/Inbox. Reviewed billing release now creates a draft receivable Finance invoice using configured control/revenue accounts with source linkage; posting/collection, travel/labor costing, Calendar, attachment bytes, browser and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -7712,9 +7712,9 @@
         "ui": "src/app/holdings/[holdingSlug]/field-service/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/field-service/route.ts",
         "service": "src/server/field-service.ts",
-        "schema": "migrations/postgres/holding-write/0226_field_service.sql",
+        "schema": "migrations/postgres/holding-write/0226_field_service.sql, migrations/postgres/holding-write/0268_field_service_warranty_pricing.sql, migrations/postgres/holding-write/0269_field_service_warranty_snapshots.sql",
         "test": "tests/field-service.test.ts",
-        "gap": "Agreement activation, ticket-bound service orders, current technician dispatch, shared part reservation/issue, site exceptions, customer-confirmed completion and independent billing release are implemented with Work/Inbox. Invoice creation, warranty pricing, Calendar, attachment bytes, browser and business acceptance remain."
+        "gap": "Agreement activation, ticket-bound service orders, current technician dispatch, shared part reservation/issue, site exceptions, customer-confirmed completion, server-calculated warranty pricing and independent billing release are implemented with Work/Inbox. Reviewed billing release now creates a draft receivable Finance invoice using configured control/revenue accounts with source linkage; posting/collection, travel/labor costing, Calendar, attachment bytes, browser and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -8093,13 +8093,13 @@
       ],
       "implementation": {
         "stage": 2,
-        "status": "implemented",
-        "ui": "src/app/holdings/[holdingSlug]/feed/page.tsx",
+        "status": "flow_accepted",
+        "ui": "src/app/holdings/[holdingSlug]/home/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/feed/route.ts",
         "service": "src/server/social.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/social-beta.test.ts",
-        "gap": "Complete moderation, typed record relations/action cards, retention/export and attachment coverage."
+        "test": "tests/e2e/demo-collaboration-social.spec.ts",
+        "gap": "Home feed threads, persisted comments, reload behavior and cross-role visibility are flow accepted in the isolated Demo workspace. Retention/export, moderation coverage, provider/production operation and Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -8142,13 +8142,13 @@
       ],
       "implementation": {
         "stage": 2,
-        "status": "implemented",
-        "ui": "src/app/holdings/[holdingSlug]/feed/page.tsx",
+        "status": "flow_accepted",
+        "ui": "src/app/holdings/[holdingSlug]/home/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/feed/route.ts",
         "service": "src/server/social.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/social-beta.test.ts",
-        "gap": "Complete moderation, typed record relations/action cards, retention/export and attachment coverage."
+        "test": "tests/e2e/demo-collaboration-social.spec.ts",
+        "gap": "Resolved person mentions are flow accepted from the real Home composer and remain visible after cross-role reload. Record/agent adapters, retention/export, provider/production operation and Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -8338,13 +8338,13 @@
       ],
       "implementation": {
         "stage": 2,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/inbox/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/messaging/[[...path]]/route.ts",
         "service": "src/server/messaging-files.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
-        "test": "tests/messaging.test.ts",
-        "gap": "Private conversation file upload, draft isolation, one-time binding, current room membership download and membership revocation are implemented. Retention/export, legal hold and full browser/business acceptance remain."
+        "test": "tests/e2e/demo-collaboration-attachments.spec.ts",
+        "gap": "Private conversation file upload, protected member download and reload persistence are flow accepted in the isolated Demo workspace; owner-service tests also cover draft isolation, one-time binding and membership revocation. Retention/export, legal hold, provider/production operation and Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -8387,13 +8387,13 @@
       ],
       "implementation": {
         "stage": 2,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/collaboration/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/collaboration/route.ts",
         "service": "src/server/collaboration-work.ts",
         "schema": "migrations/postgres/holding-write/0227_collaboration_work.sql",
-        "test": "tests/collaboration-work.test.ts",
-        "gap": "Source-versioned action cards, current eligible owner, Work/Inbox, evidence completion and reviewed reassignment/cancellation are implemented for four owner domains. Expand source adapters, Calendar, retention/export and browser/business acceptance."
+        "test": "tests/e2e/demo-collaboration-action-card.spec.ts",
+        "gap": "Source-versioned action cards, current eligible owner, Work/Inbox, evidence completion and reviewed reassignment/cancellation are flow accepted across the owner service and an isolated two-role Demo browser journey. Expand source adapters, Calendar, retention/export, provider/production operation and Company business acceptance."
       },
       "gates": {
         "automated": {
@@ -8436,13 +8436,13 @@
       ],
       "implementation": {
         "stage": 2,
-        "status": "implemented",
+        "status": "flow_accepted",
         "ui": "src/app/holdings/[holdingSlug]/collaboration/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/collaboration/route.ts",
         "service": "src/server/collaboration-work.ts",
         "schema": "migrations/postgres/holding-write/0227_collaboration_work.sql",
-        "test": "tests/collaboration-work.test.ts",
-        "gap": "Typed version snapshots, symmetric duplicate prevention, permission-filtered backlinks, removal evidence and immutable history are implemented for Commerce, Support, Field Service and staff tasks. Expand adapters and add dead-link/retention acceptance."
+        "test": "tests/e2e/demo-collaboration-record-relations.spec.ts",
+        "gap": "Typed version snapshots, symmetric duplicate prevention, permission-filtered backlinks, removal evidence and immutable history are flow accepted for a Sales quotation to Support case in the isolated Demo workspace. Expand adapters and add dead-link, relation-graph, retention/export, provider/production and Company business acceptance."
       },
       "gates": {
         "automated": {
@@ -10415,6 +10415,33 @@
       "supersedes": null
     },
     {
+      "id": "customer-duplicates-merge-automated-20260922",
+      "capabilityIds": [
+        "customer_authority/duplicate-review"
+      ],
+      "scenarioIds": [
+        "S01"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Six focused tests cover transactional safe-source repointing, blocked merge on immutable Field Service scope, merge lineage, merged review state, idempotent replay and immutable history.",
+      "observedAt": "2026-09-22T02:12:00+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-customer-duplicate-merge.txt",
+          "sha256": "a0b303a581e7c6bdd7d195c505fec04938e172bce7b4effd1a007ca54304310d"
+        }
+      ],
+      "limitations": [
+        "No browser, provider, production or customer business acceptance.",
+        "Balance reconciliation and reversal/correction workflows remain deferred.",
+        "Address/contact identity and external registry checks remain deferred."
+      ],
+      "supersedes": "customer-duplicates-automated-20260920"
+    },
+    {
       "id": "customer-identity-automated-20260920",
       "capabilityIds": [
         "customer_authority/feature-identity-changes"
@@ -10902,6 +10929,2117 @@
         "No whole-capability or S16 acceptance.",
         "Live storefront/payment/tax/shipping/notification integrations remain provider gates.",
         "No multi-role browser, migration, production or customer UAT acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "purchase-to-payment-automated-20260921",
+      "capabilityIds": [
+        "procurement/requisitions",
+        "procurement/purchase-orders",
+        "procurement/goods-receipts",
+        "procurement/feature-invoice-match",
+        "inventory/availability",
+        "inventory/feature-stock-register",
+        "inventory/feature-receipts",
+        "finance/journals",
+        "finance/payables",
+        "finance/feature-payments",
+        "finance/feature-bank-reconciliation"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S03"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "One end-to-end owner-service acceptance case covers an independently approved ten-laptop request, RFQ award, linked PO, 6+4 receipts, two stock journals, two receipt-specific supplier invoice matches, independent AP posting, approved supplier batch export, exact bank evidence, paid invoices, stock valuation, balanced journals and requester progress 6/6.",
+      "observedAt": "2026-09-21T13:04:06+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-purchase-to-payment-tests.txt",
+          "sha256": "9e853138466504cc671ae8649a1b2f8368488a031b08cbb20ca8f3a672766e7c"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-21-purchase-to-payment-context.json",
+          "sha256": "7640d0347d43c29815005b0e56cfc306356e6c7cdd45eaebf64d9d67ed78e305"
+        }
+      ],
+      "limitations": [
+        "No whole-capability, S02 or S03 acceptance.",
+        "One supplier invoice spanning multiple receipts, partial/split requisition allocation, UOM conversion and mandatory matching policy remain.",
+        "No multi-role browser, provider, production or business acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "purchase-to-payment-multi-receipt-automated-20260921",
+      "capabilityIds": [
+        "procurement/requisitions",
+        "procurement/purchase-orders",
+        "procurement/goods-receipts",
+        "procurement/feature-invoice-match",
+        "inventory/availability",
+        "inventory/feature-stock-register",
+        "inventory/feature-receipts",
+        "finance/journals",
+        "finance/payables",
+        "finance/feature-payments",
+        "finance/feature-bank-reconciliation"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S03"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "One end-to-end owner-service acceptance case covers an independently approved ten-laptop request, RFQ award, linked PO, 6+4 receipts, two stock journals, one supplier invoice matched to both receipts, one consolidated AP invoice linked to both receipts, independent AP posting, one approved supplier payment instruction, exact bank evidence, paid reconciliation, stock valuation, balanced journals and requester progress 6/6.",
+      "observedAt": "2026-09-21T13:36:31+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-multi-receipt-purchase-to-payment-tests.txt",
+          "sha256": "9099d5b36485a113ff803db1bc0ac050fa6d6a31ce98f7d712d3646467f9b39c"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-21-multi-receipt-purchase-to-payment-context.json",
+          "sha256": "2a9164ee9a1d406f2b3067538efb757b27f4526c585f938b846bed33cae06f9d"
+        }
+      ],
+      "limitations": [
+        "No whole-capability, S02 or S03 acceptance.",
+        "Partial/split requisition allocation, UOM conversion and mandatory matching policy remain.",
+        "No multi-role browser, provider, production or business acceptance."
+      ],
+      "supersedes": "purchase-to-payment-automated-20260921"
+    },
+    {
+      "id": "supplier-invoice-policy-automated-20260921",
+      "capabilityIds": [
+        "procurement/feature-invoice-match",
+        "finance/payables"
+      ],
+      "scenarioIds": [
+        "S03"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Eight owner-service tests cover required or optional Company matching policy, holding-scoped Finance authority, optimistic versioning, idempotency, concurrent updates, direct-AP enforcement, immutable policy history, multi-receipt matching, AP correction and posting.",
+      "observedAt": "2026-09-21T13:57:18+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-supplier-invoice-policy-automated.txt",
+          "sha256": "e6899f1daf8e55fcf9bfe12154c8355109c70e988e5215dddd31a703e74c5d51"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-21-supplier-invoice-policy-automated-context.json",
+          "sha256": "5f9871c95e1cfc66401d5532b93b6a512209e87cef43aba5c54a33ee5fa8df00"
+        }
+      ],
+      "limitations": [
+        "No whole-capability or S03 business acceptance.",
+        "Provider and production acceptance were not exercised.",
+        "Partial/split requisition allocation and UOM conversion remain."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "supplier-invoice-policy-browser-20260921",
+      "capabilityIds": [
+        "procurement/feature-invoice-match",
+        "finance/payables"
+      ],
+      "scenarioIds": [
+        "S03"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Authenticated desktop Chrome and Pixel 7 browser runs use the real supplier invoice review page to require independent matching, render the control explanation, restore optional matching and verify both reasons in immutable history.",
+      "observedAt": "2026-09-21T13:56:40+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-supplier-invoice-policy-browser.txt",
+          "sha256": "7eb98e49e473bc2b3bec6c9f72db5482edb1df5efcd2189e9fb1d732f42e7fce"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-21-supplier-invoice-policy-browser-context.json",
+          "sha256": "8fda7809b88115bf190cb878594c793b2cfaa5fbaf4ee35484bcd4b57a7ea2b5"
+        }
+      ],
+      "limitations": [
+        "The browser observation covers the policy UI rather than the complete purchase-to-payment journey.",
+        "No supplier, payment or bank provider was contacted.",
+        "No production or business sign-off."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "supplier-invoice-policy-public-browser-20260921",
+      "capabilityIds": [
+        "procurement/feature-invoice-match",
+        "finance/payables"
+      ],
+      "scenarioIds": [
+        "S03"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "An authenticated desktop Chrome run through https://erpx.jesadakorn.com uses the real supplier invoice review page, waits for hydration, requires independent matching, renders the control explanation, restores optional matching and verifies both reasons in immutable history.",
+      "observedAt": "2026-09-21T14:06:10+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-supplier-invoice-policy-public-browser.txt",
+          "sha256": "2f0ffd1abfef1a46f86555165ad9957c7ca84d408be2c9e19e59217ac05dc783"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-21-supplier-invoice-policy-public-browser-context.json",
+          "sha256": "b7c1e787ad643abe4ed4ca8eba635cc240f03cb9113f639fe2901a42279ee3ba"
+        }
+      ],
+      "limitations": [
+        "The browser observation covers the policy UI rather than the complete purchase-to-payment journey.",
+        "No supplier, payment or bank provider was contacted.",
+        "No production or business sign-off."
+      ],
+      "supersedes": "supplier-invoice-policy-browser-20260921"
+    },
+    {
+      "id": "split-requisition-uom-automated-20260921",
+      "capabilityIds": [
+        "procurement/requisitions",
+        "procurement/purchase-orders"
+      ],
+      "scenarioIds": [
+        "S03"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "One owner-service acceptance case splits an approved 24-each request across two RFQs, two independently reviewed supplier awards and two linked purchase orders. It snapshots an exact 1 case = 12 each conversion, rejects over-allocation, proves one winner under concurrent allocation, releases demand after cancellation and aggregates both POs in request progress.",
+      "observedAt": "2026-09-21T14:30:15+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-split-requisition-uom-automated.txt",
+          "sha256": "88e282d1c865a70de6fb3e1b7b7968cee668ad432556072b1af8bc788974c72b"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-21-split-requisition-uom-automated-context.json",
+          "sha256": "b6aecd560cfb4d2188ae1408f711e73cc82114647d66ee0a2dad07f7e15bd4be"
+        }
+      ],
+      "limitations": [
+        "No whole-capability or S03 acceptance.",
+        "No multi-role browser, provider, production or business acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "split-requisition-uom-browser-20260921",
+      "capabilityIds": [
+        "procurement/requisitions",
+        "procurement/purchase-orders"
+      ],
+      "scenarioIds": [
+        "S03"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Authenticated local desktop/mobile and public-Tunnel desktop runs render the required request Unit input and the RFQ partial remaining-demand guidance through the actual Next.js interface.",
+      "observedAt": "2026-09-21T14:34:09+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-split-requisition-uom-browser.txt",
+          "sha256": "a48f5413804ce227e84c4833a3dde4f969948c09f8274c4ab0e8173da6688ec6"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-21-split-requisition-uom-browser-context.json",
+          "sha256": "a35e332198883d7a9196822531ff7f11bc21e1ca1284d7cee336af05c3ad968d"
+        }
+      ],
+      "limitations": [
+        "The browser observation covers the affected creation surfaces, not a complete multi-role split-award journey.",
+        "No provider, production or business acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "sales-customer-notification-browser-worker-20260921",
+      "capabilityIds": [
+        "sales/orders",
+        "sales/fulfillment"
+      ],
+      "scenarioIds": [
+        "S02"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Five related test files with 16 tests plus an authenticated public-browser run cover consent and provider gates, immutable delivery-message snapshots, command idempotency, cancellation after consent change, durable provider failure and retry, queue-to-worker processing, correct order-route recovery, and the sent state rendered after reload through the public Tunnel.",
+      "observedAt": "2026-09-21T18:40:00+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-sales-customer-notifications.txt",
+          "sha256": "e167e4099dd07f7d3a4d404a01aa08b2aff534637fb4ab690a84786248515f1a"
+        }
+      ],
+      "limitations": [
+        "No whole-capability or S02 business acceptance.",
+        "No real customer address or external provider was contacted; Resend sandbox/live acceptance remains gated.",
+        "The public transaction used the holding owner; complete independent multi-role sales acceptance remains."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "customer-return-quality-disposition-20260921",
+      "capabilityIds": [
+        "sales/fulfillment",
+        "sales/feature-revenue-handoff",
+        "inventory/availability",
+        "inventory/reservations",
+        "quality/inspections",
+        "quality/results",
+        "quality/release-gates"
+      ],
+      "scenarioIds": [
+        "S04"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Five related test files with 27 tests cover customer-return condition evidence, exact quantity and lot quarantine, immutable linkage, availability exclusion, independent inspection and third-person release while preserving supplier returns, refund accounting, controlled Quality scrap, reservations and e-commerce behavior. An authenticated public-browser run rendered the required request fields and quarantine explanation on a paid sales order.",
+      "observedAt": "2026-09-21T18:52:00+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-customer-return-quality-disposition.txt",
+          "sha256": "2ecee4a08e791bf7b13a167e5c3459bb4ca271d6c6e6846c74817c19a1ce2ad7"
+        }
+      ],
+      "limitations": [
+        "No whole-capability or S04 business acceptance.",
+        "The public browser run covered the request surface rather than the independent Commerce, Quality and Finance transaction.",
+        "No production sign-off."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "finance-opening-reconciliation-20260921",
+      "capabilityIds": [
+        "finance/journals",
+        "finance/payables",
+        "finance/feature-receivables-aging",
+        "finance/feature-opening-balances"
+      ],
+      "scenarioIds": [
+        "S14"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Four related test files with 19 tests cover exact opening AR schedule reconciliation, stale and concurrent import guards, atomic draft journal/subledger creation, independent posting into operational aging, controlled reversal, Finance-engine and purchase-to-payment regressions. An authenticated public-browser run rendered configured control-account types and the complete schedule entry surface.",
+      "observedAt": "2026-09-21T19:11:00+07:00",
+      "recordedBy": "Codex execution agent (observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-finance-opening-reconciliation.txt",
+          "sha256": "8a51dbfbe1523f086a2700f3c1b54d7846e521123bd1621472f25d8c434e4144"
+        }
+      ],
+      "limitations": [
+        "No whole-capability or S05 business acceptance.",
+        "The public browser run observed the real form but did not submit shared-company financial data.",
+        "Independent multi-role browser settlement, two reconciled closes, migration/provider/production acceptance and sign-off remain."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "finance-two-close-browser-20260921",
+      "capabilityIds": [
+        "finance/feature-bank-reconciliation",
+        "finance/feature-period-close"
+      ],
+      "scenarioIds": [
+        "S14"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Resettable isolated Demo run f9abbfb7a9cf used separate Finance preparer and Finance approver browser sessions to review zero-difference AR/AP/bank evidence, prepare, independently approve, reload, and close January and February 2027 consecutively. Two focused integration tests also cover immutable snapshots and stale-evidence rejection.",
+      "observedAt": "2026-09-21T19:46:00+07:00",
+      "recordedBy": "Codex execution agent (browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-finance-close-reconciliation.txt",
+          "sha256": "1634cb5b7e20a836250a53cbfd56b7249b491fdb3de30ee1603aebe946a4f861"
+        }
+      ],
+      "limitations": [
+        "No whole-scenario or business-owner sign-off.",
+        "Bank statements are sandbox fixtures; no external bank provider was contacted.",
+        "The isolated browser run is not production acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "finance-generic-payment-automated-20260921",
+      "capabilityIds": [
+        "finance/feature-payments"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S04",
+        "S14"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Three focused PostgreSQL integration tests prove three-person generic payable control, exact bank/GL/AP settlement, idempotent replay, mismatch rollback, and one receipt allocated across two receivables. Four related Finance files pass 10 tests.",
+      "observedAt": "2026-09-21T20:06:00+07:00",
+      "recordedBy": "Codex execution agent (automated evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-finance-generic-controlled-payments.txt",
+          "sha256": "f577a31658c879f94e0840e251d5ea5a7ff439175190f20b987602d8edb7e811"
+        }
+      ],
+      "limitations": [
+        "No whole-scenario or business-owner sign-off.",
+        "No live bank/provider or foreign-currency acceptance.",
+        "The resettable generic payment multi-role browser journey remains pending."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "finance-generic-payment-public-ui-20260921",
+      "capabilityIds": [
+        "finance/feature-payments"
+      ],
+      "scenarioIds": [
+        "S04"
+      ],
+      "gate": "browser",
+      "environment": "sandbox",
+      "outcome": "partial",
+      "scope": "An authenticated public session rendered the controlled settlement form on a posted Acme receivable and exposed only the configured bank control account. No shared-company financial mutation was submitted.",
+      "observedAt": "2026-09-21T20:03:00+07:00",
+      "recordedBy": "Codex execution agent (UI observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-finance-generic-controlled-payments.txt",
+          "sha256": "f577a31658c879f94e0840e251d5ea5a7ff439175190f20b987602d8edb7e811"
+        }
+      ],
+      "limitations": [
+        "The browser observation did not create or confirm a shared-company payment.",
+        "No independent multi-role browser completion or provider acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "finance-generic-payment-browser-20260921",
+      "capabilityIds": [
+        "finance/feature-payments"
+      ],
+      "scenarioIds": [
+        "S04",
+        "S14"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Disposable run ec2aae319bce used three separate authenticated browser contexts to prepare, independently approve, release and confirm a generic THB supplier payment against an exact sandbox bank row. Reload and authenticated API reads showed settled payment, paid invoice, one allocation and posted journal; source records prove distinct actors, balanced AP/bank lines and bank match. The same run then completed both earlier close periods. A fresh run f4369787acf8 also passed the packaged two-test demo:verify:browser command.",
+      "observedAt": "2026-09-21T20:24:00+07:00",
+      "recordedBy": "Codex execution agent (browser evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-finance-controlled-payment-browser.txt",
+          "sha256": "c21431cab7ea6d7bc27d43c6768c3d622bdbc32feaee7b51f977452ed9d24f82"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-21-finance-controlled-payment-browser-records.json",
+          "sha256": "9b9fc61505f11e6dc7ab410e9f3a0a11e3663ca630f3cd7ba31324e164e157fc"
+        }
+      ],
+      "limitations": [
+        "No live bank provider, foreign-currency or production acceptance.",
+        "No business-owner sign-off and no whole Payments capability acceptance across every owner workflow."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "finance-multi-currency-automated-20260921",
+      "capabilityIds": [
+        "finance/journals",
+        "finance/payables",
+        "finance/feature-receivables-aging",
+        "finance/feature-payments",
+        "finance/feature-bank-reconciliation"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S14"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Five PostgreSQL integration files pass 12 tests. A focused USD payable is recognized at 35 THB/USD, independently approved, paid at 36 THB/USD through an exact foreign bank row, allocated with transaction and functional carrying values, and cleared through a THB 100 realized-loss journal. The foreign bank statement retains its 36 closing rate and functional balance; AP and bank close-reconciliation differences are zero. A controlled correction reverses both journals, restores transaction and functional invoice balances, and returns the bank row to the reconciliation queue. Missing FX rates fail before mutation and existing THB payment, supplier-batch, correction, purchase-to-payment and two-close behavior remains green.",
+      "observedAt": "2026-09-21T21:07:32+07:00",
+      "recordedBy": "Codex execution agent (automated evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-finance-multi-currency.txt",
+          "sha256": "62a57129532401e8b79c63439e9269b3b2f0efc971634b04ae40689b3b104b13"
+        }
+      ],
+      "limitations": [
+        "Open foreign monetary items remain a fail-closed period-close blocker until controlled unrealized revaluation is delivered.",
+        "No multi-role browser, live rate/bank provider, production acceptance or business-owner sign-off."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "platform-backup-restore-automated-20260921",
+      "capabilityIds": [
+        "platform_administration/feature-backup-recovery",
+        "platform_administration/feature-infrastructure"
+      ],
+      "scenarioIds": [
+        "S15",
+        "S19"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Two isolated PostgreSQL 18 tests exercise the shipped macOS operator CLI across custom database dump, private files, application secret, retained database credentials, matching release selection, automatic pre-restore safety backup and checksum fail-closed behavior; a separate source-linked Holding restore compares all 477 public tables and business invariants.",
+      "observedAt": "2026-09-21T20:35:00+07:00",
+      "recordedBy": "Codex execution agent (automated evidence, not production sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-backup-restore-operations.txt",
+          "sha256": "ea7eaa9631c61875e9d69190a789675d29d9c8884fe149aafb2e0192476dcdc3"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-21-backup-restore-operations.json",
+          "sha256": "63196fbff489a3521ed7bf4c0d4c6a205368caa9808cff6529aa0dd219a95c6c"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-21-business-restore-records.json",
+          "sha256": "bc3bd9ce76bd6685b338bbf15ce089b62f37342738c06d8a2d8bfea68a52b319"
+        }
+      ],
+      "limitations": [
+        "Not run against the installed production host or every production database.",
+        "No off-machine/disk-loss durability, WAL/PITR, live service restart or signed RPO/RTO."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "finance-fx-revaluation-automated-20260921",
+      "capabilityIds": [
+        "finance/journals",
+        "finance/payables",
+        "finance/feature-receivables-aging",
+        "finance/feature-period-close"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S14"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Four PostgreSQL integration files pass nine tests across source-hashed period-end foreign-currency preparation, independent approval, rejection, stale-source protection, idempotent posting, payable loss, receivable gain, mixed exposure, functional carrying-balance updates and close reconciliation. The local migration passed. An authenticated public browser rendered the close table, foreign-item counts and Thai revaluation empty state; its USD-base fixture had no foreign exposure, so no public transaction was submitted.",
+      "observedAt": "2026-09-21T21:29:00+07:00",
+      "recordedBy": "Codex execution agent (automated/browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-finance-fx-revaluation.txt",
+          "sha256": "6e7c145e4f86b707598b349313e020c0c7b679cc71b60f699360bb63287863ab"
+        }
+      ],
+      "limitations": [
+        "No independent multi-role browser revaluation transaction or business-owner sign-off.",
+        "No external FX-rate, bank provider or production acceptance.",
+        "This evidence does not attest the whole Finance capability or scenario."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "inventory-reservation-expiry-alerts-20260921",
+      "capabilityIds": [
+        "inventory/availability",
+        "inventory/reservations",
+        "field_service/feature-dispatch",
+        "manufacturing/material-readiness"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S10",
+        "S11"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Seven PostgreSQL integration files pass 46 tests across the shared Sales, POS, Field Service and Manufacturing availability pool. Scheduled escalation produces deduplicated owner/technician Inbox links before expiry and after availability protection ends, while excluding fully consumed, fully released and terminal sources. POS, E-commerce, lot/serial and recovery regressions remain green. An authenticated public browser rendered the authority-filtered Inbox notification surface without inserting synthetic Acme data.",
+      "observedAt": "2026-09-21T21:44:00+07:00",
+      "recordedBy": "Codex execution agent (automated/public UI observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-inventory-reservation-expiry-alerts.txt",
+          "sha256": "611def4bb3b71cbd4386d579485bb9153cf5b3a92a20a0e79570dad78193b7fc"
+        }
+      ],
+      "limitations": [
+        "No complete independent multi-role browser reservation transaction or business-owner sign-off.",
+        "POS reservations remain session-lifecycle reservations without a time-based expiry field.",
+        "No production acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "organization-node-lifecycle-20260921",
+      "capabilityIds": [
+        "organization/organization-tree",
+        "organization/sharing",
+        "organization/feature-node-lifecycle",
+        "organization/feature-business-units"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Four PostgreSQL integration files pass 41 tests across independently reviewed branch/department creation, rename, safe suspension/reactivation, stale-version rejection, immutable events, authorization and organization-managed channel provisioning. An authenticated public browser rendered live Acme units, status/revisions, proposal controls and the review queue without inserting synthetic records.",
+      "observedAt": "2026-09-21T21:53:00+07:00",
+      "recordedBy": "Codex execution agent (automated/public UI observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-organization-node-lifecycle.txt",
+          "sha256": "924ebd0158575c8bc1f170c879c3bb5d1f4c84d6305e5f5254b36ea794709a8d"
+        }
+      ],
+      "limitations": [
+        "No complete independent two-session public browser transaction or company business-owner sign-off.",
+        "Parent-route relocation is intentionally excluded; dependencies must be moved to a newly reviewed destination.",
+        "No production acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "iam-access-review-campaigns-20260921",
+      "capabilityIds": [
+        "identity_access/access-reviews",
+        "identity_access/assignments"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Two PostgreSQL integration files pass 31 tests, including a four-assignment periodic certification campaign with independent keep/revoke decisions, fresh MFA, self-review prevention, immediate assignment/work-context revocation, stale-evidence rejection, immutable events, idempotent replay, cancellation and automatic completion. An authenticated public browser rendered the live campaign controls and audit surface without inserting synthetic records.",
+      "observedAt": "2026-09-21T22:04:00+07:00",
+      "recordedBy": "Codex execution agent (automated/public UI observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-iam-access-review-campaigns.txt",
+          "sha256": "796039483e91ad787d39cf7d4ec00d2ed59a4f0b32d6a3c9a25abb3c6c5ec32b"
+        }
+      ],
+      "limitations": [
+        "No complete independent multi-session public browser campaign or company business-owner sign-off.",
+        "Due-date reminders are not yet emitted to Inbox.",
+        "No production acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "account-invitation-delivery-20260921",
+      "capabilityIds": [
+        "identity_access/assignments",
+        "identity_access/feature-people-principals"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Three PostgreSQL integration files pass 34 tests around independent invitation approval, deterministic secret-derived activation links, durable queue claiming, provider idempotency, expiry/rejection cancellation and bounded provider failure. Control migrations 0012–0013 applied locally, and an authenticated public holding-owner browser rendered the reachable Activation invitations widget in Reviews & audit without creating synthetic Acme records or sending email.",
+      "observedAt": "2026-09-21T22:17:00+07:00",
+      "recordedBy": "Codex execution agent (automated/public UI observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-account-invitation-delivery.txt",
+          "sha256": "4548e480783b6f23957245e94939d487f162a26ee64140acd9b46c1045412bfb"
+        }
+      ],
+      "limitations": [
+        "No live Resend delivery was attempted.",
+        "No independent two-session public invite, approval and activation transaction was performed.",
+        "Account recovery and company business acceptance remain pending."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "account-recovery-20260921",
+      "capabilityIds": [
+        "identity_access/assignments",
+        "identity_access/feature-people-principals"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Six PostgreSQL integration files pass 51 tests across encrypted newest-link-only recovery delivery, bounded provider retry, immutable evidence, Better Auth password change, complete session revocation and IAM/User Management/context regressions. A Playwright desktop run and public browser observation verified the invalid/expired/superseded-link recovery UI without submitting account data or invoking an email provider.",
+      "observedAt": "2026-09-21T22:33:00+07:00",
+      "recordedBy": "Codex execution agent (automated/public UI observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-account-recovery.txt",
+          "sha256": "74194f73ee90a316101f4012fefcd3a3968e4dc6505920c61f96e3891ed5a93e"
+        }
+      ],
+      "limitations": [
+        "No live Resend delivery was attempted.",
+        "No independent public multi-session request, delivery, reset and session-revocation transaction was performed.",
+        "No company business-owner or production acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "iam-access-review-alerts-20260921",
+      "capabilityIds": [
+        "identity_access/access-reviews",
+        "identity_access/assignments"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Four PostgreSQL integration files pass 47 tests across independently controlled access certification, due-soon and overdue scheduled alerts, per-phase deduplication, current-role/principal recipient selection, revoked-recipient Inbox filtering and work-context revocation regression. An authenticated public browser rendered the canonical Reviews & audit campaign surface without creating Acme records.",
+      "observedAt": "2026-09-21T22:47:00+07:00",
+      "recordedBy": "Codex execution agent (automated/public UI observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-iam-access-review-alerts.txt",
+          "sha256": "f83468172ccc3514e7f65d6cbd7edabad17a96bb3fb8745f327a3d1d054f3f22"
+        }
+      ],
+      "limitations": [
+        "No complete independent two-session public browser campaign was performed.",
+        "No company business-owner or production acceptance."
+      ],
+      "supersedes": "iam-access-review-campaigns-20260921"
+    },
+    {
+      "id": "payroll-controlled-corrections-20260921",
+      "capabilityIds": [
+        "people_payroll/feature-payroll-runs",
+        "people_payroll/payroll-summaries"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Payroll core and lifecycle regressions pass 54 tests across calculation, independent post-approval correction, self-review denial, current-authority Inbox targets, versioned recalculation, retained immutable exports and person-scoped final-pay preparation from retirement clearance.",
+      "observedAt": "2026-09-21T22:57:00+07:00",
+      "recordedBy": "Codex execution agent (automated/public UI observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-payroll-controlled-corrections.txt",
+          "sha256": "de99462abd086a5220ae444b21839f123b98cb461a7db7776d981a9c623ff46d"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-21-payroll-controlled-corrections-build.txt",
+          "sha256": "bcb2ded40ddeac8d2ee7074395bef99bc5487bffaec67fb6aeb42a8bbaa3d7ad"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-21-payroll-controlled-corrections-browser.txt",
+          "sha256": "147db2b3630052df42805e61847e0eb8f02729b6ae6bb5960bb065ff7ea6df71"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-21-payroll-final-pay.txt",
+          "sha256": "21da35bb85b7d49bfece552dbbe103aa1f374191947ef574a2689cfa75e0a6a1"
+        }
+      ],
+      "limitations": [
+        "No independent multi-role public browser correction transaction was performed.",
+        "No country statutory adapter is included.",
+        "No company business-owner or production acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "payroll-advances-20260921",
+      "capabilityIds": [
+        "people_payroll/feature-payroll-runs",
+        "people_payroll/payroll-summaries"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Payroll core regression passes four tests covering employee self-request, independent approval and self-review denial, exact scheduled repayments, immutable advance history, current-authority notification visibility and deduction/input-snapshot integration during payroll calculation.",
+      "observedAt": "2026-09-21T23:46:00+07:00",
+      "recordedBy": "Codex execution agent (automated evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-21-payroll-advances.txt",
+          "sha256": "6c9222201ba487a73655d00fa3442aaf813ceb7692318230add0eaa3fa50188f"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-21-payroll-advances-browser.txt",
+          "sha256": "7af2e3eb0071a135b9af6f6f220a5a16fc1c4c1111038467168f30108ff5147d"
+        }
+      ],
+      "limitations": [
+        "No statutory country adapter, tax filing, bank payment or production payroll posting.",
+        "No independent multi-role public browser transaction was performed.",
+        "No company business-owner or production acceptance."
+      ],
+      "supersedes": "payroll-controlled-corrections-20260921"
+    },
+    {
+      "id": "finance-accrual-schedules-20260922",
+      "capabilityIds": [
+        "finance/journals",
+        "finance/payables"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S04",
+        "S14"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Two PostgreSQL integration files pass five tests for recurring monthly, quarterly and annual accrual schedules, balanced period allocation, independent approval, source-linked draft journals, stale guards, controlled posting, immutable events and final-period completion. Holding-write migration 0262 is applied to the local h001/h002 databases; local and public health endpoints return 200.",
+      "observedAt": "2026-09-22T00:12:14+07:00",
+      "recordedBy": "Codex execution agent (automated/public UI observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-finance-accrual-schedules.txt",
+          "sha256": "cd1e9cbf60733af27c0a7a43c223dee03b2aa377f5581f4851e85876cc74e0b2"
+        }
+      ],
+      "limitations": [
+        "The public Finance Engines page redirected to sign-in because the existing browser session had expired; no authenticated UI transaction was submitted.",
+        "No independent multi-role public browser schedule-to-post transaction was performed.",
+        "No live provider or company business-owner/production acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "staff-task-alerts-20260922",
+      "capabilityIds": [
+        "operations/feature-exception-queue",
+        "operations/feature-escalations",
+        "operations/feature-approval-decisions",
+        "operations/feature-resolution",
+        "operations/feature-queue-policies",
+        "operations/feature-operations-summary"
+      ],
+      "scenarioIds": [
+        "S09",
+        "S10",
+        "S12"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "A PostgreSQL integration file passes two tests for durable due-soon reminders, overdue escalation to the assignee/requester/project owner, retry deduplication and task-version-bound notification records. Scheduled worker wiring and current authorization checks on notification opening are included.",
+      "observedAt": "2026-09-22T00:26:37+07:00",
+      "recordedBy": "Codex execution agent (automated evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-staff-task-alerts.txt",
+          "sha256": "ba5b82b1c8f61c33605ade4c7e8b5b217eb421d5f219988e2e8579e8816ce276"
+        }
+      ],
+      "limitations": [
+        "Delegation with expiry, policy-owned queue configuration, resolution summaries and full browser/business acceptance remain pending.",
+        "No production scheduler or company business-owner acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "staff-task-delegation-20260922",
+      "capabilityIds": [
+        "operations/feature-exception-queue",
+        "operations/feature-escalations",
+        "operations/feature-approval-decisions",
+        "operations/feature-resolution",
+        "operations/feature-queue-policies",
+        "operations/feature-operations-summary"
+      ],
+      "scenarioIds": [
+        "S09",
+        "S10",
+        "S12"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "The staff-work integration suite passes 25 tests, including bounded delegation to active staff, temporary Flow ownership, revoke idempotency, stale task-version protection and access removal after expiry. The combined staff-work and staff-task-alert suite passes 27 tests; the 0263 holding-write migration is applied to local h001/h002.",
+      "observedAt": "2026-09-22T00:44:00+07:00",
+      "recordedBy": "Codex execution agent (automated evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-staff-task-delegation.txt",
+          "sha256": "a71bb3837c3b5b9476fd70004e7fbece04a272b9d068c04e12187555772925d6"
+        }
+      ],
+      "limitations": [
+        "No authenticated multi-role public browser transaction because the existing session expired.",
+        "Queue policy configuration, resolution summaries and production scheduler remain pending.",
+        "No production scheduler or company business-owner acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "platform-operations-dashboard-20260922",
+      "capabilityIds": [
+        "platform_administration/provisioning",
+        "platform_administration/feature-holdings",
+        "platform_administration/feature-infrastructure",
+        "platform_administration/feature-projections-events",
+        "platform_administration/feature-migration-runs",
+        "platform_administration/feature-platform-audit"
+      ],
+      "scenarioIds": [
+        "S15",
+        "S19"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Four PostgreSQL tests verify a Platform-scoped operations summary and reviewed dead-letter recovery. The live API and Platform overview use persisted state with private no-store responses; recovery requires a Platform-admin role, reason, idempotency key and optimistic attempts/error snapshot, then records a Holding command receipt and audit event.",
+      "observedAt": "2026-09-22T01:05:00+07:00",
+      "recordedBy": "Codex execution agent (automated evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-platform-operations-dashboard.txt",
+          "sha256": "c48205909579beecccecfbb32e38d7629110dc89267a8cf2af2b206f74080841"
+        }
+      ],
+      "limitations": [
+        "No authenticated public Platform browser transaction because the existing session expired.",
+        "Provisioning/migration/temporary-access commands remain pending.",
+        "No production operational or RPO/RTO sign-off."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "customer-timeline-field-service-finance-20260922",
+      "capabilityIds": [
+        "customer_360/service-timeline"
+      ],
+      "scenarioIds": [
+        "S01"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Five customer timeline tests cover scoped Field Service agreement events, Finance invoice state and Legal order-linked records, source links, privacy, deterministic pagination and module/permission gates.",
+      "observedAt": "2026-09-22T01:35:52+07:00",
+      "recordedBy": "Codex execution agent (automated evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-customer-timeline-field-service-finance.txt",
+          "sha256": "e3d3605361ffb4ae1822fed847d09b1e27265ea24e3aef739bfb99f9693d0e6b"
+        }
+      ],
+      "limitations": [
+        "Internal projection only; source records remain authoritative.",
+        "Portal/customer authority, invoice transition history and provider integrations remain.",
+        "No authenticated public multi-role browser transaction or company business acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "field-service-finance-handoff-20260922",
+      "capabilityIds": [
+        "field_service/service-orders",
+        "field_service/feature-billing-release"
+      ],
+      "scenarioIds": [
+        "S10"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Four Field Service tests cover completed customer-confirmed visits, independent billing release, linked draft Finance receivable invoice, account/currency setup guard, source linkage and retained service history.",
+      "observedAt": "2026-09-22T01:43:48+07:00",
+      "recordedBy": "Codex execution agent (automated evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-field-service-finance-handoff.txt",
+          "sha256": "e36abb163c71d3f4e73e256c3d838782e5c180902d1dc90b3137047f9031909e"
+        }
+      ],
+      "limitations": [
+        "Invoice is intentionally draft until an independent Finance reviewer posts it and collection is completed.",
+        "Warranty/chargeable pricing, Calendar and attachment bytes remain.",
+        "No authenticated public multi-role browser transaction or company business acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "field-service-warranty-pricing-20260922",
+      "capabilityIds": [
+        "field_service/service-orders",
+        "field_service/feature-billing-release"
+      ],
+      "scenarioIds": [
+        "S10"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Five Field Service tests cover chargeable pricing, server-calculated warranty discount, warranty-end and pricing-date snapshots, linked draft Finance receivable and independent posting through the normal invoice workflow.",
+      "observedAt": "2026-09-22T06:18:00+07:00",
+      "recordedBy": "Codex execution agent (automated evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-field-service-warranty-pricing.txt",
+          "sha256": "bb20c2fc2c188b60741bb0124f781059713779dc172ec7007b1471d3b4e47d14"
+        }
+      ],
+      "limitations": [
+        "Finance collection, Calendar and attachment-byte evidence remain separate workflows.",
+        "No authenticated public multi-role browser transaction or company business acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "customer-identity-consent-20260922",
+      "capabilityIds": [
+        "customer_authority/feature-identity-changes"
+      ],
+      "scenarioIds": [
+        "S01"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Four customer identity tests cover independently reviewed name, tax registration, phone, structured address, notification email and notification consent changes with idempotent request replay, reject/resubmit, stale version conflict and immutable evidence.",
+      "observedAt": "2026-09-22T01:52:00+07:00",
+      "recordedBy": "Codex execution agent (automated evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-customer-identity-consent.txt",
+          "sha256": "db88eb906a174de05a795bd0eb245170dff9034919cc1fa85de3668554ba83c6"
+        }
+      ],
+      "limitations": [
+        "No external registry provider, authenticated public multi-role browser or company privacy/business acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "customer-portal-actions-automated-20260922",
+      "capabilityIds": [
+        "customer_authority/feature-authority-bindings",
+        "customer_authority/access-history"
+      ],
+      "scenarioIds": [
+        "S01"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Six customer access tests cover idempotent delivery acknowledgement, support request handoff to scoped Commerce notifications, duplicate action blocking, stale/revoked binding rejection and immutable action evidence.",
+      "observedAt": "2026-09-22T03:00:00+07:00",
+      "recordedBy": "Codex execution agent (automated evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-customer-portal-actions.txt",
+          "sha256": "480788c25e2ddde521626fbde22e7862db8760e8dc924f6d0e8092b4a662a95e"
+        }
+      ],
+      "limitations": [
+        "No authenticated public multi-role browser, provider delivery or company business acceptance.",
+        "Consent, delegated customer administrators, customer replies/uploads and email delivery remain."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "finance-browser-acceptance-20260922",
+      "capabilityIds": [
+        "finance/feature-payments",
+        "finance/feature-bank-reconciliation",
+        "finance/feature-period-close",
+        "finance/feature-opening-balances"
+      ],
+      "scenarioIds": [
+        "S02"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Isolated working-demo browser acceptance for controlled payment, two consecutive reconciled period closes and independent opening-balance import/post: 3 Playwright tests passed in 30.4 seconds using separate Finance preparer, Finance approver and Treasury identities where required.",
+      "observedAt": "2026-09-22T08:47:42+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-finance-browser-acceptance.txt",
+          "sha256": "eec2f4625742fa5410704ba2c92749c995291bb5bb9a9ed18a1db4aa9c7ccb4f"
+        }
+      ],
+      "limitations": [
+        "No live bank/provider, statutory payroll, production operation or authenticated public business acceptance.",
+        "Opening-balance settlement and company-owner sign-off remain separate gates.",
+        "Demo reset isolation does not certify production backup, restore or external integration behavior."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "procurement-rfq-browser-acceptance-20260922",
+      "capabilityIds": [
+        "procurement/requisitions",
+        "procurement/purchase-orders"
+      ],
+      "scenarioIds": [
+        "S03",
+        "S12"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Isolated working-demo browser acceptance for a purchasing manager creating a supplier quotation request, recording a complete offer, submitting an award, independent purchasing-manager approval and awarded draft purchase-order handoff; 4 Playwright tests passed in 37.3 seconds when run with the Finance acceptance suite.",
+      "observedAt": "2026-09-22T09:13:15+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-procurement-rfq-browser-acceptance.txt",
+          "sha256": "337581b57475fe99be10c124bfa55d5e5e25f0f708199935c59eccc1ec83c624"
+        }
+      ],
+      "limitations": [
+        "No live supplier/provider, statutory procurement rules, production operation or authenticated public business acceptance.",
+        "The draft PO still requires its normal independent approval, partial receipt, invoice matching and payment handoff gates.",
+        "Demo reset isolation does not certify production backup, restore or external integration behavior."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "purchase-request-rfq-browser-acceptance-20260922",
+      "capabilityIds": [
+        "procurement/requisitions",
+        "procurement/purchase-orders"
+      ],
+      "scenarioIds": [
+        "S03",
+        "S12"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Isolated working-demo browser acceptance for an employee-submitted ten-unit purchase request approved by a people manager, Finance preparer and Finance approver, then assigned and started by Purchasing, partially allocated 6/10 into a source-linked RFQ, independently awarded and handed off to an awarded draft PO; the five-test Finance and procurement browser suite passed in 47.8 seconds.",
+      "observedAt": "2026-09-22T09:29:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-purchase-request-rfq-browser-acceptance.txt",
+          "sha256": "f7c883911182817f8d44e16c4deaa9d0931b4f8b3ecc4d5cec3f3682731a060b"
+        }
+      ],
+      "limitations": [
+        "The remaining four-unit split RFQ, full receipts/AP/payment, live supplier/provider, statutory procurement, production operation and authenticated public business acceptance remain separate gates.",
+        "Demo reset isolation does not certify production backup, restore or external integration behavior."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "purchase-request-purchase-to-ap-browser-acceptance-20260922",
+      "capabilityIds": [
+        "procurement/requisitions",
+        "procurement/purchase-orders",
+        "finance/payables"
+      ],
+      "scenarioIds": [
+        "S03",
+        "S12"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Isolated working-demo browser acceptance for an employee-submitted ten-unit purchase request approved by a people manager, Finance preparer and Finance approver, then assigned and started by Purchasing, partially allocated 6/10 into a source-linked RFQ, independently awarded, handed off to an approved PO, received by Warehouse, goods movement GL posted by an independent Finance approver, supplier invoice matched and independently reviewed, and the matched AP invoice posted in the 2026 accounting period; the five-test Finance and procurement browser suite passed in 57.8 seconds.",
+      "observedAt": "2026-09-22T10:26:07+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-purchase-request-purchase-to-ap-browser-acceptance.txt",
+          "sha256": "9c02a8cb7606d988dbd790098d953d952a670fb8b9ff43ffe5b91182503331bf"
+        }
+      ],
+      "limitations": [
+        "The remaining four-unit split RFQ, supplier payment/export, live supplier/provider, statutory procurement, production operation and business acceptance remain separate gates.",
+        "Demo reset isolation does not certify production backup, restore or external integration behavior."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "purchase-request-purchase-to-payment-browser-acceptance-20260922",
+      "capabilityIds": [
+        "procurement/requisitions",
+        "procurement/purchase-orders",
+        "procurement/goods-receipts",
+        "procurement/feature-invoice-match",
+        "finance/payables",
+        "finance/feature-payments",
+        "finance/feature-bank-reconciliation"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S03",
+        "S12"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Isolated working-demo browser acceptance completed the source-linked ten-unit purchase request through 6/10 partial RFQ, approved PO, posted goods receipt GL, independently matched and posted AP invoice, supplier payment batch review/export, sandbox bank import and exact bank debit settlement. Eight separate role contexts were used; reload and authenticated API checks showed confirmed payment evidence, paid invoice and zero outstanding.",
+      "observedAt": "2026-09-22T11:15:00+07:00",
+      "recordedBy": "Codex execution agent (browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-purchase-request-purchase-to-payment-browser-acceptance.txt",
+          "sha256": "4730e697a39ef2abfc0d098c9da952a2afbe4aa943177e23ad0f065e988df998"
+        }
+      ],
+      "limitations": [
+        "The browser run exercises the six-unit partial branch; the remaining four-unit split receipt and full split-demand journey are covered by owner tests separately.",
+        "No live supplier/bank provider, statutory procurement, production operation or company business acceptance.",
+        "Demo reset isolation does not certify production backup, restore or external integration behavior."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "purchase-request-split-purchase-to-payment-browser-acceptance-20260922",
+      "capabilityIds": [
+        "procurement/requisitions",
+        "procurement/purchase-orders",
+        "procurement/goods-receipts",
+        "procurement/feature-invoice-match",
+        "finance/payables",
+        "finance/feature-payments",
+        "finance/feature-bank-reconciliation"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S03",
+        "S12"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Isolated working-demo browser acceptance completed a ten-unit employee purchase request through two independently awarded source-linked RFQs (6 + 4), two approved purchase orders, receipt of all ten units, two receipt-specific goods-movement GL postings, two independently matched and posted AP invoices (THB 150,000 and THB 100,000), one supplier payment batch totalling THB 250,000, two exact sandbox bank debits and paid invoices with zero outstanding. Eight authenticated role contexts were used and state was checked after reload.",
+      "observedAt": "2026-09-22T12:30:03+07:00",
+      "recordedBy": "Codex execution agent (browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-purchase-request-split-purchase-to-payment-browser-acceptance.txt",
+          "sha256": "1188bc879bf3d36a12e40dd209f3667d1c65d6ce7ecacb474085955bb513cd1b"
+        }
+      ],
+      "limitations": [
+        "This run uses two receipt-specific supplier bills; one supplier invoice spanning multiple purchase orders remains a separate matching-policy capability gate.",
+        "No live supplier/bank provider, statutory procurement, production operation or company business acceptance.",
+        "Demo reset isolation does not certify production backup, restore or external integration behavior."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "supplier-invoice-cross-po-automated-20260922",
+      "capabilityIds": [
+        "procurement/feature-invoice-match",
+        "finance/payables"
+      ],
+      "scenarioIds": [
+        "S03",
+        "S12"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Automated integration acceptance for two approved purchase orders from the same supplier, two posted goods receipts, one consolidated supplier invoice, one independently reviewed AP draft and one posted payable invoice linked to both receipts. Existing idempotency, correction, concurrency and payment regression tests remained green.",
+      "observedAt": "2026-09-22T12:47:00+07:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-consolidated-supplier-invoice-cross-po.txt",
+          "sha256": "27118a23423f9e56df9e6d5ba90ae5cdace426001f356b4a64cdd9837443a19a"
+        }
+      ],
+      "limitations": [
+        "Independent browser business acceptance for the cross-PO capture is still pending; the real Finance Supplier invoice reviews UI is implemented.",
+        "No live supplier/payment provider, statutory procurement, production operation or backup/restore certification."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "purchase-request-consolidated-purchase-to-payment-browser-acceptance-20260922",
+      "capabilityIds": [
+        "procurement/requisitions",
+        "procurement/purchase-orders",
+        "procurement/goods-receipts",
+        "procurement/feature-invoice-match",
+        "finance/payables",
+        "finance/feature-payments",
+        "finance/feature-bank-reconciliation"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S03",
+        "S12"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Isolated working-demo browser acceptance completed an employee-submitted ten-unit purchase request through two independently awarded RFQs (6 + 4), two approved purchase orders, two posted goods receipts and GL journals, one consolidated supplier invoice spanning both POs, one independently reviewed and posted AP invoice for THB 250,000, one approved supplier payment instruction, one exact sandbox bank debit and paid invoice with zero outstanding. Eight authenticated role contexts were used and state was checked after reload.",
+      "observedAt": "2026-09-22T13:01:00+07:00",
+      "recordedBy": "Codex execution agent (browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-purchase-request-consolidated-purchase-to-payment-browser-acceptance.txt",
+          "sha256": "86eaa6b543759c4454a4c43274a84d960e8098f107f73b0c247cd0418206bd93"
+        }
+      ],
+      "limitations": [
+        "No live supplier/bank provider, statutory procurement, production operation or company business acceptance.",
+        "Demo reset isolation does not certify production backup, restore or external integration behavior."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "sales-to-collection-browser-acceptance-20260922",
+      "capabilityIds": [
+        "sales/quotes",
+        "sales/orders",
+        "sales/fulfillment",
+        "sales/feature-revenue-handoff",
+        "finance/feature-receivables-aging",
+        "inventory/availability"
+      ],
+      "scenarioIds": [
+        "S02"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Isolated working-demo browser acceptance completed the connected Sales-to-Collection flow through the actual workspace: quotation submission and manager approval, conversion and order approval, warehouse delivery with retained valid PDF proof, finance goods-movement GL approval/posting, customer invoice preparation and posting, and treasury receipt. Independent authenticated role contexts were reloaded between handoffs; the final invoice was paid with THB 0.00 outstanding and the delivery evidence remained on the order timeline.",
+      "observedAt": "2026-09-22T13:30:00+07:00",
+      "recordedBy": "Codex execution agent (browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-sales-to-collection-browser-acceptance.txt",
+          "sha256": "2e5c778c882411582eae309e80f4ec98eca0e0a0e032a47981c573d07ad394a4"
+        }
+      ],
+      "limitations": [
+        "Browser and isolated-demo evidence only; no live payment/email provider.",
+        "No statutory/tax or production/company business sign-off.",
+        "Customer return/refund continuation is covered by sales-return-refund-browser-acceptance-20260922; collection exception handling and remaining Release 1 gates are not covered."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "sales-return-refund-browser-acceptance-20260922",
+      "capabilityIds": [
+        "sales/quotes",
+        "sales/orders",
+        "sales/fulfillment",
+        "sales/feature-cancellations",
+        "sales/feature-revenue-handoff",
+        "finance/feature-payments",
+        "finance/feature-receivables-aging",
+        "finance/feature-bank-reconciliation",
+        "inventory/availability",
+        "inventory/feature-issues-movements"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S04"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Isolated working-demo browser acceptance completed the connected sale through customer return and controlled refund in the actual workspace. Independent Sales operator, Sales manager, Warehouse manager, Finance preparer/approver, Treasury and Holding owner contexts submitted and approved the return, posted stock reversal and credit-note GL journals, matched the exact sandbox bank row, and settled the refund with zero outstanding.",
+      "observedAt": "2026-09-22T14:00:00+07:00",
+      "recordedBy": "Codex execution agent (browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-sales-return-refund-browser-acceptance.txt",
+          "sha256": "1ee284e6f5ce92194338a8d5469e54e64ae99e63da66853410b0f29d9835dfbd"
+        }
+      ],
+      "limitations": [
+        "Browser and isolated-demo evidence only; bank transaction is a sandbox row and no live payment provider was used.",
+        "No statutory/tax, production backup/restore, external notification or company business sign-off.",
+        "Quality release/scrap disposition after return and exception/retry paths remain separate gates."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "organization-readiness-checklist-20260922",
+      "capabilityIds": [
+        "organization/organization-tree",
+        "organization/sharing",
+        "organization/feature-node-lifecycle",
+        "organization/feature-business-units"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "The authenticated public Organization workspace rendered a guided readiness checklist from live Acme data. Five checks identified staff levels, branch/department structure, an active CEO/reporting anchor, staff profiles ready for work and approval coverage; each item exposed its state, owner, explanation and setup link. Three checks were ready and two required preparation for seven staff profiles and four reporting teams.",
+      "observedAt": "2026-09-22T15:00:00+07:00",
+      "recordedBy": "Codex execution agent (browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-organization-readiness-checklist.txt",
+          "sha256": "872bf2ed9a4b25b12d1aec3ebd5652f2059a9522f4c6c12d21e538564d9d0763"
+        }
+      ],
+      "limitations": [
+        "Read-only public browser observation; no company record was mutated.",
+        "No independent multi-role setup transaction or company business sign-off.",
+        "External provider and production acceptance remain separate gates."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "finance-opening-balance-browser-acceptance-20260922",
+      "capabilityIds": [
+        "finance/journals",
+        "finance/payables",
+        "finance/feature-receivables-aging",
+        "finance/feature-opening-balances"
+      ],
+      "scenarioIds": [
+        "S14"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "An isolated working-demo browser test completed the opening-balance handoff through the real Finance setup and journal pages. A Finance preparer selected the isolated chart, previewed a balanced THB 100.00 debit/credit import and created a draft opening journal; an independent Finance approver opened the persisted journal, approved and posted it, and the posted-journal API confirmed source_type=opening_import.",
+      "observedAt": "2026-09-22T17:27:48+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-finance-opening-balance-browser-acceptance.txt",
+          "sha256": "ebbe89370d24dfb30a0646ca2cee4b5e74e13c93cd4b5ec8f8697e22490d0127"
+        }
+      ],
+      "limitations": [
+        "No live bank/provider, statutory, production, backup/restore or external accounting export acceptance.",
+        "Opening-balance settlement and company-owner sign-off remain separate gates.",
+        "The isolated demo databases and private files were destroyed after the run."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "finance-opening-settlement-automated-20260922",
+      "capabilityIds": [
+        "finance/journals",
+        "finance/payables",
+        "finance/feature-receivables-aging",
+        "finance/feature-opening-balances"
+      ],
+      "scenarioIds": [
+        "S14"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "The Finance opening-balance regression now covers Treasury settlement of an imported opening receivable through an exact bank row, zero outstanding after allocation, preservation of functional-currency balances without a false same-currency FX gain, and rejection of opening-journal reversal after settlement. The file passes six tests.",
+      "observedAt": "2026-09-22T17:37:45+07:00",
+      "recordedBy": "Codex execution agent (automated evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-finance-opening-settlement.txt",
+          "sha256": "cf870bfbd2ba22ca4325ee9b79d658eae821a748cc73731d4104218f871302b3"
+        }
+      ],
+      "limitations": [
+        "No live bank/provider, production, backup/restore or company business acceptance.",
+        "The test uses the existing isolated PostgreSQL integration database."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "inventory-transit-browser-20260922",
+      "capabilityIds": [
+        "inventory/feature-issues-movements"
+      ],
+      "scenarioIds": [
+        "S14"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "passed",
+      "scope": "Authenticated Demo Company UI run with separate source and receiving warehouse managers: staged transfer draft, submit, independent approval, dispatch evidence, partial receipt, final receipt and downstream stock/value projection.",
+      "observedAt": "2026-09-22T18:20:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-inventory-transit-browser.txt",
+          "sha256": "0c454eebce0978af1869b3ded2a04c0418c6e8b925b8c16f54ca2c02dc9bcdcd"
+        }
+      ],
+      "limitations": [
+        "Simulation-only isolated databases and sandbox accounts; run was destroyed after verification.",
+        "Intercompany documents, customer proof of delivery, carrier/provider integration, production operation and company business acceptance remain pending."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "finance-aging-browser-20260922",
+      "capabilityIds": [
+        "finance/feature-receivables-aging"
+      ],
+      "scenarioIds": [
+        "S14"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "passed",
+      "scope": "Authenticated Finance reviewer Demo Company page renders live receivables and payables aging buckets with currency-separated totals, open-document counts, oldest due dates, filtered queue links, and a matching authenticated aging API result.",
+      "observedAt": "2026-09-22T18:40:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-finance-aging-browser.txt",
+          "sha256": "edf76afcfca47b4cc79dda18dfbe4ae80777edcd2fca717957310068c3550a21"
+        }
+      ],
+      "limitations": [
+        "Simulation-only isolated database and sandbox accounts; no production or Company business acceptance.",
+        "Provider, operational, full AR/AP reconciliation, schedules, consolidation and two-close business sign-off remain separately gated."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "finance-reports-linked-ledger-browser-20260922",
+      "capabilityIds": [
+        "finance/feature-reports"
+      ],
+      "scenarioIds": [
+        "S14"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Read-only authenticated Acme Finance Reports browser observation: live statement cards and trial balance render with trace links preserving the selected chart into Accounting journal entries.",
+      "observedAt": "2026-09-22T18:55:00+07:00",
+      "recordedBy": "Codex execution agent (authenticated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-finance-reports-linked-ledger-browser.txt",
+          "sha256": "1cf685e500a69ae925c2faf30e432095ef84bd3f11d2ad00e61047795bba800f"
+        }
+      ],
+      "limitations": [
+        "Read-only public development observation; no Company financial records were changed.",
+        "Full report-to-source reconciliation, close approval, provider/production operation and company business acceptance remain."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "platform-backup-restore-regression-20260922",
+      "capabilityIds": [
+        "platform_administration/feature-backup-recovery",
+        "platform_administration/feature-infrastructure"
+      ],
+      "scenarioIds": [
+        "S15",
+        "S19"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Rerun of isolated PostgreSQL 18 backup/restore operations, native recovery and source-linked Holding recovery: 3 files and 3 tests passed in 44.29 seconds.",
+      "observedAt": "2026-09-22T19:02:00+07:00",
+      "recordedBy": "Codex execution agent (automated evidence, not production sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-backup-restore-regression.txt",
+          "sha256": "b21df7a5c6863e291b8f90c8e4440f38fce1e81c3af464d6dc7aadac016c07a1"
+        }
+      ],
+      "limitations": [
+        "Isolated local PostgreSQL and temporary operator homes only.",
+        "No off-machine durability, WAL/PITR, live restart, every production database or signed RPO/RTO."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "finance-chart-setup-browser-20260922",
+      "capabilityIds": [
+        "finance/feature-chart-of-accounts"
+      ],
+      "scenarioIds": [
+        "S14"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "passed",
+      "scope": "Authenticated Finance reviewer Demo Company page creates a chart account, changes its active/inactive status with a reason and expected version, reloads the table, and imports a validated quoted CSV account through the real chart setup APIs.",
+      "observedAt": "2026-09-22T19:15:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-finance-chart-setup-browser.txt",
+          "sha256": "870958c6745e3c65d77a66c449e140c176355b6c4d561769a7bf670809871567"
+        }
+      ],
+      "limitations": [
+        "Simulation-only isolated database and sandbox accounts; run was destroyed after verification.",
+        "Provider, statutory, production, reconciliation, close and Company business acceptance remain separately gated."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "finance-reports-browser-20260922",
+      "capabilityIds": [
+        "finance/feature-reports"
+      ],
+      "scenarioIds": [
+        "S14"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "passed",
+      "scope": "Authenticated Finance reviewer Demo Company page reconciles the live statements and trial-balance API rows, renders report totals, and preserves the selected chart when tracing totals to Accounting journal entries.",
+      "observedAt": "2026-09-22T19:40:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-finance-reports-browser.txt",
+          "sha256": "f90715052ec690fee1ea127a41b98dc5710d6fbe6a76dcae4f6554a4a56720ed"
+        }
+      ],
+      "limitations": [
+        "Simulation-only isolated database and sandbox accounts; run was destroyed after verification.",
+        "Provider, production, statutory, period-close and Company business acceptance remain separately gated."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "collaboration-action-card-browser-20260922",
+      "capabilityIds": [
+        "collaboration/feature-action-cards"
+      ],
+      "scenarioIds": [
+        "S20"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "passed",
+      "scope": "Authenticated Demo owner and employee browser contexts create, route, reload and complete a source-linked collaboration action card with completion evidence.",
+      "observedAt": "2026-09-22T19:50:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-collaboration-action-card-browser.txt",
+          "sha256": "d16e1920640d3e9be3e1e474c180c2d043f8692c8b1cf5040e48049850d62b18"
+        }
+      ],
+      "limitations": [
+        "Simulation-only isolated database and sandbox accounts; run was destroyed after verification.",
+        "Retention/export, provider, production and Company business acceptance remain separately gated."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "collaboration-record-relations-browser-20260922",
+      "capabilityIds": [
+        "collaboration/feature-record-relations"
+      ],
+      "scenarioIds": [
+        "S20"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "passed",
+      "scope": "Authenticated Demo owner creates a Support case from the Sales quotation, links the quotation to that support_ticket through the real Collaboration workspace, reloads the visible backlink, and removes the relation with correction evidence.",
+      "observedAt": "2026-09-22T19:52:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-collaboration-record-relations-browser.txt",
+          "sha256": "89ec25bba473388a8c97187aff30ab6c4898de480cad7941361515d611a45ec7"
+        }
+      ],
+      "limitations": [
+        "Simulation-only isolated database and sandbox accounts; run was destroyed after verification.",
+        "Relation graph expansion, retention/export, provider, production and Company business acceptance remain separately gated."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "collaboration-social-browser-20260922",
+      "capabilityIds": [
+        "collaboration/threads",
+        "collaboration/mentions"
+      ],
+      "scenarioIds": [
+        "S20"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "passed",
+      "scope": "Authenticated Demo owner and employee browser contexts publish a persisted mention, reload the thread, add a comment, toggle appreciation and follow, then reload and verify all thread state remains visible.",
+      "observedAt": "2026-09-22T20:03:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-collaboration-social-browser.txt",
+          "sha256": "b3f91e58aca8e5871d9ff445344cdeafd82f8331eaff8013a23813934d6a9fe4"
+        }
+      ],
+      "limitations": [
+        "Simulation-only isolated database and sandbox accounts; run was destroyed after verification.",
+        "Retention/export, provider, production and Company business acceptance remain separately gated."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "payroll-runs-browser-20260922",
+      "capabilityIds": [
+        "people_payroll/payroll-summaries",
+        "people_payroll/feature-payroll-runs"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "passed",
+      "scope": "Authenticated Demo preparer creates and calculates a monthly gross-pay preview, a separate owner assigns the review step, an independent Payroll approver approves it, and the preparer reloads the approved totals.",
+      "observedAt": "2026-09-22T20:20:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-payroll-runs-browser.txt",
+          "sha256": "9b2c2061ef702163093c71e5d55dabc37fe04917884e1f6720cc5a76281973dc"
+        }
+      ],
+      "limitations": [
+        "Global payroll-core preview only; no statutory country pack, GL posting, bank payment or provider operation.",
+        "Simulation-only isolated database and sandbox accounts; run was destroyed after verification. Company business acceptance remains separately gated."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "collaboration-attachments-browser-20260922",
+      "capabilityIds": [
+        "collaboration/feature-attachments"
+      ],
+      "scenarioIds": [
+        "S20"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "passed",
+      "scope": "Authenticated Demo owner and employee contexts create a direct conversation, send a real CSV attachment, download its protected bytes as the member and verify the attachment remains after reload.",
+      "observedAt": "2026-09-22T20:34:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-collaboration-attachments-browser.txt",
+          "sha256": "d61c57d8681f190563f7dd6ba595060fb25f615b9bac1fe0a18ff87ed2f4e552"
+        }
+      ],
+      "limitations": [
+        "Simulation-only isolated database and sandbox accounts; run was destroyed after verification.",
+        "Retention/export, legal hold, provider, production and Company business acceptance remain separately gated."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "support-lifecycle-browser-20260922",
+      "capabilityIds": [
+        "support/tickets",
+        "customer_360/feature-customer-notes"
+      ],
+      "scenarioIds": [
+        "S04",
+        "S10"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Isolated Demo case with independent Support agent and manager covers waiting/resume, rejection for correction, post-resolution contact with second precision, independent confirmation, reopen/cancel and reload persistence. Combined Support and delegation run passes 2 scenarios (36.0s).",
+      "observedAt": "2026-09-22T14:20:23.484900+00:00",
+      "recordedBy": "Codex execution agent (automated browser/service observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-support-lifecycle-browser.txt",
+          "sha256": "1daf5eccf968456fad717790a1985d5bc0ed031435838686753abefd9f0afb42"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-22-support-and-delegation-history-browser-records.json",
+          "sha256": "c3efe3c4d49a0492e2bf7cf672e81fa0cbe74fca4df504920b2016135c2fe4ff"
+        }
+      ],
+      "limitations": [
+        "Staff-recorded customer contact only; no Portal replies, customer UAT or provider delivery.",
+        "First-response SLA, incidents/postmortems, Field Service fulfillment, production operation and Company business acceptance remain."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "staff-task-delegation-history-automated-20260922",
+      "capabilityIds": [
+        "operations/feature-approval-decisions",
+        "operations/feature-resolution"
+      ],
+      "scenarioIds": [
+        "S09",
+        "S12"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Staff-work and task-alert integration suites pass 27 tests (49.98s), including protected delegation history, retained revocation reason, immutable revoked evidence, stale-version rollback, idempotent retries, unauthorized history denial and expired access removal.",
+      "observedAt": "2026-09-22T14:20:23.485394+00:00",
+      "recordedBy": "Codex execution agent (automated browser/service observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-task-delegation-history.txt",
+          "sha256": "7b5e579cc2226bc1f332617cd129dd9ad9ce4cd178211ef4ed5065bab3d6f932"
+        }
+      ],
+      "limitations": [
+        "Expiry uses a controlled timestamp in disposable PostgreSQL, not a timed browser observation.",
+        "General queue policies, exception/resolution summaries, production scheduling and Company business acceptance remain."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "staff-task-delegation-history-browser-20260922",
+      "capabilityIds": [
+        "operations/feature-approval-decisions",
+        "operations/feature-resolution"
+      ],
+      "scenarioIds": [
+        "S09",
+        "S12"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Four independent Demo users create/submit, delegate with expiry, record partial progress, revoke with a retained reason, deny the revoked delegate access, hand back to the accountable assignee and independently approve completion. History and completed status survive reload.",
+      "observedAt": "2026-09-22T14:20:23.485438+00:00",
+      "recordedBy": "Codex execution agent (automated browser/service observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-task-delegation-history.txt",
+          "sha256": "7b5e579cc2226bc1f332617cd129dd9ad9ce4cd178211ef4ed5065bab3d6f932"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-22-support-and-delegation-history-browser-records.json",
+          "sha256": "c3efe3c4d49a0492e2bf7cf672e81fa0cbe74fca4df504920b2016135c2fe4ff"
+        }
+      ],
+      "limitations": [
+        "Public read-only session has no visible task records; detail transactions are verified in isolated Demo.",
+        "Expiry timing is covered by service regression; production scheduling and Company business sign-off remain."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "organization-lifecycle-automated-20260922",
+      "capabilityIds": [
+        "organization/organization-tree",
+        "organization/feature-node-lifecycle",
+        "organization/feature-business-units"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Three service regression files pass 14 tests (34.79s), including request pagination and literal search, immutable decision history, Company/workspace boundaries, linked-identity independence, stale draft rollback and organization channel membership.",
+      "observedAt": "2026-09-22T14:35:14.401309+00:00",
+      "recordedBy": "Codex execution agent (automated/browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-organization-lifecycle-browser.txt",
+          "sha256": "0dfc428946181a841e31c7ddf956a5ff62fb2095160a2620a3265da953a61797"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-22-organization-lifecycle-browser-records.json",
+          "sha256": "21526b2b57d18e6ebe527e2076dbc52846209037e55af175ab473f017fba0f1e"
+        }
+      ],
+      "limitations": [
+        "No Company business-owner or production acceptance; public verification was read-only.",
+        "Initial Company provisioning, archival/relocation and dedicated Work/Inbox review routing remain.",
+        "The shared mobile header has overlapping context text; functional browser coverage does not establish complete responsive UI acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "organization-lifecycle-browser-20260922",
+      "capabilityIds": [
+        "organization/organization-tree",
+        "organization/feature-node-lifecycle",
+        "organization/feature-business-units"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Independent owner, Company HR reviewer and ordinary employee contexts exercise the real organization proposal, return/correction, approval, rename, safe suspension, cancellation and reactivation paths on desktop and mobile. Both scenarios passed (53.6s); 16 requests, 38 immutable events and linked channels remain in retained simulation evidence.",
+      "observedAt": "2026-09-22T14:35:14.401460+00:00",
+      "recordedBy": "Codex execution agent (automated/browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-organization-lifecycle-browser.txt",
+          "sha256": "0dfc428946181a841e31c7ddf956a5ff62fb2095160a2620a3265da953a61797"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-22-organization-lifecycle-browser-records.json",
+          "sha256": "21526b2b57d18e6ebe527e2076dbc52846209037e55af175ab473f017fba0f1e"
+        }
+      ],
+      "limitations": [
+        "No Company business-owner or production acceptance; public verification was read-only.",
+        "Initial Company provisioning, archival/relocation and dedicated Work/Inbox review routing remain.",
+        "The shared mobile header has overlapping context text; functional browser coverage does not establish complete responsive UI acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "organization-work-inbox-automated-20260922",
+      "capabilityIds": [
+        "organization/organization-tree",
+        "organization/feature-node-lifecycle",
+        "organization/feature-business-units"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "17 tests pass across three service/guide files, including Work state projection, atomic notification replay, exact-record links, current Company authority, expiry/revocation and database-linked identity independence.",
+      "observedAt": "2026-09-22T14:46:09.341249+00:00",
+      "recordedBy": "Codex execution agent (automated/browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-organization-work-inbox.txt",
+          "sha256": "6d73888a18683790cec3432d90ee66a08d6f2a618864a7814a30e57538eb0227"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-22-organization-work-inbox-records.json",
+          "sha256": "00afc652272db65fa9aed325602553ac9e0ba3b134b655ae85efba39997956b9"
+        }
+      ],
+      "limitations": [
+        "No Company business-owner or production acceptance; public verification was read-only.",
+        "Initial Company provisioning and archive/relocation remain.",
+        "Shared mobile header text still overlaps; functional mobile coverage does not establish complete responsive UI acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "organization-work-inbox-browser-20260922",
+      "capabilityIds": [
+        "organization/organization-tree",
+        "organization/feature-node-lifecycle",
+        "organization/feature-business-units"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Desktop and mobile independent-user scenarios pass through Work to organization review and Inbox to correction, continuing through the full retained organization lifecycle. Final persisted evidence includes 16 requests, 38 events and 36 notifications.",
+      "observedAt": "2026-09-22T14:46:09.341847+00:00",
+      "recordedBy": "Codex execution agent (automated/browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-organization-work-inbox.txt",
+          "sha256": "6d73888a18683790cec3432d90ee66a08d6f2a618864a7814a30e57538eb0227"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-22-organization-work-inbox-records.json",
+          "sha256": "00afc652272db65fa9aed325602553ac9e0ba3b134b655ae85efba39997956b9"
+        }
+      ],
+      "limitations": [
+        "No Company business-owner or production acceptance; public verification was read-only.",
+        "Initial Company provisioning and archive/relocation remain.",
+        "Shared mobile header text still overlaps; functional mobile coverage does not establish complete responsive UI acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "workspace-header-browser-20260922",
+      "capabilityIds": [
+        "identity_access/feature-roles-permissions",
+        "organization/organization-tree"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Shared header verified in desktop/mobile projects across 36 viewport/theme cases, with non-overlapping 44px controls, breadcrumb/Search, Company/branch context switching, actual role selection retained after reload and visible linked organization queue. Scoped Company labels use the current authorized Company.",
+      "observedAt": "2026-09-22T14:58:49.242065+00:00",
+      "recordedBy": "Codex execution agent (browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-workspace-header-browser.txt",
+          "sha256": "dc2f0839f0a33913aa09abed68ac4b3cfaffcd20141ebfed876652a58cb70e05"
+        },
+        {
+          "path": "docs/testing/evidence/2026-09-22-workspace-header-browser-records.json",
+          "sha256": "c7c8d4af5856c87136a4793ecb14c82c756be13e4f17b9584c509ff70a8e8114"
+        }
+      ],
+      "limitations": [
+        "Only shared header/context controls and the selected navigation journeys are covered.",
+        "No complete accessibility or responsive acceptance for every page.",
+        "No Company business-owner, production or provider acceptance; public verification was read-only.",
+        "A transient public session-database timeout recovered through Try again; runtime stability remains separate from this header acceptance."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "organization-company-acceptance-automated-20260922",
+      "capabilityIds": [
+        "organization/organization-tree",
+        "organization/feature-node-lifecycle",
+        "organization/feature-business-units"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Company setup readiness checks and the real acceptance workflow pass blocker, submit, independent accept, return-capable review guards, revoke, optimistic versions, audit/outbox and immutable event history. The authenticated public readiness page renders live checks and keeps submission unavailable while seeded staff placement is incomplete.",
+      "observedAt": "2026-09-22T15:18:00+00:00",
+      "recordedBy": "Codex execution agent (automated/browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-company-business-acceptance.txt",
+          "sha256": "d4f0ac0650ade84a02de4916718aab933b5b4e22f7675a8322674f642aa91b28"
+        }
+      ],
+      "limitations": [
+        "The public observation did not submit or approve acceptance in the real Acme Company.",
+        "Initial Company provisioning and archive/relocation remain.",
+        "Company business-owner, provider and production acceptance gates remain separate."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "organization-company-provisioning-automated-20260922",
+      "capabilityIds": [
+        "organization/organization-tree",
+        "organization/feature-node-lifecycle",
+        "organization/feature-business-units"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Initial beta Company provisioning creates an isolated Company, first branch and Team, policy, six numbered staff levels, one CEO position and the owner placement in one Holding transaction. A versioned company_provisioning receipt and immutable started/completed events must exist before control-plane activation; an injected write failure leaves the slot provisioning and retry is idempotent.",
+      "observedAt": "2026-09-22T15:25:00+00:00",
+      "recordedBy": "Codex execution agent (automated simulation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-company-provisioning.txt",
+          "sha256": "6f509114242eba4bad12147dde8035c0f4ddc167fa89053b21095cbb1543c25a"
+        }
+      ],
+      "limitations": [
+        "This is a beta onboarding simulation; no production Company provisioning or external provider was exercised.",
+        "Archive and relocation remain open in the organization capability.",
+        "Company business-owner acceptance and production operation gates remain separate."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "organization-archive-relocation-automated-20260922",
+      "capabilityIds": [
+        "organization/organization-tree",
+        "organization/feature-node-lifecycle",
+        "organization/feature-business-units"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Reviewed archive, reactivation and department relocation preserve immutable route history. Relocation creates an active destination node, archives the source node and moves active engagements, employees, positions and department-scoped assignments in one command transaction; archive blocks on active dependencies.",
+      "observedAt": "2026-09-22T15:34:00+00:00",
+      "recordedBy": "Codex execution agent (automated simulation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-organization-archive-relocation.txt",
+          "sha256": "af237f7a44a7094963f94731eaf105f47d62ee1a824a99a115135294266331ac"
+        }
+      ],
+      "limitations": [
+        "This is automated service evidence; no Company owner sign-off or production organization migration was exercised.",
+        "Provider, production and downstream module relocation policies remain separate gates.",
+        "Business acceptance remains distinct from implementation and simulation evidence."
       ],
       "supersedes": null
     }

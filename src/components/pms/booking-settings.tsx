@@ -1,6 +1,6 @@
 "use client";
 import { useState, useRef } from "react";
-import { records, type Snapshot, type Rate } from "@/lib/pms";
+import { records, type Snapshot, type Rate } from "@/lib/pms-model";
 import { decimalToMinor, minorToDecimal } from "@/lib/finance-money";
 import styles from "./booking.module.css";
 type Save = (

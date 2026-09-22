@@ -1,0 +1,43 @@
+ERPX Sales customer delivery notifications — automated, worker and public-browser evidence
+Observed: 2026-09-21 (Asia/Bangkok)
+Environment: local PostgreSQL simulation exposed through https://erpx.jesadakorn.com
+
+Delivered behavior
+- A company Finance/Sales manager configures the delivery adapter as disabled, sandbox or Resend with optimistic version checks, idempotency, audit and outbox history.
+- A sales user queues one notification per fulfilled delivery. The message snapshots the order, delivery, customer, recipient and operator note so provider retries cannot rewrite history.
+- Queueing requires a verified customer email, granted consent and a configured adapter. Delivery rechecks current email and consent immediately before provider access and cancels safely when either changed.
+- The job worker drains due work every three seconds, reclaims expired sending leases and uses a stable provider idempotency key. Provider failures remain visible and can be retried through the order page.
+- Sandbox mode never calls an external network. Resend remains a separately gated provider configuration.
+
+Automated verification
+$ bun run test -- tests/business-commands.test.ts tests/commerce-returns.test.ts tests/ecommerce.test.ts tests/sales-delivery-evidence.test.ts tests/sales-customer-notifications.test.ts
+Test Files  5 passed (5)
+Tests       16 passed (16)
+
+$ bun run typecheck
+exit 0
+
+$ bun run lint
+exit 0; three pre-existing unused-variable warnings, zero errors
+
+Focused notification coverage
+- provider required before queueing
+- consent-aware immutable recipient/message snapshot
+- command replay returns the same notification and duplicate queueing is rejected
+- sandbox delivery records sent state without a network call
+- consent revocation before delivery cancels the queued message
+- Resend failure records a durable failed state; an authorized retry preserves the provider idempotency key
+- notification history cannot be deleted
+
+Public authenticated browser and detached worker observation
+- Holding owner opened the fulfilled sales order SO-61D4770158966A46313FB419 at /holdings/acme/commerce/orders/order-inventory-606a00f7-sale.
+- The real order UI showed receiving-acme-co@example.invalid and “Sandbox delivery”.
+- Submitting “Sandbox automatic worker verification” stayed on the order route and rendered Customer notification · pending, attempt 0.
+- The independently running jobs process changed customer-notification-1d9d5c3c-580e-43a6-96f5-e3a9a9dae0e9 to sent, attempt 1, with provider_message_id sandbox-customer-notification-1d9d5c3c-580e-43a6-96f5-e3a9a9dae0e9.
+- After a public-page reload, the order rendered Customer notification · sent, attempt 1, sandbox, with sent_at 2026-09-21T11:33:54.152Z.
+- A previous public run on order-inventory-b904d6f4-sale also rendered sent after reload. That run exposed and led to fixing a redirect bug: queue/retry command results now return orderId rather than navigating to a notification id as if it were an order.
+
+Limits
+- No real email address was used and no external message was sent.
+- Resend sandbox/live provider acceptance, customer business acceptance and complete sales multi-role acceptance remain separate gates.
+- Consent governance here is limited to the customer record’s verified email and consent state; delegated portal administration and transactional consent history remain Release 2 Customer Authority work.

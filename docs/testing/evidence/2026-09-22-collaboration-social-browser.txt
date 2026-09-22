@@ -1,0 +1,18 @@
+ERPX collaboration threads and mentions browser acceptance
+Date: 2026-09-22 (Asia/Bangkok)
+Environment: isolated Demo Company browser simulation (run 9fc09f32ad49; destroyed after verification)
+Gate: browser
+
+Command:
+ERPX_DEMO_RUN=9fc09f32ad49 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-collaboration-social.spec.ts --project=desktop
+
+Result:
+1 passed (19.2s)
+
+Observed through two authenticated role contexts:
+- Holding owner opened the real Home workspace, published an update mentioning the Support agent, and the mention rendered as a resolved person reference.
+- A separate employee account saw the same update after reload, opened the thread, posted a reply, and toggled Thanks and Follow.
+- The employee reloaded again; the reply, appreciation state and follow state remained visible through the persisted feed APIs.
+- The isolated run was destroyed after verification.
+
+This is isolated simulation evidence. It does not establish retention/export, provider, production or Company business acceptance.

@@ -1,0 +1,15 @@
+ERPX Finance reports → supporting ledger browser evidence
+=========================================================
+
+Date: 2026-09-22 (Asia/Bangkok)
+Environment: authenticated Acme Company public development workspace
+URL: https://erpx.jesadakorn.com/holdings/acme/finance/reports
+
+Observed through the actual Finance Reports interface:
+- Reports and statements loaded the Operations ledger chart in USD.
+- Assets, liabilities, equity, revenue and expenses cards displayed live totals.
+- Every total card exposed “Trace journal entries” to the selected chart’s Accounting workspace.
+- Trial balance displayed posted account rows and exposed “Open Accounting” to the same chart.
+- The supporting links retained the selected chart identifier and journal-entry anchor.
+
+This was a read-only authenticated browser observation; no Acme records were changed. It verifies the connected reporting navigation surface, not full production financial sign-off, close approval, provider reconciliation or company business acceptance.

@@ -5,6 +5,7 @@ import {
   expenseFixture,
   key,
 } from "./helpers/expense-fixture";
+import { deliveryEvidence } from "./helpers/delivery-evidence";
 import { fulfillOrder, getOrder, saveMaster } from "../src/server/commerce";
 import { assignFlowPrimary, resolveFlow } from "../src/server/flow-routing";
 import type { WorkContext } from "../src/server/authorization";
@@ -266,6 +267,7 @@ it("fulfills only reserved stock and syncs immutable delivery evidence", async (
       expectedVersion: Number(order.order.version),
       date: "2026-09-22",
       lines: [{ lineId: order.lines[0].id, quantity: "1" }],
+      ...(await deliveryEvidence(db, owner, String(checkout.salesOrderId))),
     },
     key(),
   );
@@ -329,6 +331,7 @@ it("rejects stale carts and refuses a return before the Sales fulfillment is inv
       expectedVersion: Number(order.order.version),
       date: "2026-09-22",
       lines: [{ lineId: order.lines[0].id, quantity: "1" }],
+      ...(await deliveryEvidence(db, owner, String(checkout.salesOrderId))),
     },
     key(),
   );

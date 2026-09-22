@@ -22,7 +22,9 @@ export async function workCacheFence(db: SqlDatabase): Promise<CacheFence | null
   const row = await db.prepare(`SELECT current_database() || ':' || (SELECT oid::text FROM pg_database WHERE datname=current_database()) || ':' || coalesce(inet_server_addr()::text, 'local') || ':' || coalesce(inet_server_port()::text, 'socket') database,
     (SELECT md5(string_agg(table_name || ':' || revision::text, ',' ORDER BY table_name)) FROM work_cache_revisions) revision,
     NOT EXISTS (SELECT 1 FROM pg_tables t WHERE t.schemaname='public' AND work_cache_tracks(t.tablename)
-      AND NOT EXISTS (SELECT 1 FROM work_cache_revisions r WHERE r.table_name=t.tablename)) covered,
+      AND (NOT EXISTS (SELECT 1 FROM work_cache_revisions r WHERE r.table_name=t.tablename)
+        OR (SELECT count(*) FROM pg_trigger g WHERE g.tgrelid=to_regclass(format('public.%I',t.tablename))
+          AND g.tgname IN ('work_cache_change','work_cache_truncate') AND g.tgenabled='O') <> 2)) covered,
     (SELECT min(deadline) FROM (
       SELECT valid_from deadline FROM assignments UNION ALL SELECT valid_until FROM assignments
       UNION ALL SELECT expires_at FROM iam_emergency_sessions
@@ -45,11 +47,11 @@ export async function workCacheFence(db: SqlDatabase): Promise<CacheFence | null
 }
 
 export async function cachedWorkSnapshot(actor: WorkContext, db: SqlDatabase, load: () => Promise<WorkSnapshot>) {
-  if (!redisCacheEnabled()) return load();
+  if (!redisCacheEnabled()) report("bypass", "redis_disabled");
   // No revision read is cached in memory or Redis: reads after commit see the new fence.
   let fence: CacheFence | null;
-  try { fence = await workCacheFence(db); } catch { return load(); }
-  if (!fence) return load();
+  try { fence = await workCacheFence(db); } catch { report("bypass", "fence_read_failed"); return load(); }
+  if (!fence) { report("bypass", "incomplete_coverage"); return load(); }
   for (let attempt = 0; attempt < 3; attempt++) {
     const current: CacheFence = fence;
     const key = workCacheKey(actor, current);
@@ -85,8 +87,8 @@ export async function cachedWorkSnapshot(actor: WorkContext, db: SqlDatabase, lo
     }
   }
   // Continuous writes must not cause an unbounded retry or publish a mixed cache entry.
-  report("bypass"); return load();
+  report("bypass", "revision_changed"); return load();
 }
-function report(status: string) {
-  if (process.env.ERPX_PERF_LOG === "1") console.info(JSON.stringify({ event: "work_cache", status }));
+function report(status: string, reason?: string) {
+  if (process.env.ERPX_PERF_LOG === "1") console.info(JSON.stringify({ event: "work_cache", status, reason }));
 }

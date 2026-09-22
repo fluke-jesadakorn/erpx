@@ -1,6 +1,7 @@
 import { BusinessDocumentBranding } from "@/components/brand/business-document";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { SettlementForm } from "@/components/modules/commerce-controls";
+import { PrepareControlledPayment } from "@/components/modules/payment-lifecycle";
 import { DocumentPostingPreview } from "@/components/modules/document-posting-preview";
 import { InvoiceActions,InvoiceEditor } from "@/components/modules/invoice-controls";
 import { StatusBadge } from "@/components/ui/primitives";
@@ -33,6 +34,7 @@ export default async function InvoiceDetail({ params, searchParams }: { params: 
   const options=await invoiceWorkspace(actor);
   const expense=invoice.source_type==="expense_claim"?await getExpense(actor,String(invoice.source_id)):null;
   const canSettle=commercePermissions(actor).finance&&(invoice.kind!=="payable"||(hasPermission(actor,"finance.pay")&&invoice.created_by!==actor.userId))&&(!expense||![expense.created_by,expense.prepared_by,expense.claimant_user_id].includes(actor.userId));
+  const bankAccounts=options.accounts.filter(account=>account.category==="asset"&&account.control_kind==="bank"&&account.currency===invoice.currency);
   const flow = await documentFlow(actor,"invoice",id);
   return (
     <FeaturePage className="content-stack" data-source="live" data-module="finance" data-print-document={printing || undefined}><WorkReturn base={base}/>
@@ -43,12 +45,13 @@ export default async function InvoiceDetail({ params, searchParams }: { params: 
         <StatusBadge status={String(invoice.status)} />
       </div><FeatureTabs/><WidgetGrid pageKey="finance-invoices-detail">
       <section data-critical-notice><RecordNextAction flow={flow}/></section><section className="card-grid" aria-label="Invoice summary">
-        {[["Invoice date", invoice.invoice_date], ["Due date", invoice.due_date], ["Total", `${invoice.currency} ${minorToDecimal(Number(invoice.total_minor))}`], ["Outstanding", `${invoice.currency} ${minorToDecimal(Number(invoice.outstanding_minor))}`]].map(([label, value]) => <article className="card" key={String(label)}><span className="eyebrow">{String(label)}</span><strong>{String(value)}</strong></article>)}
+        {[["Invoice date", invoice.invoice_date], ["Due date", invoice.due_date], ["Total", `${invoice.currency} ${minorToDecimal(Number(invoice.total_minor))}`], ["Outstanding", `${invoice.currency} ${minorToDecimal(Number(invoice.outstanding_minor))}`],...(invoice.status!=="draft"?[["Recognition FX rate",Number(invoice.fx_rate_micros)/1_000_000],["Functional outstanding",minorToDecimal(Number(invoice.base_outstanding_minor))]]:[])].map(([label, value]) => <article className="card" key={String(label)}><span className="eyebrow">{String(label)}</span><strong>{String(value)}</strong></article>)}
       </section>
       {invoice.status==="draft"&&hasPermission(actor,"finance.write")&&<>{invoice.source_type==="standalone"&&<FeatureWidget id="finance-invoices-detail-invoice-details" title="Invoice details"><InvoiceEditor base={base} options={options} invoice={invoice}/></FeatureWidget>}<InvoiceActions base={base} invoice={invoice} periods={options.periods} canPost={flow.canAct&&hasPermission(actor,"finance.approve")&&invoice.created_by!==actor.userId}/></>}
       {matched&&<Link href={`${base}/supplier-bills/${matched.id}`}>Supplier invoice matching · {matched.reference}</Link>}
       {invoice.source_type==="expense_claim"&&<Link href={`${base}/expenses/${invoice.source_id}`}>Open employee expense claim</Link>}
       {invoice.journal_id&&<Link href={`${base}/finance/journals/${invoice.journal_id}`}>Open posted journal</Link>}
+      {invoice.source_type!=="expense_claim"&&["posted","partially_paid"].includes(String(invoice.status))&&Number(invoice.outstanding_minor)>0&&hasPermission(actor,"finance.write")&&!actor.branchId&&!actor.departmentId&&<FeatureWidget id="finance-invoices-detail-controlled-payment" title="Controlled bank settlement"><PrepareControlledPayment base={base} invoice={invoice} bankAccounts={bankAccounts}/></FeatureWidget>}
       {["commerce_fulfillment","standalone","expense_claim"].includes(String(invoice.source_type)) && ["posted","partially_paid"].includes(String(invoice.status)) && Number(invoice.outstanding_minor)>0 && canSettle && flow.canAct && <SettlementForm base={base} invoice={invoice}/> }
       <FeatureWidget id="finance-invoices-detail-allocations" title="Allocations">
         <div className="section-head"><h2>Allocations</h2><span className="badge">{data.allocations.length}</span></div>

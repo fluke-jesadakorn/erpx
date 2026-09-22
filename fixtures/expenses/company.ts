@@ -165,6 +165,10 @@ export async function seedExpenseCompany(db: SqlDatabase, files: FileStore) {
     payer = await member("payer", "employee", 1, accountsDepartment),
     owner = await member("owner", "holding_owner", 10, accountsDepartment),
     it = await member("it", "employee", 1, accountsDepartment);
+  await db
+    .prepare("UPDATE hr_engagements SET manager_person_id=? WHERE id=? AND company_id=?")
+    .bind(`person-${head.userId}`, `eng-${claimant.userId}`, company)
+    .run();
   async function grant(
     actor: WorkContext,
     role: string,

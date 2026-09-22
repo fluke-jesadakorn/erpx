@@ -1,0 +1,34 @@
+ERPX Release 1 Identity & Access — durable account recovery
+Observed: 2026-09-21 Asia/Bangkok
+
+Implementation
+- migrations/postgres/control/0014_account_recovery_delivery.sql adds durable encrypted delivery jobs, retry/lease/provider evidence and immutable requested/sent/failed/cancelled/completed events.
+- src/server/account-recovery.ts invalidates earlier reset verifications, encrypts reset URLs with AES-256-GCM, delivers only the current link, retries provider failures at most six times and records completion.
+- src/server/auth.ts uses a one-hour reset lifetime, queues delivery and revokes every session after a successful password change. A fail-safe session deletion still runs if recovery audit recording fails.
+- src/server/runtime/jobs.ts drains account recovery through the existing directory worker pulse.
+- The reset page gives invalid, expired and superseded links a clear replacement action and does not render the password field.
+
+Automated verification
+$ bun run test -- tests/account-recovery.test.ts tests/beta-auth-billing.test.ts tests/account-invitation-delivery.test.ts tests/iam.test.ts tests/user-management.test.ts tests/active-work-context.test.ts
+Test Files 6 passed (6)
+Tests 51 passed (51)
+
+Focused behavior
+- A second request deletes the earlier Better Auth verification and cancels its pending delivery job.
+- The database ciphertext does not contain the reset token; provider delivery receives only the current decrypted URL and a stable idempotency key.
+- The sixth provider failure becomes explicit failed work with immutable evidence.
+- A completed reset revokes every account session and records an immutable completed event.
+- Invitation, IAM, User Management and active-context regressions remain green.
+
+Static, migration and browser verification
+- bun run typecheck: passed.
+- Scoped ESLint for recovery service, authentication, worker, UI and tests: passed with zero warnings.
+- bun run db:migrate:local: passed for all six local databases, including control migration 0014.
+- Playwright desktop test for /reset-password?error=INVALID_TOKEN: 1 passed.
+- Authenticated public browser observed https://erpx.jesadakorn.com/reset-password?error=INVALID_TOKEN with “Reset link unavailable”, replacement/sign-in links and no password field.
+- No email address, reset request, password or live provider call was submitted during public observation.
+
+Limits
+- No live Resend delivery was attempted.
+- No independent public multi-session request, delivery, password change and session-revocation transaction was performed.
+- Company business acceptance and production acceptance remain pending.

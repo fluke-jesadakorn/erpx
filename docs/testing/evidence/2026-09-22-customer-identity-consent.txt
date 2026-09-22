@@ -1,0 +1,13 @@
+# Customer Authority — identity and contact evidence (2026-09-22)
+
+- Reviewed customer identity changes now include `phone` and a structured address (`line1`, `line2`, city, region, postal code, ISO country code), alongside legal name, tax registration, notification email and explicit notification consent.
+- Request, reject, resubmit and apply retain the before/after JSON snapshot; apply updates all fields atomically under the existing customer version guard.
+- The UI exposes the contact/address fields and keeps the independent reviewer decision separate from the requester.
+- `bun run test -- tests/customer-identity-changes.test.ts` — 4 tests passed, including idempotent request replay, independent approval with contact/address persistence, rejection/resubmission, stale customer conflict and immutable history.
+- External registry verification, authenticated multi-role browser and company privacy/business acceptance remain deferred.
+
+- Release: .runtime/releases/2026-09-21T19-43-25-242Z
+
+- Release: .runtime/releases/2026-09-21T19-43-25-242Z
+
+- Release: .runtime/releases/2026-09-21T19-43-25-242Z; server.js SHA-256: 9eb41708b49e6737ed86a99bfdc40140dfb63b47ad9699e7d45acb4ae67f4592

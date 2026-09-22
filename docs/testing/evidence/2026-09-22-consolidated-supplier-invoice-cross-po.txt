@@ -1,0 +1,16 @@
+# ERPX consolidated supplier invoice across purchase orders — automated acceptance evidence
+
+- Date: 2026-09-22 (Asia/Bangkok)
+- Environment: disposable PostgreSQL integration database using the repository migration set
+- Command: `bun run test -- tests/supplier-bill-matching.test.ts tests/purchase-to-payment.test.ts`
+- Result: 2 test files passed, 10 tests passed (including the new cross-PO test)
+
+## Verified workflow
+
+The test creates two approved purchase orders for the same supplier, currency, branch and department. Each order receives one unit in a separate posted goods-receipt journal. Finance captures one supplier invoice with both receipts and all receipt lines, then an independent Finance approver approves the evidence. The invoicing owner prepares one payable AP invoice from the primary receipt; the handoff links both receipts to that invoice and uses the consolidated supplier subtotal. Finance posts the AP invoice once and the supplier bill reaches `posted`.
+
+The test also keeps the existing multi-receipt correction and concurrency coverage. Capture remains idempotent and version checked, each receipt is independently locked, incompatible supplier/currency/branch/department combinations are rejected, and the source order/receipt history remains available for review.
+
+## Remaining gates
+
+This is automated integration evidence, not independent browser business acceptance, live supplier/payment-provider certification, statutory validation or production backup/restore certification. The browser demo still covers the receipt-specific 6 + 4 payment scenario; the Finance supplier-bill workspace now provides the real UI path for selecting receipts across purchase orders.

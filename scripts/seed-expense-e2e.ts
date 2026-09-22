@@ -49,6 +49,120 @@ try {
       .bind(actor.email, actor.userId, f.company)
       .run();
   }
+  // The browser acceptance company must have the same explicit organization
+  // graph as the working expense fixtures: six numbered levels, positions,
+  // and reporting lines. Without this setup the real route correctly blocks
+  // an otherwise complete claim before the first approval step.
+  await proxy.env.H001_DB.batch(
+    Array.from({ length: 6 }, (_, index) => index + 1).map((number) =>
+      proxy.env.H001_DB
+        .prepare(
+          "INSERT INTO staff_levels(id,company_id,code,name,rank,level_number,active,created_at,updated_at) VALUES(?,?,?,?,?,?,1,?,?) ON CONFLICT DO NOTHING",
+        )
+        .bind(
+          `org-level-${f.company}-${number}`,
+          f.company,
+          `ORG_L${number}`,
+          [
+            "CEO",
+            "Executive / Director",
+            "Branch / Department Manager",
+            "Supervisor",
+            "Senior Staff",
+            "Staff",
+          ][number - 1],
+          -number,
+          number,
+          now,
+          now,
+        ),
+    ),
+  );
+  const positions = [
+    ["ceo", 1, null, 1],
+    ["head", 3, "ceo", 0],
+    ["manager", 4, "ceo", 0],
+    ["staff", 5, "ceo", 0],
+    ["claimant", 6, "head", 0],
+  ] as const;
+  await proxy.env.H001_DB.batch(
+    positions.map(([name, level, reportsTo, isCeo]) =>
+      proxy.env.H001_DB
+        .prepare(
+          "INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,reports_to_position_id,is_ceo,active,version,created_by,created_at,updated_at) VALUES(?,?,NULL,NULL,?,?,?,?,1,1,?,?,?) ON CONFLICT DO NOTHING",
+        )
+        .bind(
+          `${f.company}-position-${name}`,
+          f.company,
+          name === "ceo" ? "CEO" : name === "claimant" ? "Staff member" : `${name} reviewer`,
+          `org-level-${f.company}-${level}`,
+          reportsTo ? `${f.company}-position-${reportsTo}` : null,
+          isCeo,
+          f.owner.userId,
+          now,
+          now,
+        ),
+    ),
+  );
+  await proxy.env.H001_DB.batch([
+    proxy.env.H001_DB
+      .prepare(
+        "UPDATE hr_engagements SET level_id=?,position_id=?,manager_person_id=NULL WHERE id=? AND company_id=?",
+      )
+      .bind(
+        `org-level-${f.company}-1`,
+        `${f.company}-position-ceo`,
+        `eng-${f.owner.userId}`,
+        f.company,
+      ),
+    proxy.env.H001_DB
+      .prepare(
+        "UPDATE hr_engagements SET level_id=?,position_id=?,manager_person_id=? WHERE id IN (?,?) AND company_id=?",
+      )
+      .bind(
+        `org-level-${f.company}-3`,
+        `${f.company}-position-head`,
+        `person-${f.owner.userId}`,
+        `eng-${f.head.userId}`,
+        `eng-${f.tie.userId}`,
+        f.company,
+      ),
+    proxy.env.H001_DB
+      .prepare(
+        "UPDATE hr_engagements SET level_id=?,position_id=?,manager_person_id=? WHERE id=? AND company_id=?",
+      )
+      .bind(
+        `org-level-${f.company}-4`,
+        `${f.company}-position-manager`,
+        `person-${f.owner.userId}`,
+        `eng-${f.manager.userId}`,
+        f.company,
+      ),
+    ...[f.reviewer, f.payer, f.it].map((actor) =>
+      proxy.env.H001_DB
+        .prepare(
+          "UPDATE hr_engagements SET level_id=?,position_id=?,manager_person_id=? WHERE id=? AND company_id=?",
+        )
+        .bind(
+          `org-level-${f.company}-5`,
+          `${f.company}-position-staff`,
+          `person-${f.owner.userId}`,
+          `eng-${actor.userId}`,
+          f.company,
+        ),
+    ),
+    proxy.env.H001_DB
+      .prepare(
+        "UPDATE hr_engagements SET level_id=?,position_id=?,manager_person_id=? WHERE id=? AND company_id=?",
+      )
+      .bind(
+        `org-level-${f.company}-6`,
+        `${f.company}-position-claimant`,
+        `person-${f.head.userId}`,
+        `eng-${f.claimant.userId}`,
+        f.company,
+      ),
+  ]);
   await mkdir(".scratch/expense-v2", { recursive: true });
   await Bun.write(
     ".scratch/expense-v2/fixture.json",

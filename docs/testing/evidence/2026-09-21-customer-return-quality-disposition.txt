@@ -1,0 +1,37 @@
+ERPX customer-return Quality disposition — automated and public-browser evidence
+Observed: 2026-09-21 (Asia/Bangkok)
+Environment: local PostgreSQL simulation exposed through https://erpx.jesadakorn.com
+
+Delivered behavior
+- A customer return line records the observed condition (unopened, damaged or unknown), a condition note and a Quality review due date.
+- Independent Commerce approval restores the exact returned quantity and value, preserves the original lot/serial allocation, reverses stock/COGS, prepares the credit note, and creates a quantity-specific Quality hold in the same transaction.
+- Returned stock remains on hand for accounting but is excluded from available quantity, new reservations and issues until Quality finishes the disposition.
+- An independent inspector can record a pass or fail using the existing structured measurements and private evidence workflow. A third Quality manager releases passed stock. Failed stock follows the existing controlled scrap handoff to independent Finance, inventory count evidence and balanced GL.
+- Whole-stock holds remain whole-stock controls. Receipt and customer-return holds use partial quantity scope, so unrelated released stock remains available.
+- Condition, review date and hold source linkage are immutable. The order page links every customer return to its Quality disposition and status.
+
+Automated verification
+$ bun run test -- tests/commerce-returns.test.ts tests/inventory-lot-serial.test.ts tests/quality.test.ts tests/stock-reservations.test.ts tests/ecommerce.test.ts
+Test Files  5 passed (5)
+Tests       27 passed (27)
+
+$ bun run typecheck
+exit 0
+
+Focused cross-department coverage
+- customer return creates a partial quantity hold rather than making returned stock available
+- returned condition evidence cannot be rewritten
+- independent inspection plus third-person release changes quarantined quantity from the returned quantity to zero
+- lot-tracked customer return creates the hold against the exact original lot
+- order projection returns the linked Quality hold
+- existing supplier return, refund, Quality scrap, reservation and e-commerce regressions remain green
+
+Public authenticated browser observation
+- Holding owner opened paid sales order SO-61F7BB88D96CAF6039D8F26A at /holdings/acme/commerce/orders/order-f920b1c8899729816b4c1134611922bb7007.
+- The real return form rendered Return quantity, Observed condition, Condition evidence and Quality review due.
+- The page explained that returned customer stock is quarantined immediately and needs Quality inspection before availability or controlled Finance scrap.
+- No browser transaction was submitted, so the seeded paid order remains unchanged.
+
+Limits
+- Browser evidence covers the real request surface. Independent Commerce, Quality and Finance execution is integration evidence in this batch rather than a complete public multi-role browser run.
+- No customer business acceptance or production sign-off was performed.

@@ -1,0 +1,216 @@
+export type DemoActor = {
+  label: string;
+  email: string;
+  userId: string;
+  role: string;
+};
+
+export type GeneralCompanyDemoInput = {
+  run: string;
+  origin: string;
+  holdingSlug: string;
+  requestId: string;
+  quotationId: string;
+  organizationReviewer?: DemoActor;
+  sourceWarehouseId?: string;
+  targetWarehouseId?: string;
+  movementProductId?: string;
+  lotProductId: string;
+  serialProductId: string;
+  closePeriodIds: [string, string];
+  controlledPaymentInvoiceId: string;
+  actors: Record<
+    | "employee"
+    | "manager"
+    | "buyer"
+    | "purchasingManager"
+    | "salesOperator"
+    | "salesManager"
+    | "warehouse"
+    | "sourceWarehouse"
+    | "financePreparer"
+    | "financeApprover"
+    | "treasury"
+    | "administrator",
+    DemoActor
+  >;
+};
+
+export function generalCompanyDemoGuide(input: GeneralCompanyDemoInput) {
+  const base = `${input.origin}/holdings/${input.holdingSlug}`;
+  return {
+    version: 1,
+    environment: {
+      kind: "isolated-real-workflow",
+      run: input.run,
+      origin: input.origin,
+      persistence: "Dedicated disposable PostgreSQL databases and private local files",
+      externalIntegrations: "Sandbox or unconfigured; no email, bank, payment, or provider action is live",
+      controls: { supplierInvoiceMatching: "required" },
+    },
+    reset: {
+      behavior: "Destroy this exact run, then prepare a fresh run from migrations and owner services",
+      commands: [
+        `bun run demo:destroy -- ${input.run}`,
+        "bun run demo:prepare",
+      ],
+    },
+    acceptance: {
+      command: "bun run demo:verify",
+      browserCommand: `ERPX_DEMO_RUN=${input.run} ERPX_E2E_BASE_URL=${input.origin} bun run demo:verify:browser`,
+      test: "tests/purchase-to-payment.test.ts",
+      evidence: [
+        "docs/testing/evidence/2026-09-21-multi-receipt-purchase-to-payment-tests.txt",
+        "docs/testing/evidence/2026-09-21-multi-receipt-purchase-to-payment-context.json",
+        "docs/testing/evidence/2026-09-21-supplier-invoice-policy-browser.txt",
+        "docs/testing/evidence/2026-09-21-supplier-invoice-policy-browser-context.json",
+      ],
+      scope: "Owner-service automation plus isolated multi-role controlled-payment and two-period-close browser acceptance; provider, production and business gates remain separate",
+    },
+    scenarios: [
+      {
+        id: "general-company-laptop-purchase",
+        title: "ขอซื้อ Laptop 10 เครื่องจนถึงการชำระเงิน",
+        sourceRecord: { type: "employee_request", id: input.requestId },
+        startingState: "Draft purchase request with fictional THB amounts and no completed downstream transaction",
+        steps: [
+          { order: 1, actor: "employee", action: "ตรวจรายละเอียดและส่งใบขอซื้อ", href: `${base}/requests/${input.requestId}`, expected: "คำขอเข้าสู่สายอนุมัติที่บันทึกเวอร์ชันไว้" },
+          { order: 2, actor: "manager", action: "อนุมัติตามสายบังคับบัญชา", href: `${base}/work?type=purchase_request&view=actions`, expected: "ผู้ขออนุมัติคำขอตัวเองไม่ได้" },
+          { order: 3, actor: "financePreparer", action: "ตรวจรายละเอียดทางบัญชี", href: `${base}/work?type=purchase_request&view=actions`, expected: "ขั้นตรวจบัญชีเสร็จโดยคนละคนกับผู้ขอ" },
+          { order: 4, actor: "financeApprover", action: "อนุมัติวงเงินโดยอิสระ", href: `${base}/work?type=purchase_request&view=actions`, expected: "คำขอพร้อมส่งให้ฝ่ายจัดซื้อ" },
+          { order: 5, actor: "buyer", action: "สร้าง RFQ และบันทึกข้อเสนอผู้ขาย", href: `${base}/procurement-rfqs`, expected: "ปริมาณสินค้าตรงกับ demand ที่อนุมัติ" },
+          { order: 6, actor: "purchasingManager", action: "ตรวจการเปรียบเทียบและอนุมัติผู้ขาย", href: `${base}/work?type=procurement_rfq&view=actions`, expected: "สร้าง PO จากข้อเสนอที่อนุมัติเท่านั้น" },
+          { order: 7, actor: "warehouse", action: "รับสินค้า 6 เครื่อง แล้วรับอีก 4 เครื่อง", href: `${base}/work?type=commerce_order&view=actions`, expected: "หน้าใบขอซื้อแสดง 6/10 แล้วเปลี่ยนเป็น 10/10 โดยไม่รับซ้ำ" },
+          { order: 8, actor: "financePreparer", action: "เลือก receipt ทั้ง 6 และ 4 เครื่องเพื่อจับคู่ใบแจ้งหนี้ผู้ขายหนึ่งใบ แล้วเตรียม AP รวมหนึ่งใบ", href: `${base}/supplier-bills`, expected: "ใบแจ้งหนี้เชื่อม receipt ทั้งสอง และ quantity/price variance ต้องได้รับการทบทวนก่อนลงบัญชี" },
+          { order: 9, actor: "financeApprover", action: "อนุมัติและลงบัญชีเจ้าหนี้", href: `${base}/work?type=supplier_bill&view=actions`, expected: "GL และ outstanding payable เชื่อมกับหลักฐานต้นทาง" },
+          { order: 10, actor: "treasury", action: "เตรียม ส่งออก และยืนยันผลการจ่ายจากหลักฐานธนาคาร", href: `${base}/finance/supplier-batches`, expected: "ยอดจ่ายและ bank match ถูกบันทึกครั้งเดียว" },
+          { order: 11, actor: "employee", action: "กลับไปตรวจผลในใบขอซื้อ", href: `${base}/requests/${input.requestId}`, expected: "progress แสดงครบทุก owner stage โดยไม่คัดลอก authority record" },
+        ],
+        actors: input.actors,
+      },
+      {
+        id: "split-requisition-and-unit-conversion",
+        title: "แบ่งคำขอซื้อให้ผู้ขายหลายรายและแปลงหน่วยนับ",
+        sourceRecord: { type: "employee_request", id: input.requestId },
+        startingState: "Reset the demo first, then use the same approved ten-laptop request as an alternative sourcing exercise",
+        steps: [
+          { order: 1, actor: "employee", action: "ส่งคำขอ Laptop 10 เครื่อง โดยใช้หน่วย each", href: `${base}/requests/${input.requestId}`, expected: "คำขอเก็บจำนวนและหน่วยต้นทางเป็นหลักฐาน" },
+          { order: 2, actor: "manager", action: "อนุมัติคำขอตามสายอนุมัติ", href: `${base}/work?type=purchase_request&view=actions`, expected: "คำขอพร้อมให้ฝ่ายจัดซื้อจัดสรร" },
+          { order: 3, actor: "buyer", action: "สร้าง RFQ แรก 6 each และ RFQ ที่สอง 4 each; ทดลองเลือกสินค้าที่ซื้อเป็น case พร้อมระบุอัตราแปลง", href: `${base}/procurement-rfqs?request=${input.requestId}`, expected: "หน้าจอแสดง requested, allocated และ remaining; จัดสรรรวมเกิน 10 ไม่ได้" },
+          { order: 4, actor: "purchasingManager", action: "อนุมัติ supplier award ของแต่ละ RFQ แยกกัน", href: `${base}/work?type=procurement_rfq&view=actions`, expected: "แต่ละ award สร้าง PO ของผู้ขายรายนั้นและอ้างอิงรายการคำขอเดียวกัน" },
+          { order: 5, actor: "buyer", action: "เปิดคำขอและตรวจประวัติ PO หลายใบ", href: `${base}/requests/${input.requestId}`, expected: "progress รวมทุก PO และยังเก็บ conversion evidence ของแต่ละ RFQ" },
+        ],
+        actors: input.actors,
+      },
+      {
+        id: "finance-two-consecutive-closes",
+        title: "กระทบยอดและปิดบัญชีสองงวดต่อเนื่อง",
+        sourceRecord: { type: "finance_period", id: input.closePeriodIds[0] },
+        startingState: "January and February 2027 contain a posted opening journal, matching customer/supplier schedules, and exact period-end sandbox bank statements",
+        steps: [
+          { order: 1, actor: "financePreparer", action: "เปิด January และตรวจ GL, receivable, payable และ bank difference", href: `${base}/finance/close`, expected: "ทุก control account แสดง difference 0 และ statement ลงวันที่ 2027-01-31" },
+          { order: 2, actor: "financePreparer", action: "เริ่มปิด January", href: `${base}/finance/close`, expected: "ระบบเก็บ reconciliation snapshot และเปลี่ยนสถานะเป็น closing" },
+          { order: 3, actor: "financeApprover", action: "ตรวจหลักฐานและอนุมัติ January", href: `${base}/finance/close`, expected: "ผู้เริ่มปิดอนุมัติเองไม่ได้ และ January เปลี่ยนเป็น closed" },
+          { order: 4, actor: "financePreparer", action: "ตรวจ carry-forward และเริ่มปิด February", href: `${base}/finance/close`, expected: "ยอดสะสมตรงกับ statement วันที่ 2027-02-28 และสร้าง snapshot คนละ close version" },
+          { order: 5, actor: "financeApprover", action: "อนุมัติ February พร้อมหลักฐาน", href: `${base}/finance/close`, expected: "ปิดบัญชีต่อเนื่องครบสองงวดโดย AR/AP/bank difference เป็นศูนย์" },
+        ],
+        actors: { financePreparer: input.actors.financePreparer, financeApprover: input.actors.financeApprover },
+      },
+      {
+        id: "sales-to-collection",
+        title: "ใบเสนอราคาจนถึงส่งสินค้า ออกใบแจ้งหนี้ และรับชำระ",
+        sourceRecord: { type: "commerce_quote", id: input.quotationId },
+        startingState: "A fictional customer quotation and available stock are ready in the isolated demo company",
+        steps: [
+          { order: 1, actor: "salesOperator", action: "ตรวจและส่งใบเสนอราคาให้อนุมัติ", href: `${base}/commerce?view=quote`, expected: "ใบเสนอราคาถูกส่งพร้อม version และผู้รับผิดชอบ" },
+          { order: 2, actor: "salesManager", action: "อนุมัติใบเสนอราคาโดยอิสระ", href: `${base}/work?type=commerce_order&view=actions`, expected: "ผู้จัดทำอนุมัติเอกสารของตัวเองไม่ได้" },
+          { order: 3, actor: "salesOperator", action: "แปลงใบเสนอราคาเป็น sales order แล้วส่งคำสั่งซื้อ", href: `${base}/commerce?view=sales`, expected: "sales order อ้างอิงใบเสนอราคาเดิมและรักษาราคา snapshot" },
+          { order: 4, actor: "salesManager", action: "อนุมัติ sales order", href: `${base}/work?type=commerce_order&view=actions`, expected: "คลังเห็นงานส่งมอบพร้อมเจ้าของและกำหนดส่ง" },
+          { order: 5, actor: "warehouse", action: "บันทึกหลักฐานส่งมอบสินค้าครบจำนวน", href: `${base}/commerce?view=sales`, expected: "stock movement GL ถูกสร้างและสินค้าคงเหลือถูกหักตามจำนวนจริง" },
+          { order: 6, actor: "financeApprover", action: "ตรวจและลงบัญชี stock movement", href: `${base}/work?type=journal&view=actions`, expected: "GL สินค้าโพสต์ก่อนออก invoice" },
+          { order: 7, actor: "financePreparer", action: "เตรียม customer invoice", href: `${base}/commerce?view=sales`, expected: "invoice ผูกกับ fulfillment เดียวกันและเข้า queue ตรวจบัญชี" },
+          { order: 8, actor: "financeApprover", action: "อนุมัติและโพสต์ customer invoice", href: `${base}/finance/invoices`, expected: "ลูกหนี้และรายได้เชื่อมกับ sales order และยอด outstanding ตรงกัน" },
+          { order: 9, actor: "treasury", action: "บันทึกรับชำระจากลูกค้า", href: `${base}/finance/invoices`, expected: "invoice เป็น paid และ payment allocation เหลือ outstanding ศูนย์" },
+        ],
+        actors: { salesOperator: input.actors.salesOperator, salesManager: input.actors.salesManager, warehouse: input.actors.warehouse, financePreparer: input.actors.financePreparer, financeApprover: input.actors.financeApprover, treasury: input.actors.treasury },
+      },
+      {
+        id: "finance-controlled-bank-payment",
+        title: "จ่ายเจ้าหนี้ด้วยการควบคุมสามบทบาทและหลักฐานธนาคาร",
+        sourceRecord: { type: "finance_invoice", id: input.controlledPaymentInvoiceId },
+        startingState: "A fictional THB 125 supplier invoice is posted, March 2027 is open, and one exact outgoing sandbox bank row is waiting to be matched",
+        steps: [
+          { order: 1, actor: "financePreparer", action: "เปิดใบแจ้งหนี้และเตรียม controlled payment", href: `${base}/finance/invoices/${input.controlledPaymentInvoiceId}`, expected: "สร้าง payment draft ที่ผูก supplier, amount และ bank control account" },
+          { order: 2, actor: "financeApprover", action: "ตรวจและอนุมัติ payment พร้อมหลักฐาน", href: `${base}/finance`, expected: "ผู้เตรียมอนุมัติรายการตัวเองไม่ได้" },
+          { order: 3, actor: "treasury", action: "release payment แล้วเลือก exact sandbox bank row เพื่อ confirm", href: `${base}/finance/bank`, expected: "ระบบ post GL, allocate invoice, settle payment และ match bank row ใน transaction เดียว" },
+          { order: 4, actor: "treasury", action: "reload payment และเปิด posted journal", href: `${base}/finance`, expected: "สถานะ settled, outstanding เป็นศูนย์ และหลักฐานยังอยู่หลัง reload" },
+        ],
+        actors: { financePreparer: input.actors.financePreparer, financeApprover: input.actors.financeApprover, treasury: input.actors.treasury },
+      },
+      {
+        id: "traceable-receipt-and-quality-release",
+        title: "รับสินค้าตาม Lot/Serial และกักกันเพื่อรอตรวจ",
+        sourceRecord: { type: "commerce_product", id: input.lotProductId },
+        startingState: "Lot-tracked medical supplies and serial-tracked service devices are active, with no stock balance until a real approved purchase receipt is recorded",
+        steps: [
+          { order: 1, actor: "buyer", action: "สร้างและส่ง PO สำหรับสินค้าที่ติดตามด้วย lot หรือ serial", href: `${base}/commerce?view=purchase&new=1`, expected: "ใบสั่งซื้อแสดงวิธีติดตามของสินค้าที่เลือก" },
+          { order: 2, actor: "purchasingManager", action: "อนุมัติ PO โดยอิสระ", href: `${base}/work?type=commerce_order&view=actions`, expected: "คลังได้รับ next action สำหรับการรับสินค้า" },
+          { order: 3, actor: "warehouse", action: "บันทึก lot/serial แยกรายการ และเลือกหนึ่ง lot เป็น Quarantine พร้อมเหตุผลและวันครบกำหนด", href: `${base}/commerce?view=purchase`, expected: "ยอด on hand เพิ่ม แต่ยอด quarantined ไม่รวมใน available และสร้างงาน Quality อัตโนมัติ" },
+          { order: 4, actor: "financePreparer", action: "ตรวจ stock movement และ GL จาก receipt เดียวกัน", href: `${base}/finance/ledger`, expected: "มูลค่ารวมของ lot ตรงกับ stock control total และ draft journal" },
+          { order: 5, actor: "warehouse", action: "ตรวจตำแหน่งสต็อก Available, Reserved, Quarantined และ In transit", href: `${base}/commerce?view=stock`, expected: "สถานะแต่ละประเภทแสดงแยกกันโดยไม่รวมซ้ำ" },
+          { order: 6, actor: "administrator", action: "เปิดคิว Quality เพื่อตรวจหลักฐาน lot/serial ที่กักกัน", href: `${base}/quality`, expected: "การตรวจและการปล่อยต้องเป็นคนละคนกับผู้สร้าง hold" },
+        ],
+        products: { lotTracked: input.lotProductId, serialTracked: input.serialProductId },
+        actors: input.actors,
+      },
+      {
+        id: "temporary-task-delegation",
+        title: "มอบหมายงานแทนชั่วคราว ถอนสิทธิ์ และตรวจรับงาน",
+        startingState: "Four independent demo colleagues are active; no task exists until the administrator creates it in the real Work interface.",
+        steps: [
+          { order: 1, actor: "administrator", action: "สร้างงานตรวจรับ Laptop ให้ employee และเลือก completion approver เป็น financeApprover จากนั้นส่งงาน", href: `${base}/work?new=task`, expected: "งานเป็น ready และผู้ตรวจรับเป็นคนละคนกับผู้สร้างและผู้รับผิดชอบ" },
+          { order: 2, actor: "administrator", action: "ใน Temporary delegation เลือก manager เป็นผู้ทำแทน กำหนดวันหมดอายุและเหตุผล", href: `${base}/staff-tasks`, expected: "หน้ารายละเอียดแสดงผู้รับงานแทน วันหมดอายุ และเหตุผลหลัง reload" },
+          { order: 3, actor: "manager", action: "เปิดงานที่ได้รับมอบหมาย เริ่มทำและบันทึกความคืบหน้า", href: `${base}/work`, expected: "บันทึกการตรวจรับบางส่วนไว้ให้เจ้าของงานรับช่วงต่อ" },
+          { order: 4, actor: "administrator", action: "ถอนการมอบหมายพร้อมระบุเหตุผล แล้วเปิด Delegation history", href: `${base}/staff-tasks`, expected: "เก็บผู้ถอน เวลา และเหตุผล; ผู้ทำแทนที่ไม่มีสิทธิ์อื่นอ่านงานนี้ต่อไม่ได้" },
+          { order: 5, actor: "employee", action: "ตรวจบันทึกเดิม ทำงานส่วนที่เหลือ และส่ง completion", href: `${base}/work`, expected: "ผู้รับผิดชอบเดิมรับงานต่อได้พร้อมหลักฐานการถอนสิทธิ์" },
+          { order: 6, actor: "financeApprover", action: "ตรวจและอนุมัติ completion โดยอิสระ", href: `${base}/work`, expected: "งาน completed และประวัติยังอยู่หลัง reload" },
+        ],
+        actors: { administrator: input.actors.administrator, employee: input.actors.employee, manager: input.actors.manager, financeApprover: input.actors.financeApprover },
+      },
+      ...(input.organizationReviewer ? [{
+        id: "reviewed-organization-setup",
+        title: "ตั้งสาขาและแผนกผ่านผู้ตรวจอิสระ พร้อมประวัติการเปลี่ยนแปลง",
+        startingState: "An administrator and a separate Company HR reviewer are active. Proposed units are not available for staff placement before approval.",
+        steps: [
+          { order: 1, actor: "administrator", action: "เปิด Propose a new branch or department เลือก Branch แล้ว Save draft", href: `${base}/people/organization`, expected: "Draft อยู่ในคิวและเปิดแก้ไขต่อได้หลัง reload โดยยังไม่สร้างสาขา" },
+          { order: 2, actor: "administrator", action: "เปิด Correct and resubmit แล้ว Submit for review", href: `${base}/people/organization`, expected: "สถานะ awaiting review และผู้ขออนุมัติเองไม่ได้" },
+          { order: 3, actor: "reviewer", action: "เปิด Work → Organization changes เลือกคำขอ แล้วส่งกลับพร้อมเหตุผลให้ปรับชื่อหรือขอบเขตสาขา", href: `${base}/work?type=organization_change&view=actions`, expected: "ผู้ขอได้รับแจ้งเตือนพร้อมลิงก์กลับคำขอเดิม" },
+          { order: 4, actor: "administrator", action: "เปิด Inbox → Updates แล้วกดคำขอที่ส่งกลับ แก้ไขและส่งใหม่", href: `${base}/inbox?tab=updates`, expected: "ลิงก์เปิดตรงคำขอแม้สถานะเปลี่ยน เก็บประวัติ draft, submit และ rejection ครบ" },
+          { order: 5, actor: "reviewer", action: "Approve and apply จากนั้นตรวจ Change status = Applied", href: `${base}/people/organization`, expected: "สร้างสาขาและช่องสนทนาองค์กรพร้อมกัน; Decision history ระบุผู้ตัดสินใจและเหตุผล" },
+          { order: 6, actor: "administrator", action: "เสนอแผนกใต้สาขาใหม่ และให้ reviewer อนุมัติ", href: `${base}/people/organization`, expected: "แผนกอยู่ใต้สาขาที่เลือกเท่านั้น" },
+          { order: 7, actor: "reviewer", action: "ทดลองอนุมัติการระงับสาขาที่ยังมีแผนก active", href: `${base}/people/organization`, expected: "ระบบแสดง dependency ที่ต้องย้ายหรือปิดก่อน และสาขายัง active" },
+          { order: 8, actor: "administrator", action: "ยกเลิกคำขอที่ติด dependency แล้วเสนอระงับแผนกก่อนสาขา ให้ reviewer ตรวจแต่ละขั้น และทดลอง reactivate สาขาก่อนแผนก", href: `${base}/people/organization`, expected: "การระงับและเปิดใหม่เก็บ revision และประวัติครบ ค้นหาได้ด้วยตัวกรอง All requests" },
+        ],
+        actors: { administrator: input.actors.administrator, reviewer: input.organizationReviewer },
+      }] : []),
+      ...(input.sourceWarehouseId && input.targetWarehouseId && input.movementProductId && input.actors.sourceWarehouse
+        ? [{
+            id: "inventory-staged-transfer-and-partial-receipt",
+            title: "โอนสต็อกระหว่างคลัง รับของบางส่วน และปิดยอดขนส่ง",
+            sourceRecord: { type: "inventory_transfer", id: `demo-transit-${input.run}` },
+            startingState: "Demo Company has 3 fictional SIM-ITEM units in the source warehouse and an empty receiving warehouse; the scenario uses disposable isolated storage.",
+            steps: [
+              { order: 1, actor: "sourceWarehouse", action: "สร้าง staged warehouse transfer จำนวน 3 หน่วย พร้อมวันถึงและเหตุผล", href: `${base}/stock-transfers?new=1`, expected: "เอกสาร draft เก็บ source, target, quantity และมูลค่าต้นทุนไว้" },
+              { order: 2, actor: "sourceWarehouse", action: "ส่ง transfer ให้ผู้ตรวจอิสระ", href: `${base}/stock-transfers`, expected: "เอกสารเปลี่ยนเป็น submitted และผู้จัดทำอนุมัติเองไม่ได้" },
+              { order: 3, actor: "warehouse", action: "ตรวจเส้นทางและอนุมัติ transport", href: `${base}/work?type=transfer&view=actions`, expected: "เอกสารเปลี่ยนเป็น approved for dispatch โดยมี decision evidence" },
+              { order: 4, actor: "sourceWarehouse", action: "บันทึก dispatch tracking และหลักฐาน carrier", href: `${base}/stock-transit`, expected: "สต็อกออกจาก source ไปอยู่ใน in-transit โดยยังคงมูลค่าเดิม" },
+              { order: 5, actor: "warehouse", action: "รับเข้าปลายทาง 1 หน่วย แล้ว reload และรับอีก 2 หน่วย", href: `${base}/stock-transit`, expected: "partial receipt แสดง 1/3 และเมื่อจบแสดง completed, received 3, lost 0 พร้อม stock ปลายทาง 3 หน่วย" },
+            ],
+            warehouses: { source: input.sourceWarehouseId, target: input.targetWarehouseId },
+            productId: input.movementProductId,
+            actors: { sourceWarehouse: input.actors.sourceWarehouse, warehouse: input.actors.warehouse },
+          }]
+        : []),
+    ],
+  } as const;
+}

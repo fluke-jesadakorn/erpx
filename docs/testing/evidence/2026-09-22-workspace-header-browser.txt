@@ -1,0 +1,34 @@
+ERPX shared workspace header: usable narrow-screen context and controls
+Observed: 2026-09-22 (Asia/Bangkok)
+Environment: isolated Demo dda6158fd76f plus read-only public verification.
+
+Delivered
+- At widths up to 1000px, workspace/brand, search and active-role controls occupy the first header row; breadcrumb/current-page context occupies a separate second row.
+- Compact breadcrumb text can shrink and truncate within its own row. The overflow path control is 44px wide, retaining ancestor navigation and Escape focus restoration.
+- Loading the workspace chooser uses a disabled trigger with the same layout instead of an unconstrained text fallback.
+- Shared focus scroll margins and organization/chart anchors adapt to the taller header so linked records remain visible.
+- Branch/department labels resolve the authorized current Company name from its organization node when the Company list is absent. The Holding name is no longer presented as the Company name in scoped workspaces.
+
+Browser verification
+ERPX_DEMO_RUN=dda6158fd76f ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-workspace-header.spec.ts --project=desktop --project=mobile
+Result: 2 passed, 14.1s (desktop 7.4s, mobile 5.7s).
+Each project checks light/dark themes at 320, 393, 650, 651, 768, 1000, 1001, 1100 and 1440 CSS pixels: 18 viewport/theme cases per project, 36 total.
+Geometry checks prove visible context stays inside the header, interactive controls are at least 44x44 CSS pixels, their centers are hit-testable and their rectangles do not overlap.
+A fictional HR user opens/dismisses the breadcrumb with keyboard focus return; finds Organization through Search; switches to Branch and back to Company; selects Treasury then HR through the actual role picker; reloads to confirm the selected role; opens the exact organization queue anchor below the sticky header.
+Role/workspace preference changes use normal application APIs through the UI. No business transactions, production identities or permission grants are created by the scenario.
+
+Test development findings
+The first run passed viewport measurements but expected an incomplete branch label, revealing that scoped headers fell back to the Holding name. The implementation now resolves the Company name. A subsequent fixture-name expectation was corrected from 'company' to the actual fixture label 'Isolated browser simulation'. Both final complete scenarios passed.
+
+Evidence
+2026-09-22-workspace-header-browser-records.json retains project durations, viewport geometry, hit-test/overlap results and completed interaction checks. Account labels are replaced with a fictional-user placeholder. Screenshots from the browser run were inspected in light/dark mobile form; representative images remain under ignored .scratch/dev/workspace-header-{light,dark}-320.png.
+Typecheck and scoped ESLint passed. git diff --check passed.
+
+Public verification
+https://erpx.jesadakorn.com/holdings/acme/people/organization
+An existing authenticated session rendered the corrected header at 320, 393 and 768px; breadcrumb and Account switcher opened and Escape returned focus. Full page context and active role remain available. The public account role/workspace were not changed. An initial browser cached stylesheet was refreshed to verify the current served CSS; public asset response was HTTP 200, private/no-cache, Cloudflare BYPASS.
+A final public recheck encountered a transient Better Auth session database connection timeout (reference 3914836991). Server logs identified the connection timeout; using the real Try again control restored Organization and its desktop header. No performance/runtime configuration was changed; this does not certify that the underlying timeout cannot recur.
+Local and public /api/health returned HTTP 200. The existing pinned Node development process on 3100 was preserved; production 3101 and the Tunnel origin were not changed.
+
+Limits
+This resolves the reported shared header overlap and scoped Company-label defect. It does not establish accessibility or responsive acceptance for every page, Company business acceptance, external-provider readiness or the entire Release 1–4 goal.

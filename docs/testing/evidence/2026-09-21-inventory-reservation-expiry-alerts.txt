@@ -1,0 +1,36 @@
+ERPX Release 1 Inventory — shared reservation expiry escalation
+Observed: 2026-09-21 Asia/Bangkok
+Environment: isolated PostgreSQL integration databases and authenticated public development UI
+
+Delivered behavior
+- Sales, POS, Field Service and Manufacturing remain on the shared inventory_active_reservations availability control.
+- The scheduled jobs loop scans outstanding Sales, Field Service and Manufacturing reservations.
+- Responsible source creators, reservation creators and assigned field technicians receive a durable Inbox notification within 24 hours of expiry.
+- They receive a second notification when the reservation has expired and no longer protects available stock.
+- Notification identifiers include source kind, reservation, expiry phase and recipient, making repeated worker runs idempotent.
+- Fully consumed/released reservations and terminal source records do not generate alerts.
+- Each notification is authority-checked when read and links to its Sales order, Field Service order or Manufacturing order.
+
+Regression command
+$ bun run test -- tests/stock-reservations.test.ts tests/field-service.test.ts tests/production.test.ts tests/pos.test.ts tests/ecommerce.test.ts tests/inventory-lot-serial.test.ts tests/recovery-simulation.test.ts
+
+Result
+Test Files  7 passed (7)
+Tests       46 passed (46)
+Duration    158.35s
+
+Additional verification
+- bun run typecheck: passed
+- scoped ESLint for alert service, jobs integration, authority-filtered Inbox reader and changed tests: passed with no output
+- Authenticated public browser opened https://erpx.jesadakorn.com/holdings/acme/inbox?tab=updates and rendered unread/all notification lists with actionable source links. No synthetic reservation alert was written to the shared Acme workspace.
+
+Covered cases
+- Sales owner receives one warning, a repeated scan inserts nothing, and an expired reservation produces exactly one new source alert.
+- Field Service owner and assigned technician both receive warnings; a fully released part reservation does not produce an expiry alert.
+- Manufacturing owner receives warning and expired phases; repeated scans remain empty.
+- Existing POS, E-commerce, lot/serial availability and backup/restore behavior remains green.
+
+Limitations
+- Automated integration establishes the multi-source lifecycle; no complete independent multi-role browser reservation transaction or business-owner sign-off.
+- POS reservations are transaction-session reservations without a time-based expiry field and remain governed by their existing sale lifecycle.
+- This is development/simulation evidence, not production acceptance.

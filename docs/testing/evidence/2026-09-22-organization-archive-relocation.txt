@@ -1,0 +1,20 @@
+ERPX organization archive and relocation evidence — 2026-09-22
+
+Command
+- `bun run test -- tests/organization.test.ts`
+- Result: 1 file passed, 14 tests passed.
+
+Verified behavior
+- A Company HR requester submits a department relocation to another active branch and an independent reviewer applies it.
+- Route history stays immutable: relocation creates a new active department node at the destination and archives the original node instead of rewriting its parent route.
+- Active staff engagements, employee branch/department placement, active positions and department-scoped assignments move to the new node in the same command transaction.
+- Archiving an empty department succeeds, retains the node and revision history, and removes it from active placement; an independent reviewed reactivation restores it.
+- Suspension and archive continue to block when active child units, staff, positions, assignments or warehouses remain.
+- Stale hierarchy versions, Company authority, independent-person review, idempotency and immutable change-event history remain enforced.
+
+Quality gates
+- `bun run typecheck` passed.
+- Scoped ESLint for organization service, types, UI and tests passed.
+- `git diff --check` passed.
+
+This is automated simulation evidence, not Company owner, provider or production acceptance. External integrations and full downstream relocation policy remain separate gates.

@@ -2,7 +2,7 @@ import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { pmsWorkspace } from "@/server/pms";
 import { PmsWorkspaceView } from "@/components/pms/workspace";
-import { pmsSections } from "@/lib/pms";
+import { pmsSections } from "@/lib/pms-model";
 import { pageError } from "@/server/page-error";
 import { notFound } from "next/navigation";
 export const dynamic = "force-dynamic";

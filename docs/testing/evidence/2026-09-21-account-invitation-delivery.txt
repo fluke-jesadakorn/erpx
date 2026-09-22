@@ -1,0 +1,38 @@
+ERPX Release 1 Identity & Access — reviewed invitation delivery
+Observed: 2026-09-21 Asia/Bangkok
+
+Implementation
+- migrations/postgres/control/0012_account_invitation_delivery.sql creates the durable delivery queue, lease, attempts, provider/error evidence and terminal states.
+- migrations/postgres/control/0013_account_invitation_delivery_backfill.sql enrolls pre-existing pending invitations without changing accepted or revoked records.
+- src/server/account-access.ts creates delivery work with the invitation, cancels superseded work, and exposes fresh-MFA audited retry/revoke owner commands.
+- src/server/account-invitation-delivery.ts waits for the independent invitation.authorize review, derives the activation token without storing it in plaintext, claims work with a lease and provider idempotency key, and applies bounded retry or cancellation.
+- src/server/runtime/jobs.ts runs promotion and delivery through the existing directory worker pulse.
+- Reviews & audit shows invitation state, attempts, errors, sent time, retry and revoke controls. The employee profile describes reviewed email delivery instead of presenting manual link sharing as the primary workflow.
+
+Automated verification
+$ bun run test -- tests/account-invitation-delivery.test.ts tests/iam.test.ts tests/user-management.test.ts
+Test Files 3 passed (3)
+Tests 34 passed (34)
+
+Focused behavior
+- No email is sent while independent approval is absent.
+- Approved work sends exactly one activation URL whose token hash matches the stored invitation evidence.
+- Rejected and expired invitations cancel before provider delivery.
+- A sixth provider failure enters an explicit failed state with a future retry timestamp.
+- IAM and User Management regressions remain green.
+
+Static and migration verification
+- bun run typecheck: passed.
+- Scoped ESLint for invitation service, worker, UI and test: passed with zero warnings.
+- bun run db:migrate:local: passed for all six local databases, including control migrations 0012 and 0013.
+
+Authenticated public UI observation
+- URL: https://erpx.jesadakorn.com/holdings/acme/people/settings?section=reviews
+- Authenticated holding-owner session rendered Reviews & audit and the reachable Activation invitations widget.
+- Empty state read “No activation invitations yet.”, matching current Acme records.
+- No synthetic invitation was created and no email was sent during public observation.
+
+Limits
+- No live Resend delivery was attempted in this run.
+- No independent two-session public invite, approval and activation transaction was performed.
+- Account recovery and company business acceptance remain pending.

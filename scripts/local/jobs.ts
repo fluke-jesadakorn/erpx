@@ -1,5 +1,5 @@
 import { getRuntime, closeRuntime } from '../../src/server/runtime/env';
-import { activeSlots, maintenance, runOne, scheduledWork, expenseAiWork, directoryWork, billingWork, pmsWork, posQueueWork, legalWork, supportWork } from '../../src/server/runtime/jobs';
+import { activeSlots, maintenance, runOne, scheduledWork, expenseAiWork, directoryWork, billingWork, pmsWork, posQueueWork, legalWork, supportWork,customerNotificationWork } from '../../src/server/runtime/jobs';
 
 let stopping=false;
 for(const signal of ['SIGINT','SIGTERM'] as const) process.on(signal,()=>{stopping=true;});
@@ -11,6 +11,8 @@ async function heartbeat() {
 }
 let supportRunning:Promise<void>|null=null;
 const supportPulse=setInterval(()=>{if(stopping||supportRunning)return;supportRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await supportWork(env)})().catch(()=>console.error('{"event":"support_sla_iteration_failed"}')).finally(()=>{supportRunning=null})},30000);
+let customerNotificationRunning:Promise<void>|null=null;
+const customerNotificationPulse=setInterval(()=>{if(stopping||customerNotificationRunning)return;customerNotificationRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await customerNotificationWork(env)})().catch(()=>console.error('{"event":"customer_notification_iteration_failed"}')).finally(()=>{customerNotificationRunning=null})},3000);
 let legalRunning:Promise<void>|null=null;
 const legalPulse=setInterval(()=>{if(stopping||legalRunning)return;legalRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await legalWork(env)})().catch(()=>console.error('{"event":"legal_iteration_failed"}')).finally(()=>{legalRunning=null})},5000);
 let posRunning: Promise<void> | null = null;
@@ -60,4 +62,4 @@ try {
     } catch(error) {console.error(JSON.stringify({event:'jobs_iteration_failed',code:error instanceof Error?error.name:'UnknownError'}));}
     if(!stopping)await new Promise(resolve=>setTimeout(resolve,1000));
   }
-} finally {clearInterval(supportPulse);await supportRunning;clearInterval(legalPulse);await legalRunning;clearInterval(pmsPulse);await pmsRunning;clearInterval(posPulse);await posRunning;clearInterval(billingPulse);await billingRunning;clearInterval(directoryPulse);clearInterval(aiPulse);clearInterval(pulse);await directoryRunning;await aiRunning;await closeRuntime();}
+} finally {clearInterval(supportPulse);await supportRunning;clearInterval(customerNotificationPulse);await customerNotificationRunning;clearInterval(legalPulse);await legalRunning;clearInterval(pmsPulse);await pmsRunning;clearInterval(posPulse);await posRunning;clearInterval(billingPulse);await billingRunning;clearInterval(directoryPulse);clearInterval(aiPulse);clearInterval(pulse);await directoryRunning;await aiRunning;await closeRuntime();}

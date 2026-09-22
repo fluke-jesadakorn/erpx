@@ -1,6 +1,7 @@
 import { beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "./runtime-env";
 import { expenseDb as db,expenseFixture,key } from "./helpers/expense-fixture";
+import { deliveryEvidence } from "./helpers/delivery-evidence";
 import { assignFlowPrimary,resolveFlow } from "../src/server/flow-routing";
 import { postInvoice,postJournal } from "../src/server/finance";
 import { completeCommerceReturn,decideCommerceReturn,fulfillOrder,getOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,saveMaster,saveOrder,transitionOrder } from "../src/server/commerce";
@@ -48,7 +49,7 @@ async function paidReturn(kind:'sales'|'purchase',paid='15',taxBps=0) {
   await transitionOrder(f.head,orderId,{action:'approve',expectedVersion:2},key());
   await assign('order',orderId,'stock_gl',f.manager.userId);
   let details=await getOrder(f.owner,orderId);
-  const fulfillment=await fulfillOrder(f.owner,orderId,{expectedVersion:3,date:'2026-09-02',lines:[{lineId:String(details.lines[0].id),quantity:'2'}]},key());
+  const fulfillment=await fulfillOrder(f.owner,orderId,{expectedVersion:3,date:'2026-09-02',lines:[{lineId:String(details.lines[0].id),quantity:'2'}],...(kind==='sales'?await deliveryEvidence(db,f.owner,orderId):{})},key());
   const goodsJournal=String(await db.prepare('SELECT journal_id FROM commerce_fulfillments WHERE id=?').bind(fulfillment.fulfillmentId).first('journal_id'));
   await assign('journal',goodsJournal,'draft',f.manager.userId);await postJournal(f.manager,goodsJournal,key(),{expectedVersion:1});
   await assign('order',orderId,'invoicing',f.owner.userId);
@@ -59,7 +60,7 @@ async function paidReturn(kind:'sales'|'purchase',paid='15',taxBps=0) {
   await assign('invoice',invoiceId,'posted',f.payer.userId);
   const settlement=await settleInvoice(f.payer,invoiceId,{expectedVersion:2,date:'2026-09-03',amount:paid,reference:'Simulated original bank payment',...(kind==='purchase'?{paymentSlipId:await f.attach(invoiceId,'invoice_payment')}:{})},key());
   details=await getOrder(f.owner,orderId);
-  const requestKey=key(),input={expectedVersion:2,date:'2026-09-04',reason:'Customer or supplier accepted the whole return',lines:[{lineId:String(details.fulfillmentLines[0].id),quantity:'2'}]};
+  const requestKey=key(),input={expectedVersion:2,date:'2026-09-04',reason:'Customer or supplier accepted the whole return',lines:[{lineId:String(details.fulfillmentLines[0].id),quantity:'2',...(kind==='sales'?{condition:'unknown' as const,conditionNote:'Returned units require independent Quality inspection',qualityDueDate:'2026-09-05'}:{})}]};
   const requested=await requestCommerceReturn(f.owner,String(fulfillment.fulfillmentId),input,requestKey);
   expect(await requestCommerceReturn(f.owner,String(fulfillment.fulfillmentId),input,requestKey)).toEqual(requested);
   await expect(requestCommerceReturn(f.owner,'different-source',input,requestKey)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
@@ -82,6 +83,16 @@ async function paidReturn(kind:'sales'|'purchase',paid='15',taxBps=0) {
   expect(await db.prepare('SELECT COUNT(*) n FROM finance_refund_obligations WHERE return_id=?').bind(requested.id).first('n')).toBe(1);
   expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse.id,product.id).first()).toEqual(kind==='sales'?{quantity_milli:2000,value_minor:1200}:{quantity_milli:0,value_minor:0});
   if(kind==='sales'){
+    expect(await db.prepare("SELECT status,source_type,source_id,held_quantity_milli,quantity_scope FROM inventory_quality_holds WHERE company_id=? AND source_type='customer_return' AND source_id=?").bind(f.company,`${requested.id}-0`).first()).toEqual({status:'held',source_type:'customer_return',source_id:`${requested.id}-0`,held_quantity_milli:2000,quantity_scope:'partial'});
+    expect(await db.prepare('SELECT inventory_quarantined_quantity(?,?) quantity').bind(warehouse.id,product.id).first('quantity')).toBe(2000);
+    await expect(db.prepare('UPDATE commerce_return_lines SET condition_note=? WHERE return_id=?').bind('Rewrite condition',requested.id).run()).rejects.toThrow('RETURN_QUALITY_EVIDENCE_IMMUTABLE');
+    const holdId=String(await db.prepare("SELECT id FROM inventory_quality_holds WHERE source_type='customer_return' AND source_id=?").bind(`${requested.id}-0`).first('id'));
+    const {inspectQualityHold,releaseQualityHold}=await import('../src/server/quality');
+    await inspectQualityHold(f.owner,holdId,{expectedVersion:1,result:'pass',evidence:'Packaging and functional check passed after customer return',measurements:[],attachmentIds:[]},key());
+    f.tie.role='quality_manager';f.tie.assignmentId=await f.grant(f.tie,'quality_manager');
+    await releaseQualityHold(f.tie,holdId,{expectedVersion:2,reason:'Independent review confirms the returned units are resalable'},key());
+    expect(await db.prepare('SELECT inventory_quarantined_quantity(?,?) quantity').bind(warehouse.id,product.id).first('quantity')).toBe(0);
+    expect((await getOrder(f.owner,orderId)).returnQualityHolds[0]).toMatchObject({id:holdId,status:'released',condition_code:'unknown'});
     const {customerTimeline}=await import('../src/server/customer-timeline');
     const timeline=await customerTimeline(f.owner,String(party.id));
     expect(timeline.items.find(e=>e.source_type==='fulfillment')).toMatchObject({source_id:String(fulfillment.fulfillmentId),href:`/commerce/orders/${orderId}`});

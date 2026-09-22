@@ -1,0 +1,25 @@
+Receiver-selected lot/serial transit verification
+
+Command:
+bun --env-file=.env.local run test:integration tests/inventory-lot-serial.test.ts tests/inventory-transit.test.ts
+
+Result:
+- Test files: 2 passed
+- Tests: 12 passed
+- Duration: 34.85s
+
+Key assertion:
+- ROAD-B was selected and received before ROAD-A.
+- The destination lot balance contained ROAD-B, proving partial receipt did not consume lots FIFO.
+- ROAD-A was selected separately for the loss proposal and independently approved by Finance.
+- Existing untracked dispatch, receipt, loss, idempotency, concurrency, period and scope tests passed.
+
+Additional checks:
+- bun run typecheck: passed
+- bun run lint: passed with 0 errors and 3 pre-existing warnings
+- bun run deploy:build: passed
+- release: .runtime/releases/2026-09-21T08-38-09-867Z
+
+Authenticated public observation:
+- https://erpx.jesadakorn.com/holdings/acme/stock-transit loaded successfully.
+- The development company had no active staged transport, so the selection form was not transaction-tested in that browser session.

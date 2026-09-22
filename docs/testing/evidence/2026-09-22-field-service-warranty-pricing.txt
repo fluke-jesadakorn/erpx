@@ -1,0 +1,14 @@
+# Field Service warranty pricing — 2026-09-22
+
+## Automated evidence
+
+- `bun run test -- tests/field-service.test.ts` — 5 tests passed.
+- An approved agreement stores an immutable `warranty_discount_bps` policy. A service order linked to an asset whose `warranty_end` is `2099-12-31` completed through customer confirmation and independent billing release.
+- Visit rate `150000` with `5000` basis points produced a `75000` billing release and a linked draft Finance receivable with the same `total_minor` and `outstanding_minor`.
+- The release records `warranty_applied=true`, `warranty_discount_bps=5000`, `warranty_end_snapshot=2099-12-31` and the server pricing date; pricing is calculated from the server-side asset warranty date and cannot be supplied by the technician or browser.
+- The existing non-warranty service-order test still produces the full `150000` amount, preserving the chargeable path.
+- The same test posts the generated draft through the normal independent Finance invoice workflow; the source-linked invoice reaches `posted` with its journal reference.
+
+## Remaining acceptance gates
+
+Finance posting/collection, travel and labor costing, evidence-byte uploads, customer Portal, Calendar, multi-role browser evidence, provider and business acceptance remain separate gates.

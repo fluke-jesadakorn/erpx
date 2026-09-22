@@ -1,0 +1,21 @@
+ERPX Sales -> Collection browser acceptance
+Date: 2026-09-22 (Asia/Bangkok)
+Environment: isolated browser simulation (disposable PostgreSQL, local sandbox adapters)
+Run: 7216c4a30af1
+Command: ERPX_DEMO_RUN=7216c4a30af1 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-sales-to-collection.spec.ts --project=desktop
+Result: 1 passed (1 test, 38.4s)
+
+Independent role contexts completed the actual interface workflow:
+- sales_operator submitted the quotation
+- sales_manager approved the quotation
+- sales_operator converted it to a sales order and submitted it
+- sales_manager approved the sales order
+- warehouse_manager uploaded valid PDF proof of delivery, entered a confirmation note, and recorded one delivered SIM-ITEM
+- finance_approver reviewed and posted the goods movement journal
+- finance_preparer prepared the customer invoice for GL review
+- finance_approver posted the customer invoice
+- treasury recorded the customer receipt
+
+After reload, the invoice showed paid and THB 0.00 outstanding. The final authenticated invoice API read matched status=paid and outstanding_minor=0. The PDF upload and delivery confirmation were retained on the order evidence timeline.
+
+This is browser and isolated-demo evidence only. Live email/payment providers, statutory/tax validation, production operations, independent business sign-off, and company-level acceptance remain separate gates. The demo run was destroyed after verification.

@@ -21,6 +21,11 @@ import {
   revokeIamAssignment,
   decideIamReview,
   reviewInput,
+  accessReviewCampaignInput,
+  accessReviewDecisionInput,
+  startAccessReviewCampaign,
+  decideAccessReviewItem,
+  cancelAccessReviewCampaign,
 } from "./iam-service";
 import {
   saveConnection,
@@ -266,6 +271,9 @@ export async function iamApi(
       result = await saveIamRole(db, actor, roleInput.parse(input), key);
     else if (route === "assignments")
       result = await grantIamAccess(db, actor, grantInput.parse(input), key);
+    else if(route==="access-reviews")result=await startAccessReviewCampaign(db,actor,accessReviewCampaignInput.parse(input),key);
+    else if(path[0]==="access-review-items"&&path[2]==="decide")result=await decideAccessReviewItem(db,actor,path[1],accessReviewDecisionInput.parse(input),key);
+    else if(path[0]==="access-reviews"&&path[2]==="cancel"){const v=versionInput.parse(input);result=await cancelAccessReviewCampaign(db,actor,path[1],v.expectedVersion,v.reason,key);}
     else if (path[0] === "assignments" && path[2] === "revoke") {
       const v = versionInput.parse(input);
       result = await revokeIamAssignment(

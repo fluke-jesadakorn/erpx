@@ -1,0 +1,19 @@
+ERPX Finance receivables/payables aging browser evidence
+=========================================================
+
+Date: 2026-09-22 (Asia/Bangkok)
+Environment: isolated Demo Company run 838ddc6c52d3
+Origin: http://127.0.0.1:3102
+Command:
+  ERPX_DEMO_RUN=838ddc6c52d3 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bun run test:e2e:local tests/e2e/demo-finance-aging.spec.ts --project=desktop
+
+Result: 1 passed (3.6s)
+
+Observed through the authenticated Finance reviewer interface:
+- /holdings/simulation/finance/invoices?kind=receivable&queue=open rendered both “Receivables aging” and “Payables aging” sections.
+- Receivables showed the live current bucket, THB, one open document, THB 300.00 outstanding, and the oldest due date.
+- Payables showed the live current bucket, THB, two open documents, THB 325.00 outstanding, and the oldest due date.
+- Each summary linked to its filtered open-document queue.
+- The authenticated API check /api/v1/holdings/simulation/finance/aging?kind=receivable&asOf=2026-09-22 returned the same current THB 300.00 obligation.
+
+This is browser evidence for the Finance receivables/aging surface in the isolated demo. It is not a production or Company business sign-off; provider, operational and full close acceptance remain separately gated.

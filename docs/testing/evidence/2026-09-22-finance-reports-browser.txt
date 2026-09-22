@@ -1,0 +1,19 @@
+ERPX Finance Reports source-trace browser acceptance
+Date: 2026-09-22 (Asia/Bangkok)
+Environment: isolated Demo Company browser simulation (run 86e60175f9c0; destroyed after verification)
+Gate: browser
+
+Command:
+ERPX_DEMO_RUN=86e60175f9c0 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-finance-reports.spec.ts --project=desktop
+
+Result:
+1 passed (16.5s)
+
+Observed through the authenticated Finance approver interface:
+- The protected charts, statements and trial-balance APIs returned successfully for the selected chart.
+- Statement trial-balance row count matched the dedicated trial-balance API response.
+- The Reports page rendered the live balance-sheet total and trial-balance table.
+- All five report totals exposed a Trace journal entries link preserving the selected chart.
+- Open Accounting preserved the same chart and journal-entry anchor.
+
+This is isolated simulation evidence. It does not establish provider, production, statutory, period-close or Company business acceptance.

@@ -1,0 +1,26 @@
+ERPX Payroll Advance implementation evidence
+Observed: 2026-09-21 (Asia/Bangkok)
+
+Automated command:
+  bun run test -- tests/payroll-core.test.ts
+  Test Files  1 passed (1)
+  Tests       4 passed (4)
+
+Coverage:
+  - employee self-request and Company Payroll preparation authorization
+  - independent approver requirement and self-review rejection
+  - exact 1–24 installment schedule with distributed minor-unit amounts
+  - immutable advance event history
+  - current-authority notification target
+  - payroll calculation deduction and input snapshot for the due repayment
+  - versioned/idempotent command paths and stale schedule assertions
+
+Build:
+  bun run deploy:build
+  release: .runtime/releases/2026-09-21T16-44-58-411Z
+  server.js sha256: 83ae8a7a43bf52180457ec7579902cfa9dadc3e9098626f8dbe4f88207f626e9
+
+Limitations:
+  - No statutory country adapter, tax filing, bank payment, or production payroll posting.
+  - No independent public multi-role transaction was submitted to the Acme demo company.
+  - Company business acceptance remains pending.

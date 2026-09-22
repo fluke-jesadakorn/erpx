@@ -1,0 +1,14 @@
+ERPX expense workflow browser acceptance
+Date: 2026-09-22 (Asia/Bangkok)
+Command: bun --conditions=react-server scripts/verify-expense-workflows.ts
+Environment: local PostgreSQL-backed development service on http://localhost:3100; isolated company from scripts/seed-expense-e2e.ts; Playwright desktop Chromium
+
+Result: 4 passed, 0 failed, 0 skipped
+
+Cases:
+- Incomplete member claim retains its draft across reload and links to People setup.
+- Claimant submission, department review, Accounts preparation/approval, GL posting, and two independent slip-backed payments complete and reconcile to reimbursed.
+- IT can save a masked custom AI provider draft while an employee receives access denied; mobile controls meet the 44px minimum.
+- Controlled AI receipt suggestions fill blank fields, preserve manual edits, and require explicit replacement after source changes.
+
+The isolated browser fixture installs six numbered staff levels, explicit organization positions, and reporting lines before creating accounts. This exercises the same organization prerequisites enforced by the real expense route. No real company data, provider, bank, or payment service is used.

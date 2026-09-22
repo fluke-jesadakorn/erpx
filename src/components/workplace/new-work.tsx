@@ -39,7 +39,7 @@ export function NewWork({
       </button>
       <Dialog title="New work" open={open} onClose={() => setOpen(false)}>
         <div className="action-menu">
-          {[false,true].map(operations => <section key={String(operations)}><h2>{operations ? "Operations" : "Personal work & requests"}</h2>{creation.filter(item => ["stock_count","transfer"].includes(item.kind) === operations).map(item => <Link key={item.kind} href={newWorkHref(base,item,current)} onClick={() => setOpen(false)}><strong>{descriptions[item.kind]?.[0] ?? item.label}</strong><small>{descriptions[item.kind]?.[1]}</small></Link>)}</section>)}
+          {[false,true].map(operations => <section key={String(operations)}><h2>{operations ? "Operations" : "Personal work & requests"}</h2>{creation.filter(item => ["stock_count","transfer"].includes(item.kind) === operations).map(item => <Link key={item.kind} aria-label={item.kind === "expense" ? "Expense claim" : item.label} href={newWorkHref(base,item,current)} onClick={() => setOpen(false)}><strong>{descriptions[item.kind]?.[0] ?? item.label}</strong><small>{descriptions[item.kind]?.[1]}</small></Link>)}</section>)}
         </div>
       </Dialog>
     </>

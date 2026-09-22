@@ -36,6 +36,7 @@ export const categoryLabel = (id: string) =>
 export type RequestItem = {
   description: string;
   quantity: string;
+  unit?: string;
   estimatedCost: string;
 };
 export type RequestFields = {

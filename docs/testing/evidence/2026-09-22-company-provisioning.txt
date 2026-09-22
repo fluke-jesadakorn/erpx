@@ -1,0 +1,26 @@
+ERPX Company provisioning evidence — 2026-09-22
+
+Scope
+- Initial Company provisioning through the real beta onboarding service.
+- Holding graph and control-plane slot are isolated per reserved resource.
+- The holding receipt is the recovery boundary before the control binding becomes active.
+
+Command
+- `bun run test -- tests/social-beta.test.ts`
+- Result: 1 file passed, 30 tests passed.
+
+Verified behavior
+- An injected holding write failure leaves the control slot in `provisioning` and does not publish an active binding.
+- A retry creates one Company, one branch and one default department in the reserved Holding.
+- The same transaction installs six numbered staff levels (1–6), one active CEO position, the owner engagement placement and the beta policy.
+- `company_provisioning` records `provisioning → active`, version 2, and immutable `started` and `completed` events with the minimum graph counts.
+- Control activation is performed only after the active Holding receipt exists, so a later control-plane retry does not rebuild the graph.
+- A second onboarding call returns the original active result without creating duplicate access or provisioning events.
+- Two active resource slots remain isolated and the third account is waitlisted.
+
+Quality gates
+- `bun run typecheck` passed.
+- Scoped ESLint for `src/server/beta-onboarding.ts` and `tests/social-beta.test.ts` passed.
+- `git diff --check` passed.
+
+This is automated simulation evidence, not Company owner, provider or production acceptance. Archive/relocation remains open in the capability register.

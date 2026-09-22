@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
+import { minorToDecimal } from "@/lib/finance-money";
 import type {
   fieldServiceDetail,
   fieldServiceWorkspace,
@@ -99,6 +100,21 @@ export function FieldServiceConsole({
   return (
     <>
       {error && <p role="alert">{error}</p>}
+      {detail?.billing && (
+        <section className="card" aria-label="Billing handoff">
+          <h2>Billing handoff</h2>
+          <p>
+            Finance obligation: {String(detail.billing.currency)} {minorToDecimal(Number(detail.billing.amount_minor))} · {String(detail.billing.status)}
+          </p>
+          {Boolean(Number(detail.billing.warranty_applied) === 1 || String(detail.billing.warranty_applied) === "true") ? (
+            <p className="muted">
+              Warranty pricing applied: {Number(detail.billing.warranty_discount_bps) / 100}% discount; coverage through {String(detail.billing.warranty_end_snapshot)} (calculated {String(detail.billing.pricing_date)}).
+            </p>
+          ) : (
+            <p className="muted">Chargeable visit rate used; no active warranty discount was applied.</p>
+          )}
+        </section>
+      )}
       {data?.canWrite && (
         <>
           <form
@@ -112,6 +128,7 @@ export function FieldServiceConsole({
                 departmentId: f.departmentId || null,
                 assetId: f.assetId || null,
                 visitRateMinor: Number(f.visitRateMinor),
+                warrantyDiscountBps: Math.round(Number(f.warrantyDiscountPercent) * 100),
               });
             }}
           >
@@ -188,6 +205,11 @@ export function FieldServiceConsole({
             <label>
               Visit rate (minor units)
               <input name="visitRateMinor" type="number" min="0" required />
+            </label>
+            <label>
+              Warranty discount (%)
+              <input name="warrantyDiscountPercent" type="number" min="0" max="100" step="1" defaultValue="0" required />
+              <small className="muted">0 = full rate; 100 = free while the linked asset is under warranty.</small>
             </label>
             <button className="button" disabled={busy}>
               Draft agreement

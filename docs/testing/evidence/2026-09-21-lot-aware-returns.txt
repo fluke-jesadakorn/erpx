@@ -1,0 +1,27 @@
+Lot-aware customer and supplier return verification
+
+Command:
+bun --env-file=.env.local run test:integration tests/inventory-lot-serial.test.ts tests/commerce-returns.test.ts
+
+Result:
+- Test files: 2 passed
+- Tests: 11 passed
+- Duration: 47.27s
+
+Covered behavior:
+- Supplier return selected RETURN-B from the original receipt and left RETURN-A available.
+- RETURN-B lot balance became zero and its lot status became returned.
+- A later Sales delivery selected RETURN-A, and the customer return restored that exact lot and original cost.
+- Aggregate stock, lot balances, immutable lot movements, stock reversal journals, invoice credits and refund obligations retained existing reconciliation behavior.
+- Existing untracked customer/supplier return, tax, idempotency, payment recovery and concurrent replacement-instruction regression tests passed.
+
+Additional checks:
+- migration 0242 applied to local development databases
+- bun run typecheck: passed
+- bun run lint: passed with 0 errors and 3 pre-existing warnings
+- bun run deploy:build: passed
+- release: .runtime/releases/2026-09-21T08-48-06-567Z
+
+Authenticated public observation:
+- An existing Sales order detail loaded through https://erpx.jesadakorn.com after migration 0242.
+- The observed record was awaiting invoice, so it did not expose the return request form and does not prove browser completion of the transaction.

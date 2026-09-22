@@ -1,0 +1,42 @@
+ERPX browser acceptance evidence
+Observed: 2026-09-22 (Asia/Bangkok)
+Run: d48f9000053f
+Origin: http://127.0.0.1:3102
+Command: ERPX_DEMO_RUN=d48f9000053f ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-purchase-request-rfq.spec.ts --project=desktop
+Result: 1 passed in 1.0 minute (Playwright summary)
+
+The isolated Demo Company used separate authenticated browser contexts for employee,
+people manager, Finance preparer, Finance approver, purchasing operator, purchasing
+manager, warehouse manager and Treasury. The actual interface completed the connected
+ten-laptop workflow with split demand and two outgoing bank matches:
+
+1. Employee submitted a ten-laptop purchase request. A people manager, Finance preparer
+   and Finance approver independently approved it.
+2. Purchasing assigned and started the work, allocated six units to one source-linked RFQ
+   and four units to a second source-linked RFQ. Each RFQ recorded a supplier quotation,
+   an award reason and independent purchasing-manager approval.
+3. Purchasing created and submitted two awarded draft purchase orders. The purchasing
+   manager approved both orders.
+4. Warehouse recorded a six-unit receipt against the first PO and a four-unit receipt
+   against the second PO. Finance independently posted one goods-movement GL journal for
+   each receipt.
+5. Finance prepared two supplier bills from the receipt-specific matches. A different
+   Finance approver reviewed each match, and Finance prepared and independently posted
+   both AP invoices in the 2026 accounting period (THB 150,000 and THB 100,000).
+6. Finance selected both posted invoices in one supplier payment batch totalling
+   THB 250,000. A different Finance approver approved the beneficiary and amount, and
+   Treasury exported the approved instructions.
+7. Finance imported one sandbox bank statement containing two exact outgoing debits
+   (THB 150,000 and THB 100,000). Treasury selected the matching debit for each
+   instruction, recorded evidence, and settled both supplier instructions.
+
+After reload, both batch instructions showed `confirmed`. Authenticated API assertions
+showed both source AP invoices as `paid` with `outstanding_minor: 0`, and both source RFQs
+remained `ordered` and retained the original purchase-request id. The run used disposable
+PostgreSQL databases and a resettable browser-simulation origin; it cannot reach real
+company data.
+
+This is isolated simulation evidence, not supplier-provider, live-bank, statutory,
+production or company business sign-off. Each supplier bill is receipt-specific; a single
+supplier invoice spanning multiple purchase orders remains a separate matching-policy
+capability gate.

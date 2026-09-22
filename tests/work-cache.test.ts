@@ -4,10 +4,11 @@ import type { WorkContext } from '../src/server/authorization';
 import type { WorkSnapshot } from '../src/server/work-items';
 import { cachedWorkSnapshot, workCacheFence, workCacheKey } from '../src/server/work-cache';
 const cache = vi.hoisted(() => new Map<string, string>());
+const redis = vi.hoisted(() => ({ available: true }));
 vi.mock('../src/server/runtime/redis-cache', () => ({
-  redisCacheEnabled: () => true,
-  cacheGet: async (key: string) => cache.get(key) ?? null,
-  cacheSet: async (key: string, value: string, ttl: number) => { if (ttl > 0) cache.set(key, value); },
+  redisCacheEnabled: () => redis.available,
+  cacheGet: async (key: string) => redis.available ? cache.get(key) ?? null : null,
+  cacheSet: async (key: string, value: string, ttl: number) => { if (redis.available && ttl > 0) cache.set(key, value); },
 }));
 const db = env.H001_DB;
 const actor = { holdingId: 'h001', companyId: 'cache-test', userId: 'reader', assignmentId: 'grant', role: 'employee',
@@ -16,7 +17,7 @@ const snapshot = (title = 'original'): WorkSnapshot => ({ unavailableSources: []
   detail: 'test', href: '/staff-tasks/1', status: 'draft', updatedAt: 1, queue: 'todo', canAct: true }] });
 const insert = () => db.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES('cache-test','staff_task','work','assignee','fixture','test',1)").run();
 beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
-beforeEach(() => cache.clear());
+beforeEach(() => { cache.clear(); redis.available = true; });
 afterEach(() => vi.useRealTimers());
 it('preserves complete results, order and actions on warm reads; coalesces five fills', async () => {
   const load = vi.fn(async () => snapshot());
@@ -114,4 +115,34 @@ it('does not join a pre-expiry fill after a time boundary without a commit', asy
   try { expect(await cachedWorkSnapshot(actor, db, load)).toEqual(snapshot('current')); }
   finally { release(); }
   expect(await old).toEqual(snapshot('current'));
+});
+it('repairs future tables after migrations and invalidates inserts, updates and truncation', async () => {
+  await db.pool.query('CREATE TABLE cache_future(id text)');
+  try {
+    expect(await workCacheFence(db)).toBeNull();
+    await applyMigrations(db, env.STAFF_TEST_MIGRATIONS);
+    let previous = (await workCacheFence(db))!.revision;
+    for (const sql of ["INSERT INTO cache_future VALUES('a')", "UPDATE cache_future SET id='b'", 'TRUNCATE cache_future']) {
+      await db.pool.query(sql);
+      const current = (await workCacheFence(db))!.revision;
+      expect(current).not.toBe(previous); previous = current;
+    }
+    await db.pool.query('DROP TRIGGER work_cache_change ON cache_future');
+    expect(await workCacheFence(db)).toBeNull();
+    await applyMigrations(db, env.STAFF_TEST_MIGRATIONS);
+    expect(await workCacheFence(db)).not.toBeNull();
+  } finally {
+    await db.pool.query('DROP TABLE cache_future');
+    await db.pool.query("DELETE FROM work_cache_revisions WHERE table_name='cache_future'");
+  }
+});
+
+it('coalesces revision-fenced reads without Redis and never persists them', async () => {
+  redis.available = false;
+  const load = vi.fn(async () => { await new Promise(resolve => setTimeout(resolve, 40)); return snapshot(); });
+  expect(await Promise.all(Array.from({length:5}, () => cachedWorkSnapshot(actor,db,load)))).toEqual(Array(5).fill(snapshot()));
+  expect(load).toHaveBeenCalledTimes(1);
+  expect(cache.size).toBe(0);
+  await cachedWorkSnapshot(actor,db,load);
+  expect(load).toHaveBeenCalledTimes(2);
 });

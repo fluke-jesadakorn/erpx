@@ -26,6 +26,7 @@ import {
 } from "./service-access";
 import { resolveServiceTeam, teamHandlers } from "./service-teams";
 import type { WorkItem } from "@/lib/work-item";
+import { quantityMilli } from "@/lib/commerce-math";
 
 export const employeeRequestSchema = z.object({
   kind: z.enum(["service", "equipment", "purchase"]),
@@ -48,6 +49,7 @@ export const employeeRequestSchema = z.object({
           .string()
           .regex(/^(?:\d{1,9}(?:\.\d{1,3})?)?$/)
           .default(""),
+        unit: z.string().trim().min(1).max(30).default("each"),
         estimatedCost: z
           .string()
           .regex(/^(?:\d{1,12}(?:\.\d{1,2})?)?$/)
@@ -800,31 +802,23 @@ export async function actOnEmployeeRequest(
           "PURCHASE_HANDOFF_REQUIRED",
           "Link the approved purchase request to its purchase order before confirming fulfillment.",
         );
-      const order = await db
-        .prepare(
-          "SELECT state,version FROM commerce_orders WHERE id=? AND company_id=? AND kind='purchase' AND branch_id IS NOT DISTINCT FROM ? AND department_id IS NOT DISTINCT FROM ?",
-        )
-        .bind(
-          row.purchase_order_id,
-          row.company_id,
-          row.branch_id,
-          row.department_id,
-        )
-        .first<{ state: string; version: number }>();
-      if (!order || !["fulfilled", "invoiced"].includes(order.state))
+      const allocations=(await db.prepare("SELECT l.request_item_ordinal ordinal,COALESCE(sum(l.request_quantity_milli),0) allocated_milli FROM procurement_rfq_lines l JOIN procurement_rfqs r ON r.id=l.rfq_id WHERE r.request_id=? AND r.status<>'cancelled' GROUP BY l.request_item_ordinal").bind(row.id).all<{ordinal:number;allocated_milli:number}>()).results;
+      if(allocations.length){const byOrdinal=new Map(allocations.map(x=>[Number(x.ordinal),Number(x.allocated_milli)])),items=JSON.parse(row.items_json) as RequestItem[];if(items.some((item,index)=>quantityMilli(item.quantity)!==(byOrdinal.get(index)??0)))throw new ApiError(409,"PURCHASE_ALLOCATION_INCOMPLETE","Allocate every approved request quantity before confirming fulfillment.");}
+      const orders=(await db.prepare("SELECT o.id,o.state,o.version FROM commerce_orders o WHERE o.company_id=? AND o.kind='purchase' AND o.branch_id IS NOT DISTINCT FROM ? AND o.department_id IS NOT DISTINCT FROM ? AND (o.id=? OR EXISTS(SELECT 1 FROM procurement_request_orders l WHERE l.request_id=? AND l.order_id=o.id)) ORDER BY o.id").bind(row.company_id,row.branch_id,row.department_id,row.purchase_order_id,row.id).all<{id:string;state:string;version:number}>()).results;
+      if (!orders.length || orders.some(order=>!["fulfilled", "invoiced"].includes(order.state)))
         throw new ApiError(
           409,
           "PURCHASE_NOT_RECEIVED",
-          "Record completed receipt through the purchase order before confirming fulfillment.",
+          "Record completed receipt through every linked purchase order before confirming fulfillment.",
         );
-      statements.push(
+      for(const [index,order] of orders.entries()) statements.push(
         assertion(
           db,
           key,
-          "received-order-version",
+          `received-order-version-${index}`,
           "EXISTS(SELECT 1 FROM commerce_orders WHERE id=? AND company_id=? AND version=? AND state=? AND kind='purchase' AND branch_id IS NOT DISTINCT FROM ? AND department_id IS NOT DISTINCT FROM ?)",
           [
-            row.purchase_order_id,
+            order.id,
             row.company_id,
             order.version,
             order.state,
@@ -898,8 +892,9 @@ export async function actOnEmployeeRequest(
         "Purchasing execution is unavailable in this beta workspace.",
       );
     actor = requirePermission(actor,"commerce.purchase");
-    const quotation = await db.prepare("SELECT id,order_id FROM procurement_rfqs WHERE request_id=? AND status<>'cancelled'").bind(row.id).first<{id:string;order_id:string|null}>();
-    if(quotation && quotation.order_id!==input.purchaseOrderId)
+    const quotationCount=Number(await db.prepare("SELECT count(*) n FROM procurement_rfqs WHERE request_id=? AND status<>'cancelled'").bind(row.id).first("n"));
+    const quotation=input.purchaseOrderId?await db.prepare("SELECT id,order_id FROM procurement_rfqs WHERE request_id=? AND order_id=? AND status='ordered'").bind(row.id,input.purchaseOrderId).first<{id:string;order_id:string|null}>():null;
+    if(quotationCount&&!quotation)
       throw new ApiError(409,"REQUEST_RFQ_REQUIRED","The linked purchase order must come from the active approved supplier award.");
     if (!input.purchaseOrderId)
       throw new ApiError(422, "ORDER_REQUIRED", "Choose a purchase order.");
@@ -917,15 +912,6 @@ export async function actOnEmployeeRequest(
         "ORDER_SCOPE_INVALID",
         "Choose a purchase order for the same company, branch, and department.",
       );
-    if (
-      row.purchase_order_id &&
-      row.purchase_order_id !== input.purchaseOrderId
-    )
-      throw new ApiError(
-        409,
-        "ORDER_ALREADY_LINKED",
-        "This request already has a purchase-order handoff.",
-      );
     statements.push(
       assertion(
         db,
@@ -942,7 +928,9 @@ export async function actOnEmployeeRequest(
         ],
       ),
     );
-    row.purchase_order_id = input.purchaseOrderId;
+    const linked=await db.prepare("SELECT 1 ok FROM procurement_request_orders WHERE request_id=? AND order_id=?").bind(row.id,input.purchaseOrderId).first();
+    if(!linked) statements.push(db.prepare("INSERT INTO procurement_request_orders(request_id,order_id,rfq_id,request_version,request_evidence_version,linked_by,created_at) VALUES(?,?,?,?,?,?,?)").bind(row.id,input.purchaseOrderId,quotation?.id??null,row.version,row.evidence_version,actor.userId,Date.now()));
+    row.purchase_order_id = row.purchase_order_id??input.purchaseOrderId;
     evidence.purchaseOrderId = input.purchaseOrderId;
   }
   if (input.action === "comment" && row.assignee_user_id)
@@ -1149,14 +1137,16 @@ export async function prepareRequestOrderHandoff(
   const snap = await serviceAuthoritySnapshot(db, actor.companyId),
     detail = await employeeRequestDetail(db, actor, requestId),
     row = detail.request;
-  const quotation = await db.prepare("SELECT id FROM procurement_rfqs WHERE request_id=? AND status<>'cancelled'").bind(requestId).first<{id:string}>();
-  if (!editing && quotation && quotation.id !== rfqId)
+  const quotation = rfqId
+    ? await db.prepare("SELECT id FROM procurement_rfqs WHERE request_id=? AND id=? AND status='approved'").bind(requestId,rfqId).first<{id:string}>()
+    : null;
+  const activeQuotationCount=!editing?Number(await db.prepare("SELECT count(*) n FROM procurement_rfqs WHERE request_id=? AND status<>'cancelled'").bind(requestId).first("n")):0;
+  if (!editing && ((rfqId && !quotation)||(!rfqId&&activeQuotationCount>0)))
     throw new ApiError(409,"REQUEST_RFQ_REQUIRED","Continue the active supplier quotation review before creating this request's purchase order.");
   if (
     row.kind !== "purchase" ||
     JSON.parse(row.approval_json).decision !== "approved" ||
-    (!editing &&
-      (!detail.actions.includes("link-order") || row.purchase_order_id))
+    (!editing && !detail.actions.includes("link-order"))
   )
     throw new ApiError(
       403,
@@ -1169,7 +1159,10 @@ export async function prepareRequestOrderHandoff(
       "VERSION_CONFLICT",
       "The purchase request changed. Reopen it before preparing the order.",
     );
-  if (editing && row.purchase_order_id !== orderId)
+  const existingLink=editing
+    ? await db.prepare("SELECT request_id FROM procurement_request_orders WHERE request_id=? AND order_id=?").bind(requestId,orderId).first<{request_id:string}>()
+    : null;
+  if (editing && row.purchase_order_id !== orderId && !existingLink)
     throw new ApiError(
       409,
       "ORDER_LINK_CONFLICT",
@@ -1188,11 +1181,8 @@ export async function prepareRequestOrderHandoff(
       requestVersionGuard(db, key, row),
       ...(!editing
         ? [
-            db
-              .prepare(
-                "UPDATE employee_requests SET purchase_order_id=?,version=version+1,updated_at=? WHERE id=? AND company_id=?",
-              )
-              .bind(orderId, Date.now(), row.id, row.company_id),
+            db.prepare("UPDATE employee_requests SET purchase_order_id=COALESCE(purchase_order_id,?),version=version+1,updated_at=? WHERE id=? AND company_id=?").bind(orderId,Date.now(),row.id,row.company_id),
+            db.prepare("INSERT INTO procurement_request_orders(request_id,order_id,rfq_id,request_version,request_evidence_version,linked_by,created_at) VALUES(?,?,?,?,?,?,?)").bind(row.id,orderId,rfqId??null,row.version,row.evidence_version,actor.userId,Date.now()),
             event(
               db,
               { ...row, version: row.version + 1 },
@@ -1217,8 +1207,11 @@ export async function prepareRequestOrderHandoff(
 export async function requestQuotationSource(db:SqlDatabase,actor:WorkContext,id:string) {
   requirePermission(actor,"commerce.purchase");
   const detail=await employeeRequestDetail(db,actor,id),row=detail.request;
-  if(actor.beta||row.kind!=="purchase"||JSON.parse(row.approval_json).decision!=="approved"||!detail.actions.includes("link-order")||row.purchase_order_id)
+  if(actor.beta||row.kind!=="purchase"||JSON.parse(row.approval_json).decision!=="approved"||!detail.actions.includes("link-order"))
     throw new ApiError(403,"PURCHASE_REQUEST_REQUIRED","An approved purchase request assigned to you and in progress is required for quotations.");
   await validateServiceScope(db,actor,row);
-  return {request:row,items:detail.items};
+  const allocated=(await db.prepare("SELECT l.request_item_ordinal ordinal,COALESCE(sum(l.request_quantity_milli),0) allocated_milli FROM procurement_rfq_lines l JOIN procurement_rfqs r ON r.id=l.rfq_id WHERE r.request_id=? AND r.status<>'cancelled' GROUP BY l.request_item_ordinal").bind(id).all<{ordinal:number;allocated_milli:number}>()).results;
+  const byOrdinal=new Map(allocated.map(x=>[Number(x.ordinal),Number(x.allocated_milli)]));
+  const items=detail.items.map((item,index)=>{const requestedMilli=quantityMilli(item.quantity),allocatedMilli=byOrdinal.get(index)??0;return {...item,unit:item.unit||"each",requestedMilli,allocatedMilli,remainingMilli:Math.max(0,requestedMilli-allocatedMilli)};});
+  return {request:row,items,fullyAllocated:items.every(item=>item.remainingMilli===0)};
 }

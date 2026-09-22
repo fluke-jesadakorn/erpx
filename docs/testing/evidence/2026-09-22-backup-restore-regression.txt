@@ -1,0 +1,13 @@
+ERPX backup and restore regression evidence
+===========================================
+
+Date: 2026-09-22 (Asia/Bangkok)
+Environment: isolated local PostgreSQL 18 test infrastructure
+Command:
+  bun run test -- tests/backup-restore-operations.test.ts tests/recovery-simulation.test.ts tests/native-recovery.test.ts
+
+Result: 3 test files passed, 3 tests passed, 44.29s
+
+The rerun exercised the shipped macOS operator backup/restore flow and isolated Holding recovery. Coverage includes database dump/restore, private files, application secret, retained database credentials, release selection, pre-restore safety backup, checksum fail-closed behavior, source-linked restore, table/digest comparison, stock reservation invariants and no transaction reposting.
+
+This is isolated operational evidence, not production backup certification. Off-machine durability, WAL/PITR, live restart, every production database and signed RPO/RTO remain separate gates.

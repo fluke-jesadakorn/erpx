@@ -1,0 +1,23 @@
+ERPX finance chart setup browser acceptance
+Date: 2026-09-22 (Asia/Bangkok)
+Environment: isolated Demo Company browser simulation (run 1243bb286d66; destroyed after verification)
+Gate: browser
+
+Command:
+ERPX_DEMO_RUN=1243bb286d66 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-finance-chart-setup.spec.ts --project=desktop
+
+Result:
+1 passed (17.5s)
+
+Observed through the authenticated Finance approver interface:
+- GET /api/v1/holdings/simulation/finance/charts returned at least one chart.
+- GET /api/v1/holdings/simulation/finance/charts/:chartId/accounts returned existing accounts.
+- Finance setup rendered the real Charts of accounts form with name, base currency, and accounting basis.
+- Finance setup rendered the real Add account form with category, currency, and control role fields.
+- Finance setup rendered the existing account table and Import account list textarea.
+- CSV preview displayed two valid rows and the idempotent import action was available.
+- The browser submitted a unique account through the Add account form and received HTTP 201, then reloaded the table with the new account.
+- The browser changed that account to inactive with a reason and expected version, then reactivated it through the same real UI; both status commands returned HTTP 200.
+- The browser submitted a validated CSV row with a quoted comma in the account name through the Import account list form and received HTTP 201, then reloaded the table with the imported account.
+
+This is isolated simulation evidence. It does not establish provider, production, statutory, reconciliation, close, or Company business acceptance.

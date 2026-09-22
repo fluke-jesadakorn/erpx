@@ -1,0 +1,33 @@
+ERPX source-linked Support lifecycle browser acceptance
+Date: 2026-09-22 (Asia/Bangkok)
+Environment: isolated Demo Company, run 218c35f220ae
+Gate: browser; partial domain acceptance
+
+Command:
+ERPX_DEMO_RUN=218c35f220ae ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-support-lifecycle.spec.ts tests/e2e/demo-task-delegation.spec.ts --project=desktop
+Result: 2 passed (36.0s); Support scenario 25.7s.
+
+Observed in the real interface:
+- Source operator creates a case linked to the fictional customer quotation.
+- Independent Support agent accepts, waits for customer information, reloads, resumes and proposes a resolution.
+- Independent Support manager returns the resolution for correction; the agent resolves again.
+- The Support colleague explicitly selects their separate Sales operator assignment and records a contact note after resolution. Contact time supports seconds, avoiding minute truncation before a same-minute resolution. Note survives reload.
+- Independent Support manager selects that exact note, confirms the outcome and closes at version 8. Both agent and manager reload the closed case.
+- Manager reopens a dispute then cancels with evidence; version 10 and immutable action history survive reload.
+- All business mutations use the actual forms. Authentication and active assignment selection use the normal session APIs.
+
+Related service regression:
+bun run test -- tests/support.test.ts tests/customer-notes.test.ts tests/general-company-demo.test.ts
+3 files, 8 tests passed (46.08s).
+
+Persisted result IDs and scoped event rows:
+docs/testing/evidence/2026-09-22-support-and-delegation-history-browser-records.json
+
+Public read-only verification using the existing authenticated browser session:
+- /holdings/acme/support renders customer/source selection and the source-linked creation form.
+- /holdings/acme/commerce/orders/order-inventory-15e32e6f-sale/notes renders the contact form, including a seconds-capable date/time input.
+- No business record was created or changed in the public workspace during this check.
+
+Limitations: staff-recorded customer confirmation only. Portal replies, email delivery, first-response SLA, incident/postmortem evidence, Field Service fulfillment, provider/production operation and Company business sign-off are separate gates. This scenario uses a quotation source, not an actual customer replacement shipment.
+
+Cleanup: Demo runs 1fb3b93eb768 and 218c35f220ae were destroyed after verification; both commands returned destroyed=true.

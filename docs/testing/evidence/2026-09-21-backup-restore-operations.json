@@ -1,0 +1,11 @@
+{
+  "kind": "full_offline_backup_restore",
+  "database": "erpx_test_386da7857a_backup",
+  "releaseId": "2026-09-21T20-30-00Z",
+  "databaseRowsRestored": 1,
+  "privateFilesRestored": 1,
+  "applicationSecretRestored": true,
+  "databaseManifestRetained": true,
+  "archiveSha256": "91e1ccc1bd68b46484278693b88d2d876be296ca91c164636f3826534b5529bc",
+  "scope": "Isolated complete operator backup/restore rehearsal; excludes production host, off-machine durability, WAL/PITR and live RPO/RTO sign-off"
+}

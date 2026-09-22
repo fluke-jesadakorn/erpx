@@ -21,6 +21,10 @@ import {
   projectSchema,
   saveProject,
   saveTask,
+  delegateTask,
+  revokeTaskDelegation,
+  taskDelegationSchema,
+  taskDelegationRevokeSchema,
   taskSchema,
   taskDetail,
   transitionTask,
@@ -862,6 +866,89 @@ describe("Projects, task phases and evidence boundaries", () => {
     const detail = await taskDetail(db, worker, id);
     expect(detail.blockedReason).toBeTruthy();
     expect(detail.permittedActions).not.toContain("complete");
+  });
+  it("delegates active work with an expiry, preserves audit/version guards, and restores the owner after expiry", async () => {
+    const id = await task([], [head.userId]);
+    const delegation = await delegateTask(
+      db,
+      requester,
+      id,
+      taskDelegationSchema.parse({
+        delegateUserId: hr.userId,
+        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        expectedVersion: 1,
+        reason: "Cover the receiving lead during leave.",
+      }),
+      key(),
+    );
+    expect(delegation.version).toBe(2);
+    expect((await getTask(db, hr, id)).active_delegate_user_id).toBe(hr.userId);
+    expect((await taskDetail(db, requester, id)).delegationHistory).toMatchObject([
+      { id: delegation.delegationId, status: "active", reason: "Cover the receiving lead during leave.", revoke_reason: null },
+    ]);
+    await action(requester, id, "submit");
+    expect((await taskDetail(db, hr, id)).permittedActions).toContain("start");
+    await action(hr, id, "start");
+    const current = await getTask(db, requester, id);
+    const replayKey = key();
+    await expect(revokeTaskDelegation(db, requester, id, taskDelegationRevokeSchema.parse({
+      delegationId: delegation.delegationId,
+      expectedVersion: current.version - 1,
+      reason: "This stale decision must not be retained.",
+    }), key())).rejects.toMatchObject({ status: 409 });
+    expect((await taskDetail(db, requester, id)).delegationHistory[0].revoke_reason).toBeNull();
+    const revoked = await revokeTaskDelegation(
+      db,
+      requester,
+      id,
+      taskDelegationRevokeSchema.parse({
+        delegationId: delegation.delegationId,
+        expectedVersion: current.version,
+        reason: "Receiving lead returned.",
+      }),
+      replayKey,
+    );
+    expect(await revokeTaskDelegation(
+      db,
+      requester,
+      id,
+      taskDelegationRevokeSchema.parse({
+        delegationId: delegation.delegationId,
+        expectedVersion: current.version,
+        reason: "Receiving lead returned.",
+      }),
+      replayKey,
+    )).toEqual(revoked);
+    await expect(getTask(db, hr, id)).rejects.toMatchObject({ status: 404 });
+    await expect(taskDetail(db, hr, id)).rejects.toMatchObject({ status: 404 });
+    await expect(taskDetail(db, outsider, id)).rejects.toMatchObject({ status: 404 });
+    const history = (await taskDetail(db, worker, id)).delegationHistory;
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({ id: delegation.delegationId, status: "revoked", revoke_reason: "Receiving lead returned." });
+    expect(history[0].revoked_at).toBeGreaterThan(0);
+    await expect(db.prepare("UPDATE staff_task_delegations SET revoke_reason=? WHERE id=?").bind("Altered after revocation.", delegation.delegationId).run()).rejects.toThrow();
+    expect((await taskDetail(db, worker, id)).delegationHistory[0].revoke_reason).toBe("Receiving lead returned.");
+    expect((await taskDetail(db, worker, id)).permittedActions).toContain("save-progress");
+
+    const expiring = await task([], [head.userId], worker.userId);
+    const handoff = await delegateTask(
+      db,
+      requester,
+      expiring,
+      taskDelegationSchema.parse({
+        delegateUserId: hr.userId,
+        expiresAt: new Date(Date.now() + 3_600_000).toISOString(),
+        expectedVersion: 1,
+        reason: "Short coverage window.",
+      }),
+      key(),
+    );
+    await db.prepare("UPDATE staff_task_delegations SET expires_at=? WHERE id=?").bind(Date.now() - 1, handoff.delegationId).run();
+    await expect(getTask(db, hr, expiring)).rejects.toMatchObject({ status: 404 });
+    expect((await getTask(db, worker, expiring)).active_delegate_user_id).toBeNull();
+    expect((await taskDetail(db, worker, expiring)).delegationHistory[0]).toMatchObject({
+      id: handoff.delegationId, status: "expired", revoke_reason: null,
+    });
   });
 });
 describe("Reusable levels and routine scheduling", () => {

@@ -1,0 +1,14 @@
+ERPX public browser observation — controlled payroll correction
+Observed: 2026-09-21 23:00 Asia/Bangkok
+URL: https://erpx.jesadakorn.com/holdings/acme/people/payroll/payrun-acme-co-2026-07
+Session: authenticated Holding owner, Acme Corporation
+
+Observed behavior:
+- Payroll list loaded two persistent runs through the public development hostname.
+- The approved July run loaded with totals, current status, next action and statutory-adapter blocker.
+- The Reviewed corrections section rendered on the approved run.
+- The role-authorized request form required correction reason and source evidence.
+- The page explained independent Payroll approval and retention of earlier revision exports.
+- Calculation policy, 20 calculated items and workflow ownership rendered on the same record page.
+
+No correction was submitted against the shared Acme data. This observation verifies the public authenticated UI surface only; the independent multi-role transaction is covered by PostgreSQL integration and remains pending for browser/business acceptance.

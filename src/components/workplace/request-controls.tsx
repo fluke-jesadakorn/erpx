@@ -81,7 +81,7 @@ export function RequestEditor({
     currency: request?.currency ?? "",
     items:
       request?.items_json ??
-      JSON.stringify([{ description: "", quantity: "", estimatedCost: "" }]),
+      JSON.stringify([{ description: "", quantity: "", unit: "each", estimatedCost: "" }]),
   };
   const draft = useRecoverableDraft(
       `erpx:request:${options.companyId}:${options.userId}:${request?.id ?? `${kind}:${parentRequestId ?? "new"}`}`,
@@ -305,6 +305,15 @@ export function RequestEditor({
                     />
                   </label>
                   <label>
+                    Unit
+                    <input
+                      value={item.unit ?? "each"}
+                      maxLength={30}
+                      required
+                      onChange={(e) => itemChange(index, "unit", e.target.value)}
+                    />
+                  </label>
+                  <label>
                     Estimated total
                     <input
                       inputMode="decimal"
@@ -339,7 +348,7 @@ export function RequestEditor({
                       "items",
                       JSON.stringify([
                         ...items,
-                        { description: "", quantity: "", estimatedCost: "" },
+                        { description: "", quantity: "", unit: "each", estimatedCost: "" },
                       ]),
                     )
                   }

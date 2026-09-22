@@ -1,0 +1,51 @@
+ERPX Finance controlled-payment browser acceptance — 2026-09-21
+
+Disposable run
+- Run: ec2aae319bce
+- Origin: http://127.0.0.1:3102
+- Storage: six isolated PostgreSQL databases and private local session/files
+- External bank: sandbox statement row only; no provider or real company data
+
+Browser journey
+1. Finance preparer opened posted supplier invoice DEMO-CONTROLLED-PAYMENT and created DEMO-PAYMENT-125 for THB 125.00 against the configured bank control account.
+2. Finance approver used a separate authenticated browser context, reviewed the draft and supplied decision evidence.
+3. Treasury used a third authenticated browser context, released the approved payment, selected March 2027 and exact bank row DEMO-BANK-PAY-125, then confirmed with evidence.
+4. The payment page showed settled, THB 0.00 outstanding, the invoice allocation and a posted-journal link. Reload preserved the result.
+5. Authenticated APIs showed payment settled/outstanding 0 with one allocation and the source invoice paid/outstanding 0.
+
+Command
+ERPX_DEMO_RUN=ec2aae319bce ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-controlled-payment.spec.ts --project=desktop
+
+Result
+1 passed (18.5s)
+
+Cross-scenario isolation check
+After the March payment completed, the same disposable run independently closed January and February 2027 through separate Finance preparer and approver contexts:
+
+ERPX_DEMO_RUN=ec2aae319bce ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-finance-close.spec.ts --project=desktop
+
+Result
+1 passed (5.0s)
+
+The packaged operator command was then repeated from a fresh disposable run `f4369787acf8`:
+
+ERPX_DEMO_RUN=f4369787acf8 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bun run demo:verify:browser
+
+Result
+- controlled payment: passed (18.5s)
+- two consecutive closes: passed (4.5s)
+- total: 2 passed (23.6s)
+
+Database evidence before reset
+- Payment: settled, amount 12500 minor, outstanding 0, version 4.
+- Distinct created_by, approved_by and released_by users.
+- Invoice: paid, outstanding 0.
+- Bank row: matched to the payment, version 2.
+- Posted journal: debit CLOSE-AP 12500 and credit CLOSE-BANK 12500.
+- One decision-evidence record each for approve, release and confirm.
+
+Structured source: docs/testing/evidence/2026-09-21-finance-controlled-payment-browser-records.json
+
+Acceptance boundary
+- This proves the complete generic-payment UI path using three independent accounts, persistence after reload, owner APIs and the same business rules as ERPX.
+- It does not prove a live bank provider, foreign currency, production operation or business-owner sign-off.

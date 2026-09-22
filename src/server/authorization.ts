@@ -1,6 +1,7 @@
-import { refreshDirectoryMember } from "./iam-directories";
+import { measureReadPhase } from "./runtime/read-metrics";
+import { refreshDirectoryMember } from "./iam-directory-refresh";
 import type { PostgresDatabase } from "./runtime/postgres";
-import { loadIamAuthority, iamRole } from "./iam-store";
+import { loadIamAuthority, iamRoles } from "./iam-store";
 import type { PermissionActor } from "@/lib/iam";
 import { readCompanyPreference, readWorkspacePreference } from "./workspace-preferences";
 import {cache} from "react";
@@ -146,7 +147,8 @@ function cookieValue(cookieHeader: string | null, name: string) {
   }
 }
 
-export async function currentSession() {
+export const currentSession = cache(() => measureReadPhase("session", readCurrentSession));
+async function readCurrentSession() {
   const requestHeaders = await headers();
   const host = requestHeaders.get("host");
   const localHost =
@@ -204,7 +206,7 @@ async function validateNodeLineage(
 
 export type WorkspaceCompany = { id: string; name: string };
 
-export async function listWorkspaceCompanies(holdingId: HoldingId) {
+export const listWorkspaceCompanies = cache(async (holdingId: HoldingId) => {
   const { write } = await holdingResources(holdingId);
   const { session } = await currentSession();
   const now = Date.now();
@@ -218,7 +220,7 @@ export async function listWorkspaceCompanies(holdingId: HoldingId) {
   ).bind(session.user.id, now, now).all<{id:string;display_name:string;role:string}>()).results;
   return [...new Map(rows.filter(row => isRoleValidAtScope(row.role, "holding"))
     .map(row => [row.id, { id: row.id, name: row.display_name }])).values()];
-}
+});
 
 export async function resolveWorkspaceScope(
   requested: HoldingWorkspaceScope,
@@ -418,7 +420,8 @@ export async function requireAccountAccess(requested:HoldingWorkspaceScope|strin
  AND (a.scope_kind='holding' OR (n.company_id=a.company_id AND n.status='active' AND (n.branch_id IS NULL OR EXISTS(SELECT 1 FROM organization_nodes b WHERE b.id=n.branch_id AND b.company_id=a.company_id AND b.status='active')))) ORDER BY a.role,a.id`).bind(session.user.id,scope.companyId,now,now).all<{
  id:string;role:string;company_id:string;branch_id:string|null;modules_json:string;scope_kind:"holding"|"branch"|"department";scope_node_id:string|null;version:number;valid_until:number;company_name:string;scope_name:string|null;branch_name:string|null;
  }>()).results;
- const validRows=[]; for(const a of rows){const definition=await iamRole(write,scope.companyId,a.role);if(definition?.scopes.includes(a.scope_kind))validRows.push({...a,roleName:definition.name});}
+ const roles=await iamRoles(write,scope.companyId,rows.map(a=>a.role));
+ const validRows=[]; for(const a of rows){const definition=roles.get(a.role);if(definition?.scopes.includes(a.scope_kind))validRows.push({...a,roleName:definition.name});}
  const assignments=validRows.map(a=>({id:a.id,role:a.role,companyId:a.company_id,branchId:a.branch_id,modules:JSON.parse(a.modules_json) as string[],scopeKind:a.scope_kind,scopeNodeId:a.scope_node_id,version:a.version,validUntil:a.valid_until,label:[a.roleName,a.company_name,a.branch_name,a.scope_name].filter(Boolean).join(" · ")}));
  return {sessionId:session.session.id,expiresAt:new Date(session.session.expiresAt).getTime(),userId:session.user.id,name:session.user.name,email:session.user.email,scope,assignments,requestHeaders};
 }
@@ -427,7 +430,7 @@ export async function requireWorkContext(requested:HoldingWorkspaceScope|string)
 }
 const cachedWorkContext=cache(async (key:string):Promise<WorkContext>=>{
  const requested=JSON.parse(key) as HoldingWorkspaceScope;
- const access=await requireAccountAccess(requested),{scope}=access;
+ const access=await measureReadPhase("account_access",()=>requireAccountAccess(requested)),{scope}=access;
  const {write}=await holdingResources(scope.holdingId);
  let selection=await restoreWorkSelection(write,{sessionId:access.sessionId,userId:access.userId,companyId:scope.companyId,expiresAt:access.expiresAt},access.assignments);
  const eligible=access.assignments.filter(a=>assignmentApplies(a,scope));

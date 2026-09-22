@@ -1,0 +1,25 @@
+{
+  "observedAt": "2026-09-21T13:56:40+07:00",
+  "environment": "development company with fictional data on the local ERPX server",
+  "command": "bunx playwright test tests/e2e/supplier-invoice-policy.spec.ts --project=desktop --project=mobile",
+  "result": {
+    "projectsPassed": 2,
+    "testsPassed": 2,
+    "failed": 0,
+    "skipped": 0
+  },
+  "scope": [
+    "authenticated holding owner opens the real supplier invoice review page",
+    "required policy saved through the real browser UI",
+    "required control explanation rendered after reload",
+    "optional policy restored through the real browser UI",
+    "both reasons visible in immutable policy history",
+    "desktop Chrome and Pixel 7 viewport",
+    "final development policy restored to optional"
+  ],
+  "limitations": [
+    "This observation covers the policy UI rather than the complete purchase-to-payment browser journey",
+    "No external supplier, payment or bank provider was contacted",
+    "No production or business sign-off"
+  ]
+}

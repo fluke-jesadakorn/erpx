@@ -1,0 +1,45 @@
+ERPX Finance generic controlled payments — 2026-09-21
+
+Implemented scope
+- A Company Finance preparer creates a receipt or payment against an active customer/supplier and configured bank control account.
+- An independent Finance approver records approval evidence.
+- A third Treasury user releases the payment; the preparer and approver are both prohibited from acting as payer.
+- The same payer confirms an imported exact bank transaction and allocates the full amount across one or more compatible open invoices.
+- Confirmation atomically creates and posts the balanced bank/AR/AP journal, inserts invoice allocations, updates every invoice balance/status, settles the payment, matches the bank row, records decision evidence, audit and outbox data.
+- Idempotent retry returns the committed result. Version and transactional assertions protect the payment, bank row, invoice balances, period and posting accounts.
+- Refunds remain in the approved return/refund owner workflow instead of bypassing that authority chain.
+
+Automated acceptance
+$ bun run test -- tests/finance-generic-payments.test.ts
+Test Files  1 passed (1)
+Tests       3 passed (3)
+
+The tests cover:
+- three-person payable release and settlement;
+- exact payable GL, AP allocation, invoice paid status and bank match;
+- safe idempotent replay and three decision-evidence records;
+- wrong bank amount rejection with no partial mutation;
+- one receipt allocated across two customer invoices.
+
+Related regression
+$ bun run test -- tests/finance-generic-payments.test.ts tests/finance-payment-corrections.test.ts tests/supplier-payments.test.ts tests/finance-close-reconciliation.test.ts
+Test Files  4 passed (4)
+Tests       10 passed (10)
+
+Static verification
+$ bun run typecheck
+passed
+
+$ bun run lint -- src/server/finance.ts src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts src/components/modules/payment-lifecycle.tsx src/app/holdings/[holdingSlug]/finance/payments/[id]/page.tsx src/app/holdings/[holdingSlug]/finance/invoices/[id]/page.tsx tests/finance-generic-payments.test.ts
+passed with no findings
+
+Authenticated public UI observation
+- URL: https://erpx.jesadakorn.com/holdings/acme/finance/invoices/invoice-acme-co-027
+- The posted receivable displayed “Controlled bank settlement” with payment reference, planned date, amount and bank ledger account.
+- The account selector exposed only “1100 · Operating bank” after the bank-control filter; receivable, inventory, tax and equipment asset accounts were not selectable.
+- No shared Acme financial record was submitted during this observation.
+
+Acceptance boundary
+- Automated owner-service evidence is positive and the public UI surface is observed.
+- A separate resettable multi-role browser run now covers creation, approval, release and confirmation; see `2026-09-21-finance-controlled-payment-browser.txt`.
+- Bank evidence is an imported sandbox row; no live bank/provider or business-owner sign-off is claimed.

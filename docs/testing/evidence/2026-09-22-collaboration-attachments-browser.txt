@@ -1,0 +1,18 @@
+ERPX collaboration attachment browser acceptance
+Date: 2026-09-22 (Asia/Bangkok)
+Environment: isolated Demo Company browser simulation (run bd94ed73c6a6; destroyed after verification)
+Gate: browser
+
+Command:
+ERPX_DEMO_RUN=bd94ed73c6a6 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-collaboration-attachments.spec.ts --project=desktop
+
+Result:
+1 passed (18.7s)
+
+Observed through two authenticated role contexts:
+- Holding owner opened the real Inbox, created a direct conversation with the Support agent and sent a message.
+- The owner uploaded `handoff-evidence.csv` through the conversation attachment control and sent it as a message attachment.
+- The Support employee opened the same conversation, saw the attachment, downloaded its protected file URL and verified the CSV bytes, then reloaded and saw the attachment again.
+- The isolated run was destroyed after verification.
+
+This is isolated simulation evidence. It does not establish retention/export, legal hold, provider, production or Company business acceptance.

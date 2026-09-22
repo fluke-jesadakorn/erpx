@@ -47,6 +47,16 @@ export const reviewInput = z.object({
   decision: z.enum(["approve", "reject"]),
   reason: z.string().trim().min(3).max(1000),
 });
+export const accessReviewCampaignInput=z.object({
+  name:z.string().trim().min(3).max(120),
+  dueAt:z.number().int().positive(),
+  reason:z.string().trim().min(3).max(1000),
+});
+export const accessReviewDecisionInput=z.object({
+  expectedCampaignVersion:z.number().int().positive(),
+  decision:z.enum(["keep","revoke"]),
+  reason:z.string().trim().min(3).max(1000),
+});
 const fail = (code: string, message: string) => {
   throw new ApiError(409, code, message);
 };
@@ -214,6 +224,8 @@ export async function iamOverview(
   )
     .bind(actor.userId)
     .first<{ enabled: boolean }>();
+  const accessReviewCampaigns=!actor.platform&&!self&&hasPermission(actor,iamPermission(actor,"iam.review"))?(await db.prepare("SELECT * FROM iam_access_review_campaigns WHERE company_id=? ORDER BY created_at DESC LIMIT 50").bind(actor.companyId).all<Record<string,unknown>>()).results:[];
+  const accessReviewItems=accessReviewCampaigns.length?(await db.prepare(`SELECT i.* FROM iam_access_review_items i JOIN iam_access_review_campaigns c ON c.id=i.campaign_id WHERE c.company_id=? AND c.id IN (${accessReviewCampaigns.map(()=>"?").join(",")}) ORDER BY c.created_at DESC,i.user_id,i.role`).bind(actor.companyId,...accessReviewCampaigns.map(c=>String(c.id))).all<Record<string,unknown>>()).results:[];
   const ownSessions = (
     await env.CONTROL_DB.prepare(
       'SELECT id,"createdAt","expiresAt","userAgent" FROM session WHERE "userId"=? ORDER BY "createdAt" DESC',
@@ -409,6 +421,8 @@ export async function iamOverview(
     mappings,
     identities,
     reviews,
+    accessReviewCampaigns,
+    accessReviewItems,
     audit,
     catalog,
     decisions,
@@ -421,6 +435,62 @@ export async function iamOverview(
     platform: actor.platform,
     grantablePermissions: actor.iam?.grantablePermissions ?? [],
   };
+}
+
+function requireHoldingAccessReview(actor:IamActor){
+  if(actor.platform)throw new ApiError(422,"HOLDING_REVIEW_REQUIRED","Run access certification inside a company workspace.");
+  assertCompanyScope(actor);requirePermission(actor,iamPermission(actor,"iam.review"));
+}
+export async function startAccessReviewCampaign(db:PostgresDatabase,actor:IamActor,input:z.infer<typeof accessReviewCampaignInput>,key:string){
+  db=iamDb(db);requireHoldingAccessReview(actor);await requireFreshMfa(actor);
+  if(input.dueAt<=Date.now()||input.dueAt>Date.now()+366*86400000)throw new ApiError(422,"REVIEW_DUE_DATE_INVALID","Choose a review due date within the next year.");
+  return iamCommand(db,actor,key,"access-review.start",input,"iam.review",async c=>{
+    const assignments=(await c.query("SELECT id,user_id,role,scope_kind,scope_node_id,source,valid_until,version FROM assignments WHERE company_id=$1 AND revoked_at IS NULL AND iam_assignment_active(id,$2) AND iam_principal_active(user_id,$1,$2) ORDER BY user_id,role,id",[actor.companyId,Date.now()])).rows;
+    if(!assignments.length)throw new ApiError(409,"NO_ACTIVE_ASSIGNMENTS","No active assignments are available for review.");
+    const id=`access-review-${key}`,now=Date.now();
+    await c.query("INSERT INTO iam_access_review_campaigns(id,company_id,name,due_at,status,version,created_by,reason,created_at,updated_at) VALUES($1,$2,$3,$4,'open',1,$5,$6,$7,$7)",[id,actor.companyId,input.name,input.dueAt,actor.userId,input.reason,now]);
+    for(const [index,a] of assignments.entries())await c.query("INSERT INTO iam_access_review_items(id,campaign_id,company_id,assignment_id,assignment_version,user_id,role,scope_kind,scope_node_id,source,valid_until) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",[`access-review-item-${key}-${index}`,id,actor.companyId,a.id,a.version,a.user_id,a.role,a.scope_kind,a.scope_node_id,a.source,a.valid_until]);
+    await c.query("INSERT INTO iam_access_review_events(id,campaign_id,company_id,action,actor_id,snapshot_json,created_at) VALUES($1,$2,$3,'started',$4,$5,$6)",[`access-review-event-${key}`,id,actor.companyId,actor.userId,JSON.stringify({name:input.name,dueAt:input.dueAt,reason:input.reason,assignmentIds:assignments.map(a=>a.id)}),now]);
+    return {id,status:"open",version:1,itemCount:assignments.length};
+  });
+}
+export async function decideAccessReviewItem(db:PostgresDatabase,actor:IamActor,itemId:string,input:z.infer<typeof accessReviewDecisionInput>,key:string){
+  db=iamDb(db);requireHoldingAccessReview(actor);await requireFreshMfa(actor);
+  return iamCommand(db,actor,key,"access-review.decide",{itemId,...input},"iam.review",async c=>{
+    const item=(await c.query("SELECT i.*,c.status campaign_status,c.version campaign_version,c.created_by FROM iam_access_review_items i JOIN iam_access_review_campaigns c ON c.id=i.campaign_id WHERE i.id=$1 AND i.company_id=$2 FOR UPDATE OF i,c",[itemId,actor.companyId])).rows[0];
+    if(!item)throw new ApiError(404,"ACCESS_REVIEW_ITEM_NOT_FOUND","Access review item not found.");
+    if(item.campaign_status!=="open"||item.decision!=="pending")fail("ACCESS_REVIEW_ITEM_CHANGED","This access review item is no longer pending.");
+    if(Number(item.campaign_version)!==input.expectedCampaignVersion)fail("ACCESS_REVIEW_CAMPAIGN_CHANGED","The campaign changed. Reload before deciding.");
+    if(item.created_by===actor.userId)throw new ApiError(403,"INDEPENDENT_REVIEW_REQUIRED","A different administrator must certify the campaign creator's access review.");
+    if(item.user_id===actor.userId||(await c.query("SELECT iam_same_person($1,$2,$3) same",[item.user_id,actor.userId,actor.companyId])).rows[0].same)throw new ApiError(403,"SELF_ACCESS_REVIEW","Another administrator must review your access.");
+    const assignment=(await c.query("SELECT * FROM assignments WHERE id=$1 AND company_id=$2 FOR UPDATE",[item.assignment_id,actor.companyId])).rows[0];
+    if(!assignment||Number(assignment.version)!==Number(item.assignment_version)||assignment.revoked_at!==null||!(await c.query("SELECT iam_assignment_active($1,$2) active",[item.assignment_id,Date.now()])).rows[0].active)fail("REVIEW_SOURCE_CHANGED","The assignment changed. Start a new access review for current evidence.");
+    if(input.decision==="revoke"){
+      const protectedMember=(await c.query("SELECT 1 FROM iam_members WHERE company_id=$1 AND user_id=$2 AND login_policy='emergency' AND status='active'",[actor.companyId,item.user_id])).rowCount;
+      if(protectedMember)requirePermission(actor,iamPermission(actor,"iam.recovery"));
+      await applyIamRevocation(c,actor,item.assignment_id,Number(item.assignment_version),input.reason,true);
+    }
+    const now=Date.now();
+    await c.query("UPDATE iam_access_review_items SET decision=$1,decided_by=$2,decision_reason=$3,decided_at=$4 WHERE id=$5",[input.decision,actor.userId,input.reason,now,itemId]);
+    await c.query("INSERT INTO iam_access_review_events(id,campaign_id,item_id,company_id,action,actor_id,snapshot_json,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",[`access-review-event-${key}`,item.campaign_id,itemId,actor.companyId,input.decision==="keep"?"kept":"revoked",actor.userId,JSON.stringify({assignmentId:item.assignment_id,assignmentVersion:item.assignment_version,userId:item.user_id,role:item.role,scopeKind:item.scope_kind,scopeNodeId:item.scope_node_id,source:item.source,validUntil:item.valid_until,reason:input.reason}),now]);
+    const remaining=Number((await c.query("SELECT count(*) n FROM iam_access_review_items WHERE campaign_id=$1 AND decision='pending'",[item.campaign_id])).rows[0].n),campaignVersion=Number(item.campaign_version)+1;
+    await c.query("UPDATE iam_access_review_campaigns SET status=$1,version=$2,completed_at=$3,updated_at=$4 WHERE id=$5",[remaining?"open":"completed",campaignVersion,remaining?null:now,now,item.campaign_id]);
+    if(!remaining)await c.query("INSERT INTO iam_access_review_events(id,campaign_id,company_id,action,actor_id,snapshot_json,created_at) VALUES($1,$2,$3,'completed',$4,$5,$6)",[`${`access-review-event-${key}`}-complete`,item.campaign_id,actor.companyId,actor.userId,JSON.stringify({completedItems:true}),now]);
+    return {id:itemId,campaignId:item.campaign_id,decision:input.decision,campaignStatus:remaining?"open":"completed",campaignVersion};
+  });
+}
+export async function cancelAccessReviewCampaign(db:PostgresDatabase,actor:IamActor,id:string,expectedVersion:number,reason:string,key:string){
+  db=iamDb(db);requireHoldingAccessReview(actor);await requireFreshMfa(actor);
+  return iamCommand(db,actor,key,"access-review.cancel",{id,expectedVersion,reason},"iam.review",async c=>{
+    const campaign=(await c.query("SELECT * FROM iam_access_review_campaigns WHERE id=$1 AND company_id=$2 FOR UPDATE",[id,actor.companyId])).rows[0];
+    if(!campaign)throw new ApiError(404,"ACCESS_REVIEW_CAMPAIGN_NOT_FOUND","Access review campaign not found.");
+    if(campaign.created_by!==actor.userId)throw new ApiError(403,"CAMPAIGN_OWNER_REQUIRED","Only the campaign creator can cancel it.");
+    if(campaign.status!=="open"||Number(campaign.version)!==expectedVersion)fail("ACCESS_REVIEW_CAMPAIGN_CHANGED","The campaign changed. Reload before cancelling.");
+    if(Number((await c.query("SELECT count(*) n FROM iam_access_review_items WHERE campaign_id=$1 AND decision!='pending'",[id])).rows[0].n))throw new ApiError(409,"CAMPAIGN_DECISIONS_EXIST","A campaign with recorded decisions cannot be cancelled.");
+    const now=Date.now(),version=expectedVersion+1;await c.query("UPDATE iam_access_review_campaigns SET status='cancelled',version=$1,updated_at=$2 WHERE id=$3",[version,now,id]);
+    await c.query("INSERT INTO iam_access_review_events(id,campaign_id,company_id,action,actor_id,snapshot_json,created_at) VALUES($1,$2,$3,'cancelled',$4,$5,$6)",[`access-review-event-${key}`,id,actor.companyId,actor.userId,JSON.stringify({reason}),now]);
+    return {id,status:"cancelled",version};
+  });
 }
 function canReadCompany(actor: IamActor) {
   return (

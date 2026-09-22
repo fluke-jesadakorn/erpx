@@ -26,7 +26,7 @@ export function AccessEditor({
   const router = useRouter(),
     attempt = useRef<{ payload: string; key: string } | null>(null);
   const [error, setError] = useState(""),
-    [link, setLink] = useState(""),
+    [notice, setNotice] = useState(""),
     [pending, setPending] = useState(false),
     [role, setRole] = useState("employee");
   async function send(action: string, input: unknown) {
@@ -52,9 +52,7 @@ export function AccessEditor({
         error?: { message: string };
       };
       if (!r.ok) throw Error(v.error?.message ?? "Unable to update access.");
-      if (v.data.token)
-        setLink(`${window.location.origin}/activate?token=${v.data.token}`);
-      if(v.data.message)setError(v.data.message);
+      if(v.data.message)setNotice(v.data.message);
       attempt.current = null;
       router.refresh();
     } catch (e) {
@@ -143,21 +141,12 @@ export function AccessEditor({
               <input name="expiresAt" type="date" required />
             </label>
             <button className="button" disabled={pending}>
-              {hasAccount ? "Grant role" : "Create activation link"}
+              {hasAccount ? "Grant role" : "Prepare invitation"}
             </button>
           </form>
         </details>
       )}
-      {link && (
-        <label>
-          Activation link (expires in 48 hours)
-          <input className="input" readOnly value={link} />
-          <p className="muted">
-            Share this link privately with the intended employee. No email has
-            been sent.
-          </p>
-        </label>
-      )}
+      {notice && <p role="status">{notice}</p>}
       {canRevokeCompany &&
         userId &&
         assignments.some((a) => a.access_status === "active") && (

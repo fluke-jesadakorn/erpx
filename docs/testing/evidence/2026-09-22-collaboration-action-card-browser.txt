@@ -1,0 +1,18 @@
+ERPX collaboration action-card browser acceptance
+Date: 2026-09-22 (Asia/Bangkok)
+Environment: isolated Demo Company browser simulation (run 4f41c6841a6b; destroyed after verification)
+Gate: browser
+
+Command:
+ERPX_DEMO_RUN=4f41c6841a6b ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-collaboration-action-card.spec.ts --project=desktop
+
+Result:
+1 passed (3.8s)
+
+Observed through two authenticated role contexts:
+- Holding owner opened the real Cross-record collaboration page and created an action card linked to the Demo sales quotation.
+- The action card was assigned to a separate employee account with an active collaboration assignment.
+- The employee saw the same source-linked card after reload, supplied completion evidence and completed it.
+- Both commands returned HTTP 200 and used the existing idempotent collaboration route; the isolated run was destroyed afterward.
+
+This is isolated simulation evidence. It does not establish retention/export, provider, production or Company business acceptance.

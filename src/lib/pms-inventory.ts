@@ -1,4 +1,4 @@
-import { records, type Snapshot } from "./pms";
+import { records, type Snapshot } from "./pms-model";
 export function availability(
   s: Snapshot,
   typeId: string,

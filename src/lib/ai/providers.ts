@@ -35,6 +35,7 @@ export function modelProtocol(preset: AiPreset, id: string): AiProtocol | "unsup
 
 export const unsupportedModelMessage = "This model is not supported yet. Choose another model.";
 export function supportedModelProtocol(baseUrl: string, id: string): AiProtocol | null {
+  if (presetForUrl(baseUrl) === "custom" && id.trim()) return "chat-completions";
   const protocol = modelProtocol(presetForUrl(baseUrl), id.trim());
   return protocol && protocol !== "unsupported" ? protocol : null;
 }

@@ -1,0 +1,2 @@
+.page{width:min(1180px,100%);margin:auto;padding:48px 40px 120px}.section{padding-top:40px;scroll-margin-top:24px}.section>h2{font-size:20px;margin-bottom:14px}.formGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.full{grid-column:1/-1}.stack{display:grid;gap:12px}.badges{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+@media(max-width:650px){.page{padding:28px 16px 100px}.formGrid{grid-template-columns:1fr}.full{grid-column:auto}}

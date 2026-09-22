@@ -65,6 +65,7 @@ describe("Side menu destination coverage", () => {
       ["iam/connections", "technology-connections", "technology"],
       ["settings?section=people", "people-settings", "people"],
       ["commerce?view=sales", "operations-sales", "operations"],
+      ["commerce?view=pricing", "operations-pricing", "operations"],
       ["commerce?view=products", "operations-products", "inventory"],
       ["stock-counts/count-1", "operations-counts", "inventory"],
       ["stock-transfers/transfer-1", "operations-transfers", "inventory"],
@@ -130,6 +131,7 @@ describe("Workplace discovery", () => {
     ).toEqual([
       "Sales orders",
       "Quotations",
+      "Price lists",
       "Purchase orders",
       "Customers & suppliers",
     ]);
@@ -163,9 +165,10 @@ describe("Workplace discovery", () => {
       Products: "product",
       Warehouses: "warehouse",
       "Customers & suppliers": "parties",
-      "Ledger & reports": "ledger",
-      Invoices: "invoice",
-      "Bank reconciliation": "bank",
+      Accounting: "ledger",
+      Receivables: "invoice",
+      Payables: "invoice",
+      "Cash & banking": "bank",
       "Employee expenses": "expense",
       "Staff tasks": "staff-task",
       "Routine templates": "routine",
@@ -307,7 +310,7 @@ describe("Workplace discovery", () => {
         "/holdings/acme",
         "/holdings/acme/finance/invoices/inv-1",
       ).map((crumb) => crumb.label),
-    ).toEqual(["Finance", "Invoices", "Invoice"]);
+    ).toEqual(["Finance", "Receivables", "Invoice"]);
   });
   it("does not expose generic workspace records as a Work type", () => {
     expect(workTypes.some(([id]) => id === "record")).toBe(false);
@@ -404,7 +407,7 @@ describe("Services grouped by purpose", () => {
     ]);
     const bank = resolveNavigation(owner, base, `${base}/finance/bank`);
     expect(navigationCategory(owner, bank)?.id).toBe("finance");
-    expect(navigationTrail(owner, base, `${base}/finance/bank`).map(item => item.label)).toEqual(["Finance", "Bank reconciliation"]);
+    expect(navigationTrail(owner, base, `${base}/finance/bank`).map(item => item.label)).toEqual(["Finance", "Cash & banking"]);
   });
 
   it.each([

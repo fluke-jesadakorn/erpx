@@ -15,6 +15,8 @@ import { ApiError, errorResponse } from "@/server/http";
 import { paymentDraft, paymentGuards } from "@/server/expense-payments";
 import { completeBrandUpload } from "@/server/branding";
 import { matchesUploadSignature } from "@/server/upload-validation";
+import { qualityEvidenceGuard } from "@/server/quality";
+import { deliveryEvidenceGuard } from "@/server/commerce-delivery-evidence";
 
 export async function PUT(
   request: Request,
@@ -114,6 +116,8 @@ export async function PUT(
     );
     if (prior) return Response.json({ data: prior }, { status: 201 });
     const support=intent.owner_type==="support_ticket"?await supportEvidenceGuard(write,actor,intent.owner_id,Number(intent.owner_version),commandId):null;
+    const quality=intent.owner_type==="quality_hold"?await qualityEvidenceGuard(write,actor,intent.owner_id,Number(intent.owner_version),commandId):null;
+    const deliveryEvidence=intent.owner_type==="commerce_order_delivery"?await deliveryEvidenceGuard(write,actor,intent.owner_id,Number(intent.owner_version),commandId):null;
     const invoiceEvidence=intent.owner_type==="invoice_payment"?await invoiceEvidenceGuard(write,actor,intent.owner_id,commandId):null;
     const requestSnapshot = intent.owner_type === "employee_request" ? await serviceAuthoritySnapshot(write, actor.companyId) : null;
     const employeeRequest = intent.owner_type === "employee_request" ? await employeeRequestUpload(write, actor, intent.owner_id, intent.purpose) : null;
@@ -162,11 +166,11 @@ export async function PUT(
         "LEAVE_LOCKED",
         "Evidence changes require your editable request.",
       );
-    if (!expense && !task && !leave && !social && !payment && !employeeRequest && !invoiceEvidence && !support)
+    if (!expense && !task && !leave && !social && !payment && !employeeRequest && !invoiceEvidence && !support && !quality && !deliveryEvidence)
       throw new ApiError(404, "OWNER_NOT_FOUND", "Attachment owner not found.");
     const ownerScope = payment
       ? { ...payment.expense, ...payment.draft }
-      : (support?.row ?? invoiceEvidence?.invoice ?? employeeRequest ?? social ?? expense ?? task ?? leave!);
+      : (deliveryEvidence?.row ?? quality?.row ?? support?.row ?? invoiceEvidence?.invoice ?? employeeRequest ?? social ?? expense ?? task ?? leave!);
     const finalKey = `${actor.holdingId}/objects/${id}/r${intent.revision}`;
     const stored = await files.put(finalKey, buffer, {
       onlyIf: { etagDoesNotMatch: "*" },
@@ -188,6 +192,8 @@ export async function PUT(
       ...(requestSnapshot ? requestSnapshot(commandId) : []),
       ...(invoiceEvidence?.guards??[]),
       ...(support?.guards??[]),
+      ...(quality?.guards??[]),
+      ...(deliveryEvidence?.guards??[]),
       ...(payment
         ? paymentGuards(write, actor, commandId, payment.expense)
         : []),
@@ -207,6 +213,8 @@ export async function PUT(
               "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND version=? AND published_post_id IS NULL)",
               [social.id, actor.userId, social.version],
             )
+          : deliveryEvidence
+            ? assertion(write,commandId,"delivery-purpose","?='proof_of_delivery'",[intent.purpose])
           : task
             ? taskVersionGuard(write, commandId, task.id, task.version, [
                 task.state,
@@ -264,7 +272,7 @@ export async function PUT(
         ),
       write
         .prepare(
-          `UPDATE ${support ? "support_tickets" : invoiceEvidence ? "finance_invoices" : employeeRequest ? "employee_requests" : payment ? "expense_payment_drafts" : social ? "social_post_drafts" : expense ? "finance_expenses" : task ? "staff_tasks" : "leave_requests"} SET version=version+1,${employeeRequest ? "evidence_version=evidence_version+1," : ""}updated_at=? WHERE id=?`,
+          `UPDATE ${deliveryEvidence ? "commerce_orders" : quality ? "inventory_quality_holds" : support ? "support_tickets" : invoiceEvidence ? "finance_invoices" : employeeRequest ? "employee_requests" : payment ? "expense_payment_drafts" : social ? "social_post_drafts" : expense ? "finance_expenses" : task ? "staff_tasks" : "leave_requests"} SET version=version+1,${employeeRequest ? "evidence_version=evidence_version+1," : ""}updated_at=? WHERE id=?`,
         )
         .bind(now, intent.owner_id),
     ];
@@ -277,7 +285,7 @@ export async function PUT(
       input,
       intent.owner_id,
       Number(ownerScope.version) + 1,
-      { id: attachmentId, bytes: buffer.byteLength, checksum },
+      { id: attachmentId, bytes: buffer.byteLength, checksum, ownerVersion:Number(ownerScope.version)+1 },
       steps,
       {
         companyId: String(ownerScope.company_id),

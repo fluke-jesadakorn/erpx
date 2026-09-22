@@ -1,0 +1,22 @@
+{
+  "observedAt": "2026-09-21T14:30:15+07:00",
+  "repositoryHead": "b7a295104a0b5731b29454a82baec887967b7374",
+  "workingTree": "Modified development workspace; evidence applies to the uncommitted implementation present at observation time.",
+  "environment": "Disposable PostgreSQL test databases on loopback, created and removed by the guarded ERPX integration harness.",
+  "command": "bun --env-file=.env.local run test:integration tests/employee-services.test.ts -t split-one-approved-request",
+  "result": "1 passed, 20 skipped by test-name filter",
+  "scope": [
+    "Approved request quantity 24 each split across two RFQs, two independently reviewed supplier awards and two linked purchase orders.",
+    "Exact conversion evidence for 1 case = 12 each plus a second 12-each purchasing line.",
+    "Requested, allocated and remaining quantity projection.",
+    "Over-allocation rejection, concurrent single-winner allocation and cancellation release.",
+    "Legacy first-PO pointer retained while normalized request-order links contain both POs.",
+    "Purchase request progress aggregates the two purchase orders."
+  ],
+  "notCovered": [
+    "Multi-role browser acceptance",
+    "External supplier or provider integration",
+    "Production acceptance",
+    "Business sign-off"
+  ]
+}

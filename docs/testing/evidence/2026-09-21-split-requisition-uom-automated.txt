@@ -1,0 +1,10 @@
+$ bun scripts/local/test.ts tests/employee-services.test.ts -t "splits one approved request"
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 20 skipped (21)
+   Start at  14:30:01
+   Duration  7.40s (transform 212ms, setup 50ms, import 256ms, tests 7.02s, environment 0ms)
+

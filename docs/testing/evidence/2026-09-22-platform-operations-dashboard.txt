@@ -1,0 +1,23 @@
+ERPX Release 1 Platform Administration — live operations dashboard
+Observed: 2026-09-22 Asia/Bangkok
+
+Implementation:
+- src/server/platform-operations.ts
+- src/app/api/v1/platform/operations/route.ts
+- src/app/platform/[destination]/page.tsx
+- tests/platform-operations.test.ts
+
+Automated evidence:
+- tests/platform-operations.test.ts: 4 tests passed.
+- The summary reads control runtime health and each active Holding's persisted outbox state, including pending, claimed, dead-letter, jobs heartbeat and oldest pending events.
+- An unavailable Holding is represented explicitly as `unavailable` with an actionable message while other bindings remain visible.
+- The API requires the existing Platform context and returns private no-store data; the page uses the same server-owned summary and is marked Live/Persisted data.
+- bun run typecheck: passed.
+- Scoped ESLint: passed with 0 errors.
+- bun run deploy:build: passed isolated release `.runtime/releases/2026-09-21T18-23-22-385Z`; server.js sha256 `3fb7fbb66c542ee060a70800d320056243120f7374a0e31c299a19a21c745326`. Build output includes `/api/v1/platform/operations/recover`.
+
+Limitations:
+- Platform administrators can now recover a single dead-letter job from the live page. The command resets the queue lease/error snapshot only after an optimistic check, requires a reason and idempotency key, and writes a Holding command receipt and audit event. Auditor roles remain read-only.
+- Provisioning, migration and temporary-access commands remain separate implementation work.
+- No authenticated public Platform browser transaction was submitted because the existing browser session is expired.
+- No production operational/RPO/RTO sign-off.

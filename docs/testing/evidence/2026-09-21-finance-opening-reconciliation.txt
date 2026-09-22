@@ -1,0 +1,44 @@
+ERPX Release 1 Finance — opening balance and subledger reconciliation
+Observed: 2026-09-21 Asia/Bangkok
+
+Implemented behavior
+- Opening trial-balance lines identify receivable and payable control schedules.
+- Finance account control_kind distinguishes AR/AP from cash, inventory, tax and other control accounts.
+- Each schedule item requires the correct active customer/supplier, matching functional currency, unique reference, due date, control account, offset account and positive amount.
+- Each configured AR/AP control-account schedule must equal its GL opening balance exactly.
+- Preview tokens bind the company, chart, period, accounts, parties, normalized balances and schedules.
+- Import creates the draft opening journal and draft operational Finance invoices atomically under one idempotent command.
+- A different Finance approver posts the journal and all linked opening invoices together; posted items appear in normal aging and can use normal receipt/payment allocation.
+- Reversal voids unallocated opening invoices with the GL reversal. Any historical allocation blocks direct opening-journal reversal.
+- Opening-import invoices cannot be posted separately and therefore cannot duplicate GL.
+
+Automated verification
+- bun run typecheck: passed.
+- bun run lint: 0 errors; 3 pre-existing unused-variable warnings.
+- Focused and adjacent regression: 4 files, 19 tests passed.
+  tests/finance-opening-balances.test.ts
+  tests/finance-calculation-engines.test.ts
+  tests/purchase-to-payment.test.ts
+  tests/supplier-payments.test.ts
+- Opening tests cover normalized preview/import, stale preview rejection, concurrent singleton import, exact customer schedule reconciliation, independent posting into aging, controlled reversal and mismatch rejection.
+
+Authenticated public browser observation
+- URL: https://erpx.jesadakorn.com/holdings/acme/finance/setup
+- Active role: holding owner, Acme Corporation.
+- The real Next.js page rendered readiness 5/5 and the Opening balances control.
+- The expanded form rendered period/date/currency, GL rows, control-account labels, and customer/supplier schedule rows.
+- Selecting account 1200 Trade receivables automatically selected Customer receivables.
+- Add subledger item rendered type, filtered customer, reference, due date, control account, offset account and amount fields.
+- No opening transaction was submitted in the shared development company.
+
+Release and availability
+- Isolated deploy build passed after the final idempotency guard: .runtime/releases/2026-09-21T12-19-59-258Z
+- Development listener remained on 127.0.0.1:3100 from /Users/fluke/Desktop/Work/erpx.
+- http://127.0.0.1:3100/api/health returned HTTP 200 with {"status":"ok"}.
+- https://erpx.jesadakorn.com/api/health returned HTTP 200 with {"status":"ok"} using a browser-compatible health-check user agent.
+- The affected public Finance Setup page was authenticated and rendered successfully.
+
+Gate limits
+- Automated owner-service coverage and authenticated UI observation are evidence for this implementation slice, not full Finance business acceptance.
+- A complete independent multi-role browser import/post/settle journey is still pending.
+- Two consecutive reconciled Finance closes, migration rehearsal, provider acceptance and production sign-off remain separate gates.

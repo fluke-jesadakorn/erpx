@@ -26,6 +26,7 @@ export type WorkItem = {
     | "supplier_promise"
     | "procurement_rfq"
     | "supplier_bill"
+    | "landed_cost"
     | "inventory_transit"
     | "quality_hold"
     | "supplier_batch"
@@ -33,6 +34,8 @@ export type WorkItem = {
     | "legal"
     | "pms"
     | "pos"
+    | "organization_change"
+    | "company_business_acceptance"
     | "people_lifecycle"
     | "overtime"
     | "leave"
@@ -79,6 +82,8 @@ export const workTypes = [
   ["pms", "Hotel operations"],
   ["all", "All types"],
   ["pos", "POS"],
+  ["organization_change", "Organization changes"],
+  ["company_business_acceptance", "Company setup acceptance"],
   ["people_lifecycle", "People & IT preparation"],
   ["order", "Sales / purchase orders"],
   ["invoice", "Invoices and settlement"],
@@ -89,6 +94,7 @@ export const workTypes = [
   ["supplier_promise", "Supplier delivery confirmations"],
   ["procurement_rfq", "Supplier quotation reviews"],
   ["supplier_bill", "Supplier invoice matching"],
+  ["landed_cost", "Inventory landed costs"],
   ["journal", "General ledger"],
   ["payroll", "Payroll"],
   ["staff_task", "Tasks"],

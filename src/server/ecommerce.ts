@@ -74,7 +74,7 @@ const actionSchema = z.object({
   fulfillmentVersion: version.optional(),
   date: z.string().date().optional(),
   lines: z
-    .array(z.object({ lineId: z.string().min(1), quantity: qty }))
+    .array(z.object({ lineId: z.string().min(1), quantity: qty, condition:z.enum(['unopened','damaged','unknown']).default('unknown'), conditionNote:z.string().trim().max(500).default(''), qualityDueDate:z.union([z.string().date(),z.literal('')]).default('') }))
     .optional(),
 });
 function access(a: WorkContext, write = false) {

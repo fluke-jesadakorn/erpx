@@ -1,0 +1,22 @@
+ERPX business-acceptance evidence
+Scenario: Sales delivery, customer return, credit note and controlled refund
+Observed: 2026-09-22 (Asia/Bangkok)
+Environment: isolated resettable browser demo; run fd43f46711e7; http://127.0.0.1:3102
+Command: ERPX_E2E_BASE_URL=http://127.0.0.1:3102 ERPX_DEMO_RUN=fd43f46711e7 bunx playwright test tests/e2e/demo-sales-to-collection.spec.ts --project=desktop
+Result: 1 passed in 59.9s; the isolated run was destroyed after the test.
+
+Independent role contexts completed the connected workflow through the actual UI:
+- Sales operator submitted the quotation and created the sales order.
+- Sales manager approved the quotation, order and customer return.
+- Warehouse manager uploaded PDF delivery evidence and recorded delivery.
+- Finance preparer created the customer invoice; Finance approver posted the goods movement GL, invoice GL, stock reversal GL and credit-note GL.
+- Treasury recorded the customer receipt, approved refund preparation, exported the instruction, matched the exact sandbox bank transaction, and posted the refund.
+- Holding owner independently approved the refund obligation with counterparty bank and review evidence.
+
+Assertions after reload/API checks:
+- The customer invoice was paid with THB 0.00 outstanding.
+- The return was completed only after both reversal journals were posted.
+- The refund instruction matched the selected sandbox bank row and settled the refund obligation with outstanding_minor=0.
+- Delivery and return evidence remained linked to the connected order history.
+
+Scope and limitations: This is browser acceptance in a disposable simulation with sandbox bank data. It does not certify live payment/bank providers, statutory tax or payroll rules, production backup/restore, customer business sign-off, quality release/scrap disposition after return, or real customer notifications.

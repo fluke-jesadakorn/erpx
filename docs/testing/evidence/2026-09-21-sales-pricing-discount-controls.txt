@@ -1,0 +1,46 @@
+ERPX Sales price-list and discount-control evidence
+Date: 2026-09-21
+
+Automated regression:
+- tests/sales-pricing.test.ts
+- tests/business-commands.test.ts
+- tests/flow-routing.test.ts
+- tests/commerce-returns.test.ts
+- pricing regression: 5 files passed, 73 tests passed
+- final pricing/routing regression after the owner-eligibility repair: 2 files passed, 15 tests passed
+- TypeScript typecheck passed
+- ESLint passed with 0 errors (3 pre-existing unused-variable warnings)
+- release build passed: .runtime/releases/2026-09-21T10-47-45-530Z
+
+Covered:
+- company-wide and customer-specific dated price lists
+- company-currency, customer, product and tax validation
+- independent activation and immutable active/superseded price evidence
+- versioned draft editing with stale-write protection and idempotent replay
+- latest draft preparer is retained for maker-checker enforcement
+- current and future approved lists can coexist; automatic resolution uses customer scope, document date, effective start, and approval recency
+- customer-specific preference over general price list
+- price-list id/version, list price and calculated discount captured on the order
+- delegated automatic discount threshold
+- mandatory preparer reason and independent manager approval reason above threshold
+- idempotent commands, optimistic versions, current assignment authority and audit history
+- quotation-to-sales copy preserves the pricing snapshot in the implementation
+
+Authenticated public-browser verification:
+- https://erpx.jesadakorn.com/holdings/acme/commerce?view=pricing
+- active USD demo price list renders with effective dates, 5% delegated limit, item price and tax
+- quotation form exposes customer-scoped price-list selection and discount reason
+- actual-interface draft QT-EC8D7E371C87B390ED971BF7 captures price-list version 2
+- order detail shows USD 1,299.00 list, USD 1,169.10 unit price, 10% discount, reason and pending independent manager review
+- active Price lists navigation and breadcrumb verified after reload
+- local and public /api/health both returned HTTP 200
+- Holding owner created a USD draft through the real UI, then edited its name, unit price and tax from v1 to v2
+- Sofia Ramirez signed in through a separate browser session as sales manager and activated v2 as v3 with an independent review reason
+- the existing 2026 list remained active while the October list became active
+- an October quotation created with automatic pricing captured the new list at v3, USD 1,280.00 and 7% tax
+- the company-account owner without an HR engagement remained eligible to submit the draft; the prior false “no longer eligible” blocker was removed without broadening role pools
+- the owner submitted QT-928B7E00B6FB544C50AED73B, assigned Sofia as the sales-manager owner with a recorded reason, and Sofia approved it from her separate session to `confirmed`
+
+Remaining acceptance boundary:
+- customer notification still requires separate multi-role/provider acceptance.
+- no external customer, email or production provider was contacted.

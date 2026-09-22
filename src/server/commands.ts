@@ -90,7 +90,11 @@ export async function executeCommand<T>(db: SqlDatabase, actor: Actor, id: strin
     }
     const committed = await prior();
     if (committed) return committed;
-    if (/constraint|UNIQUE/i.test(String(error))) throw new ApiError(409,"CONFLICT","The record changed, a reference is unavailable, or this value already exists. Refresh and review again.");
+    if (/constraint|UNIQUE/i.test(String(error))) {
+      const conflict = new ApiError(409,"CONFLICT","The record changed, a reference is unavailable, or this value already exists. Refresh and review again.");
+      conflict.cause = error;
+      throw conflict;
+    }
     throw error;
   }
 }

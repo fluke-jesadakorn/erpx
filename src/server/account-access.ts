@@ -107,6 +107,9 @@ export async function invitePerson(
       "UPDATE account_invitations SET status='revoked' WHERE holding_id=? AND person_id=? AND status='pending' AND id!=?",
     ).bind(actor.holdingId, personId,id),
     env.CONTROL_DB.prepare(
+      "UPDATE account_invitation_delivery_jobs d SET state='cancelled',error='INVITATION_SUPERSEDED',lease_token=NULL,lease_until=NULL,updated_at=? FROM account_invitations i WHERE d.invitation_id=i.id AND i.holding_id=? AND i.person_id=? AND i.status='revoked' AND i.id!=? AND d.state!='sent'",
+    ).bind(Date.now(),actor.holdingId,personId,id),
+    env.CONTROL_DB.prepare(
       "INSERT INTO account_invitations(id,token_hash,holding_id,company_id,person_id,email,name,role,scope_kind,branch_id,created_by,assignment_id,expires_at,created_at,department_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
     ).bind(
       id,
@@ -125,10 +128,25 @@ export async function invitePerson(
       Date.now(),
       input.scope === "department" ? person.department_id : null,
     ),
+    env.CONTROL_DB.prepare("INSERT INTO account_invitation_delivery_jobs(id,invitation_id,holding_id,company_id,state,next_attempt_at,created_at,updated_at) VALUES(?,?,?,?,'awaiting_approval',?,?,?) ON CONFLICT(invitation_id) DO NOTHING").bind(`account-invite-delivery-${id}`,id,actor.holdingId,actor.companyId,Date.now(),Date.now(),Date.now()),
   ]);
   const requested=grantInput.parse({userId:`usr_invite_${id}`,roleId:input.role,scopeKind:input.scope,scopeNodeId:input.scope==="holding"?null:input.scope==="branch"?person.branch_id:person.department_id,validUntil:expiry,reason:"Invite employee with explicitly reviewed access"});
   const review=await iamCommand(write as PostgresDatabase,iam,`invite-review-${id}`,"invitation.propose",{invitationId:id,...requested},"iam.manage",async c=>{await validateIamGrant(c,iam,requested);return proposeIamReview(c,iam,"invitation.authorize",{invitationId:id,...requested,parentId:iam.assignmentId},"Authorize an employee invitation and initial grant.");});
-  return { id, token, reviewId:review.id, message:"Invitation prepared. Independent approval is required before activation.",expiresAt: Date.now() + 48 * 3600000 };
+  return { id, token, reviewId:review.id, deliveryState:"awaiting_approval",message:"Invitation prepared. Independent approval is required before email delivery.",expiresAt: Date.now() + 48 * 3600000 };
+}
+
+export async function retryInvitationDelivery(actor:WorkContext,personId:string,invitationId:string,key:string){
+  actor=owner(actor);await directoryPerson(actor,personId);const iam=iamActorFromWork(actor);await requireFreshMfa(iam);const env=await runtimeEnv(),{write}=await holdingResources(actor.holdingId);
+  await iamCommand(write as PostgresDatabase,iam,key,"invitation.delivery.retry",{personId,invitationId},"iam.manage",async()=>({id:invitationId}));
+  const changed=await env.CONTROL_DB.prepare("UPDATE account_invitation_delivery_jobs SET state='queued',attempts=0,next_attempt_at=?,error=NULL,lease_token=NULL,lease_until=NULL,updated_at=? WHERE invitation_id=? AND holding_id=? AND company_id=? AND state='failed' AND EXISTS(SELECT 1 FROM account_invitations WHERE id=? AND person_id=? AND status='pending' AND expires_at>?) RETURNING id").bind(Date.now(),Date.now(),invitationId,actor.holdingId,actor.companyId,invitationId,personId,Date.now()).first();
+  if(!changed)throw new ApiError(409,"INVITATION_DELIVERY_NOT_RETRYABLE","Only a failed, current invitation can be retried.");return {id:invitationId,status:"queued"};
+}
+export async function revokeInvitation(actor:WorkContext,personId:string,invitationId:string,key:string){
+  actor=owner(actor);await directoryPerson(actor,personId);const iam=iamActorFromWork(actor);await requireFreshMfa(iam);const env=await runtimeEnv(),{write}=await holdingResources(actor.holdingId);
+  await iamCommand(write as PostgresDatabase,iam,key,"invitation.revoke",{personId,invitationId},"iam.manage",async()=>({id:invitationId}));
+  const changed=await env.CONTROL_DB.prepare("UPDATE account_invitations SET status='revoked' WHERE id=? AND holding_id=? AND company_id=? AND person_id=? AND status='pending' RETURNING id").bind(invitationId,actor.holdingId,actor.companyId,personId).first();
+  if(!changed){const current=await env.CONTROL_DB.prepare("SELECT status FROM account_invitations WHERE id=? AND holding_id=? AND company_id=? AND person_id=?").bind(invitationId,actor.holdingId,actor.companyId,personId).first<{status:string}>();if(current?.status!=="revoked")throw new ApiError(409,"INVITATION_CHANGED","Only a pending invitation can be revoked.");}
+  await env.CONTROL_DB.prepare("UPDATE account_invitation_delivery_jobs SET state='cancelled',error='INVITATION_REVOKED',lease_token=NULL,lease_until=NULL,updated_at=? WHERE invitation_id=? AND state!='sent'").bind(Date.now(),invitationId).run();return {id:invitationId,status:"revoked"};
 }
 type Invitation = {
   id: string;

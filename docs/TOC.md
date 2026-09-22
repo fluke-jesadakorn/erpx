@@ -6,6 +6,7 @@
 
 - [A–J implementation progress and readiness](testing/cross-department-implementation-progress.md): actual implementation gaps, scoped evidence and Company-admin readiness dashboard.
 - [Isolated browser simulation](testing/isolated-browser-simulation.md): disposable databases, real password sign-in and independent role handoffs on loopback 3102.
+- [Working demo company](testing/working-demo-company.md): resettable isolated ERPX environment, real owner services, independent roles and a guided laptop purchase-to-payment scenario.
 - [Isolated recovery simulation](testing/recovery-simulation.md): source-linked business snapshot restore with per-table checksums; production RPO/RTO remain pending.
 - [Shared stock reservation simulation](testing/shared-stock-reservation-simulation.md): Sales/POS availability, partial consume, release, expiry and concurrency evidence.
 - [Company routing review](testing/routing-attention-simulation.md): named-source scans, permission-filtered pagination and audited routing repair without a recent-document cutoff.
@@ -82,6 +83,7 @@
 - [Access and error feedback](testing/access-feedback.md): reason-specific workspace, session, permission and recovery UI, with security and browser acceptance coverage.
 
 - [Workplace design acceptance](testing/workplace-design.md): Home, Work, Inbox, shared themes and responsive regression verification.
+- [UX/UI component inventory](ux-ui/component-inventory.md): generated route and component catalogue, state coverage signals, and repair severity model.
 - [E2E specification and test cases](testing/e2e-specification.md): source-based Work/authentication cases, existing business coverage, fixture prerequisites and remaining browser gaps.
 
 ## Workplace simplification — 2026-09-08
@@ -141,6 +143,7 @@ Notes: 31 deep 213→60L (6150→2156L) + MAP 31 + _shared 109L + Plan→docs/pl
 - [Social + AI public beta](plan/2026-09-07-social-ai-public-beta.md) — primary research, approved conversation-to-completion scope, pilot hypotheses, and pending verification gates.
 
 - [Local Mac deployment and recovery](../ops/macos/README.md) — active runtime (ADR-024).
+- [Development performance verification](testing/dev-performance-2026-09-22.md) — Work cache coverage, batched authorization, page timing and restart evidence.
 - [ADR-030: Temporary Samba directory authority](adr/ADR-030-temporary-samba-directory-authority.md) — Alpine ARM64 isolation, identity continuity and recovery boundary.
 - [Samba AD on the ERPX Mac](../ops/samba/README.md) — build, restore and runner operations for the temporary directory hosts.
 

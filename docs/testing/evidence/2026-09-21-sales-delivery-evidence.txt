@@ -1,0 +1,28 @@
+ERPX Sales proof-of-delivery evidence
+Date: 2026-09-21
+
+Automated verification:
+- 7 related files passed, 29 tests passed after updating Sales delivery fixtures.
+- tests/sales-delivery-evidence.test.ts passed its focused evidence lifecycle test.
+- Sales delivery rejects missing evidence and a missing confirmation note.
+- Evidence must be an unrevoked private attachment owned by the same sales order.
+- An attachment can be linked to only one fulfillment and the link cannot be updated or deleted.
+- The order detail returns linked evidence and unlinked pending uploads separately.
+- Pending uploads remain selectable after a page reload until a delivery consumes them.
+- Existing purchase receiving, e-commerce, lot/serial, quality-hold, returns, landed-cost, reservation, and restore behavior passed related regression.
+- TypeScript typecheck passed.
+- ESLint passed with 0 errors and the same 3 existing unused-variable warnings.
+- Isolated release build passed: .runtime/releases/2026-09-21T11-12-10-433Z
+
+Authenticated public-browser verification:
+- Holding owner created SO-D00BF12F80AC5AF283094F23 through the actual Sales UI.
+- The owner submitted it and assigned Sofia Ramirez as sales manager with a recorded reason.
+- Sofia opened it from Home > Needs your attention in a separate authenticated session and approved it.
+- The owner assigned Owen Brooks as warehouse manager with a recorded reason.
+- Owen opened the same order from Home > Needs your attention in a separate authenticated session.
+- The confirmed order rendered the real Deliver goods form with movement date, proof-of-delivery file input, receipt confirmation note, delivered quantity, and a disabled Record delivery action until evidence exists.
+- Public URL: https://erpx.jesadakorn.com/holdings/acme/commerce/orders/order-1a964b39-0e79-48dd-b170-b7717158f985
+
+Acceptance boundary:
+- The browser run verified real multi-role routing and the required evidence UI. Browser automation could not attach a native file through the available file-input control, so the completed upload-to-delivery transaction remains covered by service/integration tests rather than browser evidence.
+- Customer notification and business-user acceptance remain separate gates.

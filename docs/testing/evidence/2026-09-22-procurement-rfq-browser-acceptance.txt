@@ -1,0 +1,28 @@
+ERPX Release 1 procurement browser acceptance — 2026-09-22
+
+Disposable demo run
+- Run: b848b9a1229d
+- Origin: http://127.0.0.1:3102
+- Storage: isolated PostgreSQL databases and private local session/files
+- External integrations: sandbox/demo records only; no provider or real company data
+
+Command
+ERPX_DEMO_RUN=b848b9a1229d ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bun run demo:verify:browser
+
+Result
+- controlled payment: passed
+- two consecutive period closes: passed
+- opening balance import: passed
+- purchase request sourcing: passed (7.9s)
+- total: 4 passed (37.3s)
+
+Procurement workflow coverage
+1. A purchasing manager creates a supplier quotation request from the actual browser form with a receiving warehouse, product demand, required date and evidence.
+2. The same buyer records a complete supplier quotation and submits the award reason.
+3. A separate purchasing-manager identity reviews and approves the award.
+4. The buyer creates the awarded draft purchase order, and the RFQ remains persisted as ordered after the handoff.
+
+Acceptance boundary
+- This is automated browser acceptance on the isolated working demo company, not business sign-off.
+- It does not prove live supplier integrations, payment providers, statutory procurement rules or production operation.
+- Demo reset destroys the disposable databases and private session/files; it cannot reach real company data.

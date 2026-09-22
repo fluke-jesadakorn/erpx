@@ -1,0 +1,18 @@
+ERPX People & Payroll preview-run browser acceptance
+Date: 2026-09-22 (Asia/Bangkok)
+Environment: isolated Demo Company browser simulation (run 6de18fbf1b56; destroyed after verification)
+Gate: browser
+
+Command:
+ERPX_DEMO_RUN=6de18fbf1b56 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-payroll-runs.spec.ts --project=desktop
+
+Result:
+1 passed (21.7s)
+
+Observed through three authenticated role contexts:
+- Payroll preparer opened People → Payroll, created a September 2026 monthly preview run for the seeded Demo pay group, and calculated the real gross-pay preview for the active Support agent engagement (THB 1,000.00 net).
+- Holding owner opened the real workflow responsibility page and assigned the pending payroll review step to an independent Payroll approver with a reason.
+- Payroll approver approved the reviewed preview; the preparer reloaded the same run and still saw the approved status and calculated totals.
+- Create, calculate, routing and approval commands used the existing versioned/idempotent APIs; the isolated run was destroyed afterward.
+
+This is global payroll-core preview evidence. It does not establish statutory tax, payment execution, provider, production or Company business acceptance.

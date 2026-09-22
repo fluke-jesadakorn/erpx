@@ -1,0 +1,24 @@
+ERPX Operations staff-task alert evidence
+Observed: 2026-09-22 (Asia/Bangkok)
+
+Automated command:
+  bun run test -- tests/staff-task-alerts.test.ts
+  Test Files  1 passed (1)
+  Tests       2 passed (2)
+
+Coverage:
+  - due-soon reminder for the current assignee
+  - overdue escalation to assignee, requester and project owner
+  - deduplication across repeated scheduler retries
+  - immutable notification record type and task-version binding
+  - notification opening path re-checks current task visibility and authorization
+  - scheduled worker invokes the alert sweep for every active non-beta holding
+
+Implementation:
+  - src/server/staff-task-alerts.ts
+  - src/server/runtime/jobs.ts
+  - src/server/staff-notifications.ts
+
+Limitations:
+  - Task delegation with an expiry, policy-owned queue configuration, resolution summaries and multi-role browser acceptance remain pending.
+  - No production scheduler or company business-owner sign-off.

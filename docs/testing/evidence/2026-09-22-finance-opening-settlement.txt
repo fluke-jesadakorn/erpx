@@ -1,0 +1,16 @@
+ERPX Finance opening-balance settlement regression evidence — 2026-09-22
+
+Automated verification
+- Command: bun run test -- tests/finance-opening-balances.test.ts
+- Result: 1 file, 6 tests passed.
+
+Workflow covered
+- A balanced opening receivable schedule is imported and independently posted.
+- A separate Treasury role creates, approves, releases and confirms a customer receipt against an exact imported bank row.
+- The opening invoice is marked paid with zero outstanding.
+- Functional-currency values are retained on opening invoices, so a same-currency THB settlement does not create a false realized FX gain.
+- Reversing the opening journal after settlement is rejected with OPENING_SUBLEDGER_SETTLED, preserving the source settlement history.
+
+Acceptance boundary
+- This is automated PostgreSQL integration evidence using the existing isolated test database.
+- Live bank/provider, production operation, backup/restore and company business sign-off remain separate gates.

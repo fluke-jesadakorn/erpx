@@ -40,6 +40,23 @@ export async function iamRole(
       }
     : null;
 }
+/** Published definitions for a set of assignments, read afresh for this request. */
+export async function iamRoles(db: SqlDatabase, companyId: string, ids: readonly string[]): Promise<Map<string,RoleRevision>> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return new Map();
+  const rows = (await iamDb(db).prepare(`SELECT r.id,r.name,r.company_id,r.published_revision,r.built_in,r.status,
+    v.permissions_json,v.grantable_json,v.scopes_json FROM iam_roles r
+    JOIN iam_role_revisions v ON v.company_id=r.company_id AND v.role_id=r.id AND v.revision=r.published_revision
+    WHERE r.company_id IN ('*',?) AND r.id IN (${unique.map(()=>"?").join(",")}) AND r.status='active'`)
+    .bind(companyId,...unique).all<{id:string;name:string;company_id:string;published_revision:number;built_in:boolean;status:string;permissions_json:string[];grantable_json:string[];scopes_json:string[]}>()).results;
+  const roles = new Map<string,RoleRevision>();
+  for (const r of rows) if (!roles.has(r.id)) roles.set(r.id,{
+    id:r.id,name:r.name,companyId:r.company_id,revision:r.published_revision,builtIn:r.built_in,
+    permissions:r.permissions_json,grantablePermissions:r.grantable_json,scopes:r.scopes_json,status:r.status,
+  });
+  return roles;
+}
+
 export async function loadIamAuthority(
   db: SqlDatabase,
   companyId: string,

@@ -17,6 +17,7 @@ import { employeeRequestWork } from "./employee-requests";
 import { ApiError } from "./http";
 
 export type WorkSnapshot = { items: WorkItem[]; unavailableSources: string[] };
+
 export function mergeWorkItems(rows: WorkItem[]) {
   const merged = new Map<string, WorkItem>();
   for (const item of rows) {
@@ -137,6 +138,8 @@ export async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot
   });
   if (!actor.beta) jobs.push({label:"Retirement clearance",load:async()=>retirementWork((await holdingResources(actor.holdingId)).write,actor)});
   if (!actor.beta) jobs.push({label:"People & IT preparation",load:async()=>peopleLifecycleWork((await holdingResources(actor.holdingId)).write,actor)});
+  if (!actor.beta) jobs.push({label:"Organization changes",load:async()=>(await import("./organization-work")).organizationChangeWork((await holdingResources(actor.holdingId)).write,actor)});
+  if (!actor.beta) jobs.push({label:"Company setup acceptance",load:async()=>(await import("./company-business-acceptance")).companyBusinessAcceptanceWork((await holdingResources(actor.holdingId)).write,actor)});
   if (!actor.beta) jobs.push({label:"POS",load:async()=>(await import("./pos")).posWork(actor)});
   if (!actor.beta) jobs.push({label:"CRM pipeline",load:async()=>(await import("./crm")).crmWork(actor)});
   if (!actor.beta) jobs.push({label:"Support target escalations",load:async()=>(await import("./support-sla-alerts")).supportAlertWork(actor)});
@@ -157,6 +160,7 @@ export async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot
   if (!actor.beta) jobs.push({label:"Customer identity changes",load:async()=>(await import("./customer-identity-changes")).customerIdentityWork(actor)});
   if (!actor.beta) jobs.push({label:"Customer follow-ups",load:async()=>(await import("./customer-followups")).customerFollowupWork(actor)});
   if (!actor.beta) jobs.push({label:"Supplier invoice reviews",load:async()=>(await import("./supplier-bill-matching")).supplierBillWork(actor)});
+  if (!actor.beta) jobs.push({label:"Inventory landed costs",load:async()=>(await import("./inventory-landed-costs")).landedCostWork(actor)});
   if (!actor.beta) jobs.push({label:"Supplier quotation reviews",load:async()=>(await import("./procurement-rfqs")).rfqWork(actor)});
   if (!actor.beta) jobs.push({label:"Supplier confirmations",load:async()=>(await import("./supplier-promises")).supplierPromiseWork(actor)});
   if (!actor.beta) jobs.push({label:"Stock in transit",load:async()=>(await import("./inventory-transit")).transitWork(actor)});
