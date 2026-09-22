@@ -13,6 +13,7 @@ beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); })
 beforeEach(async () => {
   f = await expenseFixture();
   target = `consolidation-target-${key()}`;
+  await db.prepare("UPDATE finance_periods SET state='closed',closed_by=?,closed_at=? WHERE state='open'").bind(f.owner.userId, Date.now()).run();
   await db.batch([
     db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,company_id,status) VALUES(?,'company',?,? ,?,'active')").bind(target, target, "Consolidation target", target),
     db.prepare("INSERT INTO finance_group_entities(id,holding_id,company_id,reporting_name,functional_currency,status,created_at) VALUES(?,?,?,?,?,'active',1)").bind(`entity-${f.company}`, "h001", f.company, "Source company", "THB"),
@@ -44,4 +45,16 @@ it("blocks stale snapshots and duplicate dates", async () => {
   await expect(createConsolidationRun(f.reviewer, input, key())).rejects.toMatchObject({ code: "CONSOLIDATION_RUN_EXISTS" });
   await db.prepare("UPDATE finance_periods SET state='open' WHERE company_id=? AND end_date='2028-01-31'").bind(target).run();
   await expect(decideConsolidationRun(f.manager, String(prepared.id), "review", { expectedVersion: 1, reason: "Review after period state changed." }, key())).rejects.toMatchObject({ code: "CONSOLIDATION_PERIODS_REQUIRED" });
+});
+
+it("requires and stores a source-currency translation rate", async () => {
+  await db.prepare("UPDATE finance_group_entities SET functional_currency='USD' WHERE company_id=?").bind(target).run();
+  const withoutRate = consolidationRunSchema.parse({ asOfDate: "2029-01-31", presentationCurrency: "THB" });
+  await expect(createConsolidationRun(f.reviewer, withoutRate, key())).rejects.toMatchObject({ code: "CONSOLIDATION_RATE_REQUIRED" });
+  const withRate = consolidationRunSchema.parse({ asOfDate: "2029-01-31", presentationCurrency: "THB", translationRates: [{ currency: "usd", rate: "35.50" }] });
+  const prepared = await createConsolidationRun(f.reviewer, withRate, key());
+  const row = await db.prepare("SELECT source_snapshot_json FROM finance_consolidation_runs WHERE id=?").bind(prepared.id).first<{ source_snapshot_json: string }>();
+  const source = JSON.parse(String(row?.source_snapshot_json)) as { translationRates: Record<string, number>; companies: Array<{ companyId: string; translationRateMicros: number }> };
+  expect(source.translationRates.USD).toBe(35500000);
+  expect(source.companies.find(company => company.companyId === target)?.translationRateMicros).toBe(35500000);
 });

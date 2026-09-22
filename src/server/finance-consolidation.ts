@@ -7,6 +7,7 @@ import { holdingResources } from "./runtime";
 import { ApiError } from "./http";
 import { requirePermission } from "./iam-permissions";
 import type { SqlDatabase, SqlStatement } from "./runtime/types";
+import { decimalToMinor } from "./finance";
 
 type EntityPeriod = {
   companyId: string;
@@ -36,6 +37,7 @@ type ConsolidationRun = Record<string, string | number | null> & {
 export const consolidationRunSchema = z.object({
   asOfDate: z.string().date(),
   presentationCurrency: z.string().trim().length(3).transform(value => value.toUpperCase()),
+  translationRates: z.array(z.object({ currency: z.string().trim().length(3).transform(value => value.toUpperCase()), rate: z.string().regex(/^\d+(\.\d{1,6})?$/) })).max(50).default([]),
 });
 
 export const consolidationDecisionSchema = z.object({
@@ -72,18 +74,39 @@ async function entityPeriods(write: SqlDatabase, holdingId: string, asOfDate: st
   return result;
 }
 
-async function snapshot(write: SqlDatabase, holdingId: string, asOfDate: string, presentationCurrency: string) {
+function translationRate(currency: string, presentationCurrency: string, rates: Map<string, number>) {
+  if (currency === presentationCurrency) return 1_000_000;
+  const rate = rates.get(currency);
+  if (rate === undefined) throw new ApiError(422, "CONSOLIDATION_RATE_REQUIRED", `Provide a presentation-currency rate for ${currency} before preparing this snapshot.`);
+  if (rate <= 0) throw new ApiError(422, "CONSOLIDATION_RATE_INVALID", `The presentation-currency rate for ${currency} must be greater than zero.`);
+  return rate;
+}
+
+function translateMinor(amount: number, rateMicros: number) {
+  const product = BigInt(amount) * BigInt(rateMicros), negative = product < BigInt(0), absolute = negative ? -product : product;
+  const converted = (absolute + BigInt(500_000)) / BigInt(1_000_000), signed = negative ? -converted : converted;
+  if (signed > BigInt(Number.MAX_SAFE_INTEGER) || signed < BigInt(Number.MIN_SAFE_INTEGER)) throw new ApiError(422, "MONEY_OVERFLOW", "The translated consolidation balance exceeds supported precision.");
+  return Number(signed);
+}
+
+async function snapshot(write: SqlDatabase, holdingId: string, asOfDate: string, presentationCurrency: string, rawRates: Array<{ currency: string; rate: string }>) {
+  const rates = new Map<string, number>();
+  for (const row of rawRates) {
+    if (rates.has(row.currency)) throw new ApiError(422, "DUPLICATE_CONSOLIDATION_RATE", "Provide one translation rate per currency.");
+    rates.set(row.currency, decimalToMinor(row.rate, 6));
+  }
   const entityPeriodsResult = await entityPeriods(write, holdingId, asOfDate);
   const companies = [] as Array<Record<string, unknown>>;
   for (const entity of entityPeriodsResult) {
+    const rateMicros = translationRate(entity.functionalCurrency, presentationCurrency, rates);
     const accounts = await write.prepare(`SELECT a.code,a.name,a.category,a.currency,COALESCE(SUM(l.base_debit_minor-l.base_credit_minor),0) AS balance_minor
       FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id JOIN finance_accounts a ON a.id=l.account_id
       WHERE j.company_id=? AND j.period_id=? AND j.status='posted'
       GROUP BY a.code,a.name,a.category,a.currency ORDER BY a.code`).bind(entity.companyId, entity.periodId).all<Record<string, string | number | null>>();
-    companies.push({ ...entity, accounts: accounts.results });
+    companies.push({ ...entity, translationRateMicros: rateMicros, accounts: accounts.results.map(account => ({ ...account, translatedBalanceMinor: translateMinor(Number(account.balance_minor ?? 0), rateMicros) })) });
   }
   const intercompany = await write.prepare("SELECT id,source_company_id,target_company_id,reference,currency,amount_minor,status,version FROM finance_intercompany_transactions WHERE holding_id=? AND status IN ('settled','eliminated') ORDER BY id").bind(holdingId).all<Record<string, string | number | null>>();
-  const source = { asOfDate, presentationCurrency, companies, intercompany: intercompany.results };
+  const source = { asOfDate, presentationCurrency, translationRates: Object.fromEntries(rates), companies, intercompany: intercompany.results };
   return { source, sourceHash: await digest(source) };
 }
 
@@ -95,7 +118,7 @@ export async function createConsolidationRun(actor: WorkContext, input: z.infer<
   if (previous) return previous;
   const duplicate = await write.prepare("SELECT id FROM finance_consolidation_runs WHERE holding_id=? AND as_of_date=? AND presentation_currency=?").bind(actor.holdingId, input.asOfDate, input.presentationCurrency).first<{ id: string }>();
   if (duplicate) throw new ApiError(409, "CONSOLIDATION_RUN_EXISTS", "A consolidation run already exists for this date and presentation currency.");
-  const { source, sourceHash } = await snapshot(write, actor.holdingId, input.asOfDate, input.presentationCurrency);
+  const { source, sourceHash } = await snapshot(write, actor.holdingId, input.asOfDate, input.presentationCurrency, input.translationRates);
   const now = Date.now();
   return executeCommand(write, actor, key, "finance.consolidation.prepare", input, id, 1, { id, status: "draft", version: 1, sourceHash, companyCount: source.companies.length }, [
     assertion(write, key, "consolidation-unique", "NOT EXISTS(SELECT 1 FROM finance_consolidation_runs WHERE holding_id=? AND as_of_date=? AND presentation_currency=?)", [actor.holdingId, input.asOfDate, input.presentationCurrency]),
@@ -120,7 +143,8 @@ export async function decideConsolidationRun(actor: WorkContext, runId: string, 
   if (!run) throw new ApiError(404, "CONSOLIDATION_RUN_NOT_FOUND", "Consolidation run not found in this Holding.");
   if (run.status !== rule.from || Number(run.version) !== input.expectedVersion) throw new ApiError(409, "CONSOLIDATION_CHANGED", `The consolidation run is no longer ${rule.from}; reload before deciding.`);
   if (run.created_by === actor.userId || (action === "approve" && run.reviewed_by === actor.userId) || (action === "publish" && run.approved_by === actor.userId)) throw new ApiError(409, "SELF_REVIEW_FORBIDDEN", "A different authorized Finance colleague must perform this handoff.");
-  const current = await snapshot(write, actor.holdingId, run.as_of_date, run.presentation_currency);
+  const storedSource = JSON.parse(String(run.source_snapshot_json)) as { translationRates?: Record<string, string | number> };
+  const current = await snapshot(write, actor.holdingId, run.as_of_date, run.presentation_currency, Object.entries(storedSource.translationRates ?? {}).map(([currency, rate]) => ({ currency, rate: String(rate) })));
   if (current.sourceHash !== run.source_hash) throw new ApiError(409, "CONSOLIDATION_SNAPSHOT_STALE", "Closed periods or intercompany evidence changed. Prepare a fresh consolidation snapshot.");
   const version = input.expectedVersion + 1, now = Date.now();
   const updates = action === "review" ? "status=?,reviewed_by=?,reviewed_at=?,version=version+1,updated_at=?" : action === "approve" ? "status=?,approved_by=?,version=version+1,updated_at=?" : "status=?,published_by=?,published_at=?,version=version+1,updated_at=?";

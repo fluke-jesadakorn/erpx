@@ -37,9 +37,10 @@ export function ConsolidationRunConsole({ base, runs, canWrite, canApprove }: { 
   return <section className="card" aria-labelledby="consolidation-runs-title">
     <div className="section-head"><div><h2 id="consolidation-runs-title">Consolidation runs</h2><p className="muted">Snapshot closed company periods, require independent review and publish a controlled group result.</p></div><span className="badge">{runs.length}</span></div>
     {error && <p className="error" role="alert">{error}</p>}
-    {canWrite && <form className="business-form" onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); void send("", { asOfDate: form.get("asOfDate"), presentationCurrency: form.get("presentationCurrency") }); }}>
+    {canWrite && <form className="business-form" onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); const translationRates = String(form.get("translationRates") ?? "").split(/\r?\n/).map(line => line.trim()).filter(Boolean).map(line => { const [currency, rate] = line.split("=").map(value => value.trim()); return { currency, rate }; }); void send("", { asOfDate: form.get("asOfDate"), presentationCurrency: form.get("presentationCurrency"), translationRates }); }}>
       <label>As-of date<input name="asOfDate" type="date" required /></label>
       <label>Presentation currency<input name="presentationCurrency" minLength={3} maxLength={3} defaultValue="THB" required /></label>
+      <label>Translation rates (presentation currency per source currency)<textarea name="translationRates" rows={3} placeholder="USD=35.50\nEUR=38.20" /></label>
       <button className="button" disabled={busy}>{busy ? "Preparing…" : "Prepare consolidation snapshot"}</button>
     </form>}
     {!canWrite && !runs.length && <p className="muted">A Finance preparer must prepare the first consolidation snapshot.</p>}

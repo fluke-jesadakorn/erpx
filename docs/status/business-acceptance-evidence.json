@@ -4124,13 +4124,13 @@
       "gate": "automated",
       "environment": "simulation",
       "outcome": "partial",
-      "scope": "Holding-scoped Group Finance prepares a source-hashed consolidation snapshot from closed periods for two active entities, then requires independent review, approval and publication with idempotency, version guards, stale-source rejection and immutable event history.",
+      "scope": "Holding-scoped Group Finance prepares a source-hashed consolidation snapshot from closed periods for two active entities, requires source-currency translation rates when functional currencies differ, then requires independent review, approval and publication with idempotency, version guards, stale-source rejection and immutable event history.",
       "observedAt": "2026-09-23T03:08:00+07:00",
       "recordedBy": "Codex execution agent (automated service evidence, not business sign-off)",
       "evidence": [
         {
           "path": "docs/testing/evidence/2026-09-23-finance-consolidation-tests.txt",
-          "sha256": "8cd73c3289ada21661448798dae55acfc0abe9970565d9442847aa540cf3a5e3"
+          "sha256": "7cde9e2da2c0ad31b01564a9f01d93d53b73b688dee177b02f1e44b231a1104b"
         }
       ],
       "limitations": [

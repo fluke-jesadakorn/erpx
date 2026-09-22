@@ -6,10 +6,11 @@ Command:
 
 Result:
   1 test file passed
-  2 tests passed
+  3 tests passed
 
 Coverage:
   - closed-period snapshot across two active Group Finance entities
+  - required and persisted source-currency translation rates with exact micro-rate conversion
   - idempotent preparation and duplicate date/currency protection
   - independent review → approval → publication with version guards
   - stale snapshot rejection when a source period reopens
