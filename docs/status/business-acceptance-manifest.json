@@ -2407,12 +2407,12 @@
       "implementation": {
         "stage": 1,
         "status": "flow_accepted",
-        "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
+        "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx, src/app/holdings/[holdingSlug]/finance/payments/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
         "schema": "migrations/postgres/holding-write/0255_finance_multi_currency.sql",
-        "test": "tests/finance-generic-payments.test.ts",
-        "gap": "Generic Company receipts/payments require preparer, independent approver and third-person Treasury release; exact bank confirmation posts bank/AR/AP GL, transaction/functional allocations and realized FX, settles the payment and matches the bank row atomically. Supplier batches also reserve posted AP balances, require independent beneficiary review, export a recoverable instruction register and settle only against exact imported bank evidence; the isolated multi-role demo browser path passes a split 6+4 purchase through two instructions and paid invoices. Automated integration also posts one AP invoice consolidated across two purchase orders. Payroll/batch unification, live providers and business acceptance remain."
+        "test": "tests/finance-generic-payments.test.ts, tests/finance-payment-obligations.test.ts, tests/e2e/demo-payroll-runs.spec.ts",
+        "gap": "Generic Company receipts/payments require preparer, independent approver and third-person Treasury release; exact bank confirmation posts bank/AR/AP GL, transaction/functional allocations and realized FX, settles the payment and matches the bank row atomically. Supplier batches reserve posted AP balances, require independent beneficiary review, export a recoverable instruction register and settle only against exact imported bank evidence. Finance now exposes one source-linked Payment obligations queue for generic, supplier, refund, payroll and expense/contractor batches, with permission-filtered source access; the isolated multi-role Demo browser paths exercise these handoffs. Live providers and business acceptance remain."
       },
       "gates": {
         "automated": {

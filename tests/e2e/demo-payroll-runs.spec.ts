@@ -183,6 +183,11 @@ test("isolated demo calculates and independently approves a payroll preview", as
     await expect(financePage.getByText(/draft · THB/).first()).toBeVisible();
     await financePage.reload({ waitUntil: "domcontentloaded" });
     await expect(financePage.getByText(/draft · THB/).first()).toBeVisible();
+    await financePage.goto("/holdings/simulation/finance/payments", { waitUntil: "domcontentloaded" });
+    await expect(financePage.getByRole("heading", { name: "Payment obligations", exact: true }).first()).toBeVisible();
+    await expect(financePage.getByText("Payroll payment batch", { exact: true })).toBeVisible();
+    await expect(financePage.getByText("Approve payroll or expense payment", { exact: true })).toBeVisible();
+    await financePage.goto(runUrl, { waitUntil: "domcontentloaded" });
 
     // Treasury is a different authenticated user. It independently approves,
     // exports and confirms every generated payee row against a sandbox bank
