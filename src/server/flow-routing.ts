@@ -188,10 +188,27 @@ async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:Staf
     current = current === "in_review" ? "draft" : current;
     terminal ||= current === "posted";
   } else if (kind === "payroll") {
+    const paymentBatch = await db.prepare("SELECT id,status,created_by FROM hr_payment_batches WHERE company_id=? AND source_type='payroll' AND source_id=? AND status<>'cancelled' ORDER BY created_at DESC,id DESC LIMIT 1").bind(scope.company_id,row.id).first<{id:string;status:string;created_by:string}>();
     add("calculate", "Calculate payroll preview", "payroll_preparer", await roles(["payroll_preparer","hr_admin"]));
     add("preview", "Review payroll preview", "payroll_approver", await roles(["payroll_approver","people_manager"], true));
     add("approved", "Post payroll GL and prepare payment", "finance_approver", await roles(["finance_approver","holding_owner"], true));
+    add("posted", "Prepare payroll payment batch", "finance_approver", await roles(["finance_approver"], true));
+    const paymentApprovers = (await roles(["finance_approver","treasury"], true)).filter(id => id !== paymentBatch?.created_by);
+    add("payment_draft", "Approve payroll payment batch", "finance_approver", paymentApprovers);
+    add("payment_approved", "Export payroll payment instruction", "treasury", await roles(["treasury"], true));
+    add("payment_exported", "Confirm payroll payment results", "treasury", await roles(["treasury"], true));
+    add("payment_partially_settled", "Retry failed payroll payments", "treasury", await roles(["treasury"], true));
+    add("payment_settled", "Payroll payment settled", "treasury", await roles(["treasury"], true));
     if (["draft","calculating","failed"].includes(current)) current = "calculate";
+    else if (current === "posted") {
+      current = paymentBatch?.status === "draft" ? "payment_draft"
+        : paymentBatch?.status === "approved" ? "payment_approved"
+        : paymentBatch?.status === "exported" ? "payment_exported"
+        : paymentBatch?.status === "partially_settled" ? "payment_partially_settled"
+        : paymentBatch?.status === "settled" ? "payment_settled"
+        : "posted";
+    }
+    terminal ||= paymentBatch?.status === "settled";
   } else {
     add("draft", "Prepare and submit record", "requester", [owner], owner);
     add("in_review", "Review and approve record", "people_manager", await roles(["people_manager","holding_owner"], true));
@@ -296,7 +313,7 @@ export async function prepareFlowCommand(db: SqlDatabase, actor: StaffActor, key
   // The owner update is committed between the guards and this durable notification.
   const stateColumn = ["leave","staff_task","request","order"].includes(kind) ? "state" : "status";
   const approvalIndex = `(SELECT current_step FROM approval_instances WHERE company_id=d.company_id AND record_id=d.id ORDER BY insertion_order DESC LIMIT 1)`;
-  const state = kind === "expense" ? "CASE WHEN d.workflow_version=2 THEN d.workflow_stage ELSE CASE d.status WHEN 'in_review' THEN 'department_approval' WHEN 'approved' THEN 'gl_posting' WHEN 'posted' THEN 'payment' WHEN 'rejected' THEN 'draft' ELSE d.status END END" : kind === "leave" ? `CASE WHEN d.state='pending_approval' THEN 'approval_' || (${approvalIndex})::text ELSE d.state END` : kind === "staff_task" ? `CASE WHEN d.state IN ('ready','in_progress','rework') THEN 'work' WHEN d.state='start_approval' THEN 'start_' || (${approvalIndex})::text WHEN d.state='completion_approval' THEN 'completion_' || (${approvalIndex})::text ELSE d.state END` : kind === "request" ? "CASE WHEN d.state IN ('resolved','fulfilled') THEN 'confirm' WHEN d.state='returned' THEN 'draft' WHEN d.state='awaiting_approval' AND d.approval_json::jsonb #>> '{route,steps,0,snapshot,spendingPolicy}' IS NOT NULL THEN 'purchase_' || (d.approval_json::jsonb #> '{route,steps}' -> COALESCE((d.approval_json::jsonb ->> 'currentStep')::int,0) ->> 'stage') ELSE d.state END" : kind === "invoice" ? "CASE WHEN d.status='partially_paid' THEN 'posted' ELSE d.status END" : kind === "order" ? "CASE WHEN d.state='partially_fulfilled' THEN 'confirmed' WHEN d.state='fulfilled' AND EXISTS(SELECT 1 FROM commerce_fulfillments f JOIN finance_journals j ON j.id=f.journal_id WHERE f.order_id=d.id AND j.status IN ('draft','in_review')) THEN 'stock_gl' WHEN d.state='fulfilled' AND EXISTS(SELECT 1 FROM commerce_fulfillments f WHERE f.order_id=d.id AND f.invoice_id IS NULL) THEN 'invoicing' ELSE d.state END" : `d.${stateColumn}`;
+  const state = kind === "expense" ? "CASE WHEN d.workflow_version=2 THEN d.workflow_stage ELSE CASE d.status WHEN 'in_review' THEN 'department_approval' WHEN 'approved' THEN 'gl_posting' WHEN 'posted' THEN 'payment' WHEN 'rejected' THEN 'draft' ELSE d.status END END" : kind === "leave" ? `CASE WHEN d.state='pending_approval' THEN 'approval_' || (${approvalIndex})::text ELSE d.state END` : kind === "staff_task" ? `CASE WHEN d.state IN ('ready','in_progress','rework') THEN 'work' WHEN d.state='start_approval' THEN 'start_' || (${approvalIndex})::text WHEN d.state='completion_approval' THEN 'completion_' || (${approvalIndex})::text ELSE d.state END` : kind === "request" ? "CASE WHEN d.state IN ('resolved','fulfilled') THEN 'confirm' WHEN d.state='returned' THEN 'draft' WHEN d.state='awaiting_approval' AND d.approval_json::jsonb #>> '{route,steps,0,snapshot,spendingPolicy}' IS NOT NULL THEN 'purchase_' || (d.approval_json::jsonb #> '{route,steps}' -> COALESCE((d.approval_json::jsonb ->> 'currentStep')::int,0) ->> 'stage') ELSE d.state END" : kind === "invoice" ? "CASE WHEN d.status='partially_paid' THEN 'posted' ELSE d.status END" : kind === "order" ? "CASE WHEN d.state='partially_fulfilled' THEN 'confirmed' WHEN d.state='fulfilled' AND EXISTS(SELECT 1 FROM commerce_fulfillments f JOIN finance_journals j ON j.id=f.journal_id WHERE f.order_id=d.id AND j.status IN ('draft','in_review')) THEN 'stock_gl' WHEN d.state='fulfilled' AND EXISTS(SELECT 1 FROM commerce_fulfillments f WHERE f.order_id=d.id AND f.invoice_id IS NULL) THEN 'invoicing' ELSE d.state END" : kind === "payroll" ? "CASE WHEN d.status='posted' THEN COALESCE((SELECT CASE status WHEN 'draft' THEN 'payment_draft' WHEN 'approved' THEN 'payment_approved' WHEN 'exported' THEN 'payment_exported' WHEN 'partially_settled' THEN 'payment_partially_settled' WHEN 'settled' THEN 'payment_settled' ELSE 'posted' END FROM hr_payment_batches WHERE company_id=d.company_id AND source_type='payroll' AND source_id=d.id AND status<>'cancelled' ORDER BY created_at DESC,id DESC LIMIT 1),'posted') ELSE d.status END" : `d.${stateColumn}`;
   const recipient = kind === "request" ? `CASE WHEN d.state='in_progress' THEN d.assignee_user_id ELSE r.steps_json::jsonb -> (${state}) ->> 'primaryUserId' END` : `r.steps_json::jsonb -> (${state}) ->> 'primaryUserId'`;
   const after = [db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)
     SELECT ?,d.company_id,${recipient},?,d.id,d.version,?,? FROM ${tables[kind]} d JOIN flow_routes r ON r.company_id=d.company_id AND r.kind=? AND r.record_id=d.id

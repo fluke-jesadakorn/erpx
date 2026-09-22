@@ -1,5 +1,5 @@
 {
-  "evidenceLedgerSha256": "a4e75da1bb976c328595221a590a060fb56ab93d90134dc8929542e64af082a9",
+  "evidenceLedgerSha256": "5da6ff27e5702249d607da21673de72e9e4b190bfea52d62ec8517598f2f8f67",
   "capabilities": [
     {
       "id": "brand/feature-draft-workspace",
@@ -13111,13 +13111,13 @@
       "gate": "automated",
       "environment": "simulation",
       "outcome": "partial",
-      "scope": "An independently approved global payroll run is posted by a Finance approver into one balanced source-linked journal. Payroll items and the run become posted atomically, explicit liability accounts receive deductions and employer contributions, and idempotent retries do not duplicate the journal.",
-      "observedAt": "2026-09-23T01:00:00+07:00",
+      "scope": "An independently approved global payroll run is posted by a Finance approver into one balanced source-linked journal, then continues through a separate payroll payment batch: Treasury approval, sandbox export, bank-result confirmation and settled state. Payroll items and the run become posted atomically, explicit liability accounts receive deductions and employer contributions, and idempotent retries do not duplicate the journal or payment batch.",
+      "observedAt": "2026-09-23T01:32:00+07:00",
       "recordedBy": "Codex execution agent (automated service evidence, not business sign-off)",
       "evidence": [
         {
           "path": "docs/testing/evidence/2026-09-23-payroll-gl-posting.txt",
-          "sha256": "d5969dedd618bffa89623c23cb315bc582b0a395b0cc4d3b16c5b1e6740a27db"
+          "sha256": "2ddf667726043e92cf463b78b821d7f9cf7bba893c3ba5638686086d6a974cb1"
         }
       ],
       "limitations": [

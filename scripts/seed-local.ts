@@ -143,6 +143,14 @@ function assignmentStatements(db: Db, holding: string) {
       .bind(assignmentId, userId, role, modules, companyId, null, now - 1_000, validUntil));
     statements.push(db.prepare("UPDATE assignments SET role=?,modules_json=?,company_id=?,branch_id=NULL,valid_from=?,valid_until=?,revoked_at=NULL,scope_kind='holding',scope_node_id=NULL WHERE id=? AND user_id=?")
       .bind(role, modules, companyId, now - 1_000, validUntil, assignmentId, userId));
+    const treasuryRole: BusinessRole = "treasury";
+    const treasuryUserId = "usr_jun";
+    const treasuryAssignmentId = "seed_usr_jun_treasury";
+    const treasuryModules = JSON.stringify(businessRoles[treasuryRole]);
+    statements.push(db.prepare("INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,valid_until,version,scope_kind,scope_node_id) VALUES(?,?,?,?,?,?,?,?,1,'holding',NULL) ON CONFLICT DO NOTHING")
+      .bind(treasuryAssignmentId, treasuryUserId, treasuryRole, treasuryModules, companyId, null, now - 1_000, validUntil));
+    statements.push(db.prepare("UPDATE assignments SET role=?,modules_json=?,company_id=?,branch_id=NULL,valid_from=?,valid_until=?,revoked_at=NULL,scope_kind='holding',scope_node_id=NULL WHERE id=? AND user_id=?")
+      .bind(treasuryRole, treasuryModules, companyId, now - 1_000, validUntil, treasuryAssignmentId, treasuryUserId));
   }
   for (const company of companies.filter((item) => item.holding === holding)) {
     for (const role of devRoles) {

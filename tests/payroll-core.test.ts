@@ -1,8 +1,9 @@
 import { beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "./runtime-env";
 import { expenseDb as db,expenseFixture,key } from "./helpers/expense-fixture";
-import { approvePayrollRun,calculatePayrollRun,createPayrollRun,decidePayrollCorrection,decidePayrollAdvance,exportPayrollReview,getPayrollReviewFile,getPayrollRun,payrollRunSchema,prepareFinalPay,finalPayPreparationSchema,requestPayrollCorrection,requestPayrollAdvance,payrollAdvanceRequestSchema,payrollAdvancePage,postPayroll,payrollPostSchema } from "../src/server/people-payroll";
+import { approvePayrollRun,calculatePayrollRun,createPaymentBatch,approvePaymentBatch,confirmPaymentBatch,exportPaymentBatch,getPaymentFile,createPayrollRun,decidePayrollCorrection,decidePayrollAdvance,exportPayrollReview,getPayrollReviewFile,getPayrollRun,payrollRunSchema,prepareFinalPay,finalPayPreparationSchema,requestPayrollCorrection,requestPayrollAdvance,payrollAdvanceRequestSchema,payrollAdvancePage,postPayroll,payrollPostSchema } from "../src/server/people-payroll";
 import { listStaffNotifications } from "../src/server/staff-notifications";
+import { resolveFlow } from "../src/server/flow-routing";
 
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 
@@ -30,6 +31,7 @@ it("posts an approved payroll run into the finance ledger exactly once",async()=
   f.owner.role="payroll_preparer";f.owner.assignmentId=await f.grant(f.owner,"payroll_preparer");
   f.manager.role="payroll_approver";f.manager.assignmentId=await f.grant(f.manager,"payroll_approver");
   f.reviewer.role="finance_approver";f.reviewer.assignmentId=await f.grant(f.reviewer,"finance_approver");
+  f.claimant.role="treasury";f.claimant.assignmentId=await f.grant(f.claimant,"treasury");
   const engagement=await db.prepare("SELECT e.id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND p.user_id=?").bind(f.company,f.claimant.userId).first<{id:string}>(),group=`paygroup-${key()}`,employer=`${f.company}-employer-${key()}`;
   await db.batch([
     db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,?,'liability','THB',1,1)").bind(employer,f.chart,f.company,"EMPLOYER-${key()}","Employer contributions payable"),
@@ -51,8 +53,26 @@ it("posts an approved payroll run into the finance ledger exactly once",async()=
   expect(await db.prepare("SELECT status FROM hr_payroll_items WHERE run_id=?").bind(created.id).first("status")).toBe("posted");
   const journal=await db.prepare("SELECT id,status,source_type FROM finance_journals WHERE id=?").bind(posted.journalId).first();expect(journal).toMatchObject({status:"posted",source_type:"payroll"});
   expect(await db.prepare("SELECT SUM(debit_minor) debit,SUM(credit_minor) credit FROM finance_journal_lines WHERE journal_id=?").bind(posted.journalId).first()).toEqual({debit:100500,credit:100500});
+  expect((await resolveFlow(db,f.reviewer,"payroll",String(created.id))).current?.key).toBe("posted");
   expect(await postPayroll(f.reviewer,String(created.id),postInput,postKey)).toEqual(posted);
   await expect(postPayroll(f.reviewer,String(created.id),postInput,`replay-${key()}`)).rejects.toMatchObject({code:"PAYROLL_NOT_APPROVED"});
+  const batch=await createPaymentBatch(f.reviewer,{sourceType:"payroll",sourceId:String(created.id),formatCode:"generic-csv"},key());
+  expect(batch).toMatchObject({status:"draft",totalMinor:99000,itemCount:1});
+  const loaded=await getPayrollRun(f.reviewer,String(created.id));
+  expect(loaded.paymentBatch).toMatchObject({id:batch.id,status:"draft",source_type:"payroll"});
+  expect(loaded.paymentItems).toHaveLength(1);
+  expect((await resolveFlow(db,f.reviewer,"payroll",String(created.id))).current?.key).toBe("payment_draft");
+  const approvedBatch=await approvePaymentBatch(f.claimant,String(batch.id),1,key());
+  expect(approvedBatch).toMatchObject({status:"approved",version:2});
+  const exportedBatch=await exportPaymentBatch(f.claimant,String(batch.id),key());
+  expect(exportedBatch).toMatchObject({status:"exported",itemCount:1,checksum:expect.any(String)});
+  const item=await db.prepare("SELECT reference FROM hr_payment_batch_items WHERE batch_id=?").bind(batch.id).first<{reference:string}>();
+  const settled=await confirmPaymentBatch(f.claimant,String(batch.id),{rows:[{reference:item!.reference,status:"confirmed",confirmationRef:"BANK-PAYROLL-001"}]},key());
+  expect(settled).toMatchObject({status:"settled",confirmed:1});
+  const paymentFile=await getPaymentFile(f.claimant,String(batch.id));
+  expect(await paymentFile.object.text()).toContain(item!.reference);
+  expect(await db.prepare("SELECT status FROM hr_payment_batches WHERE id=?").bind(batch.id).first("status")).toBe("settled");
+  const finalFlow=await resolveFlow(db,f.reviewer,"payroll",String(created.id)); expect(finalFlow.current).toBeNull(); expect(finalFlow.blocker).toBeNull();
 });
 
 it("requires an independent correction decision and preserves every reviewed payroll revision",async()=>{
