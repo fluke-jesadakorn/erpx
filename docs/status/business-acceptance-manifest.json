@@ -5553,7 +5553,7 @@
         "service": "src/server/commerce.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
         "test": "tests/business-commands.test.ts",
-        "gap": "Lead qualification, scoped opportunity pipeline and source-approved quotation/order handoff implemented; customer identity/consent, direct lead activities, SLA escalation and full S01 acceptance remain."
+        "gap": "Lead qualification, owner-specific activities, scoped opportunity pipeline and source-approved quotation/order handoff implemented; customer identity/consent, deduplication, SLA escalation, provider delivery and full S01 acceptance remain."
       },
       "gates": {
         "automated": {
@@ -5598,12 +5598,12 @@
       "implementation": {
         "stage": 3,
         "status": "implemented",
-        "ui": "src/app/holdings/[holdingSlug]/customer-followups/page.tsx",
-        "api": "src/app/api/v1/holdings/[holdingSlug]/customer-followups/route.ts",
-        "service": "src/server/customer-followups.ts",
-        "schema": "migrations/postgres/holding-write/0214_customer_followups.sql",
-        "test": "tests/customer-followups.test.ts",
-        "gap": "Source-order follow-ups with eligible owner, due date, audited reassignment/cancellation/completion and Work/Inbox/Calendar. Lead/opportunity activities, SLA escalation, communications provider delivery and multi-role browser/business acceptance remain."
+        "ui": "src/app/holdings/[holdingSlug]/crm/[id]/page.tsx; src/components/modules/crm-activity-console.tsx",
+        "api": "src/app/api/v1/holdings/[holdingSlug]/crm/activities/route.ts",
+        "service": "src/server/crm-activities.ts",
+        "schema": "migrations/postgres/holding-write/0214_customer_followups.sql; migrations/postgres/holding-write/0286_crm_lead_activities.sql",
+        "test": "tests/customer-followups.test.ts; tests/crm-activities.test.ts; tests/e2e/demo-crm-activities.spec.ts",
+        "gap": "Source-order follow-ups and lead/opportunity activities now have eligible owners, due dates, audited reassignment/cancellation/completion, idempotency, version guards and Work/Inbox handoff. SLA escalation, communications provider delivery and full Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -5635,7 +5635,8 @@
         "customer-followup-20260920",
         "customer-quality-browser-20260920",
         "cross-department-full-803-20260920",
-        "cross-department-full-817-20260920"
+        "cross-department-full-817-20260920",
+        "crm-activities-browser-20260923"
       ]
     },
     {
@@ -5658,7 +5659,7 @@
         "service": "src/server/crm.ts",
         "schema": "migrations/postgres/holding-write/0215_crm_leads_opportunities.sql",
         "test": "tests/crm.test.ts",
-        "gap": "Scoped lead qualification/disqualification/reopen, eligible owner reassignment and immutable brief/history with Work/Inbox/Calendar. Deduplication, customer identity/consent, direct lead activities, SLA/escalation and complete browser/business acceptance remain."
+        "gap": "Scoped lead qualification/disqualification/reopen, eligible owner reassignment, immutable brief/history and linked lead activities with Work/Inbox/Calendar. Deduplication, customer identity/consent, SLA/escalation and complete Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -5768,7 +5769,7 @@
         "service": "src/server/commerce.ts",
         "schema": "migrations/postgres/holding-write/0001_baseline.sql",
         "test": "tests/business-commands.test.ts",
-        "gap": "Lead qualification, scoped opportunity pipeline and source-approved quotation/order handoff implemented; customer identity/consent, direct lead activities, SLA escalation and full S01 acceptance remain."
+        "gap": "Lead qualification, owner-specific activities, scoped opportunity pipeline and source-approved quotation/order handoff implemented; customer identity/consent, deduplication, SLA escalation, provider delivery and full S01 acceptance remain."
       },
       "gates": {
         "automated": {

@@ -4141,6 +4141,33 @@
       "supersedes": null
     },
     {
+      "id": "crm-activities-browser-20260923",
+      "capabilityIds": [
+        "crm/activities"
+      ],
+      "scenarioIds": [
+        "S01",
+        "S20"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "An isolated Demo Company Sales operator scheduled a real CRM lead email activity for an eligible owner, an independent Sales manager saw the activity after reload, and the assigned operator completed it with an outcome through the real API and page.",
+      "observedAt": "2026-09-23T05:08:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-crm-activities-browser.txt",
+          "sha256": "0112e32acda68425129765ffe025e495c458ef50b029c84d002877d69614d783"
+        }
+      ],
+      "limitations": [
+        "This isolated Demo evidence does not establish provider delivery, SLA escalation, production operation or Company business acceptance.",
+        "Customer identity/consent and lead deduplication remain separate CRM capabilities."
+      ],
+      "supersedes": null
+    },
+    {
       "id": "customer-notes-browser-20260923",
       "capabilityIds": [
         "customer_360/feature-customer-notes"

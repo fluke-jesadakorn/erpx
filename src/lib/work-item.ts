@@ -22,6 +22,7 @@ export type WorkItem = {
     | "marketing_candidate"
     | "manufacturing_order"
     | "crm_lead"
+    | "crm_activity"
     | "customer_followup"
     | "supplier_promise"
     | "procurement_rfq"
@@ -78,6 +79,7 @@ export const workTypes = [
   ["marketing_candidate", "Marketing lead candidates"],
   ["manufacturing_order", "Manufacturing orders"],
   ["crm_lead", "CRM leads & opportunities"],
+  ["crm_activity", "CRM activities"],
   ["customer_followup", "Customer follow-ups"],
   ["legal", "Legal"],
   ["pms", "Hotel operations"],

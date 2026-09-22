@@ -1,0 +1,15 @@
+ERPX isolated Demo CRM lead activities browser acceptance
+Run: 868d7be07790
+Origin: http://127.0.0.1:3102
+Command: ERPX_DEMO_RUN=868d7be07790 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-crm-activities.spec.ts --project=desktop
+
+Result: 1 passed
+
+An isolated Demo Company Sales operator opened a real CRM lead, scheduled an
+email activity for an eligible salesperson, and persisted the activity through
+the API and page reload. An independent Sales manager saw the same activity,
+and the assigned operator completed it with an outcome. The scenario used the
+real command idempotency key, source version guard, owner eligibility and
+immutable activity history in disposable PostgreSQL storage.
+
+Fixture lead: lead-19ca1cb8-37f5-460d-aaab-317cc5f37996

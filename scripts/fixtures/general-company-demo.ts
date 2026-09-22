@@ -19,6 +19,7 @@ export type GeneralCompanyDemoInput = {
   serialProductId: string;
   customerId?: string;
   customerOperator?: DemoActor;
+  crmLeadId?: string;
   qualityDueSoonHoldId?: string;
   qualityOverdueHoldId?: string;
   qualityInspector?: DemoActor;
@@ -244,6 +245,21 @@ export function generalCompanyDemoGuide(input: GeneralCompanyDemoInput) {
               { order: 2, actor: "customerOperator", action: "เปิด source quotation จาก timeline", href: `${base}/customers/${input.customerId}`, expected: "ลิงก์พาไป source record เดิมเพื่อทำ action; timeline ไม่สร้างสำเนาเอกสาร" },
               { order: 3, actor: "salesManager", action: "เปิด timeline ด้วย role อื่นที่มี Commerce read", href: `${base}/customers/${input.customerId}`, expected: "เห็นรายการที่อนุญาตเหมือนกัน แต่ไม่เห็นข้อมูลติดต่อ ต้นทุน หรือข้อมูลของ Finance/Legal ที่ role นี้ไม่มีสิทธิ์" },
               { order: 4, actor: "customerOperator", action: "ใช้ Older activity เมื่อมี cursor และกลับ Latest activity", href: `${base}/customers/${input.customerId}`, expected: "pagination ใช้ cursor จาก server และไม่ข้าม scope หรือทำให้รายการซ้ำ" },
+            ],
+            actors: { customerOperator: input.customerOperator, salesManager: input.actors.salesManager },
+          }]
+        : []),
+      ...(input.crmLeadId && input.customerOperator
+        ? [{
+            id: "crm-lead-activities",
+            title: "CRM มอบหมายกิจกรรมและบันทึกผลการติดต่อลูกค้า",
+            sourceRecord: { type: "crm_lead", id: input.crmLeadId },
+            startingState: "The isolated Demo Company contains an open CRM lead owned by Sales with no scheduled activity.",
+            steps: [
+              { order: 1, actor: "customerOperator", action: "เปิด lead และตรวจรายละเอียด customer needs", href: `${base}/crm/${input.crmLeadId}`, expected: "เห็น owner, due date และส่วน Lead activities ที่ยังว่าง" },
+              { order: 2, actor: "customerOperator", action: "นัดหมาย email activity ให้ Sales owner พร้อมวันครบกำหนด", href: `${base}/crm/${input.crmLeadId}#crm-activities`, expected: "activity ถูกบันทึกด้วย lead version, owner และ history เดียวกันหลัง reload" },
+              { order: 3, actor: "salesManager", action: "เปิด lead ด้วย manager role และ reassign activity เมื่อจำเป็น", href: `${base}/crm/${input.crmLeadId}#crm-activities`, expected: "manager เห็น activity และการเปลี่ยน owner ต้องมีเหตุผลและ version ใหม่" },
+              { order: 4, actor: "customerOperator", action: "เปิด Work และบันทึก outcome ของกิจกรรม", href: `${base}/work?type=crm_activity&view=actions`, expected: "กิจกรรมออกจาก My actions หลัง complete และเก็บ outcome แบบ immutable" },
             ],
             actors: { customerOperator: input.customerOperator, salesManager: input.actors.salesManager },
           }]
