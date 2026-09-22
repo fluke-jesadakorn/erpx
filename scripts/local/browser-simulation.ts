@@ -76,6 +76,22 @@ if(mode==='prepare'){
     await env.H001_DB.prepare("UPDATE hr_engagements SET pay_group_id=?,currency='THB',version=version+1,updated_at=? WHERE id=?").bind(demoPayrollGroup,now,demoEngagement.id).run();
     await env.H001_DB.prepare("INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,hourly_rate_minor,expected_hours,currency,components_json,status,created_by,created_at,updated_at) VALUES(?,?, '2026-09-01','monthly',100000,0,160,'THB','[]','approved',?,?,?)").bind(demoPayrollCompensation,demoEngagement.id,f.owner.userId,now,now).run();
   }
+  // Payroll has more than one eligible specialist in this Demo (the payment
+  // operator also carries the HR admin role). Persist an explicit owner for
+  // every handoff so a reset starts actionable and never leaves the first
+  // calculation or independent payment approval waiting for manual routing.
+  for(const [stepKey,userId,reason] of [
+    ['calculate',f.owner.userId,'Simulation payroll preparation owner'],
+    ['preview',f.manager.userId,'Simulation independent payroll reviewer'],
+    ['approved',f.manager.userId,'Simulation Finance posting owner'],
+    ['posted',f.manager.userId,'Simulation payroll payment preparation owner'],
+    ['payment_draft',f.payer.userId,'Simulation independent payroll payment approver'],
+    ['payment_approved',f.payer.userId,'Simulation payroll export owner'],
+    ['payment_exported',f.payer.userId,'Simulation payroll confirmation owner'],
+    ['payment_partially_settled',f.payer.userId,'Simulation payroll retry owner'],
+    ['payment_settled',f.payer.userId,'Simulation payroll settlement owner'],
+  ] as const)
+    await env.H001_DB.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'payroll',?,?,?,?,?)").bind(f.company,stepKey,userId,f.owner.userId,reason,now).run();
   const {saveServiceTeam,serviceTeamSchema}=await import('../../src/server/service-teams');
   await saveServiceTeam(env.H001_DB,f.owner,null,serviceTeamSchema.parse({name:'Demo purchasing team',members:[{userId:f.it.userId,responsibility:'lead'},{userId:f.tie.userId,responsibility:'member'}],coverage:[{category:'purchasing',scopeKind:'holding',scopeNodeId:f.company}]}),crypto.randomUUID());
   const {saveSupplierInvoicePolicy}=await import('../../src/server/supplier-bill-matching');

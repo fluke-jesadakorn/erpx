@@ -513,7 +513,7 @@ const delivery: Record<string, ModuleDelivery> = {
         service: "src/server/people-payroll.ts",
         schema: "migrations/postgres/holding-write/0026_people_lifecycle.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql, migrations/postgres/holding-write/0276_payroll_gl_posting.sql",
         test: "tests/e2e/demo-payroll-runs.spec.ts, tests/payroll-core.test.ts",
-        gap: "People → Payroll renders live gross, deductions, employer cost, net and headcount totals from the calculated run, and Finance can post an approved run into one balanced, source-linked GL journal before payment preparation. Statutory country packs, provider/production operation and Company business acceptance remain.",
+        gap: "People → Payroll renders live gross, deductions, employer cost, net and headcount totals from the calculated run; Finance posts an approved run into one balanced, source-linked GL journal; and a separate Treasury reviewer approves, exports and settles the linked payment batch. The isolated five-role Demo browser path covers this handoff and reload persistence. Statutory country packs, provider/production operation and Company business acceptance remain.",
       },
       "feature-payroll-runs": {
         status: "flow_accepted",
@@ -523,7 +523,7 @@ const delivery: Record<string, ModuleDelivery> = {
         schema:
           "migrations/postgres/holding-write/0261_payroll_advances.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql, migrations/postgres/holding-write/0276_payroll_gl_posting.sql",
         test: "tests/e2e/demo-payroll-runs.spec.ts, tests/payroll-core.test.ts",
-        gap: "Demo browser flow covers a real monthly global gross-pay preview, workflow-owner assignment, independent approval and reload persistence; automated evidence also covers Finance GL posting with exact debit/credit reconciliation and idempotent retry. Statutory payroll, provider/production operation and Company business acceptance remain separately gated.",
+        gap: "Demo browser flow covers a real monthly global gross-pay preview, workflow-owner assignment, independent approval and reload persistence; the same multi-role path posts Finance GL, creates a linked payment batch, and lets Treasury approve, export and settle it with payment-only record access. Automated evidence covers exact debit/credit reconciliation and idempotent retry. Statutory payroll, provider/production operation and Company business acceptance remain separately gated.",
       },
     },
   },

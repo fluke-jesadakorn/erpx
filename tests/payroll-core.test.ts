@@ -61,6 +61,9 @@ it("posts an approved payroll run into the finance ledger exactly once",async()=
   const loaded=await getPayrollRun(f.reviewer,String(created.id));
   expect(loaded.paymentBatch).toMatchObject({id:batch.id,status:"draft",source_type:"payroll"});
   expect(loaded.paymentItems).toHaveLength(1);
+  const treasuryView=await getPayrollRun(f.claimant,String(created.id));
+  expect(treasuryView.paymentBatch).toMatchObject({id:batch.id,status:"draft"});
+  expect(treasuryView.items).toHaveLength(0);
   expect((await resolveFlow(db,f.reviewer,"payroll",String(created.id))).current?.key).toBe("payment_draft");
   const approvedBatch=await approvePaymentBatch(f.claimant,String(batch.id),1,key());
   expect(approvedBatch).toMatchObject({status:"approved",version:2});

@@ -57,10 +57,14 @@ test("isolated demo calculates and independently approves a payroll preview", as
   const preparerContext = await browser.newContext(testInfo.project.use);
   const routingContext = await browser.newContext(testInfo.project.use);
   const approverContext = await browser.newContext(testInfo.project.use);
+  const financeContext = await browser.newContext(testInfo.project.use);
+  const treasuryContext = await browser.newContext(testInfo.project.use);
   try {
     const preparerPage = await preparerContext.newPage();
     const routingPage = await routingContext.newPage();
     const approverPage = await approverContext.newPage();
+    const financePage = await financeContext.newPage();
+    const treasuryPage = await treasuryContext.newPage();
     await signInRole(preparerContext, preparerPage, credentials, "payroll_preparer");
     await preparerPage
       .getByRole("button", { name: "Create payroll preview", exact: true })
@@ -137,9 +141,101 @@ test("isolated demo calculates and independently approves a payroll preview", as
     await expect(approverPage.getByText("approved").first()).toBeVisible();
     await preparerPage.reload({ waitUntil: "domcontentloaded" });
     await expect(preparerPage.getByText("approved").first()).toBeVisible();
+
+    // Finance posts the approved payroll into the ledger, then prepares the
+    // payable instruction. The two actions use the same source run but must
+    // still survive a browser reload before the independent treasury handoff.
+    await signInRole(financeContext, financePage, credentials, "finance_approver");
+    await financePage.goto(runUrl, { waitUntil: "domcontentloaded" });
+    const postForm = financePage.locator("form.business-form:visible").filter({
+      hasText: "Post approved payroll to Finance",
+    });
+    await expect(postForm).toBeVisible();
+    const periodSelect = postForm.locator('select[name="periodId"]');
+    const periodValue = await periodSelect.locator("option").evaluateAll((options) => {
+      const option = options.find((item) => item.value && item.textContent?.trim().startsWith("2026"));
+      return option?.value ?? "";
+    });
+    expect(periodValue, "an open period covering the payroll pay date").toBeTruthy();
+    await periodSelect.selectOption(periodValue);
+    await postForm.locator('select[name="expenseAccountId"]').selectOption({ index: 1 });
+    await postForm.locator('select[name="netPayableAccountId"]').selectOption({ index: 1 });
+    const postResponse = financePage.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith(`/payroll/runs/${runId}/post`),
+    );
+    await postForm.getByRole("button", { name: "Post GL and create payable obligation", exact: true }).click();
+    const postResult = await postResponse;
+    expect(postResult.status(), await postResult.text()).toBe(200);
+    await expect(financePage.getByText("Prepare payroll payment batch", { exact: true })).toBeVisible();
+
+    const prepareForm = financePage.locator("form.business-form:visible").filter({
+      hasText: "Prepare payroll payment batch",
+    });
+    const prepareResponse = financePage.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/people/payments/batches"),
+    );
+    await prepareForm.getByRole("button", { name: "Create payment batch", exact: true }).click();
+    expect((await prepareResponse).status()).toBe(201);
+    await expect(financePage.getByText(/draft · THB/).first()).toBeVisible();
+    await financePage.reload({ waitUntil: "domcontentloaded" });
+    await expect(financePage.getByText(/draft · THB/).first()).toBeVisible();
+
+    // Treasury is a different authenticated user. It independently approves,
+    // exports and confirms every generated payee row against a sandbox bank
+    // result, which is the browser equivalent of the controlled handoff.
+    await signInRole(treasuryContext, treasuryPage, credentials, "treasury");
+    await treasuryPage.goto(runUrl, { waitUntil: "domcontentloaded" });
+    await expect(treasuryPage.getByRole("button", { name: "Approve payment batch", exact: true })).toBeVisible();
+    const approvePaymentResponse = treasuryPage.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/people/payments/batches/") &&
+        response.url().endsWith("/approve"),
+    );
+    await treasuryPage.getByRole("button", { name: "Approve payment batch", exact: true }).click();
+    expect((await approvePaymentResponse).status()).toBe(200);
+    await expect(treasuryPage.getByText(/approved · THB/).first()).toBeVisible();
+
+    const exportPaymentResponse = treasuryPage.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/people/payments/batches/") &&
+        response.url().endsWith("/export"),
+    );
+    await treasuryPage.getByRole("button", { name: "Export payment instruction", exact: true }).click();
+    expect((await exportPaymentResponse).status()).toBe(200);
+    await expect(treasuryPage.getByText(/exported · THB/).first()).toBeVisible();
+
+    const confirmationForm = treasuryPage.locator("form.business-form:visible").filter({
+      hasText: "Confirm sandbox bank results",
+    });
+    await expect(confirmationForm).toBeVisible();
+    const bankReferences = confirmationForm.locator('input[name^="ref:"]');
+    const bankReferenceCount = await bankReferences.count();
+    expect(bankReferenceCount).toBeGreaterThan(0);
+    for (let index = 0; index < bankReferenceCount; index += 1) {
+      await bankReferences.nth(index).fill(`DEMO-PAYROLL-${index + 1}`);
+    }
+    const confirmPaymentResponse = treasuryPage.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().includes("/people/payments/batches/") &&
+        response.url().endsWith("/confirm"),
+    );
+    await confirmationForm.getByRole("button", { name: "Save payment results", exact: true }).click();
+    expect((await confirmPaymentResponse).status()).toBe(200);
+    await expect(treasuryPage.getByText(/settled · THB/).first()).toBeVisible();
+    await treasuryPage.reload({ waitUntil: "domcontentloaded" });
+    await expect(treasuryPage.getByText(/settled · THB/).first()).toBeVisible();
   } finally {
     await preparerContext.close();
     await routingContext.close();
     await approverContext.close();
+    await financeContext.close();
+    await treasuryContext.close();
   }
 });

@@ -193,7 +193,14 @@ async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:Staf
     add("preview", "Review payroll preview", "payroll_approver", await roles(["payroll_approver","people_manager"], true));
     add("approved", "Post payroll GL and prepare payment", "finance_approver", await roles(["finance_approver","holding_owner"], true));
     add("posted", "Prepare payroll payment batch", "finance_approver", await roles(["finance_approver"], true));
-    const paymentApprovers = (await roles(["finance_approver","treasury"], true)).filter(id => id !== paymentBatch?.created_by);
+    const paymentApprovers = await roles(["finance_approver","treasury"], true);
+    // Keep the candidate array identity returned by roles(). The allowed-role
+    // metadata is keyed by that array, so filtering in place preserves both
+    // finance_approver and treasury as valid independent approvers.
+    if (paymentBatch?.created_by) {
+      for (let index = paymentApprovers.length - 1; index >= 0; index -= 1)
+        if (paymentApprovers[index] === paymentBatch.created_by) paymentApprovers.splice(index, 1);
+    }
     add("payment_draft", "Approve payroll payment batch", "finance_approver", paymentApprovers);
     add("payment_approved", "Export payroll payment instruction", "treasury", await roles(["treasury"], true));
     add("payment_exported", "Confirm payroll payment results", "treasury", await roles(["treasury"], true));

@@ -1,5 +1,5 @@
 {
-  "evidenceLedgerSha256": "5da6ff27e5702249d607da21673de72e9e4b190bfea52d62ec8517598f2f8f67",
+  "evidenceLedgerSha256": "da6bf3a4cd67afc55b4a66fa27d080a4be7ddc5b6c7e2ea0dbf79ce0a0c2c406",
   "capabilities": [
     {
       "id": "brand/feature-draft-workspace",
@@ -4852,7 +4852,7 @@
         "service": "src/server/people-payroll.ts",
         "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql, migrations/postgres/holding-write/0276_payroll_gl_posting.sql",
         "test": "tests/e2e/demo-payroll-runs.spec.ts, tests/payroll-core.test.ts",
-        "gap": "People → Payroll renders live gross, deductions, employer cost, net and headcount totals from the calculated run, and Finance can post an approved run into one balanced, source-linked GL journal before payment preparation. Statutory country packs, provider/production operation and Company business acceptance remain."
+        "gap": "People → Payroll renders live gross, deductions, employer cost, net and headcount totals from the calculated run; Finance posts an approved run into one balanced, source-linked GL journal; and a separate Treasury reviewer approves, exports and settles the linked payment batch. The isolated five-role Demo browser path covers this handoff and reload persistence. Statutory country packs, provider/production operation and Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -4999,7 +4999,7 @@
         "service": "src/server/people-payroll.ts",
         "schema": "migrations/postgres/holding-write/0261_payroll_advances.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql, migrations/postgres/holding-write/0276_payroll_gl_posting.sql",
         "test": "tests/e2e/demo-payroll-runs.spec.ts, tests/payroll-core.test.ts",
-        "gap": "Demo browser flow covers a real monthly global gross-pay preview, workflow-owner assignment, independent approval and reload persistence; automated evidence also covers Finance GL posting with exact debit/credit reconciliation and idempotent retry. Statutory payroll, provider/production operation and Company business acceptance remain separately gated."
+        "gap": "Demo browser flow covers a real monthly global gross-pay preview, workflow-owner assignment, independent approval and reload persistence; the same multi-role path posts Finance GL, creates a linked payment batch, and lets Treasury approve, export and settle it with payment-only record access. Automated evidence covers exact debit/credit reconciliation and idempotent retry. Statutory payroll, provider/production operation and Company business acceptance remain separately gated."
       },
       "gates": {
         "automated": {
@@ -13123,6 +13123,34 @@
       "limitations": [
         "Country-specific statutory calculation, provider/bank execution and production operation remain separately gated.",
         "This is automated/local evidence; Company business acceptance and two consecutive Finance close approvals remain separate gates."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "payroll-payment-browser-20260923",
+      "capabilityIds": [
+        "people_payroll/payroll-summaries",
+        "people_payroll/feature-payroll-runs"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "An isolated Demo Company browser scenario runs the authenticated Payroll preparer, Holding owner routing, Payroll approver, Finance approver and Treasury handoff. The run is posted to Finance, the linked payment batch is independently approved and exported, every sandbox bank result is confirmed, and settled state survives reload. Treasury receives a payment-only view without payroll items.",
+      "observedAt": "2026-09-23T02:08:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-payroll-payment-browser.txt",
+          "sha256": "b65b91ce970884fdfd723ec35c48b8153e345739a2eea9dc0380600a368749d0"
+        }
+      ],
+      "limitations": [
+        "The scenario uses the isolated Demo Company and sandbox bank adapter; it does not execute a live bank/provider transfer.",
+        "Country-specific statutory payroll, production operation, Company business acceptance and two consecutive Finance close approvals remain separate gates."
       ],
       "supersedes": null
     }
