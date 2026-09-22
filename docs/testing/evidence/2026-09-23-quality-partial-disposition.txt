@@ -1,0 +1,13 @@
+$ bun run test -- tests/quality.test.ts tests/commerce-returns.test.ts tests/inventory-lot-serial.test.ts tests/acceptance-evidence.test.ts tests/capability-delivery.test.ts
+
+Test Files 5 passed (5)
+Tests 30 passed (30)
+
+The new quality regression covers a failed hold that sends only part of the quantity
+through independent Finance approval and posting. The original hold becomes disposed,
+the stock and balanced GL adjustment reduce by the requested quantity, and a derived
+remainder hold stays quarantined and visible to the next Quality action queue. Existing
+customer return, lot/serial, capability and acceptance regressions remain green.
+
+The flow is local isolated-database evidence; provider, production and company
+business-acceptance gates remain separate.

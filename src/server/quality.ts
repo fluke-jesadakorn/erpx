@@ -122,7 +122,7 @@ export async function createQualityScrapDisposition(actor:WorkContext,id:string,
  if(quantity<=0)throw new ApiError(422,'DISPOSITION_QUANTITY_REQUIRED','Enter a positive quantity to scrap.');
  const stock=await write.prepare('SELECT s.*,p.name,p.unit,p.version product_version,p.tracking_mode FROM commerce_stock s JOIN commerce_products p ON p.id=s.product_id WHERE s.warehouse_id=? AND s.product_id=? AND p.company_id=?').bind(h.warehouse_id,h.product_id,actor.companyId).first<Row>();
  if(!stock)throw new ApiError(409,'QUALITY_STOCK_MISSING','The held stock is no longer available.');
- if(quantity!==Number(h.held_quantity_milli)||quantity>Number(stock.quantity_milli))throw new ApiError(422,'DISPOSITION_QUANTITY_MISMATCH','Scrap the complete held quantity. Create separate lot-specific holds when only part of tracked stock must be disposed.');
+ if(quantity>Number(h.held_quantity_milli)||quantity>Number(stock.quantity_milli))throw new ApiError(422,'DISPOSITION_QUANTITY_MISMATCH','Scrap no more than the quantity currently held. The remaining quantity stays quarantined for a separate disposition.');
  const tracking=String(stock.tracking_mode),lots=tracking==='none'?[]:(await write.prepare('SELECT l.*,b.quantity_milli,b.value_minor,b.version balance_version FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id WHERE l.company_id=? AND l.product_id=? AND b.warehouse_id=? AND b.quantity_milli>0 ORDER BY l.id').bind(actor.companyId,h.product_id,h.warehouse_id).all<Row>()).results;
  if(tracking!=='none'&&!h.lot_id)throw new ApiError(422,'QUALITY_LOT_REQUIRED','Choose the affected lot or serial before requesting tracked-stock disposal.');
  const target=h.lot_id?lots.find(l=>l.id===h.lot_id):null;
@@ -146,7 +146,7 @@ export async function createQualityScrapDisposition(actor:WorkContext,id:string,
  }
  steps.push(
   write.prepare("UPDATE inventory_counts SET status='submitted' WHERE id=?").bind(countId),
-  write.prepare("UPDATE inventory_quality_holds SET status='disposition_pending',disposition_kind='scrap',disposition_reason=?,disposition_requested_by=?,disposition_count_id=?,version=version+1,updated_at=? WHERE id=?").bind(input.reason,actor.userId,countId,now,id),
+  write.prepare("UPDATE inventory_quality_holds SET status='disposition_pending',disposition_kind='scrap',disposition_reason=?,disposition_requested_by=?,disposition_count_id=?,disposition_quantity_milli=?,version=version+1,updated_at=? WHERE id=?").bind(input.reason,actor.userId,countId,quantity,now,id),
   write.prepare("INSERT INTO inventory_quality_disposition_events(id,hold_id,count_id,action,actor_id,reviewed_version,reason,created_at) VALUES(?,?,?,'request',?,?,?,?)").bind(`quality-disposition-${key}`,id,countId,actor.userId,input.expectedVersion,input.reason,now),
   write.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?||'-'||a.user_id,?,a.user_id,'stock_count',?,1,'Quality scrap requires independent Finance review',? FROM assignments a WHERE a.company_id=? AND a.scope_kind='holding' AND iam_assignment_active(a.id,?) AND iam_role_allows(a.role,a.company_id,'inventory.approve') AND NOT iam_same_person(a.user_id,?,?) ON CONFLICT DO NOTHING").bind(key,actor.companyId,countId,now,actor.companyId,now,actor.userId,actor.companyId)
  );

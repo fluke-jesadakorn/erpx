@@ -142,7 +142,7 @@ export async function transitionCount(actor:WorkContext,id:string,action:"submit
   if(review?!canReviewCount(actor,count):!canEditCount(actor,count))throw new ApiError(403,"COUNT_ACTION_FORBIDDEN",review?"An independent holding finance approver must review a submitted stock count.":"Only the preparer can submit or cancel an editable count.");
   if(action!=="submit"&&!input.reason)throw new ApiError(422,"REASON_REQUIRED","Record the reason for this decision.");
   const status=action==="submit"?"submitted":action==="post"?"posted":action==="approve"?"approved":action==="reject"?"rejected":"cancelled",now=Date.now();
-  const steps=[countGuard(write,key,count,input.expectedVersion,action==="post"?["approved"]:action==="approve"?["submitted"]:review?["submitted","approved"]:["draft","rejected"])];let journalId:string|null=null;
+  const steps=[countGuard(write,key,count,input.expectedVersion,action==="post"?["approved"]:action==="approve"?["submitted"]:review?["submitted","approved"]:["draft","rejected"])];let journalId:string|null=null,remainingHoldSteps:SqlStatement[]=[];
   if(action==="submit"||action==="approve"||action==="post"){
     if(!lines.length)throw new ApiError(409,"EMPTY_COUNT","Enter the counted products first.");
     steps.push(assertion(write,key,"warehouse","EXISTS(SELECT 1 FROM commerce_warehouses WHERE id=? AND company_id=? AND status='active')",[count.warehouse_id,actor.companyId]));
@@ -162,7 +162,17 @@ export async function transitionCount(actor:WorkContext,id:string,action:"submit
     const config=await write.prepare("SELECT s.*,a.id variance_account_id FROM commerce_settings s JOIN finance_accounts a ON a.chart_id=s.chart_id AND a.company_id=s.company_id AND a.code='5400' AND a.category='expense' AND a.status='active' WHERE s.company_id=?").bind(actor.companyId).first<CountRow>();if(!config)throw new ApiError(409,"VARIANCE_MAPPING_REQUIRED","Configure the stock count variance account (5400) in the operations ledger.");
     const periods=await write.prepare("SELECT id FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=?").bind(actor.companyId,count.count_date,count.count_date).all<CountRow>();if(periods.results.length!==1)throw new ApiError(409,"PERIOD_UNAVAILABLE","Exactly one open period must cover the count date.");
     if(qualityHold){
-      steps.push(assertion(write,key,"quality-disposition","EXISTS(SELECT 1 FROM inventory_quality_holds WHERE id=? AND company_id=? AND status='disposition_pending' AND disposition_count_id=?)",[qualityHold.id,actor.companyId,id]));
+      const heldQuantity=Number(qualityHold.held_quantity_milli??0),dispositionQuantity=Number(qualityHold.disposition_quantity_milli??0),remainingQuantity=heldQuantity-dispositionQuantity;
+      if(!Number.isSafeInteger(dispositionQuantity)||dispositionQuantity<=0||dispositionQuantity>heldQuantity)throw new ApiError(409,"QUALITY_DISPOSITION_INVALID","The controlled disposition quantity is no longer valid. Refresh the quality hold.");
+      steps.push(assertion(write,key,"quality-disposition","EXISTS(SELECT 1 FROM inventory_quality_holds WHERE id=? AND company_id=? AND status='disposition_pending' AND disposition_count_id=? AND disposition_quantity_milli=? AND held_quantity_milli=? AND last_result='fail')",[qualityHold.id,actor.companyId,id,dispositionQuantity,heldQuantity]));
+      if(remainingQuantity>0){
+        const remainingHoldId=`${qualityHold.id}-remaining-${id}`,remainingSourceId=qualityHold.source_id?`${qualityHold.source_id}:remaining:${id}`:null;
+        remainingHoldSteps=[
+          assertion(write,key,"quality-remaining-hold","NOT EXISTS(SELECT 1 FROM inventory_quality_holds WHERE id=?)",[remainingHoldId]),
+          write.prepare("INSERT INTO inventory_quality_holds(id,company_id,branch_id,warehouse_id,product_id,reason,due_date,status,created_by,version,created_at,updated_at,lot_id,held_quantity_milli,source_type,source_id,spec_id,spec_version,quantity_scope) VALUES(?,?,?,?,?,?,?,'held',?,1,?,?,?,?,?,?,?,?,?)").bind(remainingHoldId,qualityHold.company_id,qualityHold.branch_id,qualityHold.warehouse_id,qualityHold.product_id,`Remaining quantity after partial quality scrap: ${String(qualityHold.reason)}`,qualityHold.due_date,qualityHold.created_by,now,now,qualityHold.lot_id,remainingQuantity,qualityHold.source_type,remainingSourceId,qualityHold.spec_id,qualityHold.spec_version,"partial"),
+          write.prepare("INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?||'-'||a.user_id,?,a.user_id,'quality_hold',?,1,'Partial scrap posted; remaining returned stock requires a new quality decision',? FROM assignments a WHERE a.company_id=? AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=?)) AND iam_assignment_active(a.id,?) AND iam_role_allows(a.role,a.company_id,'quality.read') ON CONFLICT DO NOTHING").bind(`${remainingHoldId}-notice`,qualityHold.company_id,remainingHoldId,now,qualityHold.company_id,qualityHold.branch_id,now),
+        ];
+      }
       steps.push(write.prepare("UPDATE inventory_quality_holds SET status='disposed',disposed_by=?,disposed_at=?,version=version+1,updated_at=? WHERE id=?").bind(actor.userId,now,now,qualityHold.id));
     }
     let gains=0,losses=0;
@@ -180,13 +190,14 @@ export async function transitionCount(actor:WorkContext,id:string,action:"submit
       }
     }
     if(qualityHold?.lot_id)steps.push(write.prepare("UPDATE inventory_lots SET status='scrapped' WHERE id=? AND NOT EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND quantity_milli>0)").bind(qualityHold.lot_id,qualityHold.lot_id));
+    if(remainingHoldSteps.length)steps.push(...remainingHoldSteps);
     if(!Number.isSafeInteger(gains+losses))throw new ApiError(422,"VALUE_OVERFLOW","Stock count exceeds supported precision.");
     steps.push(assertion(write,key,"open-period","EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND state='open')",[periods.results[0].id]));
     if(gains||losses){const journal=await prepareJournal(write,actor,{chartId:String(config.chart_id),periodId:String(periods.results[0].id),entryDate:String(count.count_date),currency:String(config.currency),memo:`${count.number} · ${input.reason}`,sourceType:"stock_count",sourceId:id,isOpening:false,lines:[...(gains?[{accountId:String(config.inventory_account_id),debit:minorToDecimal(gains),credit:"0"},{accountId:String(config.variance_account_id),debit:"0",credit:minorToDecimal(gains)}]:[]),...(losses?[{accountId:String(config.variance_account_id),debit:minorToDecimal(losses),credit:"0"},{accountId:String(config.inventory_account_id),debit:"0",credit:minorToDecimal(losses)}]:[])]},key,"posted");journalId=journal.result.id;steps.push(...journal.steps);}
   }
   steps.push(write.prepare("UPDATE inventory_counts SET status=?,review_reason=?,approved_by=CASE WHEN ?='approve' THEN ? ELSE approved_by END,submitted_at=CASE WHEN ?='submit' THEN ? ELSE submitted_at END,posted_at=CASE WHEN ?='post' THEN ? ELSE posted_at END,journal_id=COALESCE(?,journal_id),version=version+1,updated_at=? WHERE id=?").bind(status,input.reason??null,action,actor.userId,action,now,action,now,journalId,now,id));
   if(qualityHold&&action==='reject')steps.push(
-    write.prepare("UPDATE inventory_quality_holds SET status='held',version=version+1,updated_at=? WHERE id=? AND status='disposition_pending' AND disposition_count_id=?").bind(now,qualityHold.id,id),
+    write.prepare("UPDATE inventory_quality_holds SET status='held',disposition_kind=NULL,disposition_reason=NULL,disposition_requested_by=NULL,disposition_count_id=NULL,disposition_quantity_milli=NULL,version=version+1,updated_at=? WHERE id=? AND status='disposition_pending' AND disposition_count_id=?").bind(now,qualityHold.id,id),
     write.prepare("INSERT INTO inventory_quality_disposition_events(id,hold_id,count_id,action,actor_id,reviewed_version,reason,created_at) VALUES(?,?,?,'reject',?,?,?,?)").bind(`quality-disposition-${key}`,qualityHold.id,id,actor.userId,qualityHold.version,input.reason,now)
   );
   if(qualityHold&&action==='post')steps.push(

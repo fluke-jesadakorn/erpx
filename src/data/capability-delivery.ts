@@ -474,7 +474,7 @@ const delivery: Record<string, ModuleDelivery> = {
   quality: {
     ...preview(
       4,
-      "Whole product/warehouse and receipt lot/serial quarantine are implemented; failed-inspection scrap has independent Quality and Finance controls. Product specifications use independent activation, captured versions, limit-derived results, immutable structured measurements and bound private inspection files. Return disposition remains incomplete. Uninspected cancellation requires independent review.",
+      "Whole product/warehouse and receipt lot/serial quarantine are implemented; failed-inspection scrap has independent Quality and Finance controls. Product specifications use independent activation, captured versions, limit-derived results, immutable structured measurements and bound private inspection files. Customer-return holds support partial or complete controlled scrap, with any remainder represented by a linked quarantine hold. Uninspected cancellation requires independent review.",
     ),
     overrides: Object.fromEntries(
       ["inspections", "results", "release-gates", "feature-cancellation"].map(
@@ -486,9 +486,9 @@ const delivery: Record<string, ModuleDelivery> = {
             api: "src/app/api/v1/holdings/[holdingSlug]/quality/[[...path]]/route.ts",
             service: "src/server/quality.ts",
             schema:
-              "migrations/postgres/holding-write/0244_quality_scrap_disposition.sql",
+              "migrations/postgres/holding-write/0244_quality_scrap_disposition.sql; migrations/postgres/holding-write/0281_quality_partial_disposition.sql; migrations/postgres/holding-write/0282_quality_partial_stock_guard.sql; migrations/postgres/holding-write/0283_quality_whole_hold_error.sql",
             test: "tests/quality.test.ts",
-            gap: "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete-quantity scrap, stock/lot write-off and balanced GL. Return disposition, escalation and multi-role business acceptance remain incomplete.",
+            gap: "Whole warehouse/product and specific lot/serial holds, receipt quarantine, immutable pass/fail evidence, independent release and uninspected cancellation are implemented. Product specifications require independent Company Quality activation; each hold captures its specification version, requires every measured value, derives pass/fail from approved limits and binds immutable private files. Failed stock can be sent to independent Company Finance for complete or partial quantity scrap, stock/lot write-off and balanced GL; a partial posting creates a linked remainder hold that stays quarantined. Quality escalation and multi-role business acceptance remain incomplete.",
           },
         ],
       ),
