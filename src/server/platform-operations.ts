@@ -532,7 +532,7 @@ export async function provisionHolding(
   const result = await control.transaction(async (tx) => {
     const existing = await tx.prepare("SELECT * FROM platform_holding_provisioning WHERE holding_id=? FOR UPDATE").bind(input.holdingId).first<ProvisioningDbRow & { request_hash: string; idempotency_key: string }>();
     if (existing && existing.status === "active") {
-      if (existing.slug !== input.slug || existing.display_name !== input.displayName.trim()) throw new ApiError(409, "HOLDING_ALREADY_BOUND", "This resource slot is already bound to a different active Holding.");
+      if (existing.request_hash !== digest || existing.slug !== input.slug || existing.display_name !== input.displayName.trim()) throw new ApiError(409, "HOLDING_ALREADY_BOUND", "This resource slot is already bound to a different active Holding or provisioning request.");
       return provisioningResult(existing);
     }
     const slugConflict = await tx.prepare("SELECT holding_id FROM holding_bindings WHERE slug=? AND holding_id<>?").bind(input.slug, input.holdingId).first<{ holding_id: string }>();
