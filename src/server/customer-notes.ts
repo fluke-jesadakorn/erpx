@@ -8,6 +8,7 @@ import {hasPermission} from '@/lib/permissions';
 import {samePerson} from '@/lib/iam';
 import {assertion,executeCommand,replayCommand} from './commands';
 import {ApiError} from './http';
+import {customerTimeline} from './customer-timeline';
 type ContactNote={id:string;company_id:string;customer_id:string;order_id:string|null;channel:string;occurred_at:number;body:string;status:string;version:number;created_by:string;created_at:number;updated_at:number};
 export type CustomerNotesView={customer:{id:string;name:string;code:string;version:number};order?:{id:string;party_id:string;party_name:string;number:string;version:number};notes:(ContactNote&{canChange:boolean})[];history:Row[];canCreate:boolean};
 const body=z.string().trim().min(3).max(4000),version=z.number().int().positive();
@@ -26,7 +27,8 @@ export async function customerNotesForOrder(a:WorkContext,orderId:string){
 export async function customerNotesForCustomer(a:WorkContext,customerId:string):Promise<CustomerNotesView>{
  requirePermission(a,'commerce.read');
  const {write}=await holdingResources(a.holdingId);
- const customer=await write.prepare(`SELECT p.id,p.name,p.code,p.version FROM finance_parties p WHERE p.id=? AND p.company_id=? AND p.kind='customer' AND EXISTS(SELECT 1 FROM commerce_orders o WHERE o.party_id=p.id AND o.company_id=p.company_id AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?))`).bind(customerId,a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId).first<{id:string;name:string;code:string;version:number}>();
+ await customerTimeline(a,customerId,{limit:1});
+ const customer=await write.prepare("SELECT p.id,p.name,p.code,p.version FROM finance_parties p WHERE p.id=? AND p.company_id=? AND p.kind='customer'").bind(customerId,a.companyId).first<{id:string;name:string;code:string;version:number}>();
  if(!customer)throw new ApiError(404,'CUSTOMER_NOT_FOUND','Customer is not available in this workspace.');
  const notes=(await write.prepare(`SELECT n.* FROM customer_contact_notes n LEFT JOIN commerce_orders o ON o.id=n.order_id AND o.company_id=n.company_id WHERE n.company_id=? AND n.customer_id=? AND (n.order_id IS NULL AND ?::text IS NULL AND ?::text IS NULL OR n.order_id IS NOT NULL AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)) ORDER BY n.created_at DESC,n.id DESC`).bind(a.companyId,customerId,a.branchId,a.departmentId,a.branchId,a.branchId,a.departmentId,a.departmentId).all<ContactNote>()).results;
  const history=(await write.prepare(`SELECT h.* FROM customer_contact_note_history h JOIN customer_contact_notes n ON n.id=h.note_id LEFT JOIN commerce_orders o ON o.id=n.order_id AND o.company_id=n.company_id WHERE n.company_id=? AND n.customer_id=? AND (n.order_id IS NULL AND ?::text IS NULL AND ?::text IS NULL OR n.order_id IS NOT NULL AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)) ORDER BY h.created_at DESC,h.version DESC`).bind(a.companyId,customerId,a.branchId,a.departmentId,a.branchId,a.branchId,a.departmentId,a.departmentId).all<Row>()).results;
@@ -46,7 +48,8 @@ export async function createCustomerNote(a:WorkContext,raw:unknown,key:string){
   ],{companyId:a.companyId,branchId:String(order.branch_id),departmentId:order.department_id?String(order.department_id):null});
  }
  const customerId=String(input.customerId);
- const customer=await write.prepare("SELECT id,version FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND version=? AND EXISTS(SELECT 1 FROM commerce_orders o WHERE o.party_id=finance_parties.id AND o.company_id=finance_parties.company_id AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?))").bind(customerId,a.companyId,input.expectedVersion,a.branchId,a.branchId,a.departmentId,a.departmentId).first<{id:string;version:number}>();
+ await customerTimeline(a,customerId,{limit:1});
+ const customer=await write.prepare("SELECT id,version FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND version=?").bind(customerId,a.companyId,input.expectedVersion).first<{id:string;version:number}>();
  if(!customer)throw new ApiError(409,'CUSTOMER_SOURCE_CHANGED','Refresh the Customer 360 record before recording a note.');
  return executeCommand(write,a,key,operation,input,id,1,{id,version:1},[
   assertion(write,key,'customer-source',"EXISTS(SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND version=?)",[customerId,a.companyId,input.expectedVersion]),
@@ -58,7 +61,7 @@ export async function changeCustomerNote(a:WorkContext,id:string,raw:unknown,key
  const input=customerNoteChangeSchema.parse(raw);requirePermission(a,'commerce.sales');requirePermission(a,'commerce.read');const {write}=await holdingResources(a.holdingId),operation=`customer.note.${input.action}`;const prior=await replayCommand(write,a,key,operation,id,input);if(prior)return prior;
  const n=await write.prepare('SELECT n.*,o.branch_id,o.department_id FROM customer_contact_notes n LEFT JOIN commerce_orders o ON o.id=n.order_id AND o.company_id=n.company_id WHERE n.id=? AND n.company_id=?').bind(id,a.companyId).first<Row>();if(!n)throw new ApiError(404,'CUSTOMER_NOTE_NOT_FOUND','Contact note not found in this scope.');
  const inScope=n.order_id===null ? a.branchId===null&&a.departmentId===null : (a.branchId===null||n.branch_id===a.branchId)&&(a.departmentId===null||n.department_id===a.departmentId);if(!inScope)throw new ApiError(404,'CUSTOMER_NOTE_NOT_FOUND','Contact note not found in this scope.');
- if(n.order_id===null){const visible=await write.prepare("SELECT 1 FROM finance_parties p WHERE p.id=? AND p.company_id=? AND p.kind='customer' AND EXISTS(SELECT 1 FROM commerce_orders o WHERE o.party_id=p.id AND o.company_id=p.company_id AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?))").bind(n.customer_id,a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId).first();if(!visible)throw new ApiError(404,'CUSTOMER_NOTE_NOT_FOUND','Contact note not found in this scope.');}
+ if(n.order_id===null){await customerTimeline(a,String(n.customer_id),{limit:1});}
  if(!canChange(a,n))throw new ApiError(403,'CUSTOMER_NOTE_OWNER_REQUIRED','The author or a sales manager must correct this contact record.');
  const content=input.action==='correct'?input.body:n.body,status=input.action==='archive'?'archived':'active',now=Date.now();
  return executeCommand(write,a,key,operation,input,id,input.expectedVersion+1,{id,version:input.expectedVersion+1,status},[
