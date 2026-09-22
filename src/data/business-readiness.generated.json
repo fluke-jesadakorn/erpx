@@ -1,5 +1,5 @@
 {
-  "evidenceLedgerSha256": "dd98bb18ab740f4262f676b0712b4f7b29077d188007d9743060b58ce40b7eef",
+  "evidenceLedgerSha256": "6b4add890a2157fa6a7a21b37f877c5c1a4764fd306a84225a46182d51005d4f",
   "capabilities": [
     {
       "id": "brand/feature-draft-workspace",
@@ -2064,9 +2064,9 @@
         "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
-        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql",
-        "test": "tests/finance-accruals.test.ts",
-        "gap": "Opening imports, recurring accrual journals and realized/unrealized FX journals are atomic and independently controlled; notes, consolidation and full business acceptance remain."
+        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql",
+        "test": "tests/finance-accruals.test.ts; tests/finance-consolidation.test.ts",
+        "gap": "Opening imports, recurring accrual journals and realized/unrealized FX journals are atomic and independently controlled; Group Finance closed-period consolidation snapshots now require independent review, approval and publication. Notes, FX translation policy, elimination posting and full business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2115,9 +2115,9 @@
         "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
-        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql",
-        "test": "tests/finance-accruals.test.ts",
-        "gap": "Opening, recurring accrual and foreign-currency payables retain source, period and posting evidence; consolidation and complete business acceptance remain."
+        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql",
+        "test": "tests/finance-accruals.test.ts; tests/finance-consolidation.test.ts",
+        "gap": "Opening, recurring accrual and foreign-currency payables retain source, period and posting evidence; Group Finance consolidation snapshots now retain source hashes and immutable decisions. FX translation, elimination posting and complete business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -13180,6 +13180,35 @@
       "limitations": [
         "Intercompany movement, live carrier/device integration and production operation were not exercised.",
         "This is isolated Demo Company evidence; Company business acceptance and complete S03 acceptance remain separate gates."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "finance-consolidation-automated-20260923",
+      "capabilityIds": [
+        "finance/journals",
+        "finance/payables"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S14"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Holding-scoped Group Finance prepares a source-hashed consolidation snapshot from closed periods for two active entities, then requires independent review, approval and publication with idempotency, version guards, stale-source rejection and immutable event history.",
+      "observedAt": "2026-09-23T03:08:00+07:00",
+      "recordedBy": "Codex execution agent (automated service evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-finance-consolidation-tests.txt",
+          "sha256": "8cd73c3289ada21661448798dae55acfc0abe9970565d9442847aa540cf3a5e3"
+        }
+      ],
+      "limitations": [
+        "The workflow does not constitute live provider, production or Company business acceptance.",
+        "FX translation policy, elimination journal accounts/posting and two consecutive Finance close sign-off remain separate gates.",
+        "No capability is promoted beyond the evidence scope."
       ],
       "supersedes": null
     },

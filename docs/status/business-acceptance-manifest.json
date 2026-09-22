@@ -2224,9 +2224,9 @@
         "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
-        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql",
-        "test": "tests/finance-accruals.test.ts",
-        "gap": "Opening imports, recurring accrual journals and realized/unrealized FX journals are atomic and independently controlled; notes, consolidation and full business acceptance remain."
+        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql",
+        "test": "tests/finance-accruals.test.ts; tests/finance-consolidation.test.ts",
+        "gap": "Opening imports, recurring accrual journals and realized/unrealized FX journals are atomic and independently controlled; Group Finance closed-period consolidation snapshots now require independent review, approval and publication. Notes, FX translation policy, elimination posting and full business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2263,6 +2263,7 @@
         "finance-accrual-schedules-20260922",
         "finance-opening-balance-browser-acceptance-20260922",
         "finance-opening-settlement-automated-20260922",
+        "finance-consolidation-automated-20260923",
         "finance-intercompany-automated-20260923"
       ]
     },
@@ -2286,9 +2287,9 @@
         "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
-        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql",
-        "test": "tests/finance-accruals.test.ts",
-        "gap": "Opening, recurring accrual and foreign-currency payables retain source, period and posting evidence; consolidation and complete business acceptance remain."
+        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql",
+        "test": "tests/finance-accruals.test.ts; tests/finance-consolidation.test.ts",
+        "gap": "Opening, recurring accrual and foreign-currency payables retain source, period and posting evidence; Group Finance consolidation snapshots now retain source hashes and immutable decisions. FX translation, elimination posting and complete business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2335,6 +2336,7 @@
         "purchase-request-consolidated-purchase-to-payment-browser-acceptance-20260922",
         "finance-opening-balance-browser-acceptance-20260922",
         "finance-opening-settlement-automated-20260922",
+        "finance-consolidation-automated-20260923",
         "finance-intercompany-automated-20260923"
       ]
     },
