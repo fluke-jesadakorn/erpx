@@ -1,0 +1,10 @@
+ERPX Payroll → Finance GL posting evidence — 2026-09-23
+
+- `bun run test -- tests/payroll-core.test.ts`: 5 tests passed.
+- An independently approved payroll run with gross 1,000.00, deductions 10.00, employer cost 5.00 and net pay 990.00 was posted by a Finance approver.
+- The command created one `finance_journals` row with `source_type='payroll'`, marked the journal posted, marked every payroll item posted, and linked it through `hr_payroll_postings`.
+- Journal totals reconciled exactly: debit 1,005.00 and credit 1,005.00. Deductions and employer contributions use explicit liability accounts.
+- A repeated idempotency key returned the original result without creating another journal. A new key after posting was rejected because the run was no longer approved.
+- The route now requires the Finance approver workflow step, an open accounting period, active chart accounts, and the expected payroll version. The UI exposes chart, period, date, expense, net-payable, deductions-payable and employer-contribution selectors.
+
+This is automated/local evidence for the global payroll-core adapter. Country-specific statutory calculation, bank/provider execution and Company business acceptance remain separate gates.

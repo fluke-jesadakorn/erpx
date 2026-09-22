@@ -173,7 +173,7 @@ export async function POST(request: Request, context: Context) {
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "corrections" && p.length===4) return Response.json({data:await requestPayrollCorrection(actor,p[2],parsed(payrollCorrectionRequestSchema.safeParse(input)),id)});
     if (p[0] === "payroll" && p[1] === "corrections" && p[2] && p[3] === "decide") return Response.json({data:await decidePayrollCorrection(actor,p[2],parsed(payrollCorrectionDecisionSchema.safeParse(input)),id)});
     if (p[0] === "payroll" && p[1] === "runs" && p[3] === "export-review") return Response.json({data:await exportPayrollReview(actor,p[2],id)});
-    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "post") { parsed(payrollPostSchema.safeParse(input)); return Response.json({data:await postPayroll(actor)}); }
+    if (p[0] === "payroll" && p[1] === "runs" && p[3] === "post") { const data=parsed(payrollPostSchema.safeParse(input)); return Response.json({data:await postPayroll(actor,p[2],data,id)}); }
     if (p[0] === "payroll" && p[1] === "advances" && p.length === 2) return Response.json({data:await requestPayrollAdvance(actor,parsed(payrollAdvanceRequestSchema.safeParse(input)),id)},{status:201});
     if (p[0] === "payroll" && p[1] === "advances" && p[2] && p[3] === "decide") return Response.json({data:await decidePayrollAdvance(actor,p[2],parsed(payrollAdvanceDecisionSchema.safeParse(input)),id)});
     if (p[0] === "payments" && p[1] === "batches" && p.length === 2) { const data=parsed(paymentBatchSchema.safeParse(input)); return Response.json({data:await createPaymentBatch(actor,data,id)},{status:201}); }

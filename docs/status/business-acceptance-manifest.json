@@ -5330,9 +5330,9 @@
         "ui": "src/app/holdings/[holdingSlug]/people/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
         "service": "src/server/people-payroll.ts",
-        "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql",
-        "test": "tests/e2e/demo-payroll-runs.spec.ts",
-        "gap": "People → Payroll renders live gross, deductions, employer cost, net and headcount totals from the calculated run and keeps the selected run after reload. Statutory country packs, GL/payment posting, provider/production operation and Company business acceptance remain."
+        "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql, migrations/postgres/holding-write/0276_payroll_gl_posting.sql",
+        "test": "tests/e2e/demo-payroll-runs.spec.ts, tests/payroll-core.test.ts",
+        "gap": "People → Payroll renders live gross, deductions, employer cost, net and headcount totals from the calculated run, and Finance can post an approved run into one balanced, source-linked GL journal before payment preparation. Statutory country packs, provider/production operation and Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -5363,7 +5363,8 @@
       "evidenceRecordIds": [
         "payroll-controlled-corrections-20260921",
         "payroll-advances-20260921",
-        "payroll-runs-browser-20260922"
+        "payroll-runs-browser-20260922",
+        "payroll-gl-posting-automated-20260923"
       ]
     },
     {
@@ -5484,9 +5485,9 @@
         "ui": "src/app/holdings/[holdingSlug]/people/page.tsx, src/app/holdings/[holdingSlug]/people/payroll/[id]/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
         "service": "src/server/people-payroll.ts",
-        "schema": "migrations/postgres/holding-write/0261_payroll_advances.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql",
-        "test": "tests/e2e/demo-payroll-runs.spec.ts",
-        "gap": "Demo browser flow covers a real monthly global gross-pay preview, workflow-owner assignment, independent approval and reload persistence. Statutory payroll, GL/payment posting, provider/production operation and Company business acceptance remain separately gated."
+        "schema": "migrations/postgres/holding-write/0261_payroll_advances.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql, migrations/postgres/holding-write/0276_payroll_gl_posting.sql",
+        "test": "tests/e2e/demo-payroll-runs.spec.ts, tests/payroll-core.test.ts",
+        "gap": "Demo browser flow covers a real monthly global gross-pay preview, workflow-owner assignment, independent approval and reload persistence; automated evidence also covers Finance GL posting with exact debit/credit reconciliation and idempotent retry. Statutory payroll, provider/production operation and Company business acceptance remain separately gated."
       },
       "gates": {
         "automated": {
@@ -5517,7 +5518,8 @@
       "evidenceRecordIds": [
         "payroll-controlled-corrections-20260921",
         "payroll-advances-20260921",
-        "payroll-runs-browser-20260922"
+        "payroll-runs-browser-20260922",
+        "payroll-gl-posting-automated-20260923"
       ]
     },
     {

@@ -15,6 +15,7 @@ import { decimalToMinor, minorToDecimal } from "@/lib/finance-money";
 import { calculatePayrollAmounts } from "@/lib/payroll-math";
 import { assertion,executeCommand,replayCommand } from "./commands";
 import { directoryPerson, canReadCompensation,canManagePeople } from "./people-directory";
+import { prepareJournal } from "./finance";
 
 const country = z.string().length(2).transform((value) => value.toUpperCase());
 const currency = z.string().length(3).transform((value) => value.toUpperCase());
@@ -131,6 +132,7 @@ export const payrollPostSchema = z.object({
   netPayableAccountId: z.string().min(1),
   taxPayableAccountId: z.string().min(1).optional(),
   employerContributionAccountId: z.string().min(1).optional(),
+  expectedVersion: z.number().int().positive(),
 });
 
 export const payrollCorrectionRequestSchema = z.object({
@@ -537,10 +539,69 @@ export async function workPayrollRows(actor: WorkContext) {
 export async function getPayrollRun(actor: WorkContext, runId: string) { if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment."); actor = requirePermission(actor,"payroll.read"); const {write}=await holdingResources(actor.holdingId); const run=await write.prepare("SELECT r.*,g.overtime_multiplier_bps,g.proration_method FROM hr_payroll_runs r JOIN hr_pay_groups g ON g.id=r.pay_group_id WHERE r.id=? AND r.company_id=?").bind(runId,actor.companyId).first(); if(!run)throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found."); const [items,exports,corrections]=await Promise.all([write.prepare("SELECT i.*,p.legal_name,p.id person_id FROM hr_payroll_items i JOIN hr_engagements e ON e.id=i.engagement_id JOIN hr_people p ON p.id=e.person_id WHERE i.run_id=? ORDER BY p.legal_name").bind(runId).all(),write.prepare("SELECT id,run_revision,checksum_sha256,created_at FROM hr_payroll_review_exports WHERE run_id=? ORDER BY run_revision DESC").bind(runId).all(),write.prepare("SELECT * FROM hr_payroll_corrections WHERE run_id=? AND company_id=? ORDER BY created_at DESC,id DESC").bind(runId,actor.companyId).all()]); return {run,items:items.results,exports:exports.results,corrections:corrections.results}; }
 export async function listPayrollRuns(actor: WorkContext) { actor = requirePermission(actor,"payroll.read"); if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment."); const {write}=await holdingResources(actor.holdingId); return (await write.prepare("SELECT * FROM hr_payroll_runs WHERE company_id=? ORDER BY pay_date DESC,created_at DESC").bind(actor.companyId).all()).results; }
 
-export async function postPayroll(actor: WorkContext) {
-  requirePermission(actor,"payroll.calculate");
-  throw new ApiError(409,"PAYROLL_ENGINE_UNAVAILABLE","No statutory payroll posting adapter is installed. Reviewed global previews cannot create payable obligations.");
+export async function payrollPostingOptions(actor: WorkContext) {
+  actor = requirePermission(actor,"finance.approve");
+  if (actor.branchId || actor.departmentId) throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");
+  const { write } = await holdingResources(actor.holdingId);
+  const [charts, periods] = await Promise.all([
+    write.prepare("SELECT id,name,base_currency FROM finance_charts WHERE company_id=? AND status='active' ORDER BY name").bind(actor.companyId).all(),
+    write.prepare("SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC").bind(actor.companyId).all(),
+  ]);
+  const chartIds = charts.results.map(row => String((row as Record<string,unknown>).id));
+  const accounts = chartIds.length ? await write.prepare(`SELECT id,chart_id,code,name,category,currency FROM finance_accounts WHERE company_id=? AND status='active' AND chart_id IN (${chartIds.map(() => "?").join(",")}) ORDER BY code`).bind(actor.companyId,...chartIds).all() : { results: [] };
+  return { charts: charts.results, periods: periods.results, accounts: accounts.results };
+}
 
+export async function postPayroll(actor: WorkContext, runId: string, input: z.infer<typeof payrollPostSchema>, key: string) {
+  actor = requirePermission(actor,"finance.approve");
+  if (actor.branchId || actor.departmentId) throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");
+  const { write } = await holdingResources(actor.holdingId);
+  const previous = await replayCommand(write, actor, key, "people.payroll.post", runId, input);
+  if (previous) return previous;
+  const run = await write.prepare(`SELECT r.*, COALESCE(SUM(i.gross_minor),0) gross_minor,
+      COALESCE(SUM(i.deductions_minor),0) deductions_minor,
+      COALESCE(SUM(i.employer_cost_minor),0) employer_minor,
+      COALESCE(SUM(i.net_minor),0) net_minor,
+      COUNT(i.id) item_count,
+      COUNT(i.id) FILTER (WHERE i.status NOT IN ('calculated','approved','posted')) invalid_items
+    FROM hr_payroll_runs r LEFT JOIN hr_payroll_items i ON i.run_id=r.id
+    WHERE r.id=? AND r.company_id=?
+    GROUP BY r.id`).bind(runId, actor.companyId).first<Record<string, string | number | null>>();
+  if (!run) throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found.");
+  if (String(run.status) !== "approved") throw new ApiError(409,"PAYROLL_NOT_APPROVED","An independently approved payroll run is required before GL posting.");
+  if (Number(run.version) !== input.expectedVersion) throw new ApiError(409,"VERSION_CONFLICT","The payroll run changed. Refresh before posting.");
+  if (Number(run.item_count) <= 0 || Number(run.invalid_items) > 0) throw new ApiError(409,"PAYROLL_ITEMS_INVALID","Every payroll item must be calculated or approved before posting.");
+  if (Number(run.deductions_minor) > 0 && !input.taxPayableAccountId) throw new ApiError(422,"TAX_PAYABLE_ACCOUNT_REQUIRED","Select the liability account that holds payroll deductions.");
+  if (Number(run.employer_minor) > 0 && !input.employerContributionAccountId) throw new ApiError(422,"EMPLOYER_ACCOUNT_REQUIRED","Select the liability account that holds employer contributions.");
+  const gross = Number(run.gross_minor), deductions = Number(run.deductions_minor), employer = Number(run.employer_minor), net = Number(run.net_minor);
+  if (gross < 0 || deductions < 0 || employer < 0 || net <= 0 || gross + employer !== net + deductions + employer) throw new ApiError(409,"PAYROLL_TOTALS_INVALID","Payroll totals do not balance to a payable amount.");
+  const lines = [
+    { accountId: input.expenseAccountId, description: "Payroll gross and employer cost", debit: minorToDecimal(gross + employer), credit: "0" },
+    { accountId: input.netPayableAccountId, description: "Net pay payable to employees", debit: "0", credit: minorToDecimal(net) },
+    ...(deductions > 0 ? [{ accountId: input.taxPayableAccountId!, description: "Payroll deductions payable", debit: "0", credit: minorToDecimal(deductions) }] : []),
+    ...(employer > 0 ? [{ accountId: input.employerContributionAccountId!, description: "Employer contributions payable", debit: "0", credit: minorToDecimal(employer) }] : []),
+  ];
+  const journal = await prepareJournal(write, actor, {
+    chartId: input.chartId,
+    periodId: input.periodId,
+    entryDate: input.entryDate,
+    currency: String(run.currency),
+    memo: `Payroll ${String(run.period_start)} to ${String(run.period_end)}`,
+    sourceType: "payroll",
+    sourceId: runId,
+    isOpening: false,
+    lines,
+  }, `${key}-journal`, "posted");
+  const now = Date.now(), result = { id: runId, status: "posted", version: input.expectedVersion + 1, journalId: journal.result.id, netPayableMinor: net };
+  return executeCommand(write, actor, key, "people.payroll.post", input, runId, input.expectedVersion + 1, result, [
+    assertion(write, key, "payroll-run", "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='approved' AND version=? AND input_digest IS NOT NULL)", [runId, actor.companyId, input.expectedVersion]),
+    assertion(write, key, "payroll-items", "NOT EXISTS(SELECT 1 FROM hr_payroll_items WHERE run_id=? AND status NOT IN ('calculated','approved','posted'))", [runId]),
+    assertion(write, key, "payroll-posting-unique", "NOT EXISTS(SELECT 1 FROM hr_payroll_postings WHERE run_id=?)", [runId]),
+    ...journal.steps,
+    write.prepare("UPDATE hr_payroll_runs SET status='posted',posted_by=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND status='approved' AND version=?").bind(actor.userId, now, runId, actor.companyId, input.expectedVersion),
+    write.prepare("UPDATE hr_payroll_items SET status='posted' WHERE run_id=? AND status IN ('calculated','approved')").bind(runId),
+    write.prepare("INSERT INTO hr_payroll_postings(id,run_id,journal_id,created_at) VALUES(?,?,?,?)").bind(`payroll-posting-${key}`, runId, journal.result.id, now),
+  ]);
 }
 
 export async function approvePayrollRun(actor:WorkContext,runId:string,expectedVersion:number,key:string) {

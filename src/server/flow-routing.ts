@@ -190,7 +190,7 @@ async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:Staf
   } else if (kind === "payroll") {
     add("calculate", "Calculate payroll preview", "payroll_preparer", await roles(["payroll_preparer","hr_admin"]));
     add("preview", "Review payroll preview", "payroll_approver", await roles(["payroll_approver","people_manager"], true));
-    add("approved", "Production payroll GL and payment", "finance_approver", [], undefined, "A validated statutory payroll adapter is required. Approved previews cannot create GL or payment obligations.");
+    add("approved", "Post payroll GL and prepare payment", "finance_approver", await roles(["finance_approver","holding_owner"], true));
     if (["draft","calculating","failed"].includes(current)) current = "calculate";
   } else {
     add("draft", "Prepare and submit record", "requester", [owner], owner);

@@ -129,6 +129,21 @@ function assignmentStatements(db: Db, holding: string) {
     statements.push(db.prepare("INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,valid_until,version,scope_kind,scope_node_id) VALUES(?,?,?,?,?,?,?,?,1,?,?) ON CONFLICT DO NOTHING")
       .bind(`seed_${userId}`, userId, role, role === "holding_owner" ? allModules : JSON.stringify(businessRoles[role as BusinessRole]), company, scope === "branch" ? branch : null, now - 1_000, validUntil, scope, scopeNode));
   }
+  // Northstar's seeded payroll run is approved by the holding owner. Give a
+  // separate finance approver an independent holding-scoped assignment so the
+  // demo can complete the payroll → GL handoff without relying on production
+  // data or a self-approval shortcut.
+  if (holding === "h002") {
+    const role: BusinessRole = "finance_approver";
+    const userId = "usr_iris";
+    const companyId = "northstar-co";
+    const assignmentId = "seed_usr_iris_finance_approver";
+    const modules = JSON.stringify(businessRoles[role]);
+    statements.push(db.prepare("INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,valid_until,version,scope_kind,scope_node_id) VALUES(?,?,?,?,?,?,?,?,1,'holding',NULL) ON CONFLICT DO NOTHING")
+      .bind(assignmentId, userId, role, modules, companyId, null, now - 1_000, validUntil));
+    statements.push(db.prepare("UPDATE assignments SET role=?,modules_json=?,company_id=?,branch_id=NULL,valid_from=?,valid_until=?,revoked_at=NULL,scope_kind='holding',scope_node_id=NULL WHERE id=? AND user_id=?")
+      .bind(role, modules, companyId, now - 1_000, validUntil, assignmentId, userId));
+  }
   for (const company of companies.filter((item) => item.holding === holding)) {
     for (const role of devRoles) {
       const assignmentId = `dev_${devSuperuser.id}_${company.id}_${role}`;

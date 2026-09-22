@@ -61,7 +61,7 @@ export default async function PeoplePage({
   const search = await searchParams;
   if (actor.beta) return <BetaPeople actor={actor} member={search.member} />;
   const base = workspaceBase(publicScope(actor));
-  const canPayroll = ["holding_owner","hr_admin","people_manager","payroll_preparer","payroll_approver","auditor"].includes(actor.role) && !actor.branchId && !actor.departmentId;
+  const canPayroll = ["holding_owner","hr_admin","people_manager","payroll_preparer","payroll_approver","finance_approver","auditor"].includes(actor.role) && !actor.branchId && !actor.departmentId;
   const canPayrollAdvance = hasPermission(actor,"self.requests");
   const payroll = search.view === "payroll" && (canPayroll || canPayrollAdvance);
   const archived = search.status === "archived";
@@ -154,8 +154,9 @@ export default async function PeoplePage({
       {payroll && (
         <WidgetGrid pageKey="people-payroll">
           <p className="notice">
-            Gross-pay preview only. Statutory calculations and payment adapters
-            are not yet available.
+            Global payroll-core preview and controlled Finance GL posting are
+            available. Country-specific statutory calculations and bank/provider
+            execution remain separately gated.
           </p>
           {hasPermission(actor,"payroll.prepare") &&
             !actor.branchId && (

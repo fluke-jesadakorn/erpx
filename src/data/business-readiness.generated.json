@@ -1,5 +1,5 @@
 {
-  "evidenceLedgerSha256": "0bc2666b75a70df6492b046e8d7d5509e57fea6a9073fc040e8df01432624c09",
+  "evidenceLedgerSha256": "a4e75da1bb976c328595221a590a060fb56ab93d90134dc8929542e64af082a9",
   "capabilities": [
     {
       "id": "brand/feature-draft-workspace",
@@ -4850,9 +4850,9 @@
         "ui": "src/app/holdings/[holdingSlug]/people/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
         "service": "src/server/people-payroll.ts",
-        "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql",
-        "test": "tests/e2e/demo-payroll-runs.spec.ts",
-        "gap": "People → Payroll renders live gross, deductions, employer cost, net and headcount totals from the calculated run and keeps the selected run after reload. Statutory country packs, GL/payment posting, provider/production operation and Company business acceptance remain."
+        "schema": "migrations/postgres/holding-write/0026_people_lifecycle.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql, migrations/postgres/holding-write/0276_payroll_gl_posting.sql",
+        "test": "tests/e2e/demo-payroll-runs.spec.ts, tests/payroll-core.test.ts",
+        "gap": "People → Payroll renders live gross, deductions, employer cost, net and headcount totals from the calculated run, and Finance can post an approved run into one balanced, source-linked GL journal before payment preparation. Statutory country packs, provider/production operation and Company business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -4997,9 +4997,9 @@
         "ui": "src/app/holdings/[holdingSlug]/people/page.tsx, src/app/holdings/[holdingSlug]/people/payroll/[id]/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/people/[...path]/route.ts",
         "service": "src/server/people-payroll.ts",
-        "schema": "migrations/postgres/holding-write/0261_payroll_advances.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql",
-        "test": "tests/e2e/demo-payroll-runs.spec.ts",
-        "gap": "Demo browser flow covers a real monthly global gross-pay preview, workflow-owner assignment, independent approval and reload persistence. Statutory payroll, GL/payment posting, provider/production operation and Company business acceptance remain separately gated."
+        "schema": "migrations/postgres/holding-write/0261_payroll_advances.sql, migrations/postgres/holding-write/0202_payroll_core_configuration.sql, migrations/postgres/holding-write/0276_payroll_gl_posting.sql",
+        "test": "tests/e2e/demo-payroll-runs.spec.ts, tests/payroll-core.test.ts",
+        "gap": "Demo browser flow covers a real monthly global gross-pay preview, workflow-owner assignment, independent approval and reload persistence; automated evidence also covers Finance GL posting with exact debit/credit reconciliation and idempotent retry. Statutory payroll, provider/production operation and Company business acceptance remain separately gated."
       },
       "gates": {
         "automated": {
@@ -13095,6 +13095,34 @@
       "limitations": [
         "The public local deployment had no unbound resource slot available for a browser activation; the UI rendered the real empty state while service activation was verified on disposable PostgreSQL databases.",
         "Physical database creation, off-machine durability, signed RPO/RTO, provider acceptance and Company business acceptance remain separate gates."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "payroll-gl-posting-automated-20260923",
+      "capabilityIds": [
+        "people_payroll/payroll-summaries",
+        "people_payroll/feature-payroll-runs"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "An independently approved global payroll run is posted by a Finance approver into one balanced source-linked journal. Payroll items and the run become posted atomically, explicit liability accounts receive deductions and employer contributions, and idempotent retries do not duplicate the journal.",
+      "observedAt": "2026-09-23T01:00:00+07:00",
+      "recordedBy": "Codex execution agent (automated service evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-payroll-gl-posting.txt",
+          "sha256": "d5969dedd618bffa89623c23cb315bc582b0a395b0cc4d3b16c5b1e6740a27db"
+        }
+      ],
+      "limitations": [
+        "Country-specific statutory calculation, provider/bank execution and production operation remain separately gated.",
+        "This is automated/local evidence; Company business acceptance and two consecutive Finance close approvals remain separate gates."
       ],
       "supersedes": null
     }

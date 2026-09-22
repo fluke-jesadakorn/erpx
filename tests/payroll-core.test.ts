@@ -1,7 +1,7 @@
 import { beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { applyMigrations,env } from "./runtime-env";
 import { expenseDb as db,expenseFixture,key } from "./helpers/expense-fixture";
-import { approvePayrollRun,calculatePayrollRun,createPayrollRun,decidePayrollCorrection,decidePayrollAdvance,exportPayrollReview,getPayrollReviewFile,getPayrollRun,payrollRunSchema,prepareFinalPay,finalPayPreparationSchema,requestPayrollCorrection,requestPayrollAdvance,payrollAdvanceRequestSchema,payrollAdvancePage } from "../src/server/people-payroll";
+import { approvePayrollRun,calculatePayrollRun,createPayrollRun,decidePayrollCorrection,decidePayrollAdvance,exportPayrollReview,getPayrollReviewFile,getPayrollRun,payrollRunSchema,prepareFinalPay,finalPayPreparationSchema,requestPayrollCorrection,requestPayrollAdvance,payrollAdvanceRequestSchema,payrollAdvancePage,postPayroll,payrollPostSchema } from "../src/server/people-payroll";
 import { listStaffNotifications } from "../src/server/staff-notifications";
 
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
@@ -24,6 +24,35 @@ it("snapshots configured proration and overtime and exports an immutable review 
   const command=key(),exported=await exportPayrollReview(f.owner,String(created.id),command);expect(await exportPayrollReview(f.owner,String(created.id),command)).toEqual(exported);
   const file=await getPayrollReviewFile(f.owner,String(created.id),Number(exported.revision)),text=await file.object.text();expect(text).toContain("employee,worker_type");expect(text).toContain("1500.00");
   expect(file.checksum).toBe(exported.checksum);
+});
+
+it("posts an approved payroll run into the finance ledger exactly once",async()=>{
+  f.owner.role="payroll_preparer";f.owner.assignmentId=await f.grant(f.owner,"payroll_preparer");
+  f.manager.role="payroll_approver";f.manager.assignmentId=await f.grant(f.manager,"payroll_approver");
+  f.reviewer.role="finance_approver";f.reviewer.assignmentId=await f.grant(f.reviewer,"finance_approver");
+  const engagement=await db.prepare("SELECT e.id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND p.user_id=?").bind(f.company,f.claimant.userId).first<{id:string}>(),group=`paygroup-${key()}`,employer=`${f.company}-employer-${key()}`;
+  await db.batch([
+    db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,?,'liability','THB',1,1)").bind(employer,f.chart,f.company,"EMPLOYER-${key()}","Employer contributions payable"),
+    db.prepare("INSERT INTO hr_pay_groups(id,company_id,name,country_code,currency,frequency,timezone,overtime_multiplier_bps,proration_method,created_by,created_at,updated_at) VALUES(?,?,'Posting payroll','TH','THB','monthly','Asia/Bangkok',15000,'calendar_days',?,1,1)").bind(group,f.company,f.owner.userId),
+    db.prepare("UPDATE hr_engagements SET pay_group_id=?,version=version+1 WHERE id=?").bind(group,engagement!.id),
+    db.prepare("INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,hourly_rate_minor,expected_hours,currency,components_json,status,approved_by,created_by,created_at,updated_at) VALUES(?,?,'2026-09-01','monthly',100000,0,160,'THB',?,'approved',?,?,1,1)").bind(`comp-${key()}`,engagement!.id,JSON.stringify([{code:"TAX",label:"Payroll deduction",kind:"deduction",amount:"10.00",taxable:false},{code:"SOCIAL",label:"Employer contribution",kind:"employer",amount:"5.00",taxable:false}]),f.manager.userId,f.reviewer.userId),
+    db.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'payroll','calculate',?,?,'Posting payroll fixture',1)").bind(f.company,f.owner.userId,f.owner.userId),
+    db.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'payroll','preview',?,?,'Posting payroll approval fixture',1)").bind(f.company,f.manager.userId,f.owner.userId),
+    db.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'payroll','approved',?,?,'Finance payroll posting fixture',1)").bind(f.company,f.reviewer.userId,f.owner.userId),
+  ]);
+  const created=await createPayrollRun(f.owner,payrollRunSchema.parse({payGroupId:group,periodStart:"2026-09-01",periodEnd:"2026-09-30",payDate:"2026-09-30",currency:"THB"}),key());
+  const calculated=await calculatePayrollRun(f.owner,String(created.id),key());
+  expect(calculated.totals).toMatchObject({gross:100000,deductions:1000,employer:500,net:99000});
+  const approved=await approvePayrollRun(f.manager,String(created.id),Number(calculated.version),key());
+  const postInput=payrollPostSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-09-30",expenseAccountId:f.accounts.expense,netPayableAccountId:f.accounts.payable,taxPayableAccountId:f.accounts.tax,employerContributionAccountId:employer,expectedVersion:approved.version});
+  const postKey=key(),posted=await postPayroll(f.reviewer,String(created.id),postInput,postKey);
+  expect(posted).toMatchObject({status:"posted",journalId:expect.any(String),netPayableMinor:99000});
+  expect(await db.prepare("SELECT status,posted_by,version FROM hr_payroll_runs WHERE id=?").bind(created.id).first()).toMatchObject({status:"posted",posted_by:f.reviewer.userId,version:Number(approved.version)+1});
+  expect(await db.prepare("SELECT status FROM hr_payroll_items WHERE run_id=?").bind(created.id).first("status")).toBe("posted");
+  const journal=await db.prepare("SELECT id,status,source_type FROM finance_journals WHERE id=?").bind(posted.journalId).first();expect(journal).toMatchObject({status:"posted",source_type:"payroll"});
+  expect(await db.prepare("SELECT SUM(debit_minor) debit,SUM(credit_minor) credit FROM finance_journal_lines WHERE journal_id=?").bind(posted.journalId).first()).toEqual({debit:100500,credit:100500});
+  expect(await postPayroll(f.reviewer,String(created.id),postInput,postKey)).toEqual(posted);
+  await expect(postPayroll(f.reviewer,String(created.id),postInput,`replay-${key()}`)).rejects.toMatchObject({code:"PAYROLL_NOT_APPROVED"});
 });
 
 it("requires an independent correction decision and preserves every reviewed payroll revision",async()=>{

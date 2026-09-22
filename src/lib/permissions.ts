@@ -137,6 +137,7 @@ define("payroll.read", "View payroll", "people_payroll", [
   ...hr,
   "payroll_preparer",
   "payroll_approver",
+  "finance_approver",
   "people_manager",
   "auditor",
 ]);
@@ -362,7 +363,7 @@ define(
   "Prepare approved payroll payment",
   "people_payroll",
   [owner, "treasury", "finance_approver", "payroll_preparer"],
-  ["Approved payroll; statutory adapter required"],
+  ["Approved payroll run posted to the Finance ledger"],
 );
 define(
   "payroll.payment.execute",

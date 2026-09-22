@@ -4025,6 +4025,34 @@
         "Physical database creation, off-machine durability, signed RPO/RTO, provider acceptance and Company business acceptance remain separate gates."
       ],
       "supersedes": null
+    },
+    {
+      "id": "payroll-gl-posting-automated-20260923",
+      "capabilityIds": [
+        "people_payroll/payroll-summaries",
+        "people_payroll/feature-payroll-runs"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "An independently approved global payroll run is posted by a Finance approver into one balanced source-linked journal. Payroll items and the run become posted atomically, explicit liability accounts receive deductions and employer contributions, and idempotent retries do not duplicate the journal.",
+      "observedAt": "2026-09-23T01:00:00+07:00",
+      "recordedBy": "Codex execution agent (automated service evidence, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-payroll-gl-posting.txt",
+          "sha256": "d5969dedd618bffa89623c23cb315bc582b0a395b0cc4d3b16c5b1e6740a27db"
+        }
+      ],
+      "limitations": [
+        "Country-specific statutory calculation, provider/bank execution and production operation remain separately gated.",
+        "This is automated/local evidence; Company business acceptance and two consecutive Finance close approvals remain separate gates."
+      ],
+      "supersedes": null
     }
   ]
 }
