@@ -4124,18 +4124,18 @@
       "gate": "automated",
       "environment": "simulation",
       "outcome": "partial",
-      "scope": "Holding-scoped Group Finance prepares a source-hashed consolidation snapshot from closed periods for two active entities, requires source-currency translation rates when functional currencies differ, then requires independent review, approval and publication with idempotency, version guards, stale-source rejection and immutable event history.",
+      "scope": "Holding-scoped Group Finance prepares a source-hashed consolidation snapshot from closed periods for two active entities, requires source-currency translation rates when functional currencies differ, then requires independent review, approval and publication with idempotency, version guards, stale-source rejection and immutable event history. Settled intercompany sources can receive an independently approved account pair and post to a separate report-level consolidation journal; run publication is blocked until those entries are posted.",
       "observedAt": "2026-09-23T03:08:00+07:00",
       "recordedBy": "Codex execution agent (automated service evidence, not business sign-off)",
       "evidence": [
         {
           "path": "docs/testing/evidence/2026-09-23-finance-consolidation-tests.txt",
-          "sha256": "7cde9e2da2c0ad31b01564a9f01d93d53b73b688dee177b02f1e44b231a1104b"
+          "sha256": "49611906f4773db641d11dad350fd96b3968964d7f69cbcb587f469727c11621"
         }
       ],
       "limitations": [
         "The workflow does not constitute live provider, production or Company business acceptance.",
-        "FX translation policy, elimination journal accounts/posting and two consecutive Finance close sign-off remain separate gates.",
+        "Provider operation and two consecutive Finance close sign-off remain separate gates; the report-level elimination journal intentionally stays separate from company ledgers.",
         "No capability is promoted beyond the evidence scope."
       ],
       "supersedes": null

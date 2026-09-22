@@ -6,7 +6,7 @@ Command:
 
 Result:
   1 test file passed
-  3 tests passed
+  4 tests passed
 
 Coverage:
   - closed-period snapshot across two active Group Finance entities
@@ -15,5 +15,7 @@ Coverage:
   - independent review → approval → publication with version guards
   - stale snapshot rejection when a source period reopens
   - immutable consolidation event history
+  - settled intercompany source → elimination account proposal → independent approval → report-level consolidation journal posting
+  - publish guard when elimination accounts are still unreviewed or unposted
 
-This is automated simulation evidence, not provider, production or Company business sign-off. FX translation policy, elimination journal posting and full Finance close acceptance remain separate gates.
+This is automated simulation evidence, not provider, production or Company business sign-off. Provider operation and full Finance close acceptance remain separate gates; the report-level elimination journal intentionally stays separate from company ledgers.

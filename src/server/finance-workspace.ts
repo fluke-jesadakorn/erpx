@@ -7,6 +7,7 @@ import { requirePermission } from "./iam-permissions";
 import { holdingResources } from "./runtime";
 import { calculateCloseReconciliations, type CloseReconciliation } from "./finance";
 import { intercompanyWorkspace } from "./finance-intercompany";
+import { consolidationRunWorkspace } from "./finance-consolidation";
 
 export type FinanceAttention = {
   id: string;
@@ -211,12 +212,8 @@ export async function closeWorkspace(actor: WorkContext) {
 export async function groupFinanceWorkspace(actor: WorkContext) {
   actor = requirePermission(actor, "finance.read");
   if (actor.scope.kind !== "holding") throw new ApiError(403, "HOLDING_FINANCE_REQUIRED", "Group Finance is available only in a Holding workspace.");
-  const { write } = await holdingResources(actor.holdingId);
-  const [runs, intercompany] = await Promise.all([
-    write.prepare("SELECT * FROM finance_consolidation_runs WHERE holding_id=? ORDER BY as_of_date DESC,created_at DESC LIMIT 20").bind(actor.holdingId).all<Record<string, string | number | null>>(),
-    intercompanyWorkspace(actor),
-  ]);
-  return { runs: runs.results, ...intercompany, intercompanyStatus: intercompany.statusCounts };
+  const [consolidation, intercompany] = await Promise.all([consolidationRunWorkspace(actor), intercompanyWorkspace(actor)]);
+  return { ...consolidation, ...intercompany, intercompanyStatus: intercompany.statusCounts };
 }
 
 export async function financeSetupWorkspace(actor: WorkContext) {

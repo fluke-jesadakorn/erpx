@@ -2224,9 +2224,9 @@
         "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
-        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql",
+        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql; migrations/postgres/holding-write/0280_finance_consolidation_eliminations.sql",
         "test": "tests/finance-accruals.test.ts; tests/finance-consolidation.test.ts",
-        "gap": "Opening imports, recurring accrual journals and realized/unrealized FX journals are atomic and independently controlled; Group Finance closed-period consolidation snapshots now require independent review, source-currency rates, approval and publication. Notes, elimination posting and full business acceptance remain."
+        "gap": "Opening imports, recurring accrual journals and realized/unrealized FX journals are atomic and independently controlled; Group Finance snapshots require independent review, source-currency rates, approval and publication, and approved elimination account pairs post to a separate controlled consolidation journal. Notes and full business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2287,9 +2287,9 @@
         "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
-        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql",
+        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql; migrations/postgres/holding-write/0280_finance_consolidation_eliminations.sql",
         "test": "tests/finance-accruals.test.ts; tests/finance-consolidation.test.ts",
-        "gap": "Opening, recurring accrual and foreign-currency payables retain source, period and posting evidence; Group Finance consolidation snapshots now retain source hashes, translation rates and immutable decisions. Elimination posting and complete business acceptance remain."
+        "gap": "Opening, recurring accrual and foreign-currency payables retain source, period and posting evidence; Group Finance snapshots retain source hashes, translation rates and immutable decisions, while approved elimination account pairs post to a separate controlled consolidation journal. Complete business acceptance remains."
       },
       "gates": {
         "automated": {

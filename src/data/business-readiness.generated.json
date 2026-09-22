@@ -1,5 +1,5 @@
 {
-  "evidenceLedgerSha256": "0e3954d77a7b52818bee4494dac62263a7563fac1cc22707fb3935774795903d",
+  "evidenceLedgerSha256": "42096df1a163649cbc1072b42221e0b18052a020ae49c77b99a4b919cd1107a8",
   "capabilities": [
     {
       "id": "brand/feature-draft-workspace",
@@ -2064,9 +2064,9 @@
         "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
-        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql",
+        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql; migrations/postgres/holding-write/0280_finance_consolidation_eliminations.sql",
         "test": "tests/finance-accruals.test.ts; tests/finance-consolidation.test.ts",
-        "gap": "Opening imports, recurring accrual journals and realized/unrealized FX journals are atomic and independently controlled; Group Finance closed-period consolidation snapshots now require independent review, source-currency rates, approval and publication. Notes, elimination posting and full business acceptance remain."
+        "gap": "Opening imports, recurring accrual journals and realized/unrealized FX journals are atomic and independently controlled; Group Finance snapshots require independent review, source-currency rates, approval and publication, and approved elimination account pairs post to a separate controlled consolidation journal. Notes and full business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -2115,9 +2115,9 @@
         "ui": "src/app/holdings/[holdingSlug]/finance/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
         "service": "src/server/finance.ts",
-        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql",
+        "schema": "migrations/postgres/holding-write/0262_finance_accrual_schedules.sql; migrations/postgres/holding-write/0279_finance_consolidation_workflow.sql; migrations/postgres/holding-write/0280_finance_consolidation_eliminations.sql",
         "test": "tests/finance-accruals.test.ts; tests/finance-consolidation.test.ts",
-        "gap": "Opening, recurring accrual and foreign-currency payables retain source, period and posting evidence; Group Finance consolidation snapshots now retain source hashes, translation rates and immutable decisions. Elimination posting and complete business acceptance remain."
+        "gap": "Opening, recurring accrual and foreign-currency payables retain source, period and posting evidence; Group Finance snapshots retain source hashes, translation rates and immutable decisions, while approved elimination account pairs post to a separate controlled consolidation journal. Complete business acceptance remains."
       },
       "gates": {
         "automated": {
@@ -13196,18 +13196,18 @@
       "gate": "automated",
       "environment": "simulation",
       "outcome": "partial",
-      "scope": "Holding-scoped Group Finance prepares a source-hashed consolidation snapshot from closed periods for two active entities, requires source-currency translation rates when functional currencies differ, then requires independent review, approval and publication with idempotency, version guards, stale-source rejection and immutable event history.",
+      "scope": "Holding-scoped Group Finance prepares a source-hashed consolidation snapshot from closed periods for two active entities, requires source-currency translation rates when functional currencies differ, then requires independent review, approval and publication with idempotency, version guards, stale-source rejection and immutable event history. Settled intercompany sources can receive an independently approved account pair and post to a separate report-level consolidation journal; run publication is blocked until those entries are posted.",
       "observedAt": "2026-09-23T03:08:00+07:00",
       "recordedBy": "Codex execution agent (automated service evidence, not business sign-off)",
       "evidence": [
         {
           "path": "docs/testing/evidence/2026-09-23-finance-consolidation-tests.txt",
-          "sha256": "7cde9e2da2c0ad31b01564a9f01d93d53b73b688dee177b02f1e44b231a1104b"
+          "sha256": "49611906f4773db641d11dad350fd96b3968964d7f69cbcb587f469727c11621"
         }
       ],
       "limitations": [
         "The workflow does not constitute live provider, production or Company business acceptance.",
-        "FX translation policy, elimination journal accounts/posting and two consecutive Finance close sign-off remain separate gates.",
+        "Provider operation and two consecutive Finance close sign-off remain separate gates; the report-level elimination journal intentionally stays separate from company ledgers.",
         "No capability is promoted beyond the evidence scope."
       ],
       "supersedes": null
