@@ -31,6 +31,11 @@ export type PaymentObligation = {
   href: string;
 };
 
+export type PaymentObligationFilters = {
+  sourceType?: string;
+  status?: string;
+};
+
 type CountRow = Record<string, number | string | null>;
 export type ClosePeriodRow = {
   [key: string]: string | number | null | CloseReconciliation[];
@@ -135,7 +140,7 @@ export async function financeWorkbench(actor: WorkContext) {
   };
 }
 
-export async function paymentObligationsWorkspace(actor: WorkContext): Promise<PaymentObligation[]> {
+export async function paymentObligationsWorkspace(actor: WorkContext, filters: PaymentObligationFilters = {}): Promise<PaymentObligation[]> {
   actor = requirePermission(actor, "finance.read");
   const { write } = await holdingResources(actor.holdingId);
   const canReadPeoplePayments = hasPermission(actor, "payroll.payment.read") || hasPermission(actor, "finance.pay");
@@ -167,12 +172,15 @@ export async function paymentObligationsWorkspace(actor: WorkContext): Promise<P
     return status === "draft" ? "Approve payroll or expense payment" : status === "approved" ? "Export payment instruction" : "Confirm each bank result";
   };
   const rows: PaymentObligation[] = [
-    ...generic.results.map(row => ({ id: String(row.id), sourceType: "generic_payment", sourceLabel: `${String(row.kind)} payment`, sourceId: String(row.source_id), dueDate: row.due_date ? String(row.due_date) : null, currency: String(row.currency), amountMinor: Number(row.amount_minor), status: String(row.status), nextAction: nextAction(String(row.status), "generic_payment"), href: `finance/payments/${row.id}` })),
+    ...generic.results.map(row => ({ id: String(row.id), sourceType: "generic_payment", sourceLabel: String(row.kind) === "receipt" ? "Customer receipt payment" : "Supplier payment", sourceId: String(row.source_id), dueDate: row.due_date ? String(row.due_date) : null, currency: String(row.currency), amountMinor: Number(row.amount_minor), status: String(row.status), nextAction: nextAction(String(row.status), "generic_payment"), href: `finance/payments/${row.id}` })),
     ...supplier.results.map(row => ({ id: String(row.id), sourceType: "supplier_batch", sourceLabel: "Supplier payment batch", sourceId: String(row.id), dueDate: row.due_date ? String(row.due_date) : null, currency: String(row.currency), amountMinor: Number(row.amount_minor), status: String(row.status), nextAction: nextAction(String(row.status), "supplier_batch"), href: `finance/supplier-batches/${row.id}` })),
     ...refunds.results.map(row => ({ id: String(row.id), sourceType: "refund", sourceLabel: String(row.direction) === "outgoing" ? "Customer refund" : "Supplier refund", sourceId: String(row.return_id), dueDate: row.due_date ? String(row.due_date) : null, currency: String(row.currency), amountMinor: Number(row.amount_minor), status: String(row.status), nextAction: nextAction(String(row.status), "refund"), href: `finance/refunds/${row.id}` })),
     ...people.results.map(row => ({ id: String(row.id), sourceType: "people_payment", sourceLabel: String(row.source_type) === "payroll" ? "Payroll payment batch" : String(row.source_type) === "expense" ? "Expense payment batch" : "Contractor payment batch", sourceId: String(row.source_id), dueDate: row.due_date ? String(row.due_date) : null, currency: String(row.currency), amountMinor: Number(row.amount_minor), status: String(row.status), nextAction: nextAction(String(row.status), "people_payment"), href: String(row.source_type) === "payroll" ? `people/payroll/${row.source_id}` : String(row.source_type) === "expense" ? `expenses/${row.source_id}` : `finance/invoices/${row.source_id}` })),
   ];
-  return rows.sort((left, right) => `${left.dueDate ?? "9999-99-99"}:${left.id}`.localeCompare(`${right.dueDate ?? "9999-99-99"}:${right.id}`));
+  return rows
+    .filter(row => !filters.sourceType || row.sourceType === filters.sourceType)
+    .filter(row => !filters.status || row.status === filters.status)
+    .sort((left, right) => `${left.dueDate ?? "9999-99-99"}:${left.id}`.localeCompare(`${right.dueDate ?? "9999-99-99"}:${right.id}`));
 }
 
 export async function closeWorkspace(actor: WorkContext) {

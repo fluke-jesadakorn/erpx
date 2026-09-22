@@ -128,7 +128,7 @@
 | ช่วง | งานหลัก | สถานะ |
 | --- | --- | --- |
 | 0 | routing recovery acceptance, escalation และ workflow ผู้รับรองจริง | ได้บางส่วนตามตารางข้างต้น |
-| 1 | paid returns/refund obligation, independent approval, payment export/batch, reconciliation, FX, period close และ intercompany | เพิ่ม paid customer/supplier returns → refund obligation → partial instruction/export → bank/GL reconciliation แล้ว; เพิ่ม AP supplier batch แบบผูก invoice และ bank/GL แล้ว; Payroll/shared batch, FX และ intercompany ยังไม่ครบ |
+| 1 | paid returns/refund obligation, independent approval, payment export/batch, reconciliation, FX, period close และ intercompany | เพิ่ม paid customer/supplier returns → refund obligation → partial instruction/export → bank/GL reconciliation แล้ว; เพิ่ม AP supplier batch แบบผูก invoice และ bank/GL แล้ว; unified Payment obligations queue เชื่อม generic, supplier, refund, payroll, expense และ contractor พร้อม source permission/filter แล้ว; FX และ intercompany ยังไม่ครบ |
 | 2 | PR/RFQ, shared reservation, transit, lot/serial/quality, delivery/POD | ยังไม่ปิดช่องว่าง G02/G03/G12 |
 | 3 | customer identity/authority, CRM, Support SLA, Portal/Email, Marketing handoff | ยังไม่ปิด G01/G02/G09/G18 |
 | 4 | project milestones/customer acceptance, assets/field service, Legal handoff | ยังไม่ปิด G05/G09/G11/S21 |

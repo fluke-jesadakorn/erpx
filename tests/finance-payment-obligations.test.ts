@@ -27,7 +27,7 @@ it("combines payment sources into one finance queue while redacting people payme
 
   const finance = await paymentObligationsWorkspace(f.owner);
   expect(finance).toEqual(expect.arrayContaining([
-    expect.objectContaining({ id: genericId, sourceType: "generic_payment", amountMinor: 10000, nextAction: "Release through Treasury" }),
+    expect.objectContaining({ id: genericId, sourceType: "generic_payment", sourceLabel: "Supplier payment", amountMinor: 10000, nextAction: "Release through Treasury" }),
     expect.objectContaining({ id: payrollBatchId, sourceType: "people_payment", sourceLabel: "Payroll payment batch", amountMinor: 20000, href: expect.stringContaining("people/payroll/") }),
   ]));
 
@@ -37,4 +37,6 @@ it("combines payment sources into one finance queue while redacting people payme
   expect(restricted.some(item => item.id === genericId)).toBe(true);
   const workbench = await financeWorkbench(f.owner);
   expect(workbench.attention.find(item => item.id === "payment-review")?.count).toBeGreaterThanOrEqual(2);
+  expect((await paymentObligationsWorkspace(f.owner, { sourceType: "generic_payment" })).map(item => item.id)).toEqual([genericId]);
+  expect((await paymentObligationsWorkspace(f.owner, { status: "approved" })).map(item => item.id)).toContain(genericId);
 });
