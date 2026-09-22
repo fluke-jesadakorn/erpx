@@ -65,3 +65,7 @@ bun run demo:prepare
 `destroy` ตรวจ run ID, process command, database prefix และ database owner ก่อนลบ ไม่มี wildcard และไม่เชื่อมต่อฐาน development/production การ Prepare ใหม่สร้างข้อมูลตั้งต้นและรหัสผ่านใหม่ ไม่ส่งอีเมล ไม่เรียกธนาคารหรือ payment provider และไม่ถือว่า provider/production acceptance ผ่าน
 
 Static prototype ใน `Designed/mockup/` ยังคงเป็นพื้นที่ทดลองหน้าตาและ interaction แยกต่างหาก ข้อมูลทั้งหมดใน prototype อยู่ใน browser และไม่ใช่ authority record ของบริษัท Demo นี้
+
+## ตัวอย่าง Platform migration run
+
+ใน Platform administration ให้เปิดหน้า Overview เพื่อดู applied/pending holding-write migrations ของแต่ละ Holding. Platform administrator กรอกเหตุผลแล้วกด `Run Holding migrations`; ระบบใช้ migration lock เดิมและบันทึก receipt ใน control plane. การกดซ้ำด้วยคำสั่งเดิมจะคืนผลเดิมจาก receipt ส่วน Platform auditor ดูสถานะได้แต่สั่งรันไม่ได้. การทดลองนี้ทำกับ Demo Holding เท่านั้นและไม่เรียก provider หรือฐานข้อมูลบริษัทจริง.

@@ -4,6 +4,7 @@ import { ApiError } from "./http";
 import type { PlatformContext } from "./authorization";
 import type { PostgresDatabase } from "./runtime/postgres";
 import type { SqlDatabase } from "./runtime/types";
+import { inspectMigrations, migrateDatabase } from "./runtime/migrations";
 
 export type PlatformHoldingOperation = {
   id: string;
@@ -17,6 +18,13 @@ export type PlatformHoldingOperation = {
   jobHeartbeatAt: number | null;
   error: string | null;
   deadLetters: PlatformDeadLetter[];
+  migrations: {
+    track: "holding-write";
+    applied: number;
+    pending: string[];
+    latestApplied: string | null;
+    error: string | null;
+  };
 };
 
 export type PlatformDeadLetter = {
@@ -120,6 +128,19 @@ export async function summarizePlatformOperations(
           lastError: row.last_error,
           deadLetterAt: Number(row.dead_letter_at),
         }));
+        let migrations: PlatformHoldingOperation["migrations"];
+        try {
+          const status = await inspectMigrations(holding.db as PostgresDatabase, "holding-write");
+          migrations = { ...status, track: "holding-write", error: null };
+        } catch {
+          migrations = {
+            track: "holding-write",
+            applied: 0,
+            pending: [],
+            latestApplied: null,
+            error: "Migration receipts are unavailable for this Holding.",
+          };
+        }
         return {
           id: holding.id,
           slug: holding.slug,
@@ -136,6 +157,7 @@ export async function summarizePlatformOperations(
           jobHeartbeatAt: jobsHeartbeatAt,
           error: null,
           deadLetters,
+          migrations,
         };
       } catch {
         return {
@@ -150,6 +172,13 @@ export async function summarizePlatformOperations(
           jobHeartbeatAt: jobsHeartbeatAt,
           error: "Holding database or operational tables are unavailable.",
           deadLetters: [],
+          migrations: {
+            track: "holding-write",
+            applied: 0,
+            pending: [],
+            latestApplied: null,
+            error: "Holding database or operational tables are unavailable.",
+          },
         };
       }
     }),
@@ -247,5 +276,105 @@ export async function recoverDeadLetterJob(
     const committed = await db.prepare("SELECT request_hash,result_json FROM command_receipts WHERE command_id=?").bind(idempotencyKey).first<{ request_hash: string; result_json: string | null }>();
     if (committed?.request_hash === digest && committed.result_json) return JSON.parse(committed.result_json) as RecoverDeadLetterResult;
     throw error;
+  }
+}
+
+export type RunHoldingMigrationInput = {
+  holdingId: string;
+  track: "holding-write";
+  reason: string;
+};
+
+export type RunHoldingMigrationResult = {
+  runId: string;
+  holdingId: string;
+  track: "holding-write";
+  status: "succeeded";
+  appliedBefore: number;
+  appliedAfter: number;
+  pending: string[];
+  finishedAt: number;
+};
+
+function migrationDigest(
+  actor: Pick<PlatformContext, "userId" | "assignmentId" | "role">,
+  key: string,
+  input: RunHoldingMigrationInput,
+) {
+  return createHash("sha256")
+    .update(JSON.stringify({ actor: actor.userId, assignment: actor.assignmentId, role: actor.role, key, input }))
+    .digest("hex");
+}
+
+/** Run the shipped Holding migrations through the same locked runner used at startup. */
+export async function runHoldingMigrations(
+  actor: Pick<PlatformContext, "userId" | "assignmentId" | "role">,
+  control: PostgresDatabase,
+  holding: PostgresDatabase,
+  input: RunHoldingMigrationInput,
+  idempotencyKey: string,
+  now = Date.now(),
+): Promise<RunHoldingMigrationResult> {
+  if (actor.role !== "platform_admin") throw new ApiError(403, "FORBIDDEN", "Only a Platform administrator can run Holding migrations.");
+  if (!/^[a-zA-Z0-9:_.-]{8,180}$/.test(idempotencyKey)) throw new ApiError(422, "COMMAND_KEY_REQUIRED", "Use a valid Idempotency-Key for this action.");
+  if (!/^[a-z0-9][a-z0-9._:-]{1,180}$/.test(input.holdingId)) throw new ApiError(422, "VALIDATION_FAILED", "Choose a valid Holding.");
+  if (input.track !== "holding-write") throw new ApiError(422, "VALIDATION_FAILED", "Only Holding write migrations can be run from this console.");
+  if (input.reason.trim().length < 3 || input.reason.length > 1000) throw new ApiError(422, "VALIDATION_FAILED", "Explain why this migration run is safe.");
+  const digest = migrationDigest(actor, idempotencyKey, input);
+  const prior = await control.prepare(
+    "SELECT id,request_hash,status,result_json,error FROM platform_migration_runs WHERE idempotency_key=?",
+  ).bind(idempotencyKey).first<{ id: string; request_hash: string; status: string; result_json: string | null; error: string | null }>();
+  if (prior) {
+    if (prior.request_hash !== digest) throw new ApiError(409, "IDEMPOTENCY_CONFLICT", "This command key belongs to a different migration request.");
+    if (prior.status === "running" || !prior.result_json) throw new ApiError(409, "MIGRATION_IN_PROGRESS", "The previous migration run is still being finalized. Retry the same command later.");
+    if (prior.status === "failed") throw new ApiError(409, "MIGRATION_FAILED", "The previous migration run failed. Review the platform receipt before retrying.");
+    return JSON.parse(prior.result_json) as RunHoldingMigrationResult;
+  }
+
+  const before = await inspectMigrations(holding, input.track);
+  const runId = `platform-migration-${crypto.randomUUID()}`;
+  try {
+    await control.prepare(
+      `INSERT INTO platform_migration_runs
+         (id,idempotency_key,request_hash,holding_id,track,status,requested_by,assignment_id,reason,applied_before,applied_after,requested_at,started_at)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    ).bind(runId, idempotencyKey, digest, input.holdingId, input.track, "running", actor.userId, actor.assignmentId, input.reason.trim(), before.applied, before.applied, now, now).run();
+  } catch (error) {
+    if ((error as { code?: string }).code === "23505") {
+      const raced = await control.prepare(
+        "SELECT request_hash,status,result_json FROM platform_migration_runs WHERE idempotency_key=?",
+      ).bind(idempotencyKey).first<{ request_hash: string; status: string; result_json: string | null }>();
+      if (raced?.request_hash !== digest) throw new ApiError(409, "IDEMPOTENCY_CONFLICT", "This command key belongs to a different migration request.");
+      if (raced?.status === "succeeded" && raced.result_json) return JSON.parse(raced.result_json) as RunHoldingMigrationResult;
+      throw new ApiError(409, "MIGRATION_IN_PROGRESS", "Another migration run already owns this command key.");
+    }
+    throw error;
+  }
+
+  try {
+    await migrateDatabase(holding, input.track);
+    const after = await inspectMigrations(holding, input.track);
+    const finishedAt = Date.now();
+    const result: RunHoldingMigrationResult = {
+      runId,
+      holdingId: input.holdingId,
+      track: input.track,
+      status: "succeeded",
+      appliedBefore: before.applied,
+      appliedAfter: after.applied,
+      pending: after.pending,
+      finishedAt,
+    };
+    await control.prepare(
+      "UPDATE platform_migration_runs SET status='succeeded',applied_after=?,result_json=?,finished_at=?,version=version+1 WHERE id=? AND status='running'",
+    ).bind(after.applied, JSON.stringify(result), finishedAt, runId).run();
+    return result;
+  } catch (error) {
+    const finishedAt = Date.now();
+    const message = (error instanceof Error ? error.message : "Migration failed").slice(0, 1000);
+    await control.prepare(
+      "UPDATE platform_migration_runs SET status='failed',error=?,finished_at=?,version=version+1 WHERE id=? AND status='running'",
+    ).bind(message, finishedAt, runId).run();
+    throw new ApiError(500, "MIGRATION_FAILED", "The Holding migration failed. Review the platform migration receipt and database logs.");
   }
 }

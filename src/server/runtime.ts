@@ -1,6 +1,6 @@
 import "server-only";
 
-import { registeredResources, resourceSlots, type HoldingId } from "../lib/holding-registry";
+import { registeredMigrationDatabase, registeredResources, resourceSlots, type HoldingId } from "../lib/holding-registry";
 export type { HoldingId } from "../lib/holding-registry";
 import { getRuntime, type RuntimeEnv } from "./runtime/env";
 
@@ -18,6 +18,9 @@ export function isHoldingId(value: string): value is HoldingId {
 }
 export async function holdingResources(holdingId: string) {
   return registeredResources(await runtimeEnv(), holdingId);
+}
+export async function holdingMigrationDatabase(holdingId: string) {
+  return registeredMigrationDatabase(await runtimeEnv(), holdingId);
 }
 
 export async function holdingBindingBySlug(

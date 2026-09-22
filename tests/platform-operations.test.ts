@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, expect, it } from "vitest";
 import { applyMigrations, env } from "./runtime-env";
-import { recoverDeadLetterJob, summarizePlatformOperations } from "../src/server/platform-operations";
+import { recoverDeadLetterJob, runHoldingMigrations, summarizePlatformOperations } from "../src/server/platform-operations";
 
 const now = 1_800_000_000_000;
 
@@ -15,6 +15,7 @@ beforeEach(async () => {
   await env.H001_DB.prepare("DELETE FROM outbox_events WHERE id LIKE 'platform-operations-test-%'").run();
   await env.H001_DB.prepare("DELETE FROM command_receipts WHERE command_id LIKE 'platform-job-recovery-test-%'").run();
   await env.H001_DB.prepare("DELETE FROM audit_events WHERE command_id LIKE 'platform-job-recovery-test-%'").run();
+  await env.CONTROL_DB.prepare("DELETE FROM platform_migration_runs WHERE idempotency_key LIKE 'platform-migration-test-%'").run();
 });
 
 async function event(suffix: string, createdAt: number) {
@@ -117,4 +118,25 @@ it("does not allow auditors or stale failed-job snapshots to recover work", asyn
   const input = { eventId: id, expectedAttempts: 5, expectedLastError: "OLD_ERROR", reason: "Review the failed provider response before retrying." };
   await expect(recoverDeadLetterJob({ userId: "auditor", assignmentId: "platform-auditor", role: "platform_auditor" }, env.H001_DB, "h001", input, "platform-job-recovery-test-2", now)).rejects.toMatchObject({ code: "FORBIDDEN" });
   await expect(recoverDeadLetterJob({ userId: "admin", assignmentId: "platform-admin", role: "platform_admin" }, env.H001_DB, "h001", input, "platform-job-recovery-test-3", now)).rejects.toMatchObject({ code: "VERSION_CONFLICT" });
+});
+
+it("runs Holding migrations with a durable receipt and idempotent replay", async () => {
+  const actor = { userId: "platform-operator", assignmentId: "platform-assignment", role: "platform_admin" } as const;
+  const input = { holdingId: "h001", track: "holding-write" as const, reason: "Apply the reviewed release schema before enabling the next workflow." };
+  const before = await summarizePlatformOperations(actor, env.CONTROL_DB, [{ id: "h001", slug: "acme", displayName: "Acme Demo", db: env.H001_DB }], now);
+  expect(before.holdings[0]?.migrations.error).toBeNull();
+  expect(before.holdings[0]?.migrations.pending).toEqual([]);
+  const first = await runHoldingMigrations(actor, env.CONTROL_DB, env.H001_DB, input, "platform-migration-test-1", now);
+  expect(first).toMatchObject({ holdingId: "h001", track: "holding-write", status: "succeeded", pending: [] });
+  expect(first.appliedAfter).toBeGreaterThanOrEqual(first.appliedBefore);
+  expect(await env.CONTROL_DB.prepare("SELECT status,holding_id,reason,applied_before,applied_after FROM platform_migration_runs WHERE idempotency_key=?").bind("platform-migration-test-1").first()).toEqual({
+    status: "succeeded",
+    holding_id: "h001",
+    reason: input.reason,
+    applied_before: first.appliedBefore,
+    applied_after: first.appliedAfter,
+  });
+  expect(await runHoldingMigrations(actor, env.CONTROL_DB, env.H001_DB, input, "platform-migration-test-1", now + 1)).toEqual(first);
+  await expect(runHoldingMigrations({ userId: "platform-auditor", assignmentId: "platform-auditor", role: "platform_auditor" }, env.CONTROL_DB, env.H001_DB, input, "platform-migration-test-2", now)).rejects.toMatchObject({ code: "FORBIDDEN" });
+  await expect(runHoldingMigrations(actor, env.CONTROL_DB, env.H001_DB, { ...input, reason: "A different request using the same key." }, "platform-migration-test-1", now + 2)).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
 });

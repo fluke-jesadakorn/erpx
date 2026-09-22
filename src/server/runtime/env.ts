@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { z } from 'zod';
 import { PostgresDatabase } from './postgres';
 import { LocalFileStore } from './filesystem';
@@ -63,6 +63,20 @@ export function getRuntime(): RuntimeEnv {
     // Installer provides independently scoped database logins; a separate jobs
     // manifest grants projection writes that the web process cannot perform.
     env[binding] = new PostgresDatabase({ connectionString, application_name: `erpx-${role}`, max: binding === 'CONTROL_DB' ? (role === 'jobs' ? 2 : 5) : (process.env.NODE_ENV === 'development' && role === 'app' ? devPool : 1) });
+  }
+  // Schema migrations use a separately provisioned login. The web process gets
+  // these credentials only from the private, sibling migration manifest; app
+  // and jobs URLs remain unable to migrate schema or read erpx_migrations.
+  if (process.env.ERPX_PROCESS_ROLE !== 'jobs') {
+    try {
+      const migrationManifestPath = process.env.ERPX_MIGRATION_DATABASE_MANIFEST ?? join(dirname(manifestPath), 'databases-migrations.json');
+      if (!isAbsolute(migrationManifestPath)) throw new Error('ERPX_MIGRATION_DATABASE_MANIFEST_REQUIRED');
+      const migrationManifest = manifestSchema.parse(JSON.parse(readFileSync(migrationManifestPath, 'utf8')));
+      for (const [binding, connectionString] of Object.entries(migrationManifest.databases))
+        env[`MIGRATION_${binding}`] = new PostgresDatabase({ connectionString, application_name: 'erpx-migration', max: 1 });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
   }
   if (!env.CONTROL_DB) throw new Error('CONTROL_DATABASE_REQUIRED');
   for (const slot of manifest.slots) {

@@ -21,8 +21,9 @@ export async function provision(options: { adminUrl: string; dataDir: string; pr
   const entries = [{ binding: 'CONTROL_DB', name: `${options.prefix}_control`, track: 'control' },
     { binding: 'CONTROL_READ_DB', name: `${options.prefix}_control_read`, track: 'control-read' },
     ...slots.flatMap(s => [{ binding:s.write,name:`${options.prefix}_${s.id}_write`,track:'holding-write' },{ binding:s.read,name:`${options.prefix}_${s.id}_read`,track:'holding-read' }])];
-  const app: DatabaseManifest = { version:1, databases:{}, slots }, jobs: DatabaseManifest = { version:1, databases:{}, slots };
+  const app: DatabaseManifest = { version:1, databases:{}, slots }, jobs: DatabaseManifest = { version:1, databases:{}, slots }, migrations: DatabaseManifest = { version:1, databases:{}, slots };
   const admin = new Pool({ connectionString: options.adminUrl, max:1 });
+  const adminRole = new URL(options.adminUrl).username;
   try {
     for (const entry of entries) {
       const exists = await admin.query('SELECT 1 FROM pg_database WHERE datname=$1',[entry.name]);
@@ -53,6 +54,27 @@ export async function provision(options: { adminUrl: string; dataDir: string; pr
           const url = new URL(ownerUrl); url.username=role; url.password=credentials[role];
           (processRole === 'app' ? app : jobs).databases[entry.binding] = url.href;
         }
+        const migrationRole = `${entry.name}_migration`;
+        if (!credentials[migrationRole]) {
+          credentials[migrationRole] = randomBytes(32).toString('hex');
+          await writeFile(credentialsPath, JSON.stringify(credentials), { mode:0o600 }); await chmod(credentialsPath, 0o600);
+        }
+        if (!(await admin.query('SELECT 1 FROM pg_roles WHERE rolname=$1',[migrationRole])).rowCount)
+          await admin.query(`CREATE ROLE ${quote(migrationRole)} LOGIN`);
+        // The migration login is separate from app/jobs and is used only by the
+        // authorized Platform migration runner. Ordinary application queries
+        // cannot migrate schema or read migration receipts directly.
+        await admin.query(`ALTER ROLE ${quote(migrationRole)} PASSWORD '${credentials[migrationRole]}' NOCREATEDB NOCREATEROLE`);
+        // Make the migration login the database/object owner. PostgreSQL does
+        // not let a non-superuser grant its own owner role to another login;
+        // granting the migration role to the provisioning role first lets the
+        // owner transfer and keeps app/jobs roles outside the DDL boundary.
+        await admin.query(`GRANT ${quote(migrationRole)} TO ${quote(adminRole)}`);
+        await admin.query(`ALTER DATABASE ${quote(entry.name)} OWNER TO ${quote(migrationRole)}`);
+        await db.pool.query(`REASSIGN OWNED BY ${quote(adminRole)} TO ${quote(migrationRole)}`);
+        await admin.query(`GRANT CONNECT ON DATABASE ${quote(entry.name)} TO ${quote(migrationRole)}`);
+        const migrationUrl = new URL(ownerUrl); migrationUrl.username = migrationRole; migrationUrl.password = credentials[migrationRole];
+        migrations.databases[entry.binding] = migrationUrl.href;
         if (entry.binding === 'CONTROL_DB') {
           if (options.beta) for (const slot of slots) await db.prepare('INSERT INTO beta_slots(holding_id,created_at,updated_at) VALUES(?,?,?) ON CONFLICT DO NOTHING').bind(slot.id,Date.now(),Date.now()).run();
           else for (const [index,slot] of slots.entries()) await db.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES(?,?,?,?,?,?,'active') ON CONFLICT DO NOTHING")
@@ -60,7 +82,7 @@ export async function provision(options: { adminUrl: string; dataDir: string; pr
         }
       } finally { await db.close(); }
     }
-    for (const [name, manifest] of [['databases.json',app],['databases-jobs.json',jobs]] as const) {
+    for (const [name, manifest] of [['databases.json',app],['databases-jobs.json',jobs],['databases-migrations.json',migrations]] as const) {
       await writeFile(join(config,name), JSON.stringify(manifest,null,2), { mode:0o600 }); await chmod(join(config,name),0o600);
     }
     for (const slot of slots) await mkdir(join(root,'files',slot.id),{recursive:true,mode:0o700});

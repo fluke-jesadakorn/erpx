@@ -3,6 +3,42 @@ import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { PostgresDatabase } from './postgres';
 
+export type MigrationStatus = {
+  track: 'control' | 'control-read' | 'holding-write' | 'holding-read';
+  applied: number;
+  pending: string[];
+  latestApplied: string | null;
+};
+
+/** Read migration receipts without changing the database. */
+export async function inspectMigrations(
+  db: PostgresDatabase,
+  track: MigrationStatus['track'],
+  root = join(process.cwd(), 'migrations/postgres'),
+): Promise<MigrationStatus> {
+  const files = (await readdir(join(root, track))).filter(file => file.endsWith('.sql')).sort();
+  let names: string[] = [];
+  try {
+    // Application roles are deliberately denied direct access to the migration
+    // receipt table. The migration-owned, read-only function exposes only the
+    // receipt names needed by the operational screen while preserving that
+    // boundary.
+    names = (await db.prepare('SELECT name FROM erpx_migration_receipts() ORDER BY name').all<{ name: string }>()).results.map(row => row.name);
+  } catch (error) {
+    // A provisioned database always has this table. Treat a new database as
+    // entirely pending so the Platform screen can explain the next action;
+    // all other database errors remain visible to the caller.
+    if (!['42P01', '42883'].includes((error as { code?: string }).code ?? '')) throw error;
+  }
+  const appliedNames = new Set(names);
+  return {
+    track,
+    applied: names.length,
+    pending: files.filter(file => !appliedNames.has(file)),
+    latestApplied: names.at(-1) ?? null,
+  };
+}
+
 export async function migrateDatabase(db: PostgresDatabase, track: string, root = join(process.cwd(), 'migrations/postgres')) {
   if (!['control','control-read','holding-write','holding-read'].includes(track)) throw new Error('INVALID_MIGRATION_TRACK');
   const client = await db.pool.connect();

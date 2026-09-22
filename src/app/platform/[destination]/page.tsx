@@ -7,6 +7,7 @@ import { activeHoldingBindings } from "@/server/runtime";
 import { requirePlatformContext } from "@/server/authorization";
 import { summarizePlatformOperations } from "@/server/platform-operations";
 import { PlatformJobRecovery } from "@/components/platform/platform-job-recovery";
+import { PlatformMigrationRun } from "@/components/platform/platform-migration-run";
 
 const destinations: Record<string, [string, string]> = {
   home: ["Platform overview", "Control-plane operations are separated from every customer Holding."],
@@ -60,6 +61,12 @@ export default async function PlatformDestinationPage({ params }: PageProps<"/pl
           {operations.holdings.length ? <div className="table-wrap"><table><thead><tr><th>Holding</th><th>Status</th><th>Pending</th><th>Dead letters</th><th>Claimed</th><th>Jobs heartbeat</th><th>Oldest pending</th></tr></thead><tbody>{operations.holdings.map((holding) => <tr key={holding.id}><td><strong>{holding.displayName}</strong><br /><small>{holding.slug}</small></td><td><StatusBadge status={holding.status} />{holding.error && <p className="error">{holding.error}</p>}</td><td>{holding.pendingEvents}</td><td>{holding.deadLetterEvents}</td><td>{holding.claimedEvents}</td><td>{holding.jobHeartbeatAt ? new Date(holding.jobHeartbeatAt).toISOString().replace("T", " ").slice(0, 19) + " UTC" : "—"}</td><td>{holding.oldestPendingAt ? new Date(holding.oldestPendingAt).toISOString().replace("T", " ").slice(0, 19) + " UTC" : "—"}</td></tr>)}</tbody></table></div> : <p className="muted">No active Holding bindings are configured.</p>}
           <p className="muted">This view reports persisted runtime state. Failed jobs below can be recovered only with a reason, an optimistic snapshot, an idempotency key, and a Platform audit entry.</p>
           {operations.holdings.filter((holding) => holding.deadLetters.length).map((holding) => <section key={holding.id}><h3>{holding.displayName} · failed jobs</h3><PlatformJobRecovery holdingId={holding.id} events={holding.deadLetters} canRecover={actor.role === "platform_admin"} /></section>)}
+          <h3>Schema migrations</h3>
+          <p className="muted">Migration status is read from each Holding database. Running a migration uses the locked release runner and records an operator receipt in the control plane.</p>
+          {operations.holdings.map((holding) => <section key={`${holding.id}-migrations`} className="card">
+            <h4>{holding.displayName} <small>({holding.slug})</small></h4>
+            <PlatformMigrationRun holdingId={holding.id} migration={holding.migrations} canRun={actor.role === "platform_admin"} />
+          </section>)}
         </FeatureWidget>
         <FeatureWidget id="platform-workspaces" title="Business workspaces">
         {choices.length ? (

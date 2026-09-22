@@ -3970,6 +3970,34 @@
         "Business acceptance remains distinct from implementation and simulation evidence."
       ],
       "supersedes": null
+    },
+    {
+      "id": "platform-migration-runs-automated-20260922",
+      "capabilityIds": [
+        "platform_administration/feature-migration-runs"
+      ],
+      "scenarioIds": [
+        "S15",
+        "S19"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Platform migration status is read per Holding and an authorized Platform administrator can run the holding-write migration track through the live service. The command uses the existing PostgreSQL migration lock, requires a reason and idempotency key, persists a control-plane receipt with before/after counts, replays the original result, rejects auditors and rejects a different payload under the same key.",
+      "observedAt": "2026-09-22T16:00:00+00:00",
+      "recordedBy": "Codex execution agent (automated service and UI implementation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-platform-migration-runs.txt",
+          "sha256": "73b672fe6e024912a46a0a913e97a638aab150bfcecffc4cc051fa4d7c15fb72"
+        }
+      ],
+      "limitations": [
+        "This is isolated migration and service evidence; no production schema change or external provider was exercised.",
+        "Holding provisioning commands, temporary access commands and off-machine/production RPO/RTO remain separate gates.",
+        "Platform business acceptance remains separate from implementation and simulation evidence."
+      ],
+      "supersedes": null
     }
   ]
 }

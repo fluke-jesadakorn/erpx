@@ -7,8 +7,10 @@ const role=process.argv[2];
 if(role!=='web'&&role!=='jobs'&&role!=='tunnel')throw new Error('INVALID_SERVICE_ROLE');
 const base=process.env.ERPX_HOME??'/Library/Application Support/ERPX';
 process.loadEnvFile(join(base,'config/production.env'));
-Object.assign(process.env,{NODE_ENV:'production',ERPX_DATA_DIR:join(base,'data'),ERPX_PROCESS_ROLE:role==='jobs'?'jobs':'app',
-  ERPX_DATABASE_MANIFEST:join(base,'data/config',role==='jobs'?'databases-jobs.json':'databases.json'),HOSTNAME:'127.0.0.1',PORT:'3101'});
+const environment={NODE_ENV:'production',ERPX_DATA_DIR:join(base,'data'),ERPX_PROCESS_ROLE:role==='jobs'?'jobs':'app',
+  ERPX_DATABASE_MANIFEST:join(base,'data/config',role==='jobs'?'databases-jobs.json':'databases.json'),HOSTNAME:'127.0.0.1',PORT:'3101'} as Record<string,string>;
+if(role==='web') environment.ERPX_MIGRATION_DATABASE_MANIFEST=join(base,'data/config','databases-migrations.json');
+Object.assign(process.env,environment);
 const log=join(base,'logs',`${role}.log`);
 let logs=Promise.resolve();
 function output(chunk:Buffer){logs=logs.then(async()=>{

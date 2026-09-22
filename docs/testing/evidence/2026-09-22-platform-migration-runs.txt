@@ -1,0 +1,20 @@
+ERPX Platform migration runs — 2026-09-22
+
+Scope
+- A Platform administrator can inspect each Holding's applied and pending holding-write migrations on the live Platform operations page.
+- The migration action requires a reason and Idempotency-Key, runs through the existing PostgreSQL migration advisory lock, and records a control-plane receipt with actor, assignment, before/after counts and result.
+- A repeated request with the same key and payload returns the original result; a different payload, a concurrent request, or a Platform auditor is rejected.
+
+Evidence
+- Migration: migrations/postgres/control/0015_platform_migration_runs.sql
+- Service: src/server/platform-operations.ts and src/server/runtime/migrations.ts
+- API: src/app/api/v1/platform/operations/migrate/route.ts
+- UI: src/app/platform/[destination]/page.tsx and src/components/platform/platform-migration-run.tsx
+- Tests: tests/platform-operations.test.ts — 5 passed, including receipt persistence, replay, auditor denial and idempotency conflict.
+- Local migration replay: bun run db:migrate:local — 6 databases, 2 slots.
+- App-role status read: the app role can execute `erpx_migration_receipts()` without direct access to `erpx_migrations`; the public Platform page renders both Holdings as `Schema is up to date` with 148 applied migrations.
+- Public workflow run: the Platform administrator completed an Acme Holding run through the public page; the persisted receipt is `succeeded` with `148 → 148` applied and `pending 0`. The DDL connection used the separately provisioned migration login.
+- TypeScript and scoped ESLint passed.
+
+Remaining gates
+- Holding provisioning commands, temporary access commands, production/off-machine recovery and company business acceptance remain separate gates.

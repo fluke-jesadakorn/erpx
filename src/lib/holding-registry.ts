@@ -60,3 +60,9 @@ export function registeredResources(env: RegistryEnv, id: string) {
     throw new Error("HOLDING_RESOURCES_UNAVAILABLE");
   return { write, read, files };
 }
+export function registeredMigrationDatabase(env: RegistryEnv, id: string) {
+  const { slot } = registeredDatabases(env, id);
+  const migration = (env as Record<string, unknown>)[`MIGRATION_${slot.write}`] as SqlDatabase | undefined;
+  if (!migration?.prepare) throw new Error("HOLDING_MIGRATION_RESOURCE_UNAVAILABLE");
+  return migration;
+}

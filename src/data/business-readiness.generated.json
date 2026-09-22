@@ -1,5 +1,5 @@
 {
-  "evidenceLedgerSha256": "2c74e05d33b48451214c0a0bf2b304d89ad830e1ca02da480b42df886609a701",
+  "evidenceLedgerSha256": "e80ba5185ba956f1efadcb3269607296509d731284672ebf556508db98a71de2",
   "capabilities": [
     {
       "id": "brand/feature-draft-workspace",
@@ -905,11 +905,11 @@
         "stage": 6,
         "status": "implemented",
         "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
         "service": "src/server/platform-operations.ts",
-        "schema": "migrations/postgres/control",
+        "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control",
         "test": "tests/platform-operations.test.ts",
-        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and unavailable bindings. Platform administrators can recover one dead-letter job with a reason, optimistic attempt/error guard, idempotency and Holding audit. Provisioning, migration, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
+        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and migration receipts. Platform administrators can recover one dead-letter job or run the locked Holding migration track with a reason, optimistic idempotency receipt and control-plane audit. Holding provisioning, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
       },
       "gates": {
         "automated": {
@@ -956,11 +956,11 @@
         "stage": 6,
         "status": "implemented",
         "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
         "service": "src/server/platform-operations.ts",
-        "schema": "migrations/postgres/control",
+        "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control",
         "test": "tests/platform-operations.test.ts",
-        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and unavailable bindings. Platform administrators can recover one dead-letter job with a reason, optimistic attempt/error guard, idempotency and Holding audit. Provisioning, migration, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
+        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and migration receipts. Platform administrators can recover one dead-letter job or run the locked Holding migration track with a reason, optimistic idempotency receipt and control-plane audit. Holding provisioning, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
       },
       "gates": {
         "automated": {
@@ -1007,11 +1007,11 @@
         "stage": 6,
         "status": "implemented",
         "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
         "service": "src/server/platform-operations.ts",
-        "schema": "migrations/postgres/control",
+        "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control",
         "test": "tests/platform-operations.test.ts",
-        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and unavailable bindings. Platform administrators can recover one dead-letter job with a reason, optimistic attempt/error guard, idempotency and Holding audit. Provisioning, migration, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
+        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and migration receipts. Platform administrators can recover one dead-letter job or run the locked Holding migration track with a reason, optimistic idempotency receipt and control-plane audit. Holding provisioning, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
       },
       "gates": {
         "automated": {
@@ -1160,11 +1160,11 @@
         "stage": 6,
         "status": "implemented",
         "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
         "service": "src/server/platform-operations.ts",
-        "schema": "migrations/postgres/control",
+        "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control",
         "test": "tests/platform-operations.test.ts",
-        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and unavailable bindings. Platform administrators can recover one dead-letter job with a reason, optimistic attempt/error guard, idempotency and Holding audit. Provisioning, migration, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
+        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and migration receipts. Platform administrators can recover one dead-letter job or run the locked Holding migration track with a reason, optimistic idempotency receipt and control-plane audit. Holding provisioning, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
       },
       "gates": {
         "automated": {
@@ -1209,13 +1209,13 @@
       ],
       "implementation": {
         "stage": 6,
-        "status": "implemented",
-        "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts",
-        "service": "src/server/platform-operations.ts",
-        "schema": "migrations/postgres/control",
+        "status": "flow_accepted",
+        "ui": "src/app/platform/[destination]/page.tsx; src/components/platform/platform-migration-run.tsx",
+        "api": "src/app/api/v1/platform/operations/migrate/route.ts",
+        "service": "src/server/platform-operations.ts; src/server/runtime/migrations.ts",
+        "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/holding-write/0275_migration_receipts.sql; migrations/postgres/holding-read/0002_migration_receipts.sql",
         "test": "tests/platform-operations.test.ts",
-        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and unavailable bindings. Platform administrators can recover one dead-letter job with a reason, optimistic attempt/error guard, idempotency and Holding audit. Provisioning, migration, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
+        "gap": "Locked Holding write migrations are visible and executable by Platform administrators from the live operations page with a reason, durable receipt, replay-safe idempotency and auditor denial. Provisioning commands, production/off-machine RPO/RTO and full business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -1262,11 +1262,11 @@
         "stage": 6,
         "status": "implemented",
         "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
         "service": "src/server/platform-operations.ts",
-        "schema": "migrations/postgres/control",
+        "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control",
         "test": "tests/platform-operations.test.ts",
-        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and unavailable bindings. Platform administrators can recover one dead-letter job with a reason, optimistic attempt/error guard, idempotency and Holding audit. Provisioning, migration, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
+        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and migration receipts. Platform administrators can recover one dead-letter job or run the locked Holding migration track with a reason, optimistic idempotency receipt and control-plane audit. Holding provisioning, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
       },
       "gates": {
         "automated": {
@@ -1313,11 +1313,11 @@
         "stage": 6,
         "status": "implemented",
         "ui": "src/app/platform/[destination]/page.tsx",
-        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
         "service": "src/server/platform-operations.ts",
-        "schema": "migrations/postgres/control",
+        "schema": "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control",
         "test": "tests/platform-operations.test.ts",
-        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and unavailable bindings. Platform administrators can recover one dead-letter job with a reason, optimistic attempt/error guard, idempotency and Holding audit. Provisioning, migration, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
+        "gap": "Platform overview now reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters and migration receipts. Platform administrators can recover one dead-letter job or run the locked Holding migration track with a reason, optimistic idempotency receipt and control-plane audit. Holding provisioning, temporary-access commands and off-machine/production RPO/RTO acceptance remain."
       },
       "gates": {
         "automated": {
@@ -13040,6 +13040,34 @@
         "This is automated service evidence; no Company owner sign-off or production organization migration was exercised.",
         "Provider, production and downstream module relocation policies remain separate gates.",
         "Business acceptance remains distinct from implementation and simulation evidence."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "platform-migration-runs-automated-20260922",
+      "capabilityIds": [
+        "platform_administration/feature-migration-runs"
+      ],
+      "scenarioIds": [
+        "S15",
+        "S19"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Platform migration status is read per Holding and an authorized Platform administrator can run the holding-write migration track through the live service. The command uses the existing PostgreSQL migration lock, requires a reason and idempotency key, persists a control-plane receipt with before/after counts, replays the original result, rejects auditors and rejects a different payload under the same key.",
+      "observedAt": "2026-09-22T16:00:00+00:00",
+      "recordedBy": "Codex execution agent (automated service and UI implementation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-22-platform-migration-runs.txt",
+          "sha256": "73b672fe6e024912a46a0a913e97a638aab150bfcecffc4cc051fa4d7c15fb72"
+        }
+      ],
+      "limitations": [
+        "This is isolated migration and service evidence; no production schema change or external provider was exercised.",
+        "Holding provisioning commands, temporary access commands and off-machine/production RPO/RTO remain separate gates.",
+        "Platform business acceptance remains separate from implementation and simulation evidence."
       ],
       "supersedes": null
     }
