@@ -56,11 +56,13 @@ test("isolated demo sends reviewed overtime from employee to payroll preview", a
   const managerContext = await browser.newContext(testInfo.project.use);
   const hrContext = await browser.newContext(testInfo.project.use);
   const payrollContext = await browser.newContext(testInfo.project.use);
+  const unauthorizedContext = await browser.newContext(testInfo.project.use);
   try {
     const employeePage = await employeeContext.newPage();
     const managerPage = await managerContext.newPage();
     const hrPage = await hrContext.newPage();
     const payrollPage = await payrollContext.newPage();
+    const unauthorizedPage = await unauthorizedContext.newPage();
 
     await signInRole(employeeContext, employeePage, credentials, "employee");
     await employeePage.goto("/holdings/simulation/overtime/new", {
@@ -83,6 +85,10 @@ test("isolated demo sends reviewed overtime from employee to payroll preview", a
     const overtimeUrl = employeePage.url();
     const overtimeId = new URL(overtimeUrl).pathname.split("/").pop();
     expect(overtimeId).toBeTruthy();
+    await employeePage.reload({ waitUntil: "domcontentloaded" });
+    await expect(employeePage.getByLabel("Actual start")).toHaveValue("2026-09-10T22:00");
+    await expect(employeePage.getByLabel("Actual end")).toHaveValue("2026-09-11T02:00");
+    await expect(employeePage.getByLabel("Unpaid break (minutes)")).toHaveValue("30");
 
     await employeePage.getByRole("button", { name: "Review calculated hours" }).click();
     await expect(employeePage.getByText("3.5 hours", { exact: true })).toBeVisible();
@@ -94,6 +100,12 @@ test("isolated demo sends reviewed overtime from employee to payroll preview", a
     await employeePage.getByRole("button", { name: "Submit claim", exact: true }).click();
     expect((await submitResponse).status()).toBe(200);
     await expect(employeePage.getByRole("heading", { name: "Manager verification" })).toBeVisible();
+
+    await signInRole(unauthorizedContext, unauthorizedPage, credentials, "purchasing_operator");
+    const hiddenRequest = await unauthorizedContext.request.get(
+      `/api/v1/holdings/simulation/overtime-requests/${overtimeId}`,
+    );
+    expect(hiddenRequest.status()).toBe(404);
 
     await signInRole(managerContext, managerPage, credentials, "people_manager");
     await managerPage.goto(overtimeUrl, { waitUntil: "domcontentloaded" });
@@ -185,6 +197,7 @@ test("isolated demo sends reviewed overtime from employee to payroll preview", a
       managerContext.close(),
       hrContext.close(),
       payrollContext.close(),
+      unauthorizedContext.close(),
     ]);
   }
 });

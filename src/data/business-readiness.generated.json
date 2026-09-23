@@ -1,5 +1,5 @@
 {
-  "evidenceLedgerSha256": "050c8d389c92d22adec8f652aa75ec30da24df1cb1609cdd5393adc83df63c92",
+  "evidenceLedgerSha256": "281015d490cbad4e48193cbd8d95aa7b9a78b3bc7e66390301838a52cbd23ca6",
   "capabilities": [
     {
       "id": "brand/feature-draft-workspace",
@@ -13498,13 +13498,13 @@
       "gate": "browser",
       "environment": "simulation",
       "outcome": "passed",
-      "scope": "A disposable multi-role Demo browser journey created a retrospective employee overtime claim, had an independent reporting manager verify it and an independent HR administrator approve it, then calculated a THB payroll preview. The persisted payroll input snapshot contained the same request ID, 210 minutes and 3.5 overtime hours.",
-      "observedAt": "2026-09-23T08:31:45+07:00",
+      "scope": "A disposable multi-role Demo browser journey created a retrospective employee overtime claim, verified draft values after reload, and confirmed an unrelated Purchasing operator received a not-found response. An independent reporting manager verified the claim and an independent HR administrator approved it before Payroll calculated a THB preview. The persisted payroll input snapshot contained the same request ID, 210 minutes and 3.5 overtime hours.",
+      "observedAt": "2026-09-23T08:39:26+07:00",
       "recordedBy": "Codex execution agent (isolated browser observation, not business sign-off)",
       "evidence": [
         {
           "path": "docs/testing/evidence/2026-09-23-overtime-to-payroll-browser.txt",
-          "sha256": "b4c0daeb118234ed5fb8fe613e9df464a74c19e0a245645780fd53969f7082c5"
+          "sha256": "3ee97abfef8a6174d22c4e900b87ee895faa7a7aa11c4679c882f58358fe3476"
         }
       ],
       "limitations": [

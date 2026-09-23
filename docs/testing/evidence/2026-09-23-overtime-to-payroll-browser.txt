@@ -1,18 +1,18 @@
 ERPX People & Payroll overtime handoff — browser acceptance evidence
 
 Observed: 2026-09-23 (Asia/Bangkok)
-Environment: disposable browser simulation run c0ad3f136361, http://127.0.0.1:3102; destroyed after verification
+Environment: disposable browser simulation run eada0e670d9e, http://127.0.0.1:3102; destroyed after verification
 Gate: browser
 
 Command:
   PATH=/Users/fluke/Desktop/Work/erpx/.runtime/node/node-v24.20.0-darwin-arm64/bin:$PATH \
-  ERPX_E2E_BASE_URL=http://127.0.0.1:3102 ERPX_DEMO_RUN=c0ad3f136361 \
+  ERPX_E2E_BASE_URL=http://127.0.0.1:3102 ERPX_DEMO_RUN=eada0e670d9e \
   bunx playwright test tests/e2e/demo-overtime-to-payroll.spec.ts --project=desktop
 
-Result: 1 passed (25.3s)
+Result: 1 passed (26.7s)
 
-Observed through four authenticated role contexts using the real pages and APIs:
-- Employee entered a retrospective 4-hour interval with a 30-minute unpaid break, reviewed the calculated 3.5 hours, saved a draft, reloaded its detail, and submitted the claim.
+Observed through five authenticated role contexts using the real pages and APIs:
+- Employee entered a retrospective 4-hour interval with a 30-minute unpaid break, reviewed the calculated 3.5 hours, saved a draft, reloaded it with all values intact, and submitted the claim. An unrelated Purchasing operator received a not-found response when trying to read the request.
 - An independent reporting manager verified the actual hours. A different HR administrator approved them and saw the payroll handoff confirmation persist after reload.
 - Payroll preparer created and calculated the September 2026 THB preview. The calculated payroll item retained the same overtime request ID, a 210-minute handoff, and 3.5 total overtime hours in its input snapshot.
 - The exact disposable Demo databases and files were destroyed after the run.
