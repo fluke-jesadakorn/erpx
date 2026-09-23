@@ -67,6 +67,27 @@ beforeEach(async () => {
   synthetic.mockClear();
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+it("requires explicit company selection before any production AI provider can run", async () => {
+  const deployment = {
+    ...aiEnv,
+    AI_BASE_URL: "https://example.invalid/v1",
+    AI_MODEL: "fictional-review-model",
+    AI_API_KEY: "synthetic-deployment-key",
+  };
+  vi.stubEnv("NODE_ENV", "production");
+  try {
+    expect((await aiProviderOverview(db, f.it, deployment)).selection.mode).toBe("disabled");
+    await expect(resolveAiProvider(db, f.company, deployment, "text")).rejects.toMatchObject({ code: "AI_PILOT_OPT_IN_REQUIRED" });
+    await expect(resolveAiProvider(db, f.company, deployment, "image")).rejects.toMatchObject({ code: "AI_PILOT_OPT_IN_REQUIRED" });
+    await selectAiProviders(db, f.it, aiSelectionSchema.parse({ expectedVersion: 0, mode: "deployment" }), key());
+    expect((await resolveAiProvider(db, f.company, deployment, "text")).endpoint.model).toBe("fictional-review-model");
+    await expect(resolveAiProvider(db, f.company, deployment, "image")).rejects.toMatchObject({ code: "AI_IMAGE_TEST_REQUIRED" });
+    await selectAiProviders(db, f.it, aiSelectionSchema.parse({ expectedVersion: 1, mode: "disabled" }), key());
+    await expect(resolveAiProvider(db, f.company, deployment, "text")).rejects.toMatchObject({ code: "AI_PILOT_OPT_IN_REQUIRED" });
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
 async function connection() {
   const row = await saveAiConnection(
     db,
@@ -720,18 +741,17 @@ it("accepts omitted protocols and ignores caller protocol overrides", async () =
 it.each([
   ["https://opencode.ai/zen/v1", "future-model", ""],
   ["https://opencode.ai/zen/v1", "gemini-3.8-flash", ""],
-  ["https://custom.provider.com/v1", "gpt-5.6-luna", ""],
   ["https://opencode.ai/zen/v1", "gpt-5.6-luna", "unknown-image"],
   ["https://opencode.ai/zen/v1", "toString", ""],
 ])("rejects unsupported endpoint/model pairs %s %s %s", async (baseUrl, textModel, imageModel) => {
   await expect(saveAiConnection(db, f.it, aiEnv, null, aiConnectionSchema.parse({ name: "Unsupported", baseUrl, textModel, imageModel, textProtocol: "responses", imageProtocol: "messages" }), key())).rejects.toMatchObject({ code: "AI_MODEL_UNSUPPORTED" });
   expect((await aiProviderOverview(db, f.it, aiEnv)).connections).toEqual([]);
 });
-it("preserves legacy custom revisions for runtime but rejects saving unsupported drafts", async () => {
+it("preserves active custom revisions when a new custom draft is saved", async () => {
   const id = await connection();
   await db.prepare("UPDATE ai_connection_revisions SET base_url=?,text_model=? WHERE connection_id=?").bind("https://legacy.provider.com/v1", "legacy-model", id).run();
   expect((await resolveAiProvider(db, f.company, aiEnv, "text")).endpoint).toMatchObject({ baseUrl: "https://legacy.provider.com/v1", model: "legacy-model" });
-  await expect(saveAiConnection(db, f.it, aiEnv, id, aiConnectionSchema.parse({ expectedVersion: 3, name: "Legacy edit", baseUrl: "https://legacy.provider.com/v1", textModel: "legacy-model" }), key())).rejects.toMatchObject({ code: "AI_MODEL_UNSUPPORTED" });
+  await saveAiConnection(db, f.it, aiEnv, id, aiConnectionSchema.parse({ expectedVersion: 3, name: "Legacy edit", baseUrl: "https://legacy.provider.com/v1", textModel: "legacy-model" }), key());
   expect((await aiProviderOverview(db, f.it, aiEnv)).connections[0].active_revision).toBe(1);
 });
 

@@ -124,6 +124,20 @@ it("preserves manual drafts when no company or deployment provider is available"
     "Human title",
   );
 });
+it("does not call AI for a queued request after the company disables its production provider", async () => {
+  await provider();
+  const r = await request(), queued = await queue(r.id);
+  await db.prepare("UPDATE ai_company_settings SET mode='disabled',version=version+1 WHERE company_id=?").bind(f.company).run();
+  vi.stubEnv("NODE_ENV", "production");
+  try {
+    await runRequestAi(db, aiEnv, queued.proposalId, generate);
+    expect(generate).not.toHaveBeenCalled();
+    expect((await getEmployeeRequest(db, f.claimant, r.id)).state).toBe("draft");
+    expect((await db.prepare("SELECT state FROM request_ai_proposals WHERE id=?").bind(queued.proposalId).first<{state:string}>())?.state).toBe("failed");
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
 it("deduplicates queued preparation, records usage and never transitions or overwrites a human request", async () => {
   await provider();
   const r = await request(),

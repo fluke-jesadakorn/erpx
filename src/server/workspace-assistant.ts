@@ -36,11 +36,6 @@ async function checkAuthority(db:SqlDatabase,actor:WorkContext) {
   catch { throw new ApiError(409,"WORK_CONTEXT_CHANGED","Your access changed. Reload before using the assistant."); }
 }
 async function assistantProvider(db:SqlDatabase,actor:WorkContext,env:BetaEnvironment) {
-  // The production pilot requires a company administrator to make an explicit AI choice.
-  if(process.env.NODE_ENV==="production") {
-    const setting=await db.prepare("SELECT mode FROM ai_company_settings WHERE company_id=?").bind(actor.companyId).first<{mode:string}>();
-    if(!setting||setting.mode==="disabled")throw new ApiError(503,"AI_PILOT_OPT_IN_REQUIRED","AI is not enabled for this company. Continue manually or ask an administrator to enable a provider.");
-  }
   return resolveAiProvider(db,actor.companyId,env,"text");
 }
 const pick = (row:Record<string,unknown>,keys:string[]) => Object.fromEntries(keys.filter(k=>Object.hasOwn(row,k)).map(k=>[k,row[k]]));

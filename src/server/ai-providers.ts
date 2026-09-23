@@ -193,7 +193,7 @@ export async function aiProviderOverview(
     .first<Selection>()) ?? {
     company_id: actor.companyId,
     version: 0,
-    mode: "deployment",
+    mode: process.env.NODE_ENV === "production" ? "disabled" : "deployment",
     text_connection_id: null,
     image_connection_id: null,
     image_mode: "default",
@@ -701,6 +701,12 @@ export async function resolveAiProvider(
     .prepare("SELECT * FROM ai_company_settings WHERE company_id=?")
     .bind(companyId)
     .first<Selection>();
+  if (process.env.NODE_ENV === "production" && (!settings || settings.mode === "disabled"))
+    throw new ApiError(
+      503,
+      "AI_PILOT_OPT_IN_REQUIRED",
+      "AI is not enabled for this company. Continue manually or ask an administrator to enable a provider.",
+    );
   if (
     settings?.mode === "disabled" ||
     (kind === "image" && settings?.image_mode === "disabled")
