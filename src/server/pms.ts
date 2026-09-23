@@ -25,6 +25,7 @@ import {
 } from "@/lib/pms";
 import { minorToDecimal } from "@/lib/finance-money";
 import { prepareRoomCharge, roomChargeSchema } from "@/lib/pms-room-charge";
+import { assertProductionModuleEnabled } from './hospitality-rollout';
 import { hasPermission } from "@/lib/permissions";
 import { samePerson } from "@/lib/iam";
 import type { WorkItem } from "@/lib/work-item";
@@ -884,6 +885,7 @@ export async function pmsCommand(
     );
   try {
     return await db.transaction(async (tx) => {
+      await assertProductionModuleEnabled(tx, actor.companyId, 'pms');
       await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
       const target =
         op === "property.create"
@@ -1214,6 +1216,7 @@ export async function applyPosRoomCharge(
   raw: z.infer<typeof roomChargeSchema>,
   expectedPropertyVersion: number,
 ) {
+  await assertProductionModuleEnabled(tx, actor.companyId, 'pms');
   await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
   const s = await loadPms(tx, actor, raw.propertyId, true);
   if (s.property.version !== expectedPropertyVersion)

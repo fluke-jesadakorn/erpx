@@ -13,6 +13,7 @@ import { workContextGuards } from './commands';
 import { iamMutationGuards } from './iam-store';
 import { ApiError } from './http';
 import { applyPosRoomCharge, reversePosRoomCharge } from './pms';
+import { assertProductionModuleEnabled } from './hospitality-rollout';
 export type PosRow=Record<string,string|number|boolean|null>;
 export const id=()=>randomUUID();
 export const num=(row:PosRow,key:string)=>Number(row[key]??0);
@@ -118,6 +119,7 @@ export async function posCommand(db:PostgresDatabase,actor:WorkContext,operation
  keySchema.parse(key);requirePermission(actor,permissionFor(operation));if(actor.departmentId)fail('POS_BRANCH_REQUIRED','Select a company or branch for POS',403);
  const hash=createHash('sha256').update(JSON.stringify({user:actor.userId,assignment:actor.assignmentId,company:actor.companyId,branch:actor.branchId,operation,input})).digest('hex');
  try{return await db.transaction(async tx=>{
+  if(operation!=='sale.reverse_room_charge')await assertProductionModuleEnabled(tx,actor.companyId,'pos');
   const grant=await one(tx,"SELECT id FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=? AND revoked_at IS NULL AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?)) FOR SHARE",actor.assignmentId,actor.userId,actor.companyId,actor.role,Date.now(),Date.now(),actor.branchId);
   if(!grant)fail('POS_ACCESS_CHANGED','Permissions changed. Select the role again',403);
   await tx.batch([...workContextGuards(tx,actor,key),...iamMutationGuards(tx,actor,key)]);

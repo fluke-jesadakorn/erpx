@@ -16,6 +16,17 @@ describe("Side menu destination coverage", () => {
     adminSections: ["people", "organization", "approvals", "usage", "ai", "feedback"],
   });
 
+  it('shows only approved pilot apps in production navigation', () => {
+    const pilot=workplaceNavigation({workspaceBase:base,role:'holding_owner',availableAppIds:['people','inventory','pos','pms','finance']});
+    expect(pilot.apps.map((app)=>app.id)).toEqual(['people','inventory','pos','pms','finance']);
+    expect(pilot.search.some((item)=>item.id==='crm-pipeline')).toBe(false);
+    expect(pilot.search.some((item)=>item.id==='finance-engines')).toBe(false);
+    expect(pilot.search.some((item)=>item.id==='people-payroll')).toBe(false);
+    expect(pilot.search.some((item)=>item.id==='future-features')).toBe(true);
+    const purchasing=workplaceNavigation({workspaceBase:base,role:'holding_owner',availableAppIds:['operations']});
+    expect(purchasing.apps.find((app)=>app.id==='operations')?.items.map((item)=>item.id)).toEqual(['operations-purchasing','operations-parties']);
+  });
+
   it("makes each visible destination unique and highlights its own entry", () => {
     const contexts = [
       { workspaceBase: base, role: "employee" },
@@ -391,7 +402,8 @@ describe("Services grouped by purpose", () => {
     expect(owner.apps.find(app => app.id === "people")!.items.map(item => item.label)).toEqual(["People directory", "Roster", "Organization & positions", "Payroll", "Company handbook", "Learn", "People settings"]);
     expect(owner.apps.at(-1)?.icon).toBe("technology");
     expect(owner.apps.at(-1)?.items.map(item => item.label)).toEqual(["Positions", "Employees", "Directory & GPO", "Resources", "Directory connections", "Roles & permissions", "Reviews & audit", "AI providers", "Business readiness"]);
-    expect(owner.standalone.map(item => item.label)).toEqual(["Legal", "Help & feedback"]);
+    expect(owner.standalone.map(item => item.label)).toEqual(["Legal", "Help & feedback", "Pilot feature rollout", "Future features"]);
+    expect(navigationTrail(owner,base,`${base}/settings/pilot-features`).map(item=>item.label)).toEqual(['Pilot feature rollout']);
     expect(navigationTrail(owner, base, `${base}/settings`, new URLSearchParams("section=feedback"))).toEqual([{ label: "Help & feedback" }]);
     expect(resolveNavigation(owner, base, `${base}/iam/reviews`)).toEqual({ activeId: "work" });
     expect(navigationTrail(owner, base, `${base}/handbook/article-1`).map(item => item.label)).toEqual(["People", "Company handbook", "Article"]);
@@ -403,7 +415,7 @@ describe("Services grouped by purpose", () => {
       ["Operations", ["Sales & purchasing", "Customers & CRM", "Customer support", "Inventory", "Quality", "POS", "Hotel PMS"]],
       ["Finance", ["Finance"]],
       ["Management", ["Executive", "Projects & workflows", "Legal"]],
-      ["System", ["Technology", "Help & feedback"]],
+      ["System", ["Technology", "Help & feedback", "Pilot feature rollout", "Future features"]],
     ]);
     const bank = resolveNavigation(owner, base, `${base}/finance/bank`);
     expect(navigationCategory(owner, bank)?.id).toBe("finance");

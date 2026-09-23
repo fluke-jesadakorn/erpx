@@ -9,6 +9,7 @@ import { ApiError } from "./http";
 import { readWorkSelection, restoreWorkSelection, selectWorkRole, type WorkAuthority } from "./work-role-store";
 import type { SqlDatabase } from "./runtime/types";
 import { betaAccess } from "./beta-access";
+import { assertProductionFeatureRoute } from './hospitality-rollout';
 import "server-only";
 import { modulesForRole } from "@/lib/business-roles";
 
@@ -447,6 +448,7 @@ const cachedWorkContext=cache(async (key:string):Promise<WorkContext>=>{
   throw new ApiError(409,"WORK_CONTEXT_CHANGED","Your work role changed. Reload and review before submitting.");
  const beta=await betaAccess(write,scope.companyId,access.requestHeaders);
  const iam=await loadIamAuthority(write,scope.companyId,access.userId,assignment.role,access.sessionId);
+ await assertProductionFeatureRoute(write,scope.companyId,access.requestHeaders.get('x-erpx-destination')??'',method??'GET');
  return {iam,userId:access.userId,name:access.name,email:access.email,assignmentId:assignment.id,role:assignment.role,
  companyId:scope.companyId,branchId:scope.kind==="holding"?null:scope.branchId,departmentId:scope.kind==="department"?scope.departmentId:null,
  holdingId:scope.holdingId,holdingSlug:scope.holdingSlug,holdingName:scope.holdingName,beta,scope,assignmentScope:assignment.scopeKind,

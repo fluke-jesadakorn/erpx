@@ -8,6 +8,7 @@ export type FutureFeature = {
 
 /** Product catalogue, not a statement of production acceptance. */
 export const hospitalityFutureFeatures: FutureFeature[] = [
+  { id: "b2b-sales", name: "Broad B2B sales", value: "Quotes, customer orders and collections beyond hotel and restaurant transactions.", stage: "Coming Soon", prerequisite: "Hotel pilot reconciliation and separate customer-order acceptance" },
   { id: "direct-booking", name: "Direct online booking", value: "Guests reserve rooms without front-desk entry.", stage: "Coming Soon", prerequisite: "Pilot reservation acceptance, real email delivery and customer-facing booking review" },
   { id: "ota", name: "OTA synchronization", value: "Share availability and reservations with a named channel.", stage: "Coming Soon", prerequisite: "Direct booking acceptance, provider contract and conflict/recovery tests" },
   { id: "card", name: "Live card and PromptPay", value: "Accept online or terminal payments.", stage: "Coming Soon", prerequisite: "Provider approval, refunds, settlement reconciliation and interrupted-payment recovery" },

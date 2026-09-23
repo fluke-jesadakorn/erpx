@@ -22,7 +22,7 @@ async function pay(sale:string,amount=10700){await change('payment.create',sale,
 async function kitchen(sale:string,action:string){const f=(await one(db,'SELECT f.* FROM pos_fulfillments f JOIN pos_lines l ON l.fulfillment_id=f.id WHERE l.sale_id=?',sale))!;return command(`kitchen.${action}`,{id:f.id,expectedVersion:f.version,reason:'customer changed order'});}
 beforeAll(async()=>{await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS)]);},120000);
 beforeEach(async()=>{
- await db.exec(`TRUNCATE pms_sources,pms_postings,pms_records,pms_properties,pos_receipts,pos_audit,pos_jobs,pos_stripe_events,pos_settlements,pos_oauth_states,pos_connections,pos_connection_history,pos_cash_movements,pos_refund_payments,pos_refunds,pos_payments,pos_lines,pos_reservations,pos_stock_moves,pos_fulfillments,pos_sales,pos_tables,pos_shifts,pos_registers,pos_catalog,pos_settings,pos_postings,finance_bank_transactions,finance_bank_statements,finance_allocations,finance_invoices,finance_payments,finance_journal_lines,finance_journals,finance_parties,commerce_stock,commerce_products,commerce_warehouses,commerce_settings,finance_accounts,finance_periods,finance_charts,assignments,command_assertions CASCADE;
+ await db.exec(`TRUNCATE company_feature_rollouts,pms_sources,pms_postings,pms_records,pms_properties,pos_receipts,pos_audit,pos_jobs,pos_stripe_events,pos_settlements,pos_oauth_states,pos_connections,pos_connection_history,pos_cash_movements,pos_refund_payments,pos_refunds,pos_payments,pos_lines,pos_reservations,pos_stock_moves,pos_fulfillments,pos_sales,pos_tables,pos_shifts,pos_registers,pos_catalog,pos_settings,pos_postings,finance_bank_transactions,finance_bank_statements,finance_allocations,finance_invoices,finance_payments,finance_journal_lines,finance_journals,finance_parties,commerce_stock,commerce_products,commerce_warehouses,commerce_settings,finance_accounts,finance_periods,finance_charts,assignments,command_assertions CASCADE;
  INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES('pos-company','company','pos-company','POS test','pos-company') ON CONFLICT DO NOTHING;
  INSERT INTO organization_nodes(id,kind,slug,display_name,company_id,parent_id,branch_id) VALUES('pos-branch','branch','pos-branch','Branch','pos-company','pos-company','pos-branch') ON CONFLICT DO NOTHING;
  INSERT INTO assignments(id,user_id,role,modules_json,company_id,scope_kind,valid_from,valid_until) VALUES('pos-cashier','cashier','holding_owner','["pos"]','pos-company','holding',0,9999999999999),('pos-manager','manager','holding_owner','["pos"]','pos-company','holding',0,9999999999999);
@@ -40,8 +40,31 @@ beforeEach(async()=>{
  await command('catalog.save',{productId:'latte',barcode:'8850001',category:'Coffee',kind:'recipe',station:'Bar',recipe:[{productId:'milk',quantityMilli:200}],modifiers:[],taxInclusive:false,expectedVersion:0});
 });
 describe('POS committed business flows',()=>{
+ it('keeps company pilot rollout separate from setup, access, and production evidence',async()=>{
+  const {companyFeatureCatalogue,changeCompanyFeatureRollout,assertProductionFeatureRoute}=await import('../src/server/hospitality-rollout');
+  vi.stubEnv('NODE_ENV','production');
+  const initial=await companyFeatureCatalogue(actor);
+  expect(initial.find(entry=>entry.id==='pos')).toMatchObject({state:'Coming Soon',rollout:'off',setupReady:true,productionAccepted:false,permitted:true});
+  expect(initial.find(entry=>entry.id==='pms')).toMatchObject({state:'Coming Soon',setupReady:false,permitted:false});
+  expect(initial.find(entry=>entry.id==='sales')).toMatchObject({state:'Coming Soon',rollout:'off'});
+  const {readWorkSnapshot}=await import('../src/server/work-items');
+  expect(await readWorkSnapshot(actor)).toEqual({items:[],unavailableSources:[]});
+  await expect(assertProductionFeatureRoute(db,actor.companyId,'pos/sale/create','POST')).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
+  const change={moduleId:'pos',state:'pilot',expectedVersion:0,reason:'Approve isolated hotel trial'};
+  const rolloutKey=`pilot-pos-rollout-${++serial}`;
+  const result=await changeCompanyFeatureRollout(actor,change,rolloutKey);
+  expect(result).toEqual({id:'pos',state:'pilot',version:1});
+  expect(await changeCompanyFeatureRollout(actor,change,rolloutKey)).toEqual(result);
+  expect((await companyFeatureCatalogue(actor)).find(entry=>entry.id==='pos')).toMatchObject({state:'Pilot',version:1});
+  await expect(assertProductionFeatureRoute(db,actor.companyId,'pos/sale/create','POST')).resolves.toBeUndefined();
+  await expect(assertProductionFeatureRoute(db,actor.companyId,'crm/lead/create','POST')).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
+  await expect(changeCompanyFeatureRollout(actor,{moduleId:'pos',state:'available',expectedVersion:1,reason:'Claim general release'},`pilot-pos-rollout-${++serial}`)).rejects.toMatchObject({code:'FEATURE_ACCEPTANCE_REQUIRED'});
+  await expect(changeCompanyFeatureRollout(actor,{moduleId:'sales',state:'pilot',expectedVersion:0,reason:'Try broad orders'},`pilot-sales-rollout-${++serial}`)).rejects.toMatchObject({code:'FEATURE_FUTURE_GATE'});
+ });
  it('limits production POS tenders to cash and verified bank transfer',async()=>{
   const sale=await createSale();await add(sale);
+  const {changeCompanyFeatureRollout}=await import('../src/server/hospitality-rollout');
+  await changeCompanyFeatureRollout(actor,{moduleId:'pos',state:'pilot',expectedVersion:0,reason:'Accept POS tender trial'},`pilot-pos-tender-${++serial}`);
   vi.stubEnv('NODE_ENV','production');
   const {posWorkspace}=await import('../src/server/pos');
   const workspace=await posWorkspace(actor,sale,'','sale');

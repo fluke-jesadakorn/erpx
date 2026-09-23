@@ -9,6 +9,8 @@ const node=resolve(process.env.ERPX_NODE_BIN??'.runtime/node/node-v24.20.0-darwi
 if(Bun.spawnSync([node,'--version']).stdout.toString().trim()!=='v24.20.0')throw new Error('NODE_24_20_REQUIRED');
 const acceptanceCheck=Bun.spawn([process.execPath,join(root,'scripts/generate-capability-matrix.ts'),'--check'],{cwd:root,stdout:'inherit',stderr:'inherit'});
 if(await acceptanceCheck.exited!==0)throw new Error('BUSINESS_ACCEPTANCE_SNAPSHOT_STALE');
+const hospitalityCheck=Bun.spawn([process.execPath,join(root,'scripts/generate-hospitality-evidence.ts'),'--check'],{cwd:root,stdout:'inherit',stderr:'inherit'});
+if(await hospitalityCheck.exited!==0)throw new Error('HOSPITALITY_EVIDENCE_SNAPSHOT_STALE');
 await mkdir(work,{recursive:true});await mkdir(release,{recursive:true});
 for(const name of ['src','public','package.json','bun.lock','next.config.ts','tsconfig.json','next-env.d.ts','postcss.config.mjs'])
   await cp(join(root,name),join(work,name),{recursive:true,mode:constants.COPYFILE_FICLONE});

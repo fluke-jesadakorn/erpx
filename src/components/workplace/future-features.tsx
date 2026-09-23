@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from 'next/link';
 import { hospitalityFutureFeatures } from "@/data/hospitality-future-features";
 
-export function FutureFeatures() {
+export function FutureFeatures({pilotSetupHref}:{pilotSetupHref?:string}) {
   const [query, setQuery] = useState("");
   const shown = hospitalityFutureFeatures.filter((feature) =>
     `${feature.name} ${feature.value} ${feature.prerequisite}`.toLowerCase().includes(query.trim().toLowerCase()),
@@ -12,6 +13,7 @@ export function FutureFeatures() {
     <p style={{color:"var(--text-muted, #667085)"}}>ERPX · Product roadmap</p>
     <h1>Future features</h1>
     <p>These ideas are separate from daily hotel and restaurant work. “Coming Soon” and “Prototype” do not enable business commands or promise a launch date.</p>
+    {pilotSetupHref&&<p><Link href={pilotSetupHref}>Manage this company’s pilot feature rollout</Link></p>}
     <label style={{display:"grid",gap:8,margin:"24px 0"}}>Search future features
       <input type="search" value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Search by feature or prerequisite" style={{width:"100%",maxWidth:520,padding:12,border:"1px solid #9aa4b2",borderRadius:8}}/>
     </label>

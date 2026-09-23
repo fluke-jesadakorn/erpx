@@ -169,6 +169,33 @@ export async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot
   if (!actor.beta) jobs.push({label:"Supplier payment batches",load:async()=>(await import("./supplier-payments")).supplierBatchWork(actor)});
   if (!actor.beta) jobs.push({label:"Return refunds",load:async()=>(await import("./refunds")).refundWork(actor)});
   jobs.push({label:"Commercial and financial workflows",load:() => otherFlowWork(actor)});
+  if (process.env.NODE_ENV === 'production') {
+    const { write } = await holdingResources(actor.holdingId);
+    const enabled = new Set((await write.prepare("SELECT module_id FROM company_feature_rollouts WHERE company_id=? AND rollout_state IN ('pilot','available')")
+      .bind(actor.companyId).all<{module_id:string}>()).results.map((row)=>row.module_id));
+    const sources: Record<string,string[]> = {
+      Legal:['legal'], Overtime:['people_payroll'], 'Hotel operations':['pms'],
+      'Expense claims':['people_payroll'], 'Stock counts':['inventory'], 'Warehouse transfers':['inventory'],
+      Tasks:['operations'], 'Leave requests':['people_payroll'], 'Employee requests':['people_payroll'],
+      'Retirement clearance':['people_payroll'], 'People & IT preparation':['identity_access'],
+      'Organization changes':['organization'], 'Company setup acceptance':['organization'], POS:['pos'],
+      'CRM pipeline':['crm'], 'Support target escalations':['support'], 'Support incidents':['support'],
+      'Support SLA policies':['support'], 'Support tickets':['support'], 'Temporary support access':['support'],
+      'Maintenance work':['maintenance'], 'Field service':['field_service'],
+      'Cross-record actions':['collaboration'], 'Learning assignments':['learning'],
+      'Benefit enrollments':['benefits'], 'Talent applications':['talent'],
+      'Marketing lead candidates':['marketing'], 'Manufacturing orders':['manufacturing'],
+      'Customer access reviews':['customer_authority'], 'Customer duplicate reviews':['customer_authority'],
+      'Customer identity changes':['customer_authority'], 'Customer follow-ups':['crm'],
+      'Supplier invoice reviews':['procurement'], 'Inventory landed costs':['inventory'],
+      'Supplier quotation reviews':['procurement'], 'Supplier confirmations':['procurement'],
+      'Stock in transit':['inventory'], 'Quality holds':['quality'], 'Quality escalations':['quality'],
+      'Supplier payment batches':['procurement'], 'Return refunds':['sales'],
+      'Commercial and financial workflows':['finance'],
+    };
+    for (let index=jobs.length-1;index>=0;index--)
+      if (!(sources[jobs[index].label]??[]).some((moduleId)=>enabled.has(moduleId))) jobs.splice(index,1);
+  }
   const settled = await Promise.allSettled(jobs.map(async (j) => {
     const started = performance.now();
     try { return await enrichFlowWork(actor, await j.load()); }

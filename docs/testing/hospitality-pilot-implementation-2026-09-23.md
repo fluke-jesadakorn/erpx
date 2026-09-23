@@ -1,5 +1,7 @@
 # Hotel and restaurant pilot implementation — 2026-09-23
 
+The company-scoped production rollout slice is tracked in [hospitality-feature-rollout-2026-09-23.md](./hospitality-feature-rollout-2026-09-23.md).
+
 The first production target is one invite-only Thai hotel and its restaurant. Staff reservations, cash, and verified bank transfers are in scope. The production launch gate is **not passed**. The pilot property has not supplied real approved configuration, independent business acceptance, provider evidence, or an off-machine restore test. The Riverside Lantern data in [`fixtures/hospitality/pilot-example.json`](../../fixtures/hospitality/pilot-example.json) is fictional preparation data, not an activated resettable demo.
 
 ## Implemented in this slice

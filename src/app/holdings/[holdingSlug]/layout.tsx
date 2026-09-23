@@ -28,6 +28,7 @@ import { resolveWorkspaceBrand } from "@/server/branding";
 import { executiveVisible } from "@/server/executive/access";
 import { pageError } from "@/server/page-error";
 import { holdingResources } from "@/server/runtime";
+import { companyFeatureCatalogue } from "@/server/hospitality-rollout";
 import { workspaceChoices } from "@/server/workspace-choices";
 import { Building2 } from "lucide-react";
 import { cookies } from "next/headers";
@@ -64,6 +65,8 @@ export default async function WorkplaceLayout({
     context.scope.kind === "holding" ? listWorkspaceCompanies(context.holdingId) : Promise.resolve([]),
     administrationAccess(context),
   ]));
+  const featureCatalogue = process.env.NODE_ENV === 'production'
+    ? await companyFeatureCatalogue(context) : [];
   const navigation = {
     executiveVisible: await executiveVisible(write,context),
     workspaceBase: base,
@@ -73,6 +76,20 @@ export default async function WorkplaceLayout({
     permissions:context.iam?.permissions,
     adminSections: admin.sections,
     canManageApprovals: admin.manageOrganization,
+    ...(process.env.NODE_ENV === 'production' ? {
+      availableAppIds: (() => {
+        const enabled = new Set(featureCatalogue.filter((entry) => ['Available','Pilot','Setup required'].includes(entry.state)).map((entry) => entry.id));
+        const apps: string[] = [];
+        if (['organization','identity_access','people_payroll'].some((id) => enabled.has(id))) apps.push('people');
+        if (enabled.has('procurement')) apps.push('operations');
+        if (enabled.has('inventory')) apps.push('inventory');
+        if (enabled.has('pos')) apps.push('pos');
+        if (enabled.has('pms')) apps.push('pms');
+        if (enabled.has('finance')) apps.push('finance');
+        if (enabled.has('identity_access')) apps.push('technology');
+        return apps;
+      })(),
+    } : {}),
   };
   const companyName =
     companies.find((company) => company.id === context.companyId)?.name ??

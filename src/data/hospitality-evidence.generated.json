@@ -1,0 +1,226 @@
+{
+  "brand": {
+    "capabilities": 3,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "commercial": {
+    "capabilities": 5,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "identity_access": {
+    "capabilities": 6,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "organization": {
+    "capabilities": 4,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "platform_administration": {
+    "capabilities": 9,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "customer_360": {
+    "capabilities": 4,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "customer_authority": {
+    "capabilities": 4,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "support": {
+    "capabilities": 6,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "finance": {
+    "capabilities": 9,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "pos": {
+    "capabilities": 5,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "sales": {
+    "capabilities": 5,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "assets": {
+    "capabilities": 5,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "inventory": {
+    "capabilities": 5,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "maintenance": {
+    "capabilities": 5,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "operations": {
+    "capabilities": 6,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "procurement": {
+    "capabilities": 5,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "quality": {
+    "capabilities": 4,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "legal": {
+    "capabilities": 5,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "people_payroll": {
+    "capabilities": 5,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "crm": {
+    "capabilities": 5,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "marketing": {
+    "capabilities": 6,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "manufacturing": {
+    "capabilities": 6,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "planning": {
+    "capabilities": 5,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "projects": {
+    "capabilities": 6,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "ecommerce": {
+    "capabilities": 6,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "benefits": {
+    "capabilities": 5,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "learning": {
+    "capabilities": 5,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "talent": {
+    "capabilities": 6,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "field_service": {
+    "capabilities": 6,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "agent": {
+    "capabilities": 7,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "collaboration": {
+    "capabilities": 8,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  },
+  "pms": {
+    "capabilities": 12,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
+  }
+}

@@ -12,6 +12,8 @@ export type NavigationScopeKind =
 
 export type NavigationContext = {
   workspaceBase: string;
+  /** Effective company rollout, supplied by the server for production navigation. */
+  availableAppIds?: readonly string[];
   scopeKind?: NavigationScopeKind;
   beta?: boolean;
   role?: string;
@@ -599,11 +601,26 @@ export function workplaceNavigation(
     }
   }
 
+  if (context.availableAppIds) {
+    const allowed = new Set(context.availableAppIds);
+    for (let index = apps.length - 1; index >= 0; index--)
+      if (!allowed.has(apps[index].id)) apps.splice(index, 1);
+    const finance = apps.find((app) => app.id === 'finance');
+    if (finance) finance.items = finance.items.filter((entry) => !['finance-engines','finance-group'].includes(entry.id));
+    const operations = apps.find((app) => app.id === 'operations');
+    if (operations) operations.items = operations.items.filter((entry) => ['operations-purchasing','operations-parties'].includes(entry.id));
+    const people = apps.find((app) => app.id === 'people');
+    if (people) people.items = people.items.filter((entry) => entry.id !== 'people-payroll');
+  }
+
   const standalone = beta ? [] : [
-    ...(hasPermission(actor, "legal.read")
+    ...((!context.availableAppIds || context.availableAppIds.includes('legal')) && hasPermission(actor, "legal.read")
       ? [item("legal", "Legal", "legal", "Legal", "handbook", ["contracts", "cases", "compliance"])]
       : []),
     item("feedback", "Help & feedback", "settings?section=feedback", "Help & feedback", "feedback", ["support", "reports"]),
+    ...(scopeKind==='holding' && hasPermission(actor,'organization.manage')
+      ? [item('pilot-features','Pilot feature rollout','settings/pilot-features','Pilot feature rollout','settings',['availability','coming soon','hotel pilot'])]
+      : []),
     item("future-features", "Future features", "future-features", "Future features", "learn", ["coming soon", "prototype", "roadmap"]),
   ];
 
@@ -645,7 +662,7 @@ export function workplaceNavigation(
         category("operations", "Operations", "commerce", ["operations", "crm", "support", "inventory", "quality", "pos", "pms"]),
         category("finance", "Finance", "finance", ["finance"]),
         category("management", "Management", "projects", ["executive", "projects", "legal"]),
-        category("system", "System", "technology", ["technology", "feedback", "future-features"]),
+        category("system", "System", "technology", ["technology", "feedback", "pilot-features", "future-features"]),
       ]).filter((entry): entry is NavigationCategory => entry !== null);
   return {
     primary,
@@ -863,6 +880,7 @@ export function resolveNavigation(
       groupId: standard ? "people" : hasApp(model, "resources") ? "resources" : undefined,
     };
   if (route === "settings") {
+    if(second==='pilot-features')return {activeId:'pilot-features'};
     if(second==='business-readiness')return {activeId:'technology-business-readiness',groupId:'technology'};
     const section = queryValue(searchParams, "section") || (standard ? model.settingsDefault : "");
     if (standard) {
