@@ -1,0 +1,9 @@
+$ bun scripts/local/test.ts tests/iam.test.ts
+
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+
+
+ Test Files  1 passed (1)
+      Tests  24 passed (24)
+   Start at  09:00:23
+   Duration  7.42s (transform 328ms, setup 47ms, import 811ms, tests 6.48s, environment 0ms)

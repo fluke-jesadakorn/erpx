@@ -119,7 +119,7 @@ const delivery: Record<string, ModuleDelivery> = {
     service: "src/server/platform-operations.ts",
     schema: "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/control/0016_platform_holding_provisioning.sql; migrations/postgres/control",
     test: "tests/platform-operations.test.ts",
-    gap: "Platform overview reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters, migration receipts and Holding provisioning receipts. Platform administrators can activate a healthy pre-provisioned resource slot with a reason, transactional binding, retry-safe idempotency and immutable lifecycle events, recover one dead-letter job, or run the locked Holding migration track. Temporary-access commands, off-machine/production RPO/RTO and full business acceptance remain.",
+    gap: "Platform overview reads live control-plane heartbeats, per-Holding outbox backlog, leases, dead letters, migration receipts and Holding provisioning receipts. Platform administrators can activate a healthy pre-provisioned resource slot with a reason, transactional binding, retry-safe idempotency and immutable lifecycle events, recover one dead-letter job, or run the locked Holding migration track. Account Security supports audited, replay-safe emergency access activation and current-session revocation. Production/off-machine RPO/RTO and full business acceptance remain.",
     overrides: {
       provisioning: {
         status: "flow_accepted",
@@ -137,7 +137,16 @@ const delivery: Record<string, ModuleDelivery> = {
         service: "src/server/platform-operations.ts; src/server/runtime/migrations.ts",
         schema: "migrations/postgres/control/0015_platform_migration_runs.sql; migrations/postgres/holding-write/0275_migration_receipts.sql; migrations/postgres/holding-read/0002_migration_receipts.sql",
         test: "tests/platform-operations.test.ts",
-        gap: "Locked Holding write migrations are visible and executable by Platform administrators from the live operations page with a reason, durable receipt, replay-safe idempotency and auditor denial. Temporary-access commands, production/off-machine RPO/RTO and full business acceptance remain.",
+        gap: "Locked Holding write migrations are visible and executable by Platform administrators from the live operations page with a reason, durable receipt, replay-safe idempotency and auditor denial. Production/off-machine RPO/RTO and full business acceptance remain.",
+      },
+      "feature-temporary-access": {
+        status: "implemented",
+        ui: "src/app/security/page.tsx; src/app/security/security-form.tsx",
+        api: "src/app/api/v1/account/iam/[[...path]]/route.ts",
+        service: "src/server/iam-recovery.ts",
+        schema: "migrations/postgres/control/0006_iam.sql; migrations/postgres/holding-write/0020_iam.sql",
+        test: "tests/iam.test.ts",
+        gap: "Designated recovery administrators activate access after fresh MFA; Account Security shows the current browser session's active scope and expiry, and self-revocation is immediate, transactional, audited and replay-safe. Multi-role browser/business acceptance, production operation and off-machine recovery targets remain separate gates.",
       },
       "feature-backup-recovery": {
         status: "flow_accepted",

@@ -4440,6 +4440,33 @@
         "Payroll payment, Finance posting and exception/retry paths are downstream workflows with separate acceptance evidence."
       ],
       "supersedes": null
+    },
+    {
+      "id": "temporary-access-lifecycle-automated-20260923",
+      "capabilityIds": [
+        "platform_administration/feature-temporary-access"
+      ],
+      "scenarioIds": [
+        "S15",
+        "S19"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "passed",
+      "scope": "The IAM PostgreSQL integration suite verifies fresh-MFA activation, concurrent idempotent retries, conflicting-key rejection, current-session-only listing with expiry filtering, concurrent self-revocation, immutable audit entries and immediate authorization denial after commit. The other session elevation remains present.",
+      "observedAt": "2026-09-23T09:00:23+07:00",
+      "recordedBy": "Codex execution agent (automated observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-iam-temporary-access.txt",
+          "sha256": "7c639d50263a04133aa6b8899ae6952c316717cd1b531067332e4c35de0c5240"
+        }
+      ],
+      "limitations": [
+        "Automated owner-service and PostgreSQL behavior passed; independent browser and company-owner acceptance remain pending.",
+        "This does not attest production recovery operation, off-machine backup durability or signed recovery-time objectives."
+      ],
+      "supersedes": null
     }
   ]
 }

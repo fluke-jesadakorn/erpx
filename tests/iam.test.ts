@@ -47,9 +47,22 @@ import type { IamActor } from "../src/server/iam-context";
 import type { WorkContext } from "../src/server/authorization";
 import { escalateAccessReviews } from "../src/server/iam-access-review-alerts";
 import { listStaffNotifications } from "../src/server/staff-notifications";
+import {
+  activateEmergency,
+  listEmergencyAccess,
+  revokeEmergency,
+} from "../src/server/iam-recovery";
 vi.mock("../src/server/runtime", () => ({
   runtimeEnv: async () => env,
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
+  holdingBindingBySlug: async (slug: string) => ({
+    id: "h001",
+    slug,
+    displayName: "IAM rehearsal",
+  }),
+  activeHoldingBindings: async () => [
+    { id: "h001", slug: "rehearsal", displayName: "IAM rehearsal" },
+  ],
 }));
 const db = iamDb(env.H001_DB),
   key = () => crypto.randomUUID(),
@@ -112,6 +125,128 @@ it("stores topology only with a complete sync, backfills without reseed, and ret
   await applyDirectorySnapshot(db,c,{complete:true,users:[],groups:[],hierarchy:emptyDirectoryHierarchy()});
   expect((await read())?.hierarchy_json.containers).toEqual([]);
   expect((await peopleAccessData(db,f.owner)).entries.find(e=>e.kind === "identity")?.status).toBe("Disabled");
+});
+it("activates, lists, and immediately revokes only the current emergency session with replay-safe audit receipts", async () => {
+  const f = await fixture(),
+    owner = f.owner,
+    input = {
+      holdingSlug: "rehearsal",
+      companyId: f.companyId,
+      reason: "Restore access while the normal administrator is unavailable.",
+    },
+    activateKey = key(),
+    revokeKey = key();
+  await db
+    .prepare(
+      "INSERT INTO iam_members(company_id,user_id,principal_id,login_policy) VALUES(?,?,?,'emergency')",
+    )
+    .bind(f.companyId, owner.userId, `recovery:${owner.userId}`)
+    .run();
+  await db
+    .prepare("INSERT INTO iam_emergency_sessions VALUES(?,?,?,?,?)")
+    .bind(
+      `sibling-${key()}`,
+      f.companyId,
+      owner.userId,
+      now() + 120_000,
+      "Other browser session",
+    )
+    .run();
+  await db
+    .prepare("INSERT INTO iam_emergency_sessions VALUES(?,?,?,?,?)")
+    .bind(
+      owner.sessionId,
+      f.companyId,
+      owner.userId,
+      now() - 1,
+      "Expired activation",
+    )
+    .run();
+  await db
+    .prepare("INSERT INTO iam_emergency_sessions VALUES(?,?,?,?,?)")
+    .bind(
+      owner.sessionId,
+      `expired-${key()}`,
+      owner.userId,
+      now() - 1,
+      "Expired in another company",
+    )
+    .run();
+
+  const [activated, replayed] = await Promise.all([
+    activateEmergency(owner, input, activateKey),
+    activateEmergency(owner, input, activateKey),
+  ]);
+  expect(replayed).toEqual(activated);
+  expect(activated.expiresAt).toBeGreaterThan(now());
+  expect(
+    await loadIamAuthority(
+      db,
+      f.companyId,
+      owner.userId,
+      "holding_owner",
+      owner.sessionId,
+    ),
+  ).toMatchObject({ emergencyUntil: activated.expiresAt });
+  await expect(
+    activateEmergency(
+      owner,
+      { ...input, reason: "A different authorized recovery reason." },
+      activateKey,
+    ),
+  ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+
+  const listed = await listEmergencyAccess(owner);
+  expect(listed.unavailableScopes).toEqual([]);
+  expect(listed.access).toEqual([
+    expect.objectContaining({
+      companyId: f.companyId,
+      holdingSlug: "rehearsal",
+      reason: input.reason,
+      expiresAt: activated.expiresAt,
+    }),
+  ]);
+
+  const revokeInput = {
+      ...input,
+      reason: "The administrator has restored normal access.",
+    };
+  await expect(
+    revokeEmergency(owner, revokeInput, activateKey),
+  ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+  const [revoked, revokeReplay] = await Promise.all([
+    revokeEmergency(owner, revokeInput, revokeKey),
+    revokeEmergency(owner, revokeInput, revokeKey),
+  ]);
+  expect(revokeReplay).toEqual(revoked);
+  expect(revoked.revoked).toBe(true);
+  await expect(
+    loadIamAuthority(
+      db,
+      f.companyId,
+      owner.userId,
+      "holding_owner",
+      owner.sessionId,
+    ),
+  ).rejects.toMatchObject({ code: "EMERGENCY_ACCESS_REQUIRED" });
+  expect(
+    await db
+      .prepare(
+        "SELECT count(*) count FROM iam_emergency_sessions WHERE company_id=? AND user_id=?",
+      )
+      .bind(f.companyId, owner.userId)
+      .first<{ count: number }>(),
+  ).toMatchObject({ count: 1 });
+  expect(
+    (
+      await db
+        .prepare(
+          "SELECT action FROM iam_audit WHERE company_id=? AND actor_id=? AND action IN ('emergency.activated','emergency.revoked') ORDER BY action",
+        )
+        .bind(f.companyId, owner.userId)
+        .all<{ action: string }>()
+    ).results.map((row) => row.action),
+  ).toEqual(["emergency.activated", "emergency.revoked"]);
 });
 beforeAll(async () => {
   await applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS);

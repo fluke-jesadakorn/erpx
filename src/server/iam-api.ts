@@ -4,7 +4,13 @@ import { applyDirectoryOperationReview } from "./directory-operations";
 import { inspectIamAccess, inspectorInput } from "./iam-inspector";
 import { requestPublicOrigin } from "./public-origin";
 import { applyManagementReview, managementCommand } from "./user-management";
-import { activateEmergency, recoveryInput } from "./iam-recovery";
+import {
+  activateEmergency,
+  emergencyRevocationInput,
+  listEmergencyAccess,
+  recoveryInput,
+  revokeEmergency,
+} from "./iam-recovery";
 import "server-only";
 import { z } from "zod";
 import { currentSession } from "./authorization";
@@ -73,6 +79,11 @@ export async function iamAccountApi(request: Request, path: string[]) {
     const { session } = await currentSession(),
       actor = { userId: session.user.id, sessionId: session.session.id };
     if (request.method === "GET") {
+      if (path.join("/") === "emergency/active")
+        return Response.json(
+          { data: await listEmergencyAccess(actor) },
+          { headers: { "Cache-Control": "no-store" } },
+        );
       const env = await runtimeEnv();
       return Response.json(
         {
@@ -98,7 +109,19 @@ export async function iamAccountApi(request: Request, path: string[]) {
     const input = await request.json();
     if (path.join("/") === "emergency/activate")
       return Response.json({
-        data: await activateEmergency(actor, recoveryInput.parse(input)),
+        data: await activateEmergency(
+          actor,
+          recoveryInput.parse(input),
+          request.headers.get("Idempotency-Key") ?? "",
+        ),
+      });
+    if (path.join("/") === "emergency/revoke")
+      return Response.json({
+        data: await revokeEmergency(
+          actor,
+          emergencyRevocationInput.parse(input),
+          request.headers.get("Idempotency-Key") ?? "",
+        ),
       });
     if (path.join("/") === "mfa/enroll")
       return Response.json({ data: await beginMfa(actor) });
