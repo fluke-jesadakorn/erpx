@@ -218,6 +218,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
   const p=base.passthrough().parse(input),sale=await saleRow(db,actor,p.id);version(sale,p);
  if(op==='sale.complete')return completeSale(db,sale,user);
   if(op==='sale.charge_to_room'){
+   if(process.env.NODE_ENV==='production'&&process.env.ERPX_POS_ROOM_CHARGE_PILOT_ENABLED!=='true')fail('POS_ROOM_CHARGE_PILOT_GATE','Room charges require pilot acceptance before production activation',403);
    const p=base.extend({propertyId:z.string().min(1),stayId:z.string().min(1),expectedPropertyVersion:z.number().int().positive()}).parse(input);
    if(sale.state!=='open'&&sale.state!=='held')fail('POS_SALE_LOCKED','Only an unpaid bill can be charged to a room');
    if(!await one(db,"SELECT id FROM pos_registers WHERE id=? AND mode='restaurant'",sale.register_id))fail('POS_ROOM_CHARGE_REGISTER','Only restaurant bills can be charged to a room');
@@ -323,6 +324,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
  }
  if(op==='payment.create'){
   const p=base.extend({method:z.enum(['cash','transfer','edc','stripe_card','stripe_promptpay']),amountMinor:money.refine(n=>n>0),tenderedMinor:money,reference:z.string().max(150).default('')}).parse(input),sale=await saleRow(db,actor,p.id);version(sale,p);
+  if(process.env.NODE_ENV==='production'&&!['cash','transfer'].includes(p.method))fail('POS_TENDER_COMING_SOON','The pilot accepts cash and verified bank transfers only',403);
   if(!['open','held','payment_pending'].includes(str(sale,'state')))fail('POS_SALE_LOCKED','Bill is not ready for payment');
   const settings=await config(db,company);if(!settings.enabled)fail('POS_DISABLED','New transactions are temporarily paused');await openPeriod(db,company,str(sale,'business_date'));
   if(!await one(db,"SELECT id FROM pos_shifts WHERE id=? AND state='open'",sale.shift_id))fail('POS_SHIFT_CLOSED','Cash session is closed');
@@ -351,7 +353,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
   const accounts=json<PosAccounts>(sale.accounts_json);
   const bank=await one(db,'SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? FOR UPDATE OF t',p.bankTransactionId,company);
   if(!bank||num(bank,'version')!==p.bankVersion||!['unmatched','proposed'].includes(str(bank,'match_status'))||bank.bank_account!==accounts.bank||bank.currency!==sale.currency||num(bank,'amount_minor')!==num(payment,'amount_minor')||str(bank,'external_id').trim()!==str(payment,'reference').trim()||str(bank,'transaction_date')<str(sale,'business_date'))fail('POS_BANK_EVIDENCE_MISMATCH','Match the exact imported bank account, reference, date, currency, and amount');
-  await receivePayment(db,payment,user);
+  await receivePayment(db,payment,user,str(bank,'transaction_date'));
   const settled=await one(db,'SELECT finance_payment_id FROM pos_payments WHERE id=?',payment.id);
   await run(db,"UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=?",settled!.finance_payment_id,bank.id);
   return {id:payment.id,saleId:sale.id,state:'succeeded',bankTransactionId:bank.id};

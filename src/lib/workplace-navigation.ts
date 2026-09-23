@@ -604,6 +604,7 @@ export function workplaceNavigation(
       ? [item("legal", "Legal", "legal", "Legal", "handbook", ["contracts", "cases", "compliance"])]
       : []),
     item("feedback", "Help & feedback", "settings?section=feedback", "Help & feedback", "feedback", ["support", "reports"]),
+    item("future-features", "Future features", "future-features", "Future features", "learn", ["coming soon", "prototype", "roadmap"]),
   ];
 
   const appDestinations = apps.flatMap((entry) => entry.items.map((child) => ({
@@ -644,7 +645,7 @@ export function workplaceNavigation(
         category("operations", "Operations", "commerce", ["operations", "crm", "support", "inventory", "quality", "pos", "pms"]),
         category("finance", "Finance", "finance", ["finance"]),
         category("management", "Management", "projects", ["executive", "projects", "legal"]),
-        category("system", "System", "technology", ["technology", "feedback"]),
+        category("system", "System", "technology", ["technology", "feedback", "future-features"]),
       ]).filter((entry): entry is NavigationCategory => entry !== null);
   return {
     primary,
@@ -701,6 +702,7 @@ export function resolveNavigation(
   if (route === "billing" && base === "/platform") return { activeId: "platform-billing" };
   if (route === "my-access") return { activeId: "my-access" };
   if (route === "work") return { activeId: "work" };
+  if (route === "future-features") return { activeId: "future-features" };
   if (route === "requests")
     return { activeId: "work", detailLabel: second ? "Request" : undefined };
   if (route === "tasks")

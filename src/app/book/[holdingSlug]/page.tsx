@@ -9,6 +9,7 @@ export default async function BookingPage({
 }: {
   params: Promise<{ holdingSlug: string }>;
 }) {
+  if (process.env.NODE_ENV === "production") notFound();
   const { holdingSlug } = await params;
   const db = await bookingDatabase(holdingSlug).catch((e) => {
     if (e instanceof Error && e.message === "HOLDING_NOT_FOUND") notFound();

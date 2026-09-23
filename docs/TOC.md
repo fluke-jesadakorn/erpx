@@ -45,6 +45,7 @@
 
 ## Hotel operations — 2026-09-17
 
+- [Hotel and restaurant pilot implementation — 2026-09-23](testing/hospitality-pilot-implementation-2026-09-23.md): delivered room-charge and verified-transfer slice, fictional setup fixture, verification and production blockers.
 - [PMS implementation, API and rollout](contracts/next/pms.md): guided staff reservations, the multi-hotel guest booking portal, secure cancellation, Front Office, housekeeping, receipts, Finance ownership, Night Audit, recovery and deferred SiteMinder integration.
 
 ## Point of sale — 2026-09-17

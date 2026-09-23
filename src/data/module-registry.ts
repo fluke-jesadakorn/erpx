@@ -294,10 +294,10 @@ export function capabilitySupport(
   const destination = liveDestination(moduleId, sectionId);
   if (moduleId === "pos")
     return {
-      availability: "live",
+      availability: "partial",
       actions: [
         {
-          label: "Point of sale, kitchen, shifts and reconciliation",
+          label: "Pilot point of sale, kitchen, shifts and reconciliation; production acceptance pending",
           availability: "live",
           destination: "pos",
         },

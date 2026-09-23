@@ -40,6 +40,14 @@ beforeEach(async()=>{
  await command('catalog.save',{productId:'latte',barcode:'8850001',category:'Coffee',kind:'recipe',station:'Bar',recipe:[{productId:'milk',quantityMilli:200}],modifiers:[],taxInclusive:false,expectedVersion:0});
 });
 describe('POS committed business flows',()=>{
+ it('limits production POS tenders to cash and verified bank transfer',async()=>{
+  const sale=await createSale();await add(sale);
+  vi.stubEnv('NODE_ENV','production');
+  await expect(change('payment.create',sale,{method:'edc',amountMinor:10700,tenderedMinor:10700,reference:'EDC-001'})).rejects.toMatchObject({code:'POS_TENDER_COMING_SOON'});
+  await expect(change('payment.create',sale,{method:'stripe_card',amountMinor:10700,tenderedMinor:10700,reference:''})).rejects.toMatchObject({code:'POS_TENDER_COMING_SOON'});
+  expect(await one(db,'SELECT count(*) n FROM pos_payments')).toEqual({n:0});
+  await expect(change('sale.charge_to_room',sale,{propertyId:'hotel',stayId:'stay',expectedPropertyVersion:1})).rejects.toMatchObject({code:'POS_ROOM_CHARGE_PILOT_GATE'});
+ });
  it('keeps a transfer pending until a different Finance user matches exact imported bank evidence',async()=>{
   const sale=await createSale();await add(sale);
   const payment=await change('payment.create',sale,{method:'transfer',amountMinor:10700,tenderedMinor:10700,reference:'BANK-001'});

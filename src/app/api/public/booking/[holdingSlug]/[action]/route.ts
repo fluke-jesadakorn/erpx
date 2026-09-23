@@ -18,6 +18,8 @@ export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; action: string }> };
 export async function GET(_request: Request, { params }: Context) {
   try {
+    if (process.env.NODE_ENV === "production")
+      throw new ApiError(404, "BOOKING_COMING_SOON", "Online booking is not available in the pilot");
     const { holdingSlug, action } = await params;
     if (action !== "catalog")
       throw new ApiError(404, "NOT_FOUND", "Page not found");
@@ -31,6 +33,8 @@ export async function GET(_request: Request, { params }: Context) {
 }
 export async function POST(request: Request, { params }: Context) {
   try {
+    if (process.env.NODE_ENV === "production")
+      throw new ApiError(404, "BOOKING_COMING_SOON", "Online booking is not available in the pilot");
     if (request.headers.get("origin") !== requestPublicOrigin(request))
       throw new ApiError(403, "ORIGIN_FORBIDDEN", "Use the booking website");
     const { holdingSlug, action } = await params;

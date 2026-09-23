@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 1,
+  "kind": "fictional-hotel-restaurant-demo",
+  "name": "Riverside Lantern Hotel & Kitchen",
+  "legalEntity": "Riverside Lantern Hospitality Demo Co., Ltd.",
+  "country": "TH",
+  "currency": "THB",
+  "timezone": "Asia/Bangkok",
+  "property": {
+    "code": "RLH",
+    "branchCode": "RLH-BKK",
+    "rooms": [
+      { "number": "101", "type": "Standard", "state": "inspected" },
+      { "number": "102", "type": "Standard", "state": "inspected" },
+      { "number": "103", "type": "Standard", "state": "dirty" },
+      { "number": "104", "type": "Standard", "state": "maintenance_blocked" },
+      { "number": "201", "type": "Deluxe", "state": "inspected" },
+      { "number": "202", "type": "Deluxe", "state": "occupied" },
+      { "number": "203", "type": "Deluxe", "state": "dirty" },
+      { "number": "204", "type": "Deluxe", "state": "inspected" }
+    ],
+    "roomTypes": [
+      { "code": "STD", "name": "Standard", "capacity": 2, "rateMinor": 180000 },
+      { "code": "DLX", "name": "Deluxe", "capacity": 2, "rateMinor": 260000 }
+    ],
+    "taxAndService": {
+      "vatBpsExampleOnly": 700,
+      "serviceBpsExampleOnly": 0,
+      "taxInclusiveExampleOnly": false,
+      "approval": "Pilot accountant must approve the actual VAT, service charge, account and document settings before use"
+    }
+  },
+  "restaurant": {
+    "register": "Lantern Kitchen",
+    "warehouse": "Kitchen dry and chilled stock",
+    "tables": ["T01", "T02", "T03", "T04", "T05", "T06"],
+    "menu": [
+      { "sku": "RICE-CHICKEN", "name": "Basil chicken rice", "priceMinor": 18000, "recipe": [{ "sku": "CHICKEN", "quantityMilli": 180 }, { "sku": "RICE", "quantityMilli": 200 }] },
+      { "sku": "RICE-VEG", "name": "Vegetable fried rice", "priceMinor": 16000, "recipe": [{ "sku": "RICE", "quantityMilli": 220 }, { "sku": "VEGETABLE", "quantityMilli": 150 }] },
+      { "sku": "NOODLES", "name": "Stir-fried noodles", "priceMinor": 19000, "recipe": [{ "sku": "NOODLE", "quantityMilli": 200 }, { "sku": "VEGETABLE", "quantityMilli": 100 }] },
+      { "sku": "TEA", "name": "Thai iced tea", "priceMinor": 9000, "recipe": [{ "sku": "TEA-BASE", "quantityMilli": 150 }, { "sku": "MILK", "quantityMilli": 80 }] },
+      { "sku": "COFFEE", "name": "Iced coffee", "priceMinor": 10000, "recipe": [{ "sku": "COFFEE-BASE", "quantityMilli": 120 }, { "sku": "MILK", "quantityMilli": 80 }] },
+      { "sku": "WATER", "name": "Bottled water", "priceMinor": 4000, "stockSku": "WATER" }
+    ],
+    "openingStock": [
+      { "sku": "CHICKEN", "unit": "kg", "quantityMilli": 20000, "valueMinor": 220000 },
+      { "sku": "RICE", "unit": "kg", "quantityMilli": 50000, "valueMinor": 175000 },
+      { "sku": "VEGETABLE", "unit": "kg", "quantityMilli": 25000, "valueMinor": 125000 },
+      { "sku": "NOODLE", "unit": "kg", "quantityMilli": 20000, "valueMinor": 100000 },
+      { "sku": "TEA-BASE", "unit": "litre", "quantityMilli": 10000, "valueMinor": 60000 },
+      { "sku": "COFFEE-BASE", "unit": "litre", "quantityMilli": 10000, "valueMinor": 90000 },
+      { "sku": "MILK", "unit": "litre", "quantityMilli": 20000, "valueMinor": 100000 },
+      { "sku": "WATER", "unit": "bottle", "quantityMilli": 120000, "valueMinor": 48000 }
+    ]
+  },
+  "demoActors": [
+    { "key": "frontDesk", "role": "pms_frontdesk", "email": "frontdesk@riverside-lantern.example" },
+    { "key": "housekeeper", "role": "pms_housekeeping", "email": "housekeeping@riverside-lantern.example" },
+    { "key": "inspector", "role": "pms_supervisor", "email": "inspector@riverside-lantern.example" },
+    { "key": "cashier", "role": "pos_cashier", "email": "cashier@riverside-lantern.example" },
+    { "key": "kitchen", "role": "pos_kitchen", "email": "kitchen@riverside-lantern.example" },
+    { "key": "restaurantManager", "role": "pos_manager", "email": "restaurant-manager@riverside-lantern.example" },
+    { "key": "financePreparer", "role": "finance_preparer", "email": "finance-preparer@riverside-lantern.example" },
+    { "key": "financeApprover", "role": "finance_approver", "email": "finance-approver@riverside-lantern.example" },
+    { "key": "nightAuditor", "role": "pms_night_auditor", "email": "night-auditor@riverside-lantern.example" },
+    { "key": "administrator", "role": "holding_owner", "email": "admin@riverside-lantern.example" }
+  ],
+  "exampleBankEvidence": {
+    "statementNumber": "SANDBOX-STMT-001",
+    "externalId": "SANDBOX-TRANSFER-001",
+    "currency": "THB",
+    "amountMinor": 10700,
+    "bankAccount": "Example THB bank clearing account",
+    "classification": "fictional imported evidence, never a real bank payment"
+  },
+  "exampleTaxDocument": {
+    "externalReference": "EXAMPLE-TAX-INV-001",
+    "issuer": "Hotel's existing verified process",
+    "classification": "fictional reference; ERPX operational receipt is not a tax invoice"
+  }
+}
