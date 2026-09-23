@@ -6,6 +6,7 @@ import {
   queueAccountRecovery,
   recordAccountRecoveryCompleted,
 } from "../src/server/account-recovery";
+import { sendBetaEmail } from "../src/server/beta-email";
 
 const db = env.CONTROL_DB;
 const secret = "account-recovery-test-secret-at-least-32-chars";
@@ -109,6 +110,38 @@ it("replaces earlier recovery links and delivers only the current encrypted URL"
     .first<string>("url_ciphertext");
   expect(ciphertext).not.toContain(second);
   expect(createHash("sha256").update(ciphertext!).digest("hex")).toHaveLength(64);
+});
+
+it("uses the explicit sandbox adapter for recovery and keeps the reset URL in the durable receipt", async () => {
+  const account = await user();
+  const token = "sandbox-recovery-token-1234567890";
+  await verification(account.id, token);
+  await queueAccountRecovery(
+    db,
+    { ...configuration, CONTROL_DB: db, ERPX_EMAIL_ADAPTER: "sandbox" },
+    account,
+    `https://erpx.example.test/reset/${token}`,
+    token,
+    now,
+  );
+  expect(
+    await deliverAccountRecovery(
+      db,
+      { ...configuration, CONTROL_DB: db, ERPX_EMAIL_ADAPTER: "sandbox" },
+      sendBetaEmail,
+      now + 1,
+    ),
+  ).toBe(true);
+  const mail = await db
+    .prepare("SELECT recipient,subject,body_text,provider_id FROM sandbox_email_deliveries WHERE recipient=? AND subject=? ORDER BY created_at DESC LIMIT 1")
+    .bind(account.email, "Reset your ERPX password")
+    .first<{ recipient: string; subject: string; body_text: string; provider_id: string }>();
+  expect(mail).toMatchObject({
+    recipient: account.email,
+    subject: "Reset your ERPX password",
+    provider_id: expect.stringContaining("sandbox-account-recovery-"),
+  });
+  expect(mail?.body_text).toContain(`/reset/${token}`);
 });
 
 it("records bounded provider failure and immutable completion evidence", async () => {

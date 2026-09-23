@@ -5,6 +5,7 @@ import {
   deliverAccountInvitation,
   promoteAccountInvitationDeliveries,
 } from "../src/server/account-invitation-delivery";
+import { sendBetaEmail } from "../src/server/beta-email";
 
 const control = env.CONTROL_DB;
 const holding = env.H001_DB;
@@ -124,6 +125,59 @@ it("waits for independent approval and sends the reproducible activation token o
   expect(
     await deliverAccountInvitation(control, env, async () => {}, now),
   ).toBe(false);
+});
+
+it("delivers through the explicit sandbox adapter with a durable provider receipt", async () => {
+  const item = await invitation("queued");
+  const sandboxEnv = {
+    ...env,
+    CONTROL_DB: control,
+    ERPX_EMAIL_ADAPTER: "sandbox",
+    ERPX_PUBLIC_ORIGIN: "https://erpx.example.test",
+  };
+  expect(await deliverAccountInvitation(control, sandboxEnv, sendBetaEmail, now)).toBe(true);
+  const job = await control
+    .prepare("SELECT state,provider_id FROM account_invitation_delivery_jobs WHERE id=?")
+    .bind(item.jobId)
+    .first<{ state: string; provider_id: string }>();
+  expect(job).toMatchObject({ state: "sent", provider_id: `sandbox-${item.jobId}` });
+  const mail = await control
+    .prepare("SELECT recipient,subject,body_text,provider_id FROM sandbox_email_deliveries WHERE delivery_key=?")
+    .bind(item.jobId)
+    .first<{ recipient: string; subject: string; body_text: string; provider_id: string }>();
+  expect(mail).toMatchObject({
+    recipient: "new.employee@example.test",
+    subject: "Activate your ERPX account",
+    provider_id: `sandbox-${item.jobId}`,
+  });
+  expect(mail?.body_text).toContain("https://erpx.example.test/activate?token=");
+  expect(
+    await sendBetaEmail(
+      sandboxEnv,
+      "new.employee@example.test",
+      "Activate your ERPX account",
+      mail!.body_text.split("\n\n")[1]!,
+      item.jobId,
+    ),
+  ).toBe(`sandbox-${item.jobId}`);
+  await expect(
+    sendBetaEmail(
+      sandboxEnv,
+      "new.employee@example.test",
+      "Activate your ERPX account",
+      "https://erpx.example.test/activate?token=changed",
+      item.jobId,
+    ),
+  ).rejects.toThrow("EMAIL_IDEMPOTENCY_CONFLICT");
+  await expect(
+    sendBetaEmail(
+      { ...sandboxEnv, ERPX_ENVIRONMENT: "production" },
+      "new.employee@example.test",
+      "Activate your ERPX account",
+      "https://erpx.example.test/activate?token=production-guard-test",
+      "sandbox-production-guard",
+    ),
+  ).rejects.toThrow("EMAIL_SANDBOX_FORBIDDEN_IN_PRODUCTION");
 });
 
 it("cancels rejected and expired invitations before an email can leave", async () => {

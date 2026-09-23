@@ -11,7 +11,10 @@ import type { BetaEnvironment } from "./beta-config";
 import { sendBetaEmail } from "./beta-email";
 import type { SqlDatabase } from "./runtime/types";
 
-type RecoveryEnv = BetaEnvironment & { BETTER_AUTH_SECRET: string };
+type RecoveryEnv = BetaEnvironment & {
+  BETTER_AUTH_SECRET: string;
+  CONTROL_DB?: SqlDatabase;
+};
 type RecoverySender = (
   env: RecoveryEnv,
   to: string,

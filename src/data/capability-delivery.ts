@@ -78,9 +78,9 @@ const delivery: Record<string, ModuleDelivery> = {
       assignments: {
         status: "flow_accepted",
         service: "src/server/account-access.ts",
-        schema: "migrations/postgres/control/0012_account_invitation_delivery.sql",
+        schema: "migrations/postgres/control/0012_account_invitation_delivery.sql; migrations/postgres/control/0017_sandbox_email_deliveries.sql",
         test: "tests/account-invitation-delivery.test.ts",
-        gap: "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence; the isolated Demo browser journey now covers independent approval, one-time activation, branch-scoped sign-in and immediate revocation. A live Resend run, independent public multi-session activation/recovery and business acceptance remain.",
+        gap: "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence. Demo can use an explicit sandbox adapter that stores activation messages in the isolated Control DB with idempotent provider receipts; the browser journey covers independent approval, one-time activation, branch-scoped sign-in and immediate revocation. A live Resend run, independent public multi-session activation/recovery and business acceptance remain.",
       },
       "access-reviews": {
         status: "flow_accepted",
@@ -90,9 +90,9 @@ const delivery: Record<string, ModuleDelivery> = {
       "feature-people-principals": {
         status: "flow_accepted",
         service: "src/server/account-recovery.ts",
-        schema: "migrations/postgres/control/0014_account_recovery_delivery.sql",
+        schema: "migrations/postgres/control/0014_account_recovery_delivery.sql; migrations/postgres/control/0017_sandbox_email_deliveries.sql",
         test: "tests/account-recovery.test.ts",
-        gap: "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence; the isolated Demo browser journey now covers independent approval, one-time activation, branch-scoped sign-in and immediate revocation. A live Resend run, independent public multi-session activation/recovery and business acceptance remain.",
+        gap: "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence. Demo can use an explicit sandbox adapter that stores reset messages in the isolated Control DB with idempotent provider receipts; the browser journey covers independent approval, one-time activation, branch-scoped sign-in and immediate revocation. A live Resend run, independent public multi-session activation/recovery and business acceptance remain.",
       },
       "feature-roles-permissions": { status: "flow_accepted" },
       "feature-directory-connectors": {

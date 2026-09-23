@@ -53,7 +53,7 @@ export function getRuntime(): RuntimeEnv {
     BETTER_AUTH_URL: origin.origin, BETTER_AUTH_SECRET: secret,
     ERPX_RESOURCE_SLOTS: JSON.stringify(manifest.slots), ERPX_PUBLIC_BETA: String(publicBeta),
   };
-  for (const name of ['BETA_MEMBER_LIMIT','BETA_BRANCH_LIMIT','BETA_AI_LIMIT','BETA_STORAGE_BYTES','RESEND_API_KEY','RESEND_FROM',
+  for (const name of ['BETA_MEMBER_LIMIT','BETA_BRANCH_LIMIT','BETA_AI_LIMIT','BETA_STORAGE_BYTES','RESEND_API_KEY','RESEND_FROM','ERPX_EMAIL_ADAPTER',
     'ERPX_IAM_SECRET_PROFILES','AI_BASE_URL','AI_MODEL','AI_API_KEY','AI_CREDENTIAL_KEY_ID','AI_CREDENTIAL_KEYS','STRIPE_SECRET_KEY','STRIPE_WEBHOOK_SECRET','STRIPE_PRICE_ID'])
     if (process.env[name]) env[name] = process.env[name];
   const role = process.env.ERPX_PROCESS_ROLE === 'jobs' ? 'jobs' : 'app';

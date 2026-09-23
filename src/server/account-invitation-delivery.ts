@@ -4,7 +4,7 @@ import type { SqlDatabase } from "./runtime/types";
 import { sendBetaEmail } from "./beta-email";
 import type { BetaEnvironment } from "./beta-config";
 
-type DeliveryEnv=BetaEnvironment&{BETTER_AUTH_SECRET?:unknown;ERPX_PUBLIC_ORIGIN?:unknown;BETTER_AUTH_URL?:unknown};
+type DeliveryEnv=BetaEnvironment&{BETTER_AUTH_SECRET?:unknown;ERPX_PUBLIC_ORIGIN?:unknown;BETTER_AUTH_URL?:unknown;CONTROL_DB?:SqlDatabase};
 export async function promoteAccountInvitationDeliveries(control:SqlDatabase,holding:SqlDatabase,holdingId:string,now=Date.now()){
   const waiting=(await control.prepare("SELECT id,invitation_id FROM account_invitation_delivery_jobs WHERE holding_id=? AND state='awaiting_approval' ORDER BY created_at LIMIT 100").bind(holdingId).all<{id:string;invitation_id:string}>()).results;
   for(const job of waiting){

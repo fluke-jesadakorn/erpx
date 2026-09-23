@@ -1,0 +1,21 @@
+ERPX sandbox email adapter evidence
+Observed: 2026-09-23 Asia/Bangkok
+
+Command:
+  bun run test -- tests/account-invitation-delivery.test.ts tests/account-recovery.test.ts
+
+Result:
+  Test Files  2 passed (2)
+  Tests       7 passed (7)
+
+Coverage:
+  - An explicitly configured ERPX_EMAIL_ADAPTER=sandbox writes invitation and password-recovery messages to the isolated Control DB.
+  - Delivery jobs retain sent state and a deterministic sandbox provider receipt.
+  - Activation/reset URLs are kept in the durable sandbox message body for Demo verification; no external provider is called.
+  - Reusing a delivery key with the same message is idempotent; changing its recipient, subject, or body raises EMAIL_IDEMPOTENCY_CONFLICT.
+  - Production runtime rejects the sandbox adapter before storing a token-bearing email.
+  - Existing approval, expiry, retry, cancellation, encrypted recovery URL and immutable recovery-event behavior remain covered.
+
+Limitations:
+  - This is isolated automated simulation evidence, not a live Resend/provider or Company business acceptance.
+  - Production uses the existing Resend adapter unless an administrator explicitly configures another environment adapter.

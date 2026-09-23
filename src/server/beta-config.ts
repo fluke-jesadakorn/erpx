@@ -8,6 +8,7 @@ export type BetaEnvironment = {
   BETA_STORAGE_BYTES?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
+  ERPX_EMAIL_ADAPTER?: string;
   AI_BASE_URL?: string;
   AI_MODEL?: string;
   AI_API_KEY?: string;

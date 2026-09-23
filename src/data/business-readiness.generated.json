@@ -1,5 +1,5 @@
 {
-  "evidenceLedgerSha256": "15ba799efa6d1ea2f252ef230cfc0cdf5cc7f8a3d7a22f2ff51882e140a01d4f",
+  "evidenceLedgerSha256": "498ebb30cd68471938655ae35b4eefa309d99a0ba6838cdc30a8df556132aa15",
   "capabilities": [
     {
       "id": "brand/feature-draft-workspace",
@@ -405,9 +405,9 @@
         "ui": "src/app/holdings/[holdingSlug]/iam/[[...section]]/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/iam/[[...path]]/route.ts",
         "service": "src/server/account-access.ts",
-        "schema": "migrations/postgres/control/0012_account_invitation_delivery.sql",
+        "schema": "migrations/postgres/control/0012_account_invitation_delivery.sql; migrations/postgres/control/0017_sandbox_email_deliveries.sql",
         "test": "tests/account-invitation-delivery.test.ts",
-        "gap": "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence; the isolated Demo browser journey now covers independent approval, one-time activation, branch-scoped sign-in and immediate revocation. A live Resend run, independent public multi-session activation/recovery and business acceptance remain."
+        "gap": "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence. Demo can use an explicit sandbox adapter that stores activation messages in the isolated Control DB with idempotent provider receipts; the browser journey covers independent approval, one-time activation, branch-scoped sign-in and immediate revocation. A live Resend run, independent public multi-session activation/recovery and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -507,9 +507,9 @@
         "ui": "src/app/holdings/[holdingSlug]/iam/[[...section]]/page.tsx",
         "api": "src/app/api/v1/holdings/[holdingSlug]/iam/[[...path]]/route.ts",
         "service": "src/server/account-recovery.ts",
-        "schema": "migrations/postgres/control/0014_account_recovery_delivery.sql",
+        "schema": "migrations/postgres/control/0014_account_recovery_delivery.sql; migrations/postgres/control/0017_sandbox_email_deliveries.sql",
         "test": "tests/account-recovery.test.ts",
-        "gap": "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence; the isolated Demo browser journey now covers independent approval, one-time activation, branch-scoped sign-in and immediate revocation. A live Resend run, independent public multi-session activation/recovery and business acceptance remain."
+        "gap": "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence. Demo can use an explicit sandbox adapter that stores reset messages in the isolated Control DB with idempotent provider receipts; the browser journey covers independent approval, one-time activation, branch-scoped sign-in and immediate revocation. A live Resend run, independent public multi-session activation/recovery and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -13412,6 +13412,34 @@
       "limitations": [
         "This is automated service evidence on an isolated simulation database, not browser, provider, production or Company business acceptance.",
         "Retention/legal hold, relation graph expansion and provider delivery remain separate gates."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "identity-sandbox-email-automated-20260923",
+      "capabilityIds": [
+        "identity_access/assignments",
+        "identity_access/feature-people-principals"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S15"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "Invitation and password-recovery jobs use the explicitly selected sandbox email adapter to persist activation/reset messages in the isolated Control DB, retain deterministic provider receipts, and reject idempotency-key payload changes. The focused delivery suite passed 2 files and 7 tests.",
+      "observedAt": "2026-09-23T07:34:00+07:00",
+      "recordedBy": "Codex execution agent (automated service observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-sandbox-email-delivery-tests.txt",
+          "sha256": "8713013bc76de3c33919484f40d480b1e094d7e1be2a71a1585f715002896276"
+        }
+      ],
+      "limitations": [
+        "Simulation-only isolated Control DB; this does not attest live Resend/provider delivery, independent public multi-session recovery, production operation or Company business acceptance.",
+        "The sandbox adapter is opt-in and must remain clearly separated from production email configuration."
       ],
       "supersedes": null
     }
