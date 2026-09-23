@@ -1,5 +1,5 @@
 {
-  "evidenceLedgerSha256": "11d63203a592747defbe13ead6e254f42461a818f5b6dc420308bb14d2c14ae3",
+  "evidenceLedgerSha256": "146a62e88cbaf7aaef2f807e538adcfe87ec06e81ac15bf68c05dfffeecfff0a",
   "capabilities": [
     {
       "id": "brand/feature-draft-workspace",
@@ -407,7 +407,7 @@
         "service": "src/server/account-access.ts",
         "schema": "migrations/postgres/control/0012_account_invitation_delivery.sql",
         "test": "tests/account-invitation-delivery.test.ts",
-        "gap": "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence; password reset invalidates every session. A live Resend run, independent public multi-session activation/recovery and business acceptance remain."
+        "gap": "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence; the isolated Demo browser journey now covers independent approval, one-time activation, branch-scoped sign-in and immediate revocation. A live Resend run, independent public multi-session activation/recovery and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -509,7 +509,7 @@
         "service": "src/server/account-recovery.ts",
         "schema": "migrations/postgres/control/0014_account_recovery_delivery.sql",
         "test": "tests/account-recovery.test.ts",
-        "gap": "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence; password reset invalidates every session. A live Resend run, independent public multi-session activation/recovery and business acceptance remain."
+        "gap": "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence; the isolated Demo browser journey now covers independent approval, one-time activation, branch-scoped sign-in and immediate revocation. A live Resend run, independent public multi-session activation/recovery and business acceptance remain."
       },
       "gates": {
         "automated": {
@@ -13355,6 +13355,36 @@
         "Consolidation run preparation/posting, exchange-rate policy, account elimination journals and two consecutive Finance close sign-off remain separate gates.",
         "No capability is promoted beyond the evidence scope.",
         "Intercompany capability mapping is represented by the existing Finance journal/payables records until a dedicated register entry is added."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "identity-activation-revocation-browser-20260923",
+      "capabilityIds": [
+        "identity_access/assignments",
+        "identity_access/feature-people-principals",
+        "identity_access/access-reviews"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13",
+        "S15"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "An isolated Demo Company browser scenario used separate owner, reviewer and invitee contexts to create an onboarding employee, approve an invitation with fresh MFA, activate the account, sign in at branch scope, revoke the role and confirm the revoked session has no active roles.",
+      "observedAt": "2026-09-23T07:05:00+07:00",
+      "recordedBy": "Codex execution agent (automated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-identity-activation-revocation-browser.txt",
+          "sha256": "64fba4fbd20b27cca0dfdd5b4eb88494a56fadbccf293bc5ee964216c36337e3"
+        }
+      ],
+      "limitations": [
+        "This is isolated Demo Company evidence; live email-provider delivery, recovery, directory-provider enforcement, production operation and Company business acceptance remain separate gates.",
+        "Broader joiner/mover/leaver and access-review campaign coverage remains separate from this invitation approval journey."
       ],
       "supersedes": null
     }

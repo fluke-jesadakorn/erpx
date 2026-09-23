@@ -51,10 +51,11 @@ if(mode==='prepare'){
    await env.CONTROL_DB.batch([env.CONTROL_DB.prepare('INSERT INTO "user"(id,name,email,emailVerified,createdAt,updatedAt) VALUES(?,?,?,1,?,?)').bind(actor.userId,label,email,now,now),env.CONTROL_DB.prepare("INSERT INTO account(id,accountId,providerId,issuer,userId,password,createdAt,updatedAt) VALUES(?,?,'credential','local:credential',?,?,?,?)").bind(`account-${actor.userId}`,actor.userId,actor.userId,hash,now,now),env.CONTROL_DB.prepare("INSERT INTO principals(id,user_id,display_name,status,created_at) VALUES(?,?,?,'active',?)").bind(`principal-${actor.userId}`,actor.userId,label,now)]);
    users.push({label,email,role,userId:actor.userId,roles:[role]});
   }
-  const extraGrant=async(actor:typeof f.claimant,role:keyof typeof businessRoles)=>{const id=await f.grant(actor,role);await env.H001_DB.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(businessRoles[role]),id).run();return id;};
+  const extraGrant=async(actor:typeof f.claimant,role:keyof typeof businessRoles|'holding_owner')=>{const id=await f.grant(actor,role);const modules=role==='holding_owner'?moduleRegistry.map(m=>m.id):businessRoles[role];await env.H001_DB.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(modules),id).run();return id;};
   const employeeActor={...f.claimant,role:'employee',assignmentId:await extraGrant(f.claimant,'employee')};
   await extraGrant(f.head,'people_manager');
   await extraGrant(f.payer,'hr_admin');users.find(user=>user.userId===f.payer.userId)!.roles.push('hr_admin');
+  await extraGrant(f.payer,'holding_owner');users.find(user=>user.userId===f.payer.userId)!.roles.push('holding_owner');
   await extraGrant(f.it,'purchasing_operator');
   await extraGrant(f.it,'warehouse_manager');
   await extraGrant(f.tie,'purchasing_manager');

@@ -80,7 +80,7 @@ const delivery: Record<string, ModuleDelivery> = {
         service: "src/server/account-access.ts",
         schema: "migrations/postgres/control/0012_account_invitation_delivery.sql",
         test: "tests/account-invitation-delivery.test.ts",
-        gap: "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence; password reset invalidates every session. A live Resend run, independent public multi-session activation/recovery and business acceptance remain.",
+        gap: "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence; the isolated Demo browser journey now covers independent approval, one-time activation, branch-scoped sign-in and immediate revocation. A live Resend run, independent public multi-session activation/recovery and business acceptance remain.",
       },
       "access-reviews": {
         status: "flow_accepted",
@@ -92,7 +92,7 @@ const delivery: Record<string, ModuleDelivery> = {
         service: "src/server/account-recovery.ts",
         schema: "migrations/postgres/control/0014_account_recovery_delivery.sql",
         test: "tests/account-recovery.test.ts",
-        gap: "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence; password reset invalidates every session. A live Resend run, independent public multi-session activation/recovery and business acceptance remain.",
+        gap: "Reviewed employee invitations and password recovery now use durable delivery queues with lease recovery, bounded retry, cancellation and immutable evidence; the isolated Demo browser journey now covers independent approval, one-time activation, branch-scoped sign-in and immediate revocation. A live Resend run, independent public multi-session activation/recovery and business acceptance remain.",
       },
       "feature-roles-permissions": { status: "flow_accepted" },
       "feature-directory-connectors": {

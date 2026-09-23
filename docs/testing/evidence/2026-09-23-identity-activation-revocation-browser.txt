@@ -1,0 +1,16 @@
+ERPX Identity & Access browser acceptance evidence
+Observed: 2026-09-23 Asia/Bangkok
+Environment: isolated Demo Company browser simulation (run 750bab216c79), http://127.0.0.1:3102
+Test: tests/e2e/demo-identity-activation-revocation.spec.ts
+Result: 1 passed in 26.5s
+
+Proof:
+- Holding owner created a disposable onboarding employee through the real People interface and created a one-time activation link with a 48-hour expiry notice.
+- An independent Demo holding owner reviewer used the real IAM review page and fresh MFA to approve `invitation.authorize` before activation.
+- The invited employee used the link, set a password, signed in, and reached the branch-scoped workspace home after reload.
+- The owner revoked the role; the same session was redirected to `/work-role` and displayed `No active roles are available. Ask an administrator to review your access.`
+- The run used separate owner, reviewer, and invitee browser contexts and was destroyed after verification.
+
+Scope limits:
+- This is isolated Demo Company evidence, not live email-provider, production, statutory, or Company business acceptance.
+- Recovery, directory-provider enforcement, and broader joiner/mover/leaver workflows remain separate acceptance gates.

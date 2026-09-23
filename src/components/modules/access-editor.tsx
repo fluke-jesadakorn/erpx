@@ -27,6 +27,7 @@ export function AccessEditor({
     attempt = useRef<{ payload: string; key: string } | null>(null);
   const [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
+    [activationLink, setActivationLink] = useState(""),
     [pending, setPending] = useState(false),
     [role, setRole] = useState("employee");
   async function send(action: string, input: unknown) {
@@ -48,11 +49,16 @@ export function AccessEditor({
         },
       );
       const v = (await r.json()) as {
-        data: { token?: string;message?:string };
+        data: { token?: string; message?: string };
         error?: { message: string };
       };
       if (!r.ok) throw Error(v.error?.message ?? "Unable to update access.");
-      if(v.data.message)setNotice(v.data.message);
+      if (v.data.message) setNotice(v.data.message);
+      if (v.data.token) {
+        setActivationLink(
+          `${window.location.origin}/activate?token=${encodeURIComponent(v.data.token)}`,
+        );
+      }
       attempt.current = null;
       router.refresh();
     } catch (e) {
@@ -141,12 +147,30 @@ export function AccessEditor({
               <input name="expiresAt" type="date" required />
             </label>
             <button className="button" disabled={pending}>
-              {hasAccount ? "Grant role" : "Prepare invitation"}
+              {hasAccount ? "Grant role" : "Create activation link"}
             </button>
           </form>
         </details>
       )}
       {notice && <p role="status">{notice}</p>}
+      {activationLink && !hasAccount && (
+        <div className="card">
+          <label>
+            Activation link (expires in 48 hours)
+            <input
+              value={activationLink}
+              readOnly
+              aria-describedby="activation-link-help"
+              onFocus={(event) => event.currentTarget.select()}
+            />
+          </label>
+          <p id="activation-link-help" className="muted">
+            Copy this link into the approved sandbox mailbox or share it with
+            the invited employee after independent access approval. It can be
+            used only once and remains subject to the recorded review.
+          </p>
+        </div>
+      )}
       {canRevokeCompany &&
         userId &&
         assignments.some((a) => a.access_status === "active") && (

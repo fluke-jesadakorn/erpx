@@ -322,7 +322,7 @@ export async function iamOverview(
     ? (
         await db
           .prepare(
-            `SELECT * FROM iam_reviews WHERE company_id=? AND (? OR created_by=? OR (? AND kind IN ('assignment.grant','mapping.activate','policy.grant') AND (payload->>'scopeNodeId'=? OR ${actor.platform ? "false AND ?::text IS NULL AND ?::text IS NULL" : "payload->>'scopeNodeId' IN (SELECT id FROM organization_nodes WHERE company_id=? AND branch_id=?)"}))) ORDER BY created_at DESC LIMIT 100`,
+            `SELECT * FROM iam_reviews WHERE company_id=? AND (? OR created_by=? OR (? AND kind IN ('assignment.grant','invitation.authorize','mapping.activate','policy.grant') AND (payload->>'scopeNodeId'=? OR ${actor.platform ? "false AND ?::text IS NULL AND ?::text IS NULL" : "payload->>'scopeNodeId' IN (SELECT id FROM organization_nodes WHERE company_id=? AND branch_id=?)"}))) ORDER BY created_at DESC LIMIT 100`,
           )
           .bind(
             actor.companyId,

@@ -324,7 +324,7 @@ export function PeopleEditor({
       )}
       {person && (
         <div className="form-actions">
-          {(!lifecycleManaged || person.status === "archived") && <button
+          {(!lifecycleManaged || person.status === "archived" || person.engagement_status === "onboarding") && <button
             className="button secondary"
             disabled={pending || !ready}
             onClick={() =>
