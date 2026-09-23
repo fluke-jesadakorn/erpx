@@ -183,6 +183,8 @@ test("cashier records an external tax reference and independent Finance verifies
     await page.getByLabel("Verified external issuer").fill("Fictional hotel tax desk");
     await page.getByRole("textbox",{name:"Document reference",exact:true}).fill(reference);
     await page.getByLabel("Issue date").fill("2026-09-23");
+    await page.getByLabel("External document total").fill("42.80");
+    await page.getByLabel("External document tax").fill("2.80");
     await page.getByLabel("Evidence note").fill("Checked against sample paper invoice");
     await page.getByRole("button",{name:"Record reference for Finance review"}).click();
     await expect(page.getByText(`Fictional hotel tax desk · ${reference}`)).toBeVisible();

@@ -46,7 +46,7 @@ describe('POS committed business flows',()=>{
   const invoiceId=String((await one(db,'SELECT invoice_id FROM pos_sales WHERE id=?',sale))!.invoice_id);
   await expect(taxDocumentView({...actor,companyId:'another-company'},invoiceId)).rejects.toMatchObject({code:'TAX_DOCUMENT_INVOICE_NOT_FOUND'});
   await expect(taxDocumentView({...actor,branchId:'another-branch'},invoiceId)).rejects.toMatchObject({code:'TAX_DOCUMENT_INVOICE_NOT_FOUND'});
-  const input={action:'record' as const,invoiceId,issuer:'Fictional hotel tax desk',externalReference:'TAX-0001',issuedOn:'2026-09-23',reason:'Matched to paper tax invoice'};
+  const input={action:'record' as const,invoiceId,issuer:'Fictional hotel tax desk',externalReference:'TAX-0001',issuedOn:'2026-09-23',documentTotalMinor:10700,documentTaxMinor:700,reason:'Matched to paper tax invoice'};
   const saved=await taxDocumentCommand(actor,input,'tax-document-record-0001');
   expect(await taxDocumentCommand(actor,input,'tax-document-record-0001')).toEqual(saved);
   expect((await taxDocumentView(actor,invoiceId)).documents).toMatchObject([{id:saved.id,state:'recorded',total_minor:10700,tax_minor:700}]);
@@ -57,8 +57,11 @@ describe('POS committed business flows',()=>{
   await run(db,'UPDATE finance_invoices SET tax_minor=700 WHERE id=?',invoiceId);
   expect(await taxDocumentCommand(manager,{action:'verify',invoiceId,documentId:saved.id,expectedVersion:1},'tax-document-reviewed')).toMatchObject({state:'verified',version:2});
   expect(await taxDocumentCommand(manager,{action:'void',invoiceId,documentId:saved.id,expectedVersion:2,reason:'Issuer voided paper original'},'tax-document-voided')).toMatchObject({state:'voided',version:3});
-  const replacement=await taxDocumentCommand(actor,{...input,externalReference:'TAX-0002',reason:'Replacement paper invoice'},'tax-document-replacement');
-  expect((await taxDocumentView(actor,invoiceId)).documents).toEqual(expect.arrayContaining([expect.objectContaining({id:replacement.id,state:'recorded'}),expect.objectContaining({id:saved.id,state:'voided'})]));
+  const replacement=await taxDocumentCommand(actor,{...input,externalReference:'TAX-0002',documentTaxMinor:600,reason:'Replacement paper invoice has wrong tax'},'tax-document-replacement');
+  await expect(taxDocumentCommand(manager,{action:'verify',invoiceId,documentId:replacement.id,expectedVersion:1},'tax-document-external-mismatch')).rejects.toMatchObject({code:'INVOICE_CHANGED'});
+  await taxDocumentCommand(manager,{action:'void',invoiceId,documentId:replacement.id,expectedVersion:1,reason:'External tax amount incorrect'},'tax-document-mismatch-void');
+  const corrected=await taxDocumentCommand(actor,{...input,externalReference:'TAX-0003',reason:'Corrected paper invoice'},'tax-document-corrected');
+  expect((await taxDocumentView(actor,invoiceId)).documents).toEqual(expect.arrayContaining([expect.objectContaining({id:corrected.id,state:'recorded'}),expect.objectContaining({id:replacement.id,state:'voided'}),expect.objectContaining({id:saved.id,state:'voided'})]));
  });
  it('keeps company pilot rollout separate from setup, access, and production evidence',async()=>{
   const {companyFeatureCatalogue,changeCompanyFeatureRollout,assertProductionFeatureRoute}=await import('../src/server/hospitality-rollout');

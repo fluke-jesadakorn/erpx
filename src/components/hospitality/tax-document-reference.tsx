@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { workFetch } from '@/lib/work-fetch';
 
-type Document={id:string;issuer:string;external_reference:string;issued_on:string;state:string;version:number;recorded_by:string;verified_by:string|null;reason:string};
+type Document={id:string;issuer:string;external_reference:string;issued_on:string;document_total_minor:number|null;document_tax_minor:number|null;state:string;version:number;recorded_by:string;verified_by:string|null;reason:string};
 type View={invoice:{id:string;currency:string;totalMinor:number;taxMinor:number};documents:Document[];canRecord:boolean;canReview:boolean;userId:string};
 
 export function TaxDocumentReference({base,invoiceId}:{base:string;invoiceId:string}) {
@@ -44,12 +44,16 @@ export function TaxDocumentReference({base,invoiceId}:{base:string;invoiceId:str
     {view&&<>
       <p>Accounting total {(view.invoice.totalMinor/100).toFixed(2)} {view.invoice.currency} · Tax {(view.invoice.taxMinor/100).toFixed(2)} {view.invoice.currency}</p>
       {active?<div><strong>{active.issuer} · {active.external_reference}</strong><p>Issued {active.issued_on} · {active.state}</p>
+        <p>External document total {active.document_total_minor===null?'Not recorded':(active.document_total_minor/100).toFixed(2)} {view.invoice.currency} · Tax {active.document_tax_minor===null?'Not recorded':(active.document_tax_minor/100).toFixed(2)} {view.invoice.currency}</p>
+        {(active.document_total_minor!==view.invoice.totalMinor || active.document_tax_minor!==view.invoice.taxMinor)&&<p role="alert">External document figures do not match this invoice. Finance cannot verify this reference.</p>}
         {active.state==='recorded'&&view.canReview&&active.recorded_by!==view.userId&&<button type="button" disabled={busy} onClick={()=>void submit({action:'verify',invoiceId,documentId:active.id,expectedVersion:active.version})}>Finance: verify reference</button>}
         {view.canReview&&<form onSubmit={(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const fields=new FormData(event.currentTarget);void submit({action:'void',invoiceId,documentId:active.id,expectedVersion:active.version,reason:String(fields.get('reason')??'')});}}><label>Correction or void reason <input name="reason" minLength={3} maxLength={500} required/></label><button type="submit" disabled={busy}>Void reference</button></form>}
-      </div>:view.canRecord?<form onSubmit={(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const fields=new FormData(event.currentTarget);void submit({action:'record',invoiceId,issuer:String(fields.get('issuer')??''),externalReference:String(fields.get('reference')??''),issuedOn:String(fields.get('issuedOn')??''),reason:String(fields.get('reason')??'')});}}>
+      </div>:view.canRecord?<form onSubmit={(event:FormEvent<HTMLFormElement>)=>{event.preventDefault();const fields=new FormData(event.currentTarget);void submit({action:'record',invoiceId,issuer:String(fields.get('issuer')??''),externalReference:String(fields.get('reference')??''),issuedOn:String(fields.get('issuedOn')??''),documentTotalMinor:Math.round(Number(fields.get('documentTotal'))*100),documentTaxMinor:Math.round(Number(fields.get('documentTax'))*100),reason:String(fields.get('reason')??'')});}}>
         <label>Verified external issuer <input name="issuer" minLength={2} maxLength={160} required/></label>
         <label>Document reference <input name="reference" minLength={2} maxLength={100} required/></label>
         <label>Issue date <input name="issuedOn" type="date" required/></label>
+        <label>External document total <input name="documentTotal" type="number" min="0" step="0.01" required/></label>
+        <label>External document tax <input name="documentTax" type="number" min="0" step="0.01" required/></label>
         <label>Evidence note <input name="reason" minLength={3} maxLength={500} required/></label>
         <button type="submit" disabled={busy}>Record reference for Finance review</button>
       </form>:<p>No external document reference recorded.</p>}

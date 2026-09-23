@@ -11,13 +11,13 @@ import type { SqlDatabase } from './runtime/types';
 
 const id = z.string().uuid();
 export const taxDocumentCommandSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('record'), invoiceId: id, issuer: z.string().trim().min(2).max(160), externalReference: z.string().trim().min(2).max(100), issuedOn: z.iso.date(), reason: z.string().trim().min(3).max(500) }),
+  z.object({ action: z.literal('record'), invoiceId: id, issuer: z.string().trim().min(2).max(160), externalReference: z.string().trim().min(2).max(100), issuedOn: z.iso.date(), documentTotalMinor:z.number().int().nonnegative(), documentTaxMinor:z.number().int().nonnegative(), reason: z.string().trim().min(3).max(500) }).refine(value=>value.documentTaxMinor<=value.documentTotalMinor,{message:'Document tax cannot exceed its total.'}),
   z.object({ action: z.literal('verify'), invoiceId: id, documentId: id, expectedVersion: z.number().int().positive() }),
   z.object({ action: z.literal('void'), invoiceId: id, documentId: id, expectedVersion: z.number().int().positive(), reason: z.string().trim().min(3).max(500) }),
 ]);
 export type TaxDocumentCommand = z.infer<typeof taxDocumentCommandSchema>;
 type Invoice = { id:string; company_id:string; source_type:string; source_id:string; currency:string; total_minor:number; tax_minor:number; status:string; branch_id:string | null };
-type Document = { id:string; company_id:string; invoice_id:string; source_type:string; issuer:string; external_reference:string; issued_on:string; currency:string; total_minor:number; tax_minor:number; state:string; version:number; recorded_by:string; verified_by:string|null; voided_by:string|null; reason:string; created_at:number; updated_at:number };
+type Document = { id:string; company_id:string; invoice_id:string; source_type:string; issuer:string; external_reference:string; issued_on:string; currency:string; total_minor:number; tax_minor:number; document_total_minor:number|null; document_tax_minor:number|null; state:string; version:number; recorded_by:string; verified_by:string|null; voided_by:string|null; reason:string; created_at:number; updated_at:number };
 
 async function invoiceFor(db:SqlDatabase, actor:WorkContext, invoiceId:string):Promise<Invoice> {
   const row=await db.prepare(`SELECT i.id,i.company_id,i.source_type,i.source_id,i.currency,i.total_minor,i.tax_minor,i.status,
@@ -67,8 +67,8 @@ export async function taxDocumentCommand(actor:WorkContext, command:TaxDocumentC
     const result={id:documentId,state:'recorded',version:1};
     return executeCommand(db,actor,key,operation,command,recordId,1,result,[
       assertion(db,key,'invoice-current',`EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=? AND source_type=? AND currency=? AND total_minor=? AND tax_minor=? AND status IN ('posted','partially_paid','paid'))`,[invoice.id,actor.companyId,invoice.source_type,invoice.currency,invoice.total_minor,invoice.tax_minor]),
-      db.prepare(`INSERT INTO hospitality_tax_documents(id,company_id,invoice_id,source_type,issuer,external_reference,issued_on,currency,total_minor,tax_minor,state,version,recorded_by,reason,created_at,updated_at)
-        VALUES(?,?,?,?,?,?,?,?,?,?,'recorded',1,?,?,?,?)`).bind(documentId,actor.companyId,invoice.id,invoice.source_type,command.issuer,command.externalReference,command.issuedOn,invoice.currency,invoice.total_minor,invoice.tax_minor,actor.userId,command.reason,now,now),
+      db.prepare(`INSERT INTO hospitality_tax_documents(id,company_id,invoice_id,source_type,issuer,external_reference,issued_on,currency,total_minor,tax_minor,document_total_minor,document_tax_minor,state,version,recorded_by,reason,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,'recorded',1,?,?,?,?)`).bind(documentId,actor.companyId,invoice.id,invoice.source_type,command.issuer,command.externalReference,command.issuedOn,invoice.currency,invoice.total_minor,invoice.tax_minor,command.documentTotalMinor,command.documentTaxMinor,actor.userId,command.reason,now,now),
     ]);
   }
   requireReviewer(actor);
@@ -77,7 +77,7 @@ export async function taxDocumentCommand(actor:WorkContext, command:TaxDocumentC
   if (doc.version!==command.expectedVersion) throw new ApiError(409,'STALE_DOCUMENT','Document reference changed. Reload and review again.');
   if (command.action==='verify') {
     if (doc.state!=='recorded' || doc.recorded_by===actor.userId) throw new ApiError(409,'INDEPENDENT_REVIEW_REQUIRED','A different Finance approver must verify a recorded reference.');
-    if (doc.currency!==invoice.currency || Number(doc.total_minor)!==Number(invoice.total_minor) || Number(doc.tax_minor)!==Number(invoice.tax_minor) || invoice.status==='voided')
+    if (doc.currency!==invoice.currency || Number(doc.total_minor)!==Number(invoice.total_minor) || Number(doc.tax_minor)!==Number(invoice.tax_minor) || doc.document_total_minor===null || doc.document_tax_minor===null || Number(doc.document_total_minor)!==Number(invoice.total_minor) || Number(doc.document_tax_minor)!==Number(invoice.tax_minor) || invoice.status==='voided')
       throw new ApiError(409,'INVOICE_CHANGED','Invoice amount, tax, currency, or status changed. Review the source before verifying.');
   } else if (doc.state==='voided') throw new ApiError(409,'ALREADY_VOIDED','This reference was already voided.');
   const next=doc.version+1,now=Date.now(),state=command.action==='verify'?'verified':'voided';
