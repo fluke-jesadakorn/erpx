@@ -25,7 +25,7 @@ export const businessRoles = {
   payroll_preparer: ["people_payroll"],
   payroll_approver: ["people_payroll"],
   finance_preparer: ["finance"],
-  finance_approver: ["finance"],
+  finance_approver: ["finance", "pms"],
   treasury: ["finance", "people_payroll"],
   sales_operator: ["sales", "crm", "customer_360", "inventory", "support"],
   sales_manager: ["sales", "crm", "customer_360", "inventory", "support"],

@@ -49,6 +49,14 @@ type PropertyRow = {
   config_json: string;
   version: number;
 };
+type TransferRequestRow = {
+  id:string; company_id:string; property_id:string; folio_id:string; shift_id:string;
+  kind:'receipt'|'deposit'; business_date:string; currency:string; amount_minor:number;
+  reference:string; state:'pending'|'verified'|'cancelled'; version:number;
+  recorded_by:string; bank_transaction_id:string|null; entry_id:string|null;
+  finance_payment_id:string|null;
+  created_at:number; updated_at:number;
+};
 const query = async <T>(db: SqlDatabase, sql: string, ...values: unknown[]) =>
   (
     await db
@@ -137,6 +145,7 @@ export const pmsPermissions = [
   "pms.accounting.prepare",
   "pms.accounting.approve",
   "pms.reports",
+  "finance.approve",
 ] as const;
 function visibleSnapshot(s: Snapshot, actor: WorkContext): Snapshot {
   const result = structuredClone(s);
@@ -337,6 +346,15 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
             s.property.id,
           )
         : [],
+    transferRequests: s && (hasPermission(actor,'pms.cashier') || hasPermission(actor,'finance.approve'))
+      ? await query<TransferRequestRow>(write,"SELECT * FROM pms_transfer_requests WHERE company_id=? AND property_id=? ORDER BY created_at DESC LIMIT 100",actor.companyId,s.property.id)
+      : [],
+    transferBankEvidence: s && hasPermission(actor,'finance.approve')
+      ? await query<{id:string;transaction_date:string;external_id:string;amount_minor:number;currency:string;version:number}>(write,`SELECT t.id,t.transaction_date,t.external_id,t.amount_minor,t.currency,t.version
+        FROM finance_bank_transactions t JOIN finance_bank_statements b ON b.id=t.statement_id
+        WHERE t.company_id=? AND b.bank_account=? AND t.currency=? AND t.amount_minor>0 AND t.match_status IN ('unmatched','proposed')
+        ORDER BY t.transaction_date DESC,t.id LIMIT 100`,actor.companyId,s.property.config.accounts.bank,s.property.config.currency)
+      : [],
     defaultDate: new Intl.DateTimeFormat("en-CA", {
       timeZone: "Asia/Bangkok",
       year: "numeric",
@@ -353,7 +371,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     snapshot: s ? visibleSnapshot(s, actor) : null,
     readiness: s ? readiness(s) : [],
     permissions: pmsPermissions.filter((k) => hasPermission(actor, k)),
-    availablePaymentMethods: process.env.NODE_ENV === 'production' ? ['cash'] : ['cash','transfer','edc'],
+    availablePaymentMethods: ['cash'],
     userId: actor.userId,
     branches,
     staff,
@@ -678,7 +696,7 @@ async function document(
       p.businessDate,
       c.currency,
       doc.amount,
-      item.reference,
+      item.method==='transfer'?c.accounts.bank:item.method==='cash'?c.accounts.cash:c.accounts.edc,
       posting?.journal_id ?? null,
       actor.userId,
       actor.userId,
@@ -968,6 +986,53 @@ export async function pmsCommand(
             "Hotel data changed. Load the latest version and review again",
           );
       }
+      if (op === 'payment.request_transfer') {
+        if (s.property.state !== 'open') throw new ApiError(409,'PMS_DAY_CLOSING','The hotel day is not open for a new transfer');
+        const v=z.object({folioId:idField,shiftId:idField,amount:z.number().int().positive().max(99999999999),reference:z.string().trim().min(2).max(150),kind:z.enum(['receipt','deposit']).default('receipt')}).parse(command.input);
+        const folio=records(s,'folio').find(row=>row.id===v.folioId);
+        if (!folio || folio.data.state==='closed' || folio.data.invoiceId) throw new ApiError(409,'PMS_FOLIO_CLOSED','The selected folio cannot receive a transfer');
+        const shift=records(s,'shift').find(row=>row.id===v.shiftId);
+        if (!shift || shift.data.state!=='open' || shift.data.userId!==actor.userId || shift.data.date!==s.property.businessDate)
+          throw new ApiError(409,'PMS_SHIFT_REQUIRED','Open your hotel cashier shift before recording a transfer');
+        const id=randomUUID(),now=Date.now();
+        const result={id,propertyId:s.property.id,version:s.property.version,state:'pending',transferVersion:1};
+        return executeCommand(tx,actor,key,`pms.${op}`,command,target,s.property.version,result,[
+          tx.prepare(`INSERT INTO pms_transfer_requests(id,company_id,property_id,folio_id,shift_id,kind,business_date,currency,amount_minor,reference,state,recorded_by,created_at,updated_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,'pending',?,?,?)`).bind(id,actor.companyId,s.property.id,v.folioId,v.shiftId,v.kind,s.property.businessDate,s.property.config.currency,v.amount,v.reference,actor.userId,now,now),
+        ],{companyId:s.property.companyId,branchId:s.property.branchId,departmentId:null});
+      }
+      if (op === 'payment.cancel_transfer') {
+        const v=z.object({id:idField,expectedTransferVersion:z.number().int().positive()}).parse(command.input);
+        const row=await tx.prepare('SELECT * FROM pms_transfer_requests WHERE id=? AND company_id=? AND property_id=? FOR UPDATE').bind(v.id,actor.companyId,s.property.id).first<TransferRequestRow>();
+        if (!row) throw new ApiError(404,'PMS_TRANSFER_NOT_FOUND','Transfer request not found in this hotel');
+        if (Number(row.version)!==v.expectedTransferVersion || row.state!=='pending') throw new ApiError(409,'PMS_TRANSFER_CHANGED','Transfer state changed. Reload before cancelling');
+        if (row.recorded_by!==actor.userId && !hasPermission(actor,'pms.approve')) throw new ApiError(403,'PMS_TRANSFER_OWNER','Only the recording cashier or a hotel manager can cancel this request');
+        const result={id:row.id,propertyId:s.property.id,version:s.property.version,state:'cancelled',transferVersion:Number(row.version)+1};
+        return executeCommand(tx,actor,key,`pms.${op}`,command,target,s.property.version,result,[
+          tx.prepare("UPDATE pms_transfer_requests SET state='cancelled',cancelled_by=?,version=version+1,updated_at=? WHERE id=? AND state='pending' AND version=?").bind(actor.userId,Date.now(),row.id,row.version),
+        ],{companyId:s.property.companyId,branchId:s.property.branchId,departmentId:null});
+      }
+      let verifiedTransfer:TransferRequestRow|null=null;
+      let matchedBankId:string|null=null;
+      let engineOp=op,engineInput=command.input;
+      if (op === 'payment.verify_transfer') {
+        if (s.property.state!=='open') throw new ApiError(409,'PMS_DAY_CLOSING','The hotel day must be open to verify a transfer');
+        const v=z.object({id:idField,expectedTransferVersion:z.number().int().positive(),bankTransactionId:idField,bankVersion:z.number().int().positive()}).parse(command.input);
+        const row=await tx.prepare('SELECT * FROM pms_transfer_requests WHERE id=? AND company_id=? AND property_id=? FOR UPDATE').bind(v.id,actor.companyId,s.property.id).first<TransferRequestRow>();
+        if (!row) throw new ApiError(404,'PMS_TRANSFER_NOT_FOUND','Transfer request not found in this hotel');
+        if (Number(row.version)!==v.expectedTransferVersion || row.state!=='pending') throw new ApiError(409,'PMS_TRANSFER_CHANGED','Transfer state changed. Reload before verifying');
+        if (samePerson(actor,row.recorded_by)) throw new ApiError(403,'PMS_INDEPENDENT_VERIFICATION','A different Finance user must verify the bank transfer');
+        const bank=await tx.prepare(`SELECT t.*,b.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements b ON b.id=t.statement_id
+          WHERE t.id=? AND t.company_id=? FOR UPDATE OF t`).bind(v.bankTransactionId,actor.companyId).first<{id:string;version:number;match_status:string;bank_account:string;currency:string;amount_minor:number;external_id:string;transaction_date:string}>();
+        if (!bank || Number(bank.version)!==v.bankVersion || !['unmatched','proposed'].includes(bank.match_status)
+          || bank.bank_account!==s.property.config.accounts.bank || bank.currency!==row.currency
+          || Number(bank.amount_minor)!==Number(row.amount_minor) || bank.external_id.trim()!==row.reference
+          || bank.transaction_date!==row.business_date || s.property.businessDate!==row.business_date)
+          throw new ApiError(409,'PMS_BANK_EVIDENCE_MISMATCH','Match the exact imported bank account, reference, business date, currency, and amount');
+        verifiedTransfer=row;matchedBankId=bank.id;
+        engineOp=row.kind==='deposit'?'payment.deposit':'payment.receive';
+        engineInput={folioId:row.folio_id,shiftId:row.shift_id,amount:Number(row.amount_minor),method:'transfer',reference:row.reference};
+      }
       if(op==='night.start') {
         const controls=await hospitalityDayControls(tx,actor.companyId,s.property.branchId,s.property.id,s.property.businessDate);
         if(controls.blockers.length) throw new ApiError(409,'PMS_DAY_RECONCILIATION_BLOCKED',controls.blockers.join(' · '));
@@ -984,11 +1049,12 @@ export async function pmsCommand(
                 sources: [],
               } as Effects,
             }
-          : executePms(s, op, command.input, {
+          : executePms(s, engineOp, engineInput, {
               userId: actor.userId,
               now: Date.now(),
               uuid: randomUUID,
               independent: (other) => !samePerson(actor, other),
+              verifiedBank:Boolean(verifiedTransfer),
             });
       if (op === "booking.save" && s.property.config.booking?.published) {
         if (!process.env.RESEND_API_KEY || !process.env.RESEND_FROM)
@@ -1038,6 +1104,12 @@ export async function pmsCommand(
         );
       }
       await effects(tx, actor, s, outcome.effects);
+      if (verifiedTransfer && matchedBankId) {
+        const receipt=outcome.effects.documents.find(doc=>doc.kind==='receipt' && doc.entryId===outcome.id);
+        if (!receipt) throw new ApiError(409,'PMS_RECEIPT_MISSING','The verified transfer did not produce a receipt');
+        await run(tx,"UPDATE pms_transfer_requests SET state='verified',verified_by=?,bank_transaction_id=?,entry_id=?,finance_payment_id=?,version=version+1,updated_at=? WHERE id=? AND state='pending'",actor.userId,matchedBankId,outcome.id,receipt.id,Date.now(),verifiedTransfer.id);
+        await run(tx,"UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=? AND match_status IN ('unmatched','proposed')",receipt.id,matchedBankId);
+      }
       await run(
         tx,
         "UPDATE pms_properties SET name=?,business_date=?,state=?,config_json=?,version=?,updated_at=? WHERE id=?",
@@ -1067,11 +1139,9 @@ export async function pmsCommand(
           Date.now(),
           outcome.id,
         );
-      const result = {
-        id: outcome.id,
-        propertyId: s.property.id,
-        version: s.property.version,
-      };
+      const result = verifiedTransfer
+        ? {id:verifiedTransfer.id,propertyId:s.property.id,version:s.property.version,state:'verified',transferVersion:Number(verifiedTransfer.version)+1,entryId:outcome.id,bankTransactionId:matchedBankId}
+        : {id:outcome.id,propertyId:s.property.id,version:s.property.version};
       return executeCommand(
         tx,
         actor,
@@ -1169,6 +1239,30 @@ export async function pmsWork(actor: WorkContext): Promise<WorkItem[]> {
   const items: WorkItem[] = [];
   for (const row of properties) {
     const s = await loadPms(write, actor, row.id);
+    if (hasPermission(actor, "finance.approve")) {
+      const pendingTransfers = await query<TransferRequestRow>(
+        write,
+        "SELECT * FROM pms_transfer_requests WHERE company_id=? AND property_id=? AND state='pending' ORDER BY created_at",
+        actor.companyId,
+        row.id,
+      );
+      for (const transfer of pendingTransfers) {
+        if (samePerson(actor, transfer.recorded_by)) continue;
+        items.push({
+          id: transfer.id,
+          type: "pms",
+          title: `${row.name} · Verify hotel bank transfer`,
+          detail: `${transfer.currency} ${(Number(transfer.amount_minor) / 100).toFixed(2)} · ${transfer.reference}`,
+          href: `/pms/folios?property=${row.id}`,
+          status: "pending",
+          updatedAt: Number(transfer.updated_at),
+          queue: "todo",
+          responsibleQueue: "Finance approver",
+          nextAction: "Match imported bank evidence to this hotel transfer",
+          relationships: ["approval"],
+        });
+      }
+    }
     for (const r of records(s, "task"))
       if (
         !["done", "superseded"].includes(r.data.state) &&

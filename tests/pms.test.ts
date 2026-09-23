@@ -2,7 +2,7 @@ import { prepareRoomCharge } from "../src/lib/pms-room-charge";
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "./runtime-env";
 import { seedExpenseCompany } from "../fixtures/expenses/company";
-import { pmsCommand, loadPms, drainPms, pmsWorkspace } from "../src/server/pms";
+import { pmsCommand, loadPms, drainPms, pmsWorkspace, pmsWork } from "../src/server/pms";
 import {
   records,
   record,
@@ -174,6 +174,86 @@ it("does not settle a production hotel transfer from a typed reference alone", a
   expect(records(after, "entry").length).toBe(records(before, "entry").length);
   expect(await balance(accounts.bank)).toBe(accountBalance);
   await expect(pmsCommand(db, owner, { ...request, input: { folioId: booking.folioId, amount: 10700, method: "cash", shiftId: shift } }, key())).resolves.toMatchObject({ propertyId });
+});
+
+it("settles a pending hotel transfer only after independent exact bank evidence", async () => {
+  const booking=await book();
+  await checkIn(booking.stayId);
+  const shift=(await cmd("shift.open",{name:"AM",opening:0})).id;
+  const {changeCompanyFeatureRollout}=await import("../src/server/hospitality-rollout");
+  await changeCompanyFeatureRollout(owner,{moduleId:"pms",state:"pilot",expectedVersion:0,reason:"Hotel transfer pilot rehearsal"},key());
+  vi.stubEnv("NODE_ENV","production");
+  const initial=await snapshot();
+  const request={propertyId,expectedVersion:initial.property.version,operation:"payment.request_transfer",input:{folioId:booking.folioId,shiftId:shift,amount:10700,reference:"PMS-BANK-001"}};
+  const requestKey=key();
+  const pending=await pmsCommand(db,owner,request,requestKey);
+  expect(pending).toMatchObject({state:"pending",transferVersion:1});
+  expect(await pmsCommand(db,owner,request,requestKey)).toEqual(pending);
+  expect((await snapshot()).property.version).toBe(initial.property.version);
+  expect(await balance(accounts.bank)).toBe(0);
+  const {hospitalityDayControls}=await import("../src/server/hospitality-day-controls");
+  const controls=await hospitalityDayControls(db,f.company,f.branch,propertyId,initial.property.businessDate);
+  expect(controls.pendingHotelTransfers).toBe(1);
+  expect(controls.blockers).toContain("1 hotel bank transfer(s) awaiting Finance verification");
+  expect((await pmsWork(reviewer)).find((item) => item.id === pending.id)).toMatchObject({
+    queue: "todo",
+    responsibleQueue: "Finance approver",
+    nextAction: "Match imported bank evidence to this hotel transfer",
+  });
+  expect((await pmsWork(owner)).some((item) => item.id === pending.id)).toBe(false);
+  const statement=key(),bankId=key();
+  await db.prepare("INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,opening_minor,closing_minor,source_hash,imported_by,created_at) VALUES(?,?,?,?,?,0,10700,?,?,?)").bind(statement,f.company,accounts.bank,"PMS-STATEMENT-1",initial.property.businessDate,key(),reviewer.userId,Date.now()).run();
+  await db.prepare("INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,amount_minor,currency) VALUES(?,?,?,?,?,10600,'THB')").bind(bankId,statement,f.company,initial.property.businessDate,"PMS-BANK-001").run();
+  const verify={propertyId,expectedVersion:initial.property.version,operation:"payment.verify_transfer",input:{id:pending.id,expectedTransferVersion:1,bankTransactionId:bankId,bankVersion:1}};
+  await expect(pmsCommand(db,owner,verify,key())).rejects.toMatchObject({code:"PMS_INDEPENDENT_VERIFICATION"});
+  await expect(pmsCommand(db,reviewer,verify,key())).rejects.toMatchObject({code:"PMS_BANK_EVIDENCE_MISMATCH"});
+  expect(await balance(accounts.bank)).toBe(0);
+  await db.prepare("UPDATE finance_bank_transactions SET amount_minor=10700 WHERE id=?").bind(bankId).run();
+  for(const [sql,value,restore] of [
+    ["UPDATE finance_bank_transactions SET external_id=? WHERE id=?","WRONG-REFERENCE","PMS-BANK-001"],
+    ["UPDATE finance_bank_transactions SET currency=? WHERE id=?","USD","THB"],
+    ["UPDATE finance_bank_transactions SET transaction_date=? WHERE id=?","2026-09-02",initial.property.businessDate],
+  ] as const){
+    await db.prepare(sql).bind(value,bankId).run();
+    await expect(pmsCommand(db,reviewer,verify,key())).rejects.toMatchObject({code:"PMS_BANK_EVIDENCE_MISMATCH"});
+    await db.prepare(sql).bind(restore,bankId).run();
+  }
+  await db.prepare("UPDATE finance_bank_statements SET bank_account=? WHERE id=?").bind(accounts.cash,statement).run();
+  await expect(pmsCommand(db,reviewer,verify,key())).rejects.toMatchObject({code:"PMS_BANK_EVIDENCE_MISMATCH"});
+  await db.prepare("UPDATE finance_bank_statements SET bank_account=? WHERE id=?").bind(accounts.bank,statement).run();
+  const verifyKey=key();
+  const result=await pmsCommand(db,reviewer,verify,verifyKey);
+  expect(result).toMatchObject({id:pending.id,state:"verified",bankTransactionId:bankId,transferVersion:2});
+  expect(await pmsCommand(db,reviewer,verify,verifyKey)).toEqual(result);
+  const transfer=await db.prepare("SELECT state,entry_id,finance_payment_id,bank_transaction_id FROM pms_transfer_requests WHERE id=?").bind(pending.id).first<{state:string;entry_id:string;finance_payment_id:string;bank_transaction_id:string}>();
+  expect(transfer).toMatchObject({state:"verified",entry_id:result.entryId,bank_transaction_id:bankId});
+  const bank=await db.prepare("SELECT match_status,matched_type,matched_id FROM finance_bank_transactions WHERE id=?").bind(bankId).first();
+  expect(bank).toMatchObject({match_status:"matched",matched_type:"payment",matched_id:transfer!.finance_payment_id});
+  const payment=await db.prepare("SELECT bank_account,amount_minor,status FROM finance_payments WHERE id=?").bind(transfer!.finance_payment_id).first();
+  expect(payment).toMatchObject({bank_account:accounts.bank,status:"settled"});
+  expect(Number(payment!.amount_minor)).toBe(10700);
+  expect(await balance(accounts.bank)).toBe(10700);
+  expect(records(await snapshot(),"entry").filter(row=>row.id===result.entryId)).toHaveLength(1);
+});
+
+it("cancels an unverified hotel transfer without changing folio or ledger", async () => {
+  const booking=await book();
+  await checkIn(booking.stayId);
+  const shift=(await cmd("shift.open",{name:"AM",opening:0})).id;
+  const before=await snapshot();
+  const request={propertyId,expectedVersion:before.property.version,operation:"payment.request_transfer",input:{folioId:booking.folioId,shiftId:shift,amount:10700,reference:"PMS-CANCEL-001"}};
+  const pending=await pmsCommand(db,owner,request,key());
+  const cancel={propertyId,expectedVersion:before.property.version,operation:"payment.cancel_transfer",input:{id:pending.id,expectedTransferVersion:1}};
+  const cancelKey=key(),result=await pmsCommand(db,owner,cancel,cancelKey);
+  expect(result).toMatchObject({state:"cancelled",transferVersion:2});
+  expect(await pmsCommand(db,owner,cancel,cancelKey)).toEqual(result);
+  expect((await db.prepare("SELECT state FROM pms_transfer_requests WHERE id=?").bind(pending.id).first<{state:string}>())?.state).toBe("cancelled");
+  expect((await snapshot()).property.version).toBe(before.property.version);
+  expect(await balance(accounts.bank)).toBe(0);
+  expect(records(await snapshot(),"entry")).toHaveLength(records(before,"entry").length);
+  const retry=await pmsCommand(db,owner,request,key());
+  expect(retry).toMatchObject({state:"pending"});
+  expect(retry.id).not.toBe(pending.id);
 });
 
 it("completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue", async () => {

@@ -436,6 +436,7 @@ export const defaultConfig: Config = {
   revision: 1,
 };
 export const operationPermission = (op: string) =>
+  op === "payment.verify_transfer" ? "finance.approve" :
   op === "property.create" ||
   op === "property.save" ||
   op === "booking.save" ||

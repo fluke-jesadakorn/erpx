@@ -1442,6 +1442,34 @@ export function PmsWorkspaceView({
                             ],
                             { folioId: currentFolio.id },
                           )}
+                          {openShifts.length>0 && form(
+                            "Record bank transfer pending verification",
+                            "payment.request_transfer",
+                            [
+                              field("amount","Transfer amount","money",currentFolio.data.due/100),
+                              field("reference","Bank transfer reference"),
+                              select("kind","Transfer purpose",[{id:"receipt",name:"Room payment"},{id:"deposit",name:"Security deposit"}],"receipt"),
+                              select("shiftId","Cashier shift",openShifts,openShifts[0]?.id),
+                            ],
+                            {folioId:currentFolio.id},
+                          )}
+                          {data.transferRequests.filter(item=>item.folio_id===currentFolio.id).map(item=>{
+                            const bankChoices=data.transferBankEvidence.filter(bank=>bank.external_id===item.reference&&Number(bank.amount_minor)===Number(item.amount_minor)&&bank.currency===item.currency&&bank.transaction_date===item.business_date);
+                            return <article className={styles.record} key={item.id}>
+                              <strong>{money(Number(item.amount_minor))} · {item.reference}</strong> <Badge>{item.state}</Badge>
+                              <p>Bank transfer {item.state==='pending'?'recorded; no folio payment has posted':item.state==='verified'?'verified against imported bank evidence':'cancelled without a payment'}.</p>
+                              {item.state==='pending'&&<>
+                                {form("Cancel unverified reference","payment.cancel_transfer",[],{id:item.id,expectedTransferVersion:Number(item.version)})}
+                                {can("finance.approve")&&(bankChoices.length ? form(
+                                  "Finance: verify imported bank row",
+                                  "payment.verify_transfer",
+                                  [select("bankTransactionId","Imported bank row",bankChoices.map(bank=>({id:bank.id,name:`${bank.transaction_date} · ${bank.external_id} · ${money(Number(bank.amount_minor))}`})))],
+                                  {id:item.id,expectedTransferVersion:Number(item.version)},
+                                  value=>({...value,bankVersion:Number(bankChoices.find(bank=>bank.id===value.bankTransactionId)?.version??0)}),
+                                ):<p>No exact imported bank row is available. <Link href={`${base}/finance/bank`}>Review bank evidence in Finance</Link>.</p>)}
+                              </>}
+                            </article>;
+                          })}
                           {form(
                             "Add service charge",
                             "charge.add",

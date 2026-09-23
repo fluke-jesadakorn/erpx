@@ -79,6 +79,7 @@ export type EngineActor = {
   now: number;
   uuid: () => string;
   independent: (other: string) => boolean;
+  verifiedBank?: boolean;
 };
 export function executePms(
   s: Snapshot,
@@ -1462,7 +1463,7 @@ export function executePms(
         "Enter the transfer or EDC reference",
       );
       const f = openFolio(v.folioId),
-        sh = shift(v.shiftId);
+        sh = v.method === "transfer" && actor.verifiedBank ? get("shift", v.shiftId) : shift(v.shiftId);
       noRefund(f.id);
       const security = op === "payment.deposit";
       const e = entry(f.id, {

@@ -1,6 +1,6 @@
 # Riverside Lantern pilot example
 
-`pilot-example.json` is fictional THB setup data for the isolated hotel-and-restaurant browser demo. `bun run demo:prepare` creates Riverside Lantern as a second holding in disposable PostgreSQL databases, provisions ten independent staff accounts, and configures PMS and POS through their owner commands. `bun run demo:destroy -- <run>` removes only that run. The fixture is not an accountant-approved tax setup or evidence of production readiness.
+`pilot-example.json` is fictional THB setup data for the isolated hotel-and-restaurant browser demo. `bun run demo:prepare` creates Riverside Lantern as a second holding in disposable PostgreSQL databases, provisions eleven independent staff accounts, and configures PMS and POS through their owner commands. `bun run demo:destroy -- <run>` removes only that run. The fixture is not an accountant-approved tax setup or evidence of production readiness.
 
 The planned acceptance journey starts with the front desk reserving Standard room 101 for the example guest. Housekeeping completes an arrival task and an independent supervisor inspects it. The front desk assigns room 101 and checks the guest in. A cashier opens a restaurant bill, kitchen staff prepare and deliver basil chicken rice and tea, and the cashier selects the checked-in stay for a full-bill room charge. The POS sale consumes ingredients, while PMS owns one folio charge and one revenue posting. At checkout, hotel cashier and Finance settle the folio, compare the external tax-document reference and bank evidence, and let the night auditor resolve blockers before close.
 
@@ -14,6 +14,8 @@ The following alternatives must be exercised in a resettable run with independen
 | Closed folio or closing hotel day | Charge rejected without a partial transaction. |
 | Revoked cashier | Charge denied immediately. |
 | Bank-transfer reference without imported evidence | Pending payment; bill cannot complete. |
+| Hotel transfer reference without imported evidence | Pending hotel request; no folio payment or bank posting, and Night Audit remains blocked. |
+| Hotel transfer matched by a different Finance user to exact imported evidence | One PMS receipt, Finance payment and matched bank row; a retry returns the same result. |
 | Imported bank row with a wrong amount, currency, account, date, or reference | No settlement or match. |
 | Matched exact bank row, reviewed by another Finance user | One settled payment linked to one bank row; retry returns the same result. |
 | Restaurant return or correction after room charge | Linked folio reversal and POS/stock treatment are implemented; independent multi-role business acceptance is still required. |

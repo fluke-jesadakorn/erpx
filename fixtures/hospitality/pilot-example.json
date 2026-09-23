@@ -55,6 +55,7 @@
   },
   "demoActors": [
     { "key": "frontDesk", "role": "pms_frontdesk", "email": "frontdesk@riverside-lantern.example" },
+    { "key": "hotelCashier", "role": "pms_cashier", "email": "hotel-cashier@riverside-lantern.example" },
     { "key": "housekeeper", "role": "pms_housekeeping", "email": "housekeeping@riverside-lantern.example" },
     { "key": "inspector", "role": "pms_supervisor", "email": "inspector@riverside-lantern.example" },
     { "key": "cashier", "role": "pos_cashier", "email": "cashier@riverside-lantern.example" },
