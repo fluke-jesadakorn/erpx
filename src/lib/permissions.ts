@@ -296,6 +296,15 @@ for (const [role, modules] of Object.entries(businessRoles))
       ]);
   }
 
+// Finance owns the controlled Payroll → GL posting handoff. Keep the
+// module entitlement aligned with migration 0276, which grants the same
+// read-only Payroll surface alongside payroll.read.
+const peoplePayrollRead = definitions.find(
+  (permission) => permission.id === "module.people_payroll.read",
+);
+if (peoplePayrollRead && !peoplePayrollRead.roles.includes("finance_approver"))
+  peoplePayrollRead.roles = [...peoplePayrollRead.roles, "finance_approver"];
+
 define("records.read", "Read live module records", "collaboration", staff, [
   "Live module entitlement and record scope",
 ]);
