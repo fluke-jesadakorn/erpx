@@ -103,7 +103,7 @@ export async function assertProductionFeatureRoute(db: SqlDatabase, companyId: s
   if (root === 'finance' && ['engines','group'].includes(second))
     throw new ApiError(403,'FEATURE_COMING_SOON','Advanced Finance is not in this hotel pilot');
   const routes: Record<string,string[]> = {
-    pos:['pos'], pms:['pms'], finance:['finance'], commerce:['procurement','inventory'],
+    pos:['pos'], pms:['pms'], finance:['finance'], 'hospitality-tax-documents':['pos','pms'], commerce:['procurement','inventory'],
     'stock-counts':['inventory'], 'stock-transfers':['inventory'], 'stock-transit':['inventory'],
     'procurement-rfqs':['procurement'], 'supplier-bills':['procurement'], 'supplier-promises':['procurement'],
     people:['people_payroll','organization'], staff:['people_payroll'], 'self-service':['people_payroll'],

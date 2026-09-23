@@ -22,7 +22,7 @@ async function pay(sale:string,amount=10700){await change('payment.create',sale,
 async function kitchen(sale:string,action:string){const f=(await one(db,'SELECT f.* FROM pos_fulfillments f JOIN pos_lines l ON l.fulfillment_id=f.id WHERE l.sale_id=?',sale))!;return command(`kitchen.${action}`,{id:f.id,expectedVersion:f.version,reason:'customer changed order'});}
 beforeAll(async()=>{await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS)]);},120000);
 beforeEach(async()=>{
- await db.exec(`TRUNCATE company_feature_rollouts,pms_sources,pms_postings,pms_records,pms_properties,pos_receipts,pos_audit,pos_jobs,pos_stripe_events,pos_settlements,pos_oauth_states,pos_connections,pos_connection_history,pos_cash_movements,pos_refund_payments,pos_refunds,pos_payments,pos_lines,pos_reservations,pos_stock_moves,pos_fulfillments,pos_sales,pos_tables,pos_shifts,pos_registers,pos_catalog,pos_settings,pos_postings,finance_bank_transactions,finance_bank_statements,finance_allocations,finance_invoices,finance_payments,finance_journal_lines,finance_journals,finance_parties,commerce_stock,commerce_products,commerce_warehouses,commerce_settings,finance_accounts,finance_periods,finance_charts,assignments,command_assertions CASCADE;
+ await db.exec(`TRUNCATE hospitality_tax_documents,company_feature_rollouts,pms_sources,pms_postings,pms_records,pms_properties,pos_receipts,pos_audit,pos_jobs,pos_stripe_events,pos_settlements,pos_oauth_states,pos_connections,pos_connection_history,pos_cash_movements,pos_refund_payments,pos_refunds,pos_payments,pos_lines,pos_reservations,pos_stock_moves,pos_fulfillments,pos_sales,pos_tables,pos_shifts,pos_registers,pos_catalog,pos_settings,pos_postings,finance_bank_transactions,finance_bank_statements,finance_allocations,finance_invoices,finance_payments,finance_journal_lines,finance_journals,finance_parties,commerce_stock,commerce_products,commerce_warehouses,commerce_settings,finance_accounts,finance_periods,finance_charts,assignments,command_assertions CASCADE;
  INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES('pos-company','company','pos-company','POS test','pos-company') ON CONFLICT DO NOTHING;
  INSERT INTO organization_nodes(id,kind,slug,display_name,company_id,parent_id,branch_id) VALUES('pos-branch','branch','pos-branch','Branch','pos-company','pos-company','pos-branch') ON CONFLICT DO NOTHING;
  INSERT INTO assignments(id,user_id,role,modules_json,company_id,scope_kind,valid_from,valid_until) VALUES('pos-cashier','cashier','holding_owner','["pos"]','pos-company','holding',0,9999999999999),('pos-manager','manager','holding_owner','["pos"]','pos-company','holding',0,9999999999999);
@@ -40,6 +40,26 @@ beforeEach(async()=>{
  await command('catalog.save',{productId:'latte',barcode:'8850001',category:'Coffee',kind:'recipe',station:'Bar',recipe:[{productId:'milk',quantityMilli:200}],modifiers:[],taxInclusive:false,expectedVersion:0});
 });
 describe('POS committed business flows',()=>{
+ it('links an external tax reference to one posted sale with independent Finance review and correction history',async()=>{
+  const {taxDocumentCommand,taxDocumentView}=await import('../src/server/hospitality-tax-documents');
+  const sale=await createSale();await add(sale);await pay(sale);await change('sale.complete',sale);
+  const invoiceId=String((await one(db,'SELECT invoice_id FROM pos_sales WHERE id=?',sale))!.invoice_id);
+  await expect(taxDocumentView({...actor,companyId:'another-company'},invoiceId)).rejects.toMatchObject({code:'TAX_DOCUMENT_INVOICE_NOT_FOUND'});
+  await expect(taxDocumentView({...actor,branchId:'another-branch'},invoiceId)).rejects.toMatchObject({code:'TAX_DOCUMENT_INVOICE_NOT_FOUND'});
+  const input={action:'record' as const,invoiceId,issuer:'Fictional hotel tax desk',externalReference:'TAX-0001',issuedOn:'2026-09-23',reason:'Matched to paper tax invoice'};
+  const saved=await taxDocumentCommand(actor,input,'tax-document-record-0001');
+  expect(await taxDocumentCommand(actor,input,'tax-document-record-0001')).toEqual(saved);
+  expect((await taxDocumentView(actor,invoiceId)).documents).toMatchObject([{id:saved.id,state:'recorded',total_minor:10700,tax_minor:700}]);
+  await expect(taxDocumentCommand(actor,{action:'verify',invoiceId,documentId:saved.id,expectedVersion:1},'tax-document-self-review')).rejects.toMatchObject({code:'INDEPENDENT_REVIEW_REQUIRED'});
+  await expect(taxDocumentCommand(manager,input,'tax-document-duplicate')).rejects.toMatchObject({code:'CONFLICT'});
+  await run(db,'UPDATE finance_invoices SET tax_minor=701 WHERE id=?',invoiceId);
+  await expect(taxDocumentCommand(manager,{action:'verify',invoiceId,documentId:saved.id,expectedVersion:1},'tax-document-wrong-tax')).rejects.toMatchObject({code:'INVOICE_CHANGED'});
+  await run(db,'UPDATE finance_invoices SET tax_minor=700 WHERE id=?',invoiceId);
+  expect(await taxDocumentCommand(manager,{action:'verify',invoiceId,documentId:saved.id,expectedVersion:1},'tax-document-reviewed')).toMatchObject({state:'verified',version:2});
+  expect(await taxDocumentCommand(manager,{action:'void',invoiceId,documentId:saved.id,expectedVersion:2,reason:'Issuer voided paper original'},'tax-document-voided')).toMatchObject({state:'voided',version:3});
+  const replacement=await taxDocumentCommand(actor,{...input,externalReference:'TAX-0002',reason:'Replacement paper invoice'},'tax-document-replacement');
+  expect((await taxDocumentView(actor,invoiceId)).documents).toEqual(expect.arrayContaining([expect.objectContaining({id:replacement.id,state:'recorded'}),expect.objectContaining({id:saved.id,state:'voided'})]));
+ });
  it('keeps company pilot rollout separate from setup, access, and production evidence',async()=>{
   const {companyFeatureCatalogue,changeCompanyFeatureRollout,assertProductionFeatureRoute}=await import('../src/server/hospitality-rollout');
   vi.stubEnv('NODE_ENV','production');

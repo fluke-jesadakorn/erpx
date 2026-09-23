@@ -2,6 +2,7 @@
 import { FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 
 import { SetupChecklist } from "@/components/ui/setup-checklist";
+import { TaxDocumentReference } from "@/components/hospitality/tax-document-reference";
 import { decimalToMinor } from "@/lib/finance-money";
 import {
 accountLabels,
@@ -1608,6 +1609,7 @@ export function PmsWorkspaceView({
                     ))}
                 </Panel>
                 <Panel title="Documents">
+                  {currentFolio?.data.invoiceId && <TaxDocumentReference base={base} invoiceId={currentFolio.data.invoiceId}/>}
                   {data.documents
                     .filter(
                       (d) => !currentFolio || d.folio_id === currentFolio.id,
