@@ -102,11 +102,13 @@ export async function assertProductionFeatureRoute(db: SqlDatabase, companyId: s
   if (destination === 'pos/sale/reverse_room_charge') return;
   if (root === 'finance' && ['engines','group'].includes(second))
     throw new ApiError(403,'FEATURE_COMING_SOON','Advanced Finance is not in this hotel pilot');
+  if (root === 'people' && ['payroll','pay-groups','country-packs','payments'].includes(second))
+    throw new ApiError(403,'FEATURE_COMING_SOON','Statutory payroll and payment batches need separate acceptance');
   const routes: Record<string,string[]> = {
     pos:['pos'], pms:['pms'], finance:['finance'], 'hospitality-tax-documents':['pos','pms'], commerce:['procurement','inventory'],
     'stock-counts':['inventory'], 'stock-transfers':['inventory'], 'stock-transit':['inventory'],
     'procurement-rfqs':['procurement'], 'supplier-bills':['procurement'], 'supplier-promises':['procurement'],
-    people:['people_payroll','organization'], staff:['people_payroll'], 'self-service':['people_payroll'],
+    staff:['people_payroll'], 'self-service':['people_payroll'],
     leave:['people_payroll'], 'leave-requests':['people_payroll'], 'overtime-requests':['people_payroll'],
     iam:['identity_access'], assignments:['identity_access'], technology:['identity_access'],
     approvals:['operations'], work:['operations'], requests:['operations'], 'staff-tasks':['operations'],
@@ -125,7 +127,13 @@ export async function assertProductionFeatureRoute(db: SqlDatabase, companyId: s
     billing:['commercial'], expenses:['people_payroll'], production:['manufacturing'],
     'landed-costs':['inventory'], 'service-teams':['field_service'], records:['records'], beta:['beta'],
   };
-  const modules=routes[root]?.filter(isPilotModule);
+  const peopleOwner = root === 'people'
+    ? ['organization','templates'].includes(second) ? 'organization'
+      : ['directory','directory-operations','access'].includes(second) ? 'identity_access'
+        : ['lifecycle','people','engagements','compensation','time-entries','roster'].includes(second) ? 'people_payroll'
+          : null
+    : null;
+  const modules=(root === 'people' ? (peopleOwner ? [peopleOwner] : []) : routes[root])?.filter(isPilotModule);
   if (!modules?.length) {
     if (['ai-providers','assistant','business-readiness','companies','navigation','page-layouts'].includes(root)) return;
     throw new ApiError(403,'FEATURE_COMING_SOON','This command is outside the approved hotel pilot');

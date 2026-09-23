@@ -10,6 +10,14 @@ vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();});
+it("does not let an Operations flow assignment activate deferred payroll or People work in production",async()=>{
+  vi.stubEnv("NODE_ENV","production");
+  try {
+    const input={stepKey:"draft",userId:f.owner.userId,reason:"Assign pilot work",saveDefault:false,expectedVersion:1,recordVersion:1};
+    await expect(assignFlowPrimary(db,f.owner,"payroll","unavailable-payroll",input,key())).rejects.toMatchObject({code:"FEATURE_COMING_SOON"});
+    await expect(assignFlowPrimary(db,f.owner,"expense","unavailable-expense",input,key())).rejects.toMatchObject({code:"FEATURE_COMING_SOON"});
+  } finally { vi.unstubAllEnvs(); }
+});
 async function assign(id:string,userId:string,saveDefault=false,stepKey="department_approval") {
   const view=await resolveFlow(db,f.owner,"expense",id);
   return assignFlowPrimary(db,f.owner,"expense",id,{stepKey,userId,saveDefault,reason:"Assign the responsible staff member",expectedVersion:view.version,recordVersion:view.recordVersion},key());

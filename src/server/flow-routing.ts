@@ -334,6 +334,15 @@ export async function prepareFlowCommand(db: SqlDatabase, actor: StaffActor, key
 }
 
 export async function assignFlowPrimary(db: SqlDatabase, actor: StaffActor, kind: FlowKind, id: string, input: {stepKey:string;userId:string;expectedVersion:number;recordVersion:number;reason:string;saveDefault:boolean}, key:string) {
+  if (process.env.NODE_ENV === 'production') {
+    const { assertProductionModuleEnabled } = await import("./hospitality-rollout");
+    if (kind === 'payroll' || kind === 'record')
+      throw new ApiError(403,'FEATURE_COMING_SOON','This workflow needs a separate pilot release');
+    const owner = kind === 'order'
+      ? (await flowRecord(db,actor.companyId,kind,id)).kind === 'purchase' ? 'procurement' : 'sales'
+      : ({expense:'people_payroll',leave:'people_payroll',staff_task:'operations',request:'operations',stock_count:'inventory',transfer:'inventory',invoice:'finance',journal:'finance'} as Record<string,string>)[kind];
+    await assertProductionModuleEnabled(db,actor.companyId,owner);
+  }
   const prior = await replayCommand(db,actor,key,"flow.assign",id,{kind,...input}); if (prior) return prior;
   if (!await companyAuthority(db,actor)) throw new ApiError(403,"FLOW_ADMIN_REQUIRED","A company administrator must assign workflow responsibilities.");
   const snap = await expenseAuthoritySnapshot(db,actor.companyId);

@@ -90,6 +90,17 @@ describe('POS committed business flows',()=>{
   expect((await companyFeatureCatalogue(actor)).find(entry=>entry.id==='pos')).toMatchObject({state:'Pilot',version:1});
   await expect(assertProductionFeatureRoute(db,actor.companyId,'pos/sale/create','POST')).resolves.toBeUndefined();
   await expect(assertProductionFeatureRoute(db,actor.companyId,'crm/lead/create','POST')).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
+  await changeCompanyFeatureRollout(actor,{moduleId:'organization',state:'pilot',expectedVersion:0,reason:'Set up the hotel company'},`pilot-organization-${++serial}`);
+  await expect(assertProductionFeatureRoute(db,actor.companyId,'people/organization/positions','POST')).resolves.toBeUndefined();
+  await expect(assertProductionFeatureRoute(db,actor.companyId,'people/directory/person-1/grant','POST')).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
+  await expect(assertProductionFeatureRoute(db,actor.companyId,'people/lifecycle/cases/draft','POST')).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
+  await changeCompanyFeatureRollout(actor,{moduleId:'identity_access',state:'pilot',expectedVersion:0,reason:'Invite hotel staff'},`pilot-identity-${++serial}`);
+  await expect(assertProductionFeatureRoute(db,actor.companyId,'people/directory/person-1/grant','POST')).resolves.toBeUndefined();
+  await expect(assertProductionFeatureRoute(db,actor.companyId,'people/lifecycle/cases/draft','POST')).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
+  await changeCompanyFeatureRollout(actor,{moduleId:'people_payroll',state:'pilot',expectedVersion:0,reason:'Manage hotel staff'},`pilot-people-${++serial}`);
+  await expect(assertProductionFeatureRoute(db,actor.companyId,'people/lifecycle/cases/draft','POST')).resolves.toBeUndefined();
+  for(const destination of ['people/payroll/runs','people/pay-groups','people/country-packs','people/payments/batches'])
+    await expect(assertProductionFeatureRoute(db,actor.companyId,destination,'POST')).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
   await expect(changeCompanyFeatureRollout(actor,{moduleId:'pos',state:'available',expectedVersion:1,reason:'Claim general release'},`pilot-pos-rollout-${++serial}`)).rejects.toMatchObject({code:'FEATURE_ACCEPTANCE_REQUIRED'});
   await expect(changeCompanyFeatureRollout(actor,{moduleId:'sales',state:'pilot',expectedVersion:0,reason:'Try broad orders'},`pilot-sales-rollout-${++serial}`)).rejects.toMatchObject({code:'FEATURE_FUTURE_GATE'});
  });

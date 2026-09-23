@@ -16,6 +16,7 @@ it('shows the effective production state on disabled module entry points',()=>{
   expect(cut('support/sla')).toMatchObject({id:'support',state:'Coming Soon'});
   expect(cut('commerce','view=sales')).toMatchObject({id:'sales',state:'Coming Soon'});
   expect(cut('finance/engines')).toMatchObject({id:'advanced-finance',state:'Coming Soon'});
+  expect(cut('people','view=payroll')).toMatchObject({id:'statutory-payroll',state:'Coming Soon'});
   expect(cut('pos')).toBeNull();
 });
 
@@ -26,5 +27,6 @@ it('leaves authorized historical details and unrelated pilot screens readable',(
   expect(productionPageCut(`${base}/pos`,base,new URLSearchParams('sale=sale-123'),[{id:'pos',name:'Restaurant point of sale',state:'Coming Soon'}])).toBeNull();
   expect(cut('support/incidents/incident-123')).toBeNull();
   expect(cut('commerce','view=purchase')).toBeNull();
+  expect(cut('people/payroll/run-123')).toBeNull();
   expect(productionPageCut('/holdings/other/crm',base,new URLSearchParams(),catalogue)).toBeNull();
 });

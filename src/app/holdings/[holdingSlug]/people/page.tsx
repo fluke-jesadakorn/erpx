@@ -63,7 +63,7 @@ export default async function PeoplePage({
   const base = workspaceBase(publicScope(actor));
   const canPayroll = ["holding_owner","hr_admin","people_manager","payroll_preparer","payroll_approver","finance_approver","auditor"].includes(actor.role) && !actor.branchId && !actor.departmentId;
   const canPayrollAdvance = hasPermission(actor,"self.requests");
-  const payroll = search.view === "payroll" && (canPayroll || canPayrollAdvance);
+  const payroll = process.env.NODE_ENV !== "production" && search.view === "payroll" && (canPayroll || canPayrollAdvance);
   const archived = search.status === "archived";
   const canManage = canManagePeople(actor);
   const editing = !payroll && canManage && (search.new === "person" || !!search.position);

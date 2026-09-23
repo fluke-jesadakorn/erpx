@@ -19,6 +19,8 @@ export function productionPageCut(pathname:string,workspaceBase:string,search:Pi
   if(!root)return null;
   if(root==='finance'&&segments.length===2&&['engines','group'].includes(section??''))
     return {id:'advanced-finance',name:'Advanced Finance',state:'Coming Soon' as FeatureState};
+  if(root==='people'&&segments.length===1&&search.get('view')==='payroll')
+    return {id:'statutory-payroll',name:'Payroll processing',state:'Coming Soon' as FeatureState};
   if(root==='commerce'&&segments.length===1&&['sales','quote','pricing'].includes(search.get('view')??''))
     return {id:'sales',name:'Sales',state:'Coming Soon' as FeatureState};
   const moduleId=entryModules[root];
