@@ -155,3 +155,46 @@ test("a typed transfer stays pending and the cashier can recover the bill",async
     await expect(page.getByText("SANDBOX-TRANSFER-PENDING")).toHaveCount(0);
   } finally {await cashier.close();}
 });
+
+test("cashier records an external tax reference and independent Finance verifies it",async({browser},testInfo)=>{
+  const run=process.env.ERPX_DEMO_RUN;
+  test.skip(!run,"Prepare and start a disposable demo run first.");
+  test.setTimeout(90_000);
+  const credentials=JSON.parse(await readFile(resolve(`.runtime/browser/${run}/credentials.json`),"utf8")) as Credentials;
+  const cashier=await browser.newContext(testInfo.project.use),finance=await browser.newContext(testInfo.project.use);
+  try {
+    await Promise.all([signIn(cashier,credentials,"pos_cashier"),signIn(finance,credentials,"finance_approver")]);
+    const page=await cashier.newPage();
+    await page.goto("/holdings/riverside-lantern/pos?tab=shifts");
+    const shifts=(await(await cashier.request.get("/api/v1/holdings/riverside-lantern/pos?tab=shifts")).json()).data.shifts;
+    if(!shifts.some((shift:{state:string})=>shift.state==="open"))await page.getByRole("button",{name:"Open cash session",exact:true}).click();
+    await expect(page.getByRole("button",{name:"Close cash session"})).toBeVisible();
+    await page.goto("/holdings/riverside-lantern/pos");
+    await page.getByRole("button",{name:"Open new sale"}).click();
+    await page.getByRole("button",{name:/Bottled water/}).click();
+    await page.getByRole("button",{name:"Add to sale"}).click();
+    await page.getByRole("button",{name:"Record payment / create link"}).click();
+    await page.getByRole("button",{name:"Confirm and close sale"}).click();
+    await expect(page.getByRole("heading",{name:"External tax document"})).toBeVisible();
+    const documentHref=await page.getByRole("link",{name:"Accounting document"}).getAttribute("href");
+    const invoiceId=String(documentHref?.split("/").at(-1));
+    const reference=`DEMO-TAX-${invoiceId.slice(0,8)}`;
+    expect(invoiceId).toBeTruthy();
+    await page.getByLabel("Verified external issuer").fill("Fictional hotel tax desk");
+    await page.getByRole("textbox",{name:"Document reference",exact:true}).fill(reference);
+    await page.getByLabel("Issue date").fill("2026-09-23");
+    await page.getByLabel("Evidence note").fill("Checked against sample paper invoice");
+    await page.getByRole("button",{name:"Record reference for Finance review"}).click();
+    await expect(page.getByText(`Fictional hotel tax desk · ${reference}`)).toBeVisible();
+    const financePage=await finance.newPage();
+    await financePage.goto(`/holdings/riverside-lantern/finance/invoices/${invoiceId}`);
+    await expect(financePage.getByRole("heading",{name:"External tax document",level:2})).toBeVisible();
+    await financePage.getByRole("button",{name:"Finance: verify reference"}).click();
+    await expect(financePage.getByText("Issued 2026-09-23 · verified")).toBeVisible();
+    const history=(await(await cashier.request.get("/api/v1/holdings/riverside-lantern/pos?tab=history")).json()).data.sales as Array<{id:string;invoice_id:string}>;
+    const saleId=history.find(sale=>sale.invoice_id===invoiceId)?.id;
+    expect(saleId).toBeTruthy();
+    await page.goto(`/holdings/riverside-lantern/pos?sale=${saleId}`);
+    await expect(page.getByText("Issued 2026-09-23 · verified")).toBeVisible();
+  } finally {await Promise.all([cashier.close(),finance.close()]);}
+});

@@ -1,4 +1,5 @@
 import { BusinessDocumentBranding } from "@/components/brand/business-document";
+import { TaxDocumentReference } from "@/components/hospitality/tax-document-reference";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { SettlementForm } from "@/components/modules/commerce-controls";
 import { PrepareControlledPayment } from "@/components/modules/payment-lifecycle";
@@ -51,6 +52,7 @@ export default async function InvoiceDetail({ params, searchParams }: { params: 
       {matched&&<Link href={`${base}/supplier-bills/${matched.id}`}>Supplier invoice matching · {matched.reference}</Link>}
       {invoice.source_type==="expense_claim"&&<Link href={`${base}/expenses/${invoice.source_id}`}>Open employee expense claim</Link>}
       {invoice.journal_id&&<Link href={`${base}/finance/journals/${invoice.journal_id}`}>Open posted journal</Link>}
+      {["pos","pms"].includes(String(invoice.source_type))&&<FeatureWidget id="finance-invoices-detail-external-tax-document" title="External tax document"><TaxDocumentReference base={base} invoiceId={id}/></FeatureWidget>}
       {invoice.source_type!=="expense_claim"&&["posted","partially_paid"].includes(String(invoice.status))&&Number(invoice.outstanding_minor)>0&&hasPermission(actor,"finance.write")&&!actor.branchId&&!actor.departmentId&&<FeatureWidget id="finance-invoices-detail-controlled-payment" title="Controlled bank settlement"><PrepareControlledPayment base={base} invoice={invoice} bankAccounts={bankAccounts}/></FeatureWidget>}
       {["commerce_fulfillment","standalone","expense_claim"].includes(String(invoice.source_type)) && ["posted","partially_paid"].includes(String(invoice.status)) && Number(invoice.outstanding_minor)>0 && canSettle && flow.canAct && <SettlementForm base={base} invoice={invoice}/> }
       <FeatureWidget id="finance-invoices-detail-allocations" title="Allocations">
