@@ -52,7 +52,7 @@ export function PosConsole({initial,base,initialTab}:{initial:PosWorkspace;base:
   }catch(e){setError(e instanceof Error?e.message:'Save failed');return undefined;}finally{busyRef.current=false;setBusy(false);}
  }
  const can=(p:string)=>Boolean(data.permissions[p]),sale=data.sale,register=data.registers.find(r=>r.id===registerId),shift=data.shifts.find(sh=>sh.register_id===registerId&&sh.state==='open');
- const due=sale?Math.max(0,n(sale,'total_minor')-data.payments.filter(p=>!['failed','cancelled'].includes(s(p,'state'))).reduce((a,p)=>a+n(p,'amount_minor')-n(p,'refunded_minor'),0)):0;
+ const due=sale?Math.max(0,n(sale,'total_minor')-data.payments.filter(p=>s(p,'state')==='succeeded').reduce((a,p)=>a+n(p,'amount_minor')-n(p,'refunded_minor'),0)):0;
  const saleCommand=(op:string,extra:Record<string,unknown>={})=>sale?send(op,{id:sale.id,expectedVersion:sale.version,...extra}):undefined;
  const pickSale=(row:Row)=>{setSelected(s(row,'id'));setRegisterId(s(row,'register_id'));setTab('sale');setPrinting(false);};
  const filtered=data.products.filter(p=>(!category||p.category===category)&&`${p.name} ${p.sku} ${p.barcode??''}`.toLowerCase().includes(search.toLowerCase()));

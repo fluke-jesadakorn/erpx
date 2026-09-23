@@ -1,0 +1,15 @@
+Hospitality browser demo evidence — 2026-09-23
+
+Run: 21ebefb22383, disposable browser simulation at http://127.0.0.1:3102.
+Storage: independent H002 PostgreSQL databases and private files; the general-company H001 holding remained separate. The run used fictional Riverside Lantern data and sandbox email identities. No production company or provider was changed.
+
+Preparation: bun run demo:prepare completed with ready=true. The generated private hospitality guide had ten independent accounts and three scenarios, each with role-specific actions and expected results. The generated fixture IDs identified the property, restaurant register, warehouse, and independently posted opening inventory journal.
+
+Browser command:
+ERPX_DEMO_RUN=21ebefb22383 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-hospitality-setup.spec.ts --project=desktop
+
+Result: 3 passed (1.0m). Six independent roles rendered their real workspaces; the cashier's 390px view had no document-level horizontal overflow. A Riverside cashier could not read the general-company PMS API. Eight rooms and two room types were visible in PMS. The opening stock value equalled the posted inventory account balance, and the journal preparer and poster were different users.
+
+The cashier opened a restaurant bill, the kitchen delivered a prepared item, and the cashier charged a checked-in room through the UI. After reload, the completed POS sale linked to exactly one PMS source and one balanced PMS journal. The test found no duplicate POS sale/receipt posting and no POS payment for the room charge. A separate sale recorded a typed bank-transfer reference, remained pending with the close button disabled, and was recovered by cancelling the unverified reference and bill.
+
+These are isolated automated browser and database checks, not provider, business, production, Thai tax-document, checkout, or Night Audit acceptance. They do not authorize production activation or ledger go-live.

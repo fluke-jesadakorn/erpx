@@ -1,6 +1,6 @@
 # Riverside Lantern pilot example
 
-`pilot-example.json` is fictional THB setup data for an isolated hotel-and-restaurant demo. It is a preparation fixture, not an activated company, an accountant-approved tax setup, or evidence of a successful production workflow. The example addresses the user's request to generate sample pilot inputs while a real pilot property has not been supplied.
+`pilot-example.json` is fictional THB setup data for the isolated hotel-and-restaurant browser demo. `bun run demo:prepare` creates Riverside Lantern as a second holding in disposable PostgreSQL databases, provisions ten independent staff accounts, and configures PMS and POS through their owner commands. `bun run demo:destroy -- <run>` removes only that run. The fixture is not an accountant-approved tax setup or evidence of production readiness.
 
 The planned acceptance journey starts with the front desk reserving Standard room 101 for the example guest. Housekeeping completes an arrival task and an independent supervisor inspects it. The front desk assigns room 101 and checks the guest in. A cashier opens a restaurant bill, kitchen staff prepare and deliver basil chicken rice and tea, and the cashier selects the checked-in stay for a full-bill room charge. The POS sale consumes ingredients, while PMS owns one folio charge and one revenue posting. At checkout, hotel cashier and Finance settle the folio, compare the external tax-document reference and bank evidence, and let the night auditor resolve blockers before close.
 
@@ -20,4 +20,4 @@ The following alternatives must be exercised in a resettable run with independen
 
 The embedded assistant may read the current PMS property/folio or POS sale only through the actor's existing owner API and role. The example accounts and records are fictional. Production AI remains disabled until the company explicitly chooses an AI provider. The assistant shows source versions and review steps, and never executes a room charge, payment, refund, or Night Audit action.
 
-No demo account is created from the listed email addresses until the isolated demo reset and provisioning workflow is implemented. All email domains use `.example`, and `SANDBOX-*` references never represent real money or legal tax documents.
+Demo account credentials and scenario guidance are written with private file permissions under `.runtime/browser/<run>/credentials.json` and `hospitality-guide.json`. The prepared hotel has an inspected room 101 and a checked-in fictional guest in room 202. Opening stock is disposable seed data, balanced by a posted opening inventory journal reviewed by a different Finance user. All email domains use `.example`, and `SANDBOX-*` references never represent real money or legal tax documents.
