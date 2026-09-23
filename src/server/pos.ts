@@ -39,7 +39,9 @@ export async function posWorkspace(actor:WorkContext,saleId?:string,historyQuery
   JSON.parse(str(sale,'accounts_json')).bank,sale.currency,pendingTransfer.amount_minor,
   pendingTransfer.reference,sale.business_date):[];
  const roomCharge=sale?await one(db,"SELECT ps.property_id,ps.record_id folio_entry_id,p.version property_version,r.reversal_entry_id,r.reason reversal_reason,r.reversed_at FROM pms_sources ps JOIN pms_properties p ON p.id=ps.property_id LEFT JOIN pos_room_charge_reversals r ON r.sale_id=? WHERE ps.source_key=? AND p.company_id=? AND p.branch_id=?",sale.id,`pos:${sale.id}:${sale.id}`,company,sale.branch_id):null;
- const roomChargeStays=sale&&['open','held'].includes(str(sale,'state'))&&hasPermission(actor,'pos.sell')
+ const roomChargeEnabled=process.env.NODE_ENV!=='production'||process.env.ERPX_POS_ROOM_CHARGE_PILOT_ENABLED==='true';
+ const availableTenderMethods=process.env.NODE_ENV==='production'?['cash','transfer']:['cash','transfer','edc','stripe_promptpay','stripe_card'];
+ const roomChargeStays=roomChargeEnabled&&sale&&['open','held'].includes(str(sale,'state'))&&hasPermission(actor,'pos.sell')
   ?await all(db,`SELECT p.id property_id,p.version property_version,s.id stay_id,
     r.data_json::jsonb->>'number' room_number,g.data_json::jsonb->>'name' guest_name
     FROM pms_properties p JOIN pms_records s ON s.property_id=p.id AND s.kind='stay'
@@ -71,7 +73,7 @@ export async function posWorkspace(actor:WorkContext,saleId?:string,historyQuery
  FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id WHERE p.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND p.state='succeeded'
  GROUP BY s.business_date,s.register_id,s.shift_id,s.currency,p.method ORDER BY s.business_date DESC LIMIT 300`,company,branch,branch):[];
 
- return {currency:settings?.currency ? String(settings.currency) : commerce?.currency ? String(commerce.currency) : null,salesPage,permissions:posPermissions(actor),userId:actor.userId,settings,commerce:configure?commerce:null,registers,products,warehouses,shifts,tables,sales,sale,lines,payments,transferEvidence,roomCharge,roomChargeStays,kitchen,refunds,cashMovements,stock,jobs,reports,paymentMix,
+ return {currency:settings?.currency ? String(settings.currency) : commerce?.currency ? String(commerce.currency) : null,salesPage,permissions:posPermissions(actor),userId:actor.userId,settings,commerce:configure?commerce:null,availableTenderMethods,roomChargeEnabled,registers,products,warehouses,shifts,tables,sales,sale,lines,payments,transferEvidence,roomCharge,roomChargeStays,kitchen,refunds,cashMovements,stock,jobs,reports,paymentMix,
   companyName: (await one(db,'SELECT display_name FROM organization_nodes WHERE id=?',company))?.display_name??company,
   bankTransactions:report&&!branch&&wants('reports')?await all(db,"SELECT id,transaction_date,description,amount_minor,currency,version FROM finance_bank_transactions WHERE company_id=? AND match_status IN ('unmatched','proposed') ORDER BY transaction_date DESC LIMIT 200",company):[],
   customers:wants('sale')?await all(db,"SELECT id,name FROM finance_parties WHERE company_id=? AND kind='customer' AND status='active' ORDER BY name",company):[],

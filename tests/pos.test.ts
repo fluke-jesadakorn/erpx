@@ -43,6 +43,10 @@ describe('POS committed business flows',()=>{
  it('limits production POS tenders to cash and verified bank transfer',async()=>{
   const sale=await createSale();await add(sale);
   vi.stubEnv('NODE_ENV','production');
+  const {posWorkspace}=await import('../src/server/pos');
+  const workspace=await posWorkspace(actor,sale,'','sale');
+  expect(workspace.availableTenderMethods).toEqual(['cash','transfer']);
+  expect(workspace.roomChargeEnabled).toBe(false);
   await expect(change('payment.create',sale,{method:'edc',amountMinor:10700,tenderedMinor:10700,reference:'EDC-001'})).rejects.toMatchObject({code:'POS_TENDER_COMING_SOON'});
   await expect(change('payment.create',sale,{method:'stripe_card',amountMinor:10700,tenderedMinor:10700,reference:''})).rejects.toMatchObject({code:'POS_TENDER_COMING_SOON'});
   expect(await one(db,'SELECT count(*) n FROM pos_payments')).toEqual({n:0});
