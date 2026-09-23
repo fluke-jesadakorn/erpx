@@ -104,14 +104,26 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
     const warehousePage = await warehouseContext.newPage();
     await signInRole(warehouseContext, warehousePage, credentials, "warehouse_manager", warehouse!, salesOrderPath);
     await expect(warehousePage.getByRole("heading", { name: "Deliver goods", exact: true })).toBeVisible();
-    const proof = warehousePage.locator('input[type="file"]').first();
+    let deliveryCard = warehousePage.locator("#workspace-content section.card").filter({ hasText: "Deliver goods" });
+    let deliveryForm = deliveryCard.locator("form");
+    const proof = deliveryForm.locator('input[type="file"]').first();
     const pdf = Buffer.from("%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n");
     await proof.setInputFiles({ name: "customer-delivery.pdf", mimeType: "application/pdf", buffer: pdf });
-    await expect(warehousePage.getByRole("button", { name: /Proof of delivery Attached: customer-delivery\.pdf/ })).toBeVisible({ timeout: 20_000 });
-    await warehousePage.getByLabel("Receipt confirmation note", { exact: true }).fill("Customer signed delivery confirmation for one simulation item.");
-    await warehousePage.getByLabel("SIM-ITEM quantity", { exact: true }).fill("1");
+    await expect(deliveryForm.getByRole("button", { name: /Proof of delivery Attached: customer-delivery\.pdf/ })).toBeVisible({ timeout: 20_000 });
+    // Confirm an uploaded proof survives a reload, then submit against the
+    // freshly rendered order version so delayed workflow refreshes do not
+    // leave the delivery form holding stale state.
+    await warehousePage.reload({ waitUntil: "commit" });
+    await expect(warehousePage.getByRole("heading", { name: "Deliver goods", exact: true })).toBeVisible();
+    deliveryCard = warehousePage.locator("#workspace-content section.card").filter({ hasText: "Deliver goods" });
+    deliveryForm = deliveryCard.locator("form");
+    const uploadedProof = await deliveryForm.getByLabel("Available uploaded evidence").locator("option").filter({ hasText: "customer-delivery.pdf" }).getAttribute("value");
+    expect(uploadedProof).toBeTruthy();
+    await deliveryForm.getByLabel("Available uploaded evidence").selectOption(uploadedProof!);
+    await deliveryForm.getByLabel("Receipt confirmation note", { exact: true }).fill("Customer signed delivery confirmation for one simulation item.");
+    await deliveryForm.getByLabel("SIM-ITEM quantity", { exact: true }).fill("1");
     const deliveryResponse = warehousePage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/commerce/orders/${salesOrderId}/fulfill`));
-    await warehousePage.getByRole("button", { name: "Record delivery", exact: true }).click();
+    await deliveryForm.getByRole("button", { name: "Record delivery", exact: true }).click();
     const deliveryResult = await deliveryResponse;
     expect(deliveryResult.status(), await deliveryResult.text()).toBe(200);
     await warehousePage.waitForTimeout(1_500);
@@ -144,18 +156,22 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
 
     await signInRole(approverContext, approverPage, credentials, "finance_approver", financeApprover!, invoicePath);
     await expect(approverPage.getByRole("button", { name: "Approve and post invoice", exact: true })).toBeVisible();
-    await approverPage.locator('select[name="period"]').selectOption(state.fixture.periodId);
+    await approverPage.locator("#workspace-content").locator('select[name="period"]').selectOption(state.fixture.periodId);
     await clickCommand(approverPage, `/finance/invoices/${invoiceId}/post`, "Approve and post invoice");
     await expect(approverPage.getByText("posted", { exact: true }).first()).toBeVisible();
 
     const treasuryPage = await treasuryContext.newPage();
     await signInRole(treasuryContext, treasuryPage, credentials, "treasury", treasury!, invoicePath);
     await expect(treasuryPage.getByRole("heading", { name: "Record customer receipt", exact: true })).toBeVisible();
-    await treasuryPage.getByLabel("Payment date", { exact: true }).fill("2026-09-22");
+    const invoiceBeforeReceipt = await treasuryPage.request.get(`/api/v1/holdings/simulation/finance/invoices/${invoiceId}`);
+    expect(invoiceBeforeReceipt.ok(), await invoiceBeforeReceipt.text()).toBe(true);
+    const invoiceDate = String((await invoiceBeforeReceipt.json()).data.invoice.invoice_date);
+    await treasuryPage.getByLabel("Payment date", { exact: true }).fill(invoiceDate);
     await treasuryPage.getByLabel("Bank reference", { exact: true }).fill("DEMO-CUSTOMER-RECEIPT-10");
     const settleResponse = treasuryPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/commerce/invoices/${invoiceId}/settle`));
     await treasuryPage.getByRole("button", { name: "Record and allocate payment", exact: true }).click();
-    expect((await settleResponse).ok()).toBe(true);
+    const settleResult = await settleResponse;
+    expect(settleResult.ok(), await settleResult.text()).toBe(true);
     await treasuryPage.reload({ waitUntil: "commit" });
     await expect(treasuryPage.getByText("paid", { exact: true }).first()).toBeVisible();
     await expect(treasuryPage.getByText("THB 0.00", { exact: true }).first()).toBeVisible();
@@ -193,22 +209,26 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
     const qualityPath = new URL(await qualityLink.getAttribute("href") ?? "", managerPage.url()).pathname;
     await signInRole(preparerContext, preparerPage, credentials, "quality_inspector", financePreparer!, qualityPath);
     await expect(preparerPage.getByRole("heading", { name: "Record inspection", exact: true })).toBeVisible({ timeout: 20_000 });
-    await preparerPage.locator('select[name="result"]').selectOption("pass");
-    await preparerPage.getByLabel("Inspection evidence", { exact: true }).fill("Returned unit inspected; packaging and function are acceptable for resale.");
+    const inspectionForm = preparerPage.locator("form").filter({ has: preparerPage.getByRole("heading", { name: "Record inspection", exact: true }) });
+    await inspectionForm.locator('select[name="result"]').selectOption("pass");
+    await inspectionForm.getByLabel("Inspection evidence", { exact: true }).fill("Returned unit inspected; packaging and function are acceptable for resale.");
     const inspectionResponse = preparerPage.waitForResponse((item) => item.request().method() === "POST" && /\/quality\/[^/]+\/inspect$/.test(new URL(item.url()).pathname));
-    await preparerPage.getByRole("button", { name: "Record inspection", exact: true }).click();
+    await inspectionForm.getByRole("button", { name: "Record inspection", exact: true }).click();
     expect((await inspectionResponse).ok()).toBe(true);
     await preparerPage.reload({ waitUntil: "commit" });
-    await expect(preparerPage.getByText(/awaiting_release/)).toBeVisible({ timeout: 20_000 });
+    await expect(preparerPage.locator("#workspace-content").getByText(/awaiting_release/)).toBeVisible({ timeout: 20_000 });
 
     await signInRole(treasuryContext, treasuryPage, credentials, "quality_manager", treasury!, qualityPath);
     await expect(treasuryPage.getByRole("heading", { name: "Approve release", exact: true })).toBeVisible({ timeout: 20_000 });
-    await treasuryPage.getByLabel("Release reason", { exact: true }).fill("Independent review confirms the returned unit is resalable.");
+    const releaseForm = treasuryPage.locator("form").filter({ has: treasuryPage.getByRole("heading", { name: "Approve release", exact: true }) });
+    await releaseForm.getByLabel("Release reason", { exact: true }).fill("Independent review confirms the returned unit is resalable.");
     const releaseResponse = treasuryPage.waitForResponse((item) => item.request().method() === "POST" && /\/quality\/[^/]+\/release$/.test(new URL(item.url()).pathname));
-    await treasuryPage.getByRole("button", { name: "Release this hold", exact: true }).click();
-    expect((await releaseResponse).ok()).toBe(true);
+    await releaseForm.getByRole("button", { name: "Release this hold", exact: true }).click();
+    const releaseResult = await releaseResponse;
+    expect(releaseResult.ok()).toBe(true);
+    expect((await releaseResult.json()).data.status).toBe("released");
     await treasuryPage.reload({ waitUntil: "commit" });
-    await expect(treasuryPage.getByText("released", { exact: true }).first()).toBeVisible({ timeout: 20_000 });
+    await expect(treasuryPage.locator("#workspace-content").getByText(/ · released · Due /)).toBeVisible({ timeout: 20_000 });
 
     await signInRole(approverContext, approverPage, credentials, "finance_approver", financeApprover!, `${salesOrderPath}?return=${Date.now()}`);
     const stockReversalLink = approverPage.getByRole("link", { name: /Stock reversal GL/ }).first();
@@ -257,7 +277,7 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
     await treasuryPage.getByRole("button", { name: "Export prepared instructions", exact: true }).click();
     expect((await refundExport).ok()).toBe(true);
     await treasuryPage.locator('select[name="bank"]').selectOption(state.fixture.customerRefundBankTransactionId);
-    await treasuryPage.locator('select[name="period"]').selectOption(state.fixture.periodId);
+    await treasuryPage.locator("#workspace-content").locator('select[name="period"]').selectOption(state.fixture.periodId);
     await treasuryPage.getByLabel("Actual bank reference", { exact: true }).fill("DEMO-REFUND-10");
     await treasuryPage.getByLabel("Verification evidence", { exact: true }).fill("Exact customer refund bank sandbox row matched to the exported instruction.");
     const refundConfirm = treasuryPage.waitForResponse((item) => item.request().method() === "POST" && /\/finance\/refund-instructions\/[^/]+\/confirm$/.test(new URL(item.url()).pathname));

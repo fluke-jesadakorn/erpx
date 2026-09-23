@@ -1,5 +1,5 @@
 {
-  "evidenceLedgerSha256": "498ebb30cd68471938655ae35b4eefa309d99a0ba6838cdc30a8df556132aa15",
+  "evidenceLedgerSha256": "cdc5d02d9aa9d30ed6159ba654cad10c5d0a715e4fde0b36395b84d8e4f8266f",
   "capabilities": [
     {
       "id": "brand/feature-draft-workspace",
@@ -13440,6 +13440,47 @@
       "limitations": [
         "Simulation-only isolated Control DB; this does not attest live Resend/provider delivery, independent public multi-session recovery, production operation or Company business acceptance.",
         "The sandbox adapter is opt-in and must remain clearly separated from production email configuration."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "sales-return-quality-refund-close-browser-acceptance-20260923",
+      "capabilityIds": [
+        "sales/quotes",
+        "sales/orders",
+        "sales/fulfillment",
+        "sales/feature-revenue-handoff",
+        "finance/journals",
+        "finance/feature-receivables-aging",
+        "finance/feature-payments",
+        "finance/feature-bank-reconciliation",
+        "finance/feature-period-close",
+        "inventory/availability",
+        "inventory/feature-issues-movements",
+        "quality/inspections",
+        "quality/results",
+        "quality/release-gates"
+      ],
+      "scenarioIds": [
+        "S02",
+        "S04"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "A disposable working-demo browser run completed Sales quotation approval, delivery with proof retained through reload, receivable posting and collection; an approved paid customer return then passed independent Quality inspection and release, stock reversal and credit-note posting, independently approved partial refund instruction/export, and exact sandbox-bank settlement. In the same run, a separate Finance preparer and approver closed reconciled January and February 2027 periods. The final invoice and refund had zero outstanding, Quality showed released after reload, and both periods remained closed.",
+      "observedAt": "2026-09-23T08:15:00+07:00",
+      "recordedBy": "Codex execution agent (isolated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-sales-return-quality-refund-close-browser-acceptance.txt",
+          "sha256": "f7d393c0e4e32b839be3f338df03a2837ba9b4addc64d3945684b84fd76b958f"
+        }
+      ],
+      "limitations": [
+        "This is browser evidence from one isolated Demo Company and sandbox bank row; it does not attest live providers, production operation, customer business acceptance, statutory compliance or production backup/restore.",
+        "The passed return path releases inspected stock; failed-inspection scrap, return rejection, refund exception/retry and external customer notification remain separate acceptance cases.",
+        "Two closes passed in the demo; Finance go-live still requires two consecutive reconciled closes and sign-off in the target company."
       ],
       "supersedes": null
     }

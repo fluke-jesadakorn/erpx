@@ -1,0 +1,25 @@
+ERPX business-acceptance evidence
+Scenario: Sales delivery, customer return, controlled refund and consecutive Finance close
+Observed: 2026-09-23 (Asia/Bangkok)
+Environment: isolated resettable browser demo; run 128994ccbe04; http://127.0.0.1:3102
+Toolchain: Bun 1.2.17, Node.js 24.20.0, Playwright desktop Chromium
+Commands:
+- PATH=/Users/fluke/Desktop/Work/erpx/.runtime/node/node-v24.20.0-darwin-arm64/bin:$PATH ERPX_E2E_BASE_URL=http://127.0.0.1:3102 ERPX_DEMO_RUN=128994ccbe04 bunx playwright test tests/e2e/demo-sales-to-collection.spec.ts --project=desktop
+- PATH=/Users/fluke/Desktop/Work/erpx/.runtime/node/node-v24.20.0-darwin-arm64/bin:$PATH ERPX_E2E_BASE_URL=http://127.0.0.1:3102 ERPX_DEMO_RUN=128994ccbe04 bunx playwright test tests/e2e/demo-finance-close.spec.ts --project=desktop
+Result: 2/2 browser tests passed; Sales return/refund completed in 1.1 minutes and two consecutive Finance closes completed in 5.6 seconds. Both tests used the same disposable Demo Company; it was destroyed after verification.
+
+Independent role sessions completed the connected workflow through the actual UI:
+- Sales operator and Sales manager submitted, approved and converted a quotation; the manager approved the resulting order.
+- Warehouse manager attached delivery evidence, reloaded the page, selected the retained upload and recorded delivery. Finance users posted the goods movement journal and customer invoice.
+- Treasury recorded the customer receipt using the invoice date read from the owner API. The invoice remained paid with THB 0.00 outstanding after reload.
+- Sales manager approved a customer return. An independent Quality inspector recorded a passing inspection, then a separate Quality manager released the quarantined stock. The release status was confirmed from the command response and after page reload.
+- Finance approver posted the stock reversal and credit-note journals. Holding owner independently approved the refund obligation; Treasury prepared and exported a partial instruction, matched the exact imported sandbox bank row, and posted the refund.
+- A Finance preparer and independent Finance approver closed January and February 2027 in sequence after both reconciliations showed zero difference.
+
+Assertions after reload/API checks:
+- Delivery proof remained available after reload and linked to the fulfillment.
+- Customer invoice settled with zero outstanding; returned quantity left quarantine only after the independent Quality release.
+- Return completion followed both posted reversal journals; the refund obligation settled with zero outstanding against its exact sandbox bank row.
+- Both consecutive Finance periods persisted as closed after independent approval.
+
+Scope and limitations: This is automated browser acceptance in an isolated Demo Company with sandbox bank data. It is not company business sign-off, production certification, live-bank/provider acceptance, statutory tax/payroll validation, production backup/restore evidence, or proof of external customer notification. Return rejection, scrap disposition and payment exception/retry paths remain separate acceptance cases.

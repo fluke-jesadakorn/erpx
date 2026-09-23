@@ -2270,7 +2270,8 @@
         "finance-opening-balance-browser-acceptance-20260922",
         "finance-opening-settlement-automated-20260922",
         "finance-consolidation-automated-20260923",
-        "finance-intercompany-automated-20260923"
+        "finance-intercompany-automated-20260923",
+        "sales-return-quality-refund-close-browser-acceptance-20260923"
       ]
     },
     {
@@ -2468,7 +2469,8 @@
         "purchase-request-purchase-to-payment-browser-acceptance-20260922",
         "purchase-request-split-purchase-to-payment-browser-acceptance-20260922",
         "purchase-request-consolidated-purchase-to-payment-browser-acceptance-20260922",
-        "sales-return-refund-browser-acceptance-20260922"
+        "sales-return-refund-browser-acceptance-20260922",
+        "sales-return-quality-refund-close-browser-acceptance-20260923"
       ]
     },
     {
@@ -2529,7 +2531,8 @@
         "sales-return-refund-browser-acceptance-20260922",
         "finance-opening-balance-browser-acceptance-20260922",
         "finance-opening-settlement-automated-20260922",
-        "finance-aging-browser-20260922"
+        "finance-aging-browser-20260922",
+        "sales-return-quality-refund-close-browser-acceptance-20260923"
       ]
     },
     {
@@ -2594,7 +2597,8 @@
         "purchase-request-purchase-to-payment-browser-acceptance-20260922",
         "purchase-request-split-purchase-to-payment-browser-acceptance-20260922",
         "purchase-request-consolidated-purchase-to-payment-browser-acceptance-20260922",
-        "sales-return-refund-browser-acceptance-20260922"
+        "sales-return-refund-browser-acceptance-20260922",
+        "sales-return-quality-refund-close-browser-acceptance-20260923"
       ]
     },
     {
@@ -2708,7 +2712,8 @@
         "supplier-completion-simulation-20260920",
         "finance-two-close-browser-20260921",
         "finance-fx-revaluation-automated-20260921",
-        "finance-browser-acceptance-20260922"
+        "finance-browser-acceptance-20260922",
+        "sales-return-quality-refund-close-browser-acceptance-20260923"
       ]
     },
     {
@@ -3088,7 +3093,8 @@
       },
       "evidenceRecordIds": [
         "sales-to-collection-browser-acceptance-20260922",
-        "sales-return-refund-browser-acceptance-20260922"
+        "sales-return-refund-browser-acceptance-20260922",
+        "sales-return-quality-refund-close-browser-acceptance-20260923"
       ]
     },
     {
@@ -3144,7 +3150,8 @@
       "evidenceRecordIds": [
         "sales-customer-notification-browser-worker-20260921",
         "sales-to-collection-browser-acceptance-20260922",
-        "sales-return-refund-browser-acceptance-20260922"
+        "sales-return-refund-browser-acceptance-20260922",
+        "sales-return-quality-refund-close-browser-acceptance-20260923"
       ]
     },
     {
@@ -3201,7 +3208,8 @@
         "sales-customer-notification-browser-worker-20260921",
         "customer-return-quality-disposition-20260921",
         "sales-to-collection-browser-acceptance-20260922",
-        "sales-return-refund-browser-acceptance-20260922"
+        "sales-return-refund-browser-acceptance-20260922",
+        "sales-return-quality-refund-close-browser-acceptance-20260923"
       ]
     },
     {
@@ -3312,7 +3320,8 @@
       "evidenceRecordIds": [
         "customer-return-quality-disposition-20260921",
         "sales-to-collection-browser-acceptance-20260922",
-        "sales-return-refund-browser-acceptance-20260922"
+        "sales-return-refund-browser-acceptance-20260922",
+        "sales-return-quality-refund-close-browser-acceptance-20260923"
       ]
     },
     {
@@ -3641,7 +3650,8 @@
         "sales-return-refund-browser-acceptance-20260922",
         "inventory-transit-browser-20260923",
         "inventory-lot-serial-browser-20260923",
-        "quality-inspection-release-browser-20260923"
+        "quality-inspection-release-browser-20260923",
+        "sales-return-quality-refund-close-browser-acceptance-20260923"
       ]
     },
     {
@@ -3871,7 +3881,8 @@
         "full-regression-baseline-20260920",
         "sales-return-refund-browser-acceptance-20260922",
         "inventory-transit-browser-20260922",
-        "inventory-transit-browser-20260923"
+        "inventory-transit-browser-20260923",
+        "sales-return-quality-refund-close-browser-acceptance-20260923"
       ]
     },
     {
@@ -4843,7 +4854,8 @@
         "full-regression-baseline-20260920",
         "customer-return-quality-disposition-20260921",
         "inventory-lot-serial-browser-20260923",
-        "quality-inspection-release-browser-20260923"
+        "quality-inspection-release-browser-20260923",
+        "sales-return-quality-refund-close-browser-acceptance-20260923"
       ]
     },
     {
@@ -4904,7 +4916,8 @@
         "full-regression-baseline-20260920",
         "customer-return-quality-disposition-20260921",
         "inventory-lot-serial-browser-20260923",
-        "quality-inspection-release-browser-20260923"
+        "quality-inspection-release-browser-20260923",
+        "sales-return-quality-refund-close-browser-acceptance-20260923"
       ]
     },
     {
@@ -4965,7 +4978,8 @@
         "full-regression-baseline-20260920",
         "customer-return-quality-disposition-20260921",
         "inventory-lot-serial-browser-20260923",
-        "quality-inspection-release-browser-20260923"
+        "quality-inspection-release-browser-20260923",
+        "sales-return-quality-refund-close-browser-acceptance-20260923"
       ]
     },
     {
