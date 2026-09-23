@@ -785,6 +785,25 @@ it("filters unsafe receipt fields, preserves a Gregorian date and rejects a cate
   for (const name of ["amount", "tax", "receiptReference", "categoryAccountId", "businessPurpose"]) expect(result?.fields.find(field => field.name === name)?.value).toBeNull();
   expect(result?.conflicts.join(" ")).toContain("currency");
 });
+it("does not queue or run expense AI when People is outside the production rollout", async () => {
+  await connection();
+  const id = await f.claim();
+  await f.attach(id);
+  const input = { expectedVersion: 1, paymentId: null, retry: false };
+  vi.stubEnv("NODE_ENV", "production");
+  try {
+    await expect(queueExpenseAi(db, f.claimant, aiEnv, id, input, key())).rejects.toMatchObject({ code: "FEATURE_COMING_SOON" });
+    vi.stubEnv("NODE_ENV", "test");
+    const queued = await queueExpenseAi(db, f.claimant, aiEnv, id, input, key());
+    vi.stubEnv("NODE_ENV", "production");
+    const generate = vi.fn();
+    await runExpenseAi(db, env.H001_FILES, aiEnv, String(queued.proposalId), generate);
+    expect(generate).not.toHaveBeenCalled();
+    expect((await db.prepare("SELECT state FROM expense_ai_proposals WHERE id=?").bind(queued.proposalId).first<{ state: string }>())?.state).toBe("stale");
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
 it("accepts an exact color with harmless case and whitespace normalization", async () => {
   const saved = await saveAiConnection(db, f.it, aiEnv, null, aiConnectionSchema.parse({ name: "Same model", apiKey: "synthetic-test-key", baseUrl: "https://opencode.ai/zen/v1", textModel: "muse-spark-1.3-contributor-free", imageModel: "muse-spark-1.3-contributor-free" }), key());
   const result = await testAiConnection(db, f.it, aiEnv, saved.id, 1, key(), async (_endpoint, messages) => ({ result: Array.isArray(messages[1].content) ? { color: " Red " } : { ok: true }, inputTokens: 0, outputTokens: 0 }));

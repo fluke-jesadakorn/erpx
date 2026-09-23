@@ -143,3 +143,12 @@ export async function assertProductionModuleEnabled(db: SqlDatabase, companyId: 
     .bind(companyId,moduleId).first();
   if (!row) throw new ApiError(403,'FEATURE_COMING_SOON','This company has not activated this workflow for the pilot');
 }
+
+/** Keep a queued result from becoming visible if rollout changes during provider inference. */
+export function productionFeatureGuard(db: SqlDatabase, key: string, companyId: string, moduleId: string) {
+  if (process.env.NODE_ENV !== 'production') return [];
+  if (!isPilotModule(moduleId)) throw new ApiError(403,'FEATURE_COMING_SOON','This feature is outside the approved hotel pilot');
+  return [db.prepare('SELECT module_id FROM company_feature_rollouts WHERE company_id=? AND module_id=? FOR SHARE').bind(companyId,moduleId),assertion(db,key,'feature-rollout',
+    "EXISTS(SELECT 1 FROM company_feature_rollouts WHERE company_id=? AND module_id=? AND rollout_state IN ('pilot','available'))",
+    [companyId,moduleId])];
+}

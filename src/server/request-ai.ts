@@ -23,6 +23,7 @@ import {
 } from "./service-access";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
+import { assertProductionModuleEnabled, productionFeatureGuard } from "./hospitality-rollout";
 export const requestAiInput = z.object({
   expectedVersion: z.number().int().positive(),
   retry: z.boolean().default(false),
@@ -127,6 +128,7 @@ export async function queueRequestAi(
     state: string;
   }>(db, actor, key, operation, id, input);
   if (prior) return prior;
+  await assertProductionModuleEnabled(db, actor.companyId, "operations");
   if (row.version !== input.expectedVersion)
     throw new ApiError(
       409,
@@ -281,6 +283,7 @@ export async function runRequestAi(
   let provider: Awaited<ReturnType<typeof resolveAiProvider>> | null = null;
   try {
     const actor = JSON.parse(claimed.actor_json) as WorkContext;
+    await assertProductionModuleEnabled(db, actor.companyId, "operations");
     requireJobAuthority(actor);
     const grant = await db
       .prepare(
@@ -349,6 +352,7 @@ export async function runRequestAi(
       );
     const command = `request-ai-result-${token}`;
     await db.batch([
+      ...productionFeatureGuard(db,command,actor.companyId,"operations"),
       ...iamMutationGuards(db,actor,command),assertion(db,command,"queued-assignment","EXISTS(SELECT 1 FROM assignments WHERE id=? AND user_id=? AND role=? AND (?::bigint IS NULL OR version=?) AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>?)",[actor.assignmentId,actor.userId,actor.role,actor.authority?.assignmentVersion??null,actor.authority?.assignmentVersion??null,Date.now(),Date.now()]),
       ...snap(command),
       requestVersionGuard(db, command, current.request),
@@ -391,6 +395,7 @@ export async function runRequestAi(
         "REQUEST_NOT_FOUND",
         "REQUEST_SCOPE_FORBIDDEN",
         "AI_STAGE_FORBIDDEN",
+        "FEATURE_COMING_SOON",
       ].includes(e.code);
     const message =
       e instanceof ApiError

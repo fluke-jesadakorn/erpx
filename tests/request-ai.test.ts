@@ -127,6 +127,8 @@ it("preserves manual drafts when no company or deployment provider is available"
 it("does not call AI for a queued request after the company disables its production provider", async () => {
   await provider();
   const r = await request(), queued = await queue(r.id);
+  await db.prepare("INSERT INTO company_feature_rollouts(company_id,module_id,rollout_state,version,reason,changed_by,changed_at) VALUES(?,'operations','pilot',1,'Test AI provider revocation',?,?)")
+    .bind(f.company,f.it.userId,Date.now()).run();
   await db.prepare("UPDATE ai_company_settings SET mode='disabled',version=version+1 WHERE company_id=?").bind(f.company).run();
   vi.stubEnv("NODE_ENV", "production");
   try {
@@ -134,6 +136,42 @@ it("does not call AI for a queued request after the company disables its product
     expect(generate).not.toHaveBeenCalled();
     expect((await getEmployeeRequest(db, f.claimant, r.id)).state).toBe("draft");
     expect((await db.prepare("SELECT state FROM request_ai_proposals WHERE id=?").bind(queued.proposalId).first<{state:string}>())?.state).toBe("failed");
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
+it("does not queue or run request AI when Operations is outside the production rollout", async () => {
+  await provider();
+  const r = await request();
+  vi.stubEnv("NODE_ENV", "production");
+  try {
+    await expect(queue(r.id)).rejects.toMatchObject({ code: "FEATURE_COMING_SOON" });
+    vi.stubEnv("NODE_ENV", "test");
+    const queued = await queue(r.id);
+    vi.stubEnv("NODE_ENV", "production");
+    await runRequestAi(db, aiEnv, queued.proposalId, generate);
+    expect(generate).not.toHaveBeenCalled();
+    expect((await getEmployeeRequest(db, f.claimant, r.id)).state).toBe("draft");
+    expect((await db.prepare("SELECT state FROM request_ai_proposals WHERE id=?").bind(queued.proposalId).first<{ state: string }>())?.state).toBe("stale");
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});
+it("does not publish a suggestion when Operations is disabled during inference", async () => {
+  await provider();
+  const r = await request();
+  await db.prepare("INSERT INTO company_feature_rollouts(company_id,module_id,rollout_state,version,reason,changed_by,changed_at) VALUES(?,'operations','pilot',1,'Test rollout race',?,?)")
+    .bind(f.company,f.it.userId,Date.now()).run();
+  vi.stubEnv("NODE_ENV", "production");
+  try {
+    const queued = await queue(r.id);
+    await runRequestAi(db, aiEnv, queued.proposalId, async () => {
+      await db.prepare("UPDATE company_feature_rollouts SET rollout_state='off',version=version+1 WHERE company_id=? AND module_id='operations'").bind(f.company).run();
+      return { result: suggestion, inputTokens: 1, outputTokens: 1 };
+    });
+    const proposal = await db.prepare("SELECT state,result_json FROM request_ai_proposals WHERE id=?").bind(queued.proposalId).first<{ state: string; result_json: string | null }>();
+    expect(proposal?.state).not.toBe("ready");
+    expect(proposal?.result_json).toBeNull();
   } finally {
     vi.unstubAllEnvs();
   }

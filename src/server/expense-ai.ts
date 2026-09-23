@@ -3,6 +3,7 @@ import { sha256 as aiSessionHash } from "./crypto";
 import type { SqlDatabase, FileStore } from "./runtime/types";
 import { z } from "zod";
 import { ApiError } from "./http";
+import { assertProductionModuleEnabled, productionFeatureGuard } from "./hospitality-rollout";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import type { StaffActor } from "./staff-policy";
 import type { BetaEnvironment } from "./beta-config";
@@ -146,6 +147,7 @@ export async function queueExpenseAi(
   const operation = "expense.ai.prepare",
     prior = await replayCommand(db, actor, key, operation, id, input);
   if (prior) return prior;
+  await assertProductionModuleEnabled(db, actor.companyId, "people_payroll");
   const authority = await expenseAuthoritySnapshot(db, actor.companyId),
     source = await expenseAiSource(db, actor.companyId, id, input.paymentId);
   if (source.sourceVersion !== input.expectedVersion)
@@ -482,6 +484,7 @@ export async function runExpenseAi(
       .bind(Date.now() + 120000, id, lease).run().then(() => {}).catch(() => {}).finally(() => { renewing = null; });
   }, 30000);
   try {
+    await assertProductionModuleEnabled(db, row.company_id, "people_payroll");
     requireJobAuthority(actor);
     const authority = await expenseAuthoritySnapshot(db, row.company_id),
       source = await expenseAiSource(
@@ -677,6 +680,7 @@ export async function runExpenseAi(
         "The source or authority changed. Prepare new suggestions.",
       );
     await db.batch([
+      ...productionFeatureGuard(db,lease,row.company_id,"people_payroll"),
       assertion(
         db,
         lease,
@@ -704,7 +708,7 @@ export async function runExpenseAi(
     ]);
   } catch (error) {
     const stale =
-      (error instanceof ApiError && error.code === "AI_STALE") ||
+      (error instanceof ApiError && ["AI_STALE", "FEATURE_COMING_SOON"].includes(error.code)) ||
       /constraint/i.test(String(error));
     const message = stale
       ? "The source, authority, or provider changed. Prepare new suggestions."
