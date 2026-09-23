@@ -104,6 +104,8 @@ describe('POS committed business flows',()=>{
   expect(workspace.roomChargeEnabled).toBe(false);
   await expect(change('payment.create',sale,{method:'edc',amountMinor:10700,tenderedMinor:10700,reference:'EDC-001'})).rejects.toMatchObject({code:'POS_TENDER_COMING_SOON'});
   await expect(change('payment.create',sale,{method:'stripe_card',amountMinor:10700,tenderedMinor:10700,reference:''})).rejects.toMatchObject({code:'POS_TENDER_COMING_SOON'});
+  await expect(command('connection.oauth',{livemode:false})).rejects.toMatchObject({code:'POS_PROVIDER_COMING_SOON'});
+  expect(await one(db,'SELECT count(*) n FROM pos_oauth_states')).toEqual({n:0});
   expect(await one(db,'SELECT count(*) n FROM pos_payments')).toEqual({n:0});
   await expect(change('sale.charge_to_room',sale,{propertyId:'hotel',stayId:'stay',expectedPropertyVersion:1})).rejects.toMatchObject({code:'POS_ROOM_CHARGE_PILOT_GATE'});
  });

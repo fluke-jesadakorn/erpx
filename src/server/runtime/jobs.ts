@@ -74,8 +74,10 @@ export async function scheduledWork(env: JobEnv) {
     await (await import("../staff-task-alerts")).escalateStaffTasks(write);
     await generateOccurrences(write);
     await drainRequestAi(write,env);
-    await (await import("../executive/generation")).drainExecutiveGeneration(write,env);
-    await drainSocialAgent(write,env);
+    if(process.env.NODE_ENV!=='production') {
+      await (await import("../executive/generation")).drainExecutiveGeneration(write,env);
+      await drainSocialAgent(write,env);
+    }
     if(slot.beta) await cleanupBetaResources(write,files,slot.id);
   }
 }
@@ -101,18 +103,22 @@ export async function pmsWork(env: JobEnv) {
  for (const slot of await activeSlots(env)) if (!slot.beta) {
    const db=registeredResources(env,slot.id).write as PostgresDatabase;
    await (await import("../pms")).drainPms(db);
-   const booking=await import("../pms-booking");
-   await booking.deliverBookingEmails(db,{secret: String(env.BETTER_AUTH_SECRET),origin: String(env.ERPX_PUBLIC_ORIGIN),apiKey:typeof env.RESEND_API_KEY === "string" ? env.RESEND_API_KEY : undefined,from:typeof env.RESEND_FROM === "string" ? env.RESEND_FROM : undefined});
+   if(process.env.NODE_ENV!=='production') {
+     const booking=await import("../pms-booking");
+     await booking.deliverBookingEmails(db,{secret: String(env.BETTER_AUTH_SECRET),origin: String(env.ERPX_PUBLIC_ORIGIN),apiKey:typeof env.RESEND_API_KEY === "string" ? env.RESEND_API_KEY : undefined,from:typeof env.RESEND_FROM === "string" ? env.RESEND_FROM : undefined});
+   }
  }
 
 }
 
-export async function legalWork(env:JobEnv){for(const slot of await activeSlots(env)){const {write,files}=registeredResources(env,slot.id);await Promise.allSettled([(await import('../legal/jobs')).legalReminders(write),(await import('../legal/invitations')).drainLegalInvitations(write,env),(await import('../legal/processing')).drainLegalProcessing(write,files),(await import('../legal/retention')).drainLegalDestruction(write as PostgresDatabase,files),(await import('../legal/jobs')).drainLegalAi(write,env)]).then(results=>{if(results.some(r=>r.status==='rejected'))throw new Error('LEGAL_WORK_FAILED')})}}
+export async function legalWork(env:JobEnv){if(process.env.NODE_ENV==='production')return;for(const slot of await activeSlots(env)){const {write,files}=registeredResources(env,slot.id);await Promise.allSettled([(await import('../legal/jobs')).legalReminders(write),(await import('../legal/invitations')).drainLegalInvitations(write,env),(await import('../legal/processing')).drainLegalProcessing(write,files),(await import('../legal/retention')).drainLegalDestruction(write as PostgresDatabase,files),(await import('../legal/jobs')).drainLegalAi(write,env)]).then(results=>{if(results.some(r=>r.status==='rejected'))throw new Error('LEGAL_WORK_FAILED')})}}
 
 export async function supportWork(env:JobEnv) {
+ if(process.env.NODE_ENV==='production')return;
  for(const slot of await activeSlots(env)) await (await import('../support-sla-alerts')).drainSupportSla(registeredResources(env,slot.id).write);
 }
 
 export async function customerNotificationWork(env:JobEnv) {
+ if(process.env.NODE_ENV==='production')return;
  for(const slot of await activeSlots(env)) await (await import('../sales-customer-notifications')).drainCustomerNotifications(registeredResources(env,slot.id).write,env);
 }

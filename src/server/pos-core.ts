@@ -117,6 +117,7 @@ const base=z.object({id:z.string().min(1),expectedVersion:z.number().int().posit
 const permissionFor=(op:string)=>op==='payment.verify_transfer'||op==='sale.reverse_room_charge'?'finance.approve':op.startsWith('settings')||op.startsWith('register')||op.startsWith('catalog')||op.startsWith('table.')?'pos.configure':op.startsWith('kitchen.')?'pos.kitchen':op==='refund.approve'||op==='refund.reject'||op==='sale.approve_discount'||op==='shift.review'||op==='cash.approve'||op.startsWith('exception.')||op.startsWith('settlement.')?'pos.approve':op.startsWith('connection.')?'pos.payments.configure':'pos.sell';
 export async function posCommand(db:PostgresDatabase,actor:WorkContext,operation:string,input:unknown,key:string){
  keySchema.parse(key);requirePermission(actor,permissionFor(operation));if(actor.departmentId)fail('POS_BRANCH_REQUIRED','Select a company or branch for POS',403);
+ if(process.env.NODE_ENV==='production'&&operation.startsWith('connection.'))fail('POS_PROVIDER_COMING_SOON','Live POS provider connections require a separate release',403);
  const hash=createHash('sha256').update(JSON.stringify({user:actor.userId,assignment:actor.assignmentId,company:actor.companyId,branch:actor.branchId,operation,input})).digest('hex');
  try{return await db.transaction(async tx=>{
   if(operation!=='sale.reverse_room_charge')await assertProductionModuleEnabled(tx,actor.companyId,'pos');

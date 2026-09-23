@@ -1,5 +1,5 @@
 import { env } from "./runtime-env";
-import { beforeEach,describe,expect,it } from "vitest";
+import { beforeEach,describe,expect,it,vi } from "vitest";
 import { project,type EventMessage } from "../src/workers/jobs";
 describe("Workflow event projection",()=>{
   beforeEach(async()=>{
@@ -38,6 +38,13 @@ describe("Workflow event projection",()=>{
     await project(env,{...message("overtime",4,"approved"),eventType:"overtime.approve",aggregateId:"overtime"});
     expect(await env.H001_READ_DB.prepare("SELECT source_type,subtitle,queue FROM work_items").first()).toEqual({source_type:"overtime_request",subtitle:"approved",queue:"completed"});
     expect(await env.H001_READ_DB.prepare("SELECT COUNT(*) n FROM projection_receipts").first()).toEqual({n:2});
+  });
+  it("acknowledges deferred social AI events without running their side effect in production",async()=>{
+    vi.stubEnv('NODE_ENV','production');
+    try {
+      await project(env,{...message('future-social',1),eventType:'social.post.publish',aggregateId:'future-post'});
+      expect(await env.H001_READ_DB.prepare("SELECT COUNT(*) n FROM projection_receipts WHERE event_id='future-social'").first()).toEqual({n:1});
+    } finally {vi.unstubAllEnvs();}
   });
 
 });

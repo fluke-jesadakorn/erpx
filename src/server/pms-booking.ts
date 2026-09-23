@@ -670,6 +670,7 @@ export async function deliverBookingEmails(
   send: typeof fetch = fetch,
   now = Date.now(),
 ) {
+  if (process.env.NODE_ENV === 'production') return;
   if (!env.apiKey || !env.from) return;
   await run(
     db,

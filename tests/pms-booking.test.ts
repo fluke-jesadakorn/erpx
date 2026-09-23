@@ -467,6 +467,12 @@ it("retries email failures while keeping the booking confirmed", async () => {
   await deliverBookingEmails(db, delivery, send, now + 20000);
   expect(send).toHaveBeenCalledTimes(1);
 });
+it("does not deliver deferred public-booking email jobs in production", async () => {
+  const send=vi.fn<typeof fetch>();
+  vi.stubEnv('NODE_ENV','production');
+  try {await deliverBookingEmails(db,delivery,send,now);expect(send).not.toHaveBeenCalled();}
+  finally {vi.unstubAllEnvs();}
+});
 it("expires access links and provides non-enumerating email recovery", async () => {
   const b = await createPublicReservation(
     db,

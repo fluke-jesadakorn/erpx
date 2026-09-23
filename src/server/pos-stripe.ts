@@ -41,6 +41,7 @@ export async function posStripeWebhook(raw:string,signature:string){
  });return {received:true};
 }
 export function oauthUrl(state:string,holdingSlug:string,live:boolean){
+ if(process.env.NODE_ENV==='production')fail('POS_PROVIDER_COMING_SOON','Live POS provider connections require a separate release',403);
  secret(live);const client=process.env[live?'POS_STRIPE_LIVE_CLIENT_ID':'POS_STRIPE_TEST_CLIENT_ID'];if(!client)fail('POS_STRIPE_OAUTH_NOT_CONFIGURED','Platform has not configured Connect OAuth');
  const params=new URLSearchParams({response_type:'code',client_id:client,scope:'read_write',state,redirect_uri:`${origin()}/api/v1/holdings/${holdingSlug}/pos/connect/callback`});return `https://connect.stripe.com/oauth/authorize?${params}`;
 }
@@ -58,6 +59,7 @@ async function bindAccount(db:PostgresDatabase,holdingId:string,companyId:string
  });
 }
 export async function finishPosOAuth(actor:WorkContext,stateId:string,code:string){
+ if(process.env.NODE_ENV==='production')fail('POS_PROVIDER_COMING_SOON','Live POS provider connections require a separate release',403);
  requirePermission(actor,'pos.payments.configure');if(actor.branchId||actor.departmentId)fail('POS_COMPANY_SETTINGS','Select a company area',403);
  const db=(await holdingResources(actor.holdingId)).write as PostgresDatabase;
  // Claim once before the non-idempotent OAuth exchange. A failed exchange requires fresh authorization.

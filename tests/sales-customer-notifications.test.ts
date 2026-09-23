@@ -54,3 +54,16 @@ it('records provider failure and retries the same immutable message without dupl
   expect(sent).toHaveBeenCalledTimes(1);const request=sent.mock.calls[0]![1] as RequestInit;expect(request.headers).toMatchObject({'Idempotency-Key':queued.id});
   expect(await db.prepare('SELECT status,version,attempts,provider_message_id FROM commerce_customer_notifications WHERE id=?').bind(queued.id).first()).toEqual({status:'sent',version:4,attempts:1,provider_message_id:'provider-message-1'});
 });
+
+it('holds future customer delivery jobs without sending or consuming them in production',async()=>{
+  const source=await delivered();await updateCustomerNotificationSettings(f.head,{expectedVersion:0,adapter:'resend'},key());
+  const queued=await queueDeliveryNotification(f.owner,source.fulfillmentId,{expectedVersion:1,note:'Deferred pilot notice'},key());
+  const send=vi.fn<typeof fetch>();vi.stubEnv('NODE_ENV','production');
+  try {
+    await expect(queueDeliveryNotification(f.owner,source.fulfillmentId,{expectedVersion:1,note:'Another notice'},key())).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
+    await deliverCustomerNotification(db,{RESEND_API_KEY:'unused',RESEND_FROM:'unused@example.invalid'},String(queued.id),send,Date.now());
+    await drainCustomerNotifications(db,{RESEND_API_KEY:'unused',RESEND_FROM:'unused@example.invalid'},Date.now());
+    expect(send).not.toHaveBeenCalled();
+    expect(await db.prepare('SELECT status,attempts FROM commerce_customer_notifications WHERE id=?').bind(queued.id).first()).toEqual({status:'pending',attempts:0});
+  } finally {vi.unstubAllEnvs();}
+});
