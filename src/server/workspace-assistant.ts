@@ -19,6 +19,7 @@ import { runtimeEnv } from "./runtime";
 import { assistantGovernanceContext, recordAssistantInvocation } from "./agent-governance";
 import { pmsWorkspace } from "./pms";
 import { posWorkspace } from "./pos";
+import { assertProductionModuleEnabled } from "./hospitality-rollout";
 
 type Row = { id:string; question:string; paths_json:string; sources_json:string|null; answer_json:string|null; english_answer_json?:string|null; state:string; created_at:number };
 function page(path:string) {
@@ -46,6 +47,14 @@ const pick = (row:Record<string,unknown>,keys:string[]) => Object.fromEntries(ke
 /** No DOM, credentials, background tabs, unpublished knowledge or unrestricted SQL enter prompts. */
 export async function assistantSources(db:SqlDatabase,actor:WorkContext,path:string):Promise<AssistantSource[]> {
   const p=page(path),root=p.segments[0],id=p.segments[1];
+  const modules:Record<string,string>={work:"operations",requests:"operations",expenses:"people_payroll",people:"people_payroll",calendar:"operations","staff-tasks":"operations",projects:"projects",handbook:"collaboration",learn:"learning",pos:"pos",pms:"pms",inbox:"collaboration",leave:"people_payroll",overtime:"people_payroll"};
+  const commerceView=p.query.get("view")??id??"";
+  const moduleId=root==="commerce"
+    ? (["sales","quote","pricing"].includes(commerceView)?"sales":commerceView==="stock"?"inventory":"procurement")
+    : modules[root]??(root==="finance"?"finance":undefined);
+  if(root==="finance"&&["engines","group"].includes(p.query.get("view")??id??"")&&process.env.NODE_ENV==="production")
+    throw new ApiError(403,"FEATURE_COMING_SOON","Advanced Finance is not in this hotel pilot.");
+  if(moduleId)await assertProductionModuleEnabled(db,actor.companyId,moduleId);
   const permissions:Record<string,string>={finance:"finance.read",people:"people.read",commerce:"commerce.read",pms:"pms.read",pos:"pos.read",settings:"ai.manage"};
   if(permissions[root]&&!hasPermission(actor,permissions[root]))throw new ApiError(403,"AI_CONTEXT_FORBIDDEN","The current role cannot read this assistant context.");
   const sources:AssistantSource[]=[{id:`guide:${(await sha256(p.path)).slice(0,16)}`,title:`${p.guide.title} · workflow guide`,path:p.path,version:"1",data:p.guide}];

@@ -3,6 +3,7 @@ import {env,applyMigrations} from "./runtime-env";
 import {expenseDb as db,expenseFixture,key} from "./helpers/expense-fixture";
 import {assistantPage,assistantAskSchema} from "../src/lib/ai/workspace-assistant";
 import {askAssistant,assistantSources,assistantView} from "../src/server/workspace-assistant";
+import {assertProductionFeatureRoute} from "../src/server/hospitality-rollout";
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const aiEnv={AI_BASE_URL:"https://opencode.ai/zen/go/v1",AI_MODEL:"muse-spark-1.3-contributor",AI_API_KEY:"synthetic-key"};
 let f:Awaited<ReturnType<typeof expenseFixture>>;
@@ -57,5 +58,20 @@ it("requires explicit company AI opt-in in production while retaining the manual
     expect(view.guide.title).toBe("Home");
     await expect(askAssistant(db,f.owner,aiEnv,assistantAskSchema.parse({path:"/home",question:"What next?"}),key(),generate)).rejects.toMatchObject({code:"AI_PILOT_OPT_IN_REQUIRED"});
     expect(generate).not.toHaveBeenCalled();
+  } finally {vi.unstubAllEnvs();}
+});
+it("keeps deferred module evidence out of production assistant prompts",async()=>{
+  vi.stubEnv("NODE_ENV","production");
+  try {
+    await expect(assistantSources(db,f.owner,"/pms")).rejects.toMatchObject({code:"FEATURE_COMING_SOON"});
+    await expect(assistantSources(db,f.owner,"/projects")).rejects.toMatchObject({code:"FEATURE_COMING_SOON"});
+    await expect(assistantSources(db,f.owner,"/commerce?view=sales")).rejects.toMatchObject({code:"FEATURE_COMING_SOON"});
+    await expect(assistantSources(db,f.owner,"/commerce/sales")).rejects.toMatchObject({code:"FEATURE_COMING_SOON"});
+    await expect(assistantSources(db,f.owner,"/finance/engines")).rejects.toMatchObject({code:"FEATURE_COMING_SOON"});
+    await db.prepare("INSERT INTO company_feature_rollouts(company_id,module_id,rollout_state,version,reason,changed_by,changed_at) VALUES(?, 'projects', 'pilot', 1, 'Invalid fixture rollout', ?, ?)").bind(f.company,f.owner.userId,Date.now()).run();
+    await expect(assistantSources(db,f.owner,"/projects")).rejects.toMatchObject({code:"FEATURE_COMING_SOON"});
+    await expect(assertProductionFeatureRoute(db,f.company,"projects","POST")).rejects.toMatchObject({code:"FEATURE_COMING_SOON"});
+    await db.prepare("INSERT INTO company_feature_rollouts(company_id,module_id,rollout_state,version,reason,changed_by,changed_at) VALUES(?, 'pos', 'pilot', 1, 'Fixture acceptance', ?, ?)").bind(f.company,f.owner.userId,Date.now()).run();
+    expect((await assistantSources(db,f.owner,"/pos?tab=sale")).map(source=>source.id.split(':')[0])).toEqual(["guide","record"]);
   } finally {vi.unstubAllEnvs();}
 });

@@ -125,8 +125,8 @@ export async function assertProductionFeatureRoute(db: SqlDatabase, companyId: s
     billing:['commercial'], expenses:['people_payroll'], production:['manufacturing'],
     'landed-costs':['inventory'], 'service-teams':['field_service'], records:['records'], beta:['beta'],
   };
-  const modules=routes[root];
-  if (!modules) {
+  const modules=routes[root]?.filter(isPilotModule);
+  if (!modules?.length) {
     if (['ai-providers','assistant','business-readiness','companies','navigation','page-layouts'].includes(root)) return;
     throw new ApiError(403,'FEATURE_COMING_SOON','This command is outside the approved hotel pilot');
   }
@@ -138,6 +138,7 @@ export async function assertProductionFeatureRoute(db: SqlDatabase, companyId: s
 
 export async function assertProductionModuleEnabled(db: SqlDatabase, companyId: string, moduleId: string) {
   if (process.env.NODE_ENV !== 'production') return;
+  if (!isPilotModule(moduleId)) throw new ApiError(403,'FEATURE_COMING_SOON','This feature is outside the approved hotel pilot');
   const row=await db.prepare("SELECT 1 FROM company_feature_rollouts WHERE company_id=? AND module_id=? AND rollout_state IN ('pilot','available')")
     .bind(companyId,moduleId).first();
   if (!row) throw new ApiError(403,'FEATURE_COMING_SOON','This company has not activated this workflow for the pilot');
