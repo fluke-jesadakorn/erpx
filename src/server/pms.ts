@@ -353,6 +353,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     snapshot: s ? visibleSnapshot(s, actor) : null,
     readiness: s ? readiness(s) : [],
     permissions: pmsPermissions.filter((k) => hasPermission(actor, k)),
+    availablePaymentMethods: process.env.NODE_ENV === 'production' ? ['cash'] : ['cash','transfer','edc'],
     userId: actor.userId,
     branches,
     staff,
@@ -874,6 +875,11 @@ export async function pmsCommand(
     op = command.operation;
   if (op === "charge.import_pos")
     throw new ApiError(403, "PMS_INTERNAL_COMMAND", "Restaurant charges must come from a POS transaction");
+  if (process.env.NODE_ENV === 'production' && (op === 'payment.receive' || op === 'payment.deposit' || op === 'refund.pay')) {
+    const method = z.object({ method: z.string() }).parse(command.input).method;
+    if (method !== 'cash')
+      throw new ApiError(403, 'PMS_BANK_VERIFICATION_REQUIRED', 'Hotel bank and card payments or refunds require verified evidence before posting');
+  }
   requirePermission(actor, operationPermission(op));
   if (op === "night.step" && !worker)
     throw new ApiError(

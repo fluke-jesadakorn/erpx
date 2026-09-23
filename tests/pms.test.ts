@@ -1,5 +1,5 @@
 import { prepareRoomCharge } from "../src/lib/pms-room-charge";
-import { beforeAll, beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "./runtime-env";
 import { seedExpenseCompany } from "../fixtures/expenses/company";
 import { pmsCommand, loadPms, drainPms, pmsWorkspace } from "../src/server/pms";
@@ -32,6 +32,7 @@ let f: Awaited<ReturnType<typeof seedExpenseCompany>>,
 beforeAll(async () => {
   await applyMigrations(db, env.STAFF_TEST_MIGRATIONS);
 });
+afterEach(() => vi.unstubAllEnvs());
 async function snapshot() {
   return loadPms(db, owner, propertyId);
 }
@@ -152,6 +153,28 @@ async function balance(account: string) {
     .first<{ n: number }>();
   return Number(r!.n);
 }
+
+it("does not settle a production hotel transfer from a typed reference alone", async () => {
+  const booking = await book();
+  await checkIn(booking.stayId);
+  const shift = (await cmd("shift.open", { name: "AM", opening: 0 })).id;
+  const before = await snapshot();
+  const accountBalance = await balance(accounts.bank);
+  const { changeCompanyFeatureRollout } = await import("../src/server/hospitality-rollout");
+  await changeCompanyFeatureRollout(owner, { moduleId: "pms", state: "pilot", expectedVersion: 0, reason: "Hotel pilot acceptance rehearsal" }, key());
+  vi.stubEnv("NODE_ENV", "production");
+  expect((await pmsWorkspace(owner, propertyId)).availablePaymentMethods).toEqual(["cash"]);
+  const request = { propertyId, expectedVersion: before.property.version, operation: "payment.receive", input: { folioId: booking.folioId, amount: 10700, method: "transfer", reference: "TYPED-ONLY", shiftId: shift } };
+  await expect(pmsCommand(db, owner, request, key())).rejects.toMatchObject({ code: "PMS_BANK_VERIFICATION_REQUIRED" });
+  await expect(pmsCommand(db, owner, { ...request, operation: "payment.deposit" }, key())).rejects.toMatchObject({ code: "PMS_BANK_VERIFICATION_REQUIRED" });
+  await expect(pmsCommand(db, owner, { ...request, input: { ...request.input, method: "edc" } }, key())).rejects.toMatchObject({ code: "PMS_BANK_VERIFICATION_REQUIRED" });
+  await expect(pmsCommand(db, owner, { ...request, operation: "refund.pay", input: { id: "not-a-refund", method: "transfer", reference: "TYPED-ONLY", shiftId: shift } }, key())).rejects.toMatchObject({ code: "PMS_BANK_VERIFICATION_REQUIRED" });
+  const after = await snapshot();
+  expect(after.property.version).toBe(before.property.version);
+  expect(records(after, "entry").length).toBe(records(before, "entry").length);
+  expect(await balance(accounts.bank)).toBe(accountBalance);
+  await expect(pmsCommand(db, owner, { ...request, input: { folioId: booking.folioId, amount: 10700, method: "cash", shiftId: shift } }, key())).resolves.toMatchObject({ propertyId });
+});
 
 it("completes deposit, stay, durable night audit, checkout and invoice without duplicate revenue", async () => {
   const b = await book();

@@ -525,7 +525,7 @@ export function PmsWorkspaceView({
         { id: "cash", name: "Cash" },
         { id: "transfer", name: "Bank transfer" },
         { id: "edc", name: "EDC" },
-      ],
+      ].filter((option) => data.availablePaymentMethods.includes(option.id)),
       "cash",
     ),
     select("shiftId", "Cashier shift", openShifts, openShifts[0]?.id),
