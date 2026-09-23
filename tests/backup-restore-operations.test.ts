@@ -24,6 +24,8 @@ it("backs up and restores an isolated complete database, private files, and appl
  await writeFile(join(home,"config/production.env"),"BETTER_AUTH_SECRET=before-backup\n",{mode:0o600});await chmod(join(home,"config/production.env"),0o600);
  await writeFile(join(home,"data/files/holding/evidence/document.txt"),"immutable file before backup\n");await writeFile(join(release,"release.json"),JSON.stringify({id:releaseId,schemaSha256:"schema-demo"}));await writeFile(join(release,"server.js"),"// recovery fixture\n");await symlink(release,join(home,"current"));
  const operator=resolve("ops/macos/erpxctl.py"),backup=(await execute("python3",[operator,"--home",home,"--offline-test","backup"],{timeout:120000})).stdout.trim(),snapshot=backup.match(/^Backup:\s+(.+)$/m)?.[1];expect(snapshot).toBeTruthy();
+ const absentStatus=JSON.parse((await execute("python3",[operator,"--home",home,"--offline-test","recovery-status"])).stdout);
+ expect(absentStatus.issues).toContain("OFFSITE_NOT_CONFIGURED");
  const snapshotPath=String(snapshot),metadata=JSON.parse(await readFile(join(snapshotPath,"backup.json"),"utf8"));expect(metadata.databases).toEqual([database]);expect(JSON.parse(await readFile(join(snapshotPath,"checksums.json"),"utf8"))).toHaveProperty(`databases/${database}.dump`);
  const changed=new Pool({connectionString:databaseUrl.href,max:1});await changed.query("UPDATE recovery_probe SET value='after-backup'");await changed.end();await writeFile(join(home,"data/files/holding/evidence/document.txt"),"changed after backup\n");await writeFile(join(home,"config/production.env"),"BETTER_AUTH_SECRET=changed-after-backup\n");
  await execute("python3",[operator,"--home",home,"--offline-test","restore",snapshotPath],{timeout:120000});
@@ -63,6 +65,11 @@ it("backs up and restores an isolated complete database, private files, and appl
  const scheduled=(await execute("python3",[operator,"--home",recovery,"--offline-test","backup"],{timeout:120000})).stdout;
  const scheduledSnapshot=scheduled.match(/^Backup:\s+(.+)$/m)?.[1];expect(scheduledSnapshot).toBeTruthy();
  expect(existsSync(join(offsite,`${String(scheduledSnapshot).split("/").at(-1)}.tar.age`))).toBe(true);
+ const status=JSON.parse((await execute("python3",[operator,"--home",recovery,"--offline-test","recovery-status"])).stdout);
+ expect(status).toMatchObject({offsiteConfigured:true,separateDevice:false,archiveFreshUnderOneHour:true,rpoProven:false,rtoProven:false});
+ expect(status.issues).toContain("OFFSITE_SEPARATE_DEVICE_REQUIRED");
+ expect(status.issues).toContain("RPO_STRATEGY_NOT_PROVEN");
+ expect(status.issues).toContain("SEPARATE_HOST_RESTORE_NOT_PROVEN");
  const dump=await readFile(join(snapshotPath,"databases",`${database}.dump`)),sha256=createHash("sha256").update(dump).digest("hex"),evidence={kind:"full_offline_backup_restore",database,releaseId,databaseRowsRestored:1,privateFilesRestored:1,applicationSecretRestored:true,databaseManifestRetained:true,archiveSha256:sha256,scope:"Isolated complete operator backup/restore rehearsal; excludes production host, off-machine durability, WAL/PITR and live RPO/RTO sign-off"};
  const evidenceDirectory=join(process.cwd(),".scratch/cross-department-audit");await mkdir(evidenceDirectory,{recursive:true});await writeFile(join(evidenceDirectory,"full-recovery-latest.json"),JSON.stringify(evidence,null,2)+"\n");
 },180000);

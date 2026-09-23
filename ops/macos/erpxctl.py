@@ -4,6 +4,7 @@ import argparse, contextlib, datetime, fcntl, hashlib, json, os, re, shutil, sub
 from pathlib import Path
 from urllib.parse import urlparse, unquote
 from offsite import export_snapshot, import_archive
+from recovery_status import recovery_status
 DEFAULT=Path('/Library/Application Support/ERPX')
 
 def run(args, **kwargs):
@@ -139,7 +140,7 @@ def activate(home,target):
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--home',type=Path,default=DEFAULT);parser.add_argument('--offline-test',action='store_true')
     parser.add_argument('--destination',type=Path);parser.add_argument('--recipient');parser.add_argument('--identity',type=Path)
-    parser.add_argument('command',choices=['backup','export','import','restore','rollback','doctor','bootstrap-admin']);parser.add_argument('target',nargs='?')
+    parser.add_argument('command',choices=['backup','export','import','restore','rollback','doctor','bootstrap-admin','recovery-status']);parser.add_argument('target',nargs='?')
     args=parser.parse_args();home=args.home.resolve()
     if args.offline_test:
         if home==DEFAULT or any(not n.startswith('erpx_test_') for n in database_names(home)): raise RuntimeError('Offline mode requires isolated test databases')
@@ -155,6 +156,7 @@ def main():
             if not args.target or not args.identity: raise RuntimeError('OFFSITE_IMPORT_ARGUMENTS_REQUIRED')
             import_archive(home,Path(args.target),args.identity,checksums)
         elif args.command=='restore': restore(home,Path(args.target),args.offline_test)
+        elif args.command=='recovery-status': print(json.dumps(recovery_status(home),indent=2))
         elif args.command=='rollback':
             target=home/'releases'/str(args.target)
             if not re.fullmatch(r'[0-9TZ.-]+',str(args.target)): raise ValueError('Invalid release ID')
