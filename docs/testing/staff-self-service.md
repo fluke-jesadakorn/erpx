@@ -21,6 +21,8 @@ Integration coverage includes concurrent leave submissions, exactly-once reserva
 
 The new browser suite is `tests/e2e/self-service.spec.ts`. It checks keyboard access, light/dark presentation, mobile layout, feed interactions, partial Home-source failures, server draft recovery after reload, stale-version recovery with retained edits, overtime preview/withdrawal, leave half-day preview, interrupted private-upload retry, and canonical shift/purchase destinations. Screenshots and logs are under ignored `.scratch/self-service/` and `.scratch/self-service-*.log`.
 
+The connected Demo acceptance in `tests/e2e/demo-overtime-to-payroll.spec.ts` covers the full retrospective overtime handoff: employee draft and submit, independent manager verification, independent HR approval, and Payroll calculation. It confirms the calculated input snapshot retains the source overtime request ID and exact approved minutes after the handoff. [Browser evidence](evidence/2026-09-23-overtime-to-payroll-browser.txt) records the isolated run; statutory payroll/tax, provider delivery, production operation, downstream payment and Company business acceptance remain separate gates.
+
 The browser suite used a separate Next.js server on loopback port 3102 and six disposable PostgreSQL databases owned by `erpx_test_admin`. Synthetic staff and leave entitlements existed only in that environment. Existing account credentials and real staff setup were not changed. The temporary server and databases were removed after testing.
 
 To run integration checks with the local test-database configuration loaded:

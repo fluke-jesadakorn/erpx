@@ -5348,7 +5348,9 @@
           "reviewedAt": null
         }
       },
-      "evidenceRecordIds": []
+      "evidenceRecordIds": [
+        "people-overtime-to-payroll-browser-acceptance-20260923"
+      ]
     },
     {
       "id": "people_payroll/payroll-summaries",
@@ -5403,7 +5405,8 @@
         "payroll-advances-20260921",
         "payroll-runs-browser-20260922",
         "payroll-gl-posting-automated-20260923",
-        "payroll-payment-browser-20260923"
+        "payroll-payment-browser-20260923",
+        "people-overtime-to-payroll-browser-acceptance-20260923"
       ]
     },
     {
@@ -5559,7 +5562,8 @@
         "payroll-advances-20260921",
         "payroll-runs-browser-20260922",
         "payroll-gl-posting-automated-20260923",
-        "payroll-payment-browser-20260923"
+        "payroll-payment-browser-20260923",
+        "people-overtime-to-payroll-browser-acceptance-20260923"
       ]
     },
     {

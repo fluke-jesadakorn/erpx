@@ -22,7 +22,8 @@ describe("general company working demo", () => {
       closePeriodIds: ["period-jan", "period-feb"],
       controlledPaymentInvoiceId: "invoice-payment-demo",
       actors: {
-        employee: actor("employee"), manager: actor("people_manager"), buyer: actor("purchasing_operator"),
+        employee: actor("employee"), manager: actor("people_manager"), hrApprover: actor("hr_admin"),
+        payrollPreparer: actor("payroll_preparer"), buyer: actor("purchasing_operator"),
         purchasingManager: actor("purchasing_manager"), salesOperator: actor("sales_operator"), salesManager: actor("sales_manager"), warehouse: actor("warehouse_manager"),
         financePreparer: actor("finance_preparer"), financeApprover: actor("finance_approver"),
         treasury: actor("treasury"), administrator: actor("holding_owner"),
@@ -59,5 +60,9 @@ describe("general company working demo", () => {
     const timeline = guide.scenarios.find(s => s.id === "customer-360-scoped-timeline");
     expect(timeline).toMatchObject({ id: "customer-360-scoped-timeline", sourceRecord: { type: "finance_party", id: "customer-1" } });
     expect(timeline?.steps.map(step=>step.actor)).toEqual(["customerOperator", "customerOperator", "salesManager", "customerOperator"]);
+    const overtime = guide.scenarios.find(s => s.id === "employee-overtime-to-payroll");
+    expect(overtime?.startingState).toContain("No overtime request exists until the employee creates it");
+    expect(overtime?.steps.map(step=>step.actor)).toEqual(["employee", "manager", "hrApprover", "payrollPreparer"]);
+    expect(overtime?.steps.every(step=>step.expected.length > 0 && step.href.startsWith("http://127.0.0.1:3102/"))).toBe(true);
   });
 });

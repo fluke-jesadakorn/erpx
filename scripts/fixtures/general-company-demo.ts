@@ -29,6 +29,8 @@ export type GeneralCompanyDemoInput = {
   actors: Record<
     | "employee"
     | "manager"
+    | "hrApprover"
+    | "payrollPreparer"
     | "buyer"
     | "purchasingManager"
     | "salesOperator"
@@ -278,6 +280,18 @@ export function generalCompanyDemoGuide(input: GeneralCompanyDemoInput) {
             actors: { customerOperator: input.customerOperator, salesManager: input.actors.salesManager },
           }]
         : []),
+      {
+        id: "employee-overtime-to-payroll",
+        title: "พนักงานส่งชั่วโมงล่วงเวลาให้ผู้จัดการและ HR ตรวจ ก่อนเข้า Payroll preview",
+        startingState: "The resettable Demo Company has an active employee engagement, an independent reporting manager, an independent HR reviewer, and a THB pay group. No overtime request exists until the employee creates it.",
+        steps: [
+          { order: 1, actor: "employee", action: "เปิด Overtime เลือก Retrospective claim กรอกช่วงเวลาจริง เหตุผล และคำอธิบายการส่งย้อนหลัง ตรวจชั่วโมง แล้วบันทึก draft ก่อน submit", href: `${base}/overtime/new`, expected: "Draft อยู่ต่อหลัง reload และ submit เข้าคิว Manager verification พร้อมผู้ตรวจสองขั้นที่ระบุชัด" },
+          { order: 2, actor: "manager", action: "เปิด Overtime request ที่มอบหมาย ตรวจช่วงเวลาและหลักฐาน แล้ว Verify actual hours", href: `${base}/overtime`, expected: "ผู้จัดการคนเดิมที่ทำคำขอไม่ได้ และการอนุมัติส่งต่อไป HR โดยไม่ข้ามขั้น" },
+          { order: 3, actor: "hrApprover", action: "เปิดคำขอเดิม ตรวจประวัติ manager แล้ว Approve hours & hand off", href: `${base}/overtime`, expected: "สถานะ Approved และมีข้อความยืนยันการส่งชั่วโมงไป payroll preview หลัง reload" },
+          { order: 4, actor: "payrollPreparer", action: "สร้าง payroll preview ครอบคลุมวันทำงาน แล้วตรวจ employee calculated item และ source handoff", href: `${base}/people?view=payroll`, expected: "Input snapshot ระบุ request ID และนาทีที่อนุมัติ; global payroll preview ไม่อ้างว่าเป็น statutory tax calculation" },
+        ],
+        actors: { employee: input.actors.employee, manager: input.actors.manager, hrApprover: input.actors.hrApprover, payrollPreparer: input.actors.payrollPreparer },
+      },
     ],
   } as const;
 }

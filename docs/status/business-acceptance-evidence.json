@@ -4411,6 +4411,35 @@
         "Two closes passed in the demo; Finance go-live still requires two consecutive reconciled closes and sign-off in the target company."
       ],
       "supersedes": null
+    },
+    {
+      "id": "people-overtime-to-payroll-browser-acceptance-20260923",
+      "capabilityIds": [
+        "people_payroll/employees",
+        "people_payroll/feature-payroll-runs",
+        "people_payroll/payroll-summaries"
+      ],
+      "scenarioIds": [
+        "S12",
+        "S13"
+      ],
+      "gate": "browser",
+      "environment": "simulation",
+      "outcome": "passed",
+      "scope": "A disposable multi-role Demo browser journey created a retrospective employee overtime claim, had an independent reporting manager verify it and an independent HR administrator approve it, then calculated a THB payroll preview. The persisted payroll input snapshot contained the same request ID, 210 minutes and 3.5 overtime hours.",
+      "observedAt": "2026-09-23T08:31:45+07:00",
+      "recordedBy": "Codex execution agent (isolated browser observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-overtime-to-payroll-browser.txt",
+          "sha256": "b4c0daeb118234ed5fb8fe613e9df464a74c19e0a245645780fd53969f7082c5"
+        }
+      ],
+      "limitations": [
+        "This covers one global payroll-core path in a disposable Demo Company; statutory payroll/tax compliance, live providers, production operation and Company business acceptance remain separate gates.",
+        "Payroll payment, Finance posting and exception/retry paths are downstream workflows with separate acceptance evidence."
+      ],
+      "supersedes": null
     }
   ]
 }
