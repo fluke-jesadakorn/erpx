@@ -176,6 +176,8 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
  }
  if(op==='shift.open'){
   const p=z.object({registerId:z.string(),openingMinor:money}).parse(input),register=scopeRow(actor,await one(db,'SELECT * FROM pos_registers WHERE id=? AND active=true FOR UPDATE',p.registerId)),settings=await config(db,company);if(!settings.enabled)fail('POS_DISABLED','POS transactions are not enabled');
+  const hotel=await one(db,'SELECT state,business_date FROM pms_properties WHERE company_id=? AND branch_id=? FOR SHARE',company,register.branch_id);
+  if(hotel&&(hotel.state!=='open'||hotel.business_date!==businessDate()))fail('POS_HOTEL_DAY_CLOSED','Finish or recover the hotel day close before opening a restaurant cash session');
   await openPeriod(db,company,businessDate());const sid=id();await run(db,'INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor) VALUES(?,?,?,?,?,?,?)',sid,register.id,company,register.branch_id,user,Date.now(),p.openingMinor);return {id:sid};
  }
  if(op.startsWith('shift.')||op.startsWith('cash.')){

@@ -383,7 +383,7 @@ export function PmsWorkspaceView({
       pending=true;
       try {
         const r = await workFetch(
-          `/api/v1${base}/pms${propertyId ? `?property=${encodeURIComponent(propertyId)}` : ""}`,
+          `/api/v1${base}/pms?${new URLSearchParams({...(propertyId?{property:propertyId}:{}),...(section==='night-audit'?{dayControls:'1'}:{})})}`,
           {signal:controller.signal},
         );
         if (r.ok) {
@@ -1926,6 +1926,13 @@ export function PmsWorkspaceView({
                   </div>
                   {p.state === "open" && (
                     <>
+                      {data.dayControls && <section aria-label="Restaurant day controls" className={styles.record}>
+                        <h3>Restaurant day controls</h3>
+                        <p>Business date {data.dayControls.businessDate} · {data.dayControls.openBills} open bills · {data.dayControls.pendingPayments} pending payments · {data.dayControls.openShifts} open cash sessions</p>
+                        <p>Direct sales {money(data.dayControls.directSalesMinor)} · Room charges {money(data.dayControls.roomChargesMinor)} · Cash received {money(data.dayControls.cashReceivedMinor)} · Verified transfers {money(data.dayControls.verifiedTransferMinor)}</p>
+                        <p>Restaurant stock movement {money(data.dayControls.stockValueMinor)} · Inventory ledger movement {money(data.dayControls.stockLedgerMinor)}</p>
+                        {data.dayControls.blockers.length ? <><ul className={styles.blockers}>{data.dayControls.blockers.map(blocker=><li key={blocker}>{blocker}</li>)}</ul><Link href={`${base}/pos?tab=shifts`}>Review restaurant cash sessions</Link> · <Link href={`${base}/pos?tab=history`}>Review restaurant receipts</Link></> : <p className={styles.notice}>Restaurant controls are ready for day close.</p>}
+                      </section>}
                       {nightBlockers(s!).length ? (
                         <ul className={styles.blockers}>
                           {nightBlockers(s!).map((b) => (
@@ -1935,7 +1942,7 @@ export function PmsWorkspaceView({
                       ) : (
                         <p className={styles.notice}>Ready to close the day.</p>
                       )}
-                      {form("Start day close", "night.start")}
+                      {!nightBlockers(s!).length && !data.dayControls?.blockers.length && form("Start day close", "night.start")}
                     </>
                   )}
                   {rows("night")

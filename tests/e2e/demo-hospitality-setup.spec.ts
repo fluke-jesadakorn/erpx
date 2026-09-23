@@ -58,7 +58,7 @@ test("Riverside hotel and restaurant remain isolated and render for independent 
     const db=new Pool({connectionString:databaseUrl.href,max:1});
     try {
       const stock=await db.query("SELECT COALESCE(SUM(value_minor),0)::bigint value FROM commerce_stock WHERE warehouse_id=$1",[state.fixture.hospitality.warehouseId]);
-      const ledger=await db.query("SELECT COALESCE(SUM(debit_minor-credit_minor),0)::bigint value FROM finance_journal_lines WHERE journal_id=$1 AND account_id=$2",[state.fixture.hospitality.openingJournalId,state.fixture.hospitality.openingInventoryAccountId]);
+      const ledger=await db.query("SELECT COALESCE(SUM(l.debit_minor-l.credit_minor),0)::bigint value FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=$1 AND j.status='posted' AND l.account_id=$2",[state.fixture.hospitality.companyId,state.fixture.hospitality.openingInventoryAccountId]);
       expect(Number(stock.rows[0].value)).toBe(Number(ledger.rows[0].value));
       expect(Number(stock.rows[0].value)).toBeGreaterThan(0);
       const approval=await db.query("SELECT status,created_by,posted_by FROM finance_journals WHERE id=$1",[state.fixture.hospitality.openingJournalId]);
@@ -199,4 +199,38 @@ test("cashier records an external tax reference and independent Finance verifies
     await page.goto(`/holdings/riverside-lantern/pos?sale=${saleId}`);
     await expect(page.getByText("Issued 2026-09-23 · verified")).toBeVisible();
   } finally {await Promise.all([cashier.close(),finance.close()]);}
+});
+
+test("Night Audit shows restaurant blockers and rejects an early close",async({browser},testInfo)=>{
+  const run=process.env.ERPX_DEMO_RUN;
+  test.skip(!run,"Prepare and start a disposable demo run first.");
+  test.setTimeout(90_000);
+  const directory=resolve(`.runtime/browser/${run}`);
+  const credentials=JSON.parse(await readFile(resolve(directory,"credentials.json"),"utf8")) as Credentials;
+  const state=JSON.parse(await readFile(resolve(directory,"state.json"),"utf8")) as State;
+  const cashier=await browser.newContext(testInfo.project.use),auditor=await browser.newContext(testInfo.project.use);
+  try {
+    await Promise.all([signIn(cashier,credentials,"pos_cashier"),signIn(auditor,credentials,"pms_night_auditor")]);
+    const cashierPage=await cashier.newPage();
+    await cashierPage.goto("/holdings/riverside-lantern/pos?tab=shifts");
+    const shifts=(await(await cashier.request.get("/api/v1/holdings/riverside-lantern/pos?tab=shifts")).json()).data.shifts;
+    if(!shifts.some((shift:{state:string})=>shift.state==="open"))await cashierPage.getByRole("button",{name:"Open cash session",exact:true}).click();
+    await expect(cashierPage.getByRole("button",{name:"Close cash session"})).toBeVisible();
+    const auditPage=await auditor.newPage();
+    await auditPage.goto(`/holdings/riverside-lantern/pms/night-audit?property=${state.fixture.hospitality.propertyId}`);
+    await expect(auditPage.getByRole("heading",{name:"Restaurant day controls"})).toBeVisible();
+    await expect(auditPage.getByText(/restaurant cash session\(s\) still open/)).toBeVisible();
+    await expect(auditPage.getByRole("button",{name:"Start day close"})).toHaveCount(0);
+    const hotel=(await(await auditor.request.get(`/api/v1/holdings/riverside-lantern/pms?property=${state.fixture.hospitality.propertyId}&dayControls=1`)).json()).data;
+    expect(hotel.dayControls.openShifts).toBeGreaterThan(0);
+    expect(hotel.dayControls.stockValueMinor).toBe(hotel.dayControls.stockLedgerMinor);
+    const workHeaders=await auditPage.locator("[data-work-revision]").first().evaluate(node=>({
+      "x-erpx-context-revision":(node as HTMLElement).dataset.workRevision??"",
+      "x-erpx-context-company":(node as HTMLElement).dataset.workCompany??"",
+      "x-erpx-context-assignment":(node as HTMLElement).dataset.workAssignment??"",
+    }));
+    const close=await auditor.request.post("/api/v1/holdings/riverside-lantern/pms",{headers:{"Idempotency-Key":crypto.randomUUID(),...workHeaders},data:{operation:"night.start",propertyId:state.fixture.hospitality.propertyId,expectedVersion:hotel.snapshot.property.version,input:{}}});
+    expect(close.status()).toBe(409);
+    expect((await close.json()).error.code).toBe("PMS_DAY_RECONCILIATION_BLOCKED");
+  } finally {await Promise.all([cashier.close(),auditor.close()]);}
 });

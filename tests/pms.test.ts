@@ -216,6 +216,31 @@ it("completes deposit, stay, durable night audit, checkout and invoice without d
     .first<{ debit: number; credit: number }>();
   expect(totals!.debit).toBe(totals!.credit);
 });
+it("holds Night Audit for restaurant cash, variance and unverified transfer controls",async()=>{
+  const warehouse=key(),register=key(),shift=key(),sale=key(),payment=key();
+  const date=(await snapshot()).property.businessDate;
+  await db.prepare("INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name) VALUES(?,?,?,?,?)")
+    .bind(warehouse,f.company,f.branch,`HOTEL-${warehouse.slice(0,6)}`,'Hotel restaurant').run();
+  await db.prepare("INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode) VALUES(?,?,?,?,?,'restaurant')")
+    .bind(register,f.company,f.branch,warehouse,'Night Audit restaurant').run();
+  await db.prepare("INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor) VALUES(?,?,?,?,?,0,0)")
+    .bind(shift,register,f.company,f.branch,owner.userId).run();
+  await expect(cmd('night.start')).rejects.toMatchObject({code:'PMS_DAY_RECONCILIATION_BLOCKED'});
+  expect((await pmsWorkspace(owner,propertyId,true)).dayControls?.openShifts).toBe(1);
+  await db.prepare("UPDATE pos_shifts SET state='closed',counted_minor=100,expected_minor=0,variance_minor=100,closed_at=1 WHERE id=?").bind(shift).run();
+  await expect(cmd('night.start')).rejects.toMatchObject({code:'PMS_DAY_RECONCILIATION_BLOCKED'});
+  await db.prepare("UPDATE pos_shifts SET state='reviewed',reviewed_by='independent-manager',review_reason='Counted and accepted' WHERE id=?").bind(shift).run();
+  await db.prepare(`INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,state,created_by,created_at,updated_at,accounts_json)
+    VALUES(?,?,?,?,?,'PILOT-PENDING','THB',?,'payment_pending',?,1,1,'{}')`).bind(sale,f.company,f.branch,register,shift,date,owner.userId).run();
+  await db.prepare("INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,reference,state,created_by,created_at,updated_at) VALUES(?,?,?,'transfer',100,100,'PENDING-BANK','pending',?,1,1)")
+    .bind(payment,sale,f.company,owner.userId).run();
+  await expect(cmd('night.start')).rejects.toMatchObject({code:'PMS_DAY_RECONCILIATION_BLOCKED'});
+  expect((await pmsWorkspace(owner,propertyId,true)).dayControls).toMatchObject({openBills:1,pendingPayments:1});
+  await db.prepare("UPDATE pos_payments SET state='cancelled' WHERE id=?").bind(payment).run();
+  await db.prepare("UPDATE pos_sales SET state='cancelled' WHERE id=?").bind(sale).run();
+  expect((await pmsWorkspace(owner,propertyId,true)).dayControls?.blockers).toEqual([]);
+  await expect(cmd('night.start')).resolves.toMatchObject({propertyId});
+});
 it("serializes competing bookings for the last room and rolls back the losing command", async () => {
   const s = await snapshot(),
     input = {

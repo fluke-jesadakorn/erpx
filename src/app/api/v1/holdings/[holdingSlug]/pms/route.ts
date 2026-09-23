@@ -15,6 +15,7 @@ export async function GET(request: Request, { params }: Context) {
         data: await pmsWorkspace(
           actor,
           new URL(request.url).searchParams.get("property") ?? undefined,
+          new URL(request.url).searchParams.get("dayControls") === "1",
         ),
       },
       { headers: { "Cache-Control": "private, no-store" } },

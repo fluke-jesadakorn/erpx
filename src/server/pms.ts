@@ -26,6 +26,7 @@ import {
 import { minorToDecimal } from "@/lib/finance-money";
 import { prepareRoomCharge, roomChargeSchema } from "@/lib/pms-room-charge";
 import { assertProductionModuleEnabled } from './hospitality-rollout';
+import { hospitalityDayControls } from './hospitality-day-controls';
 import { hasPermission } from "@/lib/permissions";
 import { samePerson } from "@/lib/iam";
 import type { WorkItem } from "@/lib/work-item";
@@ -193,7 +194,7 @@ function visibleSnapshot(s: Snapshot, actor: WorkContext): Snapshot {
     };
   return result;
 }
-export async function pmsWorkspace(actor: WorkContext, propertyId?: string) {
+export async function pmsWorkspace(actor: WorkContext, propertyId?: string, includeDayControls=false) {
   requirePermission(actor, "pms.read");
   if (actor.departmentId || actor.beta)
     throw new ApiError(
@@ -362,6 +363,9 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string) {
     warehouses,
     documents: docs,
     ledger,
+    dayControls:s && includeDayControls && (hasPermission(actor,'pms.audit')||hasPermission(actor,'pms.reports'))
+      ? await hospitalityDayControls(write,actor.companyId,s.property.branchId,s.property.id,s.property.businessDate)
+      : null,
   };
 }
 export type PmsWorkspace = Awaited<ReturnType<typeof pmsWorkspace>>;
@@ -957,6 +961,10 @@ export async function pmsCommand(
             "PMS_VERSION_CONFLICT",
             "Hotel data changed. Load the latest version and review again",
           );
+      }
+      if(op==='night.start') {
+        const controls=await hospitalityDayControls(tx,actor.companyId,s.property.branchId,s.property.id,s.property.businessDate);
+        if(controls.blockers.length) throw new ApiError(409,'PMS_DAY_RECONCILIATION_BLOCKED',controls.blockers.join(' · '));
       }
       const original = new Map(s.records.map((r) => [r.id, JSON.stringify(r)]));
       const outcome =

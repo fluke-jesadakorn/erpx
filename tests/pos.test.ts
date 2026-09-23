@@ -2,7 +2,7 @@ import { beforeAll,beforeEach,afterEach,describe,it,expect,vi } from 'vitest';
 import { createHmac } from 'node:crypto';
 import { env,applyMigrations } from './runtime-env';
 import { posCommand,one,all,run } from '../src/server/pos-core';
-import { accountKeys,saleAmounts,portion,recipeQuantities,formatPosMoney } from '../src/lib/pos';
+import { accountKeys,saleAmounts,portion,recipeQuantities,formatPosMoney,businessDate } from '../src/lib/pos';
 import { defaultConfig,pmsAccountKeys } from '../src/lib/pms';
 import { drainPos,posStripeWebhook,verifyPosStripeSignature } from '../src/server/pos-stripe';
 import type { WorkContext } from '../src/server/authorization';
@@ -40,6 +40,15 @@ beforeEach(async()=>{
  await command('catalog.save',{productId:'latte',barcode:'8850001',category:'Coffee',kind:'recipe',station:'Bar',recipe:[{productId:'milk',quantityMilli:200}],modifiers:[],taxInclusive:false,expectedVersion:0});
 });
 describe('POS committed business flows',()=>{
+ it('cannot open a restaurant session while the hotel closes or has a different business date',async()=>{
+  await run(db,"UPDATE pos_shifts SET state='closed',counted_minor=10000,expected_minor=10000,variance_minor=0,closed_at=1 WHERE id='shift-retail'");
+  await run(db,"INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,created_by,updated_at) VALUES('hotel','pos-company','pos-branch','Hotel',?,'closing',?,'system',0)",businessDate(),JSON.stringify(defaultConfig));
+  await expect(command('shift.open',{registerId:'retail',openingMinor:0})).rejects.toMatchObject({code:'POS_HOTEL_DAY_CLOSED'});
+  await run(db,"UPDATE pms_properties SET state='open',business_date='2000-01-01' WHERE id='hotel'");
+  await expect(command('shift.open',{registerId:'retail',openingMinor:0})).rejects.toMatchObject({code:'POS_HOTEL_DAY_CLOSED'});
+  await run(db,"UPDATE pms_properties SET business_date=? WHERE id='hotel'",businessDate());
+  await expect(command('shift.open',{registerId:'retail',openingMinor:0})).resolves.toHaveProperty('id');
+ });
  it('links an external tax reference to one posted sale with independent Finance review and correction history',async()=>{
   const {taxDocumentCommand,taxDocumentView}=await import('../src/server/hospitality-tax-documents');
   const sale=await createSale();await add(sale);await pay(sale);await change('sale.complete',sale);

@@ -23,7 +23,7 @@ export default async function PmsPage({
     actor = await requireWorkContext(holdingSlug);
   let data;
   try {
-    data = await pmsWorkspace(actor, search.property);
+    data = await pmsWorkspace(actor, search.property, section?.[0] === "night-audit");
   } catch (error) {
     return pageError(error, actor.holdingSlug);
   }

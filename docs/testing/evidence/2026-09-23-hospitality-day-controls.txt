@@ -1,0 +1,22 @@
+Isolated hotel-and-restaurant day controls — 2026-09-23
+
+Scope: fictional Riverside Lantern holding in disposable H002 test databases.
+The browser run was destroyed after verification. No real property or production
+database was used.
+
+Automated integration: bun run test -- tests/pms.test.ts tests/pos.test.ts
+Result: 56 passed (PMS 26, POS 30).
+
+Browser: ERPX_DEMO_RUN=<private run> ERPX_E2E_BASE_URL=http://127.0.0.1:3102
+  bunx playwright test tests/e2e/demo-hospitality-setup.spec.ts --project=desktop
+Result: 5 passed. Separate cashier, kitchen, front-desk, Finance, housekeeper,
+and night-auditor sessions rendered. A restaurant room charge posted once to
+the hotel folio; a transfer stayed pending; a direct cash sale's external tax
+reference was verified by Finance; Night Audit displayed a restaurant cash
+blocker and rejected a direct start command. Current restaurant stock value
+matched the posted inventory-account balance after sales.
+
+TypeScript, targeted ESLint, and the isolated deploy:build passed.
+
+This is automated/browser evidence only. Provider, business, and production
+acceptance remain pending. The room-charge production toggle remains off.
