@@ -39,6 +39,8 @@ import {
   type PageLayout,
 } from "@/lib/page-layouts";
 import { workFetch } from "@/lib/work-fetch";
+import { productionPageCut, type PageCutEntry } from '@/lib/hospitality-page-cut';
+import { ComingSoonPage } from '@/components/workplace/coming-soon-page';
 import styles from "./features.module.css";
 
 const Environment = createContext<NavigationContext>({
@@ -52,11 +54,15 @@ const PageDrawer = createContext<{
 export function FeatureEnvironment({
   navigation,
   children,
+  productionCatalogue,
 }: {
   navigation: NavigationContext;
   children: ReactNode;
+  productionCatalogue?: readonly PageCutEntry[];
 }) {
-  return <Environment value={navigation}>{children}</Environment>;
+  const pathname=usePathname(),search=useSearchParams();
+  const cut=productionCatalogue&&productionPageCut(pathname,navigation.workspaceBase,search,productionCatalogue);
+  return <Environment value={navigation}>{cut?<ComingSoonPage entry={cut} base={navigation.workspaceBase}/>:children}</Environment>;
 }
 export function FeatureTabs() {
   const navigation = useContext(Environment),

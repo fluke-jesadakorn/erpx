@@ -214,7 +214,7 @@ export default async function WorkplaceLayout({
             assignmentId={context.assignmentId}
             revision={context.authority!.revision}
           >
-            <FeatureEnvironment navigation={navigation}>{children}</FeatureEnvironment>
+            <FeatureEnvironment navigation={navigation} productionCatalogue={process.env.NODE_ENV === 'production' ? featureCatalogue.map(({id,name,state})=>({id,name,state})) : undefined}>{children}</FeatureEnvironment>
             <Suspense><WorkspaceAssistant base={base} crossContext={hasPermission(context,"ai.context.cross")}/></Suspense>
           </WorkContextBoundary>
         </div>
