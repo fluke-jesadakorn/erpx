@@ -218,9 +218,9 @@ test("hotel cashier records a transfer and independent Finance matches bank evid
   const directory=resolve(`.runtime/browser/${run}`);
   const credentials=JSON.parse(await readFile(resolve(directory,"credentials.json"),"utf8")) as Credentials;
   const state=JSON.parse(await readFile(resolve(directory,"state.json"),"utf8")) as State;
-  const cashier=await browser.newContext(testInfo.project.use),finance=await browser.newContext(testInfo.project.use);
+  const cashier=await browser.newContext(testInfo.project.use),financePreparer=await browser.newContext(testInfo.project.use),finance=await browser.newContext(testInfo.project.use);
   try {
-    await Promise.all([signIn(cashier,credentials,"pms_cashier"),signIn(finance,credentials,"finance_approver")]);
+    await Promise.all([signIn(cashier,credentials,"pms_cashier"),signIn(financePreparer,credentials,"finance_preparer"),signIn(finance,credentials,"finance_approver")]);
     const propertyId=state.fixture.hospitality.propertyId;
     const transferReference=`SANDBOX-HOTEL-${crypto.randomUUID()}`;
     const cashierPage=await cashier.newPage();
@@ -253,9 +253,25 @@ test("hotel cashier records a transfer and independent Finance matches bank evid
       expect(pending.rows[0].state).toBe("pending");
       const account=await db.query("SELECT config_json::jsonb->'accounts'->>'bank' bank FROM pms_properties WHERE id=$1",[propertyId]);
       expect(account.rows[0].bank).toBeTruthy();
-      const statementId=crypto.randomUUID(),bankId=crypto.randomUUID();
-      await db.query("INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,opening_minor,closing_minor,source_hash,imported_by,created_at) VALUES($1,$2,$3,$4,$5,0,4280,$6,$7,$8)",[statementId,state.fixture.hospitality.companyId,account.rows[0].bank,`SANDBOX-PMS-${statementId}`,hotel.snapshot.property.businessDate,statementId,credentials.users.find(user=>user.role==="finance_approver"&&user.email.endsWith("@riverside-lantern.example"))!.userId,Date.now()]);
-      await db.query("INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,amount_minor,currency) VALUES($1,$2,$3,$4,$5,4280,'THB')",[bankId,statementId,state.fixture.hospitality.companyId,hotel.snapshot.property.businessDate,transferReference]);
+      const statementId=crypto.randomUUID();
+      const preparerPage=await financePreparer.newPage();
+      await preparerPage.goto("/holdings/riverside-lantern/finance/bank?new=1");
+      await preparerPage.getByRole("button",{name:"Import bank statement",exact:true}).click();
+      await preparerPage.locator('select[name="bankAccount"]:visible').selectOption(account.rows[0].bank);
+      await preparerPage.getByLabel("Statement number",{exact:true}).fill(`SANDBOX-PMS-${statementId}`);
+      await preparerPage.getByLabel("Statement date",{exact:true}).fill(hotel.snapshot.property.businessDate);
+      await preparerPage.getByLabel("Opening balance",{exact:true}).fill("0");
+      await preparerPage.getByLabel("Closing balance",{exact:true}).fill("42.80");
+      await preparerPage.getByLabel("Bank reference 1",{exact:true}).fill(transferReference);
+      await preparerPage.getByLabel("Transaction date 1",{exact:true}).fill(hotel.snapshot.property.businessDate);
+      await preparerPage.getByLabel("Description 1",{exact:true}).fill("Fictional hotel guest transfer");
+      await preparerPage.getByLabel("Signed amount 1",{exact:true}).fill("42.80");
+      const bankImport=preparerPage.waitForResponse(response=>response.request().method()==="POST"&&response.url().endsWith("/finance/bank/statements/import"));
+      await preparerPage.getByRole("button",{name:"Validate and import",exact:true}).click();
+      expect((await bankImport).ok()).toBe(true);
+      const imported=await db.query("SELECT t.id FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE s.company_id=$1 AND t.external_id=$2",[state.fixture.hospitality.companyId,transferReference]);
+      expect(imported.rows).toHaveLength(1);
+      const bankId=imported.rows[0].id;
       const financePage=await finance.newPage();
       await financePage.goto(`/holdings/riverside-lantern/pms/folios?property=${propertyId}&folio=${folio.id}`);
       const transferCard=financePage.locator("article").filter({hasText:transferReference}).last();
@@ -271,7 +287,7 @@ test("hotel cashier records a transfer and independent Finance matches bank evid
       await financePage.reload();
       await expect(financePage.locator("article").filter({hasText:transferReference}).last().getByText("Bank transfer verified against imported bank evidence.")).toBeVisible();
     } finally {await db.end();}
-  } finally {await Promise.all([cashier.close(),finance.close()]);}
+  } finally {await Promise.all([cashier.close(),financePreparer.close(),finance.close()]);}
 });
 
 test("a typed transfer stays pending and the cashier can recover the bill",async({browser},testInfo)=>{
