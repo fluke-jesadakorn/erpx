@@ -50,6 +50,19 @@ it("uses owner-scoped restaurant evidence and omits payment references from prom
   expect(JSON.stringify(sources[1].data)).not.toMatch(/credential|apiKey|guest_name|payment.reference/i);
   await expect(assistantSources(db,f.claimant,"/pos?tab=sale")).rejects.toMatchObject({code:"AI_CONTEXT_FORBIDDEN"});
 });
+it("uses scoped inventory and Finance evidence without claiming unseen rows or amounts",async()=>{
+  const stock=await assistantSources(db,f.owner,"/commerce?view=stock");
+  expect(stock[1].data).toMatchObject({title:"Inventory position · first page",firstPageOnly:true,stock:expect.any(Array)});
+  expect(stock[1].data).toHaveProperty("moreStockRows");
+  expect(JSON.stringify(stock[1].data)).not.toMatch(/credential|apiKey|bank_account|guest_name/i);
+  const finance=await assistantSources(db,f.owner,"/finance");
+  expect(finance[1].data).toMatchObject({title:"Finance workbench · company counts",amountsUnavailable:true});
+  const close=await assistantSources(db,f.owner,"/finance?view=close");
+  expect(close[1].data).toMatchObject({title:"Finance close · recent periods",recentPeriodsOnly:true,periods:expect.any(Array)});
+  await expect(assistantSources(db,f.claimant,"/finance")).rejects.toMatchObject({code:"AI_CONTEXT_FORBIDDEN"});
+  await expect(assistantSources(db,{...f.owner,branchId:"branch-outside-company-scope"},"/finance")).rejects.toMatchObject({code:"AI_CONTEXT_FORBIDDEN"});
+  await expect(assistantSources(db,f.claimant,"/commerce?view=stock")).rejects.toMatchObject({code:"AI_CONTEXT_FORBIDDEN"});
+});
 it("requires explicit company AI opt-in in production while retaining the manual guide",async()=>{
   vi.stubEnv("NODE_ENV","production");
   try {

@@ -19,6 +19,9 @@ import { runtimeEnv } from "./runtime";
 import { assistantGovernanceContext, recordAssistantInvocation } from "./agent-governance";
 import { pmsWorkspace } from "./pms";
 import { posWorkspace } from "./pos";
+import { commercePage } from "./commerce";
+import { financeOverviewCounts } from "./finance";
+import { closeWorkspace } from "./finance-workspace";
 import { assertProductionModuleEnabled } from "./hospitality-rollout";
 
 type Row = { id:string; question:string; paths_json:string; sources_json:string|null; answer_json:string|null; english_answer_json?:string|null; state:string; created_at:number };
@@ -52,6 +55,8 @@ export async function assistantSources(db:SqlDatabase,actor:WorkContext,path:str
   if(moduleId)await assertProductionModuleEnabled(db,actor.companyId,moduleId);
   const permissions:Record<string,string>={finance:"finance.read",people:"people.read",commerce:"commerce.read",pms:"pms.read",pos:"pos.read",settings:"ai.manage"};
   if(permissions[root]&&!hasPermission(actor,permissions[root]))throw new ApiError(403,"AI_CONTEXT_FORBIDDEN","The current role cannot read this assistant context.");
+  if(root==="finance"&&(actor.branchId||actor.departmentId))throw new ApiError(403,"AI_CONTEXT_FORBIDDEN","Switch to Company Finance scope to use Finance evidence.");
+  if(root==="commerce"&&commerceView==="stock"&&!hasPermission(actor,"inventory.read"))throw new ApiError(403,"AI_CONTEXT_FORBIDDEN","The current role cannot read stock evidence.");
   const sources:AssistantSource[]=[{id:`guide:${(await sha256(p.path)).slice(0,16)}`,title:`${p.guide.title} · workflow guide`,path:p.path,version:"1",data:p.guide}];
   let data:Record<string,unknown>|undefined;
   if(root==="requests"&&id&&id!=="new") {
@@ -82,6 +87,20 @@ export async function assistantSources(db:SqlDatabase,actor:WorkContext,path:str
     const sale=view.sale;
     data={title:sale?`POS sale ${String(sale.number)}`:"Restaurant point of sale",currency:view.currency,registerCount:view.registers.length,openSales:view.sales.filter(s=>["open","held","payment_pending"].includes(String(s.state))).length,
       ...(sale?{sale:pick(sale,["id","number","version","state","business_date","currency","subtotal_minor","tax_minor","discount_minor","total_minor"]),lines:view.lines.map(line=>pick(line,["id","name","quantity_milli","total_minor","fulfillment_state"])),payments:view.payments.map(payment=>pick(payment,["id","method","state","amount_minor","version"])),roomCharge:view.roomCharge?pick(view.roomCharge,["folio_entry_id","reversal_entry_id","property_version"]):null}:{})};
+  } else if(root==="commerce"&&commerceView==="stock") {
+    const view=await commercePage(actor,{view:"stock"});
+    data={title:"Inventory position · first page",currency:view.currency,branchId:actor.branchId,firstPageOnly:true,moreStockRows:view.page.hasMore,
+      stock:view.stock.map(row=>pick(row,["product_id","warehouse_id","sku","name","unit","tracking_mode","quantity_milli","reserved_milli","quarantined_milli","in_transit_milli","value_minor","version","warehouse_name"])),
+      inTransit:view.inTransit.map(row=>pick(row,["currency","line_count","value_minor"]))};
+  } else if(root==="finance") {
+    const financeView=p.query.get("view")??id??"";
+    if(financeView==="close") {
+      const periods=await closeWorkspace(actor);
+      data={title:"Finance close · recent periods",recentPeriodsOnly:true,morePeriods:periods.length>3,
+        periods:periods.slice(0,3).map(period=>pick(period,["id","name","start_date","end_date","state","draft_journals","unmatched_bank","draft_invoices","blockers","reconciliation_ready","reconciliations"]))};
+    } else {
+      data={title:"Finance workbench · company counts",counts:await financeOverviewCounts(actor),amountsUnavailable:true};
+    }
   } else if(root==="settings"&&p.query.get("section")==="ai") {
     const d=await aiProviderOverview(db,actor,await runtimeEnv());
     data={title:"AI provider settings",selection:{mode:d.selection.mode,textConnection:d.connections.find(c=>c.id===d.selection.text_connection_id)?.name??"Deployment default",imageConnection:d.selection.image_mode==="default"?"Same as text":d.connections.find(c=>c.id===d.selection.image_connection_id)?.name??"Unavailable"},connections:d.connections.map(c=>({name:c.name,disabled:!!c.disabled,activeTextModel:c.active?.text_model??null,activeImageModel:c.active?.image_model??null,hasUnactivatedChanges:c.draft_revision!==c.active_revision,draftTextModel:c.text_model,draftImageModel:c.image_model,draftTextVerified:!!c.text_verified,draftImageVerified:!!c.image_verified,testError:c.test_error}))};
