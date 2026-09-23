@@ -129,6 +129,73 @@ test("cashier and kitchen complete a restaurant bill on the existing hotel folio
   } finally {await Promise.all([cashier.close(),kitchen.close(),frontDesk.close()]);}
 });
 
+test("wrong-room and stale room-charge attempts leave the restaurant bill recoverable",async({browser},testInfo)=>{
+  const run=process.env.ERPX_DEMO_RUN;
+  test.skip(!run,"Prepare and start a disposable demo run first.");
+  test.setTimeout(90_000);
+  const directory=resolve(`.runtime/browser/${run}`);
+  const credentials=JSON.parse(await readFile(resolve(directory,"credentials.json"),"utf8")) as Credentials;
+  const state=JSON.parse(await readFile(resolve(directory,"state.json"),"utf8")) as State;
+  const cashier=await browser.newContext(testInfo.project.use),frontDesk=await browser.newContext(testInfo.project.use);
+  try {
+    await Promise.all([signIn(cashier,credentials,"pos_cashier"),signIn(frontDesk,credentials,"pms_frontdesk")]);
+    const page=await cashier.newPage();
+    await page.goto("/holdings/riverside-lantern/pos?tab=shifts");
+    const posApi="/api/v1/holdings/riverside-lantern/pos";
+    const shifts=(await(await cashier.request.get(`${posApi}?tab=shifts`)).json()).data.shifts;
+    if(!shifts.some((shift:{state:string})=>shift.state==="open"))await page.getByRole("button",{name:"Open cash session",exact:true}).click();
+    await expect(page.getByRole("button",{name:"Close cash session"})).toBeVisible();
+    await page.goto("/holdings/riverside-lantern/pos");
+    await page.getByRole("button",{name:"Open new sale"}).click();
+    await page.getByRole("button",{name:/Bottled water/}).click();
+    await page.getByRole("button",{name:"Add to sale"}).click();
+    const saleId=String((await(await cashier.request.get(posApi)).json()).data.sales[0].id);
+    await page.goto(`/holdings/riverside-lantern/pos?sale=${saleId}`);
+    const choices=await page.getByLabel("In-house guest and room").locator("option").allTextContents();
+    expect(choices).toContain("Room 202 · Existing Demo Guest");
+    expect(choices.some(choice=>choice.includes("Room 101")||choice.includes("Room 104"))).toBe(false);
+    const workHeaders=await page.locator("[data-work-revision]").first().evaluate(node=>({
+      "x-erpx-context-revision":(node as HTMLElement).dataset.workRevision??"",
+      "x-erpx-context-company":(node as HTMLElement).dataset.workCompany??"",
+      "x-erpx-context-assignment":(node as HTMLElement).dataset.workAssignment??"",
+    }));
+    const sale=(await(await cashier.request.get(`${posApi}?sale=${saleId}`)).json()).data.sale;
+    const hotel=(await(await frontDesk.request.get(`/api/v1/holdings/riverside-lantern/pms?property=${state.fixture.hospitality.propertyId}`)).json()).data;
+    const inHouseStay=hotel.snapshot.records.find((record:{kind:string;data:{state?:string}})=>record.kind==="stay"&&record.data.state==="in_house");
+    expect(inHouseStay).toBeTruthy();
+    const manifest=JSON.parse(await readFile(resolve(directory,"databases.json"),"utf8")) as {databases:{H002_DB:string}};
+    const databaseUrl=new URL(manifest.databases.H002_DB);
+    expect(databaseUrl.hostname).toBe("127.0.0.1");
+    expect(databaseUrl.port).toBe("5432");
+    expect(databaseUrl.pathname).toBe(`/erpx_browser_${run}_h002_db`);
+    const db=new Pool({connectionString:databaseUrl.href,max:1});
+    try {
+      const before=await db.query("SELECT COALESCE(SUM(quantity_milli),0)::bigint quantity FROM commerce_stock WHERE warehouse_id=$1",[state.fixture.hospitality.warehouseId]);
+      const command=async(input:Record<string,unknown>)=>cashier.request.post(`${posApi}/sale/charge_to_room`,{headers:{Origin:process.env.ERPX_E2E_BASE_URL??"http://127.0.0.1:3100","Idempotency-Key":crypto.randomUUID(),...workHeaders},data:{id:saleId,expectedVersion:sale.version,propertyId:state.fixture.hospitality.propertyId,stayId:inHouseStay.id,expectedPropertyVersion:hotel.snapshot.property.version,...input}});
+      const cases=[
+        {input:{stayId:"not-a-stay"},code:"PMS_CHARGE_STAY"},
+        {input:{expectedVersion:sale.version+1},code:"POS_VERSION_CONFLICT"},
+        {input:{expectedPropertyVersion:hotel.snapshot.property.version+1},code:"PMS_VERSION_CONFLICT"},
+      ];
+      for(const scenario of cases){
+        const response=await command(scenario.input);
+        expect(response.status()).toBe(409);
+        expect((await response.json()).error.code).toBe(scenario.code);
+        const latest=(await(await cashier.request.get(`${posApi}?sale=${saleId}`)).json()).data;
+        expect(latest.sale.state).toBe("open");
+        expect(latest.sale.version).toBe(sale.version);
+        expect(latest.roomCharge).toBeFalsy();
+        const sources=await db.query("SELECT count(*)::int n FROM pms_sources WHERE property_id=$1 AND source_key=$2",[state.fixture.hospitality.propertyId,`pos:${saleId}:${saleId}`]);
+        expect(sources.rows[0].n).toBe(0);
+        const after=await db.query("SELECT COALESCE(SUM(quantity_milli),0)::bigint quantity FROM commerce_stock WHERE warehouse_id=$1",[state.fixture.hospitality.warehouseId]);
+        expect(after.rows[0].quantity).toBe(before.rows[0].quantity);
+      }
+      await page.reload();
+      await expect(page.getByRole("button",{name:"Charge to room"})).toBeEnabled();
+    } finally {await db.end();}
+  } finally {await Promise.all([cashier.close(),frontDesk.close()]);}
+});
+
 test("a typed transfer stays pending and the cashier can recover the bill",async({browser},testInfo)=>{
   const run=process.env.ERPX_DEMO_RUN;
   test.skip(!run,"Prepare and start a disposable demo run first.");
