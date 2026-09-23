@@ -3,6 +3,7 @@
 import argparse, contextlib, datetime, fcntl, hashlib, json, os, re, shutil, subprocess, sys, time
 from pathlib import Path
 from urllib.parse import urlparse, unquote
+from offsite import export_snapshot, import_archive
 DEFAULT=Path('/Library/Application Support/ERPX')
 
 def run(args, **kwargs):
@@ -70,7 +71,7 @@ def checksums(directory):
             result[str(p.relative_to(directory))]=digest.hexdigest()
     return result
 
-def backup(home, offline=False, protect=None):
+def backup(home, offline=False, protect=None, offsite=True):
     parent=home/'backups';parent.mkdir(mode=0o700,exist_ok=True)
     stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
     temporary=parent/('.'+stamp+'.partial');temporary.mkdir(mode=0o700)
@@ -87,6 +88,11 @@ def backup(home, offline=False, protect=None):
         (temporary/'checksums.json').write_text(json.dumps(checksums(temporary),indent=2))
         # Flush the completed snapshot before publishing it.
         os.sync(); destination=parent/stamp;temporary.rename(destination)
+    offsite_config=home/'config/offsite.json'
+    if offsite and offsite_config.exists():
+        if offsite_config.stat().st_mode & 0o077: raise RuntimeError('OFFSITE_CONFIG_NOT_PRIVATE')
+        config=json.loads(offsite_config.read_text())
+        export_snapshot(home,destination,Path(config['destination']),config['recipient'],checksums,offline)
     completed=sorted(p for p in parent.iterdir() if p.is_dir() and (p/'backup.json').exists())
     retained=set(completed[-7:])
     if protect in completed and protect not in retained:
@@ -103,7 +109,7 @@ def restore(home,snapshot,offline=False):
     if metadata['databases']!=database_names(home): raise RuntimeError('BACKUP_DATABASE_SET_MISMATCH')
     target=home/'releases'/metadata['release']['id']
     if not (target/'release.json').is_file(): raise RuntimeError('Install the matching release before restoring')
-    backup(home,offline,protect=snapshot)
+    backup(home,offline,protect=snapshot,offsite=False)
     with paused(home,offline,resume_on_error=False):
         env,pg=postgres(home)
         for name in metadata['databases']:
@@ -132,7 +138,8 @@ def activate(home,target):
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--home',type=Path,default=DEFAULT);parser.add_argument('--offline-test',action='store_true')
-    parser.add_argument('command',choices=['backup','restore','rollback','doctor','bootstrap-admin']);parser.add_argument('target',nargs='?')
+    parser.add_argument('--destination',type=Path);parser.add_argument('--recipient');parser.add_argument('--identity',type=Path)
+    parser.add_argument('command',choices=['backup','export','import','restore','rollback','doctor','bootstrap-admin']);parser.add_argument('target',nargs='?')
     args=parser.parse_args();home=args.home.resolve()
     if args.offline_test:
         if home==DEFAULT or any(not n.startswith('erpx_test_') for n in database_names(home)): raise RuntimeError('Offline mode requires isolated test databases')
@@ -141,6 +148,12 @@ def main():
     with (home/'operator.lock').open('w') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         if args.command=='backup': backup(home,args.offline_test)
+        elif args.command=='export':
+            if not args.target or not args.destination or not args.recipient: raise RuntimeError('OFFSITE_EXPORT_ARGUMENTS_REQUIRED')
+            export_snapshot(home,Path(args.target),args.destination,args.recipient,checksums,args.offline_test)
+        elif args.command=='import':
+            if not args.target or not args.identity: raise RuntimeError('OFFSITE_IMPORT_ARGUMENTS_REQUIRED')
+            import_archive(home,Path(args.target),args.identity,checksums)
         elif args.command=='restore': restore(home,Path(args.target),args.offline_test)
         elif args.command=='rollback':
             target=home/'releases'/str(args.target)

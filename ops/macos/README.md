@@ -42,7 +42,32 @@ Run a backup now with:
 sudo /usr/bin/python3 '/Library/Application Support/ERPX/ops/erpxctl.py' backup
 ```
 
-The operator lock excludes concurrent backup/restore. Maintenance denies requests, web and jobs stop, and the command checks that their database sessions have exited before dumping every configured database and copying private files, manifests and secrets. Dumps use PostgreSQL custom format. A snapshot becomes visible only after all files and SHA-256 checksums are written; incomplete `.partial` directories are not restorable backups. Services restart on backup failure. Seven complete snapshots are retained, including a snapshot selected for restore. Backups are local and do not survive disk loss.
+The operator lock excludes concurrent backup/restore. Maintenance denies requests, web and jobs stop, and the command checks that their database sessions have exited before dumping every configured database and copying private files, manifests and secrets. Dumps use PostgreSQL custom format. A snapshot becomes visible only after all files and SHA-256 checksums are written; incomplete `.partial` directories are not restorable backups. Services restart on backup failure. Seven complete local snapshots are retained, including a snapshot selected for restore.
+
+### Encrypted off-machine copy
+
+The operator can stream each finished snapshot through `age` into an encrypted archive on a **separately mounted filesystem**. Its private decryption identity must be created and kept on the recovery host; install only the corresponding `age1...` public recipient on this Mac. The production operator rejects a destination on the same filesystem as the ERPX home. The archive includes all configured database dumps, private files, manifests, secrets, and the release identity; a SHA-256 sidecar detects transfer damage before decryption. No plaintext tar file is created. Keep the destination mounted, access-controlled, and independently backed up. Never put the identity in `production.env`, the ERPX home, Git, or the offsite mount.
+
+After installing the updated operator files in the root-owned `ops/` directory during a reviewed release, create root-only `/Library/Application Support/ERPX/config/offsite.json` with the mounted directory and public recipient. This fictional example is a template, not a usable recipient:
+
+```json
+{"destination":"/Volumes/ERPX-Recovery/erpx","recipient":"age1replacewithrecoveryhostpublicrecipient"}
+```
+
+Set the config file to mode `0600`. The existing backup service then exports each snapshot after restarting web/jobs; export failure makes the backup command fail visibly while retaining its complete local snapshot. To export an older snapshot manually:
+
+```sh
+sudo /usr/bin/python3 '/Library/Application Support/ERPX/ops/erpxctl.py' --destination '/Volumes/ERPX-Recovery/erpx' --recipient 'age1...' export '/Library/Application Support/ERPX/backups/<timestamp>'
+```
+
+On a separate recovery host, install the matching ERPX release and provision the same database names in an isolated PostgreSQL cluster. Copy the `.tar.age` archive and its `.json` sidecar from the offsite store, then run the updated operator with the recovery host's private identity:
+
+```sh
+sudo /usr/bin/python3 '/Library/Application Support/ERPX/ops/erpxctl.py' --identity '/private/recovery/erpx-age-identity.txt' import '/private/recovery/<timestamp>.tar.age'
+sudo /usr/bin/python3 '/Library/Application Support/ERPX/ops/erpxctl.py' restore '/Library/Application Support/ERPX/backups/<timestamp>'
+```
+
+Record the archive timestamp, completed export time, import/restore start and finish, database row checks, private file checks, app-secret checks, and an authenticated smoke test. The isolated automated rehearsal covers encrypted export, wrong-key and tamper rejection, import, and complete restore. It does **not** establish off-machine durability or the target of at most one hour of data loss and four hours to restore. The installed backup schedule is still daily at 03:15; select and prove an online backup/WAL strategy and separately mounted destination before the pilot production gate. Do not claim the RPO/RTO from a local or simulated restore.
 
 Restore with `... erpxctl.py restore '/Library/Application Support/ERPX/backups/<timestamp>'`. It verifies every checksum and the database set, requires the matching installed release, creates a current-state backup, stops services, restores databases and files, restores app secrets, and activates the matching release. Existing cluster login credentials are retained. If restore fails midway, maintenance stays active and web/jobs stay stopped: inspect logs and rerun a verified restore after resolving the failure; remove the maintenance marker only after recovery. For a new cluster, first install the matching release and provision the same database/role names, then restore. Test this on a separate recovery host/cluster before a real disaster.
 
