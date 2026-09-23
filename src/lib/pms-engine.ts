@@ -1283,6 +1283,22 @@ export function executePms(
       }).id;
       break;
     }
+    case "charge.import_pos": {
+      const v = z.object({
+        folioId: idField,
+        stayId: idField,
+        sourceKey: textField.min(1),
+        description: reason,
+        net: moneyField,
+        service: moneyField,
+        tax: moneyField,
+        total: amount,
+      }).parse(input);
+      need(v.net + v.service + v.tax === v.total,
+        "PMS_CHARGE_TOTAL", "The service total does not match its components.");
+      resultId = charge(v.folioId, v).id;
+      break;
+    }
     case "charge.reverse": {
       const v = z.object({ id: idField, reason }).parse(input),
         original = get("entry", v.id);

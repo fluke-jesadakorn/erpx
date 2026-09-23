@@ -24,6 +24,7 @@ import {
   type Snapshot,
 } from "@/lib/pms";
 import { minorToDecimal } from "@/lib/finance-money";
+import { prepareRoomCharge, roomChargeSchema } from "@/lib/pms-room-charge";
 import { hasPermission } from "@/lib/permissions";
 import { samePerson } from "@/lib/iam";
 import type { WorkItem } from "@/lib/work-item";
@@ -866,6 +867,8 @@ export async function pmsCommand(
 ) {
   const command = commandSchema.parse(raw),
     op = command.operation;
+  if (op === "charge.import_pos")
+    throw new ApiError(403, "PMS_INTERNAL_COMMAND", "Restaurant charges must come from a POS transaction");
   requirePermission(actor, operationPermission(op));
   if (op === "night.step" && !worker)
     throw new ApiError(
@@ -1196,6 +1199,44 @@ export async function pmsWork(actor: WorkContext): Promise<WorkItem[]> {
         });
   }
   return items;
+}
+
+/** Called inside the POS command transaction: no second command or ledger owner. */
+export async function applyPosRoomCharge(
+  tx: SqlDatabase,
+  actor: WorkContext,
+  raw: z.infer<typeof roomChargeSchema>,
+  expectedPropertyVersion: number,
+) {
+  await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
+  const s = await loadPms(tx, actor, raw.propertyId, true);
+  if (s.property.version !== expectedPropertyVersion)
+    throw new ApiError(409, "PMS_VERSION_CONFLICT", "Hotel data changed. Load the latest stay and review again");
+  const prepared = prepareRoomCharge(s, raw);
+  if (prepared.duplicate) return { entryId: prepared.entryId, propertyVersion: s.property.version };
+  const original = new Map(s.records.map((r) => [r.id, JSON.stringify(r)]));
+  const outcome = executePms(s, "charge.import_pos", {
+    folioId: prepared.folioId,
+    stayId: raw.stayId,
+    sourceKey: prepared.sourceKey,
+    description: raw.description,
+    net: raw.net,
+    service: raw.service,
+    tax: raw.tax,
+    total: raw.total,
+  }, {
+    userId: actor.userId,
+    now: Date.now(),
+    uuid: randomUUID,
+    independent: (other) => !samePerson(actor, other),
+  });
+  await validSetup(tx, s);
+  await persistPmsRecords(tx, s, original);
+  await effects(tx, actor, s, outcome.effects);
+  await run(tx,
+    "UPDATE pms_properties SET version=?,updated_at=? WHERE id=?",
+    s.property.version, Date.now(), s.property.id);
+  return { entryId: outcome.id, propertyVersion: s.property.version };
 }
 
 export async function persistPmsRecords(

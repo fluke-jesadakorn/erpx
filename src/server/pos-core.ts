@@ -12,6 +12,7 @@ import { requirePermission } from './iam-permissions';
 import { workContextGuards } from './commands';
 import { iamMutationGuards } from './iam-store';
 import { ApiError } from './http';
+import { applyPosRoomCharge } from './pms';
 export type PosRow=Record<string,string|number|boolean|null>;
 export const id=()=>randomUUID();
 export const num=(row:PosRow,key:string)=>Number(row[key]??0);
@@ -112,14 +113,14 @@ export async function completeSale(db:SqlDatabase,sale:PosRow,actorId:string,dat
 }
 const keySchema=z.string().regex(/^[a-zA-Z0-9:_.-]{8,180}$/);
 const base=z.object({id:z.string().min(1),expectedVersion:z.number().int().positive()});
-const permissionFor=(op:string)=>op.startsWith('settings')||op.startsWith('register')||op.startsWith('catalog')||op.startsWith('table.')?'pos.configure':op.startsWith('kitchen.')?'pos.kitchen':op==='refund.approve'||op==='refund.reject'||op==='sale.approve_discount'||op==='shift.review'||op==='cash.approve'||op.startsWith('exception.')||op.startsWith('settlement.')?'pos.approve':op.startsWith('connection.')?'pos.payments.configure':'pos.sell';
+const permissionFor=(op:string)=>op==='payment.verify_transfer'?'finance.approve':op.startsWith('settings')||op.startsWith('register')||op.startsWith('catalog')||op.startsWith('table.')?'pos.configure':op.startsWith('kitchen.')?'pos.kitchen':op==='refund.approve'||op==='refund.reject'||op==='sale.approve_discount'||op==='shift.review'||op==='cash.approve'||op.startsWith('exception.')||op.startsWith('settlement.')?'pos.approve':op.startsWith('connection.')?'pos.payments.configure':'pos.sell';
 export async function posCommand(db:PostgresDatabase,actor:WorkContext,operation:string,input:unknown,key:string){
  keySchema.parse(key);requirePermission(actor,permissionFor(operation));if(actor.departmentId)fail('POS_BRANCH_REQUIRED','Select a company or branch for POS',403);
  const hash=createHash('sha256').update(JSON.stringify({user:actor.userId,assignment:actor.assignmentId,company:actor.companyId,branch:actor.branchId,operation,input})).digest('hex');
  try{return await db.transaction(async tx=>{
-  await tx.batch([...workContextGuards(tx,actor,key),...iamMutationGuards(tx,actor,key)]);
   const grant=await one(tx,"SELECT id FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=? AND revoked_at IS NULL AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?)) FOR SHARE",actor.assignmentId,actor.userId,actor.companyId,actor.role,Date.now(),Date.now(),actor.branchId);
   if(!grant)fail('POS_ACCESS_CHANGED','Permissions changed. Select the role again',403);
+  await tx.batch([...workContextGuards(tx,actor,key),...iamMutationGuards(tx,actor,key)]);
   const old=await one(tx,'SELECT * FROM pos_receipts WHERE id=?',key);if(old){if(old.request_hash!==hash)fail('IDEMPOTENCY_CONFLICT','Command number is already used for other data');await run(tx,'DELETE FROM command_assertions WHERE command_id=?',key);return json<Record<string,unknown>>(old.result_json);}
   const result=await perform(tx,actor,operation,input);
   await run(tx,'INSERT INTO pos_receipts VALUES(?,?,?,?,?)',key,actor.companyId,hash,JSON.stringify(result),Date.now());
@@ -215,7 +216,40 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
  }
  if(op.startsWith('sale.')){
   const p=base.passthrough().parse(input),sale=await saleRow(db,actor,p.id);version(sale,p);
-  if(op==='sale.complete')return completeSale(db,sale,user);
+ if(op==='sale.complete')return completeSale(db,sale,user);
+  if(op==='sale.charge_to_room'){
+   const p=base.extend({propertyId:z.string().min(1),stayId:z.string().min(1),expectedPropertyVersion:z.number().int().positive()}).parse(input);
+   if(sale.state!=='open'&&sale.state!=='held')fail('POS_SALE_LOCKED','Only an unpaid bill can be charged to a room');
+   if(!await one(db,"SELECT id FROM pos_registers WHERE id=? AND mode='restaurant'",sale.register_id))fail('POS_ROOM_CHARGE_REGISTER','Only restaurant bills can be charged to a room');
+   if(!await one(db,"SELECT id FROM pos_shifts WHERE id=? AND state='open'",sale.shift_id))fail('POS_SHIFT_CLOSED','Cash session is closed');
+   const settings=await config(db,company);if(!settings.enabled)fail('POS_DISABLED','New transactions are temporarily paused');
+   if(await one(db,'SELECT id FROM pos_payments WHERE sale_id=? LIMIT 1',sale.id))fail('POS_PAYMENT_STARTED','Room charge requires the full unpaid bill');
+   const lines=await all(db,'SELECT * FROM pos_lines WHERE sale_id=?',sale.id);if(!lines.length)fail('POS_EMPTY_SALE','Add items before closing the bill',422);
+   const gross=await one(db,'SELECT COALESCE(SUM(subtotal_minor+tax_minor+discount_minor),0) n FROM pos_lines WHERE sale_id=?',sale.id);
+   if(num(sale,'discount_minor')>scaledAmount(num(gross!,'n'),num(settings,'cashier_discount_bps'),10000)&&!sale.discount_approved_by)fail('POS_DISCOUNT_APPROVAL','This discount must be approved before room charge');
+   await openPeriod(db,company,str(sale,'business_date'));
+   const property=await one(db,'SELECT branch_id,business_date FROM pms_properties WHERE id=? AND company_id=?',p.propertyId,company);
+   if(!property||property.branch_id!==sale.branch_id)fail('POS_PROPERTY_SCOPE','Select a hotel in this restaurant branch',404);
+   if(property.business_date!==sale.business_date)fail('POS_BUSINESS_DATE','Restaurant and hotel business dates must match');
+   for(const itemId of new Set(lines.map(l=>str(l,'fulfillment_id')))){
+    const f=(await one(db,'SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE',itemId))!;
+    if(f.state==='cancelled')fail('POS_ITEM_CANCELLED','Remove cancelled items before closing the bill');
+    if(f.kind==='recipe'&&f.state!=='delivered')fail('POS_SEND_KITCHEN','Deliver kitchen items before charging the room');
+    if(f.kind!=='recipe'&&f.state!=='delivered'){
+     await consume(db,f,user,false);
+     await run(db,"UPDATE pos_fulfillments SET state='delivered',version=version+1 WHERE id=?",f.id);
+    }
+   }
+   const result=await applyPosRoomCharge(db,actor,{
+    source:'pos',sourceId:str(sale,'id'),sourceLineId:str(sale,'id'),companyId:company,
+    branchId:str(sale,'branch_id'),propertyId:p.propertyId,stayId:p.stayId,
+    currency:str(sale,'currency'),revenueOwner:'pms',sourceJournalId:null,
+    description:`Restaurant bill ${str(sale,'number')}`,net:num(sale,'subtotal_minor'),
+    service:0,tax:num(sale,'tax_minor'),total:num(sale,'total_minor'),
+   },p.expectedPropertyVersion);
+   await run(db,"UPDATE pos_sales SET state='completed',table_id=NULL,version=version+1,updated_at=? WHERE id=?",Date.now(),sale.id);
+   return {id:sale.id,state:'completed',tender:'room_charge',propertyId:p.propertyId,stayId:p.stayId,folioEntryId:result.entryId};
+  }
   if(op==='sale.approve_discount'){
    const q=z.object({reason:z.string().trim().min(3).max(1000)}).parse(p);if(samePerson(actor,sale.discount_requested_by??sale.created_by))fail('POS_INDEPENDENT_REVIEW','A different manager must approve the discount');
    await run(db,'UPDATE pos_sales SET discount_approved_by=?,discount_reason=?,version=version+1 WHERE id=?',user,q.reason,sale.id);return {id:sale.id};
@@ -302,8 +336,34 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
   }
   let connection:PosRow|null=null;if(p.method.startsWith('stripe_')){if(sale.currency!=='THB')fail('POS_STRIPE_CURRENCY','This Stripe POS version accepts THB only');connection=await one(db,"SELECT * FROM pos_connections WHERE company_id=? AND state='ready'",company);if(connection?.livemode&&process.env.POS_STRIPE_LIVE_ENABLED!=='true')fail('POS_LIVE_NOT_ENABLED','Complete sandbox testing before accepting live payments');if(!connection?.charges_enabled||!connection.payouts_enabled||!(p.method==='stripe_card'?connection.card_enabled:connection.promptpay_enabled))fail('POS_STRIPE_NOT_READY','The Stripe account is not ready for this payment method');}
   const pid=id();await run(db,"INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,reference,state,stripe_account,livemode,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'requested',?,?,?,?,?)",pid,sale.id,company,p.method,p.amountMinor,p.tenderedMinor,p.reference,connection?.account_id??null,connection?.livemode??false,user,Date.now(),Date.now());
-  if(connection)await enqueue(db,company,'checkout',pid);else await receivePayment(db,(await one(db,'SELECT * FROM pos_payments WHERE id=?',pid))!,user);
+  if(connection)await enqueue(db,company,'checkout',pid);
+  else if(p.method==='transfer')await run(db,"UPDATE pos_payments SET state='pending',version=version+1,updated_at=? WHERE id=?",Date.now(),pid);
+  else await receivePayment(db,(await one(db,'SELECT * FROM pos_payments WHERE id=?',pid))!,user);
   await run(db,"UPDATE pos_sales SET state='payment_pending',version=version+1,updated_at=? WHERE id=?",Date.now(),sale.id);return {id:pid,saleId:sale.id};
+ }
+ if(op==='payment.verify_transfer'){
+  const p=base.extend({bankTransactionId:z.string().min(1),bankVersion:z.number().int().positive()}).parse(input);
+  const payment=await one(db,'SELECT * FROM pos_payments WHERE id=? AND company_id=? FOR UPDATE',p.id,company);
+  if(!payment)fail('POS_NOT_FOUND','Payment not found',404);version(payment,p);
+  if(payment.method!=='transfer'||payment.state!=='pending')fail('POS_TRANSFER_STATE','Only a pending bank transfer can be verified');
+  if(samePerson(actor,str(payment,'created_by')))fail('POS_INDEPENDENT_VERIFICATION','A different Finance user must verify the transfer',403);
+  const sale=await saleRow(db,actor,str(payment,'sale_id'));
+  const accounts=json<PosAccounts>(sale.accounts_json);
+  const bank=await one(db,'SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? FOR UPDATE OF t',p.bankTransactionId,company);
+  if(!bank||num(bank,'version')!==p.bankVersion||!['unmatched','proposed'].includes(str(bank,'match_status'))||bank.bank_account!==accounts.bank||bank.currency!==sale.currency||num(bank,'amount_minor')!==num(payment,'amount_minor')||str(bank,'external_id').trim()!==str(payment,'reference').trim()||str(bank,'transaction_date')<str(sale,'business_date'))fail('POS_BANK_EVIDENCE_MISMATCH','Match the exact imported bank account, reference, date, currency, and amount');
+  await receivePayment(db,payment,user);
+  const settled=await one(db,'SELECT finance_payment_id FROM pos_payments WHERE id=?',payment.id);
+  await run(db,"UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=?",settled!.finance_payment_id,bank.id);
+  return {id:payment.id,saleId:sale.id,state:'succeeded',bankTransactionId:bank.id};
+ }
+ if(op==='payment.cancel_transfer'){
+  const p=base.parse(input),payment=await one(db,'SELECT * FROM pos_payments WHERE id=? AND company_id=? FOR UPDATE',p.id,company);
+  if(!payment)fail('POS_NOT_FOUND','Payment not found',404);version(payment,p);
+  await saleRow(db,actor,str(payment,'sale_id'));
+  if(payment.method!=='transfer'||payment.state!=='pending')fail('POS_TRANSFER_STATE','Only a pending bank transfer can be cancelled');
+  await run(db,"UPDATE pos_payments SET state='cancelled',version=version+1,updated_at=? WHERE id=?",Date.now(),payment.id);
+  await run(db,"UPDATE pos_sales SET state='open',version=version+1,updated_at=? WHERE id=? AND NOT EXISTS(SELECT 1 FROM pos_payments WHERE sale_id=? AND state IN ('requested','pending','exception','succeeded'))",Date.now(),payment.sale_id,payment.sale_id);
+  return {id:payment.id,saleId:payment.sale_id,state:'cancelled'};
  }
  if(op==='payment.retry'||op==='payment.cancel'){
   const p=base.parse(input),payment=await one(db,'SELECT * FROM pos_payments WHERE id=? FOR UPDATE',p.id);if(!payment)fail('POS_NOT_FOUND','Payment not found',404);await saleRow(db,actor,str(payment,'sale_id'));version(payment,p);
@@ -360,6 +420,7 @@ async function refundCommand(db:SqlDatabase,actor:WorkContext,op:string,input:un
  const user=actor.userId;
  if(op==='refund.request'){
   const p=base.extend({reason:z.string().trim().min(3).max(1000),lines:z.array(z.object({lineId:z.string(),quantityMilli:qty,restock:z.boolean()})).max(100).default([]),amountMinor:money.optional(),payoutShiftId:z.string().optional()}).parse(input),sale=await saleRow(db,actor,p.id);version(sale,p);
+  if(await one(db,'SELECT source_key FROM pms_sources WHERE source_key=?',`pos:${sale.id}:${sale.id}`))fail('POS_ROOM_CHARGE_REVERSAL','Reverse this charge on the hotel folio; it has no POS payment to refund');
   if(!['completed','payment_pending'].includes(str(sale,'state')))fail('POS_REFUND_SALE','Bill has no payment');
   if(new Set(p.lines.map(l=>l.lineId)).size!==p.lines.length)fail('POS_DUPLICATE_LINE','Duplicate refund item',422);
   const advance=sale.state!=='completed',snapshots:Array<Record<string,unknown>>=[];let amount=0,tax=0;

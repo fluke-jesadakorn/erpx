@@ -2,7 +2,7 @@ import { z } from "zod";
 import { idField, moneyField, records, type Snapshot } from "./pms";
 import { need } from "./pms-engine";
 
-/** Phase-one contract only. POS must join the PMS transaction before enabling this tender. */
+/** Validates the POS-owned source before PMS posts the folio charge in the same transaction. */
 export const roomChargeSchema = z.strictObject({
   source: z.literal("pos"),
   sourceId: idField,

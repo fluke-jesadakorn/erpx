@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import { env,applyMigrations } from './runtime-env';
 import { posCommand,one,all,run } from '../src/server/pos-core';
 import { accountKeys,saleAmounts,portion,recipeQuantities,formatPosMoney } from '../src/lib/pos';
+import { defaultConfig,pmsAccountKeys } from '../src/lib/pms';
 import { drainPos,posStripeWebhook,verifyPosStripeSignature } from '../src/server/pos-stripe';
 import type { WorkContext } from '../src/server/authorization';
 vi.mock('../src/server/runtime',async()=>{const {env}=await import('./runtime-env');return {runtimeEnv:async()=>env,holdingResources:async()=>({write:env.H001_DB})};});
@@ -21,7 +22,7 @@ async function pay(sale:string,amount=10700){await change('payment.create',sale,
 async function kitchen(sale:string,action:string){const f=(await one(db,'SELECT f.* FROM pos_fulfillments f JOIN pos_lines l ON l.fulfillment_id=f.id WHERE l.sale_id=?',sale))!;return command(`kitchen.${action}`,{id:f.id,expectedVersion:f.version,reason:'customer changed order'});}
 beforeAll(async()=>{await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS)]);},120000);
 beforeEach(async()=>{
- await db.exec(`TRUNCATE pos_receipts,pos_audit,pos_jobs,pos_stripe_events,pos_settlements,pos_oauth_states,pos_connections,pos_connection_history,pos_cash_movements,pos_refund_payments,pos_refunds,pos_payments,pos_lines,pos_reservations,pos_stock_moves,pos_fulfillments,pos_sales,pos_tables,pos_shifts,pos_registers,pos_catalog,pos_settings,pos_postings,finance_allocations,finance_invoices,finance_payments,finance_journal_lines,finance_journals,finance_parties,commerce_stock,commerce_products,commerce_warehouses,commerce_settings,finance_accounts,finance_periods,finance_charts,assignments,command_assertions CASCADE;
+ await db.exec(`TRUNCATE pms_sources,pms_postings,pms_records,pms_properties,pos_receipts,pos_audit,pos_jobs,pos_stripe_events,pos_settlements,pos_oauth_states,pos_connections,pos_connection_history,pos_cash_movements,pos_refund_payments,pos_refunds,pos_payments,pos_lines,pos_reservations,pos_stock_moves,pos_fulfillments,pos_sales,pos_tables,pos_shifts,pos_registers,pos_catalog,pos_settings,pos_postings,finance_bank_transactions,finance_bank_statements,finance_allocations,finance_invoices,finance_payments,finance_journal_lines,finance_journals,finance_parties,commerce_stock,commerce_products,commerce_warehouses,commerce_settings,finance_accounts,finance_periods,finance_charts,assignments,command_assertions CASCADE;
  INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES('pos-company','company','pos-company','POS test','pos-company') ON CONFLICT DO NOTHING;
  INSERT INTO organization_nodes(id,kind,slug,display_name,company_id,parent_id,branch_id) VALUES('pos-branch','branch','pos-branch','Branch','pos-company','pos-company','pos-branch') ON CONFLICT DO NOTHING;
  INSERT INTO assignments(id,user_id,role,modules_json,company_id,scope_kind,valid_from,valid_until) VALUES('pos-cashier','cashier','holding_owner','["pos"]','pos-company','holding',0,9999999999999),('pos-manager','manager','holding_owner','["pos"]','pos-company','holding',0,9999999999999);
@@ -39,6 +40,75 @@ beforeEach(async()=>{
  await command('catalog.save',{productId:'latte',barcode:'8850001',category:'Coffee',kind:'recipe',station:'Bar',recipe:[{productId:'milk',quantityMilli:200}],modifiers:[],taxInclusive:false,expectedVersion:0});
 });
 describe('POS committed business flows',()=>{
+ it('keeps a transfer pending until a different Finance user matches exact imported bank evidence',async()=>{
+  const sale=await createSale();await add(sale);
+  const payment=await change('payment.create',sale,{method:'transfer',amountMinor:10700,tenderedMinor:10700,reference:'BANK-001'});
+  expect((await one(db,'SELECT state FROM pos_payments WHERE id=?',payment.id))?.state).toBe('pending');
+  expect(await one(db,'SELECT count(*) n FROM finance_payments')).toEqual({n:0});
+  await expect(change('sale.complete',sale)).rejects.toMatchObject({code:'POS_NOT_PAID'});
+  await run(db,"INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,opening_minor,closing_minor,source_hash,imported_by,created_at) VALUES('statement','pos-company','bank','S-1',?,0,10700,'fixture-bank-1','finance',0)",(await one(db,'SELECT business_date FROM pos_sales WHERE id=?',sale))!.business_date);
+  await run(db,"INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,amount_minor,currency) VALUES('bank-row','statement','pos-company',?,'BANK-001',10700,'THB')",(await one(db,'SELECT business_date FROM pos_sales WHERE id=?',sale))!.business_date);
+  const verify={id:payment.id,expectedVersion:2,bankTransactionId:'bank-row',bankVersion:1};
+  await expect(command('payment.verify_transfer',verify,actor)).rejects.toMatchObject({code:'POS_INDEPENDENT_VERIFICATION'});
+  await run(db,"UPDATE finance_bank_transactions SET amount_minor=10600 WHERE id='bank-row'");
+  await expect(command('payment.verify_transfer',verify,manager)).rejects.toMatchObject({code:'POS_BANK_EVIDENCE_MISMATCH'});
+  expect((await one(db,'SELECT state FROM pos_payments WHERE id=?',payment.id))?.state).toBe('pending');
+  await run(db,"UPDATE finance_bank_transactions SET amount_minor=10700 WHERE id='bank-row'");
+  const result=await command('payment.verify_transfer',verify,manager,'verify-transfer-replay');
+  expect(result).toMatchObject({id:payment.id,state:'succeeded',bankTransactionId:'bank-row'});
+  expect(await command('payment.verify_transfer',verify,manager,'verify-transfer-replay')).toEqual(result);
+  const settled=await one(db,'SELECT finance_payment_id FROM pos_payments WHERE id=?',payment.id);
+  expect(await one(db,"SELECT match_status,matched_type,matched_id FROM finance_bank_transactions WHERE id='bank-row'")).toEqual({match_status:'matched',matched_type:'payment',matched_id:settled!.finance_payment_id});
+  await change('sale.complete',sale);
+  expect((await one(db,'SELECT state FROM pos_sales WHERE id=?',sale))?.state).toBe('completed');
+ });
+ it('charges one restaurant bill to an in-house folio atomically, without POS revenue or payment',async()=>{
+  const sale=await createSale('dine_in');await add(sale);
+  const saleRow=await one(db,'SELECT * FROM pos_sales WHERE id=?',sale);
+  const accounts={...defaultConfig.accounts};
+  for(const [i,key] of pmsAccountKeys.entries()){
+   const account=`pms-${key}`;accounts[key]=account;
+   const category=['revenue','service'].includes(key)?'revenue':['advance','deposit','tax'].includes(key)?'liability':['consumption','commission','cashDifference'].includes(key)?'expense':'asset';
+   await run(db,'INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,?,?,?,0,0)',account,'chart','pos-company',`PMS-${i}`,key,category,'THB');
+  }
+  const config={...defaultConfig,chartId:'chart',accounts,approvedBy:'independent-accountant',businessDate:saleRow!.business_date};
+  await run(db,"INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,version,created_by,updated_at) VALUES(?,?,?,'Hotel',?,'open',?,1,'system',0)",'hotel','pos-company','pos-branch',saleRow!.business_date,JSON.stringify(config));
+  await db.transaction(async tx=>{
+   await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
+   for(const [id,kind,data] of [
+    ['guest','guest',{name:'Example Guest'}],
+    ['room','room',{number:'101'}],
+    ['folio','folio',{name:'Guest folio',guestId:'guest',reservationId:'reservation',partyId:'',state:'open',due:0,advance:0,advanceTax:0,deposit:0}],
+    ['stay','stay',{guestId:'guest',reservationId:'reservation',roomId:'room',folioId:'folio',state:'in_house'}],
+   ] as const)await run(tx,'INSERT INTO pms_records(id,property_id,kind,data_json,version,updated_at) VALUES(?,?,?,?,1,0)',id,'hotel',kind,JSON.stringify(data));
+  });
+  const input={id:sale,expectedVersion:saleRow!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:1};
+  const {posWorkspace}=await import('../src/server/pos');
+  expect((await posWorkspace(actor,sale,'','sale')).roomChargeStays).toMatchObject([{stay_id:'stay',room_number:'101',guest_name:'Example Guest'}]);
+  const charged=await command('sale.charge_to_room',input,actor,'room-charge-replay');
+  expect(charged).toMatchObject({id:sale,state:'completed',tender:'room_charge',propertyId:'hotel'});
+  expect(await command('sale.charge_to_room',input,actor,'room-charge-replay')).toEqual(charged);
+  expect((await one(db,"SELECT data_json::jsonb->>'due' due FROM pms_records WHERE id='folio'"))?.due).toBe('10700');
+  expect(await one(db,'SELECT count(*) n FROM pms_sources')).toEqual({n:1});
+  expect((await posWorkspace(actor,sale,'','sale')).roomCharge?.folio_entry_id).toBe(charged.folioEntryId);
+  expect(await one(db,'SELECT count(*) n FROM pms_postings')).toEqual({n:1});
+  expect(await one(db,'SELECT count(*) n FROM pos_payments')).toEqual({n:0});
+  expect(await one(db,"SELECT count(*) n FROM pos_postings WHERE source_key LIKE 'sale:%' OR source_key LIKE 'receipt:%'")).toEqual({n:0});
+  expect(await one(db,"SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='tea'")).toEqual({quantity_milli:9000});
+  const other=await createSale('dine_in');await add(other);
+  const changed=await one(db,'SELECT version FROM pos_sales WHERE id=?',other);
+  await expect(command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:1})).rejects.toMatchObject({code:'PMS_VERSION_CONFLICT'});
+  expect((await one(db,'SELECT state FROM pos_sales WHERE id=?',other))?.state).toBe('open');
+  await db.transaction(async tx=>{
+   await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
+   await run(tx,"UPDATE pms_records SET data_json=jsonb_set(data_json::jsonb,'{state}','\"closed\"')::text WHERE id='folio'");
+  });
+  await expect(command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:2})).rejects.toMatchObject({code:'PMS_CHARGE_FOLIO'});
+  expect(await one(db,'SELECT count(*) n FROM pms_sources')).toEqual({n:1});
+  expect((await one(db,'SELECT state FROM pos_sales WHERE id=?',other))?.state).toBe('open');
+  await run(db,'UPDATE assignments SET revoked_at=? WHERE id=?',Date.now(),'pos-cashier');
+  await expect(command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:2})).rejects.toMatchObject({code:'POS_ACCESS_CHANGED'});
+ });
  it('exposes company currency without exposing accounting configuration',async()=>{
   const {posWorkspace}=await import('../src/server/pos');
   const cashier={...actor,role:'pos_cashier'};
