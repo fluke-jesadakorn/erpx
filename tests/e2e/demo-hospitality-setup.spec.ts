@@ -1,6 +1,7 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { execFileSync } from "node:child_process";
 import { Pool } from "pg";
 
 type Credentials={password:string;users:{email:string;role:string;userId?:string}[]};
@@ -396,19 +397,20 @@ test("Night Audit shows restaurant blockers and rejects an early close",async({b
   } finally {await Promise.all([cashier.close(),auditor.close()]);}
 });
 
-test("front desk and cashier settle checkout before Night Audit starts",async({browser},testInfo)=>{
+test("front desk and cashier settle checkout and recover Night Audit",async({browser},testInfo)=>{
   const run=process.env.ERPX_DEMO_RUN;
   test.skip(!run,"Prepare and start a disposable demo run first.");
   test.setTimeout(120_000);
   const state=JSON.parse(await readFile(resolve(`.runtime/browser/${run}/state.json`),"utf8")) as State;
   const credentials=JSON.parse(await readFile(resolve(`.runtime/browser/${run}/credentials.json`),"utf8")) as Credentials;
-  const frontDesk=await browser.newContext(testInfo.project.use),cashier=await browser.newContext(testInfo.project.use),restaurantCashier=await browser.newContext(testInfo.project.use),auditor=await browser.newContext(testInfo.project.use);
+  const frontDesk=await browser.newContext(testInfo.project.use),cashier=await browser.newContext(testInfo.project.use),restaurantCashier=await browser.newContext(testInfo.project.use),auditor=await browser.newContext(testInfo.project.use),administrator=await browser.newContext(testInfo.project.use);
   try {
     await Promise.all([
       signIn(frontDesk,credentials,"pms_frontdesk"),
       signIn(cashier,credentials,"pms_cashier"),
       signIn(restaurantCashier,credentials,"pos_cashier"),
       signIn(auditor,credentials,"pms_night_auditor"),
+      signIn(administrator,credentials,"holding_owner"),
     ]);
     const propertyId=state.fixture.hospitality.propertyId;
     const pmsApi=`/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`;
@@ -498,5 +500,40 @@ test("front desk and cashier settle checkout before Night Audit starts",async({b
     const closing=(await(await auditor.request.get(pmsApi)).json()).data;
     expect(closing.snapshot.property.state).toBe("closing");
     expect(closing.snapshot.records.some((row:{kind:string;data:{state?:string}})=>row.kind==="night"&&row.data.state==="pending")).toBe(true);
-  } finally {await Promise.all([frontDesk.close(),cashier.close(),restaurantCashier.close(),auditor.close()]);}
+    const runWorker=()=>JSON.parse(execFileSync("bun",[
+      "--conditions=react-server",
+      resolve("scripts/fixtures/hospitality-drain-demo-job.ts"),
+      run,
+    ],{cwd:resolve("."),timeout:30_000}).toString()) as {
+      job:{state:string;error_code:string|null};property:{state:string;business_date:string};
+    };
+    const recoveryDb=new Pool({connectionString:databaseUrl.href,max:1});
+    try {
+      const auditorAssignment=await auditPage.locator("[data-work-revision]").first().evaluate(node=>(node as HTMLElement).dataset.workAssignment??"");
+      expect(auditorAssignment).toBeTruthy();
+      const revoked=await recoveryDb.query("UPDATE assignments SET revoked_at=$1 WHERE id=$2 AND revoked_at IS NULL RETURNING id",[Date.now(),auditorAssignment]);
+      expect(revoked.rows).toHaveLength(1);
+      const blocked=runWorker();
+      expect(blocked.job.state).toBe("blocked");
+      expect(blocked.job.error_code).toBeTruthy();
+      expect(blocked.property.state).toBe("closing");
+      const administratorPage=await administrator.newPage();
+      await administratorPage.goto(`/holdings/riverside-lantern/pms/night-audit?property=${propertyId}`);
+      const resume=administratorPage.locator("summary:visible").filter({hasText:"Resolve and continue"}).first();
+      await expect(resume).toBeVisible();
+      await resume.click();
+      await submitPms(administratorPage,"Resolve and continue");
+      const completed=runWorker();
+      expect(completed).toMatchObject({job:{state:"completed",error_code:null},property:{state:"open"}});
+      expect(completed.property.business_date).not.toBe(closing.snapshot.property.businessDate);
+      const invoices=await recoveryDb.query("SELECT total_minor,outstanding_minor,status FROM finance_invoices WHERE company_id=$1 AND source_type='pms'",[state.fixture.hospitality.companyId]);
+      expect(invoices.rows).toHaveLength(1);
+      expect(invoices.rows[0]).toMatchObject({outstanding_minor:"0",status:"paid"});
+      const journals=await recoveryDb.query("SELECT COALESCE(SUM(l.debit_minor),0)::bigint debit,COALESCE(SUM(l.credit_minor),0)::bigint credit FROM pms_postings pp JOIN finance_journal_lines l ON l.journal_id=pp.journal_id WHERE pp.property_id=$1",[propertyId]);
+      expect(journals.rows[0].debit).toBe(journals.rows[0].credit);
+      expect(Number(journals.rows[0].debit)).toBeGreaterThan(0);
+      const restaurant=await recoveryDb.query("SELECT state,expected_minor,counted_minor,variance_minor FROM pos_shifts WHERE company_id=$1",[state.fixture.hospitality.companyId]);
+      expect(restaurant.rows.every((row:{state:string;expected_minor:string;counted_minor:string;variance_minor:string})=>row.state==='closed'&&row.expected_minor===row.counted_minor&&Number(row.variance_minor)===0)).toBe(true);
+    } finally {await recoveryDb.end();}
+  } finally {await Promise.all([frontDesk.close(),cashier.close(),restaurantCashier.close(),auditor.close(),administrator.close()]);}
 });

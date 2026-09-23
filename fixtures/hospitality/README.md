@@ -19,6 +19,7 @@ The following alternatives must be exercised in a resettable run with independen
 | Imported bank row with a wrong amount, currency, account, date, or reference | No settlement or match. |
 | Matched exact bank row, reviewed by another Finance user | One settled payment linked to one bank row; retry returns the same result. |
 | Settled checkout and day close | The room night and restaurant charge appear once on the folio; the paid invoice, counted cash, balanced PMS journals, and next business date survive the Night Audit worker. |
+| Night auditor access revoked after close starts | The worker blocks without advancing the day; a current administrator resumes it and the worker completes once. |
 | Restaurant return or correction after room charge | Linked folio reversal and POS/stock treatment are implemented; independent multi-role business acceptance is still required. |
 
 The embedded assistant may read the current PMS property/folio or POS sale only through the actor's existing owner API and role. The example accounts and records are fictional. Production AI remains disabled until the company explicitly chooses an AI provider. The assistant shows source versions and review steps, and never executes a room charge, payment, refund, or Night Audit action.
