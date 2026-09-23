@@ -943,6 +943,12 @@ export async function pmsCommand(
         if (!command.propertyId)
           throw new ApiError(422, "PMS_PROPERTY_REQUIRED", "Select a hotel");
         s = await loadPms(tx, actor, command.propertyId, true);
+        if (op === "charge.reverse") {
+          const entryId = z.object({ id: idField }).parse(command.input).id;
+          const entry = records(s, "entry").find((r) => r.id === entryId);
+          if (entry?.data.sourceKey?.startsWith("pos:"))
+            throw new ApiError(409, "PMS_POS_REVERSAL_REQUIRED", "Reverse restaurant charges from the linked POS bill");
+        }
         if (!worker && s.property.version !== command.expectedVersion)
           throw new ApiError(
             409,
@@ -1212,10 +1218,13 @@ export async function applyPosRoomCharge(
   const s = await loadPms(tx, actor, raw.propertyId, true);
   if (s.property.version !== expectedPropertyVersion)
     throw new ApiError(409, "PMS_VERSION_CONFLICT", "Hotel data changed. Load the latest stay and review again");
-  const prepared = prepareRoomCharge(s, raw);
+  let prepared;
+  try { prepared = prepareRoomCharge(s, raw); }
+  catch (error) { if (error instanceof PmsError) throw new ApiError(error.status, error.code, error.message); throw error; }
   if (prepared.duplicate) return { entryId: prepared.entryId, propertyVersion: s.property.version };
   const original = new Map(s.records.map((r) => [r.id, JSON.stringify(r)]));
-  const outcome = executePms(s, "charge.import_pos", {
+  let outcome;
+  try { outcome = executePms(s, "charge.import_pos", {
     folioId: prepared.folioId,
     stayId: raw.stayId,
     sourceKey: prepared.sourceKey,
@@ -1229,7 +1238,8 @@ export async function applyPosRoomCharge(
     now: Date.now(),
     uuid: randomUUID,
     independent: (other) => !samePerson(actor, other),
-  });
+  }); }
+  catch (error) { if (error instanceof PmsError) throw new ApiError(error.status, error.code, error.message); throw error; }
   await validSetup(tx, s);
   await persistPmsRecords(tx, s, original);
   await effects(tx, actor, s, outcome.effects);
@@ -1237,6 +1247,33 @@ export async function applyPosRoomCharge(
     "UPDATE pms_properties SET version=?,updated_at=? WHERE id=?",
     s.property.version, Date.now(), s.property.id);
   return { entryId: outcome.id, propertyVersion: s.property.version };
+}
+
+/** POS owns the correction, so the folio reversal shares its transaction. */
+export async function reversePosRoomCharge(
+  tx: SqlDatabase,
+  actor: WorkContext,
+  input: { propertyId: string; sourceKey: string; expectedPropertyVersion: number; reason: string; total: number },
+) {
+  await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
+  const s = await loadPms(tx, actor, input.propertyId, true);
+  if (s.property.version !== input.expectedPropertyVersion)
+    throw new ApiError(409, "PMS_VERSION_CONFLICT", "Hotel data changed. Load the latest folio and review again");
+  const entry = records(s, "entry").find((r) => r.data.sourceKey === input.sourceKey);
+  if (!entry || entry.data.total !== input.total)
+    throw new ApiError(409, "PMS_CHARGE_CHANGED", "The linked hotel charge changed. Review the bill again");
+  const original = new Map(s.records.map((r) => [r.id, JSON.stringify(r)]));
+  let outcome;
+  try { outcome = executePms(s, "charge.reverse", { id: entry.id, reason: input.reason }, {
+    userId: actor.userId, now: Date.now(), uuid: randomUUID,
+    independent: (other) => !samePerson(actor, other),
+  }); }
+  catch (error) { if (error instanceof PmsError) throw new ApiError(error.status, error.code, error.message); throw error; }
+  await validSetup(tx, s);
+  await persistPmsRecords(tx, s, original);
+  await effects(tx, actor, s, outcome.effects);
+  await run(tx, "UPDATE pms_properties SET version=?,updated_at=? WHERE id=?", s.property.version, Date.now(), s.property.id);
+  return { entryId: entry.id, reversalEntryId: outcome.id, businessDate: s.property.businessDate };
 }
 
 export async function persistPmsRecords(

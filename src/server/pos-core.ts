@@ -12,7 +12,7 @@ import { requirePermission } from './iam-permissions';
 import { workContextGuards } from './commands';
 import { iamMutationGuards } from './iam-store';
 import { ApiError } from './http';
-import { applyPosRoomCharge } from './pms';
+import { applyPosRoomCharge, reversePosRoomCharge } from './pms';
 export type PosRow=Record<string,string|number|boolean|null>;
 export const id=()=>randomUUID();
 export const num=(row:PosRow,key:string)=>Number(row[key]??0);
@@ -113,7 +113,7 @@ export async function completeSale(db:SqlDatabase,sale:PosRow,actorId:string,dat
 }
 const keySchema=z.string().regex(/^[a-zA-Z0-9:_.-]{8,180}$/);
 const base=z.object({id:z.string().min(1),expectedVersion:z.number().int().positive()});
-const permissionFor=(op:string)=>op==='payment.verify_transfer'?'finance.approve':op.startsWith('settings')||op.startsWith('register')||op.startsWith('catalog')||op.startsWith('table.')?'pos.configure':op.startsWith('kitchen.')?'pos.kitchen':op==='refund.approve'||op==='refund.reject'||op==='sale.approve_discount'||op==='shift.review'||op==='cash.approve'||op.startsWith('exception.')||op.startsWith('settlement.')?'pos.approve':op.startsWith('connection.')?'pos.payments.configure':'pos.sell';
+const permissionFor=(op:string)=>op==='payment.verify_transfer'||op==='sale.reverse_room_charge'?'finance.approve':op.startsWith('settings')||op.startsWith('register')||op.startsWith('catalog')||op.startsWith('table.')?'pos.configure':op.startsWith('kitchen.')?'pos.kitchen':op==='refund.approve'||op==='refund.reject'||op==='sale.approve_discount'||op==='shift.review'||op==='cash.approve'||op.startsWith('exception.')||op.startsWith('settlement.')?'pos.approve':op.startsWith('connection.')?'pos.payments.configure':'pos.sell';
 export async function posCommand(db:PostgresDatabase,actor:WorkContext,operation:string,input:unknown,key:string){
  keySchema.parse(key);requirePermission(actor,permissionFor(operation));if(actor.departmentId)fail('POS_BRANCH_REQUIRED','Select a company or branch for POS',403);
  const hash=createHash('sha256').update(JSON.stringify({user:actor.userId,assignment:actor.assignmentId,company:actor.companyId,branch:actor.branchId,operation,input})).digest('hex');
@@ -216,6 +216,37 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
  }
  if(op.startsWith('sale.')){
   const p=base.passthrough().parse(input),sale=await saleRow(db,actor,p.id);version(sale,p);
+  if(op==='sale.reverse_room_charge'){
+   requirePermission(actor,'pos.approve');requirePermission(actor,'pms.approve');
+   const q=base.extend({propertyId:z.string().min(1),expectedPropertyVersion:z.number().int().positive(),reason:z.string().trim().min(3).max(1000),restockLineIds:z.array(z.string()).max(100).default([])}).parse(input);
+   const chargeAudit=await one(db,"SELECT actor_id FROM pos_audit WHERE operation='sale.charge_to_room' AND record_id=? ORDER BY created_at DESC LIMIT 1",sale.id);
+   if(samePerson(actor,sale.created_by)||chargeAudit&&samePerson(actor,chargeAudit.actor_id))fail('POS_INDEPENDENT_REVIEW','A different Finance approver must reverse this room charge');
+   if(sale.state!=='completed'||await one(db,'SELECT sale_id FROM pos_room_charge_reversals WHERE sale_id=?',sale.id))fail('POS_ROOM_CHARGE_REVERSED','This room charge is already reversed or the bill is not complete');
+   if(await one(db,'SELECT id FROM pos_payments WHERE sale_id=?',sale.id))fail('POS_ROOM_CHARGE_PAYMENT','This bill has POS payments and cannot use room-charge reversal');
+   const source=await one(db,'SELECT ps.property_id,ps.record_id FROM pms_sources ps JOIN pms_properties p ON p.id=ps.property_id WHERE ps.source_key=? AND p.company_id=? AND p.branch_id=?',`pos:${sale.id}:${sale.id}`,company,sale.branch_id);
+   if(!source||source.property_id!==q.propertyId)fail('POS_ROOM_CHARGE_MISSING','The linked hotel charge was not found');
+   if(new Set(q.restockLineIds).size!==q.restockLineIds.length)fail('POS_DUPLICATE_LINE','Select each restocked line once',422);
+   const lines=await all(db,'SELECT l.*,f.kind,f.state fulfillment_state,f.cost_minor fulfillment_cost,f.quantity_milli fulfillment_quantity,f.warehouse_id,f.product_id FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE l.sale_id=? ORDER BY l.id',sale.id);
+   if(q.restockLineIds.some(lineId=>!lines.some(line=>line.id===lineId&&line.kind==='stock'&&line.fulfillment_state==='delivered')))fail('POS_RETURN_NOT_STOCK','Only delivered stock items can be restocked',422);
+   const reversal=await reversePosRoomCharge(db,actor,{propertyId:q.propertyId,sourceKey:`pos:${sale.id}:${sale.id}`,expectedPropertyVersion:q.expectedPropertyVersion,reason:q.reason,total:num(sale,'total_minor')});
+   const accounts=json<PosAccounts>(sale.accounts_json),date=reversal.businessDate;let restored=0,wasted=0;
+   await openPeriod(db,company,date);
+   for(const line of lines){
+    const prior=await one(db,'SELECT COALESCE(SUM(quantity_milli),0) n FROM pos_lines WHERE fulfillment_id=? AND id<?',line.fulfillment_id,line.id);
+    const cost=portion(num(line,'fulfillment_cost'),num(prior!,'n'),num(line,'quantity_milli'),num(line,'fulfillment_quantity'));
+    if(q.restockLineIds.includes(str(line,'id'))){
+     const stock=await one(db,'SELECT * FROM commerce_stock WHERE warehouse_id=? AND product_id=? FOR UPDATE',line.warehouse_id,line.product_id);
+     if(!stock)fail('POS_STOCK_MISSING','The original warehouse stock is unavailable');
+     await run(db,'UPDATE commerce_stock SET quantity_milli=quantity_milli+?,value_minor=value_minor+?,version=version+1 WHERE warehouse_id=? AND product_id=?',line.quantity_milli,cost,line.warehouse_id,line.product_id);
+     await run(db,'INSERT INTO pos_stock_moves VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',id(),company,line.warehouse_id,line.product_id,line.fulfillment_id,sale.id,sale.number,'return',line.quantity_milli,cost,date,Date.now());
+     restored+=cost;
+    }else wasted+=cost;
+   }
+   await posting(db,company,str(sale,'branch_id'),accounts,date,str(sale,'currency'),`room-reversal:${sale.id}`,str(sale,'id'),user,[...pair(accounts.inventory,accounts.cogs,restored),...pair(accounts.waste,accounts.cogs,wasted)]);
+   await run(db,'INSERT INTO pos_room_charge_reversals(sale_id,company_id,property_id,original_entry_id,reversal_entry_id,reason,restocked_lines_json,restored_cost_minor,wasted_cost_minor,reversed_by,reversed_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',sale.id,company,q.propertyId,reversal.entryId,reversal.reversalEntryId,q.reason,JSON.stringify(q.restockLineIds),restored,wasted,user,Date.now());
+   await run(db,'UPDATE pos_sales SET version=version+1,updated_at=? WHERE id=?',Date.now(),sale.id);
+   return {id:sale.id,state:'room_charge_reversed',reversalEntryId:reversal.reversalEntryId,restoredCostMinor:restored,wastedCostMinor:wasted};
+  }
  if(op==='sale.complete')return completeSale(db,sale,user);
   if(op==='sale.charge_to_room'){
    if(process.env.NODE_ENV==='production'&&process.env.ERPX_POS_ROOM_CHARGE_PILOT_ENABLED!=='true')fail('POS_ROOM_CHARGE_PILOT_GATE','Room charges require pilot acceptance before production activation',403);
@@ -495,4 +526,4 @@ export async function releaseUnpaidReservations(db:SqlDatabase,saleId:string){
  await run(db,"UPDATE pos_fulfillments SET reserved=false WHERE state='draft' AND id IN (SELECT fulfillment_id FROM pos_lines WHERE sale_id=?)",saleId);
  await run(db,"UPDATE pos_sales SET state='open',version=version+1 WHERE id=? AND state='payment_pending'",saleId);
 }
-export const posPermissions=(actor:WorkContext)=>Object.fromEntries(['pos.read','pos.sell','pos.kitchen','pos.approve','pos.configure','pos.payments.configure','pos.reports','finance.approve'].map(p=>[p,hasPermission(actor,p)]));
+export const posPermissions=(actor:WorkContext)=>Object.fromEntries(['pos.read','pos.sell','pos.kitchen','pos.approve','pos.configure','pos.payments.configure','pos.reports','finance.approve','pms.approve'].map(p=>[p,hasPermission(actor,p)]));

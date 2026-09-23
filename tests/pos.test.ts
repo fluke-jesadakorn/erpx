@@ -116,6 +116,27 @@ describe('POS committed business flows',()=>{
   expect((await one(db,'SELECT state FROM pos_sales WHERE id=?',other))?.state).toBe('open');
   await run(db,'UPDATE assignments SET revoked_at=? WHERE id=?',Date.now(),'pos-cashier');
   await expect(command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:2})).rejects.toMatchObject({code:'POS_ACCESS_CHANGED'});
+  const {pmsCommand}=await import('../src/server/pms');
+  await expect(pmsCommand(db,manager,{operation:'charge.reverse',propertyId:'hotel',expectedVersion:2,input:{id:charged.folioEntryId,reason:'Wrong room'}},'direct-pos-charge-reversal')).rejects.toMatchObject({code:'PMS_POS_REVERSAL_REQUIRED'});
+  const current=(await one(db,'SELECT version FROM pos_sales WHERE id=?',sale))!;
+  const line=(await one(db,'SELECT id FROM pos_lines WHERE sale_id=?',sale))!;
+  const reversalInput={id:sale,expectedVersion:current.version,propertyId:'hotel',expectedPropertyVersion:2,reason:'Guest bill corrected',restockLineIds:[line.id]};
+  const reversed=await command('sale.reverse_room_charge',reversalInput,manager,'room-charge-reversal-replay');
+  expect(reversed).toMatchObject({id:sale,state:'room_charge_reversed',restoredCostMinor:3000});
+  expect(await command('sale.reverse_room_charge',reversalInput,manager,'room-charge-reversal-replay')).toEqual(reversed);
+  expect((await one(db,"SELECT data_json::jsonb->>'due' due FROM pms_records WHERE id='folio'"))?.due).toBe('0');
+  expect(await one(db,'SELECT count(*) n FROM pms_postings')).toEqual({n:2});
+  expect(await one(db,'SELECT count(*) n FROM pos_room_charge_reversals')).toEqual({n:1});
+  expect(await one(db,"SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='tea'")).toEqual({quantity_milli:10000,value_minor:30000});
+  expect((await posWorkspace(manager,sale,'','sale')).roomCharge?.reversal_entry_id).toBe(reversed.reversalEntryId);
+  await expect(change('sale.reverse_room_charge',sale,{propertyId:'hotel',expectedPropertyVersion:3,reason:'Again',restockLineIds:[]},manager)).rejects.toMatchObject({code:'POS_ROOM_CHARGE_REVERSED'});
+  await run(db,'UPDATE assignments SET revoked_at=NULL WHERE id=?','pos-cashier');
+  const second=await command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:3},actor);
+  expect(second.state).toBe('completed');
+  const wasted=await change('sale.reverse_room_charge',other,{propertyId:'hotel',expectedPropertyVersion:4,reason:'Prepared item discarded',restockLineIds:[]},manager);
+  expect(wasted).toMatchObject({restoredCostMinor:0,wastedCostMinor:3000});
+  expect(await one(db,"SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='tea'")).toEqual({quantity_milli:9000});
+  expect(await one(db,"SELECT count(*) n FROM pos_postings WHERE source_key LIKE 'room-reversal:%'")).toEqual({n:2});
  });
  it('exposes company currency without exposing accounting configuration',async()=>{
   const {posWorkspace}=await import('../src/server/pos');

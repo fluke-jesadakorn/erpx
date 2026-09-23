@@ -38,7 +38,7 @@ export async function posWorkspace(actor:WorkContext,saleId?:string,historyQuery
   ORDER BY t.transaction_date DESC,t.id LIMIT 10`,company,
   JSON.parse(str(sale,'accounts_json')).bank,sale.currency,pendingTransfer.amount_minor,
   pendingTransfer.reference,sale.business_date):[];
- const roomCharge=sale?await one(db,"SELECT ps.property_id,ps.record_id folio_entry_id FROM pms_sources ps JOIN pms_properties p ON p.id=ps.property_id WHERE ps.source_key=? AND p.company_id=? AND p.branch_id=?",`pos:${sale.id}:${sale.id}`,company,sale.branch_id):null;
+ const roomCharge=sale?await one(db,"SELECT ps.property_id,ps.record_id folio_entry_id,p.version property_version,r.reversal_entry_id,r.reason reversal_reason,r.reversed_at FROM pms_sources ps JOIN pms_properties p ON p.id=ps.property_id LEFT JOIN pos_room_charge_reversals r ON r.sale_id=? WHERE ps.source_key=? AND p.company_id=? AND p.branch_id=?",sale.id,`pos:${sale.id}:${sale.id}`,company,sale.branch_id):null;
  const roomChargeStays=sale&&['open','held'].includes(str(sale,'state'))&&hasPermission(actor,'pos.sell')
   ?await all(db,`SELECT p.id property_id,p.version property_version,s.id stay_id,
     r.data_json::jsonb->>'number' room_number,g.data_json::jsonb->>'name' guest_name
@@ -64,7 +64,7 @@ export async function posWorkspace(actor:WorkContext,saleId?:string,historyQuery
  SELECT s.business_date,s.branch_id,s.register_id,s.shift_id,s.currency,COUNT(*) bills,SUM(s.subtotal_minor) subtotal_minor,SUM(s.tax_minor) tax_minor,
  SUM(s.discount_minor) discount_minor,SUM(s.total_minor) total_minor,SUM(t.refunds_minor) refunds_minor,
  SUM(t.cost_minor) cost_minor,SUM(s.subtotal_minor-t.refunds_minor+t.refunded_tax_minor-t.cost_minor) gross_profit_minor
- FROM pos_sales s JOIN totals t ON t.sale_id=s.id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.state='completed'
+ FROM pos_sales s JOIN totals t ON t.sale_id=s.id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.state='completed' AND NOT EXISTS(SELECT 1 FROM pos_room_charge_reversals rr WHERE rr.sale_id=s.id)
  GROUP BY s.business_date,s.branch_id,s.register_id,s.shift_id,s.currency ORDER BY s.business_date DESC LIMIT 90`,company,company,branch,branch):[];
  const paymentMix=report&&wants('reports')?await all(db,`SELECT s.business_date,s.register_id,s.shift_id,s.currency,p.method,SUM(p.amount_minor) received_minor,
  SUM(COALESCE((SELECT SUM(rp.amount_minor) FROM pos_refund_payments rp WHERE rp.payment_id=p.id AND rp.state='succeeded'),0)) refunded_minor
