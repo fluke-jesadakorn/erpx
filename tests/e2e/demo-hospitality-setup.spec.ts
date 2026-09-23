@@ -395,3 +395,108 @@ test("Night Audit shows restaurant blockers and rejects an early close",async({b
     expect((await close.json()).error.code).toBe("PMS_DAY_RECONCILIATION_BLOCKED");
   } finally {await Promise.all([cashier.close(),auditor.close()]);}
 });
+
+test("front desk and cashier settle checkout before Night Audit starts",async({browser},testInfo)=>{
+  const run=process.env.ERPX_DEMO_RUN;
+  test.skip(!run,"Prepare and start a disposable demo run first.");
+  test.setTimeout(120_000);
+  const state=JSON.parse(await readFile(resolve(`.runtime/browser/${run}/state.json`),"utf8")) as State;
+  const credentials=JSON.parse(await readFile(resolve(`.runtime/browser/${run}/credentials.json`),"utf8")) as Credentials;
+  const frontDesk=await browser.newContext(testInfo.project.use),cashier=await browser.newContext(testInfo.project.use),restaurantCashier=await browser.newContext(testInfo.project.use),auditor=await browser.newContext(testInfo.project.use);
+  try {
+    await Promise.all([
+      signIn(frontDesk,credentials,"pms_frontdesk"),
+      signIn(cashier,credentials,"pms_cashier"),
+      signIn(restaurantCashier,credentials,"pos_cashier"),
+      signIn(auditor,credentials,"pms_night_auditor"),
+    ]);
+    const propertyId=state.fixture.hospitality.propertyId;
+    const pmsApi=`/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`;
+    const submitPms=async(page:Page,name:string)=>{
+      const response=page.waitForResponse(row=>row.request().method()==="POST"&&row.url().endsWith("/api/v1/holdings/riverside-lantern/pms"));
+      await page.getByRole("button",{name,exact:true}).click();
+      expect((await response).ok(),`${name} command`).toBe(true);
+    };
+    const initial=(await(await frontDesk.request.get(pmsApi)).json()).data;
+    const stay=initial.snapshot.records.find((row:{kind:string;data:{state?:string}})=>row.kind==="stay"&&row.data.state==="in_house");
+    expect(stay).toBeTruthy();
+    const folioId=stay.data.folioId;
+    const frontDeskPage=await frontDesk.newPage();
+    await frontDeskPage.goto(`/holdings/riverside-lantern/pms/front-desk?property=${propertyId}`);
+    await frontDeskPage.locator("summary").filter({hasText:"Post room charge before check-out"}).click();
+    await submitPms(frontDeskPage,"Post room charge before check-out");
+    const afterNights=(await(await frontDesk.request.get(pmsApi)).json()).data;
+    const folio=afterNights.snapshot.records.find((row:{id:string})=>row.id===folioId);
+    expect(folio.data.due).toBeGreaterThan(0);
+
+    const cashierPage=await cashier.newPage();
+    await cashierPage.goto(`/holdings/riverside-lantern/pms/cashier?property=${propertyId}`);
+    const cashierId=credentials.users.find(user=>user.role==="pms_cashier"&&user.email.endsWith("@riverside-lantern.example"))!.userId;
+    if(!afterNights.snapshot.records.some((row:{kind:string;data:{state?:string;userId?:string}})=>row.kind==="shift"&&row.data.state==="open"&&row.data.userId===cashierId)){
+      await cashierPage.locator("summary").filter({hasText:"Open shift"}).click();
+      await cashierPage.getByLabel("Shift / till name").fill("Checkout till");
+      await submitPms(cashierPage,"Open shift");
+    }
+    await cashierPage.goto(`/holdings/riverside-lantern/pms/folios?property=${propertyId}&folio=${folioId}`);
+    await cashierPage.locator("summary").filter({hasText:"Receive payment / advance"}).click();
+    await cashierPage.getByLabel("Amount",{exact:false}).first().fill((folio.data.due/100).toFixed(2));
+    await submitPms(cashierPage,"Receive payment / advance");
+    const paid=(await(await cashier.request.get(pmsApi)).json()).data;
+    expect(paid.snapshot.records.find((row:{id:string})=>row.id===folioId).data.due).toBe(0);
+
+    await frontDeskPage.reload();
+    await frontDeskPage.locator("summary").filter({hasText:"Check out"}).click();
+    await submitPms(frontDeskPage,"Check out");
+    await expect(frontDeskPage.getByText("Checked out",{exact:true}).first()).toBeVisible();
+    await cashierPage.reload();
+    await cashierPage.locator("summary").filter({hasText:"Issue invoice / close folio"}).click();
+    await submitPms(cashierPage,"Issue invoice / close folio");
+    const closed=(await(await cashier.request.get(pmsApi)).json()).data;
+    const closedFolio=closed.snapshot.records.find((row:{id:string})=>row.id===folioId);
+    expect(closedFolio.data).toMatchObject({state:"closed",due:0});
+    expect(closedFolio.data.invoiceId).toBeTruthy();
+
+    await cashierPage.goto(`/holdings/riverside-lantern/pms/cashier?property=${propertyId}`);
+    const openHotelShifts=closed.snapshot.records.filter((row:{kind:string;data:{state?:string;userId?:string}})=>row.kind==="shift"&&row.data.state==="open"&&row.data.userId===cashierId);
+    for(const shift of openHotelShifts){
+      await cashierPage.locator("article").filter({hasText:shift.data.name}).last().locator("summary").filter({hasText:"Close shift"}).click();
+      await submitPms(cashierPage,"Close shift");
+    }
+    const posPage=await restaurantCashier.newPage();
+    const posApi="/api/v1/holdings/riverside-lantern/pos";
+    const openPosSales=(await(await restaurantCashier.request.get(posApi)).json()).data.sales;
+    for(const sale of openPosSales.filter((row:{state:string})=>["open","held","payment_pending"].includes(row.state))){
+      await posPage.goto(`/holdings/riverside-lantern/pos?sale=${sale.id}`);
+      const cancellation=posPage.waitForResponse(response=>response.request().method()==="POST"&&response.url().endsWith("/pos/sale/cancel"));
+      await posPage.getByRole("button",{name:"Cancel sale",exact:true}).click();
+      expect((await cancellation).ok()).toBe(true);
+    }
+    await posPage.goto("/holdings/riverside-lantern/pos?tab=shifts");
+    const posShifts=(await(await restaurantCashier.request.get("/api/v1/holdings/riverside-lantern/pos?tab=shifts")).json()).data.shifts;
+    const manifest=JSON.parse(await readFile(resolve(`.runtime/browser/${run}/databases.json`),"utf8")) as {databases:{H002_DB:string}};
+    const databaseUrl=new URL(manifest.databases.H002_DB);
+    expect(databaseUrl.hostname).toBe("127.0.0.1");
+    expect(databaseUrl.port).toBe("5432");
+    expect(databaseUrl.pathname).toBe(`/erpx_browser_${run}_h002_db`);
+    const db=new Pool({connectionString:databaseUrl.href,max:1});
+    try {
+    for(const shift of posShifts.filter((row:{state:string})=>row.state==="open")){
+      const receipts=await db.query("SELECT COALESCE(SUM(p.amount_minor),0)::bigint cash FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id WHERE s.shift_id=$1 AND p.method='cash' AND p.state='succeeded'",[shift.id]);
+      const counted=Number(shift.opening_minor)+Number(receipts.rows[0].cash);
+      await posPage.getByLabel("Count cash").fill((counted/100).toFixed(2));
+      const closedShift=posPage.waitForResponse(response=>response.request().method()==="POST"&&response.url().endsWith("/pos/shift/close"));
+      await posPage.getByRole("button",{name:"Close cash session",exact:true}).click();
+      expect((await closedShift).ok()).toBe(true);
+    }
+    } finally {await db.end();}
+    const auditPage=await auditor.newPage();
+    await auditPage.goto(`/holdings/riverside-lantern/pms/night-audit?property=${propertyId}`);
+    const startDayClose=auditPage.locator("summary:visible").filter({hasText:"Start day close"}).first();
+    await expect(startDayClose).toBeVisible();
+    await startDayClose.click();
+    await submitPms(auditPage,"Start day close");
+    const closing=(await(await auditor.request.get(pmsApi)).json()).data;
+    expect(closing.snapshot.property.state).toBe("closing");
+    expect(closing.snapshot.records.some((row:{kind:string;data:{state?:string}})=>row.kind==="night"&&row.data.state==="pending")).toBe(true);
+  } finally {await Promise.all([frontDesk.close(),cashier.close(),restaurantCashier.close(),auditor.close()]);}
+});
