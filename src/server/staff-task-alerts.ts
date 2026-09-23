@@ -1,5 +1,6 @@
 import "server-only";
 import type { SqlDatabase } from "./runtime/types";
+import { scheduledFeaturePredicate } from "./hospitality-rollout";
 
 export type StaffTaskAlertResult = {
   dueSoon: number;
@@ -40,6 +41,7 @@ export async function escalateStaffTasks(
              AND sd.starts_at<=? AND sd.expires_at>?
            ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1) d ON TRUE
          WHERE t.state NOT IN ('completed','cancelled') AND t.due_at<=?
+           AND ${scheduledFeaturePredicate("t.company_id","operations")}
          ORDER BY t.due_at,t.id
          LIMIT 500`,
       )
@@ -76,7 +78,8 @@ export async function escalateStaffTasks(
         .prepare(
           `INSERT INTO staff_notifications
              (id,company_id,user_id,record_type,record_id,record_version,message,created_at)
-           VALUES(?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING`,
+           SELECT ?,?,?,?,?,?,?,? WHERE ${scheduledFeaturePredicate("?","operations")}
+           ON CONFLICT DO NOTHING`,
         )
         .bind(
           `staff-task-alert-${phase}-${task.id}-${task.version}-${userId}`,
@@ -87,6 +90,7 @@ export async function escalateStaffTasks(
           task.version,
           message,
           now,
+          ...(process.env.NODE_ENV === "production" ? [task.company_id] : []),
         )
         .run();
       if (Number(result.meta.changes) > 0) {

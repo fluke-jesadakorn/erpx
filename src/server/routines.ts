@@ -17,6 +17,7 @@ import {
 import { taskRoute, openApproval } from "./approvals";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
+import { assertProductionModuleEnabled, productionFeatureGuard, scheduledFeaturePredicate } from "./hospitality-rollout";
 
 export const templateSchema = taskFieldsSchema
   .extend({
@@ -609,7 +610,7 @@ export async function generateOccurrences(
   const schedules = (
     await db
       .prepare(
-        "SELECT * FROM routine_schedules WHERE state='active' AND next_occurrence_at<=? ORDER BY next_occurrence_at,id LIMIT ?",
+        `SELECT * FROM routine_schedules s WHERE s.state='active' AND s.next_occurrence_at<=? AND ${scheduledFeaturePredicate("s.company_id","operations")} ORDER BY s.next_occurrence_at,s.id LIMIT ?`,
       )
       .bind(now, Math.min(limit, 20))
       .all<ScheduleRow>()
@@ -659,6 +660,7 @@ export async function generateOccurrences(
                 at,
               );
         await db.batch([
+          ...productionFeatureGuard(db,key,schedule.company_id,"operations"),
           assertion(
             db,
             key,
@@ -718,6 +720,10 @@ export async function generateOccurrences(
         if (prepared) generated++;
         schedule.next_occurrence_at = next;
       } catch (error) {
+        if(process.env.NODE_ENV==="production") {
+          try { await assertProductionModuleEnabled(db,schedule.company_id,"operations"); }
+          catch { break; }
+        }
         // A competing generator can win the cursor without making this a generation failure.
         const latest = await db
           .prepare(

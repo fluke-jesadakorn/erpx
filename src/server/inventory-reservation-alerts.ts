@@ -41,6 +41,8 @@ async function insertAlerts(db: SqlDatabase, phase: "expiring" | "expired", now:
  * authoritative for re-reserving, consuming, releasing, or cancelling stock.
  */
 export async function escalateInventoryReservations(db: SqlDatabase, now = Date.now(), warningWindowMs = 86_400_000): Promise<AlertResult> {
+  // Current reservation alerts belong to Sales, Field Service and Manufacturing, all future releases.
+  if (process.env.NODE_ENV === "production") return { expiring: 0, expired: 0 };
   const expiring = await insertAlerts(db, "expiring", now, now + warningWindowMs);
   const expired = await insertAlerts(db, "expired", now, now);
   return { expiring, expired };

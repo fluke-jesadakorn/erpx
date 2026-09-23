@@ -16,6 +16,7 @@ import {
   type LeaveCalculationDay,
 } from "@/lib/leave-self-service";
 import { z } from "zod";
+import { scheduledFeaturePredicate } from "./hospitality-rollout";
 
 type Policy = {
   assignment_id: string;
@@ -296,15 +297,17 @@ export async function runLeaveAccruals(db:SqlDatabase,effectiveDate:string) {
  greatest(a.effective_from,p.effective_from,e.start_date) first_day,least(coalesce(a.effective_to,?),coalesce(p.effective_to,?),coalesce(e.end_date,?),?) last_day
  FROM leave_policy_assignments a JOIN leave_policy_versions p ON p.id=a.policy_version_id AND p.company_id=a.company_id JOIN leave_policy_rules r ON r.policy_version_id=p.id
  JOIN hr_engagements e ON e.id=a.engagement_id AND e.company_id=a.company_id JOIN leave_types t ON t.id=r.leave_type_id AND t.company_id=a.company_id
- WHERE p.status IN ('active','retired') AND t.tracked=true AND a.effective_from<=? AND (CASE WHEN e.worker_type='contractor' THEN r.contractor_eligible ELSE r.employee_eligible END) ORDER BY first_day,a.id,r.leave_type_id`,effectiveDate,effectiveDate,effectiveDate,effectiveDate,effectiveDate);
+ WHERE p.status IN ('active','retired') AND t.tracked=true AND a.effective_from<=? AND (CASE WHEN e.worker_type='contractor' THEN r.contractor_eligible ELSE r.employee_eligible END)
+ AND ${scheduledFeaturePredicate("a.company_id","people_payroll")} ORDER BY first_day,a.id,r.leave_type_id`,effectiveDate,effectiveDate,effectiveDate,effectiveDate,effectiveDate);
  let inserted=0;
  for(const item of due) {
   if(item.first_day>item.last_day)continue;
   const insert=async(kind:string,units:number,date:string)=>{
    if(!units)return;
    const result=await db.prepare(`INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,kind,units,effective_date,command_key,note,created_by,created_at)
-    VALUES(?,?,?,?,?,?,?,?,?,'system:leave-accrual',?) ON CONFLICT(company_id,command_key,kind,leave_type_id) DO NOTHING`)
-   .bind(crypto.randomUUID(),item.company_id,item.engagement_id,item.leave_type_id,kind,units,date,`leave:${item.grant_kind==='period'?item.assignment_id:item.engagement_id}:${kind}:${kind==='grant'||kind==='carryover'?date.slice(0,4):date}`,`Policy ${item.policy_version_id}: ${kind}`,Date.now()).run();
+    SELECT ?,?,?,?,?,?,?,?,?,'system:leave-accrual',? WHERE ${scheduledFeaturePredicate("?","people_payroll")}
+    ON CONFLICT(company_id,command_key,kind,leave_type_id) DO NOTHING`)
+   .bind(crypto.randomUUID(),item.company_id,item.engagement_id,item.leave_type_id,kind,units,date,`leave:${item.grant_kind==='period'?item.assignment_id:item.engagement_id}:${kind}:${kind==='grant'||kind==='carryover'?date.slice(0,4):date}`,`Policy ${item.policy_version_id}: ${kind}`,Date.now(),...(process.env.NODE_ENV==='production'?[item.company_id]:[])).run();
    inserted+=result.meta.changes;
   };
   if(item.grant_kind==='period')await insert('grant',item.grant_units,item.first_day);

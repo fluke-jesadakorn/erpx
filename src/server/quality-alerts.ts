@@ -65,6 +65,7 @@ export async function drainQualityAlerts(
   now = Date.now(),
   warningWindowMs = 86_400_000,
 ): Promise<QualityAlertResult> {
+  if (process.env.NODE_ENV === "production") return { dueSoon: 0, overdue: 0 };
   const today = utcDate(now);
   const horizon = utcDate(now + warningWindowMs);
   const dueSoon = await db

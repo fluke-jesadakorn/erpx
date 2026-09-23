@@ -952,6 +952,23 @@ describe("Projects, task phases and evidence boundaries", () => {
   });
 });
 describe("Reusable levels and routine scheduling", () => {
+  it("holds routine occurrences until Operations is enabled in production", async () => {
+    const template = await saveTemplate(db, requester, null, templateSchema.parse({
+      title: "Pilot room checks", assigneeUserId: worker.userId, completionApprovers: [requester.userId],
+    }), key());
+    const schedule = await saveSchedule(db, requester, String(template.id), null,
+      scheduleSchema.parse({ frequency: "daily", startDate: "2026-01-01" }), key());
+    await changeScheduleState(db, requester, String(schedule.id), 1, true, key());
+    const at = Date.parse("2026-09-01T02:00:00Z");
+    await db.prepare("UPDATE routine_schedules SET next_occurrence_at=? WHERE id=?").bind(at, schedule.id as string).run();
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      expect(await generateOccurrences(db, at, 1)).toEqual({ generated: 0, examined: 0 });
+      await db.prepare("INSERT INTO company_feature_rollouts(company_id,module_id,rollout_state,version,reason,changed_by,changed_at) VALUES(?,'operations','pilot',1,'Test routine generation','test',?)")
+        .bind(company,Date.now()).run();
+      expect((await generateOccurrences(db, at, 1)).generated).toBe(1);
+    } finally { vi.unstubAllEnvs(); }
+  });
   it("scopes Administration sections without granting staff approval management or beta ERP tools", async () => {
     const staffAccess = await administrationAccess(worker);
     expect(staffAccess.sections).toEqual(["feedback"]);

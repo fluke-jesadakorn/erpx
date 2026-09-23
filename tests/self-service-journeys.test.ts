@@ -40,6 +40,14 @@ beforeEach(async()=>{
 const leaveInput=()=>({leaveTypeId:type,startDate:'2026-10-05',endDate:'2026-10-05',startSegment:'full' as const,endSegment:'full' as const,handoverNote:'Private handover',saveOnly:false});
 async function sums(id:string){return (await db.prepare('SELECT kind,sum(units)::float units FROM leave_balance_entries WHERE request_id=? GROUP BY kind ORDER BY kind').bind(id).all<{kind:string;units:number}>()).results;}
 const actual=()=>overtimeDetailsSchema.parse({mode:'retrospective',startLocal:'2026-09-10T22:00',endLocal:'2026-09-11T02:00',timezone:'Asia/Bangkok',breakMinutes:30,reason:'Inventory work',lateExplanation:'Submitted after the overnight count.'});
+it('holds scheduled leave accrual until People is enabled for the company in production',async()=>{
+ vi.stubEnv('NODE_ENV','production');
+ try {
+  expect(await runLeaveAccruals(db,'2027-01-01')).toBe(0);
+  await db.prepare("INSERT INTO company_feature_rollouts(company_id,module_id,rollout_state,version,reason,changed_by,changed_at) VALUES(?,'people_payroll','pilot',1,'Test leave accrual','test',?)").bind(company,Date.now()).run();
+  expect(await runLeaveAccruals(db,'2027-01-01')).toBeGreaterThan(0);
+ } finally {vi.unstubAllEnvs();}
+});
 async function otAction(actor:WorkContext,id:string,action:'submit'|'authorize'|'actuals'|'verify'|'approve'|'return'|'withdraw',details?:ReturnType<typeof actual>,commandKey=key()){
  const row=await getOvertime(actor,id);return commandOvertime(actor,id,{action,expectedVersion:row.version,note:'Reviewed independently',details},commandKey);
 }

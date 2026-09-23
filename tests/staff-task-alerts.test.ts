@@ -1,4 +1,4 @@
-import { beforeAll, beforeEach, expect, it } from "vitest";
+import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env, type TestMigration } from "./runtime-env";
 import { escalateStaffTasks } from "../src/server/staff-task-alerts";
 
@@ -50,6 +50,17 @@ it("emits a deduplicated due-soon reminder to the assignee", async () => {
       message: "Task due within 24 hours: Review receiving exception.",
     },
   ]);
+});
+
+it("holds task alerts until Operations is enabled for the company in production", async () => {
+  const now = Date.now(), task = await createTask(now + 60 * 60 * 1000);
+  vi.stubEnv("NODE_ENV", "production");
+  try {
+    expect(await escalateStaffTasks(db, now)).toEqual({ dueSoon: 0, overdue: 0 });
+    await db.prepare("INSERT INTO company_feature_rollouts(company_id,module_id,rollout_state,version,reason,changed_by,changed_at) VALUES(?,'operations','pilot',1,'Test scheduled alerts','test',?)")
+      .bind(task.company,now).run();
+    expect(await escalateStaffTasks(db, now)).toEqual({ dueSoon: 1, overdue: 0 });
+  } finally { vi.unstubAllEnvs(); }
 });
 
 it("escalates overdue work to the creator and project owner without flooding retries", async () => {

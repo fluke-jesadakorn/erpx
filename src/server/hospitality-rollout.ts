@@ -152,3 +152,10 @@ export function productionFeatureGuard(db: SqlDatabase, key: string, companyId: 
     "EXISTS(SELECT 1 FROM company_feature_rollouts WHERE company_id=? AND module_id=? AND rollout_state IN ('pilot','available'))",
     [companyId,moduleId])];
 }
+
+/** SQL predicate for company-scoped scheduled reads and writes. Expressions are code-owned, never user input. */
+export function scheduledFeaturePredicate(companyExpression: string, moduleId: string) {
+  if (process.env.NODE_ENV !== 'production') return 'TRUE';
+  if (!isPilotModule(moduleId)) return 'FALSE';
+  return `EXISTS(SELECT 1 FROM company_feature_rollouts f WHERE f.company_id=${companyExpression} AND f.module_id='${moduleId}' AND f.rollout_state IN ('pilot','available'))`;
+}
