@@ -129,7 +129,7 @@ test("cashier and kitchen complete a restaurant bill on the existing hotel folio
   } finally {await Promise.all([cashier.close(),kitchen.close(),frontDesk.close()]);}
 });
 
-test("wrong-room and stale room-charge attempts leave the restaurant bill recoverable",async({browser},testInfo)=>{
+test("wrong-room, stale and revoked-cashier room charges leave the bill recoverable",async({browser},testInfo)=>{
   const run=process.env.ERPX_DEMO_RUN;
   test.skip(!run,"Prepare and start a disposable demo run first.");
   test.setTimeout(90_000);
@@ -192,6 +192,21 @@ test("wrong-room and stale room-charge attempts leave the restaurant bill recove
       }
       await page.reload();
       await expect(page.getByRole("button",{name:"Charge to room"})).toBeEnabled();
+      const assignmentId=workHeaders["x-erpx-context-assignment"];
+      expect(assignmentId).toBeTruthy();
+      await db.query("UPDATE assignments SET revoked_at=$1 WHERE id=$2",[Date.now(),assignmentId]);
+      try {
+        const revoked=await command({});
+        expect(revoked.status()).toBe(409);
+        expect((await revoked.json()).error.code).toBe("WORK_ROLE_UNAVAILABLE");
+        const persisted=await db.query("SELECT state,version FROM pos_sales WHERE id=$1",[saleId]);
+        expect(persisted.rows[0].state).toBe("open");
+        expect(Number(persisted.rows[0].version)).toBe(sale.version);
+        const sources=await db.query("SELECT count(*)::int n FROM pms_sources WHERE property_id=$1 AND source_key=$2",[state.fixture.hospitality.propertyId,`pos:${saleId}:${saleId}`]);
+        expect(sources.rows[0].n).toBe(0);
+        const after=await db.query("SELECT COALESCE(SUM(quantity_milli),0)::bigint quantity FROM commerce_stock WHERE warehouse_id=$1",[state.fixture.hospitality.warehouseId]);
+        expect(after.rows[0].quantity).toBe(before.rows[0].quantity);
+      } finally {await db.query("UPDATE assignments SET revoked_at=NULL WHERE id=$1",[assignmentId]);}
     } finally {await db.end();}
   } finally {await Promise.all([cashier.close(),frontDesk.close()]);}
 });
