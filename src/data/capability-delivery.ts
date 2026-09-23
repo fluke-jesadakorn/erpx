@@ -722,7 +722,7 @@ const delivery: Record<string, ModuleDelivery> = {
         service: "src/server/collaboration-work.ts",
         schema: "migrations/postgres/holding-write/0227_collaboration_work.sql",
         test: "tests/e2e/demo-collaboration-action-card.spec.ts",
-        gap: "Source-versioned action cards, current eligible owner, Work/Inbox, evidence completion and reviewed reassignment/cancellation are flow accepted across the owner service and an isolated two-role Demo browser journey. Expand source adapters, Calendar, retention/export, provider/production operation and Company business acceptance.",
+        gap: "Source-versioned action cards, current eligible owner, Work/Inbox, evidence completion, reviewed reassignment/cancellation and authorized CSV export are flow accepted across the owner service and an isolated two-role Demo browser journey. Expand source adapters, Calendar, retention/legal hold, provider/production operation and Company business acceptance.",
       },
       "feature-record-relations": {
         status: "flow_accepted",
@@ -731,7 +731,7 @@ const delivery: Record<string, ModuleDelivery> = {
         service: "src/server/collaboration-work.ts",
         schema: "migrations/postgres/holding-write/0227_collaboration_work.sql",
         test: "tests/e2e/demo-collaboration-record-relations.spec.ts",
-        gap: "Typed version snapshots, symmetric duplicate prevention, permission-filtered backlinks, removal evidence and immutable history are flow accepted for a Sales quotation to Support case in the isolated Demo workspace. Expand adapters and add dead-link, relation-graph, retention/export, provider/production and Company business acceptance.",
+        gap: "Typed version snapshots, symmetric duplicate prevention, permission-filtered backlinks, removal evidence, immutable history and authorized CSV export are flow accepted for a Sales quotation to Support case in the isolated Demo workspace. Expand adapters and add dead-link, relation-graph, retention/legal hold, provider/production and Company business acceptance.",
       },
     },
   },

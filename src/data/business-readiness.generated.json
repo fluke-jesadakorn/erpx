@@ -1,5 +1,5 @@
 {
-  "evidenceLedgerSha256": "146a62e88cbaf7aaef2f807e538adcfe87ec06e81ac15bf68c05dfffeecfff0a",
+  "evidenceLedgerSha256": "15ba799efa6d1ea2f252ef230cfc0cdf5cc7f8a3d7a22f2ff51882e140a01d4f",
   "capabilities": [
     {
       "id": "brand/feature-draft-workspace",
@@ -8393,7 +8393,7 @@
         "service": "src/server/collaboration-work.ts",
         "schema": "migrations/postgres/holding-write/0227_collaboration_work.sql",
         "test": "tests/e2e/demo-collaboration-action-card.spec.ts",
-        "gap": "Source-versioned action cards, current eligible owner, Work/Inbox, evidence completion and reviewed reassignment/cancellation are flow accepted across the owner service and an isolated two-role Demo browser journey. Expand source adapters, Calendar, retention/export, provider/production operation and Company business acceptance."
+        "gap": "Source-versioned action cards, current eligible owner, Work/Inbox, evidence completion, reviewed reassignment/cancellation and authorized CSV export are flow accepted across the owner service and an isolated two-role Demo browser journey. Expand source adapters, Calendar, retention/legal hold, provider/production operation and Company business acceptance."
       },
       "gates": {
         "automated": {
@@ -8442,7 +8442,7 @@
         "service": "src/server/collaboration-work.ts",
         "schema": "migrations/postgres/holding-write/0227_collaboration_work.sql",
         "test": "tests/e2e/demo-collaboration-record-relations.spec.ts",
-        "gap": "Typed version snapshots, symmetric duplicate prevention, permission-filtered backlinks, removal evidence and immutable history are flow accepted for a Sales quotation to Support case in the isolated Demo workspace. Expand adapters and add dead-link, relation-graph, retention/export, provider/production and Company business acceptance."
+        "gap": "Typed version snapshots, symmetric duplicate prevention, permission-filtered backlinks, removal evidence, immutable history and authorized CSV export are flow accepted for a Sales quotation to Support case in the isolated Demo workspace. Expand adapters and add dead-link, relation-graph, retention/legal hold, provider/production and Company business acceptance."
       },
       "gates": {
         "automated": {
@@ -12580,7 +12580,7 @@
       ],
       "limitations": [
         "Simulation-only isolated database and sandbox accounts; run was destroyed after verification.",
-        "Retention/export, provider, production and Company business acceptance remain separately gated."
+        "Retention/legal hold, provider, production and Company business acceptance remain separately gated."
       ],
       "supersedes": null
     },
@@ -12606,7 +12606,7 @@
       ],
       "limitations": [
         "Simulation-only isolated database and sandbox accounts; run was destroyed after verification.",
-        "Relation graph expansion, retention/export, provider, production and Company business acceptance remain separately gated."
+        "Relation graph expansion, retention/legal hold, provider, production and Company business acceptance remain separately gated."
       ],
       "supersedes": null
     },
@@ -13385,6 +13385,33 @@
       "limitations": [
         "This is isolated Demo Company evidence; live email-provider delivery, recovery, directory-provider enforcement, production operation and Company business acceptance remain separate gates.",
         "Broader joiner/mover/leaver and access-review campaign coverage remains separate from this invitation approval journey."
+      ],
+      "supersedes": null
+    },
+    {
+      "id": "collaboration-export-automated-20260923",
+      "capabilityIds": [
+        "collaboration/feature-action-cards",
+        "collaboration/feature-record-relations"
+      ],
+      "scenarioIds": [
+        "S20"
+      ],
+      "gate": "automated",
+      "environment": "simulation",
+      "outcome": "partial",
+      "scope": "The Collaboration owner service exports authorized typed relations and source-linked action cards as formula-safe CSV, omits inaccessible relation sources, and records an idempotent command receipt with audit/outbox evidence. Four focused collaboration tests passed.",
+      "observedAt": "2026-09-23T07:25:00+07:00",
+      "recordedBy": "Codex execution agent (automated service observation, not business sign-off)",
+      "evidence": [
+        {
+          "path": "docs/testing/evidence/2026-09-23-collaboration-export-tests.txt",
+          "sha256": "f357cf38f06442147540e95a59f90f3893600d117e622e8f3648f4a8a4652c08"
+        }
+      ],
+      "limitations": [
+        "This is automated service evidence on an isolated simulation database, not browser, provider, production or Company business acceptance.",
+        "Retention/legal hold, relation graph expansion and provider delivery remain separate gates."
       ],
       "supersedes": null
     }

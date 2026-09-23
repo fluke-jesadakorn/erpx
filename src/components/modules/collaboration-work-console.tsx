@@ -53,6 +53,11 @@ export function CollaborationWorkConsole({
           Open conversations and authorized thread files
         </a>
       </p>
+      <p>
+        <a href={`/api/v1${base}/collaboration?format=csv`} download>
+          Download authorized CSV export
+        </a>
+      </p>
       {data.canWrite && (
         <>
           <form

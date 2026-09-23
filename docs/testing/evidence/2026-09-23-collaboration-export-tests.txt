@@ -1,0 +1,20 @@
+ERPX Collaboration CSV export service evidence
+Observed: 2026-09-23 Asia/Bangkok
+
+Command:
+  bun run test -- tests/collaboration-work.test.ts
+
+Result:
+  Test Files  1 passed (1)
+  Tests       4 passed (4)
+
+Coverage:
+  - Visible typed relations and source titles are exported as CSV rows.
+  - Visible source-linked action cards are exported as CSV rows.
+  - CSV cells escape quotes and neutralize spreadsheet formula prefixes.
+  - Export creates an idempotent command receipt and the standard audit/outbox records.
+  - Relation visibility still uses source-level authorization; inaccessible links are omitted.
+
+Limitations:
+  - This is automated service evidence on an isolated simulation database, not browser, provider, production or Company business acceptance.
+  - Retention/legal hold, relation graph expansion and provider delivery remain separate gates.

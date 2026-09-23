@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import type { WorkContext } from "./authorization";
 import type { Row } from "./commerce";
@@ -49,6 +50,10 @@ const actionSchema = z.discriminatedUnion("action", [
   }),
   z.object({ action: z.literal("cancel"), expectedVersion: version, reason }),
 ]);
+const csvCell = (value: unknown) => {
+  const text = String(value ?? "");
+  return `"${/^[=+@\-\t\r]/.test(text) ? "'" : ""}${text.replaceAll('"', '""')}"`;
+};
 type Source = {
   type: z.infer<typeof sourceType>;
   id: string;
@@ -138,6 +143,18 @@ async function source(
     href: `/staff-tasks/${id}`,
   };
 }
+async function visibleSource(
+  a: WorkContext,
+  type: z.infer<typeof sourceType>,
+  id: string,
+) {
+  try {
+    return await source(a, type, id);
+  } catch (e) {
+    if (e instanceof ApiError && [403, 404].includes(e.status)) return null;
+    throw e;
+  }
+}
 const eligible = `EXISTS(SELECT 1 FROM assignments x JOIN hr_people p ON p.user_id=x.user_id AND p.company_id=x.company_id JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE x.company_id=c.company_id AND x.user_id=c.owner_id AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(x.user_id,x.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(x.role,x.company_id,'records.write') AND (x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=c.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=c.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active')`;
 export async function collaborationWorkspace(a: WorkContext) {
   access(a);
@@ -174,22 +191,132 @@ export async function collaborationWorkspace(a: WorkContext) {
     ).results;
   const visible = [];
   for (const r of relations) {
-    try {
-      await source(a, sourceType.parse(r.source_type), String(r.source_id));
-      await source(a, sourceType.parse(r.target_type), String(r.target_id));
+    const left = await visibleSource(
+        a,
+        sourceType.parse(r.source_type),
+        String(r.source_id),
+      ),
+      right = await visibleSource(
+        a,
+        sourceType.parse(r.target_type),
+        String(r.target_id),
+      );
+    if (left && right) {
       visible.push(r);
-    } catch (e) {
-      if (!(e instanceof ApiError) || ![403, 404].includes(e.status)) throw e;
     }
   }
   return {
     relations: visible,
+    // Action cards are independently scoped records. Their assigned owner may
+    // need to complete the action even when the linked source requires a
+    // different department permission.
     cards,
     people,
     sourceTypes: sourceType.options,
     canWrite: hasPermission(a, "records.write"),
     canReview: hasPermission(a, "records.review"),
   };
+}
+/** Export only records visible through the same source and workspace checks as the console. */
+export async function collaborationExport(a: WorkContext) {
+  const data = await collaborationWorkspace(a),
+    rows: string[][] = [
+      [
+        "kind",
+        "id",
+        "status",
+        "source_type",
+        "source_id",
+        "source_title",
+        "target_type",
+        "target_id",
+        "target_title",
+        "relation",
+        "title",
+        "owner_id",
+        "owner_name",
+        "due_at",
+        "version",
+        "reason",
+      ],
+    ];
+  for (const relation of data.relations) {
+    const left = await visibleSource(
+        a,
+        sourceType.parse(relation.source_type),
+        String(relation.source_id),
+      ),
+      right = await visibleSource(
+        a,
+        sourceType.parse(relation.target_type),
+        String(relation.target_id),
+      );
+    if (!left || !right) continue;
+    rows.push([
+      "relation",
+      String(relation.id),
+      String(relation.status),
+      left.type,
+      left.id,
+      left.title,
+      right.type,
+      right.id,
+      right.title,
+      String(relation.relation),
+      "",
+      "",
+      "",
+      "",
+      String(relation.version),
+      String(relation.reason),
+    ]);
+  }
+  for (const card of data.cards) {
+    const linked = await visibleSource(
+      a,
+      sourceType.parse(card.source_type),
+      String(card.source_id),
+    );
+    if (!linked) continue;
+    rows.push([
+      "action_card",
+      String(card.id),
+      String(card.status),
+      linked.type,
+      linked.id,
+      linked.title,
+      "",
+      "",
+      "",
+      "",
+      String(card.title),
+      String(card.owner_id),
+      String(card.owner_name ?? ""),
+      String(card.due_at),
+      String(card.version),
+      "",
+    ]);
+  }
+  const content = rows.map((row) => row.map(csvCell).join(",")).join("\r\n"),
+    commandId = `collaboration-export-${randomUUID()}`,
+    result = {
+      commandId,
+      format: "csv" as const,
+      rows: rows.length - 1,
+      content,
+      sha256: createHash("sha256").update(content, "utf8").digest("hex"),
+    };
+  return executeCommand(
+    (await holdingResources(a.holdingId)).write,
+    a,
+    commandId,
+    "collaboration.export",
+    { format: "csv" },
+    commandId,
+    1,
+    result,
+    [],
+  );
 }
 export async function collaborationActionDetail(a: WorkContext, id: string) {
   const data = await collaborationWorkspace(a),

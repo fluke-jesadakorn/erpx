@@ -3,6 +3,7 @@ import { requestPublicOrigin } from "@/server/public-origin";
 import { ApiError, errorResponse } from "@/server/http";
 import {
   changeActionCard,
+  collaborationExport,
   collaborationWorkspace,
   createActionCard,
   createRecordRelation,
@@ -10,13 +11,23 @@ import {
 } from "@/server/collaboration-work";
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
-export async function GET(_r: Request, c: C) {
+export async function GET(r: Request, c: C) {
   try {
+    const a = await requireWorkContext((await c.params).holdingSlug);
+    if (new URL(r.url).searchParams.get("format") === "csv") {
+      const result = await collaborationExport(a);
+      return new Response(result.content, {
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition": 'attachment; filename="erpx-collaboration.csv"',
+          "Cache-Control": "private, no-store",
+          ETag: result.sha256,
+        },
+      });
+    }
     return Response.json(
       {
-        data: await collaborationWorkspace(
-          await requireWorkContext((await c.params).holdingSlug),
-        ),
+        data: await collaborationWorkspace(a),
       },
       { headers },
     );

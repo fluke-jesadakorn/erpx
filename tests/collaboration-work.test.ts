@@ -9,6 +9,7 @@ import { orderSchema, saveMaster, saveOrder } from "../src/server/commerce";
 import { createSupportTicket } from "../src/server/support";
 import {
   changeActionCard,
+  collaborationExport,
   collaborationActionWork,
   collaborationWorkspace,
   createActionCard,
@@ -234,4 +235,46 @@ it("surfaces an ineligible assignee and permits reviewed reassignment without ch
       .bind(order, id)
       .run(),
   ).rejects.toThrow("COLLABORATION_ACTION_SOURCE_IMMUTABLE");
+});
+it("exports visible relations and action cards with a recorded command receipt", async () => {
+  await createRecordRelation(
+    f.owner,
+    {
+      sourceType: "commerce_order",
+      sourceId: order,
+      targetType: "support_ticket",
+      targetId: ticket,
+      relation: "related",
+      reason: "Include the linked customer case in the handoff export",
+    },
+    key(),
+  );
+  await createActionCard(
+    f.owner,
+    {
+      sourceType: "support_ticket",
+      sourceId: ticket,
+      title: "Confirm customer installation window",
+      ownerId: f.claimant.userId,
+      dueAt: Date.now() + 60000,
+      reason: "Export the accountable next action for the team review",
+    },
+    key(),
+  );
+  const result = await collaborationExport(f.owner);
+  expect(result).toMatchObject({ format: "csv", rows: 2 });
+  expect(result.content).toContain('"relation"');
+  expect(result.content).toContain('"action_card"');
+  expect(result.content).toContain('"Cross-record customer issue"');
+  expect(
+    await db
+      .prepare(
+        "SELECT operation,record_id FROM command_receipts WHERE command_id=?",
+      )
+      .bind(result.commandId)
+      .first(),
+  ).toMatchObject({
+    operation: "collaboration.export",
+    record_id: result.commandId,
+  });
 });
