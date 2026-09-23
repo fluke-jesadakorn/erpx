@@ -16,6 +16,8 @@ The following alternatives must be exercised in a resettable run with independen
 | Bank-transfer reference without imported evidence | Pending payment; bill cannot complete. |
 | Imported bank row with a wrong amount, currency, account, date, or reference | No settlement or match. |
 | Matched exact bank row, reviewed by another Finance user | One settled payment linked to one bank row; retry returns the same result. |
-| Restaurant return or correction after room charge | Linked folio reversal and POS/stock treatment still require implementation and acceptance. |
+| Restaurant return or correction after room charge | Linked folio reversal and POS/stock treatment are implemented; independent multi-role business acceptance is still required. |
+
+The embedded assistant may read the current PMS property/folio or POS sale only through the actor's existing owner API and role. The example accounts and records are fictional. Production AI remains disabled until the company explicitly chooses an AI provider. The assistant shows source versions and review steps, and never executes a room charge, payment, refund, or Night Audit action.
 
 No demo account is created from the listed email addresses until the isolated demo reset and provisioning workflow is implemented. All email domains use `.example`, and `SANDBOX-*` references never represent real money or legal tax documents.

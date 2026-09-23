@@ -17,6 +17,8 @@ import { getTask } from "./staff-tasks";
 import { handbookArticle } from "./handbook";
 import { runtimeEnv } from "./runtime";
 import { assistantGovernanceContext, recordAssistantInvocation } from "./agent-governance";
+import { pmsWorkspace } from "./pms";
+import { posWorkspace } from "./pos";
 
 type Row = { id:string; question:string; paths_json:string; sources_json:string|null; answer_json:string|null; english_answer_json?:string|null; state:string; created_at:number };
 function page(path:string) {
@@ -32,11 +34,19 @@ async function checkAuthority(db:SqlDatabase,actor:WorkContext) {
   try { await db.batch([...workContextGuards(db,actor,key),...iamMutationGuards(db,actor,key),db.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key)]); }
   catch { throw new ApiError(409,"WORK_CONTEXT_CHANGED","Your access changed. Reload before using the assistant."); }
 }
+async function assistantProvider(db:SqlDatabase,actor:WorkContext,env:BetaEnvironment) {
+  // The production pilot requires a company administrator to make an explicit AI choice.
+  if(process.env.NODE_ENV==="production") {
+    const setting=await db.prepare("SELECT mode FROM ai_company_settings WHERE company_id=?").bind(actor.companyId).first<{mode:string}>();
+    if(!setting||setting.mode==="disabled")throw new ApiError(503,"AI_PILOT_OPT_IN_REQUIRED","AI is not enabled for this company. Continue manually or ask an administrator to enable a provider.");
+  }
+  return resolveAiProvider(db,actor.companyId,env,"text");
+}
 const pick = (row:Record<string,unknown>,keys:string[]) => Object.fromEntries(keys.filter(k=>Object.hasOwn(row,k)).map(k=>[k,row[k]]));
 /** No DOM, credentials, background tabs, unpublished knowledge or unrestricted SQL enter prompts. */
 export async function assistantSources(db:SqlDatabase,actor:WorkContext,path:string):Promise<AssistantSource[]> {
   const p=page(path),root=p.segments[0],id=p.segments[1];
-  const permissions:Record<string,string>={finance:"finance.read",people:"people.read",commerce:"commerce.read",settings:"ai.manage"};
+  const permissions:Record<string,string>={finance:"finance.read",people:"people.read",commerce:"commerce.read",pms:"pms.read",pos:"pos.read",settings:"ai.manage"};
   if(permissions[root]&&!hasPermission(actor,permissions[root]))throw new ApiError(403,"AI_CONTEXT_FORBIDDEN","The current role cannot read this assistant context.");
   const sources:AssistantSource[]=[{id:`guide:${(await sha256(p.path)).slice(0,16)}`,title:`${p.guide.title} · workflow guide`,path:p.path,version:"1",data:p.guide}];
   let data:Record<string,unknown>|undefined;
@@ -52,6 +62,22 @@ export async function assistantSources(db:SqlDatabase,actor:WorkContext,path:str
   } else if(root==="handbook"&&id&&id!=="new") {
     const d=await handbookArticle(db,actor,id);
     data={id:d.article.id,version:d.revision.revision,title:d.revision.title,body:d.revision.body};
+  } else if(root==="pms") {
+    const propertyId=p.query.get("property")??undefined,recordId=p.query.get("folio")??p.query.get("record");
+    const view=await pmsWorkspace(actor,propertyId),snapshot=view.snapshot;
+    if(snapshot) {
+      const visible=snapshot.records;
+      const selected=recordId?visible.find(r=>r.id===recordId):undefined;
+      if(recordId&&!selected)throw new ApiError(404,"AI_CONTEXT_NOT_FOUND","This hotel record is unavailable in your current scope.");
+      const counts=Object.fromEntries([...new Set(visible.map(r=>r.kind))].sort().map(kind=>[kind,visible.filter(r=>r.kind===kind).length]));
+      data={title:`${snapshot.property.name} · hotel evidence`,propertyId:snapshot.property.id,propertyVersion:snapshot.property.version,businessDate:snapshot.property.businessDate,propertyState:snapshot.property.state,readiness:view.readiness,visibleRecordCounts:counts,...(selected?{record:{id:selected.id,kind:selected.kind,version:selected.version,updatedAt:selected.updatedAt,fields:pick(selected.data as Record<string,unknown>,["state","status","arrival","departure","arrivalDate","departureDate","roomId","stayId","folioId","businessDate","due","deposit","total","amount","sourceType","sourceId"])}}:{})};
+    }
+  } else if(root==="pos") {
+    const saleId=p.query.get("sale")??undefined;
+    const view=await posWorkspace(actor,saleId,"",saleId?"sale":p.query.get("tab")??"sale");
+    const sale=view.sale;
+    data={title:sale?`POS sale ${String(sale.number)}`:"Restaurant point of sale",currency:view.currency,registerCount:view.registers.length,openSales:view.sales.filter(s=>["open","held","payment_pending"].includes(String(s.state))).length,
+      ...(sale?{sale:pick(sale,["id","number","version","state","business_date","currency","subtotal_minor","tax_minor","discount_minor","total_minor"]),lines:view.lines.map(line=>pick(line,["id","name","quantity_milli","total_minor","fulfillment_state"])),payments:view.payments.map(payment=>pick(payment,["id","method","state","amount_minor","version"])),roomCharge:view.roomCharge?pick(view.roomCharge,["folio_entry_id","reversal_entry_id","property_version"]):null}:{})};
   } else if(root==="settings"&&p.query.get("section")==="ai") {
     const d=await aiProviderOverview(db,actor,await runtimeEnv());
     data={title:"AI provider settings",selection:{mode:d.selection.mode,textConnection:d.connections.find(c=>c.id===d.selection.text_connection_id)?.name??"Deployment default",imageConnection:d.selection.image_mode==="default"?"Same as text":d.connections.find(c=>c.id===d.selection.image_connection_id)?.name??"Unavailable"},connections:d.connections.map(c=>({name:c.name,disabled:!!c.disabled,activeTextModel:c.active?.text_model??null,activeImageModel:c.active?.image_model??null,hasUnactivatedChanges:c.draft_revision!==c.active_revision,draftTextModel:c.text_model,draftImageModel:c.image_model,draftTextVerified:!!c.text_verified,draftImageVerified:!!c.image_verified,testError:c.test_error}))};
@@ -86,7 +112,7 @@ export async function assistantView(db:SqlDatabase,actor:WorkContext,env:BetaEnv
     try { turn.answer=await translatePreviousAnswer(db,actor,env,turn); } catch { turn.answer={answer:"This earlier AI response is awaiting an English display revision. Ask again to receive current English guidance. The original remains preserved in the audit history.",sourceIds:[],followUps:[]}; }
   }
   let unavailable:string|null=null;
-  try {await resolveAiProvider(db,actor.companyId,env,"text");}catch(e){unavailable=e instanceof ApiError?e.message:"AI is temporarily unavailable. The workflow guide remains available.";}
+  try {await assistantProvider(db,actor,env);}catch(e){unavailable=e instanceof ApiError?e.message:"AI is temporarily unavailable. The workflow guide remains available.";}
   await checkAuthority(db,actor);
   return {page:p.path,guide:p.guide,crossContext:hasPermission(actor,"ai.context.cross"),unavailable,...h};
 }
@@ -103,7 +129,7 @@ export async function askAssistant(db:SqlDatabase,actor:WorkContext,env:BetaEnvi
     if(previous.state==="ready"&&previous.sources_json===sourcesJson)return {id};
     throw new ApiError(409,"AI_REQUEST_EXISTS",previous.state==="running"?"This message is still processing. Refresh the conversation shortly.":"Retry with a new message; its context may have changed.");
   }
-  const provider=await resolveAiProvider(db,actor.companyId,env,"text");
+  const provider=await assistantProvider(db,actor,env);
   const governance=await assistantGovernanceContext(db,actor,conversationKey,scopeKey(actor),current);
   const h=await history(db,actor,current,input.mode),now=Date.now();
   await executeCommand(db,actor,`${id}:reserve`,"assistant.message.prepare",input,id,1,{id,state:"running"},[
@@ -140,7 +166,7 @@ export async function askAssistant(db:SqlDatabase,actor:WorkContext,env:BetaEnvi
 
 /** A display revision preserves the original answer and spends the same shared AI allowance. */
 async function translatePreviousAnswer(db:SqlDatabase,actor:WorkContext,env:BetaEnvironment,turn:AssistantTurn) {
-  const provider=await resolveAiProvider(db,actor.companyId,env,"text"),id=`english-${turn.id}`,now=Date.now(),month=new Date(now).toISOString().slice(0,7);
+  const provider=await assistantProvider(db,actor,env),id=`english-${turn.id}`,now=Date.now(),month=new Date(now).toISOString().slice(0,7);
   const existing=await db.prepare("SELECT state,answer_json FROM ai_workspace_turns WHERE id=?").bind(id).first<Row>();
   if(existing?.state==="ready")return assistantAnswerSchema.parse(JSON.parse(existing.answer_json!));
   if(existing)throw new ApiError(409,"TRANSLATION_PENDING","The English display revision is not ready.");
