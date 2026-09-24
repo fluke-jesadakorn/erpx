@@ -57,7 +57,7 @@ export function CompanyStripe({base,connection,jobs,liveEnabled}:{base:string;co
  const payoutReady=Boolean(connection?.payouts_enabled&&connection.thb_bank_ready&&connection.payout_interval==='daily');
  const complete=paymentsReady&&payoutReady;
  const onboardingUrl=latestOnboardingUrl(jobs);
- const latestError=jobs.find(job=>job.state==='failed'&&job.last_error)?.last_error;
+ const latestError=jobs[0]?.state==='failed'?jobs[0].last_error:null;
  const due=[...new Set(requirements.currently_due.map(item=>requirementLabel(item,false)))];
  const pending=[...new Set(requirements.pending_verification.map(item=>requirementLabel(item,true)))];
 
@@ -77,7 +77,7 @@ export function CompanyStripe({base,connection,jobs,liveEnabled}:{base:string;co
   {connected?<>
    <div className={`${styles.summary} ${complete?styles.summaryReady:paymentsReady?styles.summaryPartial:styles.summaryWaiting}`} role="status">
     <span className={styles.summaryIcon} aria-hidden="true">{complete?'✓':paymentsReady?'◷':'!'}</span>
-    <div><strong>{complete?'Payments and payouts are ready':paymentsReady?'PromptPay is ready for test payments':'Account setup is in progress'}</strong><p>{complete?'Stripe will pay the available THB balance on its daily schedule.':paymentsReady?'Stripe is still verifying payouts. Test payments can proceed, but settlement to the bank is not ready yet.':'Complete the account requirements in Stripe before taking payments.'}</p></div>
+    <div><strong>{complete?'Payments and payouts are ready':paymentsReady?'PromptPay is ready for payments':'Account setup is in progress'}</strong><p>{complete?'Stripe will pay the available THB balance on its daily schedule.':paymentsReady?'Payouts are not ready yet. Review the account requirements below.':'Complete the account requirements in Stripe before taking payments.'}</p></div>
    </div>
    <div className={styles.accountLine}><span>Connected account</span><code>{connection?.account_id}</code></div>
    <div className={styles.tiles}>
