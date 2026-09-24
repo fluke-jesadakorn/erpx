@@ -5,12 +5,12 @@ import type { Filters } from "@/lib/executive/canvas";
 import type { WorkContext } from "../authorization";
 import type { SqlDatabase } from "../runtime/types";
 import { currentAuthority } from "./access";
-import { metricCatalog, queryMetric } from "./metrics";
+import { metricCatalogFor, queryMetric } from "./metrics";
 
 /** The model receives an authorized analytical projection, never a database connection or a privileged service identity. */
 export async function executiveAiContext(db:SqlDatabase,a:WorkContext,filters:Filters) {
   await currentAuthority(db,a);
-  const catalog=metricCatalog(a).filter(m=>m.available);
+  const catalog=(await metricCatalogFor(db,a)).filter(m=>m.available);
   const allowedModules=new Set(permissionCatalog.filter(p=>hasPermission(a,p.id)&&(/\.(read|reports)$/.test(p.id)||p.id.startsWith("self."))).map(p=>p.module));
   const modules=moduleRegistry.filter(m=>allowedModules.has(m.id)).map(m=>({id:m.id,name:m.name,description:m.description}));
   const snapshots=[];

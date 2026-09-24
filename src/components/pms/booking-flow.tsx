@@ -1,8 +1,9 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { money, plusDays, type Guest } from "@/lib/pms-model";
 import type { BookingQuote, RoomSelection } from "@/lib/pms-booking";
 import { workFetch } from "@/lib/work-fetch";
+import { FrontLocalizedTree } from "@/components/front/front-language";
 import styles from "./booking.module.css";
 export type HotelCard = {
   id: string;
@@ -49,7 +50,7 @@ export function QuoteDetails({
   confirmed?: boolean;
 }) {
   return (
-    <>
+    <FrontLocalizedTree><>
       <div className={styles.scroll}>
         <table className={styles.table}>
           <thead>
@@ -93,7 +94,7 @@ export function QuoteDetails({
           hold a room.
         </p>
       )}
-    </>
+    </></FrontLocalizedTree>
   );
 }
 export function BookingFlow({
@@ -125,11 +126,20 @@ export function BookingFlow({
     [blockId, setBlockId] = useState("");
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [confirmation, setConfirmation] = useState<{ number?: string } | null>(
+    [confirmation, setConfirmation] = useState<{ number?: string;state?:string;checkoutUrl?:string;attemptToken?:string;expiresAt?:number;refundState?:string|null } | null>(
       null,
     );
   const attempt = useRef<{ body: string; key: string } | null>(null);
   const base = `/api/public/booking/${encodeURIComponent(slug)}`;
+  useEffect(()=>{
+    if(staff)return;
+    const token=new URL(window.location.href).searchParams.get('attempt');
+    if(!token)return;
+    let active=true;
+    const poll=async()=>{try{const response=await fetch(`${base}/reservations?attempt=${encodeURIComponent(token)}`,{cache:'no-store'});const body=await response.json();if(!response.ok)throw new Error(body.error?.message??'Payment status unavailable');if(active)setConfirmation(body.data);}catch(error){if(active)setError(error instanceof Error?error.message:'Payment status unavailable');}};
+    void poll();const timer=window.setInterval(()=>void poll(),5000);
+    return()=>{active=false;window.clearInterval(timer);};
+  },[base,staff]);
   async function action(fn: () => Promise<void>) {
     setBusy(true);
     setError("");
@@ -160,7 +170,7 @@ export function BookingFlow({
     setStep(2);
   }
   return (
-    <div className={styles.wrap}>
+    <FrontLocalizedTree><div className={styles.wrap}>
       <ol className={styles.steps}>
         {["1 · Find rooms", "2 · Guest details", "3 · Review & confirm"].map(
           (text, i) => (
@@ -178,14 +188,14 @@ export function BookingFlow({
       {confirmation ? (
         <div className={styles.notice} role="status">
           <h2>
-            Booking confirmed
+            {confirmation.state==='payment_pending'?'Waiting for payment':confirmation.state==='expired'?'Payment period expired':confirmation.state==='refund_review'?'Payment needs review':'Booking confirmed'}
             {confirmation.number ? ` · ${confirmation.number}` : ""}
           </h2>
           <p>
-            {staff
-              ? "The reservation is now available in the list below."
-              : "Payment is due at the hotel. Your email will contain the confirmation and a private link to manage your booking."}
+            {staff?'The reservation is now available in the list below.':confirmation.state==='payment_pending'?'Your room is held for 30 minutes. Complete payment in Stripe Checkout.':confirmation.state==='confirmed'?'Payment confirmed. A confirmation email and private management link are on the way.':confirmation.state==='refund_review'?'The hold expired before payment confirmation. Finance will review a refund.':'The reservation is no longer held.'}
           </p>
+          {confirmation.state==='payment_pending'&&confirmation.checkoutUrl&&<a className={styles.secondary} href={confirmation.checkoutUrl}>Continue to secure payment</a>}
+          {confirmation.refundState&&<p>Refund: {confirmation.refundState}</p>}
           {quote && <QuoteDetails quote={quote} confirmed />}
           <button
             className={styles.secondary}
@@ -662,6 +672,7 @@ export function BookingFlow({
                       { "Idempotency-Key": attempt.current.key },
                     );
                     setConfirmation(result);
+                    if(result.checkoutUrl)window.location.assign(result.checkoutUrl);
                   }
                 });
               }}
@@ -691,13 +702,13 @@ export function BookingFlow({
                   Back / refresh quote
                 </button>
                 <button className={styles.primary} disabled={busy}>
-                  {busy ? "Confirming…" : "Confirm · pay at hotel"}
+                  {busy ? "Preparing checkout…" : "Continue to secure payment"}
                 </button>
               </div>
             </form>
           )}
         </>
       )}
-    </div>
+    </div></FrontLocalizedTree>
   );
 }

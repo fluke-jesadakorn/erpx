@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { workFetch } from "@/lib/work-fetch";
 import { useState } from "react";
 import type { PlatformDeadLetter } from "@/server/platform-operations";
 
@@ -19,7 +20,7 @@ export function PlatformJobRecovery({ holdingId, events, canRecover }: { holding
     setBusy(event.id);
     setError("");
     try {
-      const response = await fetch("/api/v1/platform/operations/recover", {
+      const response = await workFetch("/api/v1/platform/operations/recover", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
         body: JSON.stringify({ holdingId, eventId: event.id, expectedAttempts: event.attempts, expectedLastError: event.lastError, reason: explanation }),

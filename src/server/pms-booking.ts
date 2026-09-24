@@ -26,13 +26,17 @@ import {
   type Snapshot,
 } from "@/lib/pms";
 import { executePms, PmsError } from "@/lib/pms-engine";
-import { persistPmsRecords } from "./pms";
+import { effects as persistPmsEffects, persistPmsRecords } from "./pms";
+import { stripeCall } from "./pos-stripe";
 import { ApiError } from "./http";
 import type { WorkContext } from "./authorization";
 import { requirePermission } from "./iam-permissions";
 import { holdingBindingBySlug, holdingResources, runtimeEnv } from "./runtime";
-import { PostgresDatabase } from "./runtime/postgres";
-import type { SqlDatabase } from "./runtime/types";
+import {
+  isTransactionalSqlDatabase,
+  type SqlDatabase,
+  type TransactionalSqlDatabase,
+} from "./runtime/types";
 
 export type BookingEnv = {
   secret: string;
@@ -52,7 +56,7 @@ export async function bookingEnv(): Promise<BookingEnv> {
 export async function bookingDatabase(slug: string) {
   const binding = await holdingBindingBySlug(slug),
     { write } = await holdingResources(binding.id);
-  if (!(write instanceof PostgresDatabase))
+  if (!isTransactionalSqlDatabase(write))
     throw new Error("POSTGRES_REQUIRED");
   return write;
 }
@@ -187,7 +191,7 @@ export async function bookingCatalog(db: SqlDatabase) {
   });
 }
 export async function publicOffers(
-  db: PostgresDatabase,
+  db: TransactionalSqlDatabase,
   input: unknown,
   propertyId?: string,
 ) {
@@ -240,7 +244,7 @@ function publicSelections(s: Snapshot, raw: unknown, now: number) {
   return lines;
 }
 export async function publicQuote(
-  db: PostgresDatabase,
+  db: TransactionalSqlDatabase,
   propertyId: string,
   raw: unknown,
   env: BookingEnv,
@@ -257,12 +261,15 @@ export async function publicQuote(
           .at(-1)!,
       };
     const s = await bookingSnapshot(tx, propertyId, search),
-      quote = bookingQuote(s, publicSelections(s, lines, now));
+      quote = onlineQuote(bookingQuote(s, publicSelections(s, lines, now)));
     const payload = Buffer.from(
       JSON.stringify({ quote, expires: now + 15 * 60 * 1000 }),
     ).toString("base64url");
     return { quote, token: `${payload}.${sign(env.secret, payload)}` };
   });
+}
+function onlineQuote(quote:ReturnType<typeof bookingQuote>){
+ return {...quote,...(quote.policy?{policy:{...quote.policy,payment:'online' as const,text:quote.policy.text.replace('Pay at the hotel.','Full payment is required before confirmation.')}}:{})};
 }
 function readQuote(token: string, env: BookingEnv, now: number) {
   const [payload, signature] = token.split(".");
@@ -385,7 +392,7 @@ export const publicReservationSchema = z.object({
   notes: z.string().trim().max(2000).default(""),
 });
 export async function createPublicReservation(
-  db: PostgresDatabase,
+  db: TransactionalSqlDatabase,
   slug: string,
   raw: unknown,
   key: string,
@@ -401,7 +408,8 @@ export async function createPublicReservation(
       "Online booking is temporarily unavailable. Contact the hotel",
     );
   const digest = hash(JSON.stringify(v));
-  return db.transaction(async (tx) => {
+  const stripeBooking=process.env.PMS_STRIPE_BOOKING_ENABLED!=='false';
+  const created = await db.transaction(async (tx) => {
     // Same Property lock as staff bookings, room moves, maintenance and night audit.
     const s = await bookingSnapshot(tx, v.propertyId, undefined, true);
     const old = await tx
@@ -421,7 +429,7 @@ export async function createPublicReservation(
           "PMS_ALREADY_CONFIRMED",
           "This booking was already confirmed. Use your confirmation email to manage it",
         );
-      return JSON.parse(old.response_json) as ReturnType<typeof bookingSummary>;
+      return JSON.parse(old.response_json) as {attemptId?:string} & ReturnType<typeof bookingSummary>;
     }
     const quoted = readQuote(v.quoteToken, env, now);
     if (quoted.propertyId !== s.property.id)
@@ -431,13 +439,16 @@ export async function createPublicReservation(
         "Quote belongs to another hotel",
       );
     const lines = publicSelections(s, quoted.lines, now),
-      fresh = bookingQuote(s, lines);
+      fresh = onlineQuote(bookingQuote(s, lines));
     if (JSON.stringify(fresh) !== JSON.stringify(quoted))
       throw new ApiError(
         409,
         "PMS_QUOTE_CHANGED",
         "Price or policy changed. Review a fresh quote",
       );
+    if(fresh.currency!=='THB'||fresh.total<=0)throw new ApiError(422,'PMS_STRIPE_CURRENCY','Online payment requires a positive THB quote');
+    const connection=stripeBooking?await tx.prepare("SELECT * FROM pos_connections WHERE company_id=? AND state='ready' AND promptpay_enabled=true AND charges_enabled=true AND payouts_enabled=true AND thb_bank_ready=true AND payout_interval='daily'").bind(s.property.companyId).first<{account_id:string;livemode:boolean}>():null;
+    if(stripeBooking&&(!connection?.account_id||connection.livemode&&process.env.PMS_STRIPE_LIVE_ENABLED!=='true'))throw new ApiError(503,'PMS_PAYMENT_UNAVAILABLE','Online booking payment is unavailable for this company');
     const before = new Map(s.records.map((r) => [r.id, JSON.stringify(r)]));
     const result = executePms(
       s,
@@ -447,7 +458,7 @@ export async function createPublicReservation(
         source: "website",
         rooms: lines,
         notes: v.notes,
-        quote: JSON.stringify(fresh),
+        paymentPending: stripeBooking,
       },
       {
         userId: "guest:website",
@@ -456,6 +467,7 @@ export async function createPublicReservation(
         independent: () => false,
       },
     );
+    if(stripeBooking)record(s,'reservation',result.id).data.bookingPolicy=fresh.policy;
     if (
       result.effects.postings.length ||
       result.effects.stock.length ||
@@ -463,7 +475,15 @@ export async function createPublicReservation(
     )
       throw new Error("PUBLIC_BOOKING_FINANCIAL_EFFECT");
     await persist(tx, s, before);
-    const response = bookingSummary(s, result.id, now);
+    if(!stripeBooking){
+      const response=bookingSummary(s,result.id,now);
+      await run(tx,"INSERT INTO pms_booking_receipts(id,property_id,body_hash,reservation_id,created_at,response_json) VALUES(?,?,?,?,?,?)",key,s.property.id,digest,result.id,now,JSON.stringify(response));
+      await queueMail(tx,s,result.id,slug,'confirmation',env,now);
+      return response;
+    }
+    const attemptId=randomUUID(),expiresAt=now+30*60*1000;
+    await run(tx,"INSERT INTO pms_booking_payments(id,property_id,reservation_id,company_id,holding_slug,account_id,livemode,amount_minor,currency,status,expires_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,'THB','payment_pending',?,?,?)",attemptId,s.property.id,result.id,s.property.companyId,slug,connection!.account_id,connection!.livemode,fresh.total,expiresAt,now,now);
+    const response = {attemptId};
     await run(
       tx,
       "INSERT INTO pms_booking_receipts(id,property_id,body_hash,reservation_id,created_at,response_json) VALUES(?,?,?,?,?,?)",
@@ -474,9 +494,167 @@ export async function createPublicReservation(
       now,
       JSON.stringify(response),
     );
-    await queueMail(tx, s, result.id, slug, "confirmation", env, now);
     return response;
   });
+  if(!('attemptId' in created)||!created.attemptId)return created;
+  return bookingCheckout(db,slug,created.attemptId,env,now);
+}
+type BookingPaymentRow={
+ id:string;property_id:string;reservation_id:string;company_id:string;holding_slug:string;account_id:string;
+ livemode:boolean;amount_minor:number;currency:string;checkout_id:string|null;checkout_url:string|null;
+ status:'payment_pending'|'confirmed'|'expired'|'refund_review'|'cancelled';expires_at:number;
+ refund_state:string|null;
+};
+const paymentToken=(id:string,env:BookingEnv)=>`${id}.${sign(env.secret,`payment:${id}`)}`;
+async function bookingCheckout(db:TransactionalSqlDatabase,slug:string,id:string,env:BookingEnv,now=Date.now()){
+ const row=await db.prepare('SELECT * FROM pms_booking_payments WHERE id=?').bind(id).first<BookingPaymentRow>();
+ if(!row)throw new ApiError(404,'PMS_PAYMENT_NOT_FOUND','Booking payment not found');
+ const token=paymentToken(id,env);
+ if(row.status!=='payment_pending')return bookingPaymentStatus(db,token,env,now);
+ if(Number(row.expires_at)<=now)return bookingPaymentStatus(db,token,env,now);
+ let url=row.checkout_url;
+ if(!row.checkout_id){
+  const guest=await db.prepare("SELECT g.data_json::jsonb->>'email' email FROM pms_records r JOIN pms_records g ON g.id=r.data_json::jsonb->>'guestId' WHERE r.id=? AND r.property_id=?").bind(row.reservation_id,row.property_id).first<{email:string}>();
+  if(!guest?.email)throw new ApiError(409,'PMS_GUEST_EMAIL_REQUIRED','Guest email is required for booking payment');
+  const success=`${env.origin}/book/${encodeURIComponent(slug)}/${encodeURIComponent(row.property_id)}?attempt=${encodeURIComponent(token)}`;
+  const session=await stripeCall(Boolean(row.livemode),'checkout/sessions',{method:'POST',account:row.account_id,key:`pms-booking-${id}`,body:{mode:'payment',customer_email:guest.email,'payment_method_types[0]':'promptpay','line_items[0][price_data][currency]':'thb','line_items[0][price_data][unit_amount]':String(row.amount_minor),'line_items[0][price_data][product_data][name]':'Hotel reservation','line_items[0][quantity]':'1','metadata[pms_booking_payment_id]':id,'payment_intent_data[metadata][pms_booking_payment_id]':id,success_url:success,cancel_url:success,expires_at:String(Math.floor((Number(row.expires_at)+60000)/1000))}});
+  if(typeof session.url!=='string'||new URL(session.url).hostname!=='checkout.stripe.com')throw new ApiError(502,'PMS_CHECKOUT_URL_INVALID','Stripe did not return a valid checkout URL');
+  await run(db,"UPDATE pms_booking_payments SET checkout_id=?,checkout_url=?,updated_at=? WHERE id=? AND checkout_id IS NULL AND status='payment_pending'",session.id,session.url,Date.now(),id);
+  url=session.url;
+ }
+ const s=await bookingSnapshot(db,row.property_id);
+ return {...bookingSummary(s,row.reservation_id,now),state:'payment_pending',checkoutUrl:url,attemptToken:token,expiresAt:Number(row.expires_at)};
+}
+export async function bookingPaymentStatus(db:TransactionalSqlDatabase,token:string,env:BookingEnv,now=Date.now()){
+ const [id,signature,extra]=token.split('.');
+ if(extra||!id||!signature||!same(signature,sign(env.secret,`payment:${id}`)))throw new ApiError(401,'PMS_PAYMENT_TOKEN','Invalid booking payment token');
+ await reconcileBookingPayment(db,id,env,now);
+ const row=await db.prepare('SELECT * FROM pms_booking_payments WHERE id=?').bind(id).first<BookingPaymentRow>();
+ if(!row)throw new ApiError(404,'PMS_PAYMENT_NOT_FOUND','Booking payment not found');
+ const s=await bookingSnapshot(db,row.property_id);
+ return {...bookingSummary(s,row.reservation_id,now),state:row.status,refundState:row.refund_state,checkoutUrl:row.status==='payment_pending'?row.checkout_url:null,attemptToken:token,expiresAt:Number(row.expires_at)};
+}
+export async function reconcileBookingPayment(db:TransactionalSqlDatabase,id:string,env:BookingEnv,now=Date.now()){
+ const row=await db.prepare('SELECT * FROM pms_booking_payments WHERE id=?').bind(id).first<BookingPaymentRow>();
+ if(!row||!['payment_pending','expired'].includes(row.status))return;
+ let paid=false;
+ if(row.checkout_id){
+  let session=await stripeCall(Boolean(row.livemode),`checkout/sessions/${row.checkout_id}`,{account:row.account_id});
+  if(session.payment_status!=='paid'&&now>=Number(row.expires_at)&&session.status==='open'){
+   await stripeCall(Boolean(row.livemode),`checkout/sessions/${row.checkout_id}/expire`,{method:'POST',account:row.account_id,key:`pms-expire-${id}`,body:{}});
+   session=await stripeCall(Boolean(row.livemode),`checkout/sessions/${row.checkout_id}`,{account:row.account_id});
+  }
+  if(session.payment_status==='paid'){
+   const pi=await stripeCall(Boolean(row.livemode),`payment_intents/${String(session.payment_intent)}`,{account:row.account_id});
+   if(pi.status!=='succeeded'||pi.amount_received!==Number(row.amount_minor)||pi.currency!=='thb'||(pi.metadata as Record<string,string>|undefined)?.pms_booking_payment_id!==id)throw new ApiError(409,'PMS_PAYMENT_MISMATCH','Payment needs Finance review');
+   paid=true;
+  }
+ }
+ if(!paid&&now<Number(row.expires_at))return;
+ await db.transaction(async tx=>{
+  const s=await bookingSnapshot(tx,row.property_id,undefined,true);
+  await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
+  const current=await tx.prepare('SELECT * FROM pms_booking_payments WHERE id=? FOR UPDATE').bind(id).first<BookingPaymentRow>();
+  if(!current||!['payment_pending','expired'].includes(current.status))return;
+  if(current.status==='expired'){
+   if(paid)await run(tx,"UPDATE pms_booking_payments SET status='refund_review',refund_state='requested',refund_requested_at=?,updated_at=? WHERE id=?",now,now,id);
+   return;
+  }
+  const before=new Map(s.records.map(r=>[r.id,JSON.stringify(r)]));
+  if(paid&&now<Number(current.expires_at)){
+   const reservation=record(s,'reservation',current.reservation_id);
+   if(reservation.data.state!=='payment_pending')throw new ApiError(409,'PMS_BOOKING_STATE','Booking state changed before payment confirmation');
+   reservation.data.state='confirmed';reservation.data.history=[...(reservation.data.history??[]),{at:now,actor:'system:stripe',action:'Online payment confirmed'}];reservation.version++;reservation.updatedAt=now;
+   const settings=await tx.prepare('SELECT accounts_json FROM pos_settings WHERE company_id=?').bind(current.company_id).first<{accounts_json:string}>();
+   const clearing=settings?JSON.parse(settings.accounts_json).stripe as string:s.property.config.accounts.edc;
+   if(!clearing)throw new ApiError(409,'PMS_STRIPE_CLEARING_REQUIRED','Configure a company Stripe clearing account');
+   const oldEdc=s.property.config.accounts.edc;s.property.config.accounts.edc=clearing;
+   for(const stay of records(s,'stay').filter(st=>st.data.reservationId===current.reservation_id)){
+    const amount=stay.data.prices.reduce((sum,p)=>sum+p.total,0);
+    const outcome=executePms(s,'payment.stripe',{folioId:stay.data.folioId,amount,reference:String(current.checkout_id)},{userId:'system:stripe',now,uuid:randomUUID,independent:()=>false});
+    await persistPmsRecords(tx,s,before);
+    await persistPmsEffects(tx,{companyId:current.company_id,userId:'system:stripe'} as WorkContext,s,outcome.effects);
+   }
+   s.property.config.accounts.edc=oldEdc;
+   await persist(tx,s,before);
+   await run(tx,"UPDATE pms_booking_payments SET status='confirmed',paid_at=?,updated_at=? WHERE id=?",now,now,id);
+   await queueMail(tx,s,current.reservation_id,current.holding_slug,'confirmation',env,now);
+  }else{
+   executePms(s,'reservation.cancel',{id:current.reservation_id,reason:paid?'Payment received after the booking hold expired':'Online payment period expired',fee:0},{userId:'system:stripe',now,uuid:randomUUID,independent:()=>false});
+   await persist(tx,s,before);
+   await run(tx,"UPDATE pms_booking_payments SET status=?,refund_state=?,refund_requested_at=?,updated_at=? WHERE id=?",paid?'refund_review':'expired',paid?'requested':null,paid?now:null,now,id);
+  }
+ });
+}
+export async function drainBookingPayments(db:TransactionalSqlDatabase,env:BookingEnv,now=Date.now()){
+ const due=await rows<{id:string}>(db,"SELECT id FROM pms_booking_payments WHERE status='payment_pending' AND expires_at<=? ORDER BY expires_at LIMIT 20",now);
+ for(const item of due){
+  try{await reconcileBookingPayment(db,item.id,env,now);await run(db,'UPDATE pms_booking_payments SET last_error=NULL WHERE id=?',item.id);}
+  catch(error){const code=error instanceof ApiError?error.code:error instanceof Error?error.message:'PMS_PAYMENT_REVIEW';await run(db,'UPDATE pms_booking_payments SET last_error=? WHERE id=?',String(code).slice(0,100),item.id);}
+ }
+ const refunds=await rows<{id:string}>(db,"SELECT id FROM pms_booking_payments WHERE refund_state IN ('approved','processing') ORDER BY refund_requested_at LIMIT 20");
+ for(const item of refunds){
+  try{await processBookingRefund(db,item.id,now);await run(db,'UPDATE pms_booking_payments SET last_error=NULL WHERE id=?',item.id);}
+  catch(error){const code=error instanceof ApiError?error.code:error instanceof Error?error.message:'PMS_REFUND_REVIEW';await run(db,'UPDATE pms_booking_payments SET last_error=? WHERE id=?',String(code).slice(0,100),item.id);}
+ }
+}
+export async function approveBookingRefund(db:TransactionalSqlDatabase,actor:WorkContext,id:string){
+ requirePermission(actor,'finance.approve');
+ if(actor.branchId||actor.departmentId)throw new ApiError(403,'PMS_COMPANY_FINANCE','Approve refunds from the company workspace');
+ return db.transaction(async tx=>{
+  const row=await tx.prepare('SELECT * FROM pms_booking_payments WHERE id=? AND company_id=? FOR UPDATE').bind(id,actor.companyId).first<BookingPaymentRow>();
+  if(!row||row.refund_state!=='requested'||!['cancelled','refund_review'].includes(row.status))throw new ApiError(409,'PMS_REFUND_NOT_REQUESTED','No refund request is awaiting approval');
+  await run(tx,"UPDATE pms_booking_payments SET refund_state='approved',refund_approved_by=?,updated_at=? WHERE id=?",actor.userId,Date.now(),id);
+  return {id,state:'approved'};
+ });
+}
+export async function bookingRefundsForFinance(actor:WorkContext){
+ requirePermission(actor,'finance.read');
+ if(actor.branchId||actor.departmentId)return [];
+ const {write}=await holdingResources(actor.holdingId);
+ return rows<{id:string;amount_minor:number;status:string;refund_state:string;last_error:string|null;created_at:number}>(write,"SELECT id,amount_minor,status,refund_state,last_error,created_at FROM pms_booking_payments WHERE company_id=? AND refund_state IS NOT NULL ORDER BY created_at DESC LIMIT 100",actor.companyId);
+}
+export async function processBookingRefund(db:TransactionalSqlDatabase,id:string,now=Date.now()){
+ const row=await db.prepare('SELECT * FROM pms_booking_payments WHERE id=?').bind(id).first<BookingPaymentRow & {refund_id:string|null}>();
+ if(!row||!['approved','processing'].includes(row.refund_state??''))return;
+ if(!row.checkout_id)throw new ApiError(409,'PMS_REFUND_PROVIDER_MISSING','Checkout session is missing');
+ let refundId=row.refund_id;
+ if(!refundId){
+  const session=await stripeCall(Boolean(row.livemode),`checkout/sessions/${row.checkout_id}`,{account:row.account_id});
+  const pi=await stripeCall(Boolean(row.livemode),`payment_intents/${String(session.payment_intent)}`,{account:row.account_id});
+  if(pi.status!=='succeeded'||pi.amount_received!==Number(row.amount_minor)||(pi.metadata as Record<string,string>|undefined)?.pms_booking_payment_id!==id)throw new ApiError(409,'PMS_REFUND_PAYMENT_MISMATCH','Payment needs provider review');
+  const guest=await db.prepare("SELECT g.data_json::jsonb->>'email' email FROM pms_records r JOIN pms_records g ON g.id=r.data_json::jsonb->>'guestId' WHERE r.id=?").bind(row.reservation_id).first<{email:string}>();
+  if(!guest?.email)throw new ApiError(409,'PMS_REFUND_EMAIL_REQUIRED','Guest refund email is missing');
+  const refund=await stripeCall(Boolean(row.livemode),'refunds',{method:'POST',account:row.account_id,key:`pms-refund-${id}`,body:{payment_intent:pi.id,amount:String(row.amount_minor),instructions_email:guest.email,'metadata[pms_booking_payment_id]':id}});
+  refundId=refund.id;
+  await run(db,"UPDATE pms_booking_payments SET refund_id=?,refund_state='processing',updated_at=? WHERE id=? AND refund_id IS NULL",refundId,now,id);
+ }
+ const refund=await stripeCall(Boolean(row.livemode),`refunds/${refundId}`,{account:row.account_id});
+ if(refund.amount!==Number(row.amount_minor)||(refund.metadata as Record<string,string>|undefined)?.pms_booking_payment_id!==id)throw new ApiError(409,'PMS_REFUND_PROVIDER_MISMATCH','Refund amount or reference does not match');
+ if(refund.status==='failed'||refund.status==='canceled'){await run(db,"UPDATE pms_booking_payments SET refund_state='failed',updated_at=? WHERE id=?",now,id);return;}
+ if(refund.status!=='succeeded')return;
+ await db.transaction(async tx=>{
+  const s=await bookingSnapshot(tx,row.property_id,undefined,true);
+  await tx.prepare("SELECT set_config('erpx.pms_write','on',true)").first();
+  const current=await tx.prepare('SELECT * FROM pms_booking_payments WHERE id=? FOR UPDATE').bind(id).first<BookingPaymentRow>();
+  if(current?.refund_state==='succeeded')return;
+  if(!current||current.refund_state!=='processing')throw new ApiError(409,'PMS_REFUND_STATE','Refund state changed');
+  if(current.status==='cancelled'){
+   const before=new Map(s.records.map(r=>[r.id,JSON.stringify(r)]));
+   const settings=await tx.prepare('SELECT accounts_json FROM pos_settings WHERE company_id=?').bind(current.company_id).first<{accounts_json:string}>();
+   const oldEdc=s.property.config.accounts.edc;
+   s.property.config.accounts.edc=settings?JSON.parse(settings.accounts_json).stripe as string:oldEdc;
+   for(const stay of records(s,'stay').filter(st=>st.data.reservationId===current.reservation_id)){
+    const amount=stay.data.prices.reduce((sum,p)=>sum+p.total,0);
+    const outcome=executePms(s,'payment.stripe_refund',{folioId:stay.data.folioId,amount,reference:String(refundId),reason:'Guest cancelled within the free-cancellation window'},{userId:'system:stripe',now,uuid:randomUUID,independent:()=>false});
+    await persistPmsRecords(tx,s,before);
+    await persistPmsEffects(tx,{companyId:current.company_id,userId:'system:stripe'} as WorkContext,s,outcome.effects);
+   }
+   s.property.config.accounts.edc=oldEdc;
+   await persist(tx,s,before);
+  }
+  await run(tx,"UPDATE pms_booking_payments SET refund_state='succeeded',updated_at=? WHERE id=?",now,id);
+ });
 }
 async function authorizedBooking(
   db: SqlDatabase,
@@ -508,17 +686,18 @@ async function authorizedBooking(
   };
 }
 export async function manageBooking(
-  db: PostgresDatabase,
+  db: TransactionalSqlDatabase,
   token: string,
   now = Date.now(),
 ) {
   return db.transaction(async (tx) => {
     const { s, id } = await authorizedBooking(tx, token, now);
-    return bookingSummary(s, id, now);
+    const payment=await tx.prepare('SELECT refund_state FROM pms_booking_payments WHERE reservation_id=?').bind(id).first<{refund_state:string|null}>();
+    return {...bookingSummary(s,id,now),refundState:payment?.refund_state??null};
   });
 }
 export async function cancelPublicReservation(
-  db: PostgresDatabase,
+  db: TransactionalSqlDatabase,
   slug: string,
   token: string,
   env: BookingEnv,
@@ -526,8 +705,9 @@ export async function cancelPublicReservation(
 ) {
   return db.transaction(async (tx) => {
     const { s, id } = await authorizedBooking(tx, token, now, true);
+    const payment=await tx.prepare('SELECT * FROM pms_booking_payments WHERE reservation_id=? FOR UPDATE').bind(id).first<BookingPaymentRow>();
     if (record(s, "reservation", id).data.state === "cancelled")
-      return bookingSummary(s, id, now);
+      return {...bookingSummary(s,id,now),refundState:payment?.refund_state??null};
     const eligibility = cancellationEligibility(s, id, now);
     if (!eligibility.allowed)
       throw new ApiError(409, "PMS_CONTACT_HOTEL", eligibility.reason);
@@ -548,12 +728,13 @@ export async function cancelPublicReservation(
       },
     );
     await persist(tx, s, before);
+    if(payment?.status==='confirmed')await run(tx,"UPDATE pms_booking_payments SET status='cancelled',refund_state='requested',refund_requested_at=?,updated_at=? WHERE id=?",now,now,payment.id);
     await queueMail(tx, s, id, slug, "cancellation", env, now);
-    return bookingSummary(s, id, now);
+    return {...bookingSummary(s,id,now),refundState:payment?.status==='confirmed'?'requested':null};
   });
 }
 export async function recoverBooking(
-  db: PostgresDatabase,
+  db: TransactionalSqlDatabase,
   slug: string,
   raw: unknown,
   env: BookingEnv,
@@ -665,7 +846,7 @@ export function bookingError(error: unknown) {
     : error;
 }
 export async function deliverBookingEmails(
-  db: PostgresDatabase,
+  db: TransactionalSqlDatabase,
   env: BookingEnv,
   send: typeof fetch = fetch,
   now = Date.now(),

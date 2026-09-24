@@ -2,6 +2,7 @@ import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "./authorization";
 import type { Row } from "./commerce";
+import type { SqlDatabase } from "./runtime/types";
 import type { WorkItem } from "@/lib/work-item";
 import { holdingResources } from "./runtime";
 import { requirePermission } from "./iam-permissions";
@@ -50,10 +51,25 @@ function access(a: WorkContext, write = false) {
       "Your current role cannot access Marketing.",
     );
 }
+function formRequiresConsent(configuration: unknown): boolean {
+  let value = configuration;
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return false;
+    }
+  }
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as Record<string, unknown>).consentRequired === true
+  );
+}
 export async function marketingWorkspace(a: WorkContext) {
   access(a);
   const { write } = await holdingResources(a.holdingId),
-    [assets, candidates, branches] = await Promise.all([
+    [assets, candidates, branches, campaignSummary] = await Promise.all([
       write
         .prepare(
           "SELECT * FROM marketing_assets WHERE company_id=? ORDER BY updated_at DESC",
@@ -78,11 +94,32 @@ export async function marketingWorkspace(a: WorkContext) {
         )
         .bind(a.companyId, a.branchId, a.branchId)
         .all<Row>(),
+      write
+        .prepare(
+          `SELECT COALESCE(NULLIF(BTRIM(attribution_json::jsonb->>'campaign'),''),'Unspecified') campaign,
+            COALESCE(NULLIF(BTRIM(attribution_json::jsonb->>'source'),''),NULLIF(BTRIM(attribution_json::jsonb->>'utmSource'),''),'Unspecified') source,
+            COUNT(*)::int captured,
+            COUNT(*) FILTER (WHERE status='pending')::int pending,
+            COUNT(*) FILTER (WHERE status='handed_off')::int handed_off,
+            COUNT(*) FILTER (WHERE status='rejected')::int rejected
+          FROM marketing_lead_candidates
+          WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)
+          GROUP BY 1,2 ORDER BY COUNT(*) DESC, campaign, source`,
+        )
+        .bind(
+          a.companyId,
+          a.branchId,
+          a.branchId,
+          a.departmentId,
+          a.departmentId,
+        )
+        .all<Row>(),
     ]);
   return {
     assets: assets.results,
     candidates: candidates.results,
     branches: branches.results,
+    campaignSummary: campaignSummary.results,
   };
 }
 export async function createMarketingAsset(
@@ -91,8 +128,14 @@ export async function createMarketingAsset(
   key: string,
 ) {
   access(a, true);
-  const i = assetSchema.parse(raw),
-    { write } = await holdingResources(a.holdingId),
+  const i = assetSchema.parse(raw);
+  if (i.kind === "form" && !formRequiresConsent(i.configuration))
+    throw new ApiError(
+      422,
+      "MARKETING_CONSENT_REQUIRED",
+      "Lead capture forms must require consent before they can be saved.",
+    );
+  const { write } = await holdingResources(a.holdingId),
     id = `marketing-${i.kind}-${key}`,
     op = "marketing.asset.create",
     prior = await replayCommand(write, a, key, op, id, i);
@@ -141,7 +184,7 @@ export async function createMarketingCandidate(
       write,
       key,
       "form",
-      "EXISTS(SELECT 1 FROM marketing_assets WHERE id=? AND company_id=? AND kind='form' AND status='active' AND version=?)",
+      "EXISTS(SELECT 1 FROM marketing_assets WHERE id=? AND company_id=? AND kind='form' AND status='active' AND version=? AND configuration_json::jsonb->'consentRequired'='true'::jsonb)",
       [i.formId, a.companyId, i.formVersion],
     ),
     assertion(
@@ -201,6 +244,16 @@ export async function changeMarketing(
       .first<Row>();
     if (!row)
       throw new ApiError(404, "MARKETING_ASSET_NOT_FOUND", "Asset not found.");
+    if (
+      i.action === "activate" &&
+      row.kind === "form" &&
+      !formRequiresConsent(row.configuration_json)
+    )
+      throw new ApiError(
+        422,
+        "MARKETING_CONSENT_REQUIRED",
+        "Lead capture forms must require consent before activation.",
+      );
     const expected = i.action === "retire" ? "active" : "draft",
       status =
         i.action === "activate"
@@ -361,7 +414,7 @@ export async function changeMarketing(
           i.dueDate ??
           new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10),
       },
-      `${key}:crm`,
+      `${key}-crm`,
     ),
     op = candidateOperation;
   const now = Date.now();
@@ -440,6 +493,33 @@ export async function marketingDetail(a: WorkContext, id: string) {
         .all<Row>()
     ).results,
   };
+}
+export type MarketingExecutiveEvidenceMetric = "marketing-lead-candidates" | "marketing-engagement-events";
+export async function marketingExecutiveEvidenceRow(
+  db: SqlDatabase,
+  a: WorkContext,
+  metric: MarketingExecutiveEvidenceMetric,
+  recordId: string,
+  range?: { from: number; toExclusive: number },
+) {
+  access(a);
+  if (metric === "marketing-lead-candidates") {
+    return db.prepare(`SELECT c.id,c.contact_name,c.status,c.form_version,c.version,c.created_at,c.updated_at,c.branch_id,c.department_id,
+        f.name form_name
+      FROM marketing_lead_candidates c
+      JOIN marketing_assets f ON f.id=c.form_id AND f.company_id=c.company_id
+      WHERE c.id=? AND c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?) LIMIT 1`)
+      .bind(recordId,a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId).first<Row>();
+  }
+  if (!range) return null;
+  return db.prepare(`SELECT e.id,e.candidate_id,e.event_type,e.channel,e.version event_version,e.created_at,
+      c.contact_name,c.status candidate_status,c.version candidate_version,c.branch_id,c.department_id,f.name form_name
+    FROM marketing_engagement_events e
+    JOIN marketing_lead_candidates c ON c.id=e.candidate_id
+    JOIN marketing_assets f ON f.id=c.form_id AND f.company_id=c.company_id
+    WHERE e.id=? AND c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?)
+      AND e.created_at>=? AND e.created_at<? LIMIT 1`)
+    .bind(recordId,a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId,range.from,range.toExclusive).first<Row>();
 }
 export async function marketingWork(a: WorkContext): Promise<WorkItem[]> {
   if (!hasModuleAccess(a.modules, "marketing")) return [];

@@ -2,7 +2,7 @@ import { pmsCommand, pmsWorkspace } from "@/server/pms";
 import { requireWorkContext } from "@/server/authorization";
 import { ApiError, errorResponse } from "@/server/http";
 import { holdingResources } from "@/server/runtime";
-import { PostgresDatabase } from "@/server/runtime/postgres";
+import { isTransactionalSqlDatabase } from "@/server/runtime/types";
 import { requestPublicOrigin } from "@/server/public-origin";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string }> };
@@ -46,7 +46,7 @@ export async function POST(request: Request, { params }: Context) {
       throw new ApiError(422, "INVALID_JSON", "Invalid data format.");
     });
     const { write } = await holdingResources(actor.holdingId);
-    if (!(write instanceof PostgresDatabase))
+    if (!isTransactionalSqlDatabase(write))
       throw new Error("POSTGRES_REQUIRED");
     return Response.json({ data: await pmsCommand(write, actor, body, key) });
   } catch (e) {

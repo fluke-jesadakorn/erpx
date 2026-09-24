@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { DocumentBrandMode, WorkspaceBrand } from "@/server/branding";
+import Image from "next/image";
+import type { DocumentBrandMode, StorefrontAppBrand, WorkspaceBrand } from "@/server/branding";
 import { workFetch } from "@/lib/work-fetch";
 import { WorkspaceBrandMark } from "@/components/brand/workspace-brand";
 import styles from "./brand-administration.module.css";
@@ -10,16 +11,20 @@ type Props = {
   base: string;
   holding: WorkspaceBrand;
   branches: WorkspaceBrand[];
+  storefront: StorefrontAppBrand;
   canHolding: boolean;
   canBranches: boolean;
+  canStorefront: boolean;
 };
 
-export function BrandAdministration({ base, holding, branches, canHolding, canBranches }: Props) {
+export function BrandAdministration({ base, holding, branches, storefront, canHolding, canBranches, canStorefront }: Props) {
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
+  const [shortName, setShortName] = useState(storefront.shortName);
+  const [accentColor, setAccentColor] = useState(storefront.accentColor);
   const endpoint = `/api/v1${base}`;
 
-  async function upload(ownerType: "holding_brand" | "branch_brand", ownerId: string, variant: "primary" | "inverse", file: File) {
+  async function upload(ownerType: "holding_brand" | "branch_brand" | "company_storefront_brand", ownerId: string, variant: "primary" | "inverse" | "logo", file: File) {
     setBusy(`${ownerType}:${ownerId}:${variant}`);
     setMessage("");
     try {
@@ -40,7 +45,7 @@ export function BrandAdministration({ base, holding, branches, canHolding, canBr
     }
   }
 
-  async function patch(path: string, body: { documentMode?: DocumentBrandMode; remove?: "primary" | "inverse" }) {
+  async function patch(path: string, body: { documentMode?: DocumentBrandMode; remove?: "primary" | "inverse"; shortName?: string; accentColor?: string; removeLogo?: boolean }) {
     setBusy(path + JSON.stringify(body));
     setMessage("");
     const response = await workFetch(`${endpoint}/branding/${path}`, {
@@ -79,6 +84,29 @@ export function BrandAdministration({ base, holding, branches, canHolding, canBr
     <h2>Workspace branding</h2>
     <p className="muted">ERPX remains the product brand. These private PNG or WebP assets identify the Holding and Branch in the workspace and printed documents.</p>
     {message && <p className="error" role="alert">{message}</p>}
+    <article className={styles.profile}>
+      <div className={styles.preview}>
+        <span style={{ width: 52, height: 52, display: "grid", placeItems: "center", overflow: "hidden", borderRadius: 14, background: storefront.accentColor, color: "#fff", fontWeight: 700 }}>
+          {storefront.logoUrl ? <Image src={storefront.logoUrl} alt="" width={52} height={52} unoptimized style={{ width: "100%", height: "100%", objectFit: "contain" }} /> : Array.from(shortName.trim())[0]?.toLocaleUpperCase() ?? "•"}
+        </span>
+        <div><strong>{shortName} POS · {shortName} PMS</strong><small>Company storefront app brand · legal issuer stays {storefront.companyName}</small></div>
+      </div>
+      {canStorefront && <div className={styles.actions}>
+        <label>Short app name<input value={shortName} maxLength={40} onChange={(event) => setShortName(event.target.value)} /></label>
+        <label>App color<input type="color" value={accentColor} onChange={(event) => setAccentColor(event.target.value)} /></label>
+        <button className="button" disabled={!!busy || !shortName.trim()} onClick={() => void patch("storefront", { shortName: shortName.trim(), accentColor })}>Save app brand</button>
+        <label className="button secondary">
+          {busy === "company_storefront_brand:" + storefront.companyId + ":logo" ? "Uploading…" : "Upload app logo"}
+          <input hidden type="file" accept="image/png,image/webp" disabled={!!busy} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload("company_storefront_brand", storefront.companyId, "logo", file); }} />
+        </label>
+        {storefront.logoUrl && <button className="button secondary" disabled={!!busy} onClick={() => void patch("storefront", { removeLogo: true })}>Remove app logo</button>}
+        <span>
+          <a href={"/front/" + encodeURIComponent(storefront.holdingSlug) + "/" + encodeURIComponent(storefront.companySlug) + "/pos/"}>Install POS</a>
+          {" · "}
+          <a href={"/front/" + encodeURIComponent(storefront.holdingSlug) + "/" + encodeURIComponent(storefront.companySlug) + "/pms/"}>Install PMS</a>
+        </span>
+      </div>}
+    </article>
     <div className={styles.grid}>{editor(holding, "holding_brand", canHolding)}{branches.map((branch) => editor(branch, "branch_brand", canBranches))}</div>
   </section>;
 }

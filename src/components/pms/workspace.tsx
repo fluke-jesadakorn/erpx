@@ -3,6 +3,7 @@ import { FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feat
 
 import { SetupChecklist } from "@/components/ui/setup-checklist";
 import { TaxDocumentReference } from "@/components/hospitality/tax-document-reference";
+import { PmsPromptPay } from './promptpay-counter';
 import { decimalToMinor } from "@/lib/finance-money";
 import {
 accountLabels,
@@ -32,11 +33,13 @@ Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect,useRef,useState,type ReactNode } from "react";
+import { useCallback,useEffect,useRef,useState,type ReactNode } from "react";
 import dynamic from "next/dynamic";
 const BookingFlow = dynamic(() => import("./booking-flow").then(module => module.BookingFlow));
 const BookingSettings = dynamic(() => import("./booking-settings").then(module => module.BookingSettings));
 import styles from "./workspace.module.css";
+import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
+import { frontText } from "@/lib/front-language";
 
 type Option = { id: string; name: string };
 type Field = {
@@ -95,6 +98,12 @@ function Form({
   transform?: (v: Record<string, unknown>) => unknown;
   open?: boolean;
 }) {
+  const language = useFrontLanguage();
+  const localizedFields = fields.map((item) => ({
+    ...item,
+    label: frontText(item.label, language),
+    options: item.options?.map((option) => ({ ...option, name: frontText(option.name, language) })),
+  }));
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [success, setSuccess] = useState(false);
@@ -107,10 +116,10 @@ function Form({
     "adults",
     "quantity",
   ];
-  const roomFields = fields.filter((f) => roomKeys.includes(f.name));
+  const roomFields = localizedFields.filter((f) => roomKeys.includes(f.name));
   const displayFields =
     op === "reservation.create"
-      ? fields.flatMap((f) =>
+      ? localizedFields.flatMap((f) =>
           f.name === "typeId"
             ? Array.from({ length: roomSets }, (_, i) =>
                 roomFields.map((r) => ({
@@ -123,14 +132,14 @@ function Form({
               ? []
               : [f],
         )
-      : fields;
+      : localizedFields;
   const editingVersion = useRef<number | undefined>(undefined);
   if (!permissions.includes(operationPermission(op))) return null;
   return (
     <details className={styles.action} open={open || undefined}>
       <summary>
         <Plus size={15} />
-        {title}
+        {frontText(title, language)}
       </summary>
       <form
         className={styles.form}
@@ -294,22 +303,25 @@ const Badge = ({
 }: {
   children: ReactNode;
   tone?: string;
-}) => (
-  <span
+}) => {
+  const language = useFrontLanguage();
+  return <span
     className={`${styles.badge} ${tone === "good" ? styles.good : tone === "warn" ? styles.warn : ""}`}
   >
-    {children}
+    {typeof children === "string" ? frontText(children, language) : children}
   </span>
-);
-const Empty = ({ children }: { children: ReactNode }) => (
-  <div className={styles.empty}>
+};
+const Empty = ({ children }: { children: ReactNode }) => {
+  const language = useFrontLanguage();
+  return <div className={styles.empty}>
     <Hotel size={24} />
-    <p>{children}</p>
+    <p>{typeof children === "string" ? frontText(children, language) : children}</p>
   </div>
-);
-const Panel = ({ title, children }: { title: string; children: ReactNode }) => (
-  <FeatureWidget id={"pms-"+title.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")} title={title}>{children}</FeatureWidget>
-);
+};
+const Panel = ({ title, children }: { title: string; children: ReactNode }) => {
+  const language = useFrontLanguage();
+  return <FeatureWidget id={"pms-"+title.toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")} title={frontText(title, language)}>{children}</FeatureWidget>;
+};
 const labelState: Record<string, string> = {
   arrivals: "Arriving today",
   departures: "Departing today",
@@ -351,14 +363,22 @@ const labelState: Record<string, string> = {
 export function PmsWorkspaceView({
   initial,
   base,
+  erpBase = base,
   section,
   selectedFolio,
+  crossLinks,
+  frontMode = false,
 }: {
   initial: PmsWorkspace;
   base: string;
+  erpBase?: string;
   section: string;
   selectedFolio?: string;
+  crossLinks: { inventory: boolean; finance: boolean; pos: boolean };
+  frontMode?: boolean;
 }) {
+  const language = useFrontLanguage();
+  const tr = useCallback((value: string) => frontText(value, language), [language]);
   const router = useRouter();
   const [data, setData] = useState(initial),
     [error, setError] = useState(""),
@@ -390,10 +410,10 @@ export function PmsWorkspaceView({
           const payload = await r.json();
           if (active) setData(payload.data);
         } else if (active && [401, 403, 409].includes(r.status))
-          setError("Your access or role changed. Reload the workspace.");
+          setError(tr("Your access or role changed. Reload the workspace."));
       } catch {
         if (active)
-          setNotice("Connection lost · Showing the latest loaded data");
+          setNotice(tr("Connection lost · Showing the latest loaded data"));
       } finally { pending=false; }
     }
     const timer = ["dashboard","reservations","front-desk","rooms","housekeeping","folios","cashier","inventory","night-audit"].includes(section) ? setInterval(refresh,8000) : undefined;
@@ -402,8 +422,12 @@ export function PmsWorkspaceView({
       controller.abort();
       clearInterval(timer);
     };
-  }, [base, propertyId, section]);
+  }, [base, language, propertyId, section, tr]);
   const send: Send = async (op, input, version) => {
+    if (frontMode && (op === "property.create" || op.startsWith("settings."))) {
+      setError(tr("Hotel setup is available in ERPX administration."));
+      return false;
+    }
     const body = JSON.stringify({
       operation: op,
       ...(propertyId && op !== "property.create"
@@ -432,7 +456,7 @@ export function PmsWorkspaceView({
       const json = await response.json();
       if (!response.ok) {
         if (response.status < 500) attempts.current.delete(signature);
-        throw new Error(json.error?.message ?? "Save failed.");
+        throw new Error(json.error?.message ?? tr("Save failed."));
       }
       attempts.current.delete(signature);
       const pid = json.data.propertyId;
@@ -449,18 +473,18 @@ export function PmsWorkspaceView({
         /* The command committed; a failed refresh must not invite resubmission. */
       }
       if (op === "property.create") {
-        router.push(`${base}/pms/settings?property=${pid}`);
+        router.push(`${erpBase}/pms/settings?property=${pid}`);
         router.refresh();
       }
       setNotice(
         refreshed
-          ? "Saved successfully"
-          : "Saved successfully · Reload to see the latest result",
+          ? tr("Saved successfully")
+          : tr("Saved successfully · Reload to see the latest result"),
       );
       return true;
     } catch (e) {
       setError(
-        e instanceof Error ? e.message : "Could not connect. Try again.",
+        e instanceof Error ? e.message : tr("Could not connect. Try again."),
       );
       return false;
     }
@@ -578,15 +602,15 @@ export function PmsWorkspaceView({
     ];
   }
   return (
-    <main className={styles.workspace} data-source="live">
+    <FrontLocalizedTree><main className={styles.workspace} data-source="live">
       <header className={styles.header}>
         <div>
-          <p className={styles.eyebrow}>ERPX HOSPITALITY</p>
+          <p className={styles.eyebrow}>{tr("ERPX HOSPITALITY")}</p>
           <h1>
-            <Hotel size={28} /> {p?.name ?? "Hotel PMS"}
+            <Hotel size={28} /> {p?.name ?? tr("Hotel PMS")}
           </h1>
           <p className={styles.subtitle}>
-            Rooms, guest services and accounting in one place
+            {tr("Rooms, guest services and accounting in one place")}
           </p>
         </div>
         <div className={styles.headerTools}>
@@ -596,7 +620,7 @@ export function PmsWorkspaceView({
                 {labelState[p.state]}
               </Badge>
               <span>
-                Business date {today} · {p.config.currency}
+                {tr("Business date")} {today} · {p.config.currency}
               </span>
             </>
           )}
@@ -604,9 +628,9 @@ export function PmsWorkspaceView({
             className="button secondary"
             onClick={() => {
               router.refresh();
-              setNotice("Loading the latest data");
+              setNotice(tr("Loading the latest data"));
             }}
-            aria-label="Load the latest data"
+            aria-label={tr("Load the latest data")}
           >
             <RefreshCw size={16} />
           </button>
@@ -624,15 +648,15 @@ export function PmsWorkspaceView({
       )}
       <div className={styles.toolbar}>
         <label>
-          Hotel
+          {tr("Hotel")}
           <select
-            aria-label="Hotel"
+            aria-label={tr("Hotel")}
             value={propertyId ?? ""}
             onChange={(e) =>
               router.push(`${base}/pms/${section}?property=${e.target.value}`)
             }
           >
-            <option value="">Select hotel</option>
+            <option value="">{tr("Select hotel")}</option>
             {data.properties.map((h) => (
               <option key={h.id} value={h.id}>
                 {h.name}
@@ -642,17 +666,18 @@ export function PmsWorkspaceView({
         </label>
         {p && (
           <span className={styles.localMode}>
-            Managed in ERPX · OTA reservations are recorded by staff
+            {tr("Managed in ERPX · OTA reservations are recorded by staff")}
           </span>
         )}
       </div>
       {!p ? (
         <Panel title="Set up your first hotel">
-          <Empty>
-            Add a hotel and connect it to a branch, then configure rooms, rates
-            and accounts.
-          </Empty>
-          <Form
+          <Empty>{tr("Add a hotel and connect it to a branch, then configure rooms, rates and accounts.")}</Empty>
+          {frontMode ? (
+            <Link className="button secondary" href={`${erpBase}/pms/settings`}>
+              {tr("Set up hotel in ERPX")}
+            </Link>
+          ) : <Form
             open
             title="Create hotel"
             op="property.create"
@@ -663,12 +688,12 @@ export function PmsWorkspaceView({
               select("branchId", "Branch", data.branches),
               field("businessDate", "Starting business date", "date", today),
             ]}
-          />
+          />}
         </Panel>
       ) : (
         <>
           
-          {p.state === "setup" && <SetupChecklist title="Hotel readiness" items={data.readiness.length ? data.readiness.map((label,index)=>({id:String(index),label,ready:false,owner:/account|tax|ledger/i.test(label)?"Finance approver":"Hotel administrator",href:`${base}/pms/settings?property=${p.id}`})) : [{id:"open",label:"Verify readiness and open hotel",ready:false,owner:"Hotel administrator",href:`${base}/pms/settings?property=${p.id}`}]} />}
+          {p.state === "setup" && <SetupChecklist title={tr("Hotel readiness")} items={data.readiness.length ? data.readiness.map((label,index)=>({id:String(index),label:tr(label),ready:false,owner:tr(/account|tax|ledger/i.test(label)?"Finance approver":"Hotel administrator"),href:`${erpBase}/pms/settings?property=${p.id}`})) : [{id:"open",label:tr("Verify readiness and open hotel"),ready:false,owner:tr("Hotel administrator"),href:`${erpBase}/pms/settings?property=${p.id}`}]} />}
           {section === "dashboard" && (
             <>
               <div className={styles.stats}>
@@ -707,7 +732,7 @@ export function PmsWorkspaceView({
                   return (
                     <div className={styles.stat} key={i}>
                       <I size={22} />
-                      <span>{String(label)}</span>
+                      <span>{tr(String(label))}</span>
                       <strong>{String(value)}</strong>
                     </div>
                   );
@@ -728,7 +753,7 @@ export function PmsWorkspaceView({
                           key={r.id}
                         >
                           <strong>{r.data.number}</strong>
-                          <span>{stay ? "Occupied" : "Vacant"}</span>
+                          <span>{tr(stay ? "Occupied" : "Vacant")}</span>
                           <Badge>{labelState[r.data.cleanliness]}</Badge>
                           {r.data.dnd && <small>DND</small>}
                         </Link>
@@ -1442,6 +1467,7 @@ export function PmsWorkspaceView({
                             ],
                             { folioId: currentFolio.id },
                           )}
+                          {data.stripeConnectionReady&&<PmsPromptPay base={base} propertyId={p.id} folioId={currentFolio.id} dueMinor={currentFolio.data.due} initialId={data.stripePayments.find(item=>item.folio_id===currentFolio.id&&['requested','pending'].includes(item.state))?.id} history={data.stripePayments.filter(item=>item.folio_id===currentFolio.id)}/>}
                           {openShifts.length>0 && form(
                             "Record bank transfer pending verification",
                             "payment.request_transfer",
@@ -1466,7 +1492,7 @@ export function PmsWorkspaceView({
                                   [select("bankTransactionId","Imported bank row",bankChoices.map(bank=>({id:bank.id,name:`${bank.transaction_date} · ${bank.external_id} · ${money(Number(bank.amount_minor))}`})))],
                                   {id:item.id,expectedTransferVersion:Number(item.version)},
                                   value=>({...value,bankVersion:Number(bankChoices.find(bank=>bank.id===value.bankTransactionId)?.version??0)}),
-                                ):<p>No exact imported bank row is available. <Link href={`${base}/finance/bank`}>Review bank evidence in Finance</Link>.</p>)}
+                                ):<p>No exact imported bank row is available. {crossLinks.finance && <Link href={`${erpBase}/finance/bank`}>Review bank evidence in Finance</Link>}</p>)}
                               </>}
                             </article>;
                           })}
@@ -1636,8 +1662,20 @@ export function PmsWorkspaceView({
                       </div>
                     ))}
                 </Panel>
+                {data.bookingRefunds.length>0&&<Panel title="Online booking refunds for Finance">
+                  {data.bookingRefunds.map(item=><article className={styles.record} key={item.id}>
+                    <strong>{money(item.amount_minor)} · {item.id.slice(0,8)}</strong>
+                    <Badge>{item.refund_state}</Badge>
+                    {item.last_error&&<span>{item.last_error}</span>}
+                    {item.refund_state==='requested'&&<button className="button" onClick={async()=>{
+                      setError('');
+                      try{const response=await workFetch(`/api/v1${base}/pms/booking-refunds`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:item.id})});const result=await response.json();if(!response.ok)throw new Error(result.error?.message??'Approval failed');setNotice('Refund approved; waiting for Stripe confirmation');router.refresh();}
+                      catch(error){setError(error instanceof Error?error.message:'Approval failed');}
+                    }}>Approve Stripe refund</button>}
+                  </article>)}
+                </Panel>}
                 <Panel title="Documents">
-                  {currentFolio?.data.invoiceId && <TaxDocumentReference base={base} invoiceId={currentFolio.data.invoiceId}/>}
+                  {currentFolio?.data.invoiceId && <TaxDocumentReference base={erpBase} invoiceId={currentFolio.data.invoiceId}/>}
                   {data.documents
                     .filter(
                       (d) => !currentFolio || d.folio_id === currentFolio.id,
@@ -1646,7 +1684,7 @@ export function PmsWorkspaceView({
                       <Link
                         className={styles.line}
                         key={d.id}
-                        href={`${base}/pms/documents/${d.id}?property=${p.id}`}
+                          href={`${erpBase}/pms/documents/${d.id}?property=${p.id}`}
                         target="_blank"
                       >
                         <span>
@@ -1734,6 +1772,9 @@ export function PmsWorkspaceView({
           {section === "inventory" && (
             <>
               <Panel title="Minibar, supplies & linen">
+                {crossLinks.inventory && <p className={styles.muted}>
+                  Shared inventory: <Link href={`${erpBase}/commerce?view=stock`}>Stock & movements</Link> · <Link href={`${erpBase}/commerce?view=products`}>Products</Link> · <Link href={`${erpBase}/commerce?view=warehouses`}>Warehouses</Link>
+                </p>}
                 {form("Add item", "item.save", [
                   field("name", "Item name"),
                   select(
@@ -1945,7 +1986,7 @@ export function PmsWorkspaceView({
                   <div className={styles.auditHero}>
                     <MoonStar size={38} />
                     <div>
-                      <h3>Close business day {today}</h3>
+                      <h3>{tr("Close business day")} {today}</h3>
                       <p>
                         Review activity, post room charges and start the next
                         day.
@@ -1959,7 +2000,7 @@ export function PmsWorkspaceView({
                         <p>Business date {data.dayControls.businessDate} · {data.dayControls.openBills} open bills · {data.dayControls.pendingPayments} pending payments · {data.dayControls.openShifts} open cash sessions</p>
                         <p>Direct sales {money(data.dayControls.directSalesMinor)} · Room charges {money(data.dayControls.roomChargesMinor)} · Cash received {money(data.dayControls.cashReceivedMinor)} · Verified transfers {money(data.dayControls.verifiedTransferMinor)}</p>
                         <p>Restaurant stock movement {money(data.dayControls.stockValueMinor)} · Inventory ledger movement {money(data.dayControls.stockLedgerMinor)}</p>
-                        {data.dayControls.blockers.length ? <><ul className={styles.blockers}>{data.dayControls.blockers.map(blocker=><li key={blocker}>{blocker}</li>)}</ul><Link href={`${base}/pos?tab=shifts`}>Review restaurant cash sessions</Link> · <Link href={`${base}/pos?tab=history`}>Review restaurant receipts</Link></> : <p className={styles.notice}>Restaurant controls are ready for day close.</p>}
+                        {data.dayControls.blockers.length ? <><ul className={styles.blockers}>{data.dayControls.blockers.map(blocker=><li key={blocker}>{blocker}</li>)}</ul>{crossLinks.pos && <><Link href={`${base}/pos?tab=shifts`}>Review restaurant cash sessions</Link> · <Link href={`${base}/pos?tab=history`}>Review restaurant receipts</Link></>}</> : <p className={styles.notice}>Restaurant controls are ready for day close.</p>}
                       </section>}
                       {nightBlockers(s!).length ? (
                         <ul className={styles.blockers}>
@@ -1996,6 +2037,7 @@ export function PmsWorkspaceView({
             )}
           {section === "reports" && can("pms.reports") && (
             <>
+              {crossLinks.finance && <p className={styles.muted}>Review shared accounting in <Link href={`${erpBase}/finance/accounting`}>Finance Accounting</Link>.</p>}
               <Panel title="Daily performance">
                 <label>
                   Date{" "}
@@ -2365,6 +2407,6 @@ export function PmsWorkspaceView({
           )}
         </>
       )}
-    </WidgetGrid></main>
+    </WidgetGrid></main></FrontLocalizedTree>
   );
 }

@@ -256,6 +256,14 @@ it("restricts candidate workspace to reviewers and protects requisition source v
     ),
   ).rejects.toMatchObject({ code: "TALENT_SOURCE_CHANGED" });
 });
+it("rechecks Branch and Department scope when opening a Talent application", async () => {
+  const { app } = await application();
+  await expect(talentDetail({ ...creator, departmentId: f.accountsDepartment }, String(app.id)))
+    .rejects.toMatchObject({ status: 404, code: "TALENT_APPLICATION_NOT_FOUND" });
+  await expect(talentDetail({ ...creator, branchId: `other-${key()}` }, String(app.id)))
+    .rejects.toMatchObject({ status: 404, code: "TALENT_APPLICATION_NOT_FOUND" });
+  expect((await talentDetail(creator, String(app.id))).application.id).toBe(app.id);
+});
 it("surfaces an ineligible application owner for reviewed reassignment", async () => {
   const { app } = await application();
   expect(

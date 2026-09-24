@@ -222,5 +222,12 @@
     "browser": false,
     "provider": false,
     "production": false
+  },
+  "manage_erpx": {
+    "capabilities": 4,
+    "automated": false,
+    "browser": false,
+    "provider": false,
+    "production": false
   }
 }

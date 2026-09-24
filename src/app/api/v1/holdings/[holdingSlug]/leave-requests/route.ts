@@ -2,13 +2,18 @@ import { requestPublicOrigin } from "@/server/public-origin";
 import { requireWorkContext } from "@/server/authorization";
 import { newLeaveSchema } from "@/server/leave";
 import { ApiError,errorResponse } from "@/server/http";
-import { createSelfServiceLeave, listOwnLeave, normalizeLegacyLeave } from "@/server/leave-self-service";
+import { createSelfServiceLeave, listOwnLeave, listOwnLeavePage, normalizeLegacyLeave } from "@/server/leave-self-service";
 import { leaveCreateSchema } from "@/lib/leave-self-service";
 export const dynamic = "force-dynamic";
 export async function GET(request:Request,{params}:{params:Promise<{holdingSlug:string}>}) {
   try {
     const actor=await requireWorkContext((await params).holdingSlug);
-    return Response.json({data:await listOwnLeave(actor,new URL(request.url).searchParams.get("state") ?? undefined)});
+    const search=new URL(request.url).searchParams;
+    if(search.has("limit")||search.has("cursor")||search.has("filter")) {
+      const page=await listOwnLeavePage(actor,{filter:search.get("filter")??undefined,limit:search.get("limit")??undefined,cursor:search.get("cursor")??undefined});
+      return Response.json({data:page.items,hasMore:page.hasMore,nextCursor:page.nextCursor},{headers:{"Cache-Control":"private, no-store"}});
+    }
+    return Response.json({data:await listOwnLeave(actor,search.get("state") ?? undefined)},{headers:{"Cache-Control":"private, no-store"}});
   } catch(e) { return errorResponse(e); }
 }
 export async function POST(request:Request,{params}:{params:Promise<{holdingSlug:string}>}) {

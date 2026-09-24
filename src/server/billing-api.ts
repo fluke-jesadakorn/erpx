@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
-import { requirePlatformContext, requireWorkContext } from "./authorization";
+import { requireManageErpxContext, requireWorkContext } from "./authorization";
 import { runtimeEnv, holdingResources } from "./runtime";
 import type { PostgresDatabase } from "./runtime/postgres";
 import { LocalFileStore } from "./runtime/filesystem";
@@ -32,7 +32,7 @@ export function billingHandler(platform: boolean) {
         slug = params.holdingSlug,
         actor: BillingActor;
       if (platform) {
-        const a = await requirePlatformContext();
+        const { platform: a } = await requireManageErpxContext();
         if (
           !["platform_admin", "platform_auditor"].includes(a.role) ||
           (request.method !== "GET" && a.role !== "platform_admin")
@@ -70,11 +70,13 @@ export function billingHandler(platform: boolean) {
           data: {
             accounts: (
               await db.pool.query(
-                "SELECT h.holding_id,h.slug,h.display_name,a.version,a.payment_mode FROM holding_bindings h LEFT JOIN billing_accounts a ON a.holding_id=h.holding_id ORDER BY h.display_name",
+                "SELECT h.holding_id,h.slug,h.display_name,a.version,a.payment_mode FROM holding_bindings h LEFT JOIN billing_accounts a ON a.holding_id=h.holding_id WHERE h.holding_id <> 'h003' ORDER BY h.display_name",
               )
             ).rows,
           },
         });
+      if (platform && holdingId === "h003")
+        throw new ApiError(403, "ERPX_NOT_CUSTOMER", "ERPX is not a customer billing account.");
       if (!holdingId)
         throw new ApiError(422, "HOLDING_REQUIRED", "Select a Holding.");
       const holding = (

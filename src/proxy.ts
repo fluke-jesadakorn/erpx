@@ -67,6 +67,55 @@ export function proxy(request: NextRequest) {
       });
     return response;
   }
+  if (request.nextUrl.pathname.startsWith("/api/v1/platform/")) {
+    const headers = new Headers(request.headers);
+    headers.set("x-erpx-method", request.method);
+    return NextResponse.next({ request: { headers } });
+  }
+  if (request.nextUrl.pathname.startsWith("/api/v1/front/")) {
+    const parts = request.nextUrl.pathname.slice("/api/v1/front/".length).split("/").filter(Boolean);
+    const [holdingSlug, companySlug, app, ...rest] = parts;
+    if (!holdingSlug || !companySlug || (app !== "pos" && app !== "pms"))
+      return new NextResponse("Not found", { status: 404 });
+    const requestedLocation = request.headers.get("x-erpx-front-location") ?? "";
+    const locationParts = requestedLocation === "" || requestedLocation === "holding"
+      ? []
+      : requestedLocation.split("/").filter(Boolean);
+    if (locationParts.length && !(
+      (locationParts[0] === "branches" && locationParts.length === 2) ||
+      (locationParts[0] === "departments" && locationParts.length === 2) ||
+      (locationParts[0] === "branches" && locationParts.length === 4 && locationParts[2] === "departments")
+    )) return new NextResponse("Invalid storefront location", { status: 404 });
+    const parsed = parse([holdingSlug, ...locationParts, app, ...rest]);
+    if (!parsed) return new NextResponse("Not found", { status: 404 });
+    const headers = new Headers(request.headers);
+    for (const key of ["x-erpx-workspace-kind", "x-erpx-branch-slug", "x-erpx-department-slug", "x-erpx-destination", "x-erpx-api", "x-erpx-method", "x-erpx-front-company", "x-erpx-front-app"])
+      headers.delete(key);
+    headers.set("x-erpx-front-company", companySlug);
+    headers.set("x-erpx-front-app", app);
+    headers.set("x-erpx-destination", parsed.destination.join("/") || "home");
+    headers.set("x-erpx-api", "true");
+    headers.set("x-erpx-method", request.method);
+    headers.set("x-erpx-workspace-kind", parsed.kind);
+    if (parsed.branchSlug) headers.set("x-erpx-branch-slug", parsed.branchSlug);
+    if (parsed.departmentSlug) headers.set("x-erpx-department-slug", parsed.departmentSlug);
+    const internal = new URL(request.url);
+    internal.pathname = "/api/v1/holdings/" + parsed.holdingSlug + "/" + (parsed.destination.join("/") || "home");
+    return NextResponse.rewrite(internal, { request: { headers } });
+  }
+  if (request.nextUrl.pathname.startsWith("/front/")) {
+    const parts = request.nextUrl.pathname.slice("/front/".length).split("/").filter(Boolean);
+    const [holdingSlug, companySlug, app] = parts;
+    if (holdingSlug && companySlug && (app === "pos" || app === "pms")) {
+      const headers = new Headers(request.headers);
+      headers.delete("x-erpx-front-company");
+      headers.delete("x-erpx-front-app");
+      headers.set("x-erpx-front-company", companySlug);
+      headers.set("x-erpx-front-app", app);
+      return NextResponse.next({ request: { headers } });
+    }
+    return NextResponse.next();
+  }
   const api = request.nextUrl.pathname.startsWith("/api/v1/holdings/");
   if (!api && !request.nextUrl.pathname.startsWith("/holdings/")) return NextResponse.next();
   const prefix = api ? "/api/v1/holdings/" : "/holdings/";

@@ -22,6 +22,7 @@ export type NavigationContext = {
   /** From administrationAccess.manageOrganization, not readable section access. */
   canManageApprovals?: boolean;
   executiveVisible?: boolean;
+  manageErpxVisible?: boolean;
 };
 
 export type NavigationIconId =
@@ -72,6 +73,8 @@ export type NavigationItem = {
   group: string;
   icon: NavigationIconId;
   keywords?: string[];
+  /** Direct destinations nested under a sidebar module. */
+  submodules?: NavigationItem[];
 };
 
 export type NavigationApp = {
@@ -86,7 +89,7 @@ export type NavigationApp = {
 
 /** Sidebar-only grouping. Categories never become route or breadcrumb parents. */
 export type NavigationCategory = {
-  id: "people-organization" | "operations" | "finance" | "management" | "system";
+  id: "people-organization" | "operations" | "erpx-management" | "pos" | "pms" | "finance" | "management" | "system";
   label: string;
   icon: NavigationIconId;
   apps: NavigationItem[];
@@ -102,6 +105,16 @@ export type WorkplaceNavigationModel = {
 };
 
 type SearchParamsLike = Pick<URLSearchParams, "get">;
+
+/** Keep only the selected hotel when moving between PMS sections. */
+export function pmsSidebarHref(item: NavigationItem, pathname: string, searchParams: SearchParamsLike) {
+  if (!item.id.startsWith("pms-") || !/(?:^|\/)pms(?:\/|$)/.test(pathname)) return item.href;
+  const property = searchParams.get("property");
+  if (!property) return item.href;
+  const url = new URL(item.href, "https://navigation.invalid");
+  url.searchParams.set("property", property);
+  return `${url.pathname}${url.search}`;
+}
 
 export type NavigationResolution = {
   activeId: string;
@@ -200,6 +213,9 @@ export function workplaceNavigation(
 
   if (platform) {
     const standalone = [
+      ...(context.executiveVisible
+        ? [item("platform-executive", "Executive", "/platform/executive", "Platform", "finance", ["analytics", "provisioning", "health"])]
+        : []),
       item("platform-billing", "Billing", "billing", "Platform", "settings", ["invoices", "support", "costs"]),
       item("learn", "Learn", "learn", "Platform", "learn"),
       item("feed", "Platform updates", "feed", "Platform", "feed", [
@@ -613,6 +629,15 @@ export function workplaceNavigation(
     if (people) people.items = people.items.filter((entry) => entry.id !== 'people-payroll');
   }
 
+  if (scopeKind === "holding" && base === "/holdings/erpx" && context.manageErpxVisible) {
+    group("erpx-management", "ERPX Management", "technology", "business", [
+      item("erpx-management", "Overview", "manage-erpx", "ERPX Management", "technology", ["customers", "provisioning", "recovery"]),
+      item("manage-erpx-billing", "Customer billing", "manage-erpx/billing", "ERPX Management", "finance"),
+      item("manage-erpx-iam", "Platform IAM", "manage-erpx/iam", "ERPX Management", "access"),
+      item("manage-erpx-executive", "Platform Executive", "manage-erpx/executive", "ERPX Management", "projects"),
+    ], `${base}/manage-erpx`, ["platform", "customers", "system"]);
+  }
+
   const standalone = beta ? [] : [
     ...((!context.availableAppIds || context.availableAppIds.includes('legal')) && hasPermission(actor, "legal.read")
       ? [item("legal", "Legal", "legal", "Legal", "handbook", ["contracts", "cases", "compliance"])]
@@ -635,6 +660,9 @@ export function workplaceNavigation(
     href: app.href ?? app.items[0].href,
     group: "Apps",
     keywords: app.keywords,
+    ...(app.id === "people"
+      ? { submodules: app.items.filter((entry) => entry.id !== "people-directory") }
+      : {}),
   } satisfies NavigationItem]));
   const destinationItems = new Map(
     [...primary, ...standalone].map((entry) => [entry.id, entry]),
@@ -651,6 +679,17 @@ export function workplaceNavigation(
     });
     return entries.length ? { id, label, icon, apps: entries } : null;
   };
+  const pos = apps.find((app) => app.id === "pos");
+  const pms = apps.find((app) => app.id === "pms");
+  const erpxManagementApp = apps.find((app) => app.id === "erpx-management");
+  const erpxManagementCategory: NavigationCategory | null = erpxManagementApp
+    ? {
+        id: "erpx-management",
+        label: "ERPX Management",
+        icon: "technology",
+        apps: erpxManagementApp.items,
+      }
+    : null;
   const categories = (beta
     ? [
         category("people-organization", "People & organization", "people", ["people", "resources"]),
@@ -659,7 +698,10 @@ export function workplaceNavigation(
       ]
     : [
         category("people-organization", "People & organization", "people", ["people"]),
-        category("operations", "Operations", "commerce", ["operations", "crm", "support", "inventory", "quality", "pos", "pms"]),
+        category("operations", "Operations", "commerce", ["operations", "crm", "support", "inventory", "quality"]),
+        erpxManagementCategory,
+        ...(pos ? [{ id: "pos", label: "POS", icon: "commerce", apps: pos.items } satisfies NavigationCategory] : []),
+        ...(pms ? [{ id: "pms", label: "Hotel PMS", icon: "pms", apps: pms.items } satisfies NavigationCategory] : []),
         category("finance", "Finance", "finance", ["finance"]),
         category("management", "Management", "projects", ["executive", "projects", "legal"]),
         category("system", "System", "technology", ["technology", "feedback", "pilot-features", "future-features"]),
@@ -716,6 +758,17 @@ export function resolveNavigation(
   if (route === "legal") return { activeId: "legal" };
   if (route === "calendar") return { activeId: "calendar" };
   if (route === "inbox") return { activeId: "inbox" };
+  if (route === "manage-erpx" && base === "/holdings/erpx") {
+    const activeId =
+      second === "billing"
+        ? "manage-erpx-billing"
+        : second === "iam"
+          ? "manage-erpx-iam"
+          : second === "executive"
+            ? "manage-erpx-executive"
+            : "erpx-management";
+    return { activeId, groupId: "erpx-management" };
+  }
   if (route === "billing" && base === "/platform") return { activeId: "platform-billing" };
   if (route === "my-access") return { activeId: "my-access" };
   if (route === "work") return { activeId: "work" };
@@ -930,6 +983,8 @@ export function navigationTrail(
   pathname: string,
   searchParams?: SearchParamsLike,
 ): NavigationTrailItem[] {
+  if (pathname.replace(/\/$/, "") === `${base}/settings/stripe`)
+    return [{ label: "Company Stripe" }];
   const resolved = resolveNavigation(model, base, pathname, searchParams);
   if (!resolved.activeId || resolved.activeId === "home") return [];
   const primary = model.primary.find((entry) => entry.id === resolved.activeId);
@@ -981,7 +1036,7 @@ export function navigationCategory(
 ) {
   const activeAppId = resolved.groupId ?? resolved.activeId;
   return model.categories.find((entry) =>
-    entry.apps.some((app) => app.id === activeAppId),
+    entry.id === activeAppId || entry.apps.some((app) => app.id === activeAppId),
   );
 }
 

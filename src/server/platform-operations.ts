@@ -499,7 +499,7 @@ export async function platformProvisioningSnapshot(
     (await control.prepare("SELECT holding_id,write_binding,read_binding,files_binding FROM holding_bindings WHERE status IN ('active','suspended')").all<{ holding_id: string; write_binding: string; read_binding: string; files_binding: string }>()).results.flatMap((row) => [row.holding_id, row.write_binding, row.read_binding, row.files_binding]),
   );
   const pending = new Set(rows.filter((row) => row.status === "provisioning").flatMap((row) => [row.holdingId, row.writeBinding, row.readBinding, row.filesBinding]));
-  return { rows, availableSlots: slots.filter((slot) => !used.has(slot.id) && !used.has(slot.write) && !used.has(slot.read) && !used.has(slot.files) && !pending.has(slot.id)) };
+  return { rows, availableSlots: slots.filter((slot) => !slot.internal && !used.has(slot.id) && !used.has(slot.write) && !used.has(slot.read) && !used.has(slot.files) && !pending.has(slot.id)) };
 }
 
 /**
@@ -518,6 +518,7 @@ export async function provisionHolding(
   if (actor.role !== "platform_admin") throw new ApiError(403, "FORBIDDEN", "Only a Platform administrator can provision a Holding.");
   if (!/^[a-zA-Z0-9:_.-]{8,180}$/.test(idempotencyKey)) throw new ApiError(422, "COMMAND_KEY_REQUIRED", "Use a valid Idempotency-Key for this action.");
   if (!/^[a-z0-9]{3,24}$/.test(input.holdingId) || input.holdingId !== slot.id) throw new ApiError(422, "VALIDATION_FAILED", "Choose a configured, unbound Holding resource slot.");
+  if (slot.internal) throw new ApiError(403, "RESERVED_RESOURCE_SLOT", "This resource slot is reserved for ERPX.");
   if (!/^[a-z][a-z0-9-]{2,39}$/.test(input.slug)) throw new ApiError(422, "VALIDATION_FAILED", "Use a lowercase company URL slug with 3–40 characters.");
   if (input.displayName.trim().length < 2 || input.displayName.trim().length > 120) throw new ApiError(422, "VALIDATION_FAILED", "Enter a Holding display name between 2 and 120 characters.");
   if (input.reason.trim().length < 10 || input.reason.length > 1000) throw new ApiError(422, "VALIDATION_FAILED", "Explain why this Holding should be activated.");

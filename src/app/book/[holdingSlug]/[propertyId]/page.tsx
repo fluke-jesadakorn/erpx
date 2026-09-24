@@ -8,7 +8,7 @@ export default async function HotelPage({
 }: {
   params: Promise<{ holdingSlug: string; propertyId: string }>;
 }) {
-  if (process.env.NODE_ENV === "production") notFound();
+  if (process.env.PMS_STRIPE_BOOKING_ENABLED === 'false' || process.env.NODE_ENV === "production" && process.env.PMS_STRIPE_LIVE_ENABLED !== "true") notFound();
   const { holdingSlug, propertyId } = await params;
   const db = await bookingDatabase(holdingSlug).catch((e) => {
     if (e instanceof Error && e.message === "HOLDING_NOT_FOUND") notFound();
@@ -19,7 +19,7 @@ export default async function HotelPage({
   return (
     <main className={styles.wrap}>
       <header className={styles.hero}>
-        <span className={styles.eyebrow}>Book directly · Pay at the hotel</span>
+        <span className={styles.eyebrow}>Book directly · Pay securely online</span>
         <h1>{hotel.name}</h1>
         <p>{hotel.description}</p>
         <p>{hotel.address}</p>

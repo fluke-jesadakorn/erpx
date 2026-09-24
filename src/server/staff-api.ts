@@ -31,6 +31,20 @@ import {
   transitionTask,
 } from "./staff-tasks";
 import {
+  listProjectMilestones,
+  projectMilestoneSchema,
+  projectMilestoneTransitionSchema,
+  saveProjectMilestone,
+  transitionProjectMilestone,
+} from "./project-milestones";
+import {
+  decideProjectWorkLog,
+  listProjectWorkLogs,
+  projectWorkLogDecisionSchema,
+  projectWorkLogSchema,
+  saveProjectWorkLog,
+} from "./project-actuals";
+import {
   canEditTemplate,
   changeScheduleState,
   getTemplate,
@@ -80,7 +94,11 @@ export function staffHandler(
                 new URL(request.url).searchParams.get("projectId") ?? undefined,
               );
         else if (resource === "projects")
-          data = p[0]
+          data = p[0] && p[1] === "milestones"
+            ? await listProjectMilestones(db, actor, p[0])
+            : p[0] && p[1] === "work-logs"
+            ? await listProjectWorkLogs(db, actor, p[0])
+            : p[0]
             ? {
                 project: await getProject(db, actor, p[0]),
                 members: (
@@ -221,6 +239,41 @@ export function staffHandler(
             taskSchema.parse(input),
             key,
             p[1] === "revise",
+          );
+        else if (resource === "projects" && p[1] === "milestones" && p[3] === "transition")
+          data = await transitionProjectMilestone(
+            db,
+            actor,
+            p[0],
+            p[2],
+            projectMilestoneTransitionSchema.parse(input),
+            key,
+          );
+        else if (resource === "projects" && p[1] === "work-logs" && p[3] === "review")
+          data = await decideProjectWorkLog(
+            db,
+            actor,
+            p[0],
+            p[2],
+            projectWorkLogDecisionSchema.parse(input),
+            key,
+          );
+        else if (resource === "projects" && p[1] === "work-logs" && p.length <= 3)
+          data = await saveProjectWorkLog(
+            db,
+            actor,
+            p[0],
+            projectWorkLogSchema.parse(input),
+            key,
+          );
+        else if (resource === "projects" && p[1] === "milestones" && p.length <= 3)
+          data = await saveProjectMilestone(
+            db,
+            actor,
+            p[0],
+            p[2] ?? null,
+            projectMilestoneSchema.parse(input),
+            key,
           );
         else if (resource === "projects" && p.length < 2)
           data = await saveProject(

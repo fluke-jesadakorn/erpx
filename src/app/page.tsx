@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createAuth } from "@/server/auth";
 import {
-  requirePlatformContext,
+  requireManageErpxContext,
   requireAccountAccess,
   assignmentApplies,
   firstAuthorizedWorkspace,
@@ -34,8 +34,11 @@ export default async function RootPage({
   const preferred = saved?.workspace_path ?? (accountSwitch ? switchSource : (await cookies()).get("erpx_last_workspace")?.value);
   if (preferred?.startsWith("/platform/")) {
     try {
-      await requirePlatformContext();
-      redirect(preferred);
+      await requireManageErpxContext();
+      const section = preferred.startsWith("/platform/billing") ? "/billing" :
+        preferred.startsWith("/platform/iam") ? preferred.slice("/platform".length) :
+        preferred.startsWith("/platform/executive") ? "/executive" : "";
+      redirect(`/holdings/erpx/manage-erpx${section}`);
     } catch (error) {
       if ((error as { digest?: string }).digest) throw error;
     }
@@ -56,6 +59,6 @@ export default async function RootPage({
     const workspace = await firstAuthorizedWorkspace(binding.slug);
     if (workspace) redirect(workspaceHref(workspace));
   }
-  try { await requirePlatformContext(); } catch { redirect("/onboarding"); }
-  redirect("/platform/home");
+  try { await requireManageErpxContext(); } catch { redirect("/onboarding"); }
+  redirect("/holdings/erpx/manage-erpx");
 }

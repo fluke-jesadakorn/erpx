@@ -105,6 +105,8 @@ export async function pmsWork(env: JobEnv) {
  for (const slot of await activeSlots(env)) if (!slot.beta) {
    const db=registeredResources(env,slot.id).write as PostgresDatabase;
    await (await import("../pms")).drainPms(db);
+   await (await import("../pms-booking")).drainBookingPayments(db,{secret:String(env.BETTER_AUTH_SECRET),origin:String(env.ERPX_PUBLIC_ORIGIN),apiKey:typeof env.RESEND_API_KEY==='string'?env.RESEND_API_KEY:undefined,from:typeof env.RESEND_FROM==='string'?env.RESEND_FROM:undefined});
+   await (await import("../pms-stripe")).drainPmsStripePayments(db);
    if(process.env.NODE_ENV!=='production') {
      const booking=await import("../pms-booking");
      await booking.deliverBookingEmails(db,{secret: String(env.BETTER_AUTH_SECRET),origin: String(env.ERPX_PUBLIC_ORIGIN),apiKey:typeof env.RESEND_API_KEY === "string" ? env.RESEND_API_KEY : undefined,from:typeof env.RESEND_FROM === "string" ? env.RESEND_FROM : undefined});

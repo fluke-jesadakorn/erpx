@@ -1,11 +1,13 @@
 import { beforeAll, beforeEach, expect, it } from "vitest";
 import { applyMigrations, env } from "./runtime-env";
 import { recoverDeadLetterJob, runHoldingMigrations, summarizePlatformOperations, platformProvisioningSnapshot, provisionHolding } from "../src/server/platform-operations";
+import { platformExecutiveSnapshot } from "../src/server/platform-executive";
 
 const now = 1_800_000_000_000;
 
 beforeAll(async () => {
   await applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS);
+  await applyMigrations(env.CONTROL_READ_DB, [{name:"0001_baseline",track:"control-read"}]);
   await applyMigrations(env.H001_DB, env.STAFF_TEST_MIGRATIONS);
 });
 
@@ -16,6 +18,8 @@ beforeEach(async () => {
   await env.H001_DB.prepare("DELETE FROM command_receipts WHERE command_id LIKE 'platform-job-recovery-test-%'").run();
   await env.H001_DB.prepare("DELETE FROM audit_events WHERE command_id LIKE 'platform-job-recovery-test-%'").run();
   await env.CONTROL_DB.prepare("DELETE FROM platform_migration_runs WHERE idempotency_key LIKE 'platform-migration-test-%'").run();
+  await env.CONTROL_DB.prepare("DELETE FROM platform_holding_provisioning WHERE id LIKE 'platform-executive-test-%'").run();
+  await env.CONTROL_READ_DB.prepare("DELETE FROM platform_health WHERE component='platform-executive-test'").run();
   await env.CONTROL_DB.prepare("DELETE FROM holding_bindings WHERE holding_id='h003'").run();
   await env.CONTROL_DB.prepare("DELETE FROM holding_bindings WHERE holding_id='h004'").run();
 });
@@ -172,4 +176,53 @@ it("does not allow auditors or a different slug to activate a slot", async () =>
   const actor = { userId: "platform-operator", assignmentId: "platform-assignment", role: "platform_admin" } as const;
   await provisionHolding(actor, env.CONTROL_DB, slot, input, "platform-provisioning-test-3", now);
   await expect(provisionHolding(actor, env.CONTROL_DB, slot, { ...input, slug: "different-company" }, "platform-provisioning-test-3", now + 1)).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+});
+
+it("keeps Platform Executive aggregates in control-plane sources and checks its dedicated permission", async () => {
+  const actor = {
+    userId: "platform-executive-reader",
+    name: "Platform Executive Reader",
+    email: "platform-executive-reader@example.test",
+    assignmentId: "platform-executive-assignment",
+    role: "platform_auditor",
+    scope: { kind: "platform" as const },
+    modules: [],
+    assignments: [],
+    iam: {
+      roleRevision: 1,
+      identityVersion: 1,
+      permissions: ["platform.executive.read"],
+      grantablePermissions: [],
+      principalId: "platform-executive-principal",
+      personId: null,
+      freshUntil: null,
+    },
+  };
+  const date = Date.parse("2026-06-15T12:00:00Z");
+  await env.CONTROL_DB.prepare(`INSERT INTO platform_holding_provisioning(
+    id,holding_id,slug,display_name,write_binding,read_binding,files_binding,status,requested_by,assignment_id,reason,request_hash,idempotency_key,requested_at,updated_at
+  ) VALUES(?,?,?,?,?,?,?,'failed',?,?,?,?,?,?,?)`).bind(
+    "platform-executive-test-provisioning", "test-holding", "test-holding", "Private Holding Name",
+    "TEST_DB", "TEST_READ_DB", "TEST_FILES", "operator", "assignment", "test failure",
+    "request-hash", "platform-executive-test-key", date, date,
+  ).run();
+  await env.CONTROL_DB.prepare(`INSERT INTO platform_holding_provisioning_events(
+    id,provisioning_id,holding_id,action,actor_id,assignment_id,reason,detail_json,created_at
+  ) VALUES(?,?,?,'failed',?,?,?,'{"private":"failure detail"}',?)`).bind(
+    "platform-executive-test-failed", "platform-executive-test-provisioning", "test-holding", "operator", "assignment", "failure reason", date,
+  ).run();
+  await env.CONTROL_READ_DB.prepare("INSERT INTO platform_health(component,status,checked_at,detail) VALUES(?,?,?,?)")
+    .bind("platform-executive-test", "degraded", date, "private health detail").run();
+
+  const snapshot = await platformExecutiveSnapshot(actor, env.CONTROL_DB, env.CONTROL_READ_DB, {from:"2026-06-01",to:"2026-06-30"});
+  expect(snapshot.scope).toBe("platform");
+  expect(snapshot.metrics.map(({id,total})=>({id,total}))).toEqual([
+    {id:"failed-provisioning",total:"1"},
+    {id:"abnormal-platform-services",total:"1"},
+  ]);
+  expect(JSON.stringify(snapshot)).not.toContain("Private Holding Name");
+  expect(JSON.stringify(snapshot)).not.toContain("private health detail");
+  expect(JSON.stringify(snapshot)).not.toContain("failure reason");
+  await expect(platformExecutiveSnapshot({...actor,iam:{...actor.iam,permissions:[]}},env.CONTROL_DB,env.CONTROL_READ_DB))
+    .rejects.toMatchObject({code:"PLATFORM_EXECUTIVE_FORBIDDEN"});
 });

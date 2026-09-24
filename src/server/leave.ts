@@ -56,6 +56,7 @@ export type LeaveRequest = RecordScope & {
   decision_note: string | null;
   updated_at: number;
   leave_type_id?: string | null;
+  leave_type_name?: string | null;
   end_date?: string | null;
   calculated_units?: number | null;
   cancellation_state?: string | null;
@@ -83,7 +84,7 @@ export async function getLeave(
   if (legacy) await approvalView(write, "leave", id, context);
   const row = await write
     .prepare(
-      `SELECT l.* FROM leave_requests l WHERE l.id=? AND l.company_id=? AND (l.created_by=? OR l.decided_by=? OR ${participantSql("leave", "l", "?", "?")} OR ${participantSql("leave_cancellation", "l", "?", "?")})`,
+      `SELECT l.*,t.name leave_type_name FROM leave_requests l LEFT JOIN leave_types t ON t.id=l.leave_type_id AND t.company_id=l.company_id WHERE l.id=? AND l.company_id=? AND (l.created_by=? OR l.decided_by=? OR ${participantSql("leave", "l", "?", "?")} OR ${participantSql("leave_cancellation", "l", "?", "?")})`,
     )
     .bind(id, context.companyId, context.userId, context.userId, context.userId, context.assignmentId, context.userId, context.assignmentId)
     .first<Omit<LeaveRequest, "approval" | "permittedActions">>();

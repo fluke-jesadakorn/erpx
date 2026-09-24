@@ -14,6 +14,7 @@ import { iamMutationGuards } from './iam-store';
 import { ApiError } from './http';
 import { applyPosRoomCharge, reversePosRoomCharge } from './pms';
 import { assertProductionModuleEnabled } from './hospitality-rollout';
+import { posCommerceAccountDefaults, posGeneratedAccountSpecs } from '@/lib/pos-bootstrap';
 export type PosRow=Record<string,string|number|boolean|null>;
 export const id=()=>randomUUID();
 export const num=(row:PosRow,key:string)=>Number(row[key]??0);
@@ -116,11 +117,11 @@ const keySchema=z.string().regex(/^[a-zA-Z0-9:_.-]{8,180}$/);
 const base=z.object({id:z.string().min(1),expectedVersion:z.number().int().positive()});
 const permissionFor=(op:string)=>op==='payment.verify_transfer'||op==='sale.reverse_room_charge'?'finance.approve':op.startsWith('settings')||op.startsWith('register')||op.startsWith('catalog')||op.startsWith('table.')?'pos.configure':op.startsWith('kitchen.')?'pos.kitchen':op==='refund.approve'||op==='refund.reject'||op==='sale.approve_discount'||op==='shift.review'||op==='cash.approve'||op.startsWith('exception.')||op.startsWith('settlement.')?'pos.approve':op.startsWith('connection.')?'pos.payments.configure':'pos.sell';
 export async function posCommand(db:PostgresDatabase,actor:WorkContext,operation:string,input:unknown,key:string){
- keySchema.parse(key);requirePermission(actor,permissionFor(operation));if(actor.departmentId)fail('POS_BRANCH_REQUIRED','Select a company or branch for POS',403);
- if(process.env.NODE_ENV==='production'&&operation.startsWith('connection.'))fail('POS_PROVIDER_COMING_SOON','Live POS provider connections require a separate release',403);
+ keySchema.parse(key);if(operation.startsWith('connection.')){if(!hasPermission(actor,'pos.payments.configure')&&!hasPermission(actor,'finance.approve'))fail('POS_CONNECTION_FORBIDDEN','Company Finance access is required',403);}else requirePermission(actor,permissionFor(operation));if(operation==='settings.bootstrap')requirePermission(actor,'finance.write');if(actor.departmentId)fail('POS_BRANCH_REQUIRED','Select a company or branch for POS',403);
+ if(process.env.NODE_ENV==='production'&&operation.startsWith('connection.')&&process.env.POS_STRIPE_LIVE_ENABLED!=='true')fail('POS_PROVIDER_COMING_SOON','Enable the Stripe production gate before connecting live accounts',403);
  const hash=createHash('sha256').update(JSON.stringify({user:actor.userId,assignment:actor.assignmentId,company:actor.companyId,branch:actor.branchId,operation,input})).digest('hex');
  try{return await db.transaction(async tx=>{
-  if(operation!=='sale.reverse_room_charge')await assertProductionModuleEnabled(tx,actor.companyId,'pos');
+  if(operation!=='sale.reverse_room_charge'&&!operation.startsWith('connection.'))await assertProductionModuleEnabled(tx,actor.companyId,'pos');
   const grant=await one(tx,"SELECT id FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=? AND revoked_at IS NULL AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?)) FOR SHARE",actor.assignmentId,actor.userId,actor.companyId,actor.role,Date.now(),Date.now(),actor.branchId);
   if(!grant)fail('POS_ACCESS_CHANGED','Permissions changed. Select the role again',403);
   await tx.batch([...workContextGuards(tx,actor,key),...iamMutationGuards(tx,actor,key)]);
@@ -131,6 +132,80 @@ export async function posCommand(db:PostgresDatabase,actor:WorkContext,operation
   await run(tx,'DELETE FROM command_assertions WHERE command_id=?',key);
   return result;
  });}catch(error){if(error instanceof Error&&error.message==='QUALITY_HOLD')fail('QUALITY_HOLD','This product is quarantined. Quality inspection and independent release are required');if(['23505','23514','40001','40P01'].includes((error as {code?:string}).code??''))fail('POS_CONFLICT','Data or reserved amounts changed. Load the latest data and try again');throw error;}
+}
+async function bootstrapRetail(db:SqlDatabase,actor:WorkContext,input:unknown){
+ const p=z.object({registerId:z.string().min(1).optional(),warehouseId:z.string().min(1).optional(),bankAccountId:z.string().min(1).optional()}).strict().parse(input);
+ const company=actor.companyId;
+ if(actor.branchId)fail('POS_COMPANY_SETTINGS','Run retail setup from the Company workspace',403);
+ if(!await one(db,"SELECT id FROM organization_nodes WHERE id=? AND kind='company' FOR UPDATE",company))fail('POS_COMPANY_SETTINGS','Company workspace not found',404);
+ if(await one(db,'SELECT company_id FROM pos_settings WHERE company_id=? FOR UPDATE',company))fail('POS_ALREADY_CONFIGURED','POS is already configured. Review the detailed POS settings instead.');
+ const existingRetailRegisters=await all(db,"SELECT * FROM pos_registers WHERE company_id=? AND mode='retail' ORDER BY name,id FOR UPDATE",company);
+
+ const commerce=await one(db,'SELECT * FROM commerce_settings WHERE company_id=? FOR UPDATE',company);
+ if(!commerce)fail('POS_COMMERCE_SETUP_REQUIRED','Set up Commerce and Finance before configuring POS',409);
+ const chartId=str(commerce,'chart_id'),currency=str(commerce,'currency');
+ const chart=await one(db,"SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active' FOR SHARE",chartId,company);
+ if(!chart)fail('POS_COMMERCE_CHART_REQUIRED','Select an active Commerce chart of accounts in Finance first',409);
+ if(str(chart,'base_currency')!==currency)fail('POS_CURRENCY_MISMATCH','Commerce currency must match the chart base currency',422);
+
+ const accounts:Record<string,string>={chartId};
+ for(const source of posCommerceAccountDefaults){
+  const accountId=str(commerce,source.field);
+  const account=accountId?await one(db,"SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND category=? AND status='active' AND (currency IS NULL OR currency=?) FOR SHARE",accountId,company,chartId,source.category,currency):null;
+  if(!account)fail('POS_COMMERCE_ACCOUNT_INVALID',`Review the Commerce ${source.label} account in Finance before setting up POS`,409);
+  accounts[source.key]=accountId;
+ }
+
+ let registerId='',registerName='',warehouseId='',branchId='',reuseRegister=false;
+ if(existingRetailRegisters.length){
+  const activeRegisters=existingRetailRegisters.filter(row=>Boolean(row.active));
+  if(!activeRegisters.length)fail('POS_RETAIL_REGISTER_EXISTS','An existing retail register is inactive. Reactivate it in Advanced POS settings first.');
+  if(activeRegisters.length>1&&!p.registerId)fail('POS_REGISTER_SELECTION_REQUIRED','Choose which active retail register will use the new POS settings',422);
+  const existingRegister=p.registerId?activeRegisters.find(row=>str(row,'id')===p.registerId):activeRegisters.length===1?activeRegisters[0]:null;
+  if(!existingRegister)fail('POS_REGISTER_INVALID','Choose an active retail register in this Company',422);
+  registerId=str(existingRegister,'id');registerName=str(existingRegister,'name');warehouseId=str(existingRegister,'warehouse_id');branchId=str(existingRegister,'branch_id');reuseRegister=true;
+  if(p.warehouseId&&p.warehouseId!==warehouseId)fail('POS_WAREHOUSE_INVALID','The selected register already uses a different warehouse',422);
+  const warehouse=await one(db,"SELECT id FROM commerce_warehouses WHERE id=? AND company_id=? AND branch_id=? AND status='active' FOR SHARE",warehouseId,company,branchId);
+  if(!warehouse)fail('POS_WAREHOUSE_INVALID','The selected register must use an active warehouse in its branch',409);
+ }else{
+  if(p.registerId)fail('POS_REGISTER_INVALID','Choose an active retail register in this Company',422);
+  const warehouses=await all(db,"SELECT id,branch_id,name FROM commerce_warehouses WHERE company_id=? AND status='active' ORDER BY name,id FOR SHARE",company);
+  if(!warehouses.length)fail('POS_WAREHOUSE_REQUIRED','Add an active warehouse in Commerce before setting up POS',409);
+  warehouseId=p.warehouseId??(warehouses.length===1?str(warehouses[0],'id'):'');
+  const warehouse=warehouses.find(row=>str(row,'id')===warehouseId);
+  if(warehouses.length>1&&!p.warehouseId)fail('POS_WAREHOUSE_SELECTION_REQUIRED','Choose the warehouse this retail register will use',422);
+  if(!warehouse)fail('POS_WAREHOUSE_INVALID','Choose an active warehouse in this Company',422);
+  branchId=str(warehouse,'branch_id');
+ }
+
+ const bankAccounts=await all(db,"SELECT id FROM finance_accounts WHERE company_id=? AND chart_id=? AND category='asset' AND control_kind='bank' AND status='active' AND (currency IS NULL OR currency=?) ORDER BY code,id FOR UPDATE",company,chartId,currency);
+ let bankAccountId='';
+ if(bankAccounts.length>1&&!p.bankAccountId)fail('POS_BANK_ACCOUNT_SELECTION_REQUIRED','Choose which bank account POS transfers will use',422);
+ if(bankAccounts.length){
+  bankAccountId=p.bankAccountId??str(bankAccounts[0],'id');
+  if(!bankAccounts.some(row=>str(row,'id')===bankAccountId))fail('POS_BANK_ACCOUNT_INVALID','Choose an active bank account in the Commerce chart and currency',422);
+ }else if(p.bankAccountId){
+  fail('POS_BANK_ACCOUNT_INVALID','No eligible Finance bank account is available for POS transfers',422);
+ }
+
+ const now=Date.now(),createdAccounts:Array<{id:string;code:string;name:string;category:string}>=[];
+ for(const spec of posGeneratedAccountSpecs){
+  if(spec.key==='bank'&&bankAccountId){accounts.bank=bankAccountId;continue;}
+  let code:string=spec.code,suffix=2;
+  while(await one(db,'SELECT id FROM finance_accounts WHERE chart_id=? AND code=?',chartId,code))code=`${spec.code}-${suffix++}`;
+  const accountId=id();
+  await run(db,'INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)',accountId,chartId,company,code,spec.name,spec.category,spec.key==='bank'?currency:null,spec.controlKind==='bank'?1:0,spec.controlKind,now,now);
+  accounts[spec.key]=accountId;
+  createdAccounts.push({id:accountId,code,name:spec.name,category:spec.category});
+ }
+
+ if(!reuseRegister){
+  registerId=id();registerName='Main retail register';let nameSuffix=2;
+  while(await one(db,'SELECT id FROM pos_registers WHERE company_id=? AND branch_id=? AND name=?',company,branchId,registerName))registerName=`Main retail register ${nameSuffix++}`;
+ }
+ await run(db,"INSERT INTO pos_settings(company_id,enabled,currency,timezone,accounts_json,cashier_discount_bps) VALUES(?,true,?,'Asia/Bangkok',?,0)",company,currency,JSON.stringify(accounts));
+ if(!reuseRegister)await run(db,"INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active) VALUES(?,?,?,?,?,'retail',true)",registerId,company,branchId,warehouseId,registerName);
+ return {id:company,registerId,registerName,warehouseId,bankAccountId:accounts.bank,registerReused:reuseRegister,accountsCreated:createdAccounts};
 }
 async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown):Promise<Record<string,unknown>> {
  const company=actor.companyId,user=actor.userId;
@@ -145,6 +220,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
   await run(db,'INSERT INTO pos_oauth_states(id,company_id,user_id,expires_at,livemode) VALUES(?,?,?,?,?)',state,company,user,Date.now()+600000,p.livemode);
   return {id:state,livemode:p.livemode};
  }
+ if(op==='settings.bootstrap')return bootstrapRetail(db,actor,input);
  if(op==='settings.save'){
   if(actor.branchId)fail('POS_COMPANY_SETTINGS','Configure accounts from the company area',403);
   const p=settingsSchema.parse(input),old=await one(db,'SELECT * FROM pos_settings WHERE company_id=? FOR UPDATE',company);
@@ -359,8 +435,8 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
   return {id:f.id,state};
  }
  if(op==='payment.create'){
-  const p=base.extend({method:z.enum(['cash','transfer','edc','stripe_card','stripe_promptpay']),amountMinor:money.refine(n=>n>0),tenderedMinor:money,reference:z.string().max(150).default('')}).parse(input),sale=await saleRow(db,actor,p.id);version(sale,p);
-  if(process.env.NODE_ENV==='production'&&!['cash','transfer'].includes(p.method))fail('POS_TENDER_COMING_SOON','The pilot accepts cash and verified bank transfers only',403);
+  const p=base.extend({method:z.enum(['cash','transfer','edc','stripe_card','stripe_promptpay']),amountMinor:money.refine(n=>n>0),tenderedMinor:money,reference:z.string().max(150).default(''),payerEmail:z.union([z.email(),z.literal('')]).default('')}).parse(input),sale=await saleRow(db,actor,p.id);version(sale,p);
+  if(process.env.NODE_ENV==='production'&&!['cash','transfer'].includes(p.method)&&process.env.POS_STRIPE_LIVE_ENABLED!=='true')fail('POS_TENDER_COMING_SOON','The pilot accepts cash and verified bank transfers only',403);
   if(!['open','held','payment_pending'].includes(str(sale,'state')))fail('POS_SALE_LOCKED','Bill is not ready for payment');
   const settings=await config(db,company);if(!settings.enabled)fail('POS_DISABLED','New transactions are temporarily paused');await openPeriod(db,company,str(sale,'business_date'));
   if(!await one(db,"SELECT id FROM pos_shifts WHERE id=? AND state='open'",sale.shift_id))fail('POS_SHIFT_CLOSED','Cash session is closed');
@@ -373,7 +449,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
    if(f.state==='cancelled')fail('POS_ITEM_CANCELLED','Remove cancelled items before taking payment');await reserve(db,f);
   }
   let connection:PosRow|null=null;if(p.method.startsWith('stripe_')){if(sale.currency!=='THB')fail('POS_STRIPE_CURRENCY','This Stripe POS version accepts THB only');connection=await one(db,"SELECT * FROM pos_connections WHERE company_id=? AND state='ready'",company);if(connection?.livemode&&process.env.POS_STRIPE_LIVE_ENABLED!=='true')fail('POS_LIVE_NOT_ENABLED','Complete sandbox testing before accepting live payments');if(!connection?.charges_enabled||!connection.payouts_enabled||!(p.method==='stripe_card'?connection.card_enabled:connection.promptpay_enabled))fail('POS_STRIPE_NOT_READY','The Stripe account is not ready for this payment method');}
-  const pid=id();await run(db,"INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,reference,state,stripe_account,livemode,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'requested',?,?,?,?,?)",pid,sale.id,company,p.method,p.amountMinor,p.tenderedMinor,p.reference,connection?.account_id??null,connection?.livemode??false,user,Date.now(),Date.now());
+  const pid=id();await run(db,"INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,reference,state,stripe_account,livemode,created_by,created_at,updated_at,payer_email) VALUES(?,?,?,?,?,?,?,'requested',?,?,?,?,?,?)",pid,sale.id,company,p.method,p.amountMinor,p.tenderedMinor,p.reference,connection?.account_id??null,connection?.livemode??false,user,Date.now(),Date.now(),p.payerEmail||null);
   if(connection)await enqueue(db,company,'checkout',pid);
   else if(p.method==='transfer')await run(db,"UPDATE pos_payments SET state='pending',version=version+1,updated_at=? WHERE id=?",Date.now(),pid);
   else await receivePayment(db,(await one(db,'SELECT * FROM pos_payments WHERE id=?',pid))!,user);
@@ -498,11 +574,12 @@ async function refundCommand(db:SqlDatabase,actor:WorkContext,op:string,input:un
  await posting(db,str(sale,'company_id'),str(sale,'branch_id'),a,date,str(sale,'currency'),`refund:${refund.id}`,str(refund,'id'),user,[{account:refund.kind==='advance'?a.advance:a.revenue,debit:num(refund,'amount_minor')-num(refund,'tax_minor'),credit:0},{account:a.outputTax,debit:num(refund,'tax_minor'),credit:0},{account:a.refund,debit:0,credit:num(refund,'amount_minor')}]);
  let remaining=num(refund,'amount_minor');
  for(const payment of payments){const amount=Math.min(remaining,num(payment,'amount_minor')-num(payment,'refunded_minor'));if(!amount)continue;
-  const rpid=id();await run(db,'INSERT INTO pos_refund_payments(id,refund_id,payment_id,amount_minor) VALUES(?,?,?,?)',rpid,refund.id,payment.id,amount);
+  const manualPromptPay=payment.method==='stripe_promptpay'&&!payment.payer_email;
+  const rpid=id();await run(db,'INSERT INTO pos_refund_payments(id,refund_id,payment_id,amount_minor,manual_method) VALUES(?,?,?,?,?)',rpid,refund.id,payment.id,amount,manualPromptPay?(refund.payout_shift_id?'cash':'transfer'):null);
   await run(db,'UPDATE pos_payments SET refunded_minor=refunded_minor+?,version=version+1 WHERE id=?',amount,payment.id);
-  if(str(payment,'method').startsWith('stripe_'))await enqueue(db,str(sale,'company_id'),'refund',rpid);
+  if(str(payment,'method').startsWith('stripe_')&&!manualPromptPay)await enqueue(db,str(sale,'company_id'),'refund',rpid);
   else {
-   if(payment.method==='cash'){
+   if(payment.method==='cash'||(manualPromptPay&&refund.payout_shift_id)){
     const shift=await one(db,"SELECT * FROM pos_shifts WHERE id=? AND company_id=? AND branch_id=? AND state='open'",refund.payout_shift_id,actor.companyId,sale.branch_id);if(!shift)fail('POS_REFUND_SHIFT_REQUIRED','Specify an open cash session for cash refund payout');
    }
    // Manual methods require the approver to confirm money was actually returned.
@@ -518,7 +595,7 @@ async function refundCommand(db:SqlDatabase,actor:WorkContext,op:string,input:un
 export async function completeRefundPayment(db:SqlDatabase,refundPaymentId:string,actorId:string,date?:string){
  const rp=await one(db,'SELECT * FROM pos_refund_payments WHERE id=? FOR UPDATE',refundPaymentId);if(!rp||rp.state==='succeeded')return;
  const refund=(await one(db,'SELECT * FROM pos_refunds WHERE id=? FOR UPDATE',rp.refund_id))!,p=(await one(db,'SELECT * FROM pos_payments WHERE id=?',rp.payment_id))!,sale=(await one(db,'SELECT * FROM pos_sales WHERE id=?',refund.sale_id))!,a=json<PosAccounts>(sale.accounts_json);
- const account=p.method==='cash'?a.cash:p.method==='transfer'?a.bank:p.method==='edc'?a.edc:a.stripe;
+ const account=rp.manual_method==='cash'?a.cash:rp.manual_method==='transfer'?a.bank:p.method==='cash'?a.cash:p.method==='transfer'?a.bank:p.method==='edc'?a.edc:a.stripe;
  const journal=await posting(db,str(sale,'company_id'),str(sale,'branch_id'),a,date??str(refund,'accounting_date'),str(sale,'currency'),`refund-payment:${rp.id}`,str(refund,'id'),actorId,pair(a.refund,account,num(rp,'amount_minor')));
  await run(db,"INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at) VALUES(?,?,?,'refund',?,?,?,?,0,?,'settled',?,?,?,?,?)",id(),sale.company_id,sale.party_id,`POS-REF-${rp.id}`,date??refund.accounting_date,sale.currency,rp.amount_minor,account,journal,actorId,actorId,Date.now(),Date.now());
  await run(db,"UPDATE pos_refund_payments SET state='succeeded' WHERE id=?",rp.id);
@@ -531,4 +608,4 @@ export async function releaseUnpaidReservations(db:SqlDatabase,saleId:string){
  await run(db,"UPDATE pos_fulfillments SET reserved=false WHERE state='draft' AND id IN (SELECT fulfillment_id FROM pos_lines WHERE sale_id=?)",saleId);
  await run(db,"UPDATE pos_sales SET state='open',version=version+1 WHERE id=? AND state='payment_pending'",saleId);
 }
-export const posPermissions=(actor:WorkContext)=>Object.fromEntries(['pos.read','pos.sell','pos.kitchen','pos.approve','pos.configure','pos.payments.configure','pos.reports','finance.approve','pms.approve'].map(p=>[p,hasPermission(actor,p)]));
+export const posPermissions=(actor:WorkContext)=>Object.fromEntries(['pos.read','pos.sell','pos.kitchen','pos.approve','pos.configure','pos.payments.configure','pos.reports','finance.read','finance.write','finance.approve','pms.approve'].map(p=>[p,hasPermission(actor,p)]));

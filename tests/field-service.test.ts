@@ -17,6 +17,8 @@ import {
 } from "../src/server/field-service";
 import { postInvoice } from "../src/server/finance";
 import { escalateInventoryReservations } from "../src/server/inventory-reservation-alerts";
+import { queryMetric } from "../src/server/executive/metrics";
+import { readExecutiveEvidence, searchExecutiveEvidence } from "../src/server/executive/evidence";
 vi.mock("../src/server/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
@@ -167,7 +169,7 @@ async function agreement(options: { assetId?: string; warrantyDiscountBps?: numb
   );
   return String(x.id);
 }
-async function serviceOrder(options: { assetId?: string; warrantyDiscountBps?: number } = {}) {
+async function serviceOrder(options: { assetId?: string; warrantyDiscountBps?: number; scheduledAt?: number } = {}) {
   const g = await agreement(options);
   return String(
     (
@@ -182,11 +184,11 @@ async function serviceOrder(options: { assetId?: string; warrantyDiscountBps?: n
           issue: "Diagnose and replace the failed controller.",
           site: "Customer plant A",
           technicianId: f.claimant.userId,
-          scheduledAt: Date.now() + 60000,
+          scheduledAt: options.scheduledAt ?? Date.now() + 60000,
         },
         key(),
       )
-    ).id,
+  ).id,
   );
 }
 const act = (
@@ -194,6 +196,43 @@ const act = (
   id: string,
   input: Record<string, unknown>,
 ) => changeServiceOrder(actor, id, input, key());
+it("reconciles scheduled field visit completion and uses bounded authorized service-order evidence", async () => {
+  const completed = await serviceOrder(), pending = await serviceOrder(), cancelled = await serviceOrder(), outside = await serviceOrder({ scheduledAt: Date.parse("2027-01-05T12:00:00.000Z") });
+  await act(f.claimant, completed, { action: "dispatch", expectedVersion: 1, reason: "Technician received the confirmed route." });
+  await act(f.claimant, completed, { action: "start", expectedVersion: 2, reason: "Customer granted site access." });
+  await act(f.claimant, completed, { action: "complete", expectedVersion: 3, laborMinutes: 45, evidence: "Replaced the controller and verified the safe restart.", customerConfirmation: "Customer confirmed the controller is operating.", reason: "Service work was completed and confirmed." });
+  await act(f.claimant, cancelled, { action: "cancel", expectedVersion: 1, reason: "Customer canceled the appointment before dispatch." });
+  const scheduledAt = (await db.prepare("SELECT scheduled_at FROM field_service_orders WHERE id=?").bind(completed).first<{ scheduled_at: number }>())!.scheduled_at;
+  const from = new Date(Number(scheduledAt)).toISOString().slice(0, 10), filters = { from, to: from, currency: "THB" };
+  const total = await queryMetric(db, f.owner, "field-visit-completion", filters);
+  const byMonth = await queryMetric(db, f.owner, "field-visit-completion", filters, "month");
+  const byStatus = await queryMetric(db, f.owner, "field-visit-completion", filters, "status");
+  expect(total.total).toBe("5000");
+  expect(total.rows).toEqual([{ label: "Field visits", value: "5000" }]);
+  expect(byMonth.rows).toEqual([{ label: from.slice(0, 7), value: "5000" }]);
+  expect(byStatus.rows).toEqual([{ label: "completed", value: "10000" }, { label: "scheduled", value: "0" }]);
+  await expect(queryMetric(db, { ...f.owner, modules: ["support"] }, "field-visit-completion", filters)).rejects.toMatchObject({ code: "METRIC_FORBIDDEN" });
+  const first = await searchExecutiveEvidence(db, f.owner, { metric: "field-visit-completion", filters, limit: 1 });
+  expect(first.provider).toBe("field-service-orders");
+  expect(first.items).toHaveLength(1); expect(first.hasMore).toBe(true); expect(first.nextCursor).toBeTruthy();
+  const second = await searchExecutiveEvidence(db, f.owner, { metric: "field-visit-completion", filters, limit: 1, cursor: first.nextCursor! });
+  expect(second.items).toHaveLength(1); expect(second.hasMore).toBe(false);
+  expect([first.items[0].id, second.items[0].id]).toContain(pending);
+  const match = await searchExecutiveEvidence(db, f.owner, { metric: "field-visit-completion", filters, query: completed });
+  expect(match.items.map((item) => item.id)).toEqual([completed]);
+  const detail = await readExecutiveEvidence(db, f.owner, "field-visit-completion", completed, filters);
+  expect(detail.record).toMatchObject({ id: completed, status: "completed", version: 4, href: `/field-service/${completed}` });
+  expect(Number(detail.record.visit_completed_at)).toBeGreaterThan(0);
+  expect(detail.fields).toEqual(["scheduled_at", "visit_completed_at", "status", "version"]);
+  await expect(readExecutiveEvidence(db, f.owner, "field-visit-completion", cancelled, filters)).rejects.toMatchObject({ status: 404, code: "EVIDENCE_NOT_FOUND" });
+  await expect(readExecutiveEvidence(db, f.owner, "field-visit-completion", outside, filters)).rejects.toMatchObject({ status: 404, code: "EVIDENCE_NOT_FOUND" });
+  const audit = (await db.prepare("SELECT action,record_id,record_version,field_ids::text fields FROM executive_evidence_access_events WHERE company_id=? AND provider_id=? AND metric_id=? ORDER BY created_at,id")
+    .bind(f.company, "field-service-orders", "field-visit-completion")
+    .all<{ action: string; record_id: string | null; record_version: number | null; fields: string }>()).results;
+  expect(audit.map((row) => row.action).sort()).toEqual(["open", "search", "search", "search"]);
+  expect(audit.some((row) => row.action === "open" && row.record_id === completed && row.record_version === 4)).toBe(true);
+  expect(audit.every((row) => JSON.parse(row.fields).every((field: string) => ["scheduled_at", "visit_completed_at", "status", "version"].includes(field)))).toBe(true);
+});
 it("runs agreement, dispatch, parts, exception, customer sign-off and independent billing release", async () => {
   const id = await serviceOrder();
   expect(
@@ -348,7 +387,7 @@ it("applies the approved warranty discount only while the service asset is cover
     .bind(id)
     .first();
   expect(release).toMatchObject({ amount_minor: 75000, warranty_applied: true, warranty_discount_bps: 5000, warranty_end_snapshot: "2099-12-31" });
-  expect(String(release?.pricing_date)).toMatch(/^2026-09-2[12]$/);
+  expect(String(release?.pricing_date)).toBe(new Date().toISOString().slice(0, 10));
   const invoice = await db
     .prepare("SELECT id,total_minor,outstanding_minor FROM finance_invoices WHERE source_type='field_service' AND source_id=?")
     .bind(id)

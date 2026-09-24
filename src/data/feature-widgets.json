@@ -293,30 +293,6 @@
     "columns": 12
   },
   {
-    "id": "work-original-approval-history",
-    "title": "Original approval history",
-    "page": "tasks-people-payroll-detail",
-    "columns": 12
-  },
-  {
-    "id": "work-leave-request",
-    "title": "Leave request",
-    "page": "tasks-people-payroll-detail",
-    "columns": 12
-  },
-  {
-    "id": "work-request-details",
-    "title": "Request details",
-    "page": "tasks-people-payroll-detail",
-    "columns": 12
-  },
-  {
-    "id": "work-private-supporting-evidence",
-    "title": "Private supporting evidence",
-    "page": "tasks-people-payroll-detail",
-    "columns": 12
-  },
-  {
     "id": "staff-tasks-detail-task-instructions",
     "title": "Task instructions",
     "page": "staff-tasks-detail",
@@ -785,26 +761,6 @@
     "page": "inbox-teams"
   },
   {
-    "id": "leave-balances",
-    "title": "Balances",
-    "page": "leave"
-  },
-  {
-    "id": "leave-upcoming-pending",
-    "title": "Upcoming & pending",
-    "page": "leave"
-  },
-  {
-    "id": "leave-policy-holidays",
-    "title": "Policy & holidays",
-    "page": "leave"
-  },
-  {
-    "id": "leave-request-history",
-    "title": "Request history",
-    "page": "leave"
-  },
-  {
     "id": "work-queue",
     "title": "Work queue",
     "page": "work"
@@ -1067,11 +1023,6 @@
     "id": "operations-counts-stock-count",
     "title": "Stock count",
     "page": "operations-counts"
-  },
-  {
-    "id": "leave-detail-leave-request",
-    "title": "Leave request",
-    "page": "leave-detail"
   },
   {
     "id": "pms-folios-document",

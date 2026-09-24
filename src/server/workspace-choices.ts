@@ -8,7 +8,7 @@ import {
   type WorkspaceChoiceAssignment,
   type WorkspaceChoiceNode,
 } from "@/lib/workspace-choice";
-import { currentSession, requirePlatformContext } from "./authorization";
+import { currentSession } from "./authorization";
 import { iamRoles } from "./iam-store";
 import {
   activeHoldingBindings,
@@ -149,16 +149,5 @@ async function readWorkspaceChoices(): Promise<WorkspaceChoice[]> {
         a.label.localeCompare(b.label, undefined, { sensitivity: "base" }) ||
         a.holdingSlug.localeCompare(b.holdingSlug),
     );
-  const choices: WorkspaceChoice[] = [...business];
-  try {
-    await requirePlatformContext();
-    choices.push({
-      kind: "platform",
-      label: "Platform administration",
-      destination: "/platform/home",
-    });
-  } catch (error) {
-    if (!(error instanceof Error) || error.message !== "FORBIDDEN") throw error;
-  }
-  return choices;
+  return [...business];
 }

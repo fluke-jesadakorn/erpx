@@ -5,15 +5,35 @@ import {
   activeDestination,
   navigationTrail,
   navigationCategory,
+  pmsSidebarHref,
   resolveNavigation,
 } from "../src/lib/workplace-navigation";
 import { filterWork, workTypes, type WorkItem } from "../src/lib/work-item";
+import { pmsCrossLinks } from "../src/lib/pms-cross-links";
 
 describe("Side menu destination coverage", () => {
   const base = "/holdings/acme";
   const owner = workplaceNavigation({
     workspaceBase: base, role: "holding_owner", canManageApprovals: true,
     adminSections: ["people", "organization", "approvals", "usage", "ai", "feedback"],
+  });
+
+  it("lists ERPX Management beside Operations only in the authorized ERPX Holding", () => {
+    const erpx = workplaceNavigation({ workspaceBase: "/holdings/erpx", scopeKind: "holding", role: "holding_owner", manageErpxVisible: true });
+    expect(erpx.apps.find(app => app.id === "erpx-management")?.items.map(item => item.href)).toEqual([
+      "/holdings/erpx/manage-erpx",
+      "/holdings/erpx/manage-erpx/billing",
+      "/holdings/erpx/manage-erpx/iam",
+      "/holdings/erpx/manage-erpx/executive",
+    ]);
+    expect(erpx.categories.map(category => category.id).indexOf("erpx-management")).toBe(erpx.categories.map(category => category.id).indexOf("operations") + 1);
+    expect(erpx.categories.find(category => category.id === "erpx-management")?.apps.some(item => item.id === "erpx-management")).toBe(true);
+    expect(erpx.search.some(item => item.id === "manage-erpx-iam")).toBe(true);
+    for (const workspaceBase of ["/holdings/acme", "/holdings/erpx/branches/main"]) {
+      const other = workplaceNavigation({ workspaceBase, scopeKind: workspaceBase.includes("branches") ? "branch" : "holding", role: "holding_owner", manageErpxVisible: true });
+      expect(other.apps.some(app => app.id === "erpx-management")).toBe(false);
+    }
+    expect(workplaceNavigation({ workspaceBase: "/holdings/erpx", manageErpxVisible: false }).apps.some(app => app.id === "erpx-management")).toBe(false);
   });
 
   it('shows only approved pilot apps in production navigation', () => {
@@ -404,6 +424,7 @@ describe("Services grouped by purpose", () => {
     expect(owner.apps.at(-1)?.items.map(item => item.label)).toEqual(["Positions", "Employees", "Directory & GPO", "Resources", "Directory connections", "Roles & permissions", "Reviews & audit", "AI providers", "Business readiness"]);
     expect(owner.standalone.map(item => item.label)).toEqual(["Legal", "Help & feedback", "Pilot feature rollout", "Future features"]);
     expect(navigationTrail(owner,base,`${base}/settings/pilot-features`).map(item=>item.label)).toEqual(['Pilot feature rollout']);
+    expect(navigationTrail(owner,base,`${base}/settings/stripe`).map(item=>item.label)).toEqual(['Company Stripe']);
     expect(navigationTrail(owner, base, `${base}/settings`, new URLSearchParams("section=feedback"))).toEqual([{ label: "Help & feedback" }]);
     expect(resolveNavigation(owner, base, `${base}/iam/reviews`)).toEqual({ activeId: "work" });
     expect(navigationTrail(owner, base, `${base}/handbook/article-1`).map(item => item.label)).toEqual(["People", "Company handbook", "Article"]);
@@ -412,7 +433,9 @@ describe("Services grouped by purpose", () => {
   it("maps app-level navigation into presentation categories without changing breadcrumbs", () => {
     expect(owner.categories.map(category => [category.label, category.apps.map(app => app.label)])).toEqual([
       ["People & organization", ["People"]],
-      ["Operations", ["Sales & purchasing", "Customers & CRM", "Customer support", "Inventory", "Quality", "POS", "Hotel PMS"]],
+      ["Operations", ["Sales & purchasing", "Customers & CRM", "Customer support", "Inventory", "Quality"]],
+      ["POS", ["Point of sale", "Kitchen", "Cash sessions", "Receipts & refunds", "POS reports", "POS settings"]],
+      ["Hotel PMS", ["Overview", "Reservations", "Front Office", "Rooms", "Housekeeping", "Folios & payments", "Cashier shifts", "Minibar & linen", "Guests", "Reports", "Night Audit", "Settings"]],
       ["Finance", ["Finance"]],
       ["Management", ["Executive", "Projects & workflows", "Legal"]],
       ["System", ["Technology", "Help & feedback", "Pilot feature rollout", "Future features"]],
@@ -420,6 +443,74 @@ describe("Services grouped by purpose", () => {
     const bank = resolveNavigation(owner, base, `${base}/finance/bank`);
     expect(navigationCategory(owner, bank)?.id).toBe("finance");
     expect(navigationTrail(owner, base, `${base}/finance/bank`).map(item => item.label)).toEqual(["Finance", "Cash & banking"]);
+    const pms = resolveNavigation(owner, base, `${base}/pms/reports`);
+    expect(navigationCategory(owner, pms)?.id).toBe("pms");
+    expect(navigationTrail(owner, base, `${base}/pms/reports`).map(item => item.label)).toEqual(["Hotel PMS", "Reports"]);
+    const pos = resolveNavigation(owner, base, `${base}/pos`, new URLSearchParams("tab=shifts"));
+    expect(navigationCategory(owner, pos)?.id).toBe("pos");
+    expect(pos.activeId).toBe("pos-shifts");
+    expect(navigationTrail(owner, base, `${base}/pos`, new URLSearchParams("tab=shifts")).map(item => item.label)).toEqual(["POS", "Cash sessions"]);
+  });
+
+  it("shows POS pages directly in the sidebar and launcher within the existing rollout and permissions", async () => {
+    const { navigationLauncher } = await import("../src/lib/navigation-catalog");
+    const pilot = workplaceNavigation({ workspaceBase: base, role: "holding_owner", availableAppIds: ["operations", "pos", "finance"] });
+    expect(pilot.categories.map((category) => category.id)).toEqual(["operations", "pos", "finance", "system"]);
+    expect(pilot.categories.find((category) => category.id === "operations")?.apps.some((item) => item.id === "pos")).toBe(false);
+    const posItems = pilot.categories.find((category) => category.id === "pos")!.apps;
+    expect(posItems.map((item) => [item.id, item.href])).toEqual([
+      ["pos-sale", `${base}/pos`],
+      ["pos-kitchen", `${base}/pos?tab=kitchen`],
+      ["pos-shifts", `${base}/pos?tab=shifts`],
+      ["pos-history", `${base}/pos?tab=history`],
+      ["pos-reports", `${base}/pos?tab=reports`],
+      ["pos-settings", `${base}/pos?tab=settings`],
+    ]);
+    expect(navigationLauncher(pilot, "").categories.find((category) => category.id === "pos")?.apps).toEqual(posItems);
+    expect(navigationLauncher(pilot, "cash sessions").results.some((result) => result.item.id === "pos-shifts" && result.categoryId === "pos")).toBe(true);
+
+    const hidden = workplaceNavigation({ workspaceBase: base, role: "holding_owner", availableAppIds: ["finance"] });
+    expect(hidden.categories.some((category) => category.id === "pos")).toBe(false);
+    for (const [scopeKind, workspaceBase] of [
+      ["holding", base], ["branch", `${base}/branches/main`],
+    ] as const) {
+      const scoped = workplaceNavigation({ workspaceBase, scopeKind, permissions: ["pos.read"] });
+      expect(scoped.categories.find((category) => category.id === "pos")?.apps.map((item) => item.id)).toEqual(["pos-sale", "pos-kitchen", "pos-shifts", "pos-history"]);
+      expect(navigationLauncher(scoped, "").categories.find((category) => category.id === "pos")?.apps).toHaveLength(4);
+    }
+    const department = workplaceNavigation({ workspaceBase: `${base}/branches/main/departments/front`, scopeKind: "department", permissions: ["pos.read"] });
+    expect(department.categories.some((category) => category.id === "pos")).toBe(false);
+    const reports = workplaceNavigation({ workspaceBase: base, permissions: ["pos.read", "pos.reports"] });
+    expect(reports.categories.find((category) => category.id === "pos")?.apps.map((item) => item.id)).toContain("pos-reports");
+    const settings = workplaceNavigation({ workspaceBase: base, permissions: ["pos.read", "pos.payments.configure"] });
+    expect(settings.categories.find((category) => category.id === "pos")?.apps.map((item) => item.id)).toContain("pos-settings");
+  });
+
+  it("shows PMS pages only when authorized and enabled, while the launcher keeps one app", async () => {
+    const { navigationLauncher } = await import("../src/lib/navigation-catalog");
+    const pilot = workplaceNavigation({ workspaceBase: base, role: "holding_owner", availableAppIds: ["pms"] });
+    expect(pilot.categories.map((category) => category.id)).toEqual(["pms", "system"]);
+    expect(pilot.categories[0].apps).toHaveLength(12);
+    expect(navigationLauncher(pilot, "").categories[0].apps.map((item) => item.label)).toEqual(["Hotel PMS"]);
+    expect(navigationLauncher(pilot, "linen").results.map((result) => result.item.id)).toContain("pms-inventory");
+    const hidden = workplaceNavigation({ workspaceBase: base, role: "holding_owner", availableAppIds: ["finance"] });
+    expect(hidden.categories.some((category) => category.id === "pms")).toBe(false);
+    const housekeeper = workplaceNavigation({ workspaceBase: base, role: "pms_housekeeping", availableAppIds: ["pms"] });
+    expect(housekeeper.categories.find((category) => category.id === "pms")?.apps.some((item) => item.id === "pms-reports")).toBe(false);
+  });
+
+  it("carries only the selected property between PMS sidebar pages", () => {
+    const reports = owner.apps.find((app) => app.id === "pms")!.items.find((item) => item.id === "pms-reports")!;
+    expect(pmsSidebarHref(reports, `${base}/pms/folios`, new URLSearchParams("property=hotel-1&folio=folio-2"))).toBe(`${base}/pms/reports?property=hotel-1`);
+    expect(pmsSidebarHref(reports, `${base}/pms`, new URLSearchParams("property=hotel-1"))).toBe(`${base}/pms/reports?property=hotel-1`);
+    expect(pmsSidebarHref(reports, `${base}/finance`, new URLSearchParams("property=hotel-1"))).toBe(reports.href);
+  });
+
+  it("shows shared system links only with destination access and rollout", () => {
+    const actor = { role: "holding_owner", assignmentScope: "holding", permissions: ["pms.read", "commerce.read", "finance.read", "pos.read"] };
+    expect(pmsCrossLinks(actor)).toEqual({ inventory: true, finance: true, pos: true });
+    expect(pmsCrossLinks(actor, new Set(["pms", "finance"]))).toEqual({ inventory: false, finance: true, pos: false });
+    expect(pmsCrossLinks({ ...actor, permissions: ["pms.read"] }, new Set(["pms", "inventory", "finance", "pos"]))).toEqual({ inventory: false, finance: false, pos: false });
   });
 
   it.each([

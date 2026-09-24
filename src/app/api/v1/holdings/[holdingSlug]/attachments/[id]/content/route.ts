@@ -56,6 +56,12 @@ export async function GET(
       ).bind(attachment.owner_type === "holding_brand" ? "holding" : "branch", attachment.owner_id, id, id).first();
       if (!active) throw new ApiError(404, "NOT_FOUND", "Workspace logo not found.");
     }
+    else if (attachment.owner_type === "company_storefront_brand") {
+      const active = await write.prepare(
+        "SELECT 1 FROM storefront_app_brands WHERE company_id=? AND logo_attachment_id=?",
+      ).bind(actor.companyId, id).first();
+      if (!active) throw new ApiError(404, "NOT_FOUND", "Storefront logo not found.");
+    }
     else throw new ApiError(404, "NOT_FOUND", "Attachment not found.");
     const page = new URL(request.url).searchParams.get("page");
     if (page) {

@@ -4,13 +4,17 @@ Business language for ERPX, independent of implementation. People and spending t
 
 ## Identity & scope
 
-- **Platform Workspace** — Control-plane scope. Platform roles never inherit into or authorize customer Holding data.
-- **Holding Workspace** — Customer-wide scope identified publicly by an immutable Holding slug and resolved internally to an opaque Holding ID.
+- **Platform Context** — Control-plane authority for customer administration and service operations. Platform roles never inherit into or authorize a Holding's business data.
+- **Holding Workspace** — Organization-wide scope identified publicly by an immutable Holding slug and resolved internally to an opaque Holding ID.
 - **Local Workspace** — A Branch or Department scope. Structural nesting records placement; it does not create a fourth authorization level.
-- **Holding** — Top-level customer isolation boundary; owns a data pair. All business data is partitioned by Holding.
+- **Holding** — Top-level organization and business-data isolation boundary. A Holding may be a customer or ERPX itself.
+- **Customer Holding** — A customer organization served and billed by ERPX.
+- **ERPX Holding** — ERPX's internal organization, with its own business records and Company; it is not a Customer Holding.
+- **ERPX Management** — The ERPX Holding's module for customer and Platform administration. Access requires the selected ERPX Holding role to permit the module and an active Platform Assignment; the selected Platform role determines which operations are allowed.
 - **Company** — Legal and data-policy boundary inside a Holding. Selected within a Holding Workspace and derived from lineage in Local Workspaces; never a URL or assignable role level.
 - **Product Brand** — ERPX's own visual identity. It identifies the software product and never identifies the customer or the legal issuer of a business document.
 - **Workspace Brand** — Optional Holding or Branch visual identity shown in workspace context and customer documents. A Department uses its Branch brand when nested below a Branch, otherwise its Holding brand.
+- **Storefront App Brand** — A Company-owned short name, logo, and accent color for its installable POS and PMS apps. It identifies the daily-work app and never changes the Company's legal identity or the ERPX product brand.
 - **Document Brand Mode** — Per-print composition of Holding, Branch, or both Workspace Brands, constrained by the Branch derived from the business record. It does not change the Company that legally issues the document.
 - **Visual Endorsement** — Co-display of Holding and Branch marks with structural relationship text. It communicates organizational affiliation, not approval, authenticity, or a digital signature.
 - **Organization Node** — Authoritative Company, Headquarters, Branch, Department, or Team placement with lineage and an immutable parent-scoped slug.

@@ -8,11 +8,13 @@ import { ApiError,errorResponse } from "@/server/http";
 import { commerceOverview,getOrder,saveOrder,transitionOrder,fulfillOrder,invoiceFulfillment,settleInvoice,saveMaster,requestCommerceReturn,decideCommerceReturn,completeCommerceReturn,orderSchema,transitionSchema,fulfillmentSchema,invoiceFromDeliverySchema,settlementSchema,returnRequestSchema,returnDecisionSchema,returnCompleteSchema } from "@/server/commerce";
 import {decidePriceList,priceListDecisionSchema,priceListSchema,priceListUpdateSchema,pricingWorkspace,savePriceList,updatePriceList} from '@/server/sales-pricing';
 import {customerNotificationRetrySchema,customerNotificationSchema,customerNotificationSettingsSchema,queueDeliveryNotification,retryCustomerNotification,updateCustomerNotificationSettings} from '@/server/sales-customer-notifications';
+import { inventoryReorderPolicyActionSchema, inventoryReorderPolicySchema, listInventoryReorderPolicies, saveInventoryReorderPolicy, transitionInventoryReorderPolicy } from "@/server/inventory-reorder-policies";
 type Context={params:Promise<{holdingSlug:string;path:string[]}>};
 async function assertPilotCommercePath(actor:Awaited<ReturnType<typeof requireWorkContext>>,path:string[],input:unknown){
   if(process.env.NODE_ENV!=='production')return;
   const db=(await holdingResources(actor.holdingId)).write;
   const root=path[0];
+  if(root==='reorder-policies')return assertProductionModuleEnabled(db,actor.companyId,'inventory');
   if(root==='products'||root==='warehouses')return assertProductionModuleEnabled(db,actor.companyId,'inventory');
   if(root==='pricing'||root==='customer-notifications')return assertProductionModuleEnabled(db,actor.companyId,'sales');
   if(root==='parties'){
@@ -33,14 +35,16 @@ async function assertPilotCommercePath(actor:Awaited<ReturnType<typeof requireWo
   return assertProductionModuleEnabled(db,actor.companyId,kind==='purchase'?'procurement':'sales');
 }
 export async function GET(_request:Request,context:Context) {
-  try{const {holdingSlug,path}=await context.params;const actor=await requireWorkContext(holdingSlug);return Response.json({data:path[0]==='pricing'?await pricingWorkspace(actor):path[0]==="orders"&&path[1]?await getOrder(actor,path[1]):await commerceOverview(actor)},{headers:{"Cache-Control":"private, no-store"}});}catch(e){return errorResponse(e);}
+  try{const {holdingSlug,path}=await context.params;const actor=await requireWorkContext(holdingSlug);return Response.json({data:path[0]==='pricing'?await pricingWorkspace(actor):path[0]==="orders"&&path[1]?await getOrder(actor,path[1]):path[0]==="reorder-policies"?await listInventoryReorderPolicies(actor):await commerceOverview(actor)},{headers:{"Cache-Control":"private, no-store"}});}catch(e){return errorResponse(e);}
 }
 export async function POST(request:Request,context:Context) {
   try{
     const origin=request.headers.get("origin");if(origin&&origin!==requestPublicOrigin(request))throw new ApiError(403,"ORIGIN_FORBIDDEN","Use the application origin for this action.");
     const {holdingSlug,path:p}=await context.params;const actor=await requireWorkContext(holdingSlug);const key=request.headers.get("Idempotency-Key");if(!key)throw new ApiError(422,"COMMAND_KEY_REQUIRED","Idempotency-Key is required.");
     const input=await request.json();await assertPilotCommercePath(actor,p,input);let data;
-    if(p[0]==='pricing'&&p.length===1)data=await savePriceList(actor,priceListSchema.parse(input),key);
+    if(p[0]==='reorder-policies'&&p.length===1)data=await saveInventoryReorderPolicy(actor,inventoryReorderPolicySchema.parse(input),key);
+    else if(p[0]==='reorder-policies'&&p.length===3&&["approve","reject","withdraw","retire"].includes(p[2]))data=await transitionInventoryReorderPolicy(actor,p[1],inventoryReorderPolicyActionSchema.parse({...input,action:p[2]}),key);
+    else if(p[0]==='pricing'&&p.length===1)data=await savePriceList(actor,priceListSchema.parse(input),key);
     else if(p[0]==='pricing'&&p.length===3&&p[2]==='edit')data=await updatePriceList(actor,p[1],priceListUpdateSchema.parse(input),key);
     else if(p[0]==='pricing'&&p.length===2)data=await decidePriceList(actor,p[1],priceListDecisionSchema.parse(input),key);
     else if(p[0]==="orders"&&p.length<=2)data=await saveOrder(actor,p[1]??null,orderSchema.parse(input),key);

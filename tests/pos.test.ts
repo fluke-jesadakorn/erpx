@@ -20,6 +20,7 @@ async function createSale(mode='retail'){
 async function add(sale:string,product='tea',qty=1000){await change('sale.add',sale,{productId:product,quantityMilli:qty,modifierIds:[],discountMinor:0,note:''});}
 async function pay(sale:string,amount=10700){await change('payment.create',sale,{method:'cash',amountMinor:amount,tenderedMinor:amount,reference:''});}
 async function kitchen(sale:string,action:string){const f=(await one(db,'SELECT f.* FROM pos_fulfillments f JOIN pos_lines l ON l.fulfillment_id=f.id WHERE l.sale_id=?',sale))!;return command(`kitchen.${action}`,{id:f.id,expectedVersion:f.version,reason:'customer changed order'});}
+async function clearPosSetup(){await run(db,'DELETE FROM pos_shifts');await run(db,'DELETE FROM pos_tables');await run(db,'DELETE FROM pos_registers');await run(db,'DELETE FROM pos_settings');}
 beforeAll(async()=>{await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS)]);},120000);
 beforeEach(async()=>{
  await db.exec(`TRUNCATE hospitality_tax_documents,company_feature_rollouts,pms_sources,pms_postings,pms_records,pms_properties,pos_receipts,pos_audit,pos_jobs,pos_stripe_events,pos_settlements,pos_oauth_states,pos_connections,pos_connection_history,pos_cash_movements,pos_refund_payments,pos_refunds,pos_payments,pos_lines,pos_reservations,pos_stock_moves,pos_fulfillments,pos_sales,pos_tables,pos_shifts,pos_registers,pos_catalog,pos_settings,pos_postings,finance_bank_transactions,finance_bank_statements,finance_allocations,finance_invoices,finance_payments,finance_journal_lines,finance_journals,finance_parties,commerce_stock,commerce_products,commerce_warehouses,commerce_settings,finance_accounts,finance_periods,finance_charts,assignments,command_assertions CASCADE;
@@ -40,6 +41,131 @@ beforeEach(async()=>{
  await command('catalog.save',{productId:'latte',barcode:'8850001',category:'Coffee',kind:'recipe',station:'Bar',recipe:[{productId:'milk',quantityMilli:200}],modifiers:[],taxInclusive:false,expectedVersion:0});
 });
 describe('POS committed business flows',()=>{
+ it('bootstraps a retail register from Commerce once, reuses its primary accounts, and preserves code collisions',async()=>{
+  await clearPosSetup();
+  await run(db,"INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,created_at,updated_at) VALUES('legacy-pos-advance','chart','pos-company','POS-CUSTOMER-ADVANCES','Legacy account','liability',0,0)");
+  const result=await command('settings.bootstrap',{},actor,'pos-bootstrap-first-time');
+  expect(result).toMatchObject({id:'pos-company',registerName:'Main retail register',warehouseId:'warehouse'});
+  expect((result.accountsCreated as unknown[])).toHaveLength(11);
+  const accounts=JSON.parse(String((await one(db,'SELECT accounts_json FROM pos_settings WHERE company_id=?','pos-company'))!.accounts_json));
+  expect(accounts).toMatchObject({chartId:'chart',cash:'cash',receivable:'receivable',revenue:'revenue',outputTax:'outputTax',inventory:'inventory',cogs:'cogs'});
+  expect(accounts.bank).toBe(result.bankAccountId);
+  expect(accounts.edc).not.toBe('advance');
+  expect(accounts.stripe).not.toBe('advance');
+  expect(await one(db,'SELECT code,name,category FROM finance_accounts WHERE id=?','legacy-pos-advance')).toEqual({code:'POS-CUSTOMER-ADVANCES',name:'Legacy account',category:'liability'});
+  expect(await one(db,'SELECT code,category,control_kind,is_control,currency FROM finance_accounts WHERE id=?',accounts.bank)).toMatchObject({code:'POS-BANK',category:'asset',control_kind:'bank',is_control:1,currency:'THB'});
+  expect(await one(db,'SELECT id,mode,active,warehouse_id FROM pos_registers WHERE id=?',result.registerId)).toMatchObject({mode:'retail',active:true,warehouse_id:'warehouse'});
+  expect(await one(db,'SELECT count(*) n FROM pos_shifts')).toEqual({n:0});
+  expect(await command('settings.bootstrap',{},actor,'pos-bootstrap-first-time')).toEqual(result);
+  await expect(command('settings.bootstrap',{},actor,'pos-bootstrap-second-key')).rejects.toMatchObject({code:'POS_ALREADY_CONFIGURED'});
+  expect(await one(db,"SELECT count(*) n FROM pos_registers WHERE company_id='pos-company' AND mode='retail'")).toEqual({n:1});
+  expect(await one(db,"SELECT code FROM finance_accounts WHERE id=?",accounts.advance)).toEqual({code:'POS-CUSTOMER-ADVANCES-2'});
+ });
+
+ it('requires both POS configure and Finance write access for retail setup',async()=>{
+  await clearPosSetup();
+  const posOnly={...actor,permissions:['pos.configure']} as WorkContext;
+  const financeOnly={...actor,permissions:['finance.write']} as WorkContext;
+  await expect(command('settings.bootstrap',{},posOnly,'pos-bootstrap-no-finance')).rejects.toMatchObject({code:'PERMISSION_REQUIRED'});
+  await expect(command('settings.bootstrap',{},financeOnly,'pos-bootstrap-no-pos')).rejects.toMatchObject({code:'PERMISSION_REQUIRED'});
+  expect(await one(db,'SELECT count(*) n FROM pos_settings')).toEqual({n:0});
+  expect(await one(db,"SELECT count(*) n FROM finance_accounts WHERE code LIKE 'POS-%'")).toEqual({n:0});
+ });
+
+ it('rejects a Commerce and chart currency mismatch before creating any accounts',async()=>{
+  await clearPosSetup();
+  await run(db,"UPDATE finance_charts SET base_currency='USD' WHERE id='chart'");
+  await expect(command('settings.bootstrap',{},actor,'pos-bootstrap-currency-mismatch')).rejects.toMatchObject({code:'POS_CURRENCY_MISMATCH'});
+  expect(await one(db,'SELECT count(*) n FROM pos_settings')).toEqual({n:0});
+  expect(await one(db,"SELECT count(*) n FROM finance_accounts WHERE code LIKE 'POS-%'")).toEqual({n:0});
+ });
+
+ it('keeps an existing POS policy and register unchanged when bootstrap is requested',async()=>{
+  await run(db,"UPDATE pos_settings SET enabled=false,cashier_discount_bps=250,version=7 WHERE company_id='pos-company'");
+  await run(db,"UPDATE pos_registers SET name='Keep existing register' WHERE id='retail'");
+  const settingsBefore=await one(db,'SELECT * FROM pos_settings WHERE company_id=?','pos-company');
+  const registerBefore=await one(db,'SELECT * FROM pos_registers WHERE id=?','retail');
+  await expect(command('settings.bootstrap',{},actor,'pos-bootstrap-preserve-existing')).rejects.toMatchObject({code:'POS_ALREADY_CONFIGURED'});
+  expect(await one(db,'SELECT * FROM pos_settings WHERE company_id=?','pos-company')).toEqual(settingsBefore);
+  expect(await one(db,'SELECT * FROM pos_registers WHERE id=?','retail')).toEqual(registerBefore);
+ });
+
+ it('attaches POS settings to one existing retail register without changing it',async()=>{
+  await run(db,'DELETE FROM pos_settings WHERE company_id=?','pos-company');
+  const registerBefore=await one(db,'SELECT * FROM pos_registers WHERE id=?','retail');
+  const result=await command('settings.bootstrap',{},actor,'pos-bootstrap-reuse-register');
+  expect(result).toMatchObject({registerId:'retail',registerName:'Shop',warehouseId:'warehouse',registerReused:true});
+  expect(await one(db,'SELECT * FROM pos_registers WHERE id=?','retail')).toEqual(registerBefore);
+  expect(await one(db,"SELECT count(*) n FROM pos_registers WHERE company_id='pos-company' AND mode='retail'")).toEqual({n:1});
+  expect(await one(db,'SELECT currency,enabled FROM pos_settings WHERE company_id=?','pos-company')).toEqual({currency:'THB',enabled:true});
+ });
+
+ it('asks which existing retail register to configure when a company has several',async()=>{
+  await run(db,'DELETE FROM pos_settings WHERE company_id=?','pos-company');
+  await run(db,"INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode) VALUES('retail-2','pos-company','pos-branch','warehouse','Second shop','retail')");
+  await expect(command('settings.bootstrap',{},actor,'pos-bootstrap-register-choice-required')).rejects.toMatchObject({code:'POS_REGISTER_SELECTION_REQUIRED'});
+  await expect(command('settings.bootstrap',{registerId:'restaurant'},actor,'pos-bootstrap-register-invalid')).rejects.toMatchObject({code:'POS_REGISTER_INVALID'});
+  const result=await command('settings.bootstrap',{registerId:'retail-2'},actor,'pos-bootstrap-register-choice');
+  expect(result).toMatchObject({registerId:'retail-2',registerName:'Second shop',registerReused:true});
+  expect(await one(db,'SELECT name,active FROM pos_registers WHERE id=?','retail-2')).toEqual({name:'Second shop',active:true});
+ });
+
+ it('requires only the warehouse and bank choice that Commerce cannot infer',async()=>{
+  await clearPosSetup();
+  await run(db,"INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name) VALUES('warehouse-2','pos-company','pos-branch','POS-2','Second warehouse')");
+  await run(db,"INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES('bank-choice-1','chart','pos-company','BANK-1','Bank one','asset','THB',1,'bank',0,0),('bank-choice-2','chart','pos-company','BANK-2','Bank two','asset','THB',1,'bank',0,0)");
+  await expect(command('settings.bootstrap',{},actor,'pos-bootstrap-warehouse-choice')).rejects.toMatchObject({code:'POS_WAREHOUSE_SELECTION_REQUIRED'});
+  await expect(command('settings.bootstrap',{warehouseId:'warehouse'},actor,'pos-bootstrap-bank-choice')).rejects.toMatchObject({code:'POS_BANK_ACCOUNT_SELECTION_REQUIRED'});
+  const result=await command('settings.bootstrap',{warehouseId:'warehouse-2',bankAccountId:'bank-choice-2'},actor,'pos-bootstrap-selected-options');
+  expect(result).toMatchObject({warehouseId:'warehouse-2',bankAccountId:'bank-choice-2'});
+  expect(result.accountsCreated).toHaveLength(10);
+  expect(await one(db,'SELECT branch_id,warehouse_id,mode FROM pos_registers WHERE id=?',result.registerId)).toEqual({branch_id:'pos-branch',warehouse_id:'warehouse-2',mode:'retail'});
+ });
+
+ it('rolls back every generated account and POS record if retail register creation fails',async()=>{
+  await clearPosSetup();
+  await db.exec("CREATE OR REPLACE FUNCTION pos_test_fail_register_insert() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'forced POS bootstrap failure'; END $$; CREATE TRIGGER pos_test_fail_register_insert BEFORE INSERT ON pos_registers FOR EACH ROW EXECUTE FUNCTION pos_test_fail_register_insert();");
+  try{
+   await expect(command('settings.bootstrap',{},actor,'pos-bootstrap-forced-rollback')).rejects.toThrow('forced POS bootstrap failure');
+  }finally{
+   await db.exec('DROP TRIGGER IF EXISTS pos_test_fail_register_insert ON pos_registers; DROP FUNCTION IF EXISTS pos_test_fail_register_insert();');
+  }
+  expect(await one(db,'SELECT count(*) n FROM pos_settings')).toEqual({n:0});
+  expect(await one(db,'SELECT count(*) n FROM pos_registers')).toEqual({n:0});
+  expect(await one(db,"SELECT count(*) n FROM finance_accounts WHERE code LIKE 'POS-%'")).toEqual({n:0});
+ });
+
+ it('supports a cash sale after bootstrap without opening a session automatically',async()=>{
+  await clearPosSetup();
+  const setup=await command('settings.bootstrap',{},actor,'pos-bootstrap-cash-sale');
+  expect(await one(db,'SELECT count(*) n FROM pos_shifts')).toEqual({n:0});
+  const shift=await command('shift.open',{registerId:setup.registerId,openingMinor:25000},actor,'pos-bootstrap-open-cash');
+  const sale=String((await command('sale.create',{shiftId:shift.id,serviceMode:'retail'},actor,'pos-bootstrap-cash-sale-create')).id);
+  await add(sale,'tea');
+  await pay(sale);
+  await change('sale.complete',sale);
+  expect(await one(db,'SELECT state,currency FROM pos_sales WHERE id=?',sale)).toEqual({state:'completed',currency:'THB'});
+  expect(await one(db,"SELECT count(*) n FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.source_type='pos' AND j.source_id=? AND l.account_id='cash' AND l.debit_minor=10700",sale)).toEqual({n:1});
+ });
+
+ it('matches a transfer sale to imported bank evidence using the bootstrapped bank account',async()=>{
+  await clearPosSetup();
+  const setup=await command('settings.bootstrap',{},actor,'pos-bootstrap-transfer-sale');
+  const shift=await command('shift.open',{registerId:setup.registerId,openingMinor:0},actor,'pos-bootstrap-open-transfer');
+  const sale=String((await command('sale.create',{shiftId:shift.id,serviceMode:'retail'},actor,'pos-bootstrap-transfer-create')).id);
+  await add(sale,'tea');
+  const payment=await change('payment.create',sale,{method:'transfer',amountMinor:10700,tenderedMinor:10700,reference:'POS-TRANSFER-001'});
+  const businessDate=String((await one(db,'SELECT business_date FROM pos_sales WHERE id=?',sale))!.business_date);
+  await run(db,"INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,opening_minor,closing_minor,source_hash,imported_by,created_at) VALUES('bootstrap-statement','pos-company',?,'BOOTSTRAP-1',?,0,10700,'bootstrap-bank','finance',0)",setup.bankAccountId,businessDate);
+  await run(db,"INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,amount_minor,currency) VALUES('bootstrap-bank-row','bootstrap-statement','pos-company',?,'POS-TRANSFER-001',10700,'THB')",businessDate);
+  expect((await one(db,'SELECT state FROM pos_payments WHERE id=?',payment.id))?.state).toBe('pending');
+  const bank=await one(db,"SELECT version FROM finance_bank_transactions WHERE id='bootstrap-bank-row'");
+  await command('payment.verify_transfer',{id:payment.id,expectedVersion:2,bankTransactionId:'bootstrap-bank-row',bankVersion:bank!.version},manager,'pos-bootstrap-transfer-match');
+  expect(await one(db,"SELECT match_status,matched_type FROM finance_bank_transactions WHERE id='bootstrap-bank-row'")).toEqual({match_status:'matched',matched_type:'payment'});
+  await change('sale.complete',sale);
+  expect((await one(db,'SELECT state FROM pos_sales WHERE id=?',sale))?.state).toBe('completed');
+ });
+
  it('cannot open a restaurant session while the hotel closes or has a different business date',async()=>{
   await run(db,"UPDATE pos_shifts SET state='closed',counted_minor=10000,expected_minor=10000,variance_minor=0,closed_at=1 WHERE id='shift-retail'");
   await run(db,"INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,created_by,updated_at) VALUES('hotel','pos-company','pos-branch','Hotel',?,'closing',?,'system',0)",businessDate(),JSON.stringify(defaultConfig));
@@ -341,6 +467,25 @@ describe('POS committed business flows',()=>{
  });
 });
 describe('POS provider recovery and reporting',()=>{
+ it('creates a bank-scannable PromptPay QR on the company account and settles only after provider verification',async()=>{
+  await run(db,"INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES('pos-company','acct_original',false,true,true,true,true,'ready','daily',true)");
+  vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_pos_fixture_not_a_real_key');
+  const sale=await createSale();await add(sale);
+  const payment=await change('payment.create',sale,{method:'stripe_promptpay',amountMinor:10700,tenderedMinor:10700,payerEmail:''});
+  let paid=false;
+  const fetcher=vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{
+   expect(new Headers(init?.headers).get('Stripe-Account')).toBe('acct_original');
+   if(init?.method==='POST')return new Response(JSON.stringify({id:'pi_promptpay',status:'requires_action',next_action:{promptpay_display_qr_code:{data:'000201010212'}}}));
+   return new Response(JSON.stringify({id:'pi_promptpay',status:paid?'succeeded':'requires_action',amount_received:paid?10700:0,currency:'thb',metadata:{pos_payment_id:payment.id}}));
+  });
+  vi.stubGlobal('fetch',fetcher);await drainPos(db,'h001');
+  expect(await one(db,'SELECT provider_id,qr_data,checkout_url,state FROM pos_payments WHERE id=?',payment.id)).toMatchObject({provider_id:'pi_promptpay',qr_data:'000201010212',checkout_url:null,state:'pending'});
+  expect(await one(db,'SELECT COUNT(*) n FROM finance_payments')).toEqual({n:0});
+  paid=true;await run(db,"UPDATE pos_jobs SET next_attempt_at=0 WHERE kind='check_payment'");await drainPos(db,'h001');
+  expect((await one(db,'SELECT state FROM pos_sales WHERE id=?',sale))?.state).toBe('completed');
+  expect(await one(db,'SELECT COUNT(*) n FROM finance_payments')).toEqual({n:1});
+  expect(fetcher.mock.calls.some(([url])=>String(url).includes('checkout/sessions'))).toBe(false);
+ });
  async function stripePending(){
   await run(db,"INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state) VALUES('pos-company','acct_original',false,true,true,true,true,'ready')");
   const sale=await createSale();await add(sale);
@@ -379,9 +524,9 @@ describe('POS provider recovery and reporting',()=>{
  });
  it('hosted onboarding accepts account-link responses without an object id',async()=>{
   vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_fixture');vi.stubEnv('ERPX_PUBLIC_ORIGIN','https://pos.example.test');
-  const fetcher=vi.fn(async(url:string|URL|Request)=>new Response(JSON.stringify(String(url).endsWith('/account_links')?{object:'account_link',url:'https://connect.stripe.com/setup/test'}:{id:'acct_onboard_fixture',country:'TH',charges_enabled:false,payouts_enabled:false,capabilities:{},requirements:{currently_due:['business_profile.url']}})));
+  const fetcher=vi.fn(async(url:string|URL|Request)=>new Response(JSON.stringify(String(url).endsWith('/account_links')?{object:'account_link',url:'https://connect.stripe.com/setup/test'}:String(url).includes('/external_accounts')?{data:[]}:{id:'acct_onboard_fixture',country:'TH',charges_enabled:false,payouts_enabled:false,capabilities:{},requirements:{currently_due:['business_profile.url']}})));
   vi.stubGlobal('fetch',fetcher);await command('connection.create',{livemode:false});await drainPos(db,'h001');
-  expect((await one(db,"SELECT state FROM pos_jobs WHERE kind='connect'"))?.state).toBe('completed');expect(fetcher).toHaveBeenCalledTimes(3);
+  expect((await one(db,"SELECT state FROM pos_jobs WHERE kind='connect'"))?.state).toBe('completed');expect(fetcher).toHaveBeenCalledTimes(4);
  });
  it('failed provider refund retries with a new attempt only after review and never restores stock twice',async()=>{
   const {sale,payment}=await stripePending();vi.stubGlobal('fetch',mockPaid(payment));await drainPos(db,'h001');

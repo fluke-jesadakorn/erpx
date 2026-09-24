@@ -44,6 +44,9 @@ function define(
   });
 }
 
+define("manage_erpx.access", "Access Manage ERPX", "manage_erpx", [owner], ["ERPX Holding and active Platform assignment"], "privileged");
+definitions[definitions.length - 1].permittedScopes = ["holding"];
+
 for(const action of ["read","create","work","manage"] as const) define(`support.${action}`,`Support ${action}`,"support",action==='manage'?[owner,"support_manager"]:action==='work'?[owner,"support_agent","support_manager"]:[owner,"support_agent","support_manager","sales_operator","sales_manager"],["Source scope; current eligible owner; independent recorded customer confirmation"],action==='manage'?'privileged':'normal');
 const legalPermissions = ["read", "create", "edit", "review", "approve", "sign", "share", "export", "hold", "hold.release", "manage", "ai"] as const;
 define("legal.destroy","Authorize Legal destruction","legal",[owner,"legal_manager"],["Independent approval; no active hold; approved retention policy"]);
@@ -490,6 +493,17 @@ for (const p of definitions.filter((p) => p.module === "identity_access"))
         ? ["platform_admin", "platform_auditor"]
         : ["platform_admin"],
   });
+definitions.push({
+  id: "platform.executive.read",
+  label: "View Platform Executive insights",
+  module: "platform_administration",
+  roles: ["platform_admin", "platform_auditor"],
+  conditions: ["PlatformContext and control-plane data only"],
+  risk: "normal",
+  availability: "live",
+  namespace: "platform",
+  permittedScopes: ["platform"],
+});
 for (const p of definitions) {
   if (
     [

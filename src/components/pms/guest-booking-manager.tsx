@@ -66,6 +66,7 @@ export function GuestBookingManager({ slug }: { slug: string }) {
           </span>
           <h2>{booking.hotel.name}</h2>
           <p>Confirmation {booking.number}</p>
+          {booking.refundState&&<p>Refund status: {booking.refundState.replaceAll('_',' ')}</p>}
           <p>{booking.guest.name}</p>
           {booking.rooms.map((r, i) => (
             <div key={i} className={styles.offer}>
@@ -120,7 +121,7 @@ export function GuestBookingManager({ slug }: { slug: string }) {
                       );
                     setBooking(j.data);
                     setNotice(
-                      "All rooms have been cancelled without a fee. A cancellation email is on its way.",
+                      "All rooms have been cancelled without a fee. Finance will approve the refund, and Stripe will confirm it. A cancellation email is on its way.",
                     );
                     setConfirmCancel(false);
                   } catch (e) {

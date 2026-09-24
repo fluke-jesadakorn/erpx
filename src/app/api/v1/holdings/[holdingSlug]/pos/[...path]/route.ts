@@ -23,6 +23,6 @@ export async function GET(request:Request,{params}:Context){
   const {holdingSlug,path}=await params;if(path.join('/')!=='connect/callback')throw new ApiError(404,'NOT_FOUND','Not found.');
   const actor=await requireWorkContext(holdingSlug),url=new URL(request.url);if(url.searchParams.has('error'))throw new ApiError(422,'STRIPE_CONNECT_CANCELLED','Connection was cancelled. Start again from POS settings.');
   await finishPosOAuth(actor,z.string().uuid().parse(url.searchParams.get('state')),z.string().min(1).parse(url.searchParams.get('code')));
-  return Response.redirect(new URL(`/holdings/${holdingSlug}/pos?tab=settings`,requestPublicOrigin(request)),303);
+  return Response.redirect(new URL(`/holdings/${holdingSlug}/settings/stripe`,requestPublicOrigin(request)),303);
  }catch(error){return errorResponse(error);}
 }

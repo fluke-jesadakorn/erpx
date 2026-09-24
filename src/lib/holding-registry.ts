@@ -7,13 +7,15 @@ export type ResourceSlot = {
   read: string;
   files: string;
   beta?: boolean;
+  internal?: boolean;
 };
 export type RegistryEnv = { ERPX_RESOURCE_SLOTS?: string };
-const legacy: ResourceSlot[] = [1, 2].map((n) => ({
+const legacy: ResourceSlot[] = [1, 2, 3].map((n) => ({
   id: `h00${n}`,
   write: `H00${n}_DB`,
   read: `H00${n}_READ_DB`,
   files: `H00${n}_FILES`,
+  ...(n === 3 ? { internal: true } : {}),
 }));
 export function resourceSlots(env: RegistryEnv): ResourceSlot[] {
   const value: unknown = env.ERPX_RESOURCE_SLOTS

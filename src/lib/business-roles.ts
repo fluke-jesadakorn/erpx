@@ -28,7 +28,7 @@ export const businessRoles = {
   finance_approver: ["finance", "pms"],
   treasury: ["finance", "people_payroll"],
   sales_operator: ["sales", "crm", "customer_360", "inventory", "support"],
-  sales_manager: ["sales", "crm", "customer_360", "inventory", "support"],
+  sales_manager: ["sales", "crm", "customer_360", "inventory", "support", "marketing"],
   purchasing_operator: ["procurement", "inventory"],
   purchasing_manager: ["procurement", "inventory"],
   warehouse_manager: ["inventory", "operations"],

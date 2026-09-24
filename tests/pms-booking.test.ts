@@ -1,6 +1,9 @@
 import { cancellationEligibility, localDeadline } from "../src/lib/pms-booking";
 import {
   createPublicReservation,
+  bookingPaymentStatus,
+  approveBookingRefund,
+  processBookingRefund,
   publicQuote,
   cancelPublicReservation,
   manageBooking,
@@ -12,7 +15,8 @@ import {
   recoverBooking,
 } from "../src/server/pms-booking";
 import { createHmac } from "node:crypto";
-import { beforeAll, beforeEach, expect, it, vi } from "vitest";
+import {createPmsStripePayment,pmsStripePaymentStatus,requestPmsStripeRefund,approvePmsStripeRefund,processPmsStripeRefund} from '../src/server/pms-stripe';
+import { beforeAll, beforeEach, afterEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "./runtime-env";
 import { seedExpenseCompany } from "../fixtures/expenses/company";
 import { pmsCommand, loadPms } from "../src/server/pms";
@@ -51,7 +55,11 @@ async function cmd(operation: string, input: unknown = {}, actor = owner) {
   );
 }
 beforeEach(async () => {
+  vi.stubEnv('PMS_STRIPE_BOOKING_ENABLED','false');
   f = await seedExpenseCompany(db, env.H001_FILES);
+  await db.prepare('DELETE FROM pms_booking_payments').run();
+  await db.prepare('DELETE FROM pos_connections WHERE company_id=?').bind(f.company).run();
+  await db.prepare("DELETE FROM pos_connections WHERE account_id='acct_hotel'").run();
   owner = f.owner;
   reviewer = await f.member("hotel-reviewer", "finance_approver");
   propertyId = (
@@ -119,6 +127,7 @@ beforeEach(async () => {
   await cmd("booking.save", settings());
   guestId = (await cmd("guest.save", { name: "Test Guest" })).id;
 });
+afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();});
 
 const now = Date.parse("2026-09-01T00:00:00Z");
 const delivery = {
@@ -576,4 +585,119 @@ it("keeps confirmation replay immutable after cancellation", async () => {
       now + 3600000,
     ),
   ).toEqual(original);
+});
+it('holds two rooms, then confirms and allocates each folio only after Stripe verifies the direct charge',async()=>{
+  vi.stubEnv('PMS_STRIPE_BOOKING_ENABLED','true');vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_booking_fixture');
+  await cmd('room.save',{number:'102',typeId,active:true});
+  await db.prepare("INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES(?, 'acct_hotel',false,true,true,true,true,'ready','daily',true)").bind(f.company).run();
+  let paid=false,attemptId='',amount=0;
+  vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{
+    expect(new Headers(init?.headers).get('Stripe-Account')).toBe('acct_hotel');
+    if(init?.method==='POST')return new Response(JSON.stringify({id:'cs_hotel',url:'https://checkout.stripe.com/c/pay/hotel'}));
+    if(String(url).includes('payment_intents/'))return new Response(JSON.stringify({id:'pi_hotel',status:'succeeded',amount_received:amount,currency:'thb',metadata:{pms_booking_payment_id:attemptId}}));
+    return new Response(JSON.stringify({id:'cs_hotel',status:'complete',payment_status:paid?'paid':'unpaid',payment_intent:'pi_hotel'}));
+  }));
+  const input=await request({quantity:2});
+  const pending=await createPublicReservation(db,'acme',input,key(),delivery,now);
+  expect(pending.state).toBe('payment_pending');expect(pending.checkoutUrl).toContain('checkout.stripe.com');
+  attemptId=pending.attemptToken!.split('.')[0];amount=Number((await db.prepare('SELECT amount_minor FROM pms_booking_payments WHERE id=?').bind(attemptId).first<{amount_minor:number}>())!.amount_minor);
+  expect(records(await snapshot(),'entry')).toHaveLength(0);
+  paid=true;
+  const confirmed=await bookingPaymentStatus(db,pending.attemptToken!,delivery,now+1000);
+  expect(confirmed.state).toBe('confirmed');
+  const s=await snapshot();expect(records(s,'folio')).toHaveLength(2);expect(records(s,'entry').filter(e=>e.data.method==='stripe')).toHaveLength(2);
+  expect((await db.prepare('SELECT COUNT(*) n FROM pms_booking_emails WHERE reservation_id=?').bind(pending.id).first<{n:number}>())!.n).toBe(1);
+});
+it('releases an unpaid hold and sends a payment that arrives later to refund review',async()=>{
+  vi.stubEnv('PMS_STRIPE_BOOKING_ENABLED','true');vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_booking_fixture');
+  await db.prepare("INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES(?, 'acct_hotel',false,true,true,true,true,'ready','daily',true)").bind(f.company).run();
+  let paid=false,attemptId='',amount=0;
+  vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{
+    if(String(url).includes('payment_intents/'))return new Response(JSON.stringify({id:'pi_hotel',status:'succeeded',amount_received:amount,currency:'thb',metadata:{pms_booking_payment_id:attemptId}}));
+    if(init?.method==='POST'&&String(url).includes('/expire'))return new Response(JSON.stringify({id:'cs_hotel',status:'expired'}));
+    if(init?.method==='POST')return new Response(JSON.stringify({id:'cs_hotel',url:'https://checkout.stripe.com/c/pay/hotel'}));
+    return new Response(JSON.stringify({id:'cs_hotel',status:paid?'complete':'expired',payment_status:paid?'paid':'unpaid',payment_intent:'pi_hotel'}));
+  }));
+  const pending=await createPublicReservation(db,'acme',await request(),key(),delivery,now);
+  attemptId=pending.attemptToken!.split('.')[0];amount=Number((await db.prepare('SELECT amount_minor FROM pms_booking_payments WHERE id=?').bind(attemptId).first<{amount_minor:number}>())!.amount_minor);
+  const expired=await bookingPaymentStatus(db,pending.attemptToken!,delivery,now+31*60*1000);
+  expect(expired.state).toBe('expired');expect(availability(await snapshot(),typeId,'2026-09-05').available).toBe(1);
+  paid=true;
+  const late=await bookingPaymentStatus(db,pending.attemptToken!,delivery,now+32*60*1000);
+  expect(late.state).toBe('refund_review');expect(late.refundState).toBe('requested');
+  expect(availability(await snapshot(),typeId,'2026-09-05').available).toBe(1);
+});
+it('requires Finance approval and Stripe success before a free-cancellation refund reaches each folio',async()=>{
+  vi.stubEnv('PMS_STRIPE_BOOKING_ENABLED','true');vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_booking_fixture');
+  await db.prepare("INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES(?, 'acct_hotel',false,true,true,true,true,'ready','daily',true)").bind(f.company).run();
+  let attemptId='',amount=0,refundState='pending';
+  vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{
+    const path=String(url);
+    if(path.includes('/refunds/'))return new Response(JSON.stringify({id:'re_hotel',amount,metadata:{pms_booking_payment_id:attemptId},status:refundState}));
+    if(path.endsWith('/refunds')&&init?.method==='POST')return new Response(JSON.stringify({id:'re_hotel',status:'pending'}));
+    if(path.includes('payment_intents/'))return new Response(JSON.stringify({id:'pi_hotel',status:'succeeded',amount_received:amount,currency:'thb',metadata:{pms_booking_payment_id:attemptId}}));
+    if(init?.method==='POST')return new Response(JSON.stringify({id:'cs_hotel',url:'https://checkout.stripe.com/c/pay/hotel'}));
+    return new Response(JSON.stringify({id:'cs_hotel',status:'complete',payment_status:'paid',payment_intent:'pi_hotel'}));
+  }));
+  const pending=await createPublicReservation(db,'acme',await request(),key(),delivery,now);
+  attemptId=pending.attemptToken!.split('.')[0];amount=Number((await db.prepare('SELECT amount_minor FROM pms_booking_payments WHERE id=?').bind(attemptId).first<{amount_minor:number}>())!.amount_minor);
+  await bookingPaymentStatus(db,pending.attemptToken!,delivery,now+1000);
+  const cancelled=await cancelPublicReservation(db,'acme',await token(pending.id),delivery,now+2000);
+  expect(cancelled.refundState).toBe('requested');
+  expect((await db.prepare('SELECT refund_id FROM pms_booking_payments WHERE id=?').bind(attemptId).first<{refund_id:string|null}>())!.refund_id).toBeNull();
+  await approveBookingRefund(db,reviewer,attemptId);
+  await processBookingRefund(db,attemptId,now+3000);
+  expect((await db.prepare('SELECT refund_state FROM pms_booking_payments WHERE id=?').bind(attemptId).first<{refund_state:string}>())!.refund_state).toBe('processing');
+  refundState='succeeded';await processBookingRefund(db,attemptId,now+4000);
+  expect((await db.prepare('SELECT refund_state FROM pms_booking_payments WHERE id=?').bind(attemptId).first<{refund_state:string}>())!.refund_state).toBe('succeeded');
+  expect(records(await snapshot(),'folio')[0].data.advance).toBe(0);
+});
+it('posts a counter PromptPay room payment and deposit only after Stripe confirms each intent',async()=>{
+  vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_booking_fixture');
+  await db.prepare("INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES(?, 'acct_hotel',false,true,true,true,true,'ready','daily',true)").bind(f.company).run();
+  const reservation=await cmd('reservation.create',{guestId,source:'direct',rooms:[selection()]});
+  const folio=records(await snapshot(),'folio').find(item=>item.data.reservationId===reservation.id)!;
+  let paid=false,activeId='',activeAmount=0,serial=0;
+  vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{
+    expect(new Headers(init?.headers).get('Stripe-Account')).toBe('acct_hotel');
+    if(init?.method==='POST'){
+      const body=init.body as URLSearchParams;activeId=body.get('metadata[pms_counter_payment_id]')??'';activeAmount=Number(body.get('amount'));serial++;
+      return new Response(JSON.stringify({id:`pi_counter_${serial}`,status:'requires_action',next_action:{promptpay_display_qr_code:{data:'000201010212'}}}));
+    }
+    return new Response(JSON.stringify({id:`pi_counter_${serial}`,status:paid?'succeeded':'requires_action',amount_received:paid?activeAmount:0,currency:'thb',metadata:{pms_counter_payment_id:activeId}}));
+  }));
+  const receipt=await createPmsStripePayment(db,owner,{propertyId,folioId:folio.id,kind:'receipt',amountMinor:5000,payerEmail:''},key(),now);
+  expect(receipt.state).toBe('pending');expect(receipt.qrData).toBe('000201010212');expect(records(await snapshot(),'entry')).toHaveLength(0);
+  paid=true;expect((await pmsStripePaymentStatus(db,owner,receipt.id,now+1000)).state).toBe('succeeded');
+  paid=false;
+  const deposit=await createPmsStripePayment(db,owner,{propertyId,folioId:folio.id,kind:'deposit',amountMinor:2000,payerEmail:''},key(),now+2000);
+  paid=true;expect((await pmsStripePaymentStatus(db,owner,deposit.id,now+3000)).state).toBe('succeeded');
+  const latest=record(await snapshot(),'folio',folio.id);
+  expect(latest.data.advance).toBe(5000);expect(latest.data.deposit).toBe(2000);
+});
+it('requires an independent Finance approval and Stripe confirmation for a counter refund',async()=>{
+  vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_booking_fixture');
+  await db.prepare("INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES(?, 'acct_hotel',false,true,true,true,true,'ready','daily',true)").bind(f.company).run();
+  const reservation=await cmd('reservation.create',{guestId,source:'direct',rooms:[selection()]});
+  const folio=records(await snapshot(),'folio').find(item=>item.data.reservationId===reservation.id)!;
+  let paymentId='',refundState='pending';
+  vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{
+    const path=String(url);
+    if(path.includes('/refunds/'))return new Response(JSON.stringify({id:'re_counter',amount:5000,status:refundState,metadata:{pms_counter_payment_id:paymentId}}));
+    if(path.endsWith('/refunds')&&init?.method==='POST')return new Response(JSON.stringify({id:'re_counter',status:'pending'}));
+    if(path.includes('payment_intents/'))return new Response(JSON.stringify({id:'pi_counter',status:'succeeded',amount_received:5000,currency:'thb',metadata:{pms_counter_payment_id:paymentId}}));
+    const body=init?.body as URLSearchParams;paymentId=body.get('metadata[pms_counter_payment_id]')??'';
+    return new Response(JSON.stringify({id:'pi_counter',status:'requires_action',next_action:{promptpay_display_qr_code:{data:'000201010212'}}}));
+  }));
+  const payment=await createPmsStripePayment(db,owner,{propertyId,folioId:folio.id,kind:'receipt',amountMinor:5000,payerEmail:'payer@example.com'},key(),now);
+  await pmsStripePaymentStatus(db,owner,payment.id,now+1000);
+  await requestPmsStripeRefund(db,owner,payment.id,5000,'Guest cancellation');
+  await expect(approvePmsStripeRefund(db,owner,payment.id)).rejects.toThrow();
+  expect((await db.prepare('SELECT refund_id FROM pms_stripe_payments WHERE id=?').bind(payment.id).first<{refund_id:string|null}>())!.refund_id).toBeNull();
+  await approvePmsStripeRefund(db,reviewer,payment.id);
+  await processPmsStripeRefund(db,payment.id,now+2000);
+  expect((await db.prepare('SELECT refund_state FROM pms_stripe_payments WHERE id=?').bind(payment.id).first<{refund_state:string}>())!.refund_state).toBe('processing');
+  refundState='succeeded';await processPmsStripeRefund(db,payment.id,now+3000);
+  expect((await db.prepare('SELECT refund_state FROM pms_stripe_payments WHERE id=?').bind(payment.id).first<{refund_state:string}>())!.refund_state).toBe('succeeded');
+  expect(record(await snapshot(),'folio',folio.id).data.advance).toBe(0);
 });

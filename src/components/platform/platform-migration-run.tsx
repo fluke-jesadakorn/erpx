@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { workFetch } from "@/lib/work-fetch";
 import { useState } from "react";
 
 type MigrationState = {
@@ -25,7 +26,7 @@ export function PlatformMigrationRun({ holdingId, migration, canRun }: { holding
     setError("");
     setResult("");
     try {
-      const response = await fetch("/api/v1/platform/operations/migrate", {
+      const response = await workFetch("/api/v1/platform/operations/migrate", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
         body: JSON.stringify({ holdingId, track: "holding-write", reason: reason.trim() }),

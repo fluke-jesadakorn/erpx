@@ -1,5 +1,5 @@
 import type { SqlDatabase } from "./runtime/types";
-import { sourceAccessSql } from "./social-source";
+import { socialPostScope } from "./social-source";
 import "server-only";
 
 import { z } from "zod";
@@ -69,17 +69,7 @@ export type SocialPost = {
 };
 
 function scopeSql(context: WorkContext, alias = "p") {
-  const now=Date.now();
-  const base = `${alias}.company_id=? AND ${alias}.state='published' AND ${sourceAccessSql(alias)}`;
-  if (context.departmentId)
-    return {
-      sql: `${base} AND (${alias}.department_id=? OR (${alias}.department_id IS NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id=?)))`,
-      bindings: [context.companyId,context.userId,now,now, context.departmentId, context.branchId],
-    };
-  return {
-    sql: `${base} AND (${alias}.branch_id IS NULL OR ?::text IS NULL OR ${alias}.branch_id=?)`,
-    bindings: [context.companyId,context.userId,now,now, context.branchId, context.branchId],
-  };
+  return socialPostScope(context,alias);
 }
 
 function filterSql(filter: FeedFilter) {

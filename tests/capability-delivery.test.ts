@@ -19,7 +19,8 @@ const statuses = new Set<DeliveryStatus>([
 describe("capability delivery inventory", () => {
   it("keeps production acceptance independent from implementation and provider labels", () => {
     const manifest = businessAcceptanceManifest();
-    expect(new Set(manifest.map(row => row.id)).size).toBe(183);
+    const registryCapabilities = registry.flatMap(module => module.sections.filter(section => section.capability).map(section => `${module.id}/${section.id}`));
+    expect(new Set(manifest.map(row => row.id))).toEqual(new Set(registryCapabilities));
     expect(new Set(manifest.flatMap(row => row.scenarios)).size).toBe(21);
     expect(new Set(manifest.flatMap(row => row.gaps)).size).toBe(20);
     for (const row of manifest) {
@@ -36,7 +37,7 @@ describe("capability delivery inventory", () => {
         .filter((section) => section.capability)
         .map((section) => [module.id, section.id] as const),
     );
-    expect(capabilities).toHaveLength(183);
+    expect(capabilities).toHaveLength(businessAcceptanceManifest().length);
     for (const [moduleId, capabilityId] of capabilities) {
       const evidence = capabilityDelivery(moduleId, capabilityId);
       expect(evidence, `${moduleId}/${capabilityId}`).toBeDefined();

@@ -19,7 +19,7 @@
 - [Cross-department implementation progress](testing/cross-department-implementation-progress.md): simulation-first development, verified changes and remaining phase gates.
 - [Business acceptance manifest](status/business-acceptance-manifest.json): scenario ownership and independent automated/browser/provider/production gates; simulation first.
 - [Acceptance evidence ledger](status/business-acceptance-evidence.json): durable, checksum-validated observations linked to capabilities; observations do not promote acceptance gates.
-- [Capability delivery matrix](status/capability-delivery-matrix.md): all 183 catalog capabilities including Legal mapped to delivery stage, current evidence and remaining acceptance gap.
+- [Capability delivery matrix](status/capability-delivery-matrix.md): all 187 catalog capabilities across 32 Company domain modules and the Manage ERPX system shell, including Legal, mapped to delivery stage, current evidence and remaining acceptance gap.
 - [Non-Legal core delivery checkpoint — 2026-09-19](testing/non-legal-core-checkpoint-2026-09-19.md): acceptance evidence, known baseline failures and the next delivery boundary for Stages 1–2.
 
 - [Pagination, deferred loading and Server Component audit — 2026-09-18](testing/list-performance-2026-09-18.md): implemented list changes, verification and remaining full-snapshot readers.
@@ -146,6 +146,7 @@ Notes: 31 deep 213→60L (6150→2156L) + MAP 31 + _shared 109L + Plan→docs/pl
 - [Local Mac deployment and recovery](../ops/macos/README.md) — active runtime (ADR-024).
 - [Development performance verification](testing/dev-performance-2026-09-22.md) — Work cache coverage, batched authorization, page timing and restart evidence.
 - [ADR-030: Temporary Samba directory authority](adr/ADR-030-temporary-samba-directory-authority.md) — Alpine ARM64 isolation, identity continuity and recovery boundary.
+- [ADR-031: ERPX Holding and dual authority](adr/ADR-031-erpx-holding-and-dual-authority.md) — internal Holding data and two-sided Manage ERPX access.
 - [Samba AD on the ERPX Mac](../ops/samba/README.md) — build, restore and runner operations for the temporary directory hosts.
 
 - [ADR-028: Sandbox cost + Support billing](adr/ADR-028-sandbox-cost-plus-support-billing.md)

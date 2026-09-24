@@ -9832,6 +9832,214 @@
         }
       },
       "evidenceRecordIds": []
+    },
+    {
+      "id": "manage_erpx/overview",
+      "label": "Overview",
+      "phase": 8,
+      "owner": "Platform operations / Platform Finance",
+      "scenarios": [
+        "S15",
+        "S19"
+      ],
+      "gaps": [
+        "G14",
+        "G17",
+        "G19"
+      ],
+      "implementation": {
+        "stage": 6,
+        "status": "implemented",
+        "ui": "src/app/holdings/[holdingSlug]/manage-erpx/page.tsx",
+        "api": "src/app/api/v1/platform/operations/route.ts; src/app/api/v1/platform/operations/provision/route.ts; src/app/api/v1/platform/operations/recover/route.ts; src/app/api/v1/platform/operations/migrate/route.ts",
+        "service": "src/server/platform-operations.ts",
+        "schema": "migrations/postgres/control",
+        "test": "tests/platform-operations.test.ts",
+        "gap": "Platform health, Holding jobs and migration state use the control plane and isolated Holding resources. Provisioning, recovery, backup operations and production RPO/RTO still require their independent acceptance evidence."
+      },
+      "gates": {
+        "automated": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        },
+        "browser": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        },
+        "provider": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        },
+        "production": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        }
+      },
+      "evidenceRecordIds": []
+    },
+    {
+      "id": "manage_erpx/billing",
+      "label": "Customer billing",
+      "phase": 8,
+      "owner": "Platform operations / Platform Finance",
+      "scenarios": [
+        "S15",
+        "S19"
+      ],
+      "gaps": [
+        "G14",
+        "G17",
+        "G19"
+      ],
+      "implementation": {
+        "stage": 6,
+        "status": "implemented",
+        "ui": "src/app/holdings/[holdingSlug]/manage-erpx/billing/page.tsx; src/components/billing/billing-console.tsx",
+        "api": "src/app/api/v1/platform/billing/[[...path]]/route.ts",
+        "service": "src/server/billing-api.ts; src/server/billing.ts; src/server/billing-stripe.ts",
+        "schema": "migrations/postgres/control",
+        "test": "tests/billing.test.ts; tests/billing-api.test.ts",
+        "gap": "Platform billing reads the control plane and keeps live payment, tax, refund and production acceptance separate from the sandbox implementation."
+      },
+      "gates": {
+        "automated": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        },
+        "browser": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        },
+        "provider": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        },
+        "production": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        }
+      },
+      "evidenceRecordIds": []
+    },
+    {
+      "id": "manage_erpx/iam",
+      "label": "Platform IAM",
+      "phase": 8,
+      "owner": "Platform operations / Platform Finance",
+      "scenarios": [
+        "S15",
+        "S19"
+      ],
+      "gaps": [
+        "G14",
+        "G17",
+        "G19"
+      ],
+      "implementation": {
+        "stage": 6,
+        "status": "implemented",
+        "ui": "src/app/holdings/[holdingSlug]/manage-erpx/iam/[[...section]]/page.tsx; src/components/iam/iam-console.tsx",
+        "api": "src/app/api/v1/platform/iam/[[...path]]/route.ts",
+        "service": "src/server/iam-api.ts; src/server/iam-service.ts; src/server/authorization.ts",
+        "schema": "migrations/postgres/control",
+        "test": "tests/iam.test.ts; tests/iam-providers.test.ts",
+        "gap": "Platform IAM requires current Platform authority and retains separate multi-role browser, provider and production acceptance gates."
+      },
+      "gates": {
+        "automated": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        },
+        "browser": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        },
+        "provider": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        },
+        "production": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        }
+      },
+      "evidenceRecordIds": []
+    },
+    {
+      "id": "manage_erpx/executive",
+      "label": "Platform Executive",
+      "phase": 8,
+      "owner": "Platform operations / Platform Finance",
+      "scenarios": [
+        "S15",
+        "S19"
+      ],
+      "gaps": [
+        "G14",
+        "G17",
+        "G19"
+      ],
+      "implementation": {
+        "stage": 6,
+        "status": "implemented",
+        "ui": "src/app/holdings/[holdingSlug]/manage-erpx/executive/page.tsx",
+        "api": "src/app/api/v1/platform/executive/route.ts",
+        "service": "src/server/platform-executive.ts",
+        "schema": "migrations/postgres/control",
+        "test": "tests/platform-operations.test.ts",
+        "gap": "The Platform Executive reads control-plane provisioning and service metrics through PlatformContext. Customer Holding data is excluded; source reconciliation, browser review and production acceptance remain pending."
+      },
+      "gates": {
+        "automated": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        },
+        "browser": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        },
+        "provider": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        },
+        "production": {
+          "state": "pending",
+          "evidence": null,
+          "reviewer": null,
+          "reviewedAt": null
+        }
+      },
+      "evidenceRecordIds": []
     }
   ]
 }

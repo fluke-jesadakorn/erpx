@@ -1,13 +1,28 @@
-// Public development assets may be cached by the proxy between runs. Give each
-// dev process one stable deployment ID shared by its server and browser assets.
-export {};
-const child = Bun.spawn(["next", "dev", "-p", "3100"], {
+// Reuse revalidated assets across restarts of the same source. A source change
+// gets a new deployment ID, retaining Next's version-skew protection.
+import { createHash } from "node:crypto";
+import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
+if (Bun.version !== "1.2.17") throw new Error("Development requires Bun 1.2.17.");
+const node = resolve(process.env.ERPX_NODE_BIN ?? ".runtime/node/node-v24.20.0-darwin-arm64/bin/node");
+if (Bun.spawnSync([node, "--version"]).stdout.toString().trim() !== "v24.20.0")
+  throw new Error("Development requires Node 24.20.0.");
+const fingerprint = createHash("sha256").update("node24.20.0:bun1.2.17");
+const sources = readdirSync("src", { recursive: true, withFileTypes: true })
+  .filter(entry => entry.isFile()).map(entry => resolve(entry.parentPath, entry.name));
+for (const file of [...sources, "bun.lock", "package.json", "next.config.ts", "tsconfig.json", "postcss.config.mjs"].sort()) {
+  fingerprint.update(file).update("\0").update(readFileSync(file)).update("\0");
+}
+for (const key of Object.keys(process.env).filter(key => key.startsWith("NEXT_PUBLIC_")).sort())
+  fingerprint.update(key).update("\0").update(process.env[key] ?? "").update("\0");
+const deploymentId = `dev-${fingerprint.digest("hex").slice(0, 24)}`;
+const child = Bun.spawn([node, resolve("node_modules/next/dist/bin/next"), "dev", "-p", "3100", ...process.argv.slice(2)], {
   stdin: "inherit",
   stdout: "inherit",
   stderr: "inherit",
   env: {
     ...process.env,
-    NEXT_DEPLOYMENT_ID: `dev-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
+    NEXT_DEPLOYMENT_ID: deploymentId,
   },
 });
 for (const signal of ["SIGINT", "SIGTERM"] as const)

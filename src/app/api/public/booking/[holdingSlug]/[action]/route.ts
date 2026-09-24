@@ -5,6 +5,7 @@ import {
   bookingEnv,
   bookingError,
   bookingRateLimit,
+  bookingPaymentStatus,
   cancelPublicReservation,
   createPublicReservation,
   manageBooking,
@@ -16,11 +17,12 @@ import { ApiError, errorResponse } from "@/server/http";
 import { requestPublicOrigin } from "@/server/public-origin";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; action: string }> };
-export async function GET(_request: Request, { params }: Context) {
+export async function GET(request: Request, { params }: Context) {
   try {
-    if (process.env.NODE_ENV === "production")
+    if (process.env.PMS_STRIPE_BOOKING_ENABLED === 'false' || process.env.NODE_ENV === "production" && process.env.PMS_STRIPE_LIVE_ENABLED !== "true")
       throw new ApiError(404, "BOOKING_COMING_SOON", "Online booking is not available in the pilot");
     const { holdingSlug, action } = await params;
+    if(action==='reservations')return Response.json({data:await bookingPaymentStatus(await bookingDatabase(holdingSlug),new URL(request.url).searchParams.get('attempt')??'',await bookingEnv())},{headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
     if (action !== "catalog")
       throw new ApiError(404, "NOT_FOUND", "Page not found");
     return Response.json(
@@ -33,7 +35,7 @@ export async function GET(_request: Request, { params }: Context) {
 }
 export async function POST(request: Request, { params }: Context) {
   try {
-    if (process.env.NODE_ENV === "production")
+    if (process.env.PMS_STRIPE_BOOKING_ENABLED === 'false' || process.env.NODE_ENV === "production" && process.env.PMS_STRIPE_LIVE_ENABLED !== "true")
       throw new ApiError(404, "BOOKING_COMING_SOON", "Online booking is not available in the pilot");
     if (request.headers.get("origin") !== requestPublicOrigin(request))
       throw new ApiError(403, "ORIGIN_FORBIDDEN", "Use the booking website");

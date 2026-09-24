@@ -115,6 +115,23 @@ it("reviews form/content/domain/provider assets without treating previews as act
       .run(),
   ).rejects.toThrow("MARKETING_ASSET_SOURCE_IMMUTABLE");
 });
+it("requires explicit consent for lead-capture forms", async () => {
+  await expect(
+    createMarketingAsset(
+      creator,
+      {
+        kind: "form",
+        name: "Inquiry without consent",
+        configuration: { fields: ["name", "email"] },
+        preview: { headline: "Contact us" },
+      },
+      key(),
+    ),
+  ).rejects.toMatchObject({
+    status: 422,
+    code: "MARKETING_CONSENT_REQUIRED",
+  });
+});
 it("hands a consented attributed candidate to the CRM owner service exactly once", async () => {
   const form = await activeForm(),
     candidate = await createMarketingCandidate(
@@ -203,6 +220,35 @@ it("hands a consented attributed candidate to the CRM owner service exactly once
     owner_id: reviewer.userId,
   });
   expect(String(lead.source)).toContain("newsletter");
+  await createMarketingCandidate(
+    creator,
+    {
+      formId: form.id,
+      formVersion: 2,
+      branchId: f.branch,
+      contactName: "Prospect Two",
+      contactDetail: "second-prospect@example.test",
+      consentEvidence: "Explicit form consent SIM-CONSENT-2",
+      attribution: { campaign: "launch", source: "newsletter" },
+      brief: "Needs a follow-up after the first proposal.",
+    },
+    key(),
+  );
+  const summary = await marketingWorkspace(reviewer);
+  expect(summary.campaignSummary).toEqual([
+    {
+      campaign: "launch",
+      source: "newsletter",
+      captured: 2,
+      pending: 1,
+      handed_off: 1,
+      rejected: 0,
+    },
+  ]);
+  expect(JSON.stringify(summary.campaignSummary)).not.toContain("Prospect One");
+  expect(
+    (await marketingWorkspace({ ...reviewer, departmentId: "unrelated-department" })).campaignSummary,
+  ).toEqual([]);
 });
 it("rejects stale or inactive form sources", async () => {
   const form = await createMarketingAsset(

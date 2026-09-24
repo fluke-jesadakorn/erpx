@@ -3,6 +3,8 @@
 
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Building2,
   ChevronDown,
@@ -35,17 +37,26 @@ export function WorkspaceMenu({
   label,
   choices,
   current,
+  canManageErpx,
 }: {
   label: string;
   choices: WorkspaceChoice[];
   current: CurrentWorkspaceChoice;
+  canManageErpx: boolean;
 }) {
   const ready = useHydrated();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [pendingCompany, setPendingCompany] = useState("");
   const [error, setError] = useState("");
-  const holdings = choices.filter((choice) => choice.kind === "holding");
+  const holdings = choices.filter(
+    (choice): choice is Extract<WorkspaceChoice, { kind: "holding" }> =>
+      choice.kind === "holding" && choice.holdingSlug !== "erpx",
+  );
   const platform = choices.find((choice) => choice.kind === "platform");
+  const erpxManagementCurrent =
+    pathname === "/holdings/erpx/manage-erpx" ||
+    pathname.startsWith("/holdings/erpx/manage-erpx/");
 
   const companyIsCurrent = (
     holdingSlug: string,
@@ -156,6 +167,23 @@ export function WorkspaceMenu({
         />
       </button>
       <Dialog title="Switch workspace" open={open} onClose={() => setOpen(false)}>
+        {canManageErpx && (
+          <section className={styles.workspaceSection}>
+            <h3>ERPX</h3>
+            <div className={styles.workspaceTree}>
+              <Link
+                className={styles.workspaceChoice}
+                href="/holdings/erpx/manage-erpx"
+                aria-current={erpxManagementCurrent ? "location" : undefined}
+                onClick={() => setOpen(false)}
+              >
+                <ShieldCheck size={17} aria-hidden="true" />
+                <span>ERPX Management</span>
+                {erpxManagementCurrent && <CurrentArea />}
+              </Link>
+            </div>
+          </section>
+        )}
         <section className={styles.workspaceSection}>
           <h3>Business workspaces</h3>
           {!holdings.length && <p>No business workspaces assigned.</p>}

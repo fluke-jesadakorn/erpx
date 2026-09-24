@@ -18,10 +18,11 @@ export type RuntimeEnv = BetaEnvironment & {
   CONTROL_READ_DB: SqlDatabase;
   H001_DB: SqlDatabase; H001_READ_DB: SqlDatabase; H001_FILES: FileStore;
   H002_DB: SqlDatabase; H002_READ_DB: SqlDatabase; H002_FILES: FileStore;
+  H003_DB: SqlDatabase; H003_READ_DB: SqlDatabase; H003_FILES: FileStore;
   [key: string]: unknown;
 };
 const manifestSchema = z.object({ version: z.literal(1), databases: z.record(z.string(), z.string().url()),
-  slots: z.array(z.object({ id: z.string().regex(/^[a-z0-9]{3,24}$/), write: z.string(), read: z.string(), files: z.string(), beta: z.boolean().optional() })).max(22) });
+  slots: z.array(z.object({ id: z.string().regex(/^[a-z0-9]{3,24}$/), write: z.string(), read: z.string(), files: z.string(), beta: z.boolean().optional(), internal: z.boolean().optional() })).max(22) });
 const runtimeGlobal = globalThis as typeof globalThis & { erpxDevRuntime?: { key: string; env: RuntimeEnv } };
 let singleton: RuntimeEnv | undefined;
 function runtimeKey() { return JSON.stringify([process.env.ERPX_DATABASE_MANIFEST, process.env.ERPX_PROCESS_ROLE, process.env.ERPX_DEV_PG_POOL_MAX, process.env.ERPX_PUBLIC_ORIGIN, process.env.ERPX_DATA_DIR]); }

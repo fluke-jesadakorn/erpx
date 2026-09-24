@@ -23,6 +23,8 @@ import {
 listWorkspaceCompanies,
 publicScope,
 requireWorkContext,
+requireManageErpxContext,
+requirePlatformContext,
 } from "@/server/authorization";
 import { resolveWorkspaceBrand } from "@/server/branding";
 import { executiveVisible } from "@/server/executive/access";
@@ -35,8 +37,12 @@ import { cookies } from "next/headers";
 import Link from "next/link";
 import { Suspense,type ComponentProps } from "react";
 import { AccountSwitcher } from "./account-switcher";
-async function DeferredWorkspaceMenu(props: Omit<ComponentProps<typeof WorkspaceMenu>, "choices">) {
-  return <WorkspaceMenu {...props} choices={await workspaceChoices()}/>;
+async function DeferredWorkspaceMenu(props: Omit<ComponentProps<typeof WorkspaceMenu>, "choices" | "canManageErpx">) {
+  const [choices, canManageErpx] = await Promise.all([
+    workspaceChoices(),
+    requireManageErpxContext().then(() => true).catch(() => false),
+  ]);
+  return <WorkspaceMenu {...props} choices={choices} canManageErpx={canManageErpx}/>;
 }
 export const dynamic = "force-dynamic";
 export default async function WorkplaceLayout({
@@ -68,6 +74,9 @@ export default async function WorkplaceLayout({
   const featureCatalogue = process.env.NODE_ENV === 'production'
     ? await companyFeatureCatalogue(context) : [];
   const navigation = {
+    manageErpxVisible: context.holdingId === "h003" && context.scope.kind === "holding" &&
+      hasPermission(context, "manage_erpx.access") &&
+      await requirePlatformContext().then((platform) => platform.userId === context.userId).catch(() => false),
     executiveVisible: await executiveVisible(write,context),
     workspaceBase: base,
     scopeKind: context.scope.kind,
@@ -87,6 +96,7 @@ export default async function WorkplaceLayout({
         if (enabled.has('pms')) apps.push('pms');
         if (enabled.has('finance')) apps.push('finance');
         if (enabled.has('identity_access')) apps.push('technology');
+        if (context.holdingId === 'h003') apps.push('manage-erpx');
         return apps;
       })(),
     } : {}),

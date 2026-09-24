@@ -77,6 +77,7 @@ import { calculationDecisionSchema, calculationRunDetail, calculationRunSchema, 
 import { consolidationDecisionSchema, consolidationEliminationDecisionSchema, consolidationEliminationSchema, consolidationRunSchema, consolidationRunWorkspace, createConsolidationElimination, createConsolidationRun, decideConsolidationElimination, decideConsolidationRun } from "@/server/finance-consolidation";
 import { accrualRunPostSchema, accrualScheduleDecisionSchema, accrualSchedulePage, accrualScheduleSchema, createAccrualSchedule, decideAccrualSchedule, postAccrualRun, prepareAccrualRun } from "@/server/finance-accruals";
 import { createGroupEntity, createIntercompany, decideIntercompany, groupEntitySchema, intercompanyDecisionSchema, intercompanyTransactionSchema, intercompanyWorkspace } from "@/server/finance-intercompany";
+import { createProjectCostAllocation, decideProjectCostAllocation, listProjectCostAllocations, listProjectCostSources, projectCostAllocationDecisionSchema, projectCostAllocationSchema } from "@/server/project-actuals";
 
 function command(request: Request) {
   return request.headers.get("Idempotency-Key");
@@ -126,6 +127,16 @@ export async function GET(request: Request, context: FinanceRouteContext) {
     if(parts[0]==="refunds")return Response.json({data:parts[1]?await refundWorkspace(actor,parts[1]):await listRefunds(actor)});
     if (parts[0] === "periods") return Response.json({ data: await listPeriods(actor) });
     if (parts[0] === "journals") return Response.json({ data: await listJournals(actor, { periodId: search.get("periodId") ?? undefined, status: search.get("status") ?? undefined }) });
+    if (parts[0] === "project-cost-allocations") {
+      const projectId = search.get("projectId");
+      if (!projectId) throw new ApiError(422, "PROJECT_ID_REQUIRED", "Select a project for project cost allocations.");
+      return Response.json({ data: await listProjectCostAllocations(actor, projectId) });
+    }
+    if (parts[0] === "project-cost-sources") {
+      const projectId = search.get("projectId");
+      if (!projectId) throw new ApiError(422, "PROJECT_ID_REQUIRED", "Select a project for posted cost sources.");
+      return Response.json({ data: await listProjectCostSources(actor, projectId) });
+    }
     if (parts[0] === "invoices") return parts[1] ? Response.json({ data: await getInvoice(actor, parts[1]) }) : Response.json({ data: await listInvoices(actor) });
     if (parts[0] === "payments") return parts[1] ? Response.json({ data: await getPayment(actor, parts[1]) }) : Response.json({ data: await listPayments(actor) });
     if (parts[0] === "trial-balance") return Response.json({ data: await trialBalance(actor, search.get("periodId") ?? undefined,search.get("chartId")??undefined) });
@@ -147,6 +158,8 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     const { holdingSlug, path } = await context.params;
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
     const parts = segments(path); const input = await body(request);
+    if(parts[0]==="project-cost-allocations"&&parts.length===1){const parsed=projectCostAllocationSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid project cost allocation.");return Response.json({data:await createProjectCostAllocation(actor,parsed.data,needCommand(request))},{status:201});}
+    if(parts[0]==="project-cost-allocations"&&parts.length===3&&parts[2]==="review"){const parsed=projectCostAllocationDecisionSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Project cost review evidence is required.");return Response.json({data:await decideProjectCostAllocation(actor,parts[1],parsed.data,needCommand(request))});}
     if(parts[0]==="calculation-runs"&&parts.length===1)return Response.json({data:await createCalculationRun(actor,calculationRunSchema.parse(input),needCommand(request))},{status:201});
     if(parts[0]==="calculation-runs"&&parts.length===3&&["review","approve","reject"].includes(parts[2]))return Response.json({data:await decideCalculationRun(actor,parts[1],calculationDecisionSchema.parse(input),parts[2] as "review"|"approve"|"reject",needCommand(request))});
     if(parts[0]==="intercompany"&&parts.length===1){const parsed=intercompanyTransactionSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid intercompany transaction.");return Response.json({data:await createIntercompany(actor,parsed.data,needCommand(request))},{status:201});}

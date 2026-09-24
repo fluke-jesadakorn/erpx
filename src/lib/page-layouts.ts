@@ -64,10 +64,8 @@ export type LayoutSnapshot = {
 };
 export const widgetDefinitions = catalog as FeatureWidgetDefinition[];
 export function pageNavigationId(page: string) {
-  const aliases: Record<string, string> = {"work-create":"work","tasks-people-payroll-detail":"work",
+  const aliases: Record<string, string> = {"work-create":"work",
     executive: "executive-canvas",
-    leave: "people-roster",
-    "leave-detail": "people-roster",
     overtime: "people-roster",
     "overtime-detail": "people-roster",
     "people-directory-detail": "people-directory",

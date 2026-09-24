@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { requirePlatformContext } from "@/server/authorization";
+import { requireManageErpxContext } from "@/server/authorization";
 import { errorResponse, ApiError } from "@/server/http";
 import { activeHoldingBindings, holdingMigrationDatabase, runtimeEnv } from "@/server/runtime";
 import { runHoldingMigrations } from "@/server/platform-operations";
@@ -13,7 +13,7 @@ const schema = z.object({
 
 export async function POST(request: Request) {
   try {
-    const actor = await requirePlatformContext();
+    const { platform: actor } = await requireManageErpxContext();
     const key = request.headers.get("Idempotency-Key") ?? "";
     const parsed = schema.safeParse(await request.json());
     if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid migration request.");

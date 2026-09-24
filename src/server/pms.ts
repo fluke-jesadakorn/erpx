@@ -36,8 +36,11 @@ import { requirePermission } from "./iam-permissions";
 import { prepareJournal } from "./finance";
 import { ApiError } from "./http";
 import { holdingResources } from "./runtime";
-import { PostgresDatabase } from "./runtime/postgres";
-import type { SqlDatabase } from "./runtime/types";
+import {
+  isTransactionalSqlDatabase,
+  type SqlDatabase,
+  type TransactionalSqlDatabase,
+} from "./runtime/types";
 
 type PropertyRow = {
   id: string;
@@ -222,7 +225,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
   if (propertyId && !selected)
     throw new ApiError(404, "PMS_NOT_FOUND", "Hotel not found");
   const s = selected
-    ? await (write instanceof PostgresDatabase
+    ? await (isTransactionalSqlDatabase(write)
         ? write.transaction((tx) => loadPms(tx, actor, selected.id))
         : loadPms(write, actor, selected.id))
     : null;
@@ -348,6 +351,11 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
         : [],
     transferRequests: s && (hasPermission(actor,'pms.cashier') || hasPermission(actor,'finance.approve'))
       ? await query<TransferRequestRow>(write,"SELECT * FROM pms_transfer_requests WHERE company_id=? AND property_id=? ORDER BY created_at DESC LIMIT 100",actor.companyId,s.property.id)
+      : [],
+    stripeConnectionReady: hasPermission(actor,'pms.cashier')&&Boolean(await write.prepare("SELECT 1 FROM pos_connections WHERE company_id=? AND state='ready' AND promptpay_enabled=true AND thb_bank_ready=true AND payout_interval='daily'").bind(actor.companyId).first()),
+    stripePayments: s&&hasPermission(actor,'pms.cashier')?await query<{id:string;folio_id:string;state:string;kind:string;amount_minor:number;refund_state:string|null;payer_email:string|null}>(write,"SELECT id,folio_id,state,kind,amount_minor,refund_state,payer_email FROM pms_stripe_payments WHERE property_id=? ORDER BY created_at DESC LIMIT 100",s.property.id):[],
+    bookingRefunds: hasPermission(actor,'finance.approve')&&!actor.branchId
+      ? await query<{id:string;property_id:string;amount_minor:number;status:string;refund_state:string;created_at:number;last_error:string|null}>(write,"SELECT id,property_id,amount_minor,status,refund_state,created_at,last_error FROM pms_booking_payments WHERE company_id=? AND refund_state IS NOT NULL ORDER BY created_at DESC LIMIT 100",actor.companyId)
       : [],
     transferBankEvidence: s && hasPermission(actor,'finance.approve')
       ? await query<{id:string;transaction_date:string;external_id:string;amount_minor:number;currency:string;version:number}>(write,`SELECT t.id,t.transaction_date,t.external_id,t.amount_minor,t.currency,t.version
@@ -495,7 +503,7 @@ async function post(
   await run(db, "DELETE FROM command_assertions WHERE command_id=?", id);
   return prepared.result.id;
 }
-async function effects(
+export async function effects(
   db: SqlDatabase,
   actor: WorkContext,
   s: Snapshot,
@@ -883,7 +891,7 @@ async function validateReferences(
       );
 }
 export async function pmsCommand(
-  db: PostgresDatabase,
+  db: TransactionalSqlDatabase,
   actor: WorkContext,
   raw: unknown,
   key: string,
@@ -1175,7 +1183,7 @@ export async function pmsCommand(
     throw error;
   }
 }
-export async function drainPms(db: PostgresDatabase) {
+export async function drainPms(db: TransactionalSqlDatabase) {
   const jobs = await query<{
     id: string;
     property_id: string;

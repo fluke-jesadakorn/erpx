@@ -22,7 +22,7 @@ async function login(page: Page) {
     });
     await role.fill("holding owner");
     await Promise.all([
-      page.waitForEvent("load"),
+      page.waitForEvent("framenavigated", { predicate: (frame) => frame === page.mainFrame() }),
       page.getByRole("listbox").getByRole("option").click(),
     ]);
   }
@@ -184,6 +184,47 @@ test("desktop and mobile navigation place live business destinations correctly",
     .getByRole("link", { name: "Inbox", exact: true })
     .click();
   await expect(page.getByRole("heading", { name: "Your inbox" })).toBeVisible();
+});
+test("POS opens directly from the sidebar, rail, and app launcher", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "The rail is available on desktop only.");
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await login(page);
+  const base = "/holdings/acme";
+  await page.goto(`${base}/home`);
+  const nav = page.getByRole("navigation", { name: "Primary" }).filter({ visible: true });
+  await expect(nav.getByRole("button", { name: "Expand POS" })).toBeVisible();
+  await nav.getByRole("button", { name: "Expand POS" }).click();
+  await expect(nav.getByRole("button", { name: "Collapse POS" })).toHaveAttribute("aria-expanded", "true");
+  for (const [label, href] of [
+    ["Point of sale", `${base}/pos`],
+    ["Kitchen", `${base}/pos?tab=kitchen`],
+    ["Cash sessions", `${base}/pos?tab=shifts`],
+    ["Receipts & refunds", `${base}/pos?tab=history`],
+    ["POS reports", `${base}/pos?tab=reports`],
+    ["POS settings", `${base}/pos?tab=settings`],
+  ]) await expect(nav.getByRole("link", { name: label, exact: true })).toHaveAttribute("href", href);
+  await nav.getByRole("link", { name: "Cash sessions" }).click();
+  await expect(page).toHaveURL(`${base}/pos?tab=shifts`);
+  await expect(nav.getByRole("link", { name: "Cash sessions" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("heading", { name: "Point of sale" })).toBeVisible();
+  await nav.getByRole("link", { name: "Kitchen", exact: true }).click();
+  await expect(page).toHaveURL(`${base}/pos?tab=kitchen`);
+  await expect(nav.getByRole("link", { name: "Kitchen", exact: true })).toHaveAttribute("aria-current", "page");
+  await nav.getByRole("button", { name: "Collapse sidebar" }).click();
+  await expect(nav).toHaveAttribute("data-rail", "true");
+  await nav.getByRole("button", { name: "Collapse POS" }).click();
+  await nav.getByRole("button", { name: "Expand POS" }).click();
+  const flyout = nav.getByRole("group", { name: "POS" });
+  await expect(flyout.getByRole("link", { name: "Receipts & refunds" })).toBeVisible();
+  await flyout.getByRole("link", { name: "Receipts & refunds" }).click();
+  await expect(page).toHaveURL(`${base}/pos?tab=history`);
+  await nav.getByRole("button", { name: "App launcher" }).click();
+  const launcher = page.getByRole("dialog", { name: "App launcher" });
+  await expect(launcher.getByRole("heading", { name: "POS" })).toBeVisible();
+  await expect(launcher.getByRole("link", { name: "POS reports" })).toHaveAttribute("href", `${base}/pos?tab=reports`);
+  await launcher.getByRole("link", { name: "POS reports" }).click();
+  await expect(page).toHaveURL(`${base}/pos?tab=reports`);
+  await expect(page.getByRole("heading", { name: "Point of sale" })).toBeVisible();
 });
 test("breadcrumb returns to live business parents", async ({ page }, info) => {
   test.skip(

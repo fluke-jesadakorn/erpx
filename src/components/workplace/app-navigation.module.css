@@ -108,9 +108,31 @@
   border-radius: 14px;
   background: var(--card);
   box-shadow: var(--shadow-md);
+  max-height: min(80dvh, 700px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .railFlyout > strong { padding: 4px 4px 7px; font-size: 13px; }
 .flyoutLink { border-color: transparent; }
+.flyoutLink[data-active="true"] {
+  border-color: color-mix(in srgb, var(--brand) 45%, var(--line));
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+.flyoutLink[data-active="true"]:not([aria-current="page"]) {
+  border-color: transparent;
+  background: transparent;
+}
+.submoduleGroup { display: grid; gap: 1px; min-width: 0; }
+.submoduleList,
+.flyoutSubmoduleList {
+  display: grid;
+  gap: 1px;
+  margin: 0 0 4px 14px;
+  padding-left: 9px;
+  border-left: 1px solid var(--line);
+}
+.flyoutSubmoduleList { margin: 0 0 0 14px; }
 
 :global(nav[data-rail="true"]) .launcherButton,
 :global(nav[data-rail="true"]) .railToggle {

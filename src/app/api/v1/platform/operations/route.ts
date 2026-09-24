@@ -1,13 +1,13 @@
-import { requirePlatformContext } from "@/server/authorization";
+import { requireManageErpxContext } from "@/server/authorization";
 import { errorResponse } from "@/server/http";
 import { activeHoldingBindings, holdingResources, runtimeEnv } from "@/server/runtime";
 import { summarizePlatformOperations } from "@/server/platform-operations";
 
 export async function GET() {
   try {
-    const actor = await requirePlatformContext();
+    const { platform: actor } = await requireManageErpxContext();
     const env = await runtimeEnv();
-    const bindings = await activeHoldingBindings();
+    const bindings = (await activeHoldingBindings()).filter((binding) => binding.id !== "h003");
     const summary = await summarizePlatformOperations(
       actor,
       env.CONTROL_DB,

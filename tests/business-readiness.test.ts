@@ -6,6 +6,7 @@ import {expenseFixture,expenseDb as db} from './helpers/expense-fixture';
 import {businessReadiness} from '../src/server/business-readiness';
 import {businessAcceptanceManifest} from '../src/data/business-acceptance';
 import {validateAcceptanceEvidence} from '../src/data/acceptance-evidence';
+import moduleRegistry from '../src/data/module-registry.json';
 import snapshot from '../src/data/business-readiness.generated.json';
 vi.mock('../src/server/runtime',()=>({holdingResources:async()=>({write:env.H001_DB}),runtimeEnv:async()=>env}));
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
@@ -15,7 +16,8 @@ it('bundles current validated evidence without promoting observations into capab
  expect(snapshot.capabilities).toEqual(businessAcceptanceManifest());
  expect(snapshot.observations).toEqual(validateAcceptanceEvidence(JSON.parse(ledgerText)).records);
  const f=await expenseFixture(),data=await businessReadiness(f.owner);
- expect(data.capabilities).toHaveLength(183);expect(data.scenarios).toHaveLength(21);
+ const registryCapabilityCount=moduleRegistry.reduce((count,module)=>count+module.sections.filter(section=>section.capability).length,0);
+ expect(data.capabilities).toHaveLength(registryCapabilityCount);expect(data.scenarios).toHaveLength(21);
  expect(data.companySignOff).toBe(false);expect(data.scope).toBe('workspace_simulation');
  expect(data.capabilities.every(row=>Object.values(row.gates).every(gate=>gate.state==='pending'))).toBe(true);
  const superseded=new Set(snapshot.observations.flatMap(row=>row.supersedes?[row.supersedes]:[]));

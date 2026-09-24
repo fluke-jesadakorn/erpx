@@ -10,7 +10,7 @@ import { hasModuleAccess } from "@/data/module-access";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
 import { decimalToMinor } from "@/lib/finance-money";
-import type { SqlStatement } from "./runtime/types";
+import type { SqlDatabase, SqlStatement } from "./runtime/types";
 const reason = z.string().trim().min(3).max(3000),
   version = z.number().int().positive(),
   date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -625,9 +625,9 @@ export async function talentDetail(a: WorkContext, id: string) {
   const { write } = await holdingResources(a.holdingId),
     application = await write
       .prepare(
-        `SELECT a.*,r.job_title,r.branch_id,r.department_id,c.legal_name candidate_name,c.email candidate_email,c.retention_until,CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id JOIN talent_candidates c ON c.id=a.candidate_id WHERE a.id=? AND a.company_id=?`,
+        `SELECT a.*,r.job_title,r.branch_id,r.department_id,c.legal_name candidate_name,c.email candidate_email,c.retention_until,CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id JOIN talent_candidates c ON c.id=a.candidate_id WHERE a.id=? AND a.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)`,
       )
-      .bind(id, a.companyId)
+      .bind(id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId)
       .first<Row>();
   if (!application)
     throw new ApiError(
@@ -666,6 +666,33 @@ export async function talentDetail(a: WorkContext, id: string) {
     actorId: a.userId,
     canReview: true,
   };
+}
+export type TalentExecutiveEvidenceMetric = "open-requisitions" | "application-stage-counts";
+export async function talentExecutiveEvidenceRow(
+  db: SqlDatabase,
+  a: WorkContext,
+  metric: TalentExecutiveEvidenceMetric,
+  recordId: string,
+  range?: { from: number; toExclusive: number },
+) {
+  access(a);
+  const id = z.string().min(1).max(200).parse(recordId);
+  if (metric === "open-requisitions") {
+    return db.prepare(`SELECT r.id,r.job_title,r.target_start_date,r.status,r.version,r.updated_at,r.branch_id,r.department_id
+      FROM talent_requisitions r WHERE r.id=? AND r.company_id=?
+        AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)
+        AND r.status='open' LIMIT 1`)
+      .bind(id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId)
+      .first<Row>();
+  }
+  if (!range) throw new ApiError(422, "EVIDENCE_FILTER_REQUIRED", "An application update date range is required.");
+  return db.prepare(`SELECT a.id,a.requisition_id,a.status,a.version,a.updated_at,r.job_title,r.branch_id,r.department_id
+    FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id
+    WHERE a.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?)
+      AND (?::text IS NULL OR r.department_id=?) AND a.updated_at>=? AND a.updated_at<?
+    LIMIT 1`)
+    .bind(id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId, range.from, range.toExclusive)
+    .first<Row>();
 }
 export async function talentWork(a: WorkContext): Promise<WorkItem[]> {
   try {

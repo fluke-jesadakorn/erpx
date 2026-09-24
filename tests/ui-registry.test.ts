@@ -23,12 +23,19 @@ describe("Enterprise UI coverage and routing", () => {
     expect(modulesForRole("holding_owner",["people_payroll","finance"])).toEqual(["people_payroll","finance"]);
   });
   it("covers all module capabilities without ambiguous section routes", () => {
-    expect(moduleRegistry).toHaveLength(32);
+    const companyModules = moduleRegistry.filter((module) => module.id !== "manage_erpx");
+    expect(companyModules).toHaveLength(32);
+    expect(moduleRegistry).toHaveLength(33);
     expect(
       moduleRegistry
         .flatMap((module) => module.sections)
         .filter((section) => section.capability),
-    ).toHaveLength(183);
+    ).toHaveLength(187);
+    expect(
+      moduleRegistry.find((module) => module.id === "manage_erpx")?.sections
+        .filter((section) => section.capability)
+        .map((section) => section.id),
+    ).toEqual(["overview", "billing", "iam", "executive"]);
     expect(
       new Set(
         moduleRegistry.flatMap((module) =>

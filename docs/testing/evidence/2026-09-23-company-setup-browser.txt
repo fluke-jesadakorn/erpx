@@ -1,0 +1,10 @@
+Company setup acceptance — isolated browser verification (2026-09-23)
+
+Command: ERPX_DEMO_RUN=1b2341fc4f64 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-company-setup-acceptance.spec.ts --project=desktop
+Result: 1 passed (30.4s); test journey 29.8s.
+
+The prepared disposable Company had all five setup checks ready. Separate holding-owner and Company HR accounts used the real Business readiness, Work and Inbox pages to submit, return for correction, resubmit, accept and revoke Company setup. The submitter could not self-review. Response assertions checked status and versions 1–5; reload showed accepted and then revoked state, and five retained immutable events.
+
+The first attempt found an active IT administrator missing a position in the shared Demo fixture; the fixture now assigns one. A later attempt found that Work incorrectly sent company_business_acceptance through the generic flow resolver, yielding relation "undefined" does not exist and hiding the reviewer handoff; the owner-specific Work path now handles it. Both attempts failed before acceptance and used disposable runs. The final clean run passed after both fixes. The isolated run is destroyed after verification.
+
+This is automated browser acceptance in a fictional Company. It does not constitute Company business-owner sign-off, provider operation or production certification.

@@ -17,6 +17,15 @@ export interface SqlDatabase {
   batch<T = Record<string, unknown>>(statements: SqlStatement[]): Promise<SqlResult<T>[]>;
   exec(sql: string): Promise<{ count: number; duration: number }>;
 }
+export interface TransactionalSqlDatabase extends SqlDatabase {
+  transaction<T>(action: (tx: SqlDatabase) => Promise<T>): Promise<T>;
+}
+/** Use capabilities across Next dev reloads, which can replace class identities. */
+export function isTransactionalSqlDatabase(
+  database: SqlDatabase,
+): database is TransactionalSqlDatabase {
+  return typeof (database as Partial<TransactionalSqlDatabase>).transaction === "function";
+}
 export type FileMetadata = {
   key: string;
   size: number;

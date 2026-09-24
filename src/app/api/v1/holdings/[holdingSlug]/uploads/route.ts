@@ -37,6 +37,7 @@ const schema = z.object({
     "social_draft",
     "holding_brand",
     "branch_brand",
+    "company_storefront_brand",
     "quality_hold",
     "commerce_order_delivery",
   ]),
@@ -74,13 +75,13 @@ export async function POST(
         parsed.error.issues[0]?.message ?? "Invalid upload.",
       );
     const requestSnapshot = parsed.data.ownerType === "employee_request" ? await serviceAuthoritySnapshot((await holdingResources(actor.holdingId)).write, actor.companyId) : null;
-    if (parsed.data.ownerType === "holding_brand" || parsed.data.ownerType === "branch_brand") {
+    if (parsed.data.ownerType === "holding_brand" || parsed.data.ownerType === "branch_brand" || parsed.data.ownerType === "company_storefront_brand") {
       if (!(["image/png", "image/webp"] as string[]).includes(parsed.data.mediaType))
         throw new ApiError(422, "LOGO_TYPE", "Workspace logos accept PNG and WebP images.");
       if (parsed.data.bytes > 2 * 1024 * 1024)
         throw new ApiError(422, "LOGO_SIZE", "Workspace logos must be at most 2 MB.");
-      if (!(["primary", "inverse"] as string[]).includes(parsed.data.purpose))
-        throw new ApiError(422, "LOGO_PURPOSE", "Choose a primary or inverse logo.");
+      if (parsed.data.ownerType === "company_storefront_brand" ? parsed.data.purpose !== "logo" : !(["primary", "inverse"] as string[]).includes(parsed.data.purpose))
+        throw new ApiError(422, "LOGO_PURPOSE", parsed.data.ownerType === "company_storefront_brand" ? "Choose the storefront logo." : "Choose a primary or inverse logo.");
       const { write } = await holdingResources(actor.holdingId);
       await requireBrandManagement(write, actor, parsed.data.ownerType, parsed.data.ownerId);
     } else if (parsed.data.ownerType === "commerce_order_delivery") {

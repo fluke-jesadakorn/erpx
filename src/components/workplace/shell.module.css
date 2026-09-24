@@ -1184,11 +1184,15 @@ a.workspaceChoice:hover {
   font-size:12px;
 }
 .nav .navAppLink:hover { background:var(--card); color:var(--ink); }
-.nav .navAppLink[aria-current="page"] {
+.nav .navAppLink[aria-current="page"],
+.nav .navAppLink[data-active="true"] {
   background:var(--brand-soft);
   color:var(--brand);
   font-weight:650;
   box-shadow:none;
+}
+.nav .navAppLink[data-active="true"]:not([aria-current="page"]) {
+  background:transparent;
 }
 .shell:has(.nav[data-rail="true"]) { grid-template-columns:72px minmax(0,1fr); }
 .sidebar:has(.nav[data-rail="true"]) {

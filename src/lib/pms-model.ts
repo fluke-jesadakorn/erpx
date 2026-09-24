@@ -73,7 +73,7 @@ export type BookingPolicy = {
   deadline: number;
   timezone: string;
   text: string;
-  payment: "pay_at_hotel";
+  payment: "pay_at_hotel" | "online";
 };
 export type Config = {
   booking?: BookingSettings;
@@ -175,7 +175,7 @@ export type Reservation = {
   externalRef: string;
   groupName: string;
   notes: string;
-  state: "confirmed" | "cancelled" | "no_show" | "completed";
+  state: "payment_pending" | "confirmed" | "cancelled" | "no_show" | "completed";
   createdBy: string;
   bookingPolicy?: BookingPolicy;
   history?: Array<{ at: number; actor: string; action: string }>;

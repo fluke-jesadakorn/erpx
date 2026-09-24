@@ -14,8 +14,17 @@ export default async function CalendarPage({
   const actor = await requireWorkContext((await params).holdingSlug),
     { write } = await holdingResources(actor.holdingId),
     query = await searchParams;
+  const pageQuery = {
+    ...query,
+    ...(typeof query.view === "string"
+      ? {}
+      : { view: query.preset === "coverage" ? "week" : "month" }),
+    ...(typeof query.layers === "string" || query.preset !== "coverage"
+      ? {}
+      : { layers: "roster,leave" }),
+  };
   const [calendar, hierarchy] = await Promise.all([
-    calendarData(write, actor, query),
+    calendarData(write, actor, pageQuery),
     calendarHierarchy(write, actor),
   ]);
   return (
@@ -24,7 +33,6 @@ export default async function CalendarPage({
         base={workspaceBase(publicScope(actor))}
         initial={calendar}
         initialHierarchy={hierarchy}
-        explicitView={typeof query.view === "string"}
         initialEvent={typeof query.event === "string" ? query.event : undefined}
       />
     </main>

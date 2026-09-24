@@ -801,6 +801,7 @@ export function executePms(
           blockId: textField.default(""),
           rooms: z.array(roomSelectionSchema).min(1).max(50),
           quote: z.string().max(100000).optional(),
+          paymentPending: z.boolean().default(false),
         })
         .parse(input);
       const quoted = bookingQuote(s, v.rooms, v.blockId);
@@ -837,10 +838,10 @@ export function executePms(
         externalRef: v.externalRef,
         groupName: v.groupName,
         notes: v.notes,
-        state: "confirmed",
+        state: v.paymentPending ? "payment_pending" : "confirmed",
         createdBy: user,
         bookingPolicy: quoted.policy,
-        history: [{ at: now, actor: user, action: "Reservation confirmed" }],
+        history: [{ at: now, actor: user, action: v.paymentPending ? "Awaiting online payment" : "Reservation confirmed" }],
       });
       resultId = res.id;
       const block = v.blockId ? get("block", v.blockId) : null;
@@ -957,7 +958,7 @@ export function executePms(
           .parse(input),
         r = get("reservation", v.id);
       need(
-        r.data.state === "confirmed",
+        r.data.state === "confirmed" || (op === "reservation.cancel" && r.data.state === "payment_pending" && user === "system:stripe"),
         "PMS_RESERVATION_CLOSED",
         "Booking is not confirmed",
       );
@@ -1107,6 +1108,7 @@ export function executePms(
     }
     case "stay.check_in": {
       const r = get("stay", ref.parse(input).id);
+      need(get("reservation",r.data.reservationId).data.state === "confirmed", "PMS_PAYMENT_PENDING", "Confirm the reservation payment before check-in");
       need(
         r.data.state === "reserved" && r.data.arrival === p.businessDate,
         "PMS_ARRIVAL_DATE",
@@ -1444,6 +1446,49 @@ export function executePms(
       touch(to);
       allocate(to);
       resultId = to.id;
+      break;
+    }
+    case "payment.stripe":
+    case "payment.stripe_deposit": {
+      need(actor.userId === "system:stripe", "PMS_PROVIDER_AUTHORITY", "Only verified provider payments can use this operation");
+      const v = z.object({folioId:idField,amount,reference:textField.min(1)}).parse(input);
+      const f=openFolio(v.folioId);
+      noRefund(f.id);
+      const security=op==='payment.stripe_deposit';
+      const e=entry(f.id,{kind:security?"deposit":"payment",description:security?"PromptPay damage deposit":"PromptPay room payment",total:v.amount,method:"stripe",reference:v.reference});
+      post(e.id,"receipt",pair("edc",security?"deposit":"advance",v.amount));
+      if(security)f.data.deposit+=v.amount;
+      else{
+       const excess=Math.max(0,v.amount-f.data.due);
+       const prepaidTax=c.advanceTax?proportion(excess,c.taxBps,10000+c.taxBps):0;
+       f.data.advance+=v.amount;
+       f.data.advanceTax+=prepaidTax;
+       post(e.id,"advance-tax",pair("prepaidTax","tax",prepaidTax));
+       allocate(f);
+      }
+      touch(f);
+      effects.documents.push({id:uuid(),kind:"receipt",folioId:f.id,entryId:e.id,amount:v.amount});
+      resultId=e.id;
+      break;
+    }
+    case "payment.stripe_refund":
+    case "payment.stripe_deposit_refund": {
+      need(actor.userId === "system:stripe", "PMS_PROVIDER_AUTHORITY", "Only verified provider refunds can use this operation");
+      const v=z.object({folioId:idField,amount,reference:textField.min(1),reason}).parse(input);
+      const f=openFolio(v.folioId);
+      const pocket=op==='payment.stripe_deposit_refund'?'deposit':'advance';
+      need(v.amount<=f.data[pocket],"PMS_REFUND_EXCEEDS_BALANCE","Refund exceeds the remaining balance");
+      const sources=funding(f.id,pocket,v.amount);
+      const e=entry(f.id,{funding:sources,kind:"refund",description:v.reason,total:-v.amount,method:"stripe",reference:v.reference});
+      post(e.id,"refund",pair(pocket,"edc",v.amount));
+      if(pocket==='advance'){
+       const tax=v.amount===f.data.advance?f.data.advanceTax:proportion(f.data.advanceTax,v.amount,f.data.advance);
+       post(e.id,"refund-tax",pair("tax","prepaidTax",tax));
+       f.data.advanceTax-=tax;
+      }
+      f.data[pocket]-=v.amount;touch(f);
+      effects.documents.push({id:uuid(),kind:"refund",folioId:f.id,entryId:e.id,amount:v.amount});
+      resultId=e.id;
       break;
     }
     case "payment.receive":

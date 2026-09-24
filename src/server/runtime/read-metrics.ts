@@ -10,3 +10,11 @@ export async function measureReads<T>(load: () => Promise<T>) {
   const result = await metrics.run(values, load);
   return { result, metrics: { ...values, durationMs: performance.now() - started } };
 }
+
+/** Timing labels contain no actor identifiers, credentials or SQL parameters. */
+export async function measureReadPhase<T>(phase: string, load: () => Promise<T>): Promise<T> {
+  if (process.env.ERPX_PERF_LOG !== "1") return load();
+  const measured = await measureReads(load);
+  console.info(JSON.stringify({event:"page_read",phase,...measured.metrics}));
+  return measured.result;
+}

@@ -1,0 +1,557 @@
+{
+  "date": "2026-09-22",
+  "runtime": "Node 24.20.0 / Bun 1.2.17",
+  "publicBrowser": {
+    "work": {
+      "loadMs": [
+        1220.6,
+        1857,
+        1367.5,
+        1534.3,
+        1875.5,
+        1400.8,
+        1480.6,
+        1390.5,
+        1578.4,
+        1605.8
+      ],
+      "responseEndMs": [
+        1137.6,
+        1837.4,
+        1350,
+        1518.2,
+        1722.2,
+        1391.5,
+        1464.8,
+        1374.1,
+        1561.4,
+        1588.6
+      ],
+      "restartLoadMs": [
+        2723,
+        2437.1,
+        11788.3
+      ],
+      "status": 200,
+      "medianLoadMs": 1507.4499999999998,
+      "medianResponseEndMs": 1491.5,
+      "medianRestartLoadMs": 2723
+    },
+    "supplier": {
+      "loadMs": [
+        1297.9,
+        2250,
+        1217.9,
+        1413.4,
+        1238.6,
+        1185.1,
+        1116.5,
+        1381.4,
+        1140.8,
+        1358.7
+      ],
+      "responseEndMs": [
+        1276.9,
+        2239.7,
+        1211.4,
+        1372.6,
+        1194.3,
+        1161.4,
+        1006.8,
+        1296.8,
+        1120.6,
+        1343
+      ],
+      "restartLoadMs": [
+        2778.7,
+        2416.6,
+        3760.5
+      ],
+      "status": 200,
+      "medianLoadMs": 1268.25,
+      "medianResponseEndMs": 1244.15,
+      "medianRestartLoadMs": 2778.7
+    },
+    "pms": {
+      "loadMs": [
+        1165.1,
+        1376.9,
+        2129.8,
+        1904.8,
+        1295.5,
+        1111.1,
+        1331,
+        1517.9,
+        1221.4,
+        1268.4
+      ],
+      "responseEndMs": [
+        773.1,
+        1346.5,
+        2001.1,
+        1748.1,
+        1283,
+        1102.9,
+        1321,
+        1407.5,
+        1203.2,
+        1182.6
+      ],
+      "restartLoadMs": [
+        1766.4,
+        1666.3,
+        3238.4
+      ],
+      "status": 200,
+      "medianLoadMs": 1313.25,
+      "medianResponseEndMs": 1302.0,
+      "medianRestartLoadMs": 1766.4
+    }
+  },
+  "method": "Authenticated existing Acme holding-owner Chrome session, full navigations; loadEventEnd and responseEnd from PerformanceNavigationTiming. Samples precede final fulfillment-query batching; final follow-up recorded separately. Restart samples retain filesystem/browser caches; other open ERPX tabs can reconnect and warm routes. Not a controlled before/after cold-compile benchmark.",
+  "backendBeforeFinalBatch": {
+    "date": "2026-09-22T10:03:03.482Z",
+    "runtime": "v24.20.0",
+    "referenceMetrics": {
+      "queries": 592,
+      "queryMs": 11404.134714000014,
+      "poolWaitMs": 15461.699382000006,
+      "durationMs": 2712.0745419999994
+    },
+    "note": "Backend functions with current active Acme holding context, fresh IAM; excludes HTTP authentication/network/browser.",
+    "work": {
+      "cold": [
+        2460.6671670000014,
+        2516.277833,
+        2146.7974579999973,
+        1516.5395000000026,
+        1475.9115410000013,
+        2350.983,
+        2625.399125,
+        2413.6178340000006,
+        2274.5919579999972,
+        1290.1174580000006
+      ],
+      "warm": [
+        43.48212499999863,
+        51.899208999999246,
+        28.19670799999949,
+        25.21979199999987,
+        31.417874999999185,
+        76.10637499999939,
+        51.609042000000045,
+        31.6096250000046,
+        31.59049999999843,
+        25.740333000001556
+      ],
+      "concurrent": [
+        1459.940416999998,
+        1454.2261660000004,
+        1448.422292000003,
+        1457.2742920000019,
+        1460.4573339999988
+      ],
+      "equal": true
+    }
+  },
+  "backendFinal": {
+    "date": "2026-09-22T10:11:53.898Z",
+    "runtime": "v24.20.0",
+    "referenceMetrics": {
+      "queries": 345,
+      "queryMs": 10354.742581999999,
+      "poolWaitMs": 10904.453756000015,
+      "durationMs": 2264.310291
+    },
+    "note": "Backend functions with current active Acme holding context, fresh IAM; excludes HTTP authentication/network/browser.",
+    "work": {
+      "cold": [
+        1135.1885839999995,
+        1238.8299160000006,
+        1110.2435000000005,
+        1011.4955409999984,
+        1042.2125420000011,
+        3443.6158749999995,
+        1905.8628750000025,
+        1803.2937909999964,
+        1646.8961660000023,
+        1437.814250000003
+      ],
+      "warm": [
+        21.767957999998544,
+        31.58904100000109,
+        22.953082999998514,
+        17.17749999999978,
+        30.33324999999968,
+        31.88312500000029,
+        27.195999999999913,
+        42.47016599999915,
+        24.06158299999879,
+        28.52087499999834
+      ],
+      "concurrent": [
+        1943.1870830000007,
+        1941.6319589999985,
+        1935.9028749999998,
+        1937.845874999999,
+        1939.716457999999
+      ],
+      "equal": true
+    }
+  },
+  "flowComparisonFinal": {
+    "detailAuthorized": {
+      "queries": 2887,
+      "durationMs": 3479.854208
+    },
+    "batched": {
+      "queries": 185,
+      "durationMs": 881.306875
+    },
+    "equalItems": 59
+  },
+  "publicBrowserFinalWork": {
+    "loadMs": [
+      1787,
+      1688.2,
+      5915.1,
+      1381.2,
+      1508.2,
+      1455.2,
+      1441.6,
+      1564.4,
+      1364,
+      1572.8
+    ],
+    "responseEndMs": [
+      1560.1,
+      1597.7,
+      5685.7,
+      1185.2,
+      1418,
+      1378.4,
+      1262.8,
+      1503.4,
+      1255.5,
+      1541.3
+    ],
+    "status": 200,
+    "medianLoadMs": 1536.3000000000002,
+    "medianResponseEndMs": 1460.7
+  },
+  "finalAcceptance": {
+    "public": {
+      "work": {
+        "loadMs": [
+          871.7,
+          552.5,
+          556.2,
+          660.9,
+          546.1,
+          550.2,
+          759.8,
+          2490.9,
+          564.9,
+          520.8
+        ],
+        "responseEndMs": [
+          731.8,
+          368.6,
+          287.2,
+          340.9,
+          317.1,
+          328.3,
+          488,
+          2480.6,
+          295.2,
+          349.3
+        ],
+        "medianLoadMs": 560.55,
+        "medianResponseEndMs": 345.1,
+        "allStatus": 200
+      },
+      "supplier": {
+        "loadMs": [
+          473.9,
+          542.3,
+          1990.6,
+          677.4,
+          552.7,
+          475.8,
+          535.5,
+          465.3,
+          642.5,
+          566.2
+        ],
+        "responseEndMs": [
+          328.4,
+          307.8,
+          1892,
+          357.3,
+          279.4,
+          257.1,
+          290.1,
+          244.4,
+          612.7,
+          379.8
+        ],
+        "medianLoadMs": 547.5,
+        "medianResponseEndMs": 318.1,
+        "allStatus": 200
+      },
+      "pms": {
+        "loadMs": [
+          691.4,
+          473.4,
+          847.3,
+          515.2,
+          633,
+          552.9,
+          617.6,
+          607.5,
+          679.5,
+          535.4
+        ],
+        "responseEndMs": [
+          401.5,
+          255.3,
+          322.2,
+          256.3,
+          482.9,
+          268.7,
+          250.2,
+          536,
+          377.1,
+          282.1
+        ],
+        "medianLoadMs": 612.55,
+        "medianResponseEndMs": 302.15,
+        "allStatus": 200
+      }
+    },
+    "local": {
+      "work": {
+        "responseMs": [
+          183.671125,
+          152.072916,
+          152.439792,
+          143.00375,
+          145.609917,
+          145.355833,
+          142.290625,
+          133.242083,
+          140.720292,
+          120.466917
+        ],
+        "medianResponseMs": 144.1797915,
+        "allStatus": 200,
+        "allAuthenticated": true,
+        "allExpectedPage": true
+      },
+      "supplier": {
+        "responseMs": [
+          430.185292,
+          149.571625,
+          130.557417,
+          159.710167,
+          104.919084,
+          141.929208,
+          140.922584,
+          111.600584,
+          123.21975,
+          115.951125
+        ],
+        "medianResponseMs": 135.7400005,
+        "allStatus": 200,
+        "allAuthenticated": true,
+        "allExpectedPage": true
+      },
+      "pms": {
+        "responseMs": [
+          460.087875,
+          111.845917,
+          120.004542,
+          131.695167,
+          122.06,
+          126.925417,
+          117.458208,
+          124.740458,
+          123.123625,
+          114.43725
+        ],
+        "medianResponseMs": 122.5918125,
+        "allStatus": 200,
+        "allAuthenticated": true,
+        "allExpectedPage": true
+      }
+    },
+    "localMethod": "Temporary dev-only authenticated fixed-loopback harness forwarded the existing browser Cookie to port 3100 and measured fetch through the complete page body. No login bypass or new session. Excludes browser assets and hydration; harness removed before release build.",
+    "queryPhases": {
+      "accountAccess": {
+        "before": 43,
+        "after": 8
+      },
+      "workspaceChoices": {
+        "before": 120,
+        "after": 15
+      }
+    },
+    "restart": {
+      "before": {
+        "work": {
+          "loadMs": [
+            10291.2,
+            7379.4,
+            11431.9
+          ],
+          "responseEndMs": [
+            9833.7,
+            7025.4,
+            10889.4
+          ],
+          "medianLoadMs": 10291.2,
+          "medianResponseEndMs": 9833.7,
+          "allStatus": 200
+        },
+        "supplier": {
+          "loadMs": [
+            1535.6,
+            1517.9,
+            1722.1
+          ],
+          "responseEndMs": [
+            715.3,
+            1423.2,
+            1172.6
+          ],
+          "medianLoadMs": 1535.6,
+          "medianResponseEndMs": 1172.6,
+          "allStatus": 200
+        },
+        "pms": {
+          "loadMs": [
+            1693.9,
+            1515.1,
+            1646.4
+          ],
+          "responseEndMs": [
+            1144.9,
+            981.2,
+            1206.7
+          ],
+          "medianLoadMs": 1646.4,
+          "medianResponseEndMs": 1144.9,
+          "allStatus": 200
+        }
+      },
+      "final": {
+        "work": {
+          "loadMs": [
+            3492.7,
+            4477.4,
+            4101.9
+          ],
+          "responseEndMs": [
+            3460.4,
+            4438.1,
+            3886.9
+          ],
+          "medianLoadMs": 4101.9,
+          "medianResponseEndMs": 3886.9,
+          "allStatus": 200
+        },
+        "supplier": {
+          "loadMs": [
+            1159.2,
+            1224.9,
+            913.2
+          ],
+          "responseEndMs": [
+            620.5,
+            778.2,
+            585.5
+          ],
+          "medianLoadMs": 1159.2,
+          "medianResponseEndMs": 620.5,
+          "allStatus": 200
+        },
+        "pms": {
+          "loadMs": [
+            1430.7,
+            925.2,
+            1078
+          ],
+          "responseEndMs": [
+            1136.9,
+            675.2,
+            811.9
+          ],
+          "medianLoadMs": 1078,
+          "medianResponseEndMs": 811.9,
+          "allStatus": 200
+        }
+      },
+      "improvementPercent": {
+        "work": 60.14167444029852,
+        "supplier": 24.511591560302158,
+        "pms": 34.523809523809526
+      },
+      "method": "Three complete public Chrome restart runs for each variant. Route order Work, Supplier invoices, PMS. Existing Acme holding-owner session; unchanged business dataset; filesystem/browser caches retained. Archived pre-optimization performance modules from .runtime/build/2026-09-22T06-04-05-771Z were replayed in the current workspace; repaired DB cache coverage and the current business modules were retained for both variants. Replay reproduced 3889 queries and 213 items. Final files were restored with SHA-256 guards. This is a controlled module replay, not an undo of the database migrations or a clean-cache build.",
+      "transientFailures": [
+        {
+          "work": {
+            "loadMs": 3854.9,
+            "responseEndMs": 3801.9,
+            "status": 200
+          },
+          "supplier": {
+            "loadMs": 265.7,
+            "responseEndMs": 117.6,
+            "status": 502
+          },
+          "pms": {
+            "loadMs": 242.4,
+            "responseEndMs": 120.6,
+            "status": 502
+          }
+        },
+        {
+          "work": {
+            "loadMs": 3365.5,
+            "responseEndMs": 3339.5,
+            "status": 200
+          },
+          "supplier": {
+            "loadMs": 734.6,
+            "responseEndMs": 305.1,
+            "status": 200
+          },
+          "pms": {
+            "loadMs": 17771.7,
+            "responseEndMs": 249.9,
+            "status": 502
+          }
+        }
+      ],
+      "failureNote": "Failed rounds are retained separately and were repeated for three complete 200 runs. Shared Cloudflare Tunnel logs recorded simultaneous QUIC stream/network timeouts; loopback stayed 200. Public health and authenticated pages recovered. No tunnel rules or other services were changed.",
+      "processLimit": "Rapid restart samples may include old requests draining after the old listener closed. Final duplicate-start attempt exited on Next dev lock protection; no duplicate was retained. Final runtime has one workspace dev listener, and helper now waits for complete process exit. Samples are not process-isolated cold compiler benchmarks."
+    },
+    "hotReload": "Temporary Work description edit appeared in the existing public browser without reload; restoring the original source updated it again. Exact original file restored.",
+    "assetRevalidation": "Public unchanged JavaScript returned HTTP 304 with ETag, Cache-Control private/no-cache/must-revalidate, CDN-Cache-Control no-store and CF-Cache-Status BYPASS.",
+    "availability": {
+      "localHealthStatus": 200,
+      "localHealthMs": 7.359,
+      "publicHealthStatus": 200,
+      "publicHealthMs": 150.305,
+      "launcherPid": 2746,
+      "launcherParentPid": 1,
+      "listenerPid": 2770,
+      "node": "24.20.0",
+      "bun": "1.2.17",
+      "allThreeAuthenticatedPagesVerified": true,
+      "supplierToWorkClientNavigationVerified": true,
+      "temporaryRouteRemovedStatus": 404,
+      "release": ".runtime/releases/2026-09-22T11-40-49-730Z"
+    }
+  }
+}

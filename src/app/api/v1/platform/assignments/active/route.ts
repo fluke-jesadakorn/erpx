@@ -2,14 +2,14 @@ import { rememberPlatformRole } from "@/server/workspace-preferences";
 import { runtimeEnv } from "@/server/runtime";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requirePlatformContext } from "@/server/authorization";
+import { requireManageErpxContext } from "@/server/authorization";
 import { ApiError, errorResponse } from "@/server/http";
 
 const schema = z.object({ assignmentId: z.string().min(1).max(128) });
 
 export async function POST(request: Request) {
   try {
-    const actor = await requirePlatformContext();
+    const { platform: actor } = await requireManageErpxContext();
     const parsed = schema.safeParse(await request.json());
     if (!parsed.success)
       throw new ApiError(422, "VALIDATION_FAILED", "Choose a valid Platform role.");

@@ -46,7 +46,7 @@ function categoryFor(
 ) {
   const id = app?.id ?? item.id;
   return model.categories.find((category) =>
-    category.apps.some((entry) => entry.id === id),
+    category.id === id || category.apps.some((entry) => entry.id === id),
   );
 }
 
@@ -59,7 +59,11 @@ export function navigationLauncher(
   search: string,
 ): { categories: NavigationCategory[]; results: NavigationLauncherResult[] } {
   const query = search.trim().toLocaleLowerCase();
-  if (!query) return { categories: model.categories, results: [] };
+  if (!query) return { categories: model.categories.map((category) =>
+    category.id === "pms"
+      ? { ...category, apps: model.apps.filter((app) => app.id === "pms").map(appItem) }
+      : category,
+  ), results: [] };
 
   const primaryIds = new Set(model.primary.map((item) => item.id));
   const candidates = [

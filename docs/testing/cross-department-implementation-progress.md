@@ -1,6 +1,18 @@
 # ERPX — ความคืบหน้าการพัฒนา flow ข้ามแผนก
 
-วันที่ 2026-09-22 · สถานะ: กำลังพัฒนา ยังไม่ครบแผนช่วง 0–8
+วันที่ 2026-09-24 · สถานะ: กำลังพัฒนา ยังไม่ครบแผน Release 1–4
+
+## สรุปสถานะ capability ล่าสุด — 2026-09-24
+
+จาก [capability delivery matrix](../status/capability-delivery-matrix.md) มี 187 รายการ: 32 Company domain modules และ 4 capability ของ Manage ERPX system shell ซึ่งอยู่ใน platform-administration scope และไม่เพิ่มเข้า coverage 32 โมดูลของ Executive AI:
+
+- **66 Flow accepted (35.3%)** — ผ่านหลักฐาน workflow end-to-end ในระบบ
+- **5 Sandbox verified (2.7%)** — ผ่าน provider sandbox แต่ยังไม่ใช่ production
+- **1 Live verified (0.5%)** — ตรวจผ่าน integration จริงที่อนุมัติแล้ว
+- **115 Implemented (61.5%)** — มี domain behavior และ persistence แล้ว แต่ยังมี acceptance หรือ production gate ค้าง
+- **0 Deferred** — ทุก capability มี owner implementation อย่างน้อยระดับหนึ่ง
+
+เมื่อรวมสถานะที่มีหลักฐาน Flow/Sandbox/Live verification จะได้ **72/187 = 38.5% ของ capability inventory**. นี่คือสัดส่วน coverage ตามเกณฑ์ของ matrix ไม่ใช่เปอร์เซ็นต์ความพร้อมใช้งานจริงหรือ production certification: หลาย flow ยังต้องผ่าน provider/live operation, business-owner acceptance, multi-role production checks, reconciliation และ Release 2–4 gates แยกกัน.
 
 ## Finance browser acceptance — 2026-09-22
 
@@ -376,7 +388,7 @@ Backup/restore operational rehearsal เพิ่มจากเดิมที�
 
 Customer access/authority เพิ่มแล้ว เหลือ **68 Deferred**: [คู่มือ](customer-access.md), [23 tests](evidence/2026-09-20-customer-access-tests.txt), [portal actions 6 tests](evidence/2026-09-22-customer-portal-actions.txt), [context](evidence/2026-09-20-customer-access-context.json), [browser 3 บทบาท](evidence/2026-09-20-customer-access-browser.json) และ [source records](evidence/2026-09-20-customer-access-browser-records.json). Binding ผูก approved source+verified email+expiry, ต้อง independent review, first verified account ถูก bind ชัดเจน, ทุก portal view มี audit และ revoke แล้ว projection หายทันที. Portal ใช้ explicit field allowlist; acknowledge delivery/request support เขียน immutable evidence และแจ้ง staff ตาม order scope. Internal notes/cost/HR/Legal/private Support evidence ไม่ถูกส่ง. ยังเหลือ consent, delegated customer admin, reply/upload/email และ UAT จริง.
 
-Customer duplicate review และ transactional merge เพิ่มแล้ว เหลือ **67 Deferred**: [คู่มือ](customer-duplicate-reviews.md), [focused merge tests](evidence/2026-09-22-customer-duplicate-merge.txt), [11-test baseline](evidence/2026-09-20-customer-duplicates-tests.txt) และ [context](evidence/2026-09-20-customer-duplicates-context.json). คู่ customer ถูก canonicalize กันยื่นกลับด้าน, independent current manager ตัดสิน distinct/duplicate/reopen และ merge safe orders/invoices/payments/refunds/carts/opportunities/expenses/POS sales ใน transaction เดียว พร้อม blocked lineage, version/idempotency/audit และ immutable-owner blockers; balance reconciliation, browser/business acceptance และ owner correction workflows ยังเหลือ.
+Customer duplicate review และ transactional merge เพิ่มแล้ว เหลือ **67 Deferred**: [คู่มือ](customer-duplicate-reviews.md), [focused merge tests](evidence/2026-09-22-customer-duplicate-merge.txt), [11-test baseline](evidence/2026-09-20-customer-duplicates-tests.txt), [context](evidence/2026-09-20-customer-duplicates-context.json) และ [partial browser acceptance](evidence/2026-09-23-customer-duplicate-review-browser.txt). คู่ customer ถูก canonicalize กันยื่นกลับด้าน, independent current manager ตัดสิน distinct/duplicate/reopen และ merge safe orders/invoices/payments/refunds/carts/opportunities/expenses/POS sales ใน transaction เดียว พร้อม blocked lineage, version/idempotency/audit และ immutable-owner blockers. หน้าตรวจแสดง customer code, tax registration และ submitted evidence; browser ยืนยัน merge แล้ว quotation ย้ายไป canonical Customer 360. Invoice/payment/refund aggregate snapshots มี regression coverage เพิ่ม; full Finance ledger/AR/AP reconciliation, Company business-owner sign-off และ owner correction/reversal workflows ยังเหลือ.
 
 Customer identity change เพิ่มแล้ว เหลือ **65 Deferred**: [คู่มือ](customer-identity-changes.md), [4 focused tests](evidence/2026-09-22-customer-identity-consent.txt) และ [context](evidence/2026-09-20-customer-identity-context.json). Legal name/tax registration/phone/structured address/notification email/consent ใช้ before/after snapshot, independent review, reject/resubmit และ customer-version guard; apply เปลี่ยน master กับ immutable evidence ใน transaction เดียว. External registry, browser/business acceptance ยังเหลือ.
 
@@ -744,3 +756,25 @@ The resettable Demo guide now includes Customer 360 as a real source projection 
 ### 2026-09-23 — People overtime to Payroll preview browser acceptance
 
 เพิ่ม Demo workflow ที่เชื่อม overtime จากพนักงานถึง Payroll จริง: พนักงานบันทึก retrospective draft และยืนยันค่าหลัง reload, ผู้จัดการรายงานตรวจชั่วโมง, HR อีกคนอนุมัติส่งต่อ และ Payroll preparer สร้าง preview. ผู้ใช้ฝ่ายจัดซื้อที่ไม่เกี่ยวข้องถูกปฏิเสธการอ่านคำขอ. Browser run แยกห้าบทบาทและตรวจ input snapshot ว่ายังอ้าง overtime request เดิม พร้อม 210 นาที/3.5 ชั่วโมงหลังคำนวณ. เพิ่ม scenario ที่ reset ได้ใน Demo guide และผูก test เข้า `demo:verify:browser`. [Browser evidence](evidence/2026-09-23-overtime-to-payroll-browser.txt) และ acceptance ledger ถูกบันทึกแล้ว. นี่เป็นหลักฐาน global payroll-core ในบริษัทจำลอง; statutory payroll/tax, provider/production, การลงบัญชีหรือจ่ายเงินปลายทาง และ Company business acceptance ยังคงเป็น gates แยก.
+
+### 2026-09-23 — Company setup acceptance ผ่าน browser สองบทบาท
+
+Demo Company ตอนนี้มีตำแหน่งให้พนักงาน IT ที่ active ครบ ทำให้ readiness checklist ทั้งห้าข้อผ่านจริง. Holding owner ส่ง Company setup เพื่อขอ review; Company HR อีกบัญชีเปิดจาก Work และส่งกลับพร้อมเหตุผล; owner เปิด Inbox แก้และส่งใหม่; HR รับรอง; owner ถอนการรับรอง. Browser ตรวจ status/version ทุกขั้นและ event ห้ารายการหลัง reload. แก้ Work adapter ที่เคยส่ง `company_business_acceptance` เข้า generic flow resolver แล้วอ่านตาราง `undefined` จนคิว review ใช้ไม่ได้. เพิ่ม scenario ใน Demo guide และ test ใน `demo:verify:browser`; [หลักฐาน](evidence/2026-09-23-company-setup-browser.txt) ผ่าน desktop 1/1 ใน isolated run. Company business-owner sign-off, provider และ production gates ยังแยกจากกัน.
+
+### 2026-09-23 — Marketing consent → CRM handoff browser acceptance (partial)
+
+เพิ่ม browser flow ที่ใช้ Sales manager สร้าง form แบบ consent-required, Holding owner อีกคนตรวจและ activate, บันทึก lead candidate พร้อม consent/campaign/source/brief, แล้วให้ Sales manager บันทึก engagement และส่งต่อเข้า CRM. หลัง handoff browser เปิด CRM detail ผ่าน link จริงและตรวจ title, attribution, brief; owner/status ยืนยันจาก CRM API และ CRM activities workspace API. ระหว่างทดสอบพบ key suffix `:crm` ถูก Next route parameter ส่งถึง owner lookup เป็น `%3Acrm`, ทำให้ CRM record มีอยู่แต่หน้า detail แสดง 404; เปลี่ยน suffix เป็น `-crm` และ acceptance ผ่าน.
+
+Browser desktop ผ่าน 1/1 ใน isolated run `8e3e3bedd636`; CRM/Marketing service regression 10/10, typecheck, scoped ESLint และ diff check ผ่าน. [หลักฐาน](evidence/2026-09-23-marketing-to-crm-browser.txt). นี่เป็น partial browser acceptance ของ S01 handoff; public form hosting, provider/webhooks, provider delivery analytics, เส้นทาง Marketing อื่น, business-owner acceptance และ production gates ยังเหลือ.
+
+### 2026-09-23 — Marketing campaign intake reporting (partial)
+
+เพิ่ม report ที่ Marketing workspace รวม captured, pending, CRM handoff และ rejected ตาม recorded campaign/source; รองรับทั้ง `source` และ `utmSource`. Query กรอง company, branch และ department จาก WorkContext และคืนเฉพาะจำนวนกับ attribution labels โดยไม่คืน contact detail. หน้า Marketing แสดง empty state หรือ table ตามข้อมูลจริง; browser ตรวจแถว campaign หลัง CRM handoff และ service regression ตรวจ aggregation กับ department scope.
+
+Browser desktop ผ่าน 1/1 ใน isolated run เดียวกับ handoff. [หลักฐาน](evidence/2026-09-23-marketing-to-crm-browser.txt). นี่เป็น intake/handoff count เท่านั้น; email/provider delivery, bounce/unsubscribe, public form hosting, campaign attribution policies และ Company business acceptance ยังเหลือ.
+
+### 2026-09-23 — Explicit consent requirement for lead capture
+
+Marketing ปฏิเสธการสร้าง lead-capture form ที่ไม่มี `consentRequired: true`; activation ตรวจเงื่อนไขอีกครั้ง และ command สร้าง candidate มี transactional guard เพื่อไม่ให้ form เดิมที่ไม่ผ่านข้อกำหนดรับ lead ได้. Regression ตรวจ missing-consent form ได้ error `MARKETING_CONSENT_REQUIRED` แทนการบันทึก draft. Browser flow ที่ใช้ consent-required form ยังผ่านหลังเพิ่ม guard.
+
+Regression 10/10, typecheck, scoped ESLint และ isolated browser 1/1 ผ่าน. [หลักฐาน](evidence/2026-09-23-marketing-to-crm-browser.txt). หลักฐานข้อความ consent ไม่ได้ยืนยัน legal wording หรือ consent policy ของธุรกิจ; public form hosting, retention/erasure policy, provider operation, business-owner acceptance และ production gates ยังเหลือ.

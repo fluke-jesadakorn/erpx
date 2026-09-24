@@ -8,5 +8,9 @@ The duplicate-review queue compares two active customer masters in one Company. 
 - `reopen` returns a prior decision to independent review when new evidence appears.
 - Work and Inbox route the pending pair to eligible reviewers; revoked or ended staff cannot decide it.
 - Pair identity and all decision events are immutable. Optimistic version and idempotency checks protect concurrent decisions.
+- The detail screen compares each record's customer code, tax registration and status beside the submitted evidence so the independent reviewer can make the decision from the same page. It hides the decision card when the current role has no available action.
+- The merge stores invoice, payment and refund-obligation counts, total amounts and outstanding amounts across both customer IDs before safe source references are repointed.
 
-Merge coverage is intentionally conservative: balance reconciliation, address/contact identity, external registry checks, browser/business acceptance and reversal/correction workflows remain deferred. Blocked source workflows must be corrected by their owning department before retrying the merge.
+The [2026-09-23 browser evidence](evidence/2026-09-23-customer-duplicate-review-browser.txt) verifies a real two-role request, comparison, canonical decision, merge, retained history, blocked lineage and quotation transfer to Customer 360 in an isolated Demo. This is partial browser acceptance, not Company business-owner sign-off.
+
+Remaining gaps include full Finance ledger/AR/AP balance reconciliation, address/contact identity resolution, external registry checks, reversal/correction workflows and owning-department correction acceptance for blocked records. Provider and production acceptance remain separate gates.

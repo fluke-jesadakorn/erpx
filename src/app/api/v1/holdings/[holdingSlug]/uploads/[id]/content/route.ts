@@ -13,7 +13,7 @@ import { canEditExpense, getExpense } from "@/server/expenses";
 import { assertion, executeCommand, replayCommand } from "@/server/commands";
 import { ApiError, errorResponse } from "@/server/http";
 import { paymentDraft, paymentGuards } from "@/server/expense-payments";
-import { completeBrandUpload } from "@/server/branding";
+import { completeBrandUpload, completeStorefrontBrandUpload } from "@/server/branding";
 import { matchesUploadSignature } from "@/server/upload-validation";
 import { qualityEvidenceGuard } from "@/server/quality";
 import { deliveryEvidenceGuard } from "@/server/commerce-delivery-evidence";
@@ -99,6 +99,16 @@ export async function PUT(
           revision: intent.revision,
           original_name: intent.original_name,
         },
+        buffer,
+      });
+      return Response.json({ data: result }, { status: 201 });
+    }
+    if (intent.owner_type === "company_storefront_brand") {
+      const result = await completeStorefrontBrandUpload({
+        db: write,
+        files,
+        actor,
+        intent: { id, owner_id: intent.owner_id, revision: intent.revision, original_name: intent.original_name },
         buffer,
       });
       return Response.json({ data: result }, { status: 201 });

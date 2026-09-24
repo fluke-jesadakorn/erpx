@@ -16,6 +16,7 @@ const ownership: Record<string, Ownership> = {
   identity_access: { phase: 0, owner: "Company administration / IT", scenarios: [12, 13, 15], gaps: [11, 20] },
   organization: { phase: 7, owner: "HR / Company administration", scenarios: [12, 13], gaps: [11] },
   platform_administration: { phase: 8, owner: "Platform operations", scenarios: [15, 19], gaps: [14, 17, 19] },
+  manage_erpx: { phase: 8, owner: "Platform operations / Platform Finance", scenarios: [15, 19], gaps: [14, 17, 19] },
   customer_360: { phase: 3, owner: "Sales / Customer service", scenarios: [1, 20], gaps: [1] },
   customer_authority: { phase: 3, owner: "Customer service / Data owner", scenarios: [1, 20], gaps: [1] },
   support: { phase: 3, owner: "Customer service", scenarios: [4, 10, 15], gaps: [1, 9] },

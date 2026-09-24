@@ -1,5 +1,4 @@
 "use client";
-import { FeatureTabs } from "@/components/features/feature-page";
 import { RosterWorkspace } from "@/components/people/roster-workspace";
 import { Dialog } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/ui/primitives";
@@ -20,8 +19,10 @@ import { workFetch } from "@/lib/work-fetch";
 import {
 CalendarDays,
 ChevronLeft,
+ChevronDown,
 ChevronRight,
 Globe2,
+Plus,
 RefreshCw,
 Search,
 Users
@@ -43,6 +44,8 @@ layerNames,
 } from "./calendar-event";
 import { CalendarForm,type CalendarEditor } from "./calendar-forms";
 import { CalendarDayTimeline } from "./calendar-day-timeline";
+import { MonthGrid } from "./month-grid";
+import { MonthNavigation } from "./month-navigation";
 import styles from "./calendar.module.css";
 const label = (
   date: string,
@@ -65,13 +68,11 @@ function CalendarView({
   base,
   initial,
   initialHierarchy,
-  explicitView,
   initialEvent,
 }: {
   base: string;
   initial: CalendarData;
   initialHierarchy: CalendarHierarchy;
-  explicitView: boolean;
   initialEvent?: string;
 }) {
   const [data, setData] = useState(initial),
@@ -93,7 +94,6 @@ function CalendarView({
   const qRef = useRef(initial.query),
     receipt = useRef<{ body: string; key: string } | null>(null),
     requestSeq = useRef(0),
-    mobileDefaultApplied = useRef(false),
     api = `/api/v1${base}/calendar`;
   const load = useCallback(
     async (
@@ -156,22 +156,18 @@ function CalendarView({
     [api, base],
   );
   useEffect(() => {
-    if (
-      !explicitView &&
-      !mobileDefaultApplied.current &&
-      window.matchMedia("(max-width:760px)").matches
-    ) {
-      mobileDefaultApplied.current = true;
-      void load({ ...qRef.current, view: "agenda" }, false, "replace");
-    }
     const refresh = () => {
       if (document.visibilityState === "visible")
         void load({ ...qRef.current, cursor: 0 });
     };
     const pop = () => {
-      const parsed = calendarQuerySchema.safeParse(
-        Object.fromEntries(new URL(window.location.href).searchParams),
-      );
+      const params = new URL(window.location.href).searchParams;
+      const raw = Object.fromEntries(params);
+      if (!params.has("view"))
+        raw.view = params.get("preset") === "coverage" ? "week" : "month";
+      if (!params.has("layers") && params.get("preset") === "coverage")
+        raw.layers = "roster,leave";
+      const parsed = calendarQuerySchema.safeParse(raw);
       if (parsed.success) void load(parsed.data, false, false);
     };
     window.addEventListener("focus", refresh);
@@ -182,8 +178,9 @@ function CalendarView({
       document.removeEventListener("visibilitychange", refresh);
       window.removeEventListener("popstate", pop);
     };
-  }, [load, explicitView]);
+  }, [load]);
   const q = data.query,
+    activePreset = q.preset ?? (q.mode === "mine" ? "mine" : "team"),
     days = Array.from(
       {
         length: Math.round(
@@ -194,7 +191,25 @@ function CalendarView({
     );
   function change(patch: Partial<CalendarQuery>) {
     const query={ ...qRef.current, ...patch, cursor: 0 };
+    qRef.current = query;
     void load(query,false,"push");
+  }
+  function changePreset(preset: "mine" | "team" | "coverage") {
+    const query: CalendarQuery = {
+      ...qRef.current,
+      preset,
+      mode: preset === "mine" ? "mine" : "team",
+      view: preset === "coverage" ? "week" : "month",
+      layers:
+        preset === "coverage"
+          ? "roster,leave"
+          : calendarLayers.join(","),
+      person: undefined,
+      search: "",
+      cursor: 0,
+    };
+    qRef.current = query;
+    void load(query, false, "push");
   }
   function open(item: CalendarItem) {
     setSelected(item);
@@ -571,16 +586,58 @@ function CalendarView({
     } else
       change({ date: addDays(q.date, direction * (q.view === "week" ? 7 : q.view === "day" ? 1 : 30)) });
   };
+  const failedSources = data.sources.filter((source) => source.status === "error"),
+    hasMoreResults = data.nextCursor !== null,
+    filterSummary = [
+      `${q.layers.split(",").length} ${q.layers.split(",").length === 1 ? "layer" : "layers"}`,
+      q.timezone,
+      q.person ? "1 person selected" : "",
+      q.node ? hierarchy.nodes.find((node) => node.id === q.node)?.name ?? "Unit selected" : "",
+      q.search ? `Search: ${q.search}` : "",
+    ].filter(Boolean);
   return (
     <div className={styles.workspace} data-calendar-workspace aria-busy={busy}>
-
-      <section className={styles.toolbar} aria-label="Calendar filters">
-        <div className={`${styles.toolbarCluster} ${styles.creationActions}`} aria-label="Create and plan">
-          {data.canSchedule && <><button onClick={() => setEditor({kind:"appointment"})}>New appointment</button><button onClick={() => setEditor({kind:"task"})}>New task</button></>}
-          {data.canAnnounce && <button onClick={() => setEditor({kind:"announcement"})}>New announcement</button>}
-          {data.canManageRoster && <button onClick={() => void openRoster()}>Plan roster</button>}
-          {data.selfPersonId && <Link href={`${base}/leave/new`}>Request leave</Link>}
-        </div>
+      <PageHeader
+        title="Calendar"
+        description="See your schedule, team plans and coverage in one place."
+        action={
+          <div className={styles.headerActions}>
+            <div className={styles.presetSwitch} role="group" aria-label="Calendar scope">
+              {([
+                ["mine", "My"],
+                ["team", "Team"],
+                ["coverage", "Coverage"],
+              ] as const).map(([preset, title]) => (
+                <button
+                  key={preset}
+                  type="button"
+                  aria-pressed={activePreset === preset}
+                  onClick={() => changePreset(preset)}
+                >
+                  {title}
+                </button>
+              ))}
+            </div>
+            {(data.canSchedule || data.canAnnounce || data.canManageRoster || data.selfPersonId) && (
+              <details className={styles.createMenu}>
+                <summary className={styles.primary}>
+                  <Plus size={15} /> Create <ChevronDown size={14} />
+                </summary>
+                <div className={styles.createMenuItems}>
+                  {data.canSchedule && <>
+                    <button type="button" onClick={() => setEditor({kind:"appointment"})}>New appointment</button>
+                    <button type="button" onClick={() => setEditor({kind:"task"})}>New task</button>
+                  </>}
+                  {data.canAnnounce && <button type="button" onClick={() => setEditor({kind:"announcement"})}>New announcement</button>}
+                  {data.canManageRoster && <button type="button" onClick={() => void openRoster()}>Plan roster</button>}
+                  {data.selfPersonId && <Link href={`${base}/leave/new`}>Request leave</Link>}
+                </div>
+              </details>
+            )}
+          </div>
+        }
+      />
+      <section className={styles.toolbar} aria-label="Calendar controls">
         <div className={styles.toolbarCluster}>
           <div className={styles.views} role="group" aria-label="Calendar view">
             {(["day", "week", "month", "agenda"] as const).map((view) => (
@@ -595,7 +652,17 @@ function CalendarView({
             ))}
           </div>
         </div>
-        <div className={`${styles.toolbarCluster} ${styles.datePicker}`}>
+        {q.view === "month" ? (
+          <MonthNavigation
+            className={styles.calendarMonthNavigation}
+            month={q.date.slice(0, 7)}
+            date={q.date}
+            todayDate={today(q.timezone)}
+            onMonthChange={(month) => change({ date: `${month}-01` })}
+            onDateChange={(date) => change({ date })}
+            onToday={() => change({ date: today(q.timezone) })}
+          />
+        ) : <div className={`${styles.toolbarCluster} ${styles.datePicker}`}>
           <button
             className={styles.iconButton}
             aria-label="Previous period"
@@ -622,18 +689,26 @@ function CalendarView({
           >
             Today
           </button>
-          <button
-            className={styles.iconButton}
-            aria-label="Refresh calendar"
-            disabled={busy}
-            onClick={() => void load({ ...qRef.current, cursor: 0 })}
-          >
-            <RefreshCw size={16} />
-          </button>
-        </div>
+        </div>}
+        <button
+          className={`${styles.iconButton} ${styles.refreshButton}`}
+          aria-label="Refresh calendar"
+          disabled={busy}
+          onClick={() => void load({ ...qRef.current, cursor: 0 })}
+        >
+          <RefreshCw size={16} />
+        </button>
       </section>
-      <details className={styles.filterPanel}><summary>Filters · layers, timezone and hierarchy</summary>          <label>People hierarchy<select value={q.hierarchy} onChange={e => change({hierarchy:e.target.value as "organization"|"reporting"})}><option value="organization">Organization</option><option value="reporting">Reporting</option></select></label>
-<div className={styles.layerBar} aria-label="Event layers">
+      <div className={styles.filterChips} aria-label="Active calendar filters">
+        <strong>{activePreset === "coverage" ? "Coverage" : activePreset === "mine" ? "My calendar" : "Team calendar"}</strong>
+        {filterSummary.map((item) => <span key={item}>{item}</span>)}
+      </div>
+      <details className={styles.filterPanel} data-calendar-filters>
+        <summary>Filters <span>{filterSummary.join(" · ")}</span></summary>
+        <div className={styles.filterControls}>
+          <section className={styles.filterSection} aria-label="Calendar layers">
+            <h2>Layers</h2>
+            <div className={styles.layerBar}>
         {calendarLayers.map((layer) => (
           <label key={layer}>
             <input
@@ -650,8 +725,10 @@ function CalendarView({
             {layerNames[layer]}
           </label>
         ))}
-        <label className={styles.zone}>
-          <Globe2 size={13} />
+            </div>
+            <label className={styles.zone}>
+              <Globe2 size={13} />
+              Display timezone
           <select
             aria-label="Display timezone"
             value={q.timezone}
@@ -671,9 +748,50 @@ function CalendarView({
             ))}
           </select>
         </label>
-      </div>
+          </section>
+          <section className={styles.peopleFilters} aria-label="People filters">
+            <h2><Users size={15} /> People</h2>
+            <form
+              className={styles.search}
+              onSubmit={(e) => {
+                e.preventDefault();
+                change({ search: String(new FormData(e.currentTarget).get("search") ?? "") });
+              }}
+            >
+              <Search size={14} />
+              <input
+                aria-label="Search people or events"
+                name="search"
+                placeholder="Search people or events"
+                defaultValue={q.search}
+                key={q.search}
+              />
+              <button type="submit" className={styles.iconButton} aria-label="Search">↵</button>
+            </form>
+            <label className={styles.hierarchyPicker}>
+              People hierarchy
+              <select value={q.hierarchy} onChange={(e) => change({ hierarchy: e.target.value as "organization" | "reporting" })}>
+                <option value="organization">Organization</option>
+                <option value="reporting">Reporting</option>
+              </select>
+            </label>
+            <button
+              className={styles.person}
+              aria-pressed={!q.person && !q.node}
+              onClick={() => change({ person: undefined, node: undefined, search: "", mode: "team" })}
+            >
+              All authorized people
+            </button>
+            <div className={styles.tree}>
+              {q.hierarchy === "organization" ? orgTree(null) : reportTree(null)}
+            </div>
+            {hierarchy.nextCursor !== null && (
+              <button className={styles.button} onClick={() => void morePeople()}>Load more people</button>
+            )}
+            <p className={styles.muted}>Your selected Company and role determine what appears here.</p>
+          </section>
+        </div>
       </details>
-      <div className={styles.filterChips} aria-label="Active calendar filters"><span className="badge">{q.preset === "coverage" ? "Coverage" : q.mode === "mine" ? "My calendar" : "Team calendar"}</span><span className="badge">{q.timezone}</span>{q.layers.split(",").map(layer=><button className="button ghost" key={layer} disabled={q.layers.split(",").length===1} onClick={()=>change({layers:q.layers.split(",").filter(v=>v!==layer).join(",")})}>{layerNames[layer as keyof typeof layerNames]} ×</button>)}{q.person&&<button className="button ghost" onClick={()=>change({person:undefined})}>Selected person ×</button>}{q.node&&<button className="button ghost" onClick={()=>change({node:undefined})}>{hierarchy.nodes.find(n=>n.id===q.node)?.name??"Team"} ×</button>}{q.search&&<button className="button ghost" onClick={()=>change({search:""})}>{q.search} ×</button>}</div>
       {error && !editor && !selected && (
         <div className={styles.error} role="alert">
           {error}
@@ -684,95 +802,30 @@ function CalendarView({
           {message}
         </p>
       )}
-      {data.sources
-        .filter((s) => s.status === "error")
-        .map((s) => (
-          <div className={styles.error} role="alert" key={s.source}>
-            {s.message}{" "}
-            <button
-              className={styles.button}
-              onClick={() => void load({ ...qRef.current, cursor: 0 })}
-            >
-              Retry
-            </button>
-          </div>
-        ))}
-      <div className={styles.summary}>
-        <span>
-          <strong>{data.coverage.shifts}</strong> shifts
-        </span>
-        <span>
-          <strong>{data.coverage.assigned}</strong> assigned slots
-        </span>
-        <span>
-          <strong>{data.coverage.open}</strong> open slots
-        </span>
-        <span>
-          <strong>{attention.length}</strong> need attention
-        </span>
-        {data.nextCursor !== null && (
-          <span>Showing loaded events · more available below</span>
-        )}
-      </div>
-      <div className={styles.layout}>
-        <aside className={styles.sidebar}>
-          <h2>
-            <Users size={15} /> People
-          </h2>
-          <form
-            className={styles.search}
-            onSubmit={(e) => {
-              e.preventDefault();
-              change({
-                search: String(
-                  new FormData(e.currentTarget).get("search") ?? "",
-                ),
-              });
-            }}
-          >
-            <Search size={14} />
-            <input
-              aria-label="Search people or events"
-              name="search"
-              placeholder="Search people or events"
-              defaultValue={q.search}
-              key={q.search}
-            />
-            <button
-              type="submit"
-              className={styles.iconButton}
-              aria-label="Search"
-            >
-              ↵
-            </button>
-          </form>
-          <button
-            className={styles.person}
-            aria-pressed={!q.person && !q.node}
-            onClick={() =>
-              change({
-                person: undefined,
-                node: undefined,
-                search: "",
-                mode: "team",
-              })
-            }
-          >
-            All authorized people
+      {failedSources.length > 0 && (
+        <div className={styles.error} role="alert">
+          <span>
+            Some calendar sources could not be loaded: {failedSources.map((source) => layerNames[source.source]).join(", ")}. Results are partial.
+          </span>{" "}
+          <button className={styles.button} onClick={() => void load({ ...qRef.current, cursor: 0 })}>
+            Retry calendar sources
           </button>
-          <div className={styles.tree}>
-            {q.hierarchy === "organization" ? orgTree(null) : reportTree(null)}
-          </div>
-          {hierarchy.nextCursor !== null && (
-            <button className={styles.button} onClick={() => void morePeople()}>
-              Load more people
-            </button>
-          )}
-          <p className={styles.muted}>
-            Your selected Company and role determine what appears here.
-          </p>
-        </aside>
-        <section className={styles.main} aria-label="Calendar events">
+        </div>
+      )}
+      {activePreset === "coverage" && (
+        <div className={styles.summary} aria-label="Coverage counts">
+          <span><strong>{data.coverage.shifts}</strong> shifts</span>
+          <span><strong>{data.coverage.assigned}</strong> assigned slots</span>
+          <span><strong>{data.coverage.open}</strong> open slots</span>
+          <span><strong>{attention.length}</strong> need attention</span>
+        </div>
+      )}
+      {hasMoreResults && (
+        <p className={styles.partialStatus} role="status">
+          Showing {data.items.length} loaded events. More results are available below.
+        </p>
+      )}
+      <section className={styles.main} aria-label="Calendar events">
           <div className={styles.period}>
             <h2>
               {q.view === "month"
@@ -884,37 +937,42 @@ function CalendarView({
             />
           )}
           {q.view === "month" && (
-            <div className={styles.scroll} data-calendar-view="month">
-              <div className={styles.month}>
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(
-                  (day) => (
-                    <div key={day} className={styles.dayHeading}>
-                      {day}
-                    </div>
-                  ),
-                )}
-                {Array.from(
-                  {
-                    length:
-                      Math.ceil(
-                        ((new Date(`${data.from}T12:00:00Z`).getUTCDay() + 6) %
-                          7) /
-                          7 +
-                          days.length / 7,
-                      ) * 7,
-                  },
-                  (_, index) => addDays(rosterMonday(data.from), index),
-                ).map((day) => (
-                  <section
-                    key={day}
-                    data-calendar-date={day}
-                    className={`${styles.monthDay} ${day.slice(0, 7) !== data.from.slice(0, 7) ? styles.outside : ""} ${day === today(q.timezone) ? styles.today : ""} ${dateDrop === day ? styles.dateDropTarget : ""}`}
+            <div className={styles.monthLayout}>
+              <MonthGrid
+                month={data.from.slice(0, 7)}
+                currentDate={today(q.timezone)}
+                selectedDate={q.date}
+                dropTargetDate={dateDrop}
+                onSelectDate={(date) => change({ date })}
+                eventCount={(date) => daily(date).length}
+                renderDay={(day) => daily(day).slice(0, 2).map((i) => event(i))}
+                renderMore={(day, count) => (
+                  <button
+                    type="button"
+                    className={styles.morePreview}
+                    aria-label={`Show ${count} more loaded events for ${label(day, { month: "long", day: "numeric" })}`}
+                    onClick={() => change({ date: day })}
                   >
-                    <header>{label(day, { day: "numeric" })}</header>
-                    {daily(day).map((i) => event(i))}
-                  </section>
-                ))}
-              </div>
+                    +{count} more
+                  </button>
+                )}
+              />
+              <section className={styles.monthSelectedDay} data-selected-calendar-day aria-labelledby="selected-calendar-day">
+                <header className={styles.monthSelectedHeader}>
+                  <div>
+                    <span>Selected day</span>
+                    <h3 id="selected-calendar-day">{label(q.date, { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</h3>
+                  </div>
+                  <span>{daily(q.date).length} {daily(q.date).length === 1 ? "event" : "events"}</span>
+                </header>
+                {daily(q.date).length ? (
+                  <div className={styles.monthSelectedEvents}>
+                    {daily(q.date).map((item) => event(item))}
+                  </div>
+                ) : (
+                  <p className={styles.monthNoEvents}>No events scheduled for this day.</p>
+                )}
+              </section>
             </div>
           )}
           {q.view === "agenda" && (
@@ -937,7 +995,7 @@ function CalendarView({
                 ))}
             </div>
           )}
-          {!data.items.length &&
+          {q.view !== "month" && !data.items.length &&
             data.sources.every((s) => s.status === "ready") && (
               <div className={styles.empty}>
                 <CalendarDays size={30} />
@@ -954,12 +1012,12 @@ function CalendarView({
             </details>
           )}
           <div className={styles.footer}>
-            {data.nextCursor !== null && (
-              <button
-                className={styles.button}
-                disabled={busy}
-                onClick={() =>
-                  void load({ ...qRef.current, cursor: data.nextCursor! }, true)
+              {hasMoreResults && (
+                <button
+                  className={styles.button}
+                  disabled={busy}
+                  onClick={() =>
+                    void load({ ...qRef.current, cursor: data.nextCursor! }, true)
                 }
               >
                 Load more events
@@ -971,8 +1029,7 @@ function CalendarView({
                 : "Source records stay up to date when you return to this page."}
             </span>
           </div>
-        </section>
-      </div>
+      </section>
       <Dialog
         open={!!selected && !editor}
         onClose={closeDetail}
@@ -1234,5 +1291,5 @@ function CalendarView({
 }
 
 export function CalendarWorkspace(props: Parameters<typeof CalendarView>[0]) {
-  return <><PageHeader title="Calendar" description="See your schedule, team plans and coverage in one place."/><FeatureTabs/><CalendarView {...props}/></>;
+  return <CalendarView {...props} />;
 }

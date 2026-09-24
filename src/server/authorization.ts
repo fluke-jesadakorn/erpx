@@ -12,6 +12,7 @@ import { betaAccess } from "./beta-access";
 import { assertProductionFeatureRoute } from './hospitality-rollout';
 import "server-only";
 import { modulesForRole } from "@/lib/business-roles";
+import { hasPermission } from "@/lib/permissions";
 
 import { headers } from "next/headers";
 import type { HoldingWorkspaceScope, WorkspaceScope } from "@/lib/workspace";
@@ -231,13 +232,22 @@ export async function resolveWorkspaceScope(
   if (requested.kind === "holding") {
     const requestHeaders = await headers();
     const contextCompany = requestHeaders.get("x-erpx-context-company");
+    const frontCompanySlug = requestHeaders.get("x-erpx-front-company");
     const { session } = await currentSession();
     const savedCompany = await readCompanyPreference((await runtimeEnv()).CONTROL_DB,session.user.id,binding.id);
     const preferred = contextCompany ?? savedCompany?.company_id ?? cookieValue(
       requestHeaders.get("cookie"),
       `erpx_company_${binding.id}`,
     );
-    let company = preferred
+    let company = frontCompanySlug
+      ? await write
+          .prepare(
+            `SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
+             FROM organization_nodes WHERE kind='company' AND slug=? AND status='active'`,
+          )
+          .bind(frontCompanySlug)
+          .first<OrganizationNode>()
+      : preferred
       ? await write
           .prepare(
             `SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
@@ -252,7 +262,7 @@ export async function resolveWorkspaceScope(
              ORDER BY display_name,id LIMIT 1`,
           )
           .first<OrganizationNode>();
-    if (!company && !contextCompany) {
+    if (!company && !contextCompany && !frontCompanySlug) {
       const available=await listWorkspaceCompanies(binding.id);
       if(available[0]) company=await write.prepare("SELECT id,kind,slug,display_name,parent_id,company_id,branch_id FROM organization_nodes WHERE id=? AND status='active'").bind(available[0].id).first<OrganizationNode>();
     }
@@ -260,9 +270,10 @@ export async function resolveWorkspaceScope(
     // Company preference is browser-local and may belong to a previous account.
     // Recover only to a company this account can actually open at holding scope.
     const available = await listWorkspaceCompanies(binding.id);
-    if (!contextCompany && available.length && !available.some(item => item.id === company!.id)) {
+    if (!contextCompany && !frontCompanySlug && available.length && !available.some(item => item.id === company!.id)) {
       company = { ...company, id: available[0].id };
     }
+    await assertFrontCompany(write, company.id);
     return {
       kind: "holding",
       holdingId: binding.id,
@@ -272,9 +283,17 @@ export async function resolveWorkspaceScope(
     };
   }
   if (requested.kind === "branch") {
-    const branch = await findNode(write, "branch", requested.branchSlug);
+    const frontCompanySlug = (await headers()).get("x-erpx-front-company");
+    const branch = frontCompanySlug
+      ? await write.prepare(
+          "SELECT n.id,n.kind,n.slug,n.display_name,n.parent_id,n.company_id,n.branch_id FROM organization_nodes n " +
+          "JOIN organization_nodes c ON c.id=n.company_id AND c.kind='company' AND c.slug=? AND c.status='active' " +
+          "WHERE n.kind='branch' AND n.slug=? AND n.status='active'",
+        ).bind(frontCompanySlug, requested.branchSlug).first<OrganizationNode>()
+      : await findNode(write, "branch", requested.branchSlug);
     if (!branch) throw new Error("WORKSPACE_NOT_FOUND");
     await validateNodeLineage(write, branch);
+    await assertFrontCompany(write, branch.company_id);
     return {
       kind: "branch",
       holdingId: binding.id,
@@ -288,26 +307,38 @@ export async function resolveWorkspaceScope(
   }
   let branch: OrganizationNode | null = null;
   if (requested.branchSlug) {
-    branch = await findNode(write, "branch", requested.branchSlug);
+    const frontCompanySlug = (await headers()).get("x-erpx-front-company");
+    branch = frontCompanySlug
+      ? await write.prepare(
+          "SELECT n.id,n.kind,n.slug,n.display_name,n.parent_id,n.company_id,n.branch_id FROM organization_nodes n " +
+          "JOIN organization_nodes c ON c.id=n.company_id AND c.kind='company' AND c.slug=? AND c.status='active' " +
+          "WHERE n.kind='branch' AND n.slug=? AND n.status='active'",
+        ).bind(frontCompanySlug, requested.branchSlug).first<OrganizationNode>()
+      : await findNode(write, "branch", requested.branchSlug);
     if (!branch) throw new Error("WORKSPACE_NOT_FOUND");
   }
   const department = await write
     .prepare(
       branch
         ? `SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
-           FROM organization_nodes WHERE kind='department' AND slug=?
+           FROM organization_nodes WHERE kind='department' AND slug=? AND company_id=?
            AND status='active' AND branch_id=? AND parent_id=?`
-        : `SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
-           FROM organization_nodes WHERE kind='department' AND slug=?
-           AND status='active' AND branch_id IS NULL`,
+        : (await headers()).get("x-erpx-front-company")
+          ? `SELECT n.id,n.kind,n.slug,n.display_name,n.parent_id,n.company_id,n.branch_id
+             FROM organization_nodes n JOIN organization_nodes c ON c.id=n.company_id AND c.kind='company' AND c.slug=? AND c.status='active'
+             WHERE n.kind='department' AND n.slug=? AND n.status='active' AND n.branch_id IS NULL`
+          : `SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
+             FROM organization_nodes WHERE kind='department' AND slug=?
+             AND status='active' AND branch_id IS NULL`,
     )
     .bind(
-      requested.departmentSlug,
-      ...(branch ? [branch.id, branch.id] : []),
+      ...((await headers()).get("x-erpx-front-company") && !branch ? [(await headers()).get("x-erpx-front-company")!, requested.departmentSlug] : [requested.departmentSlug]),
+      ...(branch ? [branch.company_id, branch.id, branch.id] : []),
     )
     .first<OrganizationNode>();
   if (!department) throw new Error("WORKSPACE_NOT_FOUND");
   await validateNodeLineage(write, department);
+  await assertFrontCompany(write, department.company_id);
   return {
     kind: "department",
     holdingId: binding.id,
@@ -321,6 +352,16 @@ export async function resolveWorkspaceScope(
     departmentSlug: department.slug,
     departmentName: department.display_name,
   };
+}
+
+async function assertFrontCompany(database: SqlDatabase, companyId: string) {
+  const requestedSlug = (await headers()).get("x-erpx-front-company");
+  if (!requestedSlug) return;
+  const company = await database
+    .prepare("SELECT 1 FROM organization_nodes WHERE id=? AND slug=? AND kind='company' AND status='active'")
+    .bind(companyId, requestedSlug)
+    .first();
+  if (!company) throw new ApiError(404, "COMPANY_NOT_FOUND", "This storefront does not match the selected Company.");
 }
 
 export async function requestedHoldingScope(
@@ -497,6 +538,35 @@ export async function requirePlatformContext(): Promise<PlatformContext> {
     modules: modulesForRole(assignment.role,assignment.modules),
     assignments,
   };
+}
+
+/** Manage ERPX requires the selected ERPX Holding role and a live Platform role. */
+export async function requireManageErpxContext(): Promise<{ work: WorkContext; platform: PlatformContext }> {
+  const requestHeaders = await headers();
+  const method = requestHeaders.get("x-erpx-method") ?? requestHeaders.get("x-erpx-request-method");
+  if (method && !["GET", "HEAD", "OPTIONS"].includes(method) &&
+    (!requestHeaders.has("x-erpx-context-revision") || !requestHeaders.has("x-erpx-platform-assignment")))
+    throw new ApiError(409, "WORK_CONTEXT_CHANGED", "Reload Manage ERPX before submitting.");
+  let work: WorkContext;
+  try {
+    work = await requireWorkContext("erpx");
+  } catch (error) {
+    if (error instanceof ApiError && ["WORK_ROLE_REQUIRED", "WORK_ROLE_UNAVAILABLE"].includes(error.code)) {
+      const access = await requireAccountAccess("erpx");
+      if (!access.assignments.some((assignment) => assignment.scopeKind === "holding"))
+        throw new ApiError(403, "MANAGE_ERPX_FORBIDDEN", "An ERPX Holding assignment is required.");
+    }
+    throw error;
+  }
+  if (work.holdingId !== "h003" || work.scope.kind !== "holding" || !hasPermission(work, "manage_erpx.access"))
+    throw new ApiError(403, "MANAGE_ERPX_FORBIDDEN", "The selected ERPX Holding role cannot access Manage ERPX.");
+  const platform = await requirePlatformContext();
+  if (platform.userId !== work.userId)
+    throw new ApiError(403, "MANAGE_ERPX_FORBIDDEN", "The Platform and Holding identities must match.");
+  if (requestHeaders.has("x-erpx-platform-assignment") &&
+    requestHeaders.get("x-erpx-platform-assignment") !== platform.assignmentId)
+    throw new ApiError(409, "PLATFORM_CONTEXT_CHANGED", "Your Platform role changed. Reload and review.");
+  return { work, platform };
 }
 
 export function publicScope(context: WorkContext | PlatformContext): WorkspaceScope {

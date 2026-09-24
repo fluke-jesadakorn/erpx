@@ -312,7 +312,7 @@ export function cancellationEligibility(
       .map((f) => f.id),
   );
   if (
-    records(s, "entry").some((e) => folios.has(e.data.folioId)) ||
+    records(s, "entry").some((e) => folios.has(e.data.folioId) && !(e.data.kind==='payment'&&e.data.method==='stripe')) ||
     records(s, "refund").some((e) => folios.has(e.data.folioId))
   )
     return {

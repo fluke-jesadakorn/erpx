@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { WorkContext } from "./authorization";
 import type { Row } from "./commerce";
 import type { WorkItem } from "@/lib/work-item";
+import type { SqlDatabase } from "./runtime/types";
 import { holdingResources } from "./runtime";
 import { requirePermission } from "./iam-permissions";
 import { hasPermission } from "@/lib/permissions";
@@ -336,6 +337,40 @@ export async function learningAssignmentDetail(a: WorkContext, id: string) {
       .bind(id)
       .first<Row>(),
   };
+}
+export type LearningExecutiveEvidenceMetric = "learning-completions" | "overdue-required-learning";
+export async function learningExecutiveEvidenceRow(
+  db: SqlDatabase,
+  a: WorkContext,
+  metric: LearningExecutiveEvidenceMetric,
+  recordId: string,
+  range?: { from: number; toExclusive: number },
+) {
+  access(a);
+  const id = z.string().min(1).max(200).parse(recordId);
+  if (metric === "learning-completions") {
+    if (!range) throw new ApiError(422, "EVIDENCE_FILTER_REQUIRED", "A completion date range is required.");
+    return db.prepare(`SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,
+        c.title course_title
+      FROM learning_assignment_events e
+      JOIN learning_assignments a ON a.id=e.assignment_id
+      JOIN learning_courses c ON c.id=a.course_id
+      WHERE e.id=? AND a.company_id=? AND (?::text IS NULL OR a.branch_id=?)
+        AND (?::text IS NULL OR a.department_id=?)
+        AND e.action='complete' AND e.status='completed' AND e.created_at>=? AND e.created_at<?
+      LIMIT 1`)
+      .bind(id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId, range.from, range.toExclusive)
+      .first<Row>();
+  }
+  return db.prepare(`SELECT a.id,a.version,a.status,a.due_date,a.updated_at,c.title course_title,c.required_for
+    FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id
+    WHERE a.id=? AND a.company_id=? AND (?::text IS NULL OR a.branch_id=?)
+      AND (?::text IS NULL OR a.department_id=?) AND c.required_for IS NOT NULL
+      AND a.due_date<to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')
+      AND a.status IN ('assigned','in_progress')
+    LIMIT 1`)
+    .bind(id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId)
+    .first<Row>();
 }
 export async function changeLearningAssignment(
   a: WorkContext,

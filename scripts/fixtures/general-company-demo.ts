@@ -18,6 +18,7 @@ export type GeneralCompanyDemoInput = {
   lotProductId: string;
   serialProductId: string;
   customerId?: string;
+  customerDuplicateIds?: [string, string];
   customerOperator?: DemoActor;
   crmLeadId?: string;
   qualityDueSoonHoldId?: string;
@@ -199,6 +200,21 @@ export function generalCompanyDemoGuide(input: GeneralCompanyDemoInput) {
           { order: 6, actor: "administrator", action: "เสนอแผนกใต้สาขาใหม่ และให้ reviewer อนุมัติ", href: `${base}/people/organization`, expected: "แผนกอยู่ใต้สาขาที่เลือกเท่านั้น" },
           { order: 7, actor: "reviewer", action: "ทดลองอนุมัติการระงับสาขาที่ยังมีแผนก active", href: `${base}/people/organization`, expected: "ระบบแสดง dependency ที่ต้องย้ายหรือปิดก่อน และสาขายัง active" },
           { order: 8, actor: "administrator", action: "ยกเลิกคำขอที่ติด dependency แล้วเสนอระงับแผนกก่อนสาขา ให้ reviewer ตรวจแต่ละขั้น และทดลอง reactivate สาขาก่อนแผนก", href: `${base}/people/organization`, expected: "การระงับและเปิดใหม่เก็บ revision และประวัติครบ ค้นหาได้ด้วยตัวกรอง All requests" },
+          { order: 9, actor: "administrator", action: "สร้างสาขาปลายทางและแผนกใหม่ จากนั้นเพิ่ม position ที่ใช้งานอยู่ใต้แผนกต้นทาง", href: `${base}/people/organization?view=positions`, expected: "ทั้งสาขา แผนก และ position ผ่าน Company HR review และ position อ้างอิงแผนกต้นทาง" },
+          { order: 10, actor: "administrator", action: "เสนอ relocate แผนกไปสาขาปลายทาง แล้วให้ reviewer อนุมัติ", href: `${base}/people/organization`, expected: "เก็บแผนกเดิมเป็น archived history, สร้าง node ที่สาขาใหม่ และย้าย position ที่ใช้งานอยู่" },
+          { order: 11, actor: "administrator", action: "archive แผนกว่าง แล้วเสนอ reactivate โดยให้ reviewer คนเดิมตรวจแยกแต่ละคำขอ", href: `${base}/people/organization`, expected: "node เดิมและ decision history ยังอยู่ และสถานะกลับเป็น active หลังอนุมัติ" },
+        ],
+        actors: { administrator: input.actors.administrator, reviewer: input.organizationReviewer },
+      }, {
+        id: "company-setup-acceptance",
+        title: "ตรวจความพร้อม Company และรับรองโดยผู้ดูแลอีกคน",
+        startingState: "The isolated Company has an active branch, six staff levels, one CEO position and placement for every active staff member. Acceptance has not been submitted.",
+        steps: [
+          { order: 1, actor: "administrator", action: "เปิด Business readiness ตรวจ checklist แล้ว Submit for independent review พร้อมเหตุผล", href: `${base}/settings/business-readiness#company-setup-acceptance`, expected: "สถานะ Awaiting independent review และผู้ส่งไม่เห็นปุ่มอนุมัติ" },
+          { order: 2, actor: "reviewer", action: "เปิด Work → Company setup acceptance แล้ว Return for correction พร้อมเหตุผล", href: `${base}/work?type=company_business_acceptance&view=actions`, expected: "ผู้ส่งได้รับ Inbox update พร้อมลิงก์ตรงกลับหน้ารับรอง" },
+          { order: 3, actor: "administrator", action: "เปิด Inbox update ตรวจหลักฐานและส่งใหม่", href: `${base}/inbox?tab=updates`, expected: "สถานะ Awaiting independent review และประวัติ rejection ยังคงอยู่" },
+          { order: 4, actor: "reviewer", action: "กลับไปหน้า Business readiness แล้ว Accept Company setup", href: `${base}/settings/business-readiness#company-setup-acceptance`, expected: "สถานะ Accepted พร้อมเหตุผลและผู้ตรวจอิสระ" },
+          { order: 5, actor: "administrator", action: "Revoke acceptance พร้อมเหตุผล แล้วเปิด Immutable acceptance history", href: `${base}/settings/business-readiness#company-setup-acceptance`, expected: "สถานะ Revoked และ event ทั้งห้ายังอยู่หลัง reload" },
         ],
         actors: { administrator: input.actors.administrator, reviewer: input.organizationReviewer },
       }] : []),
@@ -265,6 +281,21 @@ export function generalCompanyDemoGuide(input: GeneralCompanyDemoInput) {
             actors: { customerOperator: input.customerOperator, salesManager: input.actors.salesManager },
           }]
         : []),
+      ...(input.customerDuplicateIds
+        ? [{
+            id: "customer-duplicate-review-and-merge",
+            title: "ตรวจคู่ลูกค้าซ้ำและรวมเข้าระเบียนหลัก",
+            sourceRecord: { type: "finance_party", id: input.customerDuplicateIds[0] },
+            startingState: "Two fictional active customer masters have similar legal names and the same simulated tax registration. A Company administrator requests review; a separate Sales manager reviews the identity evidence and selects the canonical record.",
+            steps: [
+              { order: 1, actor: "administrator", action: "ส่งคู่ลูกค้าที่อาจซ้ำพร้อมเหตุผลและหลักฐาน", href: `${base}/customer-duplicates`, expected: "ระบบเรียงคู่ให้คงที่และส่งงานให้ผู้จัดการบริษัทคนอื่น" },
+              { order: 2, actor: "salesManager", action: "เปรียบเทียบชื่อ รหัส เลขทะเบียนภาษี และหลักฐาน", href: `${base}/customer-duplicates`, expected: "ผู้ตรวจเห็น identity fields ทั้งสองฝั่งและเลือก canonical ได้" },
+              { order: 3, actor: "salesManager", action: "ยืนยัน duplicate และเลือก canonical customer", href: `${base}/customer-duplicates`, expected: "ประวัติ immutable ระบุผู้ตรวจ เหตุผล และ canonical ID" },
+              { order: 4, actor: "salesManager", action: "รวม source records ที่ปลอดภัยเข้าระเบียนหลัก", href: `${base}/customer-duplicates`, expected: "คู่ review เป็น merged และ losing master คงเป็น blocked lineage" },
+            ],
+            actors: { administrator: input.actors.administrator, salesManager: input.actors.salesManager },
+          }]
+        : []),
       ...(input.crmLeadId && input.customerOperator
         ? [{
             id: "crm-lead-activities",
@@ -280,6 +311,19 @@ export function generalCompanyDemoGuide(input: GeneralCompanyDemoInput) {
             actors: { customerOperator: input.customerOperator, salesManager: input.actors.salesManager },
           }]
         : []),
+      {
+        id: "marketing-consent-to-crm-lead",
+        title: "ส่ง lead ที่ยินยอมจาก Marketing ให้ Sales ติดตาม",
+        startingState: "A separate Sales manager can prepare a marketing form; an independent Company administrator reviews it. A fictional prospect is created only during this isolated exercise.",
+        steps: [
+          { order: 1, actor: "salesManager", action: "สร้าง Marketing form ที่ระบุช่อง contact/need และ consent requirement", href: `${base}/marketing`, expected: "แบบฟอร์มยังเป็น draft และใช้รับ lead ไม่ได้ก่อนผู้ดูแลอีกคนเปิดใช้" },
+          { order: 2, actor: "administrator", action: "ตรวจ preview และ consent fields แล้ว Activate form", href: `${base}/marketing`, expected: "Form active ด้วย reviewer แยกจากผู้สร้าง" },
+          { order: 3, actor: "administrator", action: "บันทึก prospect สมมติพร้อม contact, consent evidence, campaign, source และ brief", href: `${base}/marketing`, expected: "Lead candidate และ form_submit event ถูกบันทึกพร้อม attribution" },
+          { order: 4, actor: "salesManager", action: "เปิด candidate บันทึกการตรวจ brief แล้ว Create CRM lead", href: `${base}/marketing`, expected: "Candidate เชื่อม CRM lead ที่มี brief, attribution, due date และ Sales manager เป็น owner" },
+          { order: 5, actor: "salesManager", action: "เปิด CRM lead จาก Marketing candidate", href: `${base}/crm`, expected: "source record ยังคง authoritative และ lead เปิดต่อไปยังกิจกรรม Sales ได้" },
+        ],
+        actors: { administrator: input.actors.administrator, salesManager: input.actors.salesManager },
+      },
       {
         id: "employee-overtime-to-payroll",
         title: "พนักงานส่งชั่วโมงล่วงเวลาให้ผู้จัดการและ HR ตรวจ ก่อนเข้า Payroll preview",

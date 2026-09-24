@@ -10,6 +10,7 @@ import { RequestAdministration } from "@/components/workplace/request-administra
 import { ServiceTeams } from "@/components/workplace/service-teams";
 import { adminSections,type AdminSection } from "@/lib/administration";
 import { workspaceBase } from "@/lib/workspace";
+import { hasPermission } from "@/lib/permissions";
 import { administrationAccess } from "@/server/administration";
 import { aiProviderOverview } from "@/server/ai-providers";
 import { publicScope,requireWorkContext } from "@/server/authorization";
@@ -89,6 +90,7 @@ export default async function Settings({
         </FeatureTabBar>
       )}
       {access.manageOrganization&&!actor.branchId&&!actor.departmentId&&<Link className="button secondary" href={`${base}/settings/business-readiness`}>Business readiness · A–J</Link>}
+      {!actor.branchId&&!actor.departmentId&&(hasPermission(actor,'finance.approve')||hasPermission(actor,'pos.payments.configure'))&&<Link className="button secondary" href={`${base}/settings/stripe`}>Company Stripe · POS and PMS</Link>}
       <WidgetGrid>{section === "people" && (
         <FeatureWidget id="people-settings-people-access" title="People & access"><section className="card">
           <Link className="button secondary" href={`${base}/iam`}>Identity & access administration</Link>
@@ -123,6 +125,7 @@ export default async function Settings({
             {...await listBrandProfiles(write, actor)}
             canHolding={access.owner}
             canBranches={access.manageOrganization}
+            canStorefront={access.manageOrganization && actor.scope.kind === "holding"}
           />
           <FeatureWidget id="people-settings-organization-chart-and-positions" title="Organization chart and positions"><section className="card"><p>Manage staff levels, reporting managers, vacancies, and reusable organization templates.</p><Link className="button" href={`${base}/people/organization`}>Open organization</Link></section></FeatureWidget>
           {access.owner && <ServiceTeams base={base} options={await serviceTeamOptions(write, actor)} companyId={actor.companyId} userId={actor.userId}/>}

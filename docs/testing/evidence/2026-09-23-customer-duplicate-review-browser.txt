@@ -1,0 +1,25 @@
+ERPX Customer 360 duplicate review — isolated browser evidence
+Observed: 2026-09-23 Asia/Bangkok
+
+Browser acceptance
+- Isolated Demo run: `ecad1c114450`, origin `http://127.0.0.1:3102`; the disposable run was destroyed after verification.
+- Command: `ERPX_DEMO_RUN=ecad1c114450 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-customer-duplicate-review.spec.ts --project=desktop`
+- Result: 1 desktop test passed (17.4s).
+- A Holding owner requested review of two fictional customer masters with similar names and the same simulated tax registration. A separate Company Sales manager inspected both codes, both tax-registration values and the request evidence, then selected the canonical customer.
+- The reviewer merged a safe quotation from the losing customer. The browser verified the merged review, selected canonical ID, immutable request/duplicate/merge event sequence, blocked losing-customer lineage and the quotation link on canonical Customer 360.
+- The requester could not see the independent-decision action. Pending and completed detail pages no longer render an empty decision card.
+- Full-page screenshots were inspected for the merged comparison/history page and canonical Customer 360 timeline; the source quotation appeared under the canonical customer.
+
+Regression and build checks
+- `bun run test -- tests/customer-duplicates.test.ts tests/customer-timeline.test.ts` — 11 tests passed.
+- The merge regression creates invoices and receipts on both customer masters, verifies all four references repoint to the canonical master, and checks the reconciliation snapshot retains invoice and payment counts, totals and outstanding amounts across both records.
+- `bun run typecheck` passed.
+- Scoped ESLint and `git diff --check` passed.
+- `bun run status:capabilities -- --check` verified 183 capabilities; no delivery status was promoted.
+- `bun run deploy:build` passed and generated `.runtime/releases/2026-09-23T10-18-34-005Z` without deployment.
+- Build warning: `src/server/runtime/env.ts:74:65` uses a dynamically resolved filesystem manifest path, so Turbopack traces the whole project. This is an existing runtime configuration concern outside this change.
+
+Remaining gaps
+- This is automated browser evidence in disposable local storage, not Company business-owner acceptance or production certification.
+- Full Finance ledger/AR/AP balance reconciliation, address/contact identity resolution, external registry checks, reversal/correction workflows and owning-department correction acceptance for blocked records remain deferred.
+- Provider and production gates remain separate.

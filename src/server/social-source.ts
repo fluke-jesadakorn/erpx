@@ -3,6 +3,7 @@ import { ApiError } from "./http";
 import { assertion } from "./commands";
 import { sha256 } from "./crypto";
 import type { StaffActor } from "./staff-policy";
+import type { WorkContext } from "./authorization";
 export type PostRow = {
   id: string;
   company_id: string;
@@ -18,6 +19,13 @@ export type PostRow = {
 };
 export const sourceAccessSql = (alias = "p") =>
   `EXISTS(SELECT 1 FROM assignments a WHERE a.user_id=? AND a.company_id=${alias}.company_id AND a.revoked_at IS NULL AND a.valid_from<=? AND a.valid_until>? AND ((${alias}.branch_id IS NULL AND ${alias}.department_id IS NULL) OR a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=${alias}.branch_id) OR (a.scope_kind='department' AND a.scope_node_id=${alias}.department_id)))`;
+/** The social feed and Executive activity adapter share the same published-post boundary. */
+export function socialPostScope(actor: Pick<WorkContext,"companyId"|"userId"|"branchId"|"departmentId">, alias="p") {
+  const now=Date.now(),base=`${alias}.company_id=? AND ${alias}.state='published' AND ${sourceAccessSql(alias)}`;
+  return actor.departmentId
+    ? {sql:`${base} AND (${alias}.department_id=? OR (${alias}.department_id IS NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id=?)))`,bindings:[actor.companyId,actor.userId,now,now,actor.departmentId,actor.branchId]}
+    : {sql:`${base} AND (${alias}.branch_id IS NULL OR ?::text IS NULL OR ${alias}.branch_id=?)`,bindings:[actor.companyId,actor.userId,now,now,actor.branchId,actor.branchId]};
+}
 export async function readablePost(
   db: SqlDatabase,
   actor: Pick<StaffActor, "userId" | "companyId">,

@@ -9,7 +9,7 @@ export default async function BookingPage({
 }: {
   params: Promise<{ holdingSlug: string }>;
 }) {
-  if (process.env.NODE_ENV === "production") notFound();
+  if (process.env.PMS_STRIPE_BOOKING_ENABLED === 'false' || process.env.NODE_ENV === "production" && process.env.PMS_STRIPE_LIVE_ENABLED !== "true") notFound();
   const { holdingSlug } = await params;
   const db = await bookingDatabase(holdingSlug).catch((e) => {
     if (e instanceof Error && e.message === "HOLDING_NOT_FOUND") notFound();
@@ -23,7 +23,7 @@ export default async function BookingPage({
         <h1>Find a stay that feels right.</h1>
         <p>
           Explore our hotels, compare room options and reserve your stay. Book
-          directly and pay at the hotel.
+          directly and complete payment securely online.
         </p>
       </header>
       {hotels.length ? (

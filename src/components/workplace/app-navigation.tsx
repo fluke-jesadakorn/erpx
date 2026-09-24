@@ -12,6 +12,7 @@ import {
 } from "@/lib/navigation-catalog";
 import {
   navigationCategory,
+  pmsSidebarHref,
   resolveNavigation,
   workplaceNavigation,
   type NavigationCategory,
@@ -114,6 +115,7 @@ export function AppNavigation({ context, mobile = false, Icon }: {
   }
 
   function itemCurrent(item: NavigationItem) {
+    if (item.id === "erpx-management") return active.activeId === item.id;
     return active.groupId === item.id || active.activeId === item.id;
   }
 
@@ -122,7 +124,7 @@ export function AppNavigation({ context, mobile = false, Icon }: {
     return (
       <Link
         key={item.id}
-        href={item.href}
+        href={pmsSidebarHref(item, pathname, query)}
         aria-current={active.activeId === item.id ? "page" : undefined}
         aria-label={rail && !mobile ? item.label : undefined}
         title={rail && !mobile ? item.label : undefined}
@@ -146,12 +148,16 @@ export function AppNavigation({ context, mobile = false, Icon }: {
   }
 
   function appLink(item: NavigationItem, inFlyout = false) {
+    const current = item.submodules?.length
+      ? pathname === item.href && active.activeId === "people-directory"
+      : itemCurrent(item);
     return (
       <Link
         key={item.id}
         className={inFlyout ? appStyles.flyoutLink : styles.navAppLink}
-        href={item.href}
-        aria-current={itemCurrent(item) ? "page" : undefined}
+        href={pmsSidebarHref(item, pathname, query)}
+        aria-current={current ? "page" : undefined}
+        data-active={itemCurrent(item) || undefined}
         onClick={() => {
           if (rail) setOpenCategoryId(null);
         }}
@@ -160,6 +166,22 @@ export function AppNavigation({ context, mobile = false, Icon }: {
         <span>{item.label}</span>
       </Link>
     );
+  }
+
+  function categoryItems(category: NavigationCategory, inFlyout = false) {
+    return category.apps.map((item) => (
+      <div
+        className={item.submodules?.length ? appStyles.submoduleGroup : undefined}
+        key={item.id}
+      >
+        {appLink(item, inFlyout)}
+        {!!item.submodules?.length && (
+          <div className={inFlyout ? appStyles.flyoutSubmoduleList : appStyles.submoduleList}>
+            {item.submodules.map((submodule) => appLink(submodule, inFlyout))}
+          </div>
+        )}
+      </div>
+    ));
   }
 
   function categorySection(category: NavigationCategory) {
@@ -193,12 +215,12 @@ export function AppNavigation({ context, mobile = false, Icon }: {
           expanded && (
             <div id={childrenId} className={appStyles.railFlyout} role="group" aria-label={category.label}>
               <strong>{category.label}</strong>
-              {category.apps.map((item) => appLink(item, true))}
+              {categoryItems(category, true)}
             </div>
           )
         ) : (
           <div id={childrenId} className={styles.navApps} hidden={!expanded}>
-            {category.apps.map((item) => appLink(item))}
+            {categoryItems(category)}
           </div>
         )}
       </section>
@@ -286,7 +308,12 @@ export function AppNavigation({ context, mobile = false, Icon }: {
               {launcher.categories.map((category) => (
                 <section className={appStyles.launcherCategory} key={category.id}>
                   <h3>{category.label}</h3>
-                  {category.apps.map((item) => launcherRow(item))}
+                  {category.apps.flatMap((item) => [
+                    launcherRow(item),
+                    ...(item.submodules ?? []).map((submodule) =>
+                      launcherRow(submodule, item.label),
+                    ),
+                  ])}
                 </section>
               ))}
             </div>

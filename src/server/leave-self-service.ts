@@ -184,6 +184,183 @@ export async function leaveSummary(context: WorkContext) {
   };
 }
 
+export const leaveListFilterSchema = z.enum([
+  "all",
+  "drafts",
+  "review",
+  "approved",
+  "closed",
+]);
+const leaveListPageSchema = z.object({
+  filter: leaveListFilterSchema.default("all"),
+  limit: z.coerce.number().int().min(1).max(50).default(10),
+  cursor: z.string().max(512).optional(),
+});
+const leaveCursorSchema = z.object({
+  at: z.number().int().nonnegative(),
+  id: z.string().min(1).max(180),
+});
+type LeaveListRow = {
+  id: string;
+  number: string;
+  start_date: string;
+  end_date: string | null;
+  start_segment: string | null;
+  end_segment: string | null;
+  calculated_units: number | null;
+  days: number;
+  state: string;
+  cancellation_state: string | null;
+  version: number;
+  created_at: number;
+  updated_at: number;
+  decision_note: string | null;
+  leave_type_name: string | null;
+};
+
+function decodeLeaveCursor(value: string | undefined) {
+  if (!value) return null;
+  try {
+    return leaveCursorSchema.parse(
+      JSON.parse(Buffer.from(value, "base64url").toString("utf8")),
+    );
+  } catch {
+    throw new ApiError(
+      422,
+      "LEAVE_CURSOR_INVALID",
+      "Use a cursor returned by this leave request list.",
+    );
+  }
+}
+
+export async function listOwnLeavePage(
+  context: WorkContext,
+  raw: { filter?: string; limit?: number | string; cursor?: string },
+) {
+  const input = leaveListPageSchema.parse(raw);
+  const { write } = await holdingResources(context.holdingId);
+  let staff;
+  try {
+    staff = await activeStaff(write, context.companyId, context.userId);
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.code !== "STAFF_LINK_REQUIRED")
+      throw error;
+    return { items: [] as LeaveListRow[], hasMore: false, nextCursor: null };
+  }
+
+  const clauses = [
+      "r.company_id=?",
+      "r.engagement_id=?",
+      "r.created_by=?",
+    ],
+    args: unknown[] = [context.companyId, staff.engagement_id, context.userId],
+    cursor = decodeLeaveCursor(input.cursor);
+  const filterSql: Record<z.infer<typeof leaveListFilterSchema>, string> = {
+    all: "TRUE",
+    drafts: "r.state='draft'",
+    review: "(r.state='pending_approval' OR r.cancellation_state='pending_review')",
+    approved:
+      "(r.state='approved' AND r.cancellation_state IS DISTINCT FROM 'pending_review')",
+    closed: "r.state NOT IN ('draft','pending_approval','approved')",
+  };
+  clauses.push(filterSql[input.filter]);
+  if (cursor) {
+    clauses.push("(r.created_at<? OR (r.created_at=? AND r.id<?))");
+    args.push(cursor.at, cursor.at, cursor.id);
+  }
+  const page = await rows<LeaveListRow>(
+    write,
+    `SELECT r.id,r.number,r.start_date,r.end_date,r.start_segment,r.end_segment,r.calculated_units,r.days,r.state,r.cancellation_state,r.version,r.created_at,r.updated_at,r.decision_note,t.name leave_type_name
+      FROM leave_requests r LEFT JOIN leave_types t ON t.id=r.leave_type_id
+      WHERE ${clauses.join(" AND ")} ORDER BY r.created_at DESC,r.id DESC LIMIT ?`,
+    ...args,
+    input.limit + 1,
+  );
+  const items = page.slice(0, input.limit),
+    last = items.at(-1),
+    hasMore = page.length > input.limit;
+  return {
+    items,
+    hasMore,
+    nextCursor:
+      hasMore && last
+        ? Buffer.from(
+            JSON.stringify({ at: Number(last.created_at), id: last.id }),
+          ).toString("base64url")
+        : null,
+  };
+}
+
+const leaveMonthSchema = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Choose a valid calendar month.");
+export type LeaveCalendarMonth = {
+  month: string;
+  requests: LeaveListRow[];
+  holidays: { holiday_date: string; name: string }[];
+};
+
+export async function leaveCalendarMonth(
+  context: WorkContext,
+  rawMonth: string,
+): Promise<LeaveCalendarMonth> {
+  const month = leaveMonthSchema.parse(rawMonth),
+    start = `${month}-01`,
+    end = new Date(
+      Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0),
+    )
+      .toISOString()
+      .slice(0, 10),
+    { write } = await holdingResources(context.holdingId);
+  let staff;
+  try {
+    staff = await activeStaff(write, context.companyId, context.userId);
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.code !== "STAFF_LINK_REQUIRED")
+      throw error;
+    return { month, requests: [], holidays: [] };
+  }
+
+  const [requests, holidays] = await Promise.all([
+    rows<LeaveListRow>(
+      write,
+      `SELECT r.id,r.number,r.start_date,r.end_date,r.start_segment,r.end_segment,r.calculated_units,r.days,r.state,r.cancellation_state,r.version,r.created_at,r.updated_at,r.decision_note,t.name leave_type_name
+        FROM leave_requests r LEFT JOIN leave_types t ON t.id=r.leave_type_id
+        WHERE r.company_id=? AND r.engagement_id=? AND r.created_by=?
+          AND r.state IN ('draft','pending_approval','approved')
+          AND r.start_date::date<=?::date
+          AND coalesce(r.end_date::date,r.start_date::date+greatest(r.days,1)::int-1)>=?::date
+        ORDER BY r.start_date,r.id`,
+      context.companyId,
+      staff.engagement_id,
+      context.userId,
+      end,
+      start,
+    ),
+    rows<{ holiday_date: string; name: string }>(
+      write,
+      `SELECT DISTINCT h.holiday_date,h.name
+        FROM leave_policy_assignments a
+        JOIN leave_policy_versions p ON p.id=a.policy_version_id AND p.company_id=a.company_id
+        JOIN leave_holidays h ON h.calendar_id=a.holiday_calendar_id
+        WHERE a.company_id=? AND a.engagement_id=? AND a.holiday_calendar_id IS NOT NULL
+          AND a.effective_from<=?::date AND (a.effective_to IS NULL OR a.effective_to>=?::date)
+          AND p.effective_from<=?::date AND (p.effective_to IS NULL OR p.effective_to>=?::date)
+          AND h.holiday_date BETWEEN ?::date AND ?::date
+        ORDER BY h.holiday_date,h.name`,
+      context.companyId,
+      staff.engagement_id,
+      end,
+      start,
+      end,
+      start,
+      start,
+      end,
+    ),
+  ]);
+  return { month, requests, holidays };
+}
+
 export const leaveEditSchema=leaveCreateSchema.extend({expectedVersion:z.number().int().positive()});
 export async function createSelfServiceLeave(context:WorkContext,raw:z.infer<typeof leaveCreateSchema>,key:string) {
  return saveSelfServiceLeave(context,null,leaveCreateSchema.parse(raw),key);

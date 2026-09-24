@@ -18,6 +18,8 @@ Public routes use immutable, parent-scoped slugs:
 - `/holdings/{holdingSlug}/departments/{departmentSlug}/{destination}`
 - `/holdings/{holdingSlug}/branches/{branchSlug}/departments/{departmentSlug}/{destination}`
 
+Installable Company storefront apps may use `/front/{holdingSlug}/{companySlug}/pos/` and `/front/{holdingSlug}/{companySlug}/pms/`. The Company slug identifies which app pair to install; it is not an authorization scope or a source of access. Every storefront request resolves the Company and any selected Branch or Department inside the Holding database, then revalidates the signed-in Principal's active assignment and lineage. Storefront entry may offer only Local workspaces the Principal can already open. POS and PMS business APIs continue to use the canonical Holding/Local authorization rules.
+
 The API mirrors these workspace prefixes below `/api/v1`. There are no redirects or aliases from the removed short-form namespace. Holding slugs resolve through control-plane bindings; Local slugs and lineage resolve inside the selected Holding database. Opaque Holding IDs remain in storage keys, queues, audit evidence, and binding resolution.
 
 Company remains a legal and data-policy boundary but is not a public URL or assignment level. Holding workspaces require a validated Company selection. Local workspaces derive Company from organization lineage and reject overrides.
@@ -29,3 +31,5 @@ Roles are scope-valid: `holding_owner` is Holding-only, reusable business roles 
 Displayed organization names may change without changing bookmarked URLs. Public links never expose opaque Holding IDs. Every authorization decision uses resolved IDs and validated lineage rather than trusting slugs or client preferences. The cutover is intentionally breaking, so integrations and bookmarks must adopt canonical routes immediately.
 
 This ADR supersedes only ADR-001's public-routing clause; ADR-001's physical Holding-isolation decision remains authoritative.
+
+The `/front/` Company slug is a deliberate routing exception for installable app identity only. Company-brand settings do not alter legal document issuers; the storefront apps remain online-only and do not cache Company business data for offline use.

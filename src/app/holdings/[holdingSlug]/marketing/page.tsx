@@ -22,6 +22,41 @@ export default async function Page({
         Review forms, content, domains and provider readiness before capturing
         consented, attributed leads for CRM.
       </p>
+      <section className="card">
+        <h2>Lead intake by campaign</h2>
+        <p>
+          Candidate counts by recorded campaign and source. Contact details are
+          not included.
+        </p>
+        {data.campaignSummary.length ? (
+          <table className="business-table">
+            <thead>
+              <tr>
+                <th>Campaign</th>
+                <th>Source</th>
+                <th>Captured</th>
+                <th>Pending</th>
+                <th>CRM handoffs</th>
+                <th>Rejected</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.campaignSummary.map((row) => (
+                <tr key={`${String(row.campaign)}:${String(row.source)}`}>
+                  <td>{String(row.campaign)}</td>
+                  <td>{String(row.source)}</td>
+                  <td>{Number(row.captured)}</td>
+                  <td>{Number(row.pending)}</td>
+                  <td>{Number(row.handed_off)}</td>
+                  <td>{Number(row.rejected)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p>No lead candidates have been captured yet.</p>
+        )}
+      </section>
       <MarketingConsole base={base} data={data} />
       <section className="card">
         <h2>Lead candidates</h2>

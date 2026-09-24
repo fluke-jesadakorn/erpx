@@ -31,6 +31,12 @@ import {
   getTask,
 } from "../src/server/staff-tasks";
 import {
+  listProjectMilestones,
+  projectMilestoneSchema,
+  saveProjectMilestone,
+  transitionProjectMilestone,
+} from "../src/server/project-milestones";
+import {
   generateOccurrences,
   saveSchedule,
   saveTemplate,
@@ -854,6 +860,54 @@ describe("Projects, task phases and evidence boundaries", () => {
     await expect(
       getTask(db, outsider, String(created.id)),
     ).rejects.toMatchObject({ status: 404 });
+  });
+  it("records versioned project milestones and keeps milestone writes with the project owner", async () => {
+    const project = await saveProject(db, requester, null, projectSchema.parse({
+      title: "Quarterly delivery",
+      memberUserIds: [worker.userId],
+    }), key());
+    const created = await saveProjectMilestone(db, requester, project.id, null, projectMilestoneSchema.parse({
+      title: "Complete supplier validation",
+      description: "Confirm required documents and receiving dates.",
+      dueAt: "2026-09-20T12:00:00Z",
+      ownerUserId: worker.userId,
+      reason: "The project owner set the delivery target.",
+    }), key());
+    expect(created.version).toBe(1);
+    expect((await listProjectMilestones(db, worker, project.id)).map(({ title, state, owner_user_id }) => ({ title, state, owner_user_id })))
+      .toEqual([{ title: "Complete supplier validation", state: "planned", owner_user_id: worker.userId }]);
+    await expect(saveProjectMilestone(db, worker, project.id, null, projectMilestoneSchema.parse({
+      title: "Unapproved milestone", dueAt: "2026-09-21T12:00:00Z", ownerUserId: worker.userId,
+    }), key())).rejects.toMatchObject({ code: "PROJECT_OWNER_REQUIRED" });
+    await expect(listProjectMilestones(db, outsider, project.id)).rejects.toMatchObject({ status: 404 });
+
+    const revised = await saveProjectMilestone(db, requester, project.id, created.id, projectMilestoneSchema.parse({
+      title: "Complete supplier validation",
+      description: "Documents and receiving dates confirmed.",
+      dueAt: "2026-09-22T12:00:00Z",
+      ownerUserId: requester.userId,
+      expectedVersion: 1,
+      reason: "The project owner revised its responsible member and date.",
+    }), key());
+    expect(revised.version).toBe(2);
+    const completed = await transitionProjectMilestone(db, requester, project.id, created.id, {
+      action: "complete", expectedVersion: 2, reason: "Supplier validation was completed and checked.",
+    }, key());
+    expect(completed).toMatchObject({ version: 3, state: "completed" });
+    const reopened = await transitionProjectMilestone(db, requester, project.id, created.id, {
+      action: "reopen", expectedVersion: 3, reason: "The receiving date requires another confirmation.",
+    }, key());
+    expect(reopened).toMatchObject({ version: 4, state: "in_progress" });
+    const events = (await db.prepare("SELECT action,milestone_version FROM staff_project_milestone_events WHERE milestone_id=? ORDER BY milestone_version")
+      .bind(created.id).all<{ action: string; milestone_version: number }>()).results;
+    expect(events).toEqual([
+      { action: "created", milestone_version: 1 },
+      { action: "revised", milestone_version: 2 },
+      { action: "completed", milestone_version: 3 },
+      { action: "reopened", milestone_version: 4 },
+    ]);
+    await expect(db.prepare("UPDATE staff_project_milestone_events SET reason='changed' WHERE milestone_id=?")
+      .bind(created.id).run()).rejects.toThrow();
   });
   it("blocks task completion when a configured approver is unavailable", async () => {
     const id = await task();

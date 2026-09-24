@@ -41,6 +41,8 @@ export function BillingConsole({
 }) {
   const searchParams = useSearchParams(), router = useRouter();
   const tab = searchParams.get("tab") ?? "overview";
+  const invoiceTarget = platform ? null : searchParams.get("invoice"),
+    subscriptionTarget = platform ? null : searchParams.get("subscription");
   function setTab(value: string) { const query = new URLSearchParams(searchParams); query.set("tab", value); router.push(`?${query}`, {scroll:false}); }
   const [accounts, setAccounts] = useState<AccountChoice[]>([]),
     [holding, setHolding] = useState(""),
@@ -56,6 +58,7 @@ export function BillingConsole({
   const pending = useRef(
     new Map<string, { key: string; payload: Record<string, unknown> }>(),
   );
+  const deepLinkHandled = useRef("");
   const api = platform
     ? `/api/v1/platform/billing${holding ? `?holdingId=${encodeURIComponent(holding)}` : ""}`
     : `/api/v1${base}/billing`;
@@ -99,6 +102,34 @@ export function BillingConsole({
       clearInterval(timer);
     };
   }, [api, platform, holding]);
+  useEffect(() => {
+    if (platform || !data) return;
+    let targetId = "";
+    if (invoiceTarget) {
+      const invoice = data.invoices.find((entry) => entry.id === invoiceTarget);
+      if (!invoice) return;
+      targetId = "billing-invoice-" + invoice.id;
+    } else if (subscriptionTarget === "enrollment") {
+      targetId = "billing-subscription";
+    } else if (subscriptionTarget === "legacy") {
+      targetId = "billing-legacy-subscription";
+    }
+    if (!targetId || deepLinkHandled.current === targetId) return;
+    const frame = window.requestAnimationFrame(() => {
+      const invoice = invoiceTarget
+        ? data.invoices.find((entry) => entry.id === invoiceTarget)
+        : null;
+      if (invoice && periodId !== invoice.period_id) {
+        setPeriodId(invoice.period_id);
+        return;
+      }
+      const target = document.getElementById(targetId);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      deepLinkHandled.current = targetId;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [data, invoiceTarget, periodId, platform, subscriptionTarget]);
   async function command(action: string, fields: Record<string, unknown> = {}) {
     if (!data || !writable) return;
     if (reason.trim().length < 3) {
@@ -179,11 +210,11 @@ export function BillingConsole({
     <section
       className={styles.root}
       style={{display:"contents"}}
-      aria-label={platform ? "Platform billing" : "Holding billing"}
+      aria-label={platform ? "Customer billing" : "Holding billing"}
     >
       <header className={styles.header}>
         <div>
-          <h2>{platform ? "Platform → Billing" : "Usage & billing"}</h2>
+          <h2>{platform ? "Customer billing" : "Usage & billing"}</h2>
           <div className={styles.muted}>
             One account per Holding · All companies and branches · THB · Asia/Bangkok
           </div>
@@ -236,7 +267,7 @@ export function BillingConsole({
           )}
           {(!platform || tab === "overview") && <FeatureWidget id="billing-overview" title="Overview"><>
               <div className={styles.grid}>
-                <article className={styles.card}>
+                <article className={styles.card} id="billing-subscription">
                   <h3>Current plan</h3>
                   <div className={styles.metric}>
                     {active
@@ -804,7 +835,7 @@ export function BillingConsole({
               {data.invoices
                 .filter((i) => !periodId || i.period_id === periodId)
                 .map((i) => (
-                  <article className={styles.card} key={i.id}>
+                  <article className={styles.card} id={"billing-invoice-" + i.id} key={i.id}>
                     <div className={styles.header}>
                       <div>
                         <h3>{i.stripe_id ?? "Preparing Sandbox invoice"}</h3>
@@ -938,7 +969,7 @@ export function BillingConsole({
                 </>
               )}
               {data.legacy?.subscription_id && (
-                <p>
+                <p id="billing-legacy-subscription">
                   Legacy test subscription: {data.legacy.subscription_id} ·{" "}
                   {data.legacy.status}
                 </p>

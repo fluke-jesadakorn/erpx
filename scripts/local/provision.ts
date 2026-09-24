@@ -14,10 +14,11 @@ export async function provision(options: { adminUrl: string; dataDir: string; pr
   const credentialsPath = join(config, 'provisioning.json');
   let credentials: Record<string,string> = {};
   try { credentials = JSON.parse(await readFile(credentialsPath, 'utf8')); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
-  const slots = Array.from({ length: options.beta ? 20 : 2 }, (_, index) => {
+  const customerSlots = Array.from({ length: options.beta ? 20 : 2 }, (_, index) => {
     const n = String(index + 1).padStart(3, '0'), id = options.beta ? `beta${n}` : `h${n}`;
     return { id, write: `${options.beta ? 'B' : 'H'}${n}_DB`, read: `${options.beta ? 'B' : 'H'}${n}_READ_DB`, files: `${options.beta ? 'B' : 'H'}${n}_FILES`, ...(options.beta ? { beta: true } : {}) };
   });
+  const slots = [...customerSlots, { id:'h003',write:'H003_DB',read:'H003_READ_DB',files:'H003_FILES',internal:true }];
   const entries = [{ binding: 'CONTROL_DB', name: `${options.prefix}_control`, track: 'control' },
     { binding: 'CONTROL_READ_DB', name: `${options.prefix}_control_read`, track: 'control-read' },
     ...slots.flatMap(s => [{ binding:s.write,name:`${options.prefix}_${s.id}_write`,track:'holding-write' },{ binding:s.read,name:`${options.prefix}_${s.id}_read`,track:'holding-read' }])];
@@ -76,9 +77,12 @@ export async function provision(options: { adminUrl: string; dataDir: string; pr
         const migrationUrl = new URL(ownerUrl); migrationUrl.username = migrationRole; migrationUrl.password = credentials[migrationRole];
         migrations.databases[entry.binding] = migrationUrl.href;
         if (entry.binding === 'CONTROL_DB') {
-          if (options.beta) for (const slot of slots) await db.prepare('INSERT INTO beta_slots(holding_id,created_at,updated_at) VALUES(?,?,?) ON CONFLICT DO NOTHING').bind(slot.id,Date.now(),Date.now()).run();
-          else for (const [index,slot] of slots.entries()) await db.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES(?,?,?,?,?,?,'active') ON CONFLICT DO NOTHING")
+          if (options.beta) for (const slot of customerSlots) await db.prepare('INSERT INTO beta_slots(holding_id,created_at,updated_at) VALUES(?,?,?) ON CONFLICT DO NOTHING').bind(slot.id,Date.now(),Date.now()).run();
+          else for (const [index,slot] of customerSlots.entries()) await db.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES(?,?,?,?,?,?,'active') ON CONFLICT DO NOTHING")
             .bind(slot.id,index===0?'acme':'northstar',index===0?'Acme Group':'Northstar Supply',slot.write,slot.read,slot.files).run();
+          const erpx = slots.find(slot=>slot.id==='h003')!;
+          await db.prepare("INSERT INTO holding_bindings(holding_id,slug,display_name,write_binding,read_binding,files_binding,status) VALUES(?,?,?,?,?,?,'active') ON CONFLICT(holding_id) DO NOTHING")
+            .bind(erpx.id,'erpx','ERPX',erpx.write,erpx.read,erpx.files).run();
         }
       } finally { await db.close(); }
     }

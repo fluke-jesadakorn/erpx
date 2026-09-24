@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { workFetch } from "@/lib/work-fetch";
 import { useState } from "react";
 import type { PlatformProvisioningSnapshot, ProvisionHoldingResult } from "@/server/platform-operations";
 import type { ResourceSlot } from "@/lib/holding-registry";
@@ -17,7 +18,7 @@ export function PlatformHoldingProvisioning({ snapshot, canProvision }: { snapsh
     setBusy(true); setMessage(""); setError("");
     const values = new FormData(form);
     try {
-      const response = await fetch("/api/v1/platform/operations/provision", {
+      const response = await workFetch("/api/v1/platform/operations/provision", {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": crypto.randomUUID() },
         body: JSON.stringify({ holdingId: selected.id, slug: values.get("slug"), displayName: values.get("displayName"), reason: values.get("reason") }),

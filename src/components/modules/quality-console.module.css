@@ -1,0 +1,301 @@
+.console {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-width: 0;
+}
+
+.console :global(form.business-form) {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.console .qualityForm {
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+
+.formHeading h2,
+.sectionHeading h2 {
+  margin: 0;
+  color: var(--ink-strong);
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.formHeading p {
+  max-width: 760px;
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.eyebrow {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--brand);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px 20px;
+  min-width: 0;
+}
+
+.fieldGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.specFields .fieldGroup {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 6px 12px;
+}
+
+.specFields .fieldGroup > .field:first-of-type {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.specFields .fieldGroup > .resultCount {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+.specFields .fieldGroup > .field:last-of-type {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.console .qualityForm .field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 400;
+}
+
+.field input,
+.field select {
+  min-height: var(--control-height);
+}
+
+.field textarea {
+  min-height: 126px;
+  resize: vertical;
+}
+
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--brand) 72%, white);
+  outline-offset: 2px;
+}
+
+.specFields .spanAll {
+  grid-column: 1 / -1;
+}
+
+.helper,
+.resultCount {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.actions :global(.button) {
+  width: auto;
+  max-width: 100%;
+}
+
+.specList {
+  min-width: 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.sectionHeading span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.specGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
+  gap: 12px;
+}
+
+.specItem {
+  min-width: 0;
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.specItem h3 {
+  margin: 0 0 8px;
+  color: var(--ink-strong);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.specItem > p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.status {
+  color: var(--ink-strong);
+  font-weight: 650;
+  text-transform: capitalize;
+}
+
+.holdFields {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.stockPicker {
+  display: grid;
+  grid-column: span 2;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: end;
+  gap: 12px 18px;
+  min-width: 0;
+}
+
+.stockPicker .resultCount {
+  grid-column: 1 / -1;
+}
+
+.reasonField {
+  grid-column: 1 / -1;
+}
+
+.error {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, #bd3434 26%, var(--line));
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, #bd3434 7%, var(--card));
+  color: #a42929;
+  font-size: 13px;
+}
+
+.alerts > h2 {
+  margin: 0 0 14px;
+  color: var(--ink-strong);
+  font-size: 18px;
+}
+
+.alerts article + article {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.alerts h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+
+.alerts article > p {
+  margin: 0 0 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+@media (max-width: 860px) {
+  .fields,
+  .holdFields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stockPicker,
+  .specFields .spanAll,
+  .reasonField {
+    grid-column: 1;
+  }
+
+  .specFields .fieldGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 560px) {
+  .console .qualityForm {
+    padding: 16px;
+  }
+
+  .stockPicker {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .stockPicker .resultCount {
+    grid-column: 1;
+  }
+
+  .sectionHeading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+}

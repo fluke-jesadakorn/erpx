@@ -78,6 +78,7 @@ it("checks command keys, origin and input at the API boundary", async () => {
   expect(response.headers.get("cache-control")).toBe("private, no-store");
   const responseBody = await response.json();
   expect(responseBody.data.query.mode).toBe("mine");
+  expect(responseBody.data.query.view).toBe("week");
   expect(responseBody.data.canAnnounce).toBe(false);
   const people = await hierarchy(
     new Request(

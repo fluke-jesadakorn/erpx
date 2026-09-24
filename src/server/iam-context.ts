@@ -3,7 +3,7 @@ import type { PermissionActor } from "@/lib/iam";
 import type { WorkContext } from "./authorization";
 import {
   currentSession,
-  requirePlatformContext,
+  requireManageErpxContext,
   requireWorkContext,
 } from "./authorization";
 import { holdingResources, runtimeEnv } from "./runtime";
@@ -44,7 +44,7 @@ export async function iamContext(holdingSlug: string | null) {
       } satisfies IamActor,
     };
   }
-  const a = await requirePlatformContext(),
+  const { platform: a } = await requireManageErpxContext(),
     db = (await runtimeEnv()).CONTROL_DB as PostgresDatabase;
   return {
     db,

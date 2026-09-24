@@ -1,0 +1,15 @@
+# Marketing consent-to-CRM browser acceptance (partial) — 2026-09-23
+
+Isolated browser simulation run: `8e3e3bedd636` (`http://127.0.0.1:3102`). No production or Acme data was used; the run was destroyed after verification.
+
+Command: `ERPX_DEMO_RUN=8e3e3bedd636 ERPX_E2E_BASE_URL=http://127.0.0.1:3102 bunx playwright test tests/e2e/demo-marketing-to-crm-lead.spec.ts --project=desktop`
+
+Result: **1 desktop test passed**. A Sales manager drafted a consent-required form; a separate Holding owner activated it and captured a fictional prospect with consent evidence, campaign, source and brief; the Sales manager recorded engagement and handed the candidate to CRM.
+
+The browser verified the CRM link opens the actual lead detail page, the source attribution and customer brief remain visible, the owner is the Sales manager, and the CRM API returns the open lead. The CRM activity workspace API also returned the same lead. After reload, the campaign report showed 1 captured, 0 pending, 1 CRM handoff and 0 rejected for the test campaign/source. The CRM ID now uses a URL-safe suffix: Next encoded the old `:crm` suffix as `%3Acrm` during route parameter parsing, which made the stored lead appear missing on the detail page.
+
+Regression checks: `tests/marketing.test.ts`, `tests/crm.test.ts` and `tests/crm-activities.test.ts` — **10 tests passed**. The tests verify explicit consent is required for form creation, the campaign summary groups `source` and `utmSource` consistently, returns counts only, and respects department scope. `bun run typecheck` passed; scoped ESLint passed; `git diff --check` passed.
+
+The isolated release build passed at `.runtime/releases/2026-09-23T09-52-08-447Z` without deployment. It emitted one dynamic filesystem tracing warning in `src/server/runtime/env.ts`; that file is outside this Marketing change.
+
+This is partial browser evidence in an isolated Demo, not public-form hosting, provider delivery/webhook acceptance, campaign attribution analytics, full Marketing business acceptance, or production certification.

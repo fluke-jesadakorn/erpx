@@ -74,6 +74,7 @@ export function FeatureTabs() {
     pathname,
     new URLSearchParams(search),
   );
+  if (feature.id === "people") return null;
   const hasPeopleTools = feature.secondaryTabs.length > 0;
   if (feature.tabs.length < 2 && !hasPeopleTools) return null;
   return (
@@ -130,12 +131,15 @@ type GridContext = {
 };
 const Grid = createContext<GridContext | null>(null);
 const InsideWidget = createContext(false);
-function flatten(children: ReactNode): ReactNode[] {
-  return Children.toArray(children).flatMap((child) =>
-    isValidElement<{ children?: ReactNode }>(child) && child.type === Fragment
-      ? flatten(child.props.children)
-      : [child],
-  );
+function flatten(children: ReactNode, keyPath = ""): ReactNode[] {
+  return Children.toArray(children).flatMap((child) => {
+    if (!isValidElement(child)) return [child];
+    const key = `${keyPath}${child.key ?? ""}`;
+    return isValidElement<{ children?: ReactNode }>(child) &&
+      child.type === Fragment
+      ? flatten(child.props.children, `${key}/`)
+      : [cloneElement(child, { key })];
+  });
 }
 const empty: LayoutSnapshot = {
   personal: null,
@@ -342,18 +346,18 @@ function LayoutGrid({
     );
   }
   const nodes = flatten(children);
+  const widgetOrder = (id: string) => {
+    const index = layout.widgets.findIndex((widget) => widget.id === id);
+    return index < 0 ? layout.widgets.length : index;
+  };
   // Sort only declared sibling widgets. Stable keys preserve their form state.
   const sortable = nodes.filter(
     (n) => isValidElement<{ id: string }>(n) && n.type === FeatureWidget,
   );
   sortable.sort(
     (a, b) =>
-      layout.widgets.findIndex(
-        (w) => w.id === (a as React.ReactElement<{ id: string }>).props.id,
-      ) -
-      layout.widgets.findIndex(
-        (w) => w.id === (b as React.ReactElement<{ id: string }>).props.id,
-      ),
+      widgetOrder((a as React.ReactElement<{ id: string }>).props.id) -
+      widgetOrder((b as React.ReactElement<{ id: string }>).props.id),
   );
   let index = 0;
   const ordered = nodes.map((n) =>
@@ -573,6 +577,7 @@ export function FeatureWidget({
     height: null,
     hidden: false,
   };
+  const layoutIndex = grid?.layout.widgets.findIndex((widget) => widget.id === id) ?? -1;
   const targeted =
     !!grid?.target && (id === grid.target || id.endsWith(`-${grid.target}`));
   useEffect(() => {
@@ -601,7 +606,7 @@ export function FeatureWidget({
       style={
         {
           ...props.style,
-          order: grid?.layout.widgets.findIndex((w) => w.id === id),
+          order: layoutIndex < 0 ? (grid?.layout.widgets.length ?? 0) : layoutIndex,
           gridColumn: `span ${item.columns}`,
           height: item.height ?? undefined,
         } as CSSProperties
