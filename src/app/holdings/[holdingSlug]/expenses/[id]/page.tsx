@@ -158,6 +158,7 @@ export default async function Expense({
         <FeatureWidget id="expenses-detail-expense-details" title="Expense details"><ExpenseEditor
           key={Number(expense.version)}
           base={base}
+          enableSubmit={false}
           options={options}
           expense={expense}
         /></FeatureWidget>

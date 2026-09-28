@@ -13,6 +13,11 @@ import { uploadDocument } from "./documents";
 import { access, fail } from "./access";
 import { hash } from "./service";
 import { replayCommand } from "../commands";
+import {
+  attachmentsV2Readable,
+  attachmentsV2ReadOnly,
+} from "../attachments/feature";
+import { attachmentContent } from "../attachments/service";
 export async function preserveAttachment(
   db: PostgresDatabase,
   files: FileStore,
@@ -28,6 +33,12 @@ export async function preserveAttachment(
       attachmentId: z.string(),
     })
     .parse(raw);
+  if (attachmentsV2ReadOnly())
+    fail(
+      "Attachment preservation is disabled during attachment rollback.",
+      "ATTACHMENTS_READ_ONLY",
+      503,
+    );
   await access(db, a, x.id, "legal.edit");
   return db.transaction(async (tx) => {
     await tx
@@ -37,7 +48,10 @@ export async function preserveAttachment(
       .run();
     const row = await tx
       .prepare(
-        "SELECT * FROM attachments WHERE id=? AND company_id=? AND revoked_at IS NULL",
+        `SELECT a.*,(SELECT l.id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id
+          WHERE l.attachment_id=a.id AND s.company_id=a.company_id AND s.target_type=a.owner_type AND s.target_id=a.owner_id
+            AND l.state IN ('draft','bound') ORDER BY CASE l.state WHEN 'bound' THEN 0 ELSE 1 END,l.created_at LIMIT 1) attachment_link_id
+         FROM attachments a WHERE a.id=? AND a.company_id=? AND a.revoked_at IS NULL`,
       )
       .bind(x.attachmentId, a.companyId)
       .first<{
@@ -47,6 +61,8 @@ export async function preserveAttachment(
         owner_type: string;
         owner_id: string;
         checksum_sha256: string;
+        source_state: string;
+        attachment_link_id: string | null;
       }>();
     if (!row)
       fail("Source attachment unavailable.", "LEGAL_SOURCE_NOT_FOUND", 404);
@@ -74,7 +90,26 @@ export async function preserveAttachment(
           "This attachment owner is not supported for evidence preservation.",
         );
     }
-    const file = await files.get(row.object_key);
+    if (
+      attachmentsV2Readable() &&
+      (row.source_state !== "available" || !row.attachment_link_id)
+    )
+      fail(
+        "Source attachment is not available through an authorized clean file link.",
+        "LEGAL_SOURCE_NOT_FOUND",
+        404,
+      );
+    const canonical =
+      attachmentsV2Readable() && row.attachment_link_id
+        ? await attachmentContent(
+            tx,
+            files,
+            a,
+            row.attachment_link_id,
+            "original",
+          )
+        : null;
+    const file = canonical?.object ?? (await files.get(row.object_key));
     if (!file || file.size > 10 * 1024 * 1024)
       fail("Source file unavailable or larger than 10 MB.");
     const bytes = new Uint8Array(await file.arrayBuffer());

@@ -13,13 +13,14 @@ import { decimalToMinor,minorToDecimal } from "@/lib/finance-money";
 import { scaledAmount } from "@/lib/commerce-math";
 import { sha256 } from "./crypto";
 import { ApiError } from "./http";
+import { prepareAttachmentBinding } from "./attachments/service";
 export type CountRow=Record<string,string|number|null>;
 export const countSchema=z.object({
   warehouseId:z.string().min(1),countDate:z.iso.date(),reason:z.string().trim().min(5).max(2000),
   expectedVersion:z.number().int().positive().optional(),
   lines:z.array(z.object({productId:z.string().min(1),countedQuantity:z.string().regex(/^\d{1,12}(\.\d{1,3})?$/),unitCost:z.string().regex(/^\d{1,12}(\.\d{1,2})?$/).optional(),allocations:z.array(z.object({lotId:z.string().min(1).optional(),lotCode:z.string().trim().min(1).max(100).optional(),serialNumber:z.string().trim().min(1).max(160).optional(),manufacturedDate:z.union([z.iso.date(),z.literal('')]).default(''),expiryDate:z.union([z.iso.date(),z.literal('')]).default(''),countedQuantity:z.string().regex(/^\d{1,12}(\.\d{1,3})?$/),unitCost:z.string().regex(/^\d{1,12}(\.\d{1,2})?$/).optional()})).max(500).default([])})).min(1).max(50),
 });
-export const countActionSchema=z.object({expectedVersion:z.number().int().positive(),reason:z.string().trim().min(3).max(2000).optional()});
+export const countActionSchema=z.object({expectedVersion:z.number().int().positive(),attachmentSetIds:z.array(z.string().min(1)).max(10).default([]),reason:z.string().trim().min(3).max(2000).optional()});
 export function canReadCounts(actor:WorkContext){return !actor.departmentId&&hasPermission(actor,"inventory.read");}
 export function canPrepareCounts(actor:WorkContext){return !actor.departmentId&&hasPermission(actor,"inventory.prepare");}
 export function canApproveCounts(actor:WorkContext){return !actor.departmentId&&!actor.branchId&&hasPermission(actor,"inventory.approve");}
@@ -134,15 +135,19 @@ export async function saveCount(actor:WorkContext,id:string|null,input:z.infer<t
   return executeCommand(write,actor,key,operation,input,record,version,{id:record,status:"draft",version},steps);
 }
 export async function transitionCount(actor:WorkContext,id:string,action:"submit"|"reject"|"cancel"|"approve"|"post",input:z.infer<typeof countActionSchema>,key:string){
+  input=countActionSchema.parse(input);
   actor = requirePermission(actor,action === "post" || action === "approve" || action === "reject" ? "inventory.approve" : "inventory.prepare");
   const {write}=await holdingResources(actor.holdingId),operation=`inventory.count.${action}`,prior=await replayCommand(write,actor,key,operation,id,input);if(prior)return prior;
   const {count,lines,lotLines}=await countDetail(actor,id),review=action==="post"||action==="approve"||action==="reject";
   const qualityHold=count.quality_hold_id?await write.prepare("SELECT * FROM inventory_quality_holds WHERE id=? AND company_id=?").bind(count.quality_hold_id,actor.companyId).first<CountRow>():null;
   if(count.quality_hold_id&&!qualityHold)throw new ApiError(409,"QUALITY_HOLD_MISSING","The linked quality hold is unavailable.");
   if(review?!canReviewCount(actor,count):!canEditCount(actor,count))throw new ApiError(403,"COUNT_ACTION_FORBIDDEN",review?"An independent holding finance approver must review a submitted stock count.":"Only the preparer can submit or cancel an editable count.");
+  if(action!=="submit"&&input.attachmentSetIds.length)throw new ApiError(422,"ATTACHMENT_ACTION_INVALID","Count sheets and photos are bound when the preparer submits the count.");
   if(action!=="submit"&&!input.reason)throw new ApiError(422,"REASON_REQUIRED","Record the reason for this decision.");
   const status=action==="submit"?"submitted":action==="post"?"posted":action==="approve"?"approved":action==="reject"?"rejected":"cancelled",now=Date.now();
   const steps=[countGuard(write,key,count,input.expectedVersion,action==="post"?["approved"]:action==="approve"?["submitted"]:review?["submitted","approved"]:["draft","rejected"])];let journalId:string|null=null,remainingHoldSteps:SqlStatement[]=[];
+  const attachmentBinding=action==="submit"&&input.attachmentSetIds.length?await prepareAttachmentBinding(write,actor,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:"stock_count",bindingType:"stock_count_submission",contexts:["count_sheet","count_photo","count_evidence"].map(purposeKey=>({purposeKey,componentKind:"action" as const,componentRef:"submit"}))},targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:`count-submit-${key}`}):null;
+  if(attachmentBinding)steps.push(...attachmentBinding.guards);
   if(action==="submit"||action==="approve"||action==="post"){
     if(!lines.length)throw new ApiError(409,"EMPTY_COUNT","Enter the counted products first.");
     steps.push(assertion(write,key,"warehouse","EXISTS(SELECT 1 FROM commerce_warehouses WHERE id=? AND company_id=? AND status='active')",[count.warehouse_id,actor.companyId]));
@@ -206,5 +211,6 @@ export async function transitionCount(actor:WorkContext,id:string,action:"submit
   );
   if(action!=="submit")steps.push(write.prepare("INSERT INTO inventory_count_decisions(id,count_id,command_id,action,actor_id,reviewed_version,reason,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(),id,key,action,actor.userId,input.expectedVersion,input.reason,now));
   if(review)steps.push(write.prepare("INSERT INTO decision_evidence(id,command_id,record_id,action,actor_id,assignment_id,reviewed_version,input_digest,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(),key,id,operation,actor.userId,actor.assignmentId,input.expectedVersion,await sha256(JSON.stringify({reason:input.reason,lines,lotLines})),now));
+  if(attachmentBinding)steps.push(...attachmentBinding.steps);
   return executeCommand(write,actor,key,operation,input,id,input.expectedVersion+1,{id,status,version:input.expectedVersion+1,journalId},steps);
 }

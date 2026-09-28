@@ -55,8 +55,16 @@ async function setPreferences(
   expect(response.ok(), await response.text()).toBeTruthy();
   return (await response.json()).data;
 }
+async function showShelf(page: Page) {
+  const shelf = page.getByRole("region", { name: "Your shortcuts" });
+  await expect(shelf).toBeVisible();
+  const reveal = shelf.getByRole("button", { name: "Show shortcuts" });
+  if (await reveal.isVisible()) await reveal.click();
+  return shelf;
+}
 async function openEditor(page: Page) {
-  await page.getByRole("button", { name: "Customize", exact: true }).click();
+  await showShelf(page);
+  await page.getByRole("region", { name: "Your shortcuts" }).getByRole("button", { name: "Customize", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Customize shortcuts" });
   await expect(dialog).toBeVisible();
   return dialog;
@@ -69,7 +77,7 @@ async function saveEditor(page: Page) {
   );
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "Save", exact: true })
+    .getByRole("button", { name: "Save shortcuts", exact: true })
     .click();
   return response;
 }
@@ -82,7 +90,7 @@ test("members without profiles use cards to create drafts and preserve filters, 
   await page.goto(
     `${base}/work?queue=waiting&type=service_request&responsibility=requested&q=printer`,
   );
-  const shortcuts = page.getByRole("region", { name: "Your shortcuts" });
+  const shortcuts = await showShelf(page);
   await expect(
     shortcuts.getByRole("article", { name: "Expense claims", exact: true }),
   ).toBeVisible();
@@ -91,15 +99,16 @@ test("members without profiles use cards to create drafts and preserve filters, 
   ).toHaveCount(0);
   await shortcuts
     .getByRole("article", { name: "Service requests", exact: true })
-    .getByRole("link", { name: "New service request", exact: true })
+    .getByRole("link", { name: /New service request/ })
     .click();
   await expect(page).toHaveURL(/new=service_request/);
-  await expect(shortcuts).toHaveCount(0);
+  await expect(shortcuts).toHaveCount(1);
   const title = `Recover ${randomUUID()}`;
   await page.getByLabel("Title", { exact: true }).fill(title);
   await page.reload();
   await expect(page.getByLabel("Title", { exact: true })).toHaveValue(title);
   await page.getByRole("link", { name: "Close new work" }).click();
+  await showShelf(page);
   await expect(page).toHaveURL(/q=printer/);
   await page.goBack();
   await expect(page.getByLabel("Title", { exact: true })).toHaveValue(title);
@@ -121,7 +130,7 @@ test("pin order syncs between devices and conflicts preserve the proposed arrang
   await page.goto(`${base}/work`);
   let dialog = await openEditor(page);
   await dialog
-    .getByRole("button", { name: "Move Service requests up" })
+    .getByRole("button", { name: "Move up: Service requests" })
     .focus();
   await page.keyboard.press("Enter");
   expect(
@@ -137,6 +146,7 @@ test("pin order syncs between devices and conflicts preserve the proposed arrang
     other = await device.newPage();
   await login(device);
   await other.goto(`${base}/work`);
+  await showShelf(other);
   await expect(other.getByRole("region", { name: "Your shortcuts" }).getByRole("article")).toHaveCount(2);
   const names = await other
     .getByRole("region", { name: "Your shortcuts" })
@@ -144,24 +154,24 @@ test("pin order syncs between devices and conflicts preserve the proposed arrang
     .evaluateAll((nodes) => nodes.map((n) => n.getAttribute("aria-label")));
   expect(names).toEqual(["Service requests", "Expense claims"]);
   dialog = await openEditor(page);
-  await dialog.getByRole("button", { name: "Unpin Expense claims" }).click();
+  await dialog.getByRole("button", { name: "Remove: Expense claims" }).click();
   await setPreferences(device, ["expenses"]);
   expect((await saveEditor(page)).status()).toBe(409);
   await expect(dialog.getByRole("alert")).toContainText("changed");
   await expect(dialog.getByRole("listitem")).toHaveCount(1);
   await expect(dialog.getByRole("listitem")).toContainText("Service requests");
   await expect(
-    dialog.getByRole("button", { name: "Save", exact: true }),
+    dialog.getByRole("button", { name: "Save shortcuts", exact: true }),
   ).toBeDisabled();
   await dialog.getByRole("checkbox").check();
   expect((await saveEditor(page)).ok()).toBeTruthy();
   expect((await preferences(device)).pinnedIds).toEqual(["services"]);
   dialog = await openEditor(page);
-  await dialog.getByRole("button", { name: "Reset to default" }).click();
+  await dialog.getByRole("button", { name: "Restore defaults" }).click();
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   expect((await preferences(context)).pinnedIds).toEqual(["services"]);
   dialog = await openEditor(page);
-  await dialog.getByRole("button", { name: "Reset to default" }).click();
+  await dialog.getByRole("button", { name: "Restore defaults" }).click();
   expect((await saveEditor(page)).ok()).toBeTruthy();
   expect((await preferences(device)).pinnedIds).toBeNull();
   await device.close();
@@ -215,18 +225,19 @@ test("preference APIs reject forged authority and beta only offers supported act
     ).status(),
   ).toBe(403);
   await page.goto(`${base}/work`);
+  await showShelf(page);
   await page.getByRole("button", { name: "All actions", exact: true }).click();
+  const allActions = page.getByRole("dialog", { name: "All actions" });
   await expect(
-    page
-      .getByRole("article", { name: "Tasks", exact: true })
-      .getByRole("link", { name: "Start from a conversation" }),
+    allActions.getByRole("link", { name: /Start from a conversation/ }),
   ).toHaveAttribute("href", `${base}/home`);
   await expect(
-    page.getByRole("article", { name: "Stock counts", exact: true }),
+    allActions.getByRole("link", { name: "Stock counts", exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("article", { name: "Warehouse transfers", exact: true }),
+    allActions.getByRole("link", { name: "Warehouse transfers", exact: true }),
   ).toHaveCount(0);
+  await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "New", exact: true }).click();
   await expect(
     page
@@ -242,8 +253,9 @@ test("focus refresh updates preferences and incomplete summaries keep other work
   await login(context, "member");
   await setPreferences(context, ["expenses", "services"]);
   await page.goto(`${base}/work`);
+  await showShelf(page);
   await expect(
-    page.getByRole("button", { name: "Customize", exact: true }),
+    page.getByRole("region", { name: "Your shortcuts" }).getByRole("button", { name: "Customize", exact: true }),
   ).toBeEnabled();
   await setPreferences(context, ["services"]);
   await expect
@@ -257,13 +269,12 @@ test("focus refresh updates preferences and incomplete summaries keep other work
   await expect(
     page.getByRole("article", { name: "Expense claims", exact: true }),
   ).toHaveCount(0);
-  await page.route("**/work/summary", async (route) => {
+  await page.route("**/navigation", async (route) => {
     const response = await route.fetch(),
-      body = (await response.json()) as { data: WorkSummary };
-    body.data.preferencesUnavailable = true;
-    body.data.preferences = { pinnedIds: null, version: 0 };
-    body.data.unavailableSources = ["Expense claims"];
-    body.data.cards = body.data.cards.map((c) =>
+      body = (await response.json()) as { data: { quickAccess: Pick<WorkSummary, "cards" | "preferences" | "preferencesUnavailable"> } };
+    body.data.quickAccess.preferencesUnavailable = true;
+    body.data.quickAccess.preferences = { pinnedIds: null, version: body.data.quickAccess.preferences.version + 1 };
+    body.data.quickAccess.cards = body.data.quickAccess.cards.map((c) =>
       c.id === "expenses"
         ? { ...c, incomplete: true, toDo: null, waiting: null }
         : c,
@@ -284,10 +295,10 @@ test("focus refresh updates preferences and incomplete summaries keep other work
     page.getByRole("article", { name: "Service requests", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Retry shortcuts" }),
+    page.getByRole("region", { name: "Your shortcuts" }).getByRole("button", { name: "Retry" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Customize", exact: true }),
+    page.getByRole("region", { name: "Your shortcuts" }).getByRole("button", { name: "Customize", exact: true }),
   ).toBeDisabled();
   await expect(
     page.getByRole("region", { name: "Work results" }),
@@ -301,9 +312,10 @@ test("an expense saved from a card appears once in the matching list and summary
   await login(context, "missing");
   await setPreferences(context, ["expenses"]);
   await page.goto(`${base}/work?queue=waiting&type=service_request&q=receipt`);
+  await showShelf(page);
   await page
     .getByRole("article", { name: "Expense claims", exact: true })
-    .getByRole("link", { name: "New expense claim", exact: true })
+    .getByRole("link", { name: /New expense claim/ })
     .click();
   const merchant = `Card receipt ${randomUUID()}`;
   await page.getByLabel("Merchant", { exact: true }).fill(merchant);
@@ -318,6 +330,7 @@ test("an expense saved from a card appears once in the matching list and summary
   await page.goBack();
   await expect(page).toHaveURL(/new=expense/);
   await page.getByRole("link", { name: "Close new work" }).click();
+  await showShelf(page);
   await expect(page).toHaveURL(/q=receipt/);
   await page
     .getByRole("article", { name: "Expense claims", exact: true })
@@ -339,6 +352,7 @@ test("an expense saved from a card appears once in the matching list and summary
       .getByRole("link")
       .filter({ hasText: merchant }),
   ).toHaveCount(1);
+  await expect(page.getByRole("region", { name: "Work results" }).getByRole("link").filter({ hasText: merchant })).toHaveAttribute("data-tone", "amber");
 });
 test("team and inventory cards follow company, branch and department scope", async ({
   page,
@@ -366,6 +380,7 @@ test("team and inventory cards follow company, branch and department scope", asy
   await page.goto(
     `${base}/branches/${actor.branch}/departments/${actor.department}/work`,
   );
+  await showShelf(page);
   await expect(
     page.getByRole("article", { name: "Team queue", exact: true }),
   ).toBeVisible();
@@ -376,16 +391,17 @@ test("team and inventory cards follow company, branch and department scope", asy
   await expect(
     dialog.getByText("Kept for another scope or when available again."),
   ).toBeVisible();
-  await dialog.getByRole("button", { name: "Pin Service requests" }).click();
+  await dialog.getByRole("button", { name: "Service requests" }).click();
   const saved = page.waitForResponse(
     (r) =>
       r.url().endsWith("/work/card-preferences") &&
       r.request().method() === "POST",
   );
-  await dialog.getByRole("button", { name: "Save", exact: true }).click();
+  await dialog.getByRole("button", { name: "Save shortcuts", exact: true }).click();
   expect((await saved).ok()).toBeTruthy();
   expect((await preferences(context)).pinnedIds).toContain("counts");
   await page.goto(`${base}/work`);
+  await showShelf(page);
   await expect(
     page.getByRole("article", { name: "Stock counts", exact: true }),
   ).toBeVisible();
@@ -401,7 +417,7 @@ test("cards fit 390, 768 and 1440px in both themes and retain keyboard focus", a
   await login(context);
   await setPreferences(context, null);
   mkdirSync(".scratch/work-cards/screenshots", { recursive: true });
-  for (const width of [390, 768, 1440])
+  for (const width of [390, 1024, 1440])
     for (const theme of ["light", "dark"]) {
       await context.addCookies([
         {
@@ -412,6 +428,7 @@ test("cards fit 390, 768 and 1440px in both themes and retain keyboard focus", a
       ]);
       await page.setViewportSize({ width, height: 940 });
       await page.goto(`${base}/work`);
+      await showShelf(page);
       await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
       const region = page.getByRole("region", { name: "Your shortcuts" });
       await expect(
@@ -425,7 +442,7 @@ test("cards fit 390, 768 and 1440px in both themes and retain keyboard focus", a
       if (width === 390) {
         await expect(region.locator("article:visible")).toHaveCount(4);
         await region
-          .getByRole("button", { name: /Show all .* shortcuts/ })
+          .getByRole("button", { name: /Show all/ })
           .click();
         await expect(region.locator("article:visible")).toHaveCount(6);
       }

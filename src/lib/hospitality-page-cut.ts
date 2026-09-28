@@ -28,7 +28,8 @@ export function productionPageCut(pathname:string,workspaceBase:string,search:Pi
     return {id:'statutory-payroll',name:'Payroll processing',state:'Coming Soon' as FeatureState};
   if(root==='commerce'&&segments.length===1) {
     const view=search.get('view')??'sales';
-    const owner=['purchase','parties'].includes(view)?'procurement'
+    const owner=view==='parties'?(search.get('kind')==='supplier'?'procurement':'crm')
+      : view==='purchase'?'procurement'
       : ['stock','products','warehouses'].includes(view)?'inventory':'sales';
     if(owner==='sales')return {id:'sales',name:'Sales',state:'Coming Soon' as FeatureState};
     const entry=catalogue.find(item=>item.id===owner);

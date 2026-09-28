@@ -4,7 +4,7 @@
   margin: 0;
   min-width: 0;
 }
-.dropzone { display:flex; flex-direction:column; align-items:center; gap:12px; text-align:center; padding:32px 20px; margin:22px 0; border:1px dashed var(--brand); border-radius:14px; background:var(--brand-glow); color:var(--muted); }
+.dropzone { display:flex; flex-direction:column; align-items:center; gap:8px; text-align:center; padding:20px; margin:14px 0 18px; border:1px dashed var(--brand); border-radius:14px; background:var(--brand-glow); color:var(--muted); }
 .dropzone > svg { color:var(--brand); }
 .dropzone strong { color:var(--ink-strong); font-size:18px; }
 .dropzone p { margin:0; font-size:13px; }
@@ -30,6 +30,13 @@
 .claimGrid .editor :global(.business-form) { grid-template-columns:repeat(2,minmax(0,1fr)); }
 .editor textarea { display:block; box-sizing:border-box; width:100%; min-height:90px; margin-top:8px; padding:12px; border:1px solid var(--control-border); border-radius:8px; background:var(--card); color:var(--ink); font:inherit; }
 .editor .fields > label { display:block; font-size:13px; color:var(--muted); margin:12px 0; }
+.editor .advanced { margin:16px 0; border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+.editor .advanced summary { cursor:pointer; min-height:44px; display:flex; align-items:center; font-weight:600; }
+.editor .advanced p { color:var(--muted); font-size:12px; }
+.editor .advanced label { display:grid; gap:6px; max-width:260px; }
+.editor .review { margin:16px 0; border:1px solid var(--brand); border-radius:12px; padding:16px; background:var(--brand-glow); }
+.editor .review h3 { margin:0 0 10px; }
+.editor .review p { margin:8px 0; }
 @media(max-width:580px) { .editor :global(.business-form),.claimGrid .editor :global(.business-form) { grid-template-columns:1fr; } }
 .aiExtract { border:1px solid var(--brand); border-radius:12px; background:var(--brand-glow); padding:18px; margin:20px 0 24px; }
 .aiExtractHeader { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }

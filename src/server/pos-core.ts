@@ -15,6 +15,7 @@ import { ApiError } from './http';
 import { applyPosRoomCharge, reversePosRoomCharge } from './pms';
 import { assertProductionModuleEnabled } from './hospitality-rollout';
 import { posCommerceAccountDefaults, posGeneratedAccountSpecs } from '@/lib/pos-bootstrap';
+import { prepareAttachmentBinding } from './attachments/service';
 export type PosRow=Record<string,string|number|boolean|null>;
 export const id=()=>randomUUID();
 export const num=(row:PosRow,key:string)=>Number(row[key]??0);
@@ -126,7 +127,21 @@ export async function posCommand(db:PostgresDatabase,actor:WorkContext,operation
   if(!grant)fail('POS_ACCESS_CHANGED','Permissions changed. Select the role again',403);
   await tx.batch([...workContextGuards(tx,actor,key),...iamMutationGuards(tx,actor,key)]);
   const old=await one(tx,'SELECT * FROM pos_receipts WHERE id=?',key);if(old){if(old.request_hash!==hash)fail('IDEMPOTENCY_CONFLICT','Command number is already used for other data');await run(tx,'DELETE FROM command_assertions WHERE command_id=?',key);return json<Record<string,unknown>>(old.result_json);}
+  const attachmentInput=z.object({id:z.string().min(1),expectedVersion:z.number().int().positive(),attachmentSetIds:z.array(z.string().min(1)).max(20).default([])}).passthrough().safeParse(input);
+  const attachmentDescriptor=operation==='sale.cancel'?{targetType:'pos_sale',purposeKey:'void_evidence',bindingType:'pos_void',componentRef:'void'}
+    :operation==='refund.approve'||operation==='refund.reject'?{targetType:'pos_refund',purposeKey:'refund_evidence',bindingType:'pos_refund_decision',componentRef:'refund-decision'}
+    :operation==='shift.review'?{targetType:'pos_shift',purposeKey:'cash_variance',bindingType:'pos_cash_variance_review',componentRef:'variance-review'}:null;
+  const attachmentData=attachmentInput.success?attachmentInput.data:null,attachmentSetIds=attachmentData?.attachmentSetIds??[];
+  if(attachmentSetIds.length&&!attachmentDescriptor)fail('POS_ATTACHMENT_ACTION','Files can be bound only to a void, refund decision, or cash-variance review.',422);
+  if(attachmentSetIds.length&&!attachmentData)fail('POS_ATTACHMENT_INPUT','Choose evidence for the current record revision.',422);
+  if(attachmentSetIds.length){
+   const placeholders=attachmentSetIds.map(()=>'?').join(','),sets=(await tx.prepare(`SELECT id,purpose_key,component_kind FROM attachment_sets WHERE company_id=? AND id IN (${placeholders})`).bind(actor.companyId,...attachmentSetIds).all<{id:string;purpose_key:string;component_kind:string}>()).results;
+   if(sets.length!==new Set(attachmentSetIds).size||sets.some(set=>set.component_kind!=='action'||set.purpose_key!==attachmentDescriptor!.purposeKey))fail('POS_ATTACHMENT_PURPOSE','Choose only the evidence purpose for this POS action.',422);
+  }
+  const attachmentBinding=attachmentSetIds.length?await prepareAttachmentBinding(tx,actor,{attachmentSetIds,bindingContract:{targetType:attachmentDescriptor!.targetType,bindingType:attachmentDescriptor!.bindingType,contexts:[{purposeKey:attachmentDescriptor!.purposeKey,componentKind:'action',componentRef:attachmentDescriptor!.componentRef}]},targetId:attachmentData!.id,expectedTargetVersion:attachmentData!.expectedVersion,commandId:key,bindingId:`${attachmentData!.id}:${operation}:${attachmentData!.expectedVersion+1}`}):null;
+  if(attachmentBinding)await tx.batch(attachmentBinding.guards);
   const result=await perform(tx,actor,operation,input);
+  if(attachmentBinding)await tx.batch(attachmentBinding.steps);
   await run(tx,'INSERT INTO pos_receipts VALUES(?,?,?,?,?)',key,actor.companyId,hash,JSON.stringify(result),Date.now());
   await audit(tx,actor.companyId,actor.branchId,actor.userId,operation,String(result.id??key),{input,result,assignmentId:actor.assignmentId});
   await run(tx,'DELETE FROM command_assertions WHERE command_id=?',key);

@@ -1,7 +1,8 @@
 /** Disposable browser acceptance workspace. Never reuses development/production databases or sessions.
  * bun --conditions=react-server scripts/local/browser-simulation.ts prepare
- * bun --conditions=react-server scripts/local/browser-simulation.ts start <run-id>
- * bun --conditions=react-server scripts/local/browser-simulation.ts destroy <run-id>
+ * ERPX_BROWSER_SIMULATION_PORT=3104 bun --conditions=react-server scripts/local/browser-simulation.ts prepare
+ * ERPX_BROWSER_SIMULATION_PORT=3104 bun --conditions=react-server scripts/local/browser-simulation.ts start <run-id>
+ * ERPX_BROWSER_SIMULATION_PORT=3104 bun --conditions=react-server scripts/local/browser-simulation.ts destroy <run-id>
  */
 import {mkdir,readFile,writeFile,cp,chmod,open,rm} from 'node:fs/promises';
 import {existsSync,constants} from 'node:fs';
@@ -13,7 +14,11 @@ import {Pool} from 'pg';
 import {PostgresDatabase} from '../../src/server/runtime/postgres';
 import {migrateDatabase} from '../../src/server/runtime/migrations';
 import {generalCompanyDemoGuide} from '../fixtures/general-company-demo';
-const root=resolve(import.meta.dir,'../..'),parent=join(root,'.runtime/browser'),port=3102,origin=`http://127.0.0.1:${port}`;
+const root=resolve(import.meta.dir,'../..'),parent=join(root,'.runtime/browser'),port=Number(process.env.ERPX_BROWSER_SIMULATION_PORT??'3102');
+if(![3102,3104].includes(port))throw new Error('UNSUPPORTED_BROWSER_SIMULATION_PORT');
+const useWebpack=process.env.ERPX_BROWSER_SIMULATION_WEBPACK==='1';
+if(useWebpack&&port!==3104)throw new Error('WEBPACK_IS_FOR_UAT_SIMULATION_ONLY');
+const origin=`http://127.0.0.1:${port}`;
 const node=join(root,'.runtime/node/node-v24.20.0-darwin-arm64/bin/node');
 if(Bun.version!=='1.2.17'||Bun.spawnSync([node,'--version']).stdout.toString().trim()!=='v24.20.0')throw new Error('PINNED_TOOLCHAIN_REQUIRED');
 let adminUrl=process.env.ERPX_TEST_ADMIN_URL;
@@ -24,13 +29,35 @@ const tracks={CONTROL_DB:'control',CONTROL_READ_DB:'control-read',H001_DB:'holdi
 const mode=process.argv[2],run=mode==='prepare'?randomBytes(6).toString('hex'):process.argv[3];
 if(!run||!/^([a-f0-9]{12})$/.test(run))throw new Error('EXACT_BROWSER_RUN_ID_REQUIRED');
 const directory=join(parent,run),app=join(directory,'app'),manifestPath=join(directory,'databases.json'),statePath=join(directory,'state.json');
-type State={run:string;prefix:string;createdAt:string;origin:string;ready?:boolean;pid?:number;fixture?:Record<string,unknown>};
-const safeEnv=(secret:string)=>({PATH:`${join(root,'.runtime/node/node-v24.20.0-darwin-arm64/bin')}:${process.env.PATH??''}`,HOME:process.env.HOME??'',TMPDIR:process.env.TMPDIR??'/tmp',NODE_ENV:'development' as const,ERPX_ENVIRONMENT:'local',ERPX_EMAIL_ADAPTER:'sandbox',ERPX_PUBLIC_ORIGIN:origin,BETTER_AUTH_URL:origin,BETTER_AUTH_SECRET:secret,ERPX_DATA_DIR:directory,ERPX_DATABASE_MANIFEST:manifestPath,ERPX_PUBLIC_BETA:'false',NEXT_DEPLOYMENT_ID:`browser-simulation-${run}`,NEXT_TELEMETRY_DISABLED:'1',ERPX_DEV_PG_POOL_MAX:'2'});
+type State={run:string;prefix:string;createdAt:string;origin:string;port?:number;ready?:boolean;pid?:number;fixture?:Record<string,unknown>};
+const safeEnv=(secret:string)=>({
+ PATH:`${join(root,'.runtime/node/node-v24.20.0-darwin-arm64/bin')}:${process.env.PATH??''}`,
+ HOME:process.env.HOME??'',
+ TMPDIR:process.env.TMPDIR??'/tmp',
+ NODE_ENV:'development' as const,
+ ERPX_ENVIRONMENT:'local',
+ ERPX_BROWSER_SIMULATION_PORT:String(port),
+ ERPX_BROWSER_SIMULATION:'thai-hotel-v1',
+ ERPX_AI_ADAPTER:'deterministic-v1',
+ ERPX_PAYROLL_ADAPTER:'synthetic-fixtures-v1',
+ ERPX_EMAIL_ADAPTER:'sandbox',
+ ERPX_PUBLIC_ORIGIN:origin,
+ ERPX_FRONT_PMS_ORIGIN:`http://dev-pms.localhost:${port}`,
+ ERPX_FRONT_POS_ORIGIN:`http://dev-pos.localhost:${port}`,
+ BETTER_AUTH_URL:origin,
+ BETTER_AUTH_SECRET:secret,
+ ERPX_DATA_DIR:directory,
+ ERPX_DATABASE_MANIFEST:manifestPath,
+ ERPX_PUBLIC_BETA:'false',
+ NEXT_DEPLOYMENT_ID:`browser-simulation-${run}`,
+ NEXT_TELEMETRY_DISABLED:'1',
+ ERPX_DEV_PG_POOL_MAX:'2',
+});
 async function assertAdmin(admin:Pool){const role=(await admin.query('SELECT current_user name,rolsuper,rolcreatedb,rolcreaterole FROM pg_roles WHERE rolname=current_user')).rows[0];if(role.name!=='erpx_test_admin'||role.rolsuper||!role.rolcreatedb||role.rolcreaterole)throw new Error('UNSAFE_TEST_DATABASE_ROLE');const forbidden=await admin.query("SELECT datname FROM pg_database WHERE (datname LIKE 'epsx\\_%' ESCAPE '\\' OR datname IN ('n8n','plf_webapp_dev')) AND has_database_privilege(current_user,datname,'CONNECT')");if(forbidden.rowCount)throw new Error('TEST_ADMIN_CAN_CONNECT_TO_OTHER_PROJECT');}
 async function writePrivate(path:string,value:unknown){await writeFile(path,JSON.stringify(value,null,2)+'\n',{mode:0o600});await chmod(path,0o600);}
 async function freePort(){const server=createServer();await new Promise<void>((ok,no)=>{server.once('error',no);server.listen(port,'127.0.0.1',()=>server.close(error=>error?no(error):ok()));});}
 if(mode==='prepare'){
- await freePort();await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={run,prefix,createdAt:new Date().toISOString(),origin};await writePrivate(statePath,state);
+ await freePort();await mkdir(directory,{recursive:true,mode:0o700});const prefix=`erpx_browser_${run}`,state:State={run,prefix,createdAt:new Date().toISOString(),origin,port};await writePrivate(statePath,state);
  const admin=new Pool({connectionString:adminUrl,max:1}),urls:Record<string,string>={};
  try{await assertAdmin(admin);for(const [binding,track] of Object.entries(tracks)){const name=`${prefix}_${binding.toLowerCase()}`;await admin.query(`CREATE DATABASE "${name}" TEMPLATE template0`);const url=new URL(adminUrl);url.pathname=name;urls[binding]=url.href;const db=new PostgresDatabase({connectionString:url.href,max:1});try{await migrateDatabase(db,track);}finally{await db.close();}}}finally{await admin.end();}
  await writePrivate(manifestPath,{version:1,databases:urls,slots:[{id:'h001',write:'H001_DB',read:'H001_READ_DB',files:'H001_FILES'},{id:'h002',write:'H002_DB',read:'H002_READ_DB',files:'H002_FILES'}]});
@@ -43,7 +70,7 @@ if(mode==='prepare'){
   const f=await seedExpenseCompany(env.H001_DB,env.H001_FILES);await mapSpendingOrganization(f);
   await env.H001_DB.prepare("UPDATE organization_nodes SET display_name='Isolated browser simulation' WHERE id=?").bind(f.company).run();
   const {hashPassword}=await import('better-auth/crypto'),{businessRoles}=await import('../../src/lib/business-roles'),{moduleRegistry}=await import('../../src/data/module-registry');
-  const password=`Simulation-${randomBytes(15).toString('hex')}`,hash=await hashPassword(password),now=Date.now(),users:Array<{label:string;email:string;role:string;userId:string;roles:string[]}>=[];
+ const password=`Simulation-${randomBytes(15).toString('hex')}`,hash=await hashPassword(password),now=Date.now(),users:Array<{label:string;email:string;role:string;userId:string;roles:string[];scope?:string;scopeNode?:string;scopeParentNode?:string}> = [];
   for(const [actor,role,label,email] of [[f.owner,'holding_owner','Source operator','source@simulation.test'],[f.head,'warehouse_manager','Receiving operator','receiver@simulation.test'],[f.manager,'finance_approver','Finance reviewer','finance@simulation.test'],[f.reviewer,'finance_preparer','Finance preparer','preparer@simulation.test'],[f.payer,'quality_manager','Quality release manager','quality-manager@simulation.test'],[f.it,'purchasing_manager','Purchasing manager','buyer@simulation.test'],[f.claimant,'support_agent','Support agent','support-agent@simulation.test'],[f.tie,'support_manager','Support manager','support-manager@simulation.test']] as const){
    actor.role=role;actor.branchId=null;actor.departmentId=null;actor.holdingSlug='simulation';actor.assignmentId=await f.grant(actor,role);
    await env.H001_DB.prepare('UPDATE assignments SET revoked_at=? WHERE user_id=? AND company_id=? AND id<>?').bind(now,actor.userId,f.company,actor.assignmentId).run();
@@ -66,6 +93,23 @@ if(mode==='prepare'){
   await extraGrant(f.payer,'treasury');users.find(user=>user.userId===f.payer.userId)!.roles.push('treasury');
   await extraGrant(f.owner,'payroll_preparer');users.find(user=>user.userId===f.owner.userId)!.roles.push('payroll_preparer');
   await extraGrant(f.manager,'payroll_approver');users.find(user=>user.userId===f.manager.userId)!.roles.push('payroll_approver');
+  const addScopedEmployee=async(label:string,email:string,scope:'branch'|'department',node:string,parentNode?:string)=>{
+   const actor=await f.member(`uat-${scope}`,'employee');
+   const assignmentId=await f.grant(actor,'employee',scope,node),modules=businessRoles.employee;
+   await env.H001_DB.batch([
+    env.H001_DB.prepare('UPDATE assignments SET revoked_at=? WHERE user_id=? AND company_id=? AND id<>?').bind(now,actor.userId,f.company,assignmentId),
+    env.H001_DB.prepare('UPDATE assignments SET modules_json=? WHERE id=?').bind(JSON.stringify(modules),assignmentId),
+    env.H001_DB.prepare('UPDATE hr_people SET legal_name=?,preferred_name=?,email=? WHERE company_id=? AND user_id=?').bind(label,label,email,f.company,actor.userId),
+   ]);
+   await env.CONTROL_DB.batch([
+    env.CONTROL_DB.prepare('INSERT INTO "user"(id,name,email,emailVerified,createdAt,updatedAt) VALUES(?,?,?,1,?,?)').bind(actor.userId,label,email,now,now),
+    env.CONTROL_DB.prepare("INSERT INTO account(id,accountId,providerId,issuer,userId,password,createdAt,updatedAt) VALUES(?,?,'credential','local:credential',?,?,?,?)").bind(`account-${actor.userId}`,actor.userId,actor.userId,hash,now,now),
+    env.CONTROL_DB.prepare("INSERT INTO principals(id,user_id,display_name,status,created_at) VALUES(?,?,?,'active',?)").bind(`principal-${actor.userId}`,actor.userId,label,now),
+   ]);
+   users.push({label,email,role:'employee',userId:actor.userId,roles:['employee'],scope,scopeNode:node,...(parentNode?{scopeParentNode:parentNode}:{})});
+  };
+  await addScopedEmployee('Branch employee','branch@simulation.test','branch',f.branch);
+  await addScopedEmployee('Department employee','department@simulation.test','department',f.department,f.branch);
   // Keep every role used by the operator guide discoverable in the isolated
   // credentials file. Each role still has its own assignment and must be
   // selected explicitly by the browser session; this only makes the account
@@ -119,6 +163,7 @@ if(mode==='prepare'){
       ('${browserOpeningCashId}','${browserOpeningChartId}','${f.company}','1100','Demo opening cash','asset','THB',0,'none',${now},${now}),
       ('${browserOpeningEquityId}','${browserOpeningChartId}','${f.company}','3100','Demo opening equity','equity','THB',0,'none',${now},${now});
   `);
+  const refundEvidenceDate=new Date(Date.now()+86_400_000).toISOString().slice(0,10);
   const closePeriods:[string,string]=[`${f.company}-close-2027-01`,`${f.company}-close-2027-02`],closeBank=`${f.company}-close-bank`,closeAr=`${f.company}-close-ar`,closeAp=`${f.company}-close-ap`,closeEquity=`${f.company}-close-equity`,closeCustomer=`${f.company}-close-customer`,closeSupplier=`${f.company}-close-supplier`,closeJournal=`${f.company}-close-opening`,paymentPeriod=`${f.company}-payment-2027-03`,paymentSupplier=`${f.company}-payment-supplier`,paymentInvoice=`${f.company}-payment-invoice`,paymentInvoiceJournal=`${f.company}-payment-invoice-journal`,paymentStatement=`${f.company}-payment-bank-statement`,paymentBankTransaction=`${f.company}-payment-bank-row`,refundStatement=`${f.company}-refund-bank-statement`,refundBankTransaction=`${f.company}-refund-bank-row`;
   await env.H001_DB.exec(`
     INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,is_control,control_kind,created_at,updated_at) VALUES
@@ -153,10 +198,10 @@ if(mode==='prepare'){
       ('${f.company}-close-bank-jan','${f.company}','${closeBank}','DEMO-JAN-2027','2027-01-31',100000,100000,'reconciled','${f.company}-close-bank-jan-hash','${f.reviewer.userId}',${now}),
       ('${f.company}-close-bank-feb','${f.company}','${closeBank}','DEMO-FEB-2027','2027-02-28',100000,100000,'reconciled','${f.company}-close-bank-feb-hash','${f.reviewer.userId}',${now}+1),
       ('${paymentStatement}','${f.company}','${closeBank}','DEMO-MARCH-PAYMENT','2027-03-31',100000,87500,'imported','${f.company}-payment-bank-hash','${f.reviewer.userId}',${now}+2),
-      ('${refundStatement}','${f.company}','${closeBank}','DEMO-REFUND-CUSTOMER','2026-09-23',87500,86500,'imported','${f.company}-refund-bank-hash','${f.reviewer.userId}',${now}+3);
+      ('${refundStatement}','${f.company}','${closeBank}','DEMO-REFUND-CUSTOMER','${refundEvidenceDate}',87500,86500,'imported','${f.company}-refund-bank-hash','${f.reviewer.userId}',${now}+3);
     INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,description,amount_minor,currency,match_status,version) VALUES
       ('${paymentBankTransaction}','${paymentStatement}','${f.company}','2027-03-15','DEMO-BANK-PAY-125','Controlled supplier transfer',-12500,'THB','unmatched',1),
-      ('${refundBankTransaction}','${refundStatement}','${f.company}','2026-09-23','DEMO-BANK-REFUND-10','Customer return refund',-1000,'THB','unmatched',1);
+      ('${refundBankTransaction}','${refundStatement}','${f.company}','${refundEvidenceDate}','DEMO-BANK-REFUND-10','Customer return refund',-1000,'THB','unmatched',1);
   `);
   const {saveMaster,saveOrder,orderSchema}=await import('../../src/server/commerce');
   const source=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:'SIM-SOURCE',name:'Simulation source warehouse'},crypto.randomUUID())).id),target=String((await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:'SIM-TARGET',name:'Simulation receiving warehouse'},crypto.randomUUID())).id),product=String((await saveMaster(f.owner,'products',null,{sku:'SIM-ITEM',name:'Simulation stock only',price:'10'},crypto.randomUUID())).id),laptopEach=String((await saveMaster(f.owner,'products',null,{sku:'SIM-LAP-EACH',name:'Demo laptop single unit',unit:'each',price:'25000'},crypto.randomUUID())).id),laptopCase=String((await saveMaster(f.owner,'products',null,{sku:'SIM-LAP-CASE',name:'Demo laptop case of two',unit:'case',price:'50000'},crypto.randomUUID())).id),demoSuppliers=[String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:'SIM-SUP-A',name:'Demo supplier A'},crypto.randomUUID())).id),String((await saveMaster(f.owner,'parties',null,{kind:'supplier',code:'SIM-SUP-B',name:'Demo supplier B'},crypto.randomUUID())).id)];
@@ -186,16 +231,16 @@ if(mode==='prepare'){
   const guide=generalCompanyDemoGuide({run,origin,holdingSlug:'simulation',organizationReviewer:actor(f.payer.userId,'hr_admin'),customerId:String(customer.id),customerDuplicateIds:[String(duplicateCustomerLeft.id),String(duplicateCustomerRight.id)],customerOperator:actor(f.claimant.userId,'sales_operator'),crmLeadId:String(crmLead.id),qualityDueSoonHoldId:String(qualityDueSoon.id),qualityOverdueHoldId:String(qualityOverdue.id),qualityInspector:actor(f.reviewer.userId,'quality_inspector'),qualityManager:actor(f.payer.userId,'quality_manager'),requestId:String(purchaseRequest.id),quotationId:String(quotation.id),sourceWarehouseId:source,targetWarehouseId:target,movementProductId:product,lotProductId:lotProduct,serialProductId:serialProduct,closePeriodIds:closePeriods,controlledPaymentInvoiceId:paymentInvoice,actors:{employee:actor(f.claimant.userId,'employee'),manager:actor(f.head.userId,'people_manager'),hrApprover:actor(f.payer.userId,'hr_admin'),payrollPreparer:actor(f.owner.userId,'payroll_preparer'),buyer:actor(f.it.userId,'purchasing_operator'),purchasingManager:actor(f.tie.userId,'purchasing_manager'),salesOperator:actor(f.claimant.userId,'sales_operator'),salesManager:actor(f.tie.userId,'sales_manager'),warehouse:actor(f.head.userId,'warehouse_manager'),sourceWarehouse:actor(f.it.userId,'warehouse_manager'),financePreparer:actor(f.reviewer.userId,'finance_preparer'),financeApprover:actor(f.manager.userId,'finance_approver'),treasury:actor(f.payer.userId,'treasury'),administrator:actor(f.owner.userId,'holding_owner')}});
   const {seedHospitalityBrowserDemo}=await import('../fixtures/hospitality-browser-demo');
   const hospitality=await seedHospitalityBrowserDemo({db:env.H002_DB,control:env.CONTROL_DB,files:env.H002_FILES,passwordHash:hash,run,origin});
-  state.fixture={customerId:customer.id,customerDuplicateIds:[duplicateCustomerLeft.id,duplicateCustomerRight.id],customerDuplicateQuotationId:duplicateCustomerQuotation.id,quotationId:quotation.id,crmLeadId:crmLead.id,purchaseRequestId:purchaseRequest.id,companyId:f.company,inventoryAccountId,clearingAccountId,openingEquityAccountId,openingJournalId:opening.id,browserOpeningChartId,browserOpeningCashId,browserOpeningEquityId,sourceWarehouseId:source,targetWarehouseId:target,productId:product,laptopEachProductId:laptopEach,laptopCaseProductId:laptopCase,lotProductId:lotProduct,serialProductId:serialProduct,qualityDueSoonHoldId:qualityDueSoon.id,qualityOverdueHoldId:qualityOverdue.id,demoSupplierIds:demoSuppliers,periodId:f.period,closePeriodIds:closePeriods,closeBankAccountId:closeBank,controlledPaymentPeriodId:paymentPeriod,controlledPaymentInvoiceId:paymentInvoice,controlledPaymentBankTransactionId:paymentBankTransaction,customerRefundBankTransactionId:refundBankTransaction,expenseAccountId:f.accounts.expense,supplierInvoiceMatchingPolicy:'required',users,scenarioIds:guide.scenarios.map(s=>s.id),hospitality:{companyId:hospitality.companyId,propertyId:hospitality.propertyId,registerId:hospitality.registerId,warehouseId:hospitality.warehouseId,openingJournalId:hospitality.openingJournalId,openingInventoryAccountId:hospitality.openingInventoryAccountId,roomIds:hospitality.roomIds,roomTypeIds:hospitality.roomTypeIds,rateIds:hospitality.rateIds,productIds:hospitality.productIds}};await writePrivate(statePath,state);await writePrivate(join(directory,'credentials.json'),{password,users:[...users,...hospitality.users]});await writePrivate(join(directory,'demo-guide.json'),guide);await writePrivate(join(directory,'hospitality-guide.json'),hospitality.guide);
+  state.fixture={customerId:customer.id,customerDuplicateIds:[duplicateCustomerLeft.id,duplicateCustomerRight.id],customerDuplicateQuotationId:duplicateCustomerQuotation.id,quotationId:quotation.id,crmLeadId:crmLead.id,purchaseRequestId:purchaseRequest.id,companyId:f.company,inventoryAccountId,clearingAccountId,openingEquityAccountId,openingJournalId:opening.id,browserOpeningChartId,browserOpeningCashId,browserOpeningEquityId,sourceWarehouseId:source,targetWarehouseId:target,productId:product,laptopEachProductId:laptopEach,laptopCaseProductId:laptopCase,lotProductId:lotProduct,serialProductId:serialProduct,qualityDueSoonHoldId:qualityDueSoon.id,qualityOverdueHoldId:qualityOverdue.id,demoSupplierIds:demoSuppliers,periodId:f.period,closePeriodIds:closePeriods,closeBankAccountId:closeBank,controlledPaymentPeriodId:paymentPeriod,controlledPaymentInvoiceId:paymentInvoice,controlledPaymentBankTransactionId:paymentBankTransaction,customerRefundBankTransactionId:refundBankTransaction,expenseAccountId:f.accounts.expense,supplierInvoiceMatchingPolicy:'required',users,scenarioIds:guide.scenarios.map(s=>s.id),hospitality:{companyId:hospitality.companyId,propertyId:hospitality.propertyId,registerId:hospitality.registerId,warehouseId:hospitality.warehouseId,openingJournalId:hospitality.openingJournalId,openingInventoryAccountId:hospitality.openingInventoryAccountId,roomIds:hospitality.roomIds,roomTypeIds:hospitality.roomTypeIds,rateIds:hospitality.rateIds,productIds:hospitality.productIds,supplierIds:hospitality.supplierIds,purchaseRequestId:hospitality.purchaseRequestId,payrollGroupId:hospitality.payrollGroupId,payrollEngagementIds:hospitality.payrollEngagementIds,payrollPersonIds:hospitality.payrollPersonIds,leaveTypeId:hospitality.leaveTypeId,leavePolicyId:hospitality.leavePolicyId,leaveAssignmentId:hospitality.leaveAssignmentId,rosterWeekId:hospitality.rosterWeekId,rosterShiftId:hospitality.rosterShiftId}};await writePrivate(statePath,state);await writePrivate(join(directory,'credentials.json'),{password,users:[...users,...hospitality.users]});await writePrivate(join(directory,'demo-guide.json'),guide);await writePrivate(join(directory,'hospitality-guide.json'),hospitality.guide);
  }finally{await closeRuntime();}
  await mkdir(app,{recursive:true});for(const name of ['src','public','package.json','bun.lock','next.config.ts','tsconfig.json','next-env.d.ts','postcss.config.mjs','node_modules'])await cp(join(root,name),join(app,name),{recursive:true,mode:constants.COPYFILE_FICLONE});
  state.ready=true;await writePrivate(statePath,state);
  console.log(JSON.stringify({run,origin,statePath,credentialsPath:join(directory,'credentials.json'),guidePath:join(directory,'demo-guide.json'),hospitalityGuidePath:join(directory,'hospitality-guide.json'),ready:true}));
 }else if(mode==='start'){
- const state=JSON.parse(await readFile(statePath,'utf8')) as State;if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');if(!state.ready||!existsSync(join(app,'package.json')))throw new Error('BROWSER_PREPARATION_INCOMPLETE');await freePort();const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));const log=await open(join(directory,'server.log'),'a',0o600);
- const child=spawn(node,[join(app,'node_modules/next/dist/bin/next'),'dev','--hostname','127.0.0.1','-p',String(port)],{cwd:app,env:safeEnv(secret),detached:true,stdio:['ignore',log.fd,log.fd]});if(!child.pid)throw new Error('BROWSER_SERVER_FAILED');state.pid=child.pid;await writePrivate(statePath,state);child.unref();await log.close();console.log(JSON.stringify({run,pid:state.pid,origin}));
+ const state=JSON.parse(await readFile(statePath,'utf8')) as State;if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');if((state.port??3102)!==port||state.origin!==origin)throw new Error('BROWSER_SIMULATION_PORT_MISMATCH');if(!state.ready||!existsSync(join(app,'package.json')))throw new Error('BROWSER_PREPARATION_INCOMPLETE');await freePort();const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));const log=await open(join(directory,'server.log'),'a',0o600);
+ const child=spawn(node,[join(app,'node_modules/next/dist/bin/next'),'dev',...(useWebpack?['--webpack']:[]),'--hostname','127.0.0.1','-p',String(port)],{cwd:app,env:safeEnv(secret),detached:true,stdio:['ignore',log.fd,log.fd]});if(!child.pid)throw new Error('BROWSER_SERVER_FAILED');state.pid=child.pid;await writePrivate(statePath,state);child.unref();await log.close();console.log(JSON.stringify({run,pid:state.pid,origin,bundler:useWebpack?'webpack':'turbopack'}));
 }else if(mode==='destroy'){
- const state=JSON.parse(await readFile(statePath,'utf8')) as State;if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');
+ const state=JSON.parse(await readFile(statePath,'utf8')) as State;if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');if((state.port??3102)!==port||state.origin!==origin)throw new Error('BROWSER_SIMULATION_PORT_MISMATCH');
  if(state.pid){const command=Bun.spawnSync(['ps','-p',String(state.pid),'-o','command=']).stdout.toString();if(command.trim()){if(!command.includes(join(app,'node_modules/next/dist/bin/next')))throw new Error('BROWSER_PROCESS_IDENTITY_CHANGED');process.kill(-state.pid,'SIGTERM');console.log('Stopped owned browser simulation process group. Run destroy again after it exits.');delete state.pid;await writePrivate(statePath,state);process.exit(0);}}
  await freePort();const admin=new Pool({connectionString:adminUrl,max:1});try{await assertAdmin(admin);for(const binding of Object.keys(tracks)){const name=`${state.prefix}_${binding.toLowerCase()}`,owner=(await admin.query('SELECT pg_get_userbyid(datdba) owner FROM pg_database WHERE datname=$1',[name])).rows[0];if(!owner)continue;if(owner.owner!=='erpx_test_admin')throw new Error('BROWSER_DATABASE_OWNER_CHANGED');await admin.query(`DROP DATABASE "${name}"`);}}finally{await admin.end();}
  // Keep evidence/credentials private until the owned data has been dropped, then remove this exact run only.

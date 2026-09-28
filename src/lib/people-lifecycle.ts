@@ -85,6 +85,8 @@ export const lifecycleInput = z.object({
   engagementId: id,
   positionId: id.nullable(),
   managerPersonId: id.nullable().default(null),
+  acceptRecommendedPay: z.boolean().default(false),
+  acceptRecommendedLeave: z.boolean().default(false),
   effectiveAt: z.number().int().positive(),
   departureReason: z.enum(["retirement","other"]).default("other"),
   timezone: z.string().min(1).max(80).refine(value => {try {new Intl.DateTimeFormat("en",{timeZone:value});return true;} catch{return false;}}, "Choose a valid timezone.").default("Asia/Bangkok"),
@@ -141,6 +143,7 @@ export type PeopleLifecycleData = {
     name: string;
     engagementId: string;
     itStatus?: "waiting" | "working" | "ready" | "problem";
+    gpoDelivery: "none" | "awaiting_identity" | "queued" | "directory_applied" | "blocked";
     positionId: string | null;
     managerPersonId: string | null;
     status: string;
@@ -155,6 +158,10 @@ export type PeopleLifecycleData = {
     requirements: string;
     package_id: string | null;
     package_revision: number | null;
+    gpo: {
+      mapped: boolean;
+      directoryStatus: "pending" | "directory_applied" | "blocked" | null;
+    };
     branch_id: string | null;
     department_id: string | null;
     level_id: string;
@@ -173,6 +180,14 @@ export type PeopleLifecycleData = {
   canReview: boolean;
 };
 export type LifecyclePreview = {
+  recommendation?: {levelName:string|null;currency:string|null;monthlyAmountMinor:number|null;annualDays:number|null;sickDays:number|null};
+  legacyCaseToSupersede?: {
+    id: string;
+    version: number;
+    status: string;
+    kind: LifecycleInput["kind"];
+    effectiveAt: number;
+  } | null;
   token: string;
   ready: boolean;
   blockers: string[];
@@ -189,7 +204,7 @@ export type LifecyclePreview = {
 export function peopleIamDestination(section: string) {
   if (section === "users" || section === "overview") return "people";
   if (section === "groups" || section === "mappings")
-    return "technology?view=directory";
+    return "technology?view=organization";
   if (section === "reviews") return "work?type=people_lifecycle";
   return `people/settings?section=${encodeURIComponent(section)}`;
 }

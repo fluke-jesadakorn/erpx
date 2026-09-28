@@ -65,13 +65,8 @@ beforeEach(() => {
 
 it("platform authority alone creates no business choices", async () => {
   mocks.platform.mockResolvedValue({});
-  expect(await workspaceChoices()).toEqual([
-    {
-      kind: "platform",
-      label: "Platform administration",
-      destination: "/platform/home",
-    },
-  ]);
+  expect(await workspaceChoices()).toEqual([]);
+  expect(mocks.platform).not.toHaveBeenCalled();
 });
 
 it("sorts multiple Holdings by label and slug", async () => {
@@ -284,8 +279,8 @@ it("does not repeat Department choices beneath an accessible parent", () => {
   expect(holding?.companies[0].branches[0].departments).toEqual([]);
 });
 
-it("does not mask unexpected platform authorization failures", async () => {
-  mocks.platform.mockRejectedValue(new Error("DATABASE_UNAVAILABLE"));
+it("does not mask unexpected Holding discovery failures", async () => {
+  mocks.bindings.mockRejectedValue(new Error("DATABASE_UNAVAILABLE"));
   await expect(workspaceChoices()).rejects.toThrow("DATABASE_UNAVAILABLE");
 });
 

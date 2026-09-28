@@ -120,6 +120,7 @@ export function BookingFlow({
     [guestId, setGuestId] = useState("");
   const [notes, setNotes] = useState(""),
     [source, setSource] = useState("direct"),
+    [campaignCode, setCampaignCode] = useState(''),
     [externalRef, setExternalRef] = useState(""),
     [sourceName, setSourceName] = useState(""),
     [groupName, setGroupName] = useState(""),
@@ -602,6 +603,9 @@ export function BookingFlow({
                       onChange={(e) => setExternalRef(e.target.value)}
                     />
                   </label>
+                  <label>Campaign code recorded by staff
+                    <input value={campaignCode} onChange={(e)=>setCampaignCode(e.target.value)} maxLength={60} placeholder="Optional campaign code" />
+                  </label>
                   <label>
                     Group allocation
                     <select
@@ -645,6 +649,7 @@ export function BookingFlow({
                         source === "other_ota" ? sourceName.trim() : source,
                       groupName,
                       externalRef,
+                      campaignCode,
                       blockId,
                       notes,
                       rooms,

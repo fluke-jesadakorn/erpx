@@ -1,4 +1,6 @@
 import { organizationGuard, validateStaffOrganization } from "./organization";
+import { recommendationStatements } from "./staff-defaults";
+import type { WorkContext } from "./authorization";
 import type { SqlDatabase } from "./runtime/types";
 import { z } from "zod";
 import { assertion, executeCommand, replayCommand } from "./commands";
@@ -212,6 +214,8 @@ export async function assignLevel(
     .first<{
       person_id:string;position_id:string|null;manager_person_id:string|null;status:string;
       level_id: string | null;
+      start_date: string;
+      currency: string;
       branch_id: string | null;
       department_id: string | null;
     }>();
@@ -251,6 +255,11 @@ export async function assignLevel(
           "UPDATE hr_engagements SET level_id=?,version=version+1,updated_at=? WHERE id=?",
         )
         .bind(input.levelId, Date.now(), id),
+      ...await recommendationStatements(db,actor as WorkContext,{
+        engagementId:id,positionId:engagement.position_id,levelId:input.levelId,
+        priorLevelId:engagement.level_id,startDate:new Date().toISOString().slice(0,10),currency:engagement.currency,
+        acceptPay:false,acceptLeave:true,commandId:key,
+      }),
     ],
     {
       companyId: actor.companyId,

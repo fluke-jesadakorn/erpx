@@ -12,6 +12,8 @@ import { ApiError } from "./http";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { decimalToMinor } from "@/lib/finance-money";
 import { quantityMilli, lineAmounts, scaledAmount } from "@/lib/commerce-math";
+import { prepareAttachmentBinding } from "./attachments/service";
+import { attachmentsV2Readable } from "./attachments/feature";
 
 export type Row = Record<string, string | number | null>;
 const amount = z
@@ -59,6 +61,7 @@ export const transitionSchema = z.object({
 });
 export const fulfillmentSchema = z.object({
   expectedVersion: z.number().int().positive(),
+  attachmentSetIds:z.array(z.string().min(1)).max(10).default([]),
   date: z.iso.date(),
   evidenceIds:z.array(z.string().min(1)).max(10).default([]),
   evidenceNote:z.string().trim().max(1000).default(''),
@@ -90,6 +93,7 @@ export const invoiceFromDeliverySchema = z.object({
 });
 export const settlementSchema = z.object({
   paymentSlipId: z.string().min(1).optional(),
+  attachmentSetIds: z.array(z.string().min(1)).max(10).default([]),
   expectedVersion: z.number().int().positive(),
   date: z.iso.date(),
   amount,
@@ -97,6 +101,7 @@ export const settlementSchema = z.object({
 });
 export const returnRequestSchema=z.object({
   expectedVersion:z.number().int().positive(),
+  attachmentSetIds:z.array(z.string().min(1)).max(10).default([]),
   date:z.iso.date(),
   reason:z.string().trim().min(3).max(500),
   lines:z.array(z.object({lineId:z.string().min(1),quantity,allocations:z.array(z.object({lotId:z.string().min(1),quantity})).max(200).default([]),condition:z.enum(['unopened','damaged','unknown']).default('unknown'),conditionNote:z.string().trim().max(500).default(''),qualityDueDate:z.union([z.iso.date(),z.literal('')]).default('')})).min(1).max(20),
@@ -323,7 +328,7 @@ export async function getOrder(actor: WorkContext, id: string) {
     write.prepare("SELECT a.*,rl.return_id,l.lot_code,l.serial_number FROM commerce_return_lot_allocations a JOIN commerce_return_lines rl ON rl.id=a.return_line_id JOIN inventory_lots l ON l.id=a.lot_id JOIN commerce_returns r ON r.id=rl.return_id WHERE r.order_id=? ORDER BY r.created_at,a.id").bind(id).all<Row>(),
     write.prepare("SELECT h.*,rl.return_id,rl.id return_line_id,rl.condition_code,rl.condition_note,rl.quality_due_date,l.lot_code,l.serial_number FROM inventory_quality_holds h LEFT JOIN commerce_return_lot_allocations a ON h.source_type='customer_return' AND h.source_id=a.id JOIN commerce_return_lines rl ON rl.id=COALESCE(a.return_line_id,h.source_id) OR (h.source_type='customer_return' AND h.source_id LIKE rl.id||':remainder:%') JOIN commerce_returns r ON r.id=rl.return_id LEFT JOIN inventory_lots l ON l.id=h.lot_id WHERE h.source_type='customer_return' AND r.order_id=? ORDER BY h.created_at,h.id").bind(id).all<Row>(),
     write.prepare("SELECT e.fulfillment_id,a.id attachment_id,a.original_name,a.media_type,a.bytes,a.checksum_sha256 FROM commerce_fulfillment_evidence e JOIN attachments a ON a.id=e.attachment_id AND a.revoked_at IS NULL JOIN commerce_fulfillments f ON f.id=e.fulfillment_id WHERE f.order_id=? ORDER BY e.linked_at,e.attachment_id").bind(id).all<Row>(),
-    write.prepare("SELECT a.id attachment_id,a.original_name,a.media_type,a.bytes,a.checksum_sha256,a.created_at FROM attachments a WHERE a.owner_type='commerce_order_delivery' AND a.owner_id=? AND a.purpose='proof_of_delivery' AND a.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM commerce_fulfillment_evidence e WHERE e.attachment_id=a.id) ORDER BY a.created_at DESC,a.id").bind(id).all<Row>(),
+    write.prepare("SELECT a.id attachment_id,a.original_name,a.media_type,a.bytes,a.checksum_sha256,a.created_at FROM attachments a WHERE a.owner_type='commerce_order_delivery' AND a.owner_id=? AND a.purpose='proof_of_delivery' AND a.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM attachment_links canonical WHERE canonical.attachment_id=a.id) AND NOT EXISTS(SELECT 1 FROM commerce_fulfillment_evidence e WHERE e.attachment_id=a.id) ORDER BY a.created_at DESC,a.id").bind(id).all<Row>(),
     write.prepare('SELECT * FROM commerce_customer_notifications WHERE order_id=? ORDER BY created_at DESC,id').bind(id).all<Row>(),
     write.prepare('SELECT * FROM commerce_customer_notification_settings WHERE company_id=?').bind(actor.companyId).first<Row>(),
   ]);
@@ -429,7 +434,9 @@ export async function requestCommerceReturn(actor:WorkContext,fulfillmentId:stri
   }
   const total=subtotal+tax;
   const now=Date.now(),kind=fulfillment.kind==="purchase"?"supplier_return":"customer_return",number=`${kind==="supplier_return"?"SR":"CR"}-${(await sha256(key)).slice(0,24).toUpperCase()}`;
+  const attachmentBinding=input.attachmentSetIds.length?await prepareAttachmentBinding(write,actor,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:"commerce_fulfillment",bindingType:"commerce_return",contexts:[{purposeKey:"return_condition",componentKind:"action",componentRef:"return-request"}]},targetId:fulfillmentId,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:id}):null;
   const steps:SqlStatement[]=[
+    ...(attachmentBinding?.guards??[]),
     assertion(write,key,"fulfillment","EXISTS(SELECT 1 FROM commerce_fulfillments f JOIN finance_invoices i ON i.id=f.invoice_id WHERE f.id=? AND f.version=? AND i.status IN ('posted','partially_paid','paid'))",[fulfillmentId,input.expectedVersion]),
     write.prepare("INSERT INTO commerce_returns(id,company_id,branch_id,order_id,fulfillment_id,invoice_id,kind,number,return_date,reason,subtotal_minor,tax_minor,total_minor,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id,actor.companyId,fulfillment.branch_id,fulfillment.order_id,fulfillmentId,fulfillment.invoice_id,kind,number,input.date,input.reason,subtotal,tax,total,actor.userId,now,now),
   ];
@@ -437,6 +444,7 @@ export async function requestCommerceReturn(actor:WorkContext,fulfillmentId:stri
     assertion(write,key,`return-line-${line.index}`,"(SELECT quantity_milli-COALESCE((SELECT SUM(rl.quantity_milli) FROM commerce_return_lines rl JOIN commerce_returns r ON r.id=rl.return_id WHERE rl.fulfillment_line_id=? AND r.status!='rejected'),0)>=? FROM commerce_fulfillment_lines WHERE id=? AND fulfillment_id=?)",[line.id,line.quantity,line.id,fulfillmentId]),
     write.prepare("INSERT INTO commerce_return_lines(id,return_id,fulfillment_line_id,product_id,quantity_milli,value_minor,subtotal_minor,tax_minor,ordinal,condition_code,condition_note,quality_due_date) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(returnLineId,id,line.id,line.product_id,line.quantity,line.returnValue,line.returnSubtotal,line.returnTax,line.index,line.condition,line.conditionNote||null,line.qualityDueDate||null),
   );for(const lot of returnLots.get(returnLineId)??[])steps.push(write.prepare("INSERT INTO commerce_return_lot_allocations(id,return_line_id,fulfillment_allocation_id,lot_id,quantity_milli,value_minor,snapshot_quantity_milli,snapshot_value_minor,snapshot_version) VALUES(?,?,?,?,?,?,?,?,?)").bind(lot.id,returnLineId,lot.fulfillmentAllocationId,lot.lotId,lot.quantity,lot.value,lot.snapshotQuantity,lot.snapshotValue,lot.snapshotVersion));}
+  if(attachmentBinding)steps.push(...attachmentBinding.steps);
   return executeCommand(write,actor,key,"commerce.return.request",commandInput,id,1,{id,orderId:String(fulfillment.order_id),status:"requested",version:1},steps);
 }
 
@@ -1001,10 +1009,10 @@ export async function fulfillOrder(
   const fulfillment = `delivery-${key}`;
   const journal = `journal-${key}`;
   const incoming = order.kind === "purchase";
-  if(!incoming&&(!input.evidenceIds.length||input.evidenceNote.length<3))throw new ApiError(422,'DELIVERY_EVIDENCE_REQUIRED','Attach proof of delivery and record who or what confirmed receipt.');
+  if(!incoming&&((!input.evidenceIds.length&&!input.attachmentSetIds.length)||input.evidenceNote.length<3))throw new ApiError(422,'DELIVERY_EVIDENCE_REQUIRED','Attach proof of delivery and record who or what confirmed receipt.');
   if(new Set(input.evidenceIds).size!==input.evidenceIds.length)throw new ApiError(422,'DELIVERY_EVIDENCE_DUPLICATE','Use each delivery evidence file once.');
   if(!incoming)for(const attachmentId of input.evidenceIds){
-    const valid=await write.prepare("SELECT 1 ok FROM attachments a WHERE a.id=? AND a.owner_type='commerce_order_delivery' AND a.owner_id=? AND a.purpose='proof_of_delivery' AND a.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM commerce_fulfillment_evidence e WHERE e.attachment_id=a.id)").bind(attachmentId,id).first('ok');
+    const valid=await write.prepare("SELECT 1 ok FROM attachments a WHERE a.id=? AND a.owner_type='commerce_order_delivery' AND a.owner_id=? AND a.purpose='proof_of_delivery' AND a.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM attachment_links canonical WHERE canonical.attachment_id=a.id) AND NOT EXISTS(SELECT 1 FROM commerce_fulfillment_evidence e WHERE e.attachment_id=a.id)").bind(attachmentId,id).first('ok');
     if(!valid)throw new ApiError(422,'DELIVERY_EVIDENCE_INVALID','The selected proof is missing, revoked, belongs to another order, or is already linked to a delivery.');
   }
   if (new Set(input.lines.map((l) => l.lineId)).size !== input.lines.length)
@@ -1013,7 +1021,11 @@ export async function fulfillOrder(
       "DUPLICATE_LINE",
       "Each order line may appear once.",
     );
-  const steps = [
+  const attachmentBinding=input.attachmentSetIds.length?await prepareAttachmentBinding(write,actor,{attachmentSetIds:input.attachmentSetIds,bindingContract:incoming
+    ? {targetType:"purchase_order",bindingType:"purchase_receipt",contexts:["delivery_note","packing_list","damage_photo"].map(purposeKey=>({purposeKey,componentKind:"action" as const,componentRef:"goods-receipt"}))}
+    : {targetType:"commerce_order_delivery",bindingType:"commerce_fulfillment",contexts:[{purposeKey:"proof_of_delivery",componentKind:"action",componentRef:"delivery"}]},targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:fulfillment}):null;
+  const steps:SqlStatement[] = [
+    ...(attachmentBinding?.guards??[]),
     versionGuard(write, key, "commerce_orders", id, input.expectedVersion, [
       "confirmed",
       "partially_fulfilled",
@@ -1032,7 +1044,7 @@ export async function fulfillOrder(
         incoming?null:input.evidenceNote,
       ),
   ];
-  if(!incoming)for(const [index,attachmentId] of input.evidenceIds.entries())steps.push(assertion(write,key,`delivery-evidence-${index}`,"EXISTS(SELECT 1 FROM attachments a WHERE a.id=? AND a.owner_type='commerce_order_delivery' AND a.owner_id=? AND a.purpose='proof_of_delivery' AND a.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM commerce_fulfillment_evidence e WHERE e.attachment_id=a.id))",[attachmentId,id]));
+  if(!incoming)for(const [index,attachmentId] of input.evidenceIds.entries())steps.push(assertion(write,key,`delivery-evidence-${index}`,"EXISTS(SELECT 1 FROM attachments a WHERE a.id=? AND a.owner_type='commerce_order_delivery' AND a.owner_id=? AND a.purpose='proof_of_delivery' AND a.revoked_at IS NULL AND NOT EXISTS(SELECT 1 FROM attachment_links canonical WHERE canonical.attachment_id=a.id) AND NOT EXISTS(SELECT 1 FROM commerce_fulfillment_evidence e WHERE e.attachment_id=a.id))",[attachmentId,id]));
   let value = 0;
   for (const [i, entry] of input.lines.entries()) {
     const line = await write
@@ -1233,6 +1245,7 @@ export async function fulfillOrder(
     ),
   );
   if(!incoming)for(const attachmentId of input.evidenceIds)steps.push(write.prepare('INSERT INTO commerce_fulfillment_evidence(fulfillment_id,attachment_id,linked_by,linked_at) VALUES(?,?,?,?)').bind(fulfillment,attachmentId,actor.userId,Date.now()));
+  if(attachmentBinding)steps.push(...attachmentBinding.steps);
   steps.push(
     write
       .prepare("UPDATE commerce_fulfillments SET journal_id=? WHERE id=?")
@@ -1366,6 +1379,7 @@ export async function settleInvoice(
   input: z.infer<typeof settlementSchema>,
   key: string,
 ) {
+  input = { ...input, attachmentSetIds: input.attachmentSetIds ?? [] };
   actor = allowed(actor, "finance");
   const { write } = await holdingResources(actor.holdingId);
   const previous = await replayCommand(
@@ -1442,19 +1456,58 @@ export async function settleInvoice(
       "EXPENSE_PAYMENT_REQUIRED",
       "Record payment from the expense claim and attach its bank slip.",
     );
-  if(invoice.kind==="payable"&&!input.paymentSlipId)throw new ApiError(422,"PAYMENT_SLIP_REQUIRED","Upload the bank payment slip before recording payment.");
+  const supplierReservation = await write
+    .prepare(
+      "SELECT id FROM finance_supplier_instructions WHERE invoice_id=? AND status IN ('reserved','exported','unknown') LIMIT 1",
+    )
+    .bind(invoiceId)
+    .first("id");
+  if (supplierReservation)
+    throw new ApiError(
+      409,
+      "CONFLICT",
+      "The invoice is already reserved by a supplier payment workflow. Refresh and review it again.",
+    );
+  let paymentSetIds=[...input.attachmentSetIds];
+  if(invoice.kind==="payable"&&!paymentSetIds.length&&input.paymentSlipId){
+    const compatibilitySet=await write.prepare(`SELECT s.id FROM attachment_sets s JOIN attachment_links l ON l.set_id=s.id
+      WHERE s.company_id=? AND s.target_type='invoice_payment' AND s.target_id=?
+        AND s.component_kind='action' AND s.component_ref='legacy-upload-adapter' AND s.purpose_key='payment_slip'
+        AND s.expected_target_version=? AND s.state='draft' AND l.state='draft' AND l.attachment_id=?
+      ORDER BY s.created_at,s.id LIMIT 1`).bind(actor.companyId,invoiceId,input.expectedVersion,input.paymentSlipId).first<{id:string}>();
+    if(compatibilitySet)paymentSetIds=[compatibilitySet.id];
+  }
+  const paymentBinding=invoice.kind==="payable"&&paymentSetIds.length
+    ? await prepareAttachmentBinding(write,actor,{
+        attachmentSetIds:paymentSetIds,
+        bindingContract:{targetType:"invoice_payment",bindingType:"invoice_payment_settlement",contexts:[{purposeKey:"payment_slip",componentKind:"action",componentRef:"legacy-upload-adapter"}]},
+        targetId:invoiceId,
+        expectedTargetVersion:input.expectedVersion,
+        commandId:key,
+        bindingId:`invoice-payment-${key}`,
+      })
+    : null;
+  if(invoice.kind==="payable"&&!paymentBinding&&!input.paymentSlipId)
+    throw new ApiError(422,"PAYMENT_SLIP_REQUIRED","Upload the bank payment slip before recording payment.");
+  if(invoice.kind==="payable"&&!paymentBinding&&attachmentsV2Readable())
+    throw new ApiError(422,"PAYMENT_SLIP_REQUIRED","Choose a clean payment slip prepared for this exact invoice version.");
+  const boundPaymentSlipId=paymentBinding?.manifest[0]?.sourceId??input.paymentSlipId;
   const prepared = await prepareInvoiceSettlement(
     write,
     actor,
     invoice,
     expense,
-    input,
+    {...input,paymentSlipId:boundPaymentSlipId},
     key,
   );
-  if(invoice.kind==="payable")prepared.steps.unshift(
-    assertion(write,key,"payment-slip","EXISTS(SELECT 1 FROM attachments WHERE id=? AND owner_type='invoice_payment' AND owner_id=? AND revoked_at IS NULL AND media_type IN ('image/jpeg','image/png','image/webp','application/pdf'))",[input.paymentSlipId ?? null,invoiceId]),
-    assertion(write,key,"unique-payment-slip","NOT EXISTS(SELECT 1 FROM finance_payments p JOIN attachments used ON used.id=p.payment_slip_id JOIN attachments proposed ON proposed.id=? WHERE p.company_id=? AND used.checksum_sha256=proposed.checksum_sha256)",[input.paymentSlipId ?? null,actor.companyId]),
-  );
+  if(invoice.kind==="payable"){
+    prepared.steps.unshift(
+      ...(paymentBinding?.guards??[]),
+      ...((paymentBinding?.manifest??[]).map((file,index)=>assertion(write,key,`unique-payment-slip-${index}`,"NOT EXISTS(SELECT 1 FROM finance_payments p JOIN attachments used ON used.id=p.payment_slip_id JOIN attachments proposed ON proposed.id=? WHERE p.company_id=? AND used.checksum_sha256=proposed.checksum_sha256)",[file.sourceId,actor.companyId]))),
+      ...(!paymentBinding?[assertion(write,key,"payment-slip","EXISTS(SELECT 1 FROM attachments WHERE id=? AND owner_type='invoice_payment' AND owner_id=? AND revoked_at IS NULL AND media_type IN ('image/jpeg','image/png','image/webp','application/pdf'))",[boundPaymentSlipId??null,invoiceId]),assertion(write,key,"unique-payment-slip-legacy","NOT EXISTS(SELECT 1 FROM finance_payments p JOIN attachments used ON used.id=p.payment_slip_id JOIN attachments proposed ON proposed.id=? WHERE p.company_id=? AND used.checksum_sha256=proposed.checksum_sha256)",[boundPaymentSlipId??null,actor.companyId])]:[]),
+    );
+    prepared.steps.push(...(paymentBinding?.steps??[]));
+  }
 
   return executeCommand(
     write,
@@ -1814,15 +1867,16 @@ export async function saveMaster(
   );
 }
 
-export async function commercePage(actor:WorkContext,query:{view:string;q?:string;cursor?:string;movementCursor?:string;new?:string;edit?:string;request?:string}) {
+export async function commercePage(actor:WorkContext,query:{view:string;kind?:string;q?:string;cursor?:string;movementCursor?:string;new?:string;edit?:string;request?:string}) {
   actor=allowed(actor,'read');const {write}=await holdingResources(actor.holdingId),s=scope(actor);
   const search=query.q??'',branchArgs=[actor.companyId,actor.branchId,actor.branchId];
+  const partyKind=query.kind==='customer'||query.kind==='supplier'?query.kind:'';
   const orderView=['sales','quote','purchase'].includes(query.view);
   const lists:Record<string,{sql:string;args:unknown[];descending?:boolean}>={
     orders:{sql:`SELECT o.*,p.name party_name,o.created_at::text page_key FROM commerce_orders o JOIN finance_parties p ON p.id=o.party_id
       WHERE ${s.sql} AND o.kind=? AND (?='' OR strpos(lower(o.number||' '||p.name||' '||o.state),lower(?))>0)`,args:[...s.args,query.view,search,search],descending:true},
     products:{sql:'SELECT *,sku AS page_key FROM commerce_products WHERE company_id=?',args:[actor.companyId]},
-    parties:{sql:"SELECT *,name AS page_key FROM finance_parties WHERE company_id=? AND kind IN ('customer','supplier') AND person_id IS NULL",args:[actor.companyId]},
+    parties:{sql:"SELECT *,name AS page_key FROM finance_parties WHERE company_id=? AND kind IN ('customer','supplier') AND person_id IS NULL AND (?::text='' OR kind=?)",args:[actor.companyId,partyKind,partyKind]},
     warehouses:{sql:'SELECT *,name AS page_key FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?)',args:branchArgs},
     stock:{sql:`SELECT s.*,s.warehouse_id||':'||s.product_id AS id,p.sku||':'||w.name AS page_key,
       COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0) reserved_milli,
@@ -1834,7 +1888,7 @@ export async function commercePage(actor:WorkContext,query:{view:string;q?:strin
   };
   const list=orderView?'orders':query.view;
   const [page,config,options,movementPage]=await Promise.all([
-    readListPage<Row & {id:string;page_key:string}>(write,{...lists[list],cursor:query.cursor,scope:[actor.companyId,actor.branchId,list,query.view,search]}),
+    readListPage<Row & {id:string;page_key:string}>(write,{...lists[list],cursor:query.cursor,scope:[actor.companyId,actor.branchId,list,query.view,...(list==='parties'?[partyKind]:[]),search]}),
     settings(write,actor),
     query.new==='1'||query.edit||query.request ? commerceOverview(actor) : null,
     query.view==='stock'?readListPage<Row & {id:string;page_key:string}>(write,{

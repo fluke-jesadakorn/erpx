@@ -11,6 +11,27 @@
 .workspace > * {
   min-width: 0;
 }
+.setupCard {
+  max-width: 680px;
+  padding: 24px;
+  border: 1px solid var(--line, #e2e8f0);
+  border-radius: 16px;
+  background: var(--card, #fff);
+}
+.setupCard h2 { margin: 0 0 10px; font-size: 20px; }
+.setupCard p { margin: 10px 0; line-height: 1.6; }
+.setupCard ul { margin: 16px 0; padding-left: 24px; line-height: 1.8; }
+.setupAction {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 9px;
+  background: var(--brand, #3659c9);
+  color: #fff;
+  font-weight: 650;
+  text-decoration: none;
+}
+.setupAction:hover { opacity: .9; }
 .header {
   display: flex;
   justify-content: space-between;
@@ -441,3 +462,18 @@
     background: #fff;
   }
 }
+.frontQueues{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.frontQueue{display:grid;gap:8px;min-height:126px;padding:18px;border:1px solid var(--line,#dce3ec);border-radius:16px;background:var(--card,#fff);color:inherit;text-decoration:none}
+.frontQueue:hover,.frontQueue:focus-visible{border-color:var(--brand,#3659c9);box-shadow:0 0 0 3px color-mix(in srgb,var(--brand,#3659c9) 12%,transparent)}
+.frontQueue span{font-size:13px;color:var(--muted,#536174)}.frontQueue strong{font-size:30px;line-height:1}.frontQueue small{color:var(--brand,#3659c9);font-weight:700}
+
+/* Shared ERPX hierarchy for hotel operations. */
+.header h1 { font-size:var(--type-page); line-height:1.15; letter-spacing:-.04em; }
+.eyebrow { font-size:12px; letter-spacing:.1em; }
+.subtitle,.muted,.localMode { font-size:var(--type-meta); }
+.setupCard,.panel,.frontQueue { border-radius:var(--radius-lg); }
+.setupCard h2,.panel h2 { font-size:var(--type-card); }
+.tabs a { font-size:var(--type-meta); font-weight:650; }
+.frontQueue span { font-size:var(--type-meta); }
+.frontQueue strong { color:var(--ink-strong); font-variant-numeric:tabular-nums; }
+@media (max-width:760px) { .header h1 { font-size:30px; } }

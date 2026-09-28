@@ -10,6 +10,7 @@ import { expenseAuthoritySnapshot } from "./expense-routing";
 import { canManagePeople } from "./people-directory";
 import { decimalToMinor } from "./finance";
 import { getExpense, canEditExpense, type ExpenseRow } from "./expenses";
+import { attachmentsV2Readable } from "./attachments/feature";
 
 const optionalText = (max: number) => z.string().trim().max(max).optional();
 const optionalMoney = z
@@ -74,7 +75,13 @@ export async function expenseRequirements(db: SqlDatabase, row: ExpenseRow) {
   if (
     !(await db
       .prepare(
-        "SELECT 1 FROM attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL LIMIT 1",
+        attachmentsV2Readable()
+          ? `SELECT 1 FROM attachments a JOIN attachment_links l ON l.attachment_id=a.id
+             JOIN attachment_sets s ON s.id=l.set_id
+             WHERE a.owner_type='expense_claim' AND a.owner_id=? AND a.revoked_at IS NULL
+               AND a.source_state='available' AND l.state='bound'
+               AND s.target_type='expense_claim' AND s.target_id=a.owner_id LIMIT 1`
+          : "SELECT 1 FROM attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL LIMIT 1",
       )
       .bind(row.id)
       .first())

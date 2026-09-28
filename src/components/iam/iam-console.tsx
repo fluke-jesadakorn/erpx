@@ -1,5 +1,7 @@
 "use client";
 import { FeatureTabBar,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
+import { AttachmentFeatureSurface } from "@/components/attachments/attachment-feature-context";
 
 import { flowKinds } from "@/lib/flow";
 import {
@@ -46,6 +48,10 @@ const symbols = {
   conditional: CircleHelp,
   unavailable: Minus,
 };
+function SanitizedIamDocuments({base,targetType,targetId,version,editable}:{base:string;targetType:"iam_review"|"iam_migration";targetId:string;version:number;editable:boolean}){
+  const [open,setOpen]=useState(false),review=targetType==="iam_review";
+  return <AttachmentFeatureSurface><details className={styles.review} onToggle={event=>setOpen(event.currentTarget.open)}><summary>{review?"Sanitized review evidence":"Sanitized migration evidence"}</summary>{open&&<RecordDocumentPanel base={base} targetType={targetType} targetId={targetId} expectedTargetVersion={version} title={review?"Sanitized review evidence":"Sanitized migration evidence"} purposes={[{key:review?"sanitized_review_evidence":"migration_evidence",label:review?"Sanitized review evidence":"Sanitized migration evidence",description:"Attach only a redacted review artifact. Never upload passwords, private keys, secrets, configuration exports, or database dumps.",visibility:"Restricted to Company IAM administrators. Sanitization attestation is required before binding."}]} editable={editable}/>}</details></AttachmentFeatureSurface>;
+}
 const labels = {
   allowed: "Allowed",
   denied: "Denied",
@@ -1850,11 +1856,11 @@ export function IamConsole({
                 </form>
               )}
               {data.migrations.map((b) => (
-                <p key={text(b.id)}>
-                  Batch {text(b.id).slice(0, 8)} · {text(b.status)} ·{" "}
-                  {(b.users_json as unknown[]).length} employees ·{" "}
-                  {date(b.created_at)}
-                </p>
+                <article className={styles.review} key={text(b.id)}>
+                  <p>Batch {text(b.id).slice(0, 8)} · {text(b.status)} ·{" "}
+                    {(b.users_json as unknown[]).length} employees · {date(b.created_at)}</p>
+                  <SanitizedIamDocuments base={base} targetType="iam_migration" targetId={text(b.id)} version={Number(b.version)} editable={can("iam.manage")}/>
+                </article>
               ))}
             </section>
           </>
@@ -2027,6 +2033,7 @@ export function IamConsole({
                       {JSON.stringify(r.payload, null, 2)}
                     </pre>
                   </details>
+                  <SanitizedIamDocuments base={base} targetType="iam_review" targetId={text(r.id)} version={Number(r.version)} editable={can("iam.manage")}/>
                   {r.status === "pending" &&
                     can("iam.review") &&
                     r.created_by !== data.currentUserId && (

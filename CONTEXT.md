@@ -1,6 +1,24 @@
 # CONTEXT.md
 
-Business language for ERPX, independent of implementation. People and spending terminology follows the [approved requirements](docs/plan/2026-09-14-spending-approval-requirements.md); delivery status is recorded there.
+Business language for ERPX, independent of implementation. Current delivery scope and status belong in the [production plan](docs/production-plan.md).
+
+## Pilot acceptance
+
+**Account**: A Company-owned CRM relationship with a business or individual, which may be a prospect before Finance recognizes a customer. A reviewed link to a Finance customer keeps the commercial and accounting identities distinct.
+
+**Prospect**: An Account or Contact under consideration before a reviewed Finance customer relationship exists.
+
+**Contact**: A person known to CRM within an Account, with independently recorded Sales and Support interactions. A shared name or email address does not prove that two Contacts are the same person.
+
+**Guest Link**: A reviewed relationship between a CRM Contact and a PMS guest. PMS remains the owner of guest identity, reservations, stays, and folios.
+
+**Company Setup Acceptance**: Independent confirmation that a Company's organization and staff placement are ready. It does not certify transaction correctness or authorize launch.
+
+**Release Acceptance**: Independent, evidence-backed confirmation that the agreed delivery scope is ready for a named Company and software release with its reviewed configuration. Material changes require a new review.
+
+**Readiness Checkpoint**: A dated review of completed evidence, remaining work and external blockers. It is not a commitment to open the system on that date.
+
+**Thai Hotel Pilot**: The first operational release for one Thai hotel with its restaurant, purchasing, HR, Thai employee payroll and human-confirmed AI assistance. Contractors remain payable through Finance, separately from employee payroll.
 
 ## Identity & scope
 
@@ -46,6 +64,14 @@ Business language for ERPX, independent of implementation. People and spending t
 - **Audit Event** — Append-only record of who did what, when, for what purpose and correlation.
 - **Global Read Audit** — Audited record of a cross-boundary read.
 
+## Files & publication
+
+- **File Source** — One immutable original file whose identity follows its content. Possessing or naming it does not by itself grant access.
+- **File Set** — The files collected for one Source Record, line, action, event, message, or publication purpose under one reviewed policy.
+- **File Link** — An authorized association between a File Source and one File Set. Another record may reference the same source only through its own link.
+- **Bound File** — A File Link fixed to a submitted record version or completed business action. It cannot be withdrawn or replaced in place.
+- **Media Publication** — An approved public presentation derived from a private File Source, with its own description, ordering, and revision. _Avoid_: Public original.
+
 ## Collaboration & reference
 
 - **Referenceable** — Any record addressable at stable `/reference/item/:id` and linkable as `@<context>/<id>` (e.g., `@finance/inv-28-01-2026-1234`).
@@ -63,22 +89,30 @@ Business language for ERPX, independent of implementation. People and spending t
 - **Provenance** — Provider/model/prompt digest describing how a suggestion was produced.
 - **Conflicted** — Patch state when host or source version/digest drifted since the suggestion was computed; requires re-request or explicit conflict acceptance.
 
-## Executive reporting (proposed: [AI Live Canvas](docs/plan/2026-09-18-executive-live-canvas.md))
+## Executive reporting (proposed: [AI Live Canvas](docs/archive/planning-2026-09/2026-09-18-executive-live-canvas.md))
 
 - **Executive Report** — A creator-owned, private-by-default analysis of authorized Company information, arranged for ongoing use and optionally shared with named people.
 - **Report Widget** — A movable part of an Executive Report that presents an analysis, explanation, or interaction with a defined data scope.
 - **Report Share** — An explicit, revocable grant to a named recipient for a specified Executive Report or a selected part of it. It does not reveal the author's private conversation or grant general access to source modules.
 - **Report Distribution Contract** — The bounded information a publisher is authorized to disclose through a shared report, including its permitted recipients, scope, and use. It is distinct from each recipient's independent access to the source records.
 
-## Social engagement (paradigm: `docs/plan/04-social-paradigm.md`)
+## Daily work and social engagement
 
-- **Post** — A record rendered as a feed card; the record stays truth, the post is its projection.
-- **Feed** — Newest-first stream: Role Lane → Following → Hashtags → System. No engagement ranking.
-- **Role Lane** — Pinned feed section for items needing your role (approvals, SLA breaches, period gates).
+- **Today** — One personal entry point for the current day, actions needing the person, work being tracked, and authorized team updates. It is a view across owners, not the owner of a business transaction. _Avoid_: Home, Work as separate starting places.
+- **Source Record** — The business item owned by its specialist application, such as an Expense Claim, Leave Request, or Purchase Request. Its owner controls its status, permissions, decisions, and evidence even when Today shows it.
+- **Work Item** — A current, permission-checked view of one Source Record's next step and responsible person or team. It is not a copied task or a second workflow.
+- **Daily Plan** — A person's dated ordering and time allocation for their own work. Moving an item in this plan does not change its deadline, roster, attendance, or approval state.
+- **Post** — A person's update to an explicitly chosen audience, optionally linked to one or more Source Records. Editing the update does not edit those records.
+- **Post Audience** — The people or organizational scope a poster chooses for one publication; it is bounded by each linked Source Record's own access rules. _Avoid_: Inherited audience from the previous post.
+- **Feed** — Chronological stream of posts visible in the chosen context. Actionable Work Items have their own priority space so new posts do not bury required work.
+- **Role Lane** — The separate priority space for items needing your role (approvals, SLA breaches, period gates).
 - **Follow** — Subscribe to record/person/hashtag; drives feed + notifications, never grants access.
 - **Hashtag/Topic** — Scoped classifier (`#tag`); local / holding-moderated / system-reserved; placement-aware visibility.
 - **Reaction** — Append-only signal (ack/seen); explicitly not a decision, never moves workflow.
-- **Notification** — Mention/follow/lane event in the inbox; unread counts on lanes + mentions only.
+- **Notification** — A staff Inbox delivery about work, calendar activity, a mention, a direct notice, or a system effect. Its read and archive state belongs to the recipient and never decides the source workflow or grants access to it.
+- **Inbox Event** — One meaningful source occurrence that may be delivered to several staff accounts in the same Company.
+- **Inbox Delivery** — One recipient's copy of an Inbox Event, with independent read and archive state.
+- **Staff Notice** — An immutable plain-text message sent by an active staff account to named colleagues or an authorized Company, Branch, or Department audience.
 - **Composer** — One box to post/comment/mention/tag across contexts; agent output enters as `proposed`.
 
 ## People & pay
@@ -99,7 +133,13 @@ Business language for ERPX, independent of implementation. People and spending t
 - **Not Required** — A clearance result explaining why a particular check does not apply, recorded by its authorized owner.
 - **Active Staff** — Employees and contractors with one current active Engagement and an active linked account in the Company. Personal requests and assigned work belong to staff independently of their selected business role.
 - **Staff Level** — A Company-wide classification of seniority with a code, name, and level number; smaller numbers mean greater seniority, starting with Level 1 for CEO. An Engagement has one current level and retains its level-change history; a level alone grants no application permissions or approval authority.
-- **Position** — A Company-defined job in an organizational unit, with a title, default Staff Level, and expected reporting Position. It exists independently of its occupants and may be vacant or shared by multiple staff.
+- **Position** — A Company-defined job in an organizational unit, with a title, default Staff Level, expected reporting Position, and whether its occupants require a weekly Roster. It exists independently of its occupants and may be vacant or shared by multiple staff.
+- **Roster-required Position** — A Position whose active occupants must receive at least one assignment in each working week, except when approved leave covers every working day. This obligation is separate from Business Role and pay type.
+- **GPO Rule** — An IT-owned association of a Directory Group Policy and its targets with a Company-wide Staff Level, Department, or Position. Level rules follow the Position's default level; Department rules follow the Position's placement.
+- **Effective Position GPOs** — The combined Directory policies inherited from a Position's Level and Department and assigned directly to that Position. Every contributing rule remains attributable, even when several sources require the same policy.
+- **Position GPO Mapping** — A GPO Rule assigned directly to a Position, independently of its inherited rules. It governs Directory policy work for active occupants independently of HR placement and ERPX Business Roles.
+- **Position Move** — A scheduled, reviewed change that moves a Position and all its current occupants together. A Department move preserves individual Staff Levels; a Position Level change changes all occupants' Staff Levels with their histories.
+- **Position Pay Default** — A versioned monthly pay recommendation for a Position and pay group. It is distinct from an Engagement's Compensation Revision and never determines Payroll by itself.
 - **Reporting Manager** — The named, more senior person to whom a staff member directly reports within the same Company. This relationship identifies the person's actual manager, separately from a Position's expected reporting relationship.
 - **Organization Template** — A reusable description of organizational positions, default Staff Levels, and expected reporting relationships, independent of the people who occupy those positions.
 - **Organization Chart** — A view of positions, occupants, vacancies, and actual reporting relationships within Company, Branch, and Department placement.
@@ -116,6 +156,7 @@ Business language for ERPX, independent of implementation. People and spending t
 - **HR Review** — The final leave decision, made by an eligible HR administrator independent of both the requester and the Department approver.
 - **Contractor** — A Person engaged under a services relationship whose approved obligation is handled through Finance payables rather than employee wages.
 - **Compensation Revision** — An effective-dated, approved description of an Engagement's pay basis and components.
+- **Compensation Draft** — A proposed Compensation Revision awaiting an independent approver; it is not current pay or a Payroll input.
 - **Payroll Run** — A versioned calculation for one pay group and period, with immutable input snapshots, results, approvals, and accounting links.
 - **Country Pack** — A versioned jurisdiction rule set that must be validated and activated before production payroll is allowed.
 - **Payment Batch** — An independently approved collection of outstanding obligations prepared for external payment-file export and later confirmation.
@@ -127,6 +168,7 @@ Business language for ERPX, independent of implementation. People and spending t
 - **Leave Type** — A Company-defined category of absence with its own entitlement, evidence, and privacy rules.
 - **Leave Policy** — An effective-dated set of leave entitlements and working-day rules offered by a Company to eligible Engagements.
 - **Leave Policy Assignment** — The effective-dated association of one Engagement with one version of a Leave Policy. A Position supplies neither leave entitlement nor approval authority.
+- **Level Leave Default** — A versioned recommendation linking a Staff Level to a Leave Policy version. An Engagement receives entitlement through its Leave Policy Assignment, including when HR accepts this recommendation.
 - **Leave Request** — A staff member's request for schedule-aware time away under the Leave Policy assigned to their active Engagement.
 - **Leave Day Segment** — A full day, first half, or second half of one working date included in a Leave Request.
 - **Leave Balance Entry** — An immutable change to an Engagement's entitlement, reservation, use, or reversal for one Leave Type.
@@ -148,21 +190,25 @@ Business language for ERPX, independent of implementation. People and spending t
 
 ## Commercial & platform
 
-- **Commercial Catalog Revision** — A version of a Hosted Support package and monthly fee, effective for new service periods without changing earlier agreements.
+- **Commercial Catalog Revision** — An effective-dated version of Hosted pricing. The historical Support catalog and target system-plus-usage catalog remain distinct so past periods keep their agreed terms.
 - **Entitlement** — Right to use a capability, allocation-booked.
 - **Billing Lifecycle** — Progress of an issued invoice and its payment, with Stripe as the authority for payment outcomes.
 - **Hosted Enrollment** — A Holding’s agreement to use Hosted services, with one Support package and month-end changes or termination.
 - **Billing Account** — The single customer billing relationship covering every Company and Branch in a Holding.
-- **Service Period** — A Bangkok calendar month of Hosted service, with Support prorated by calendar day in the first month.
-- **Reviewed Actual Cost** — A verified expense paid by ERPX on behalf of a Holding, without markup and excluding customer-funded BYOK.
-- **Cost Completeness** — An explicit confirmation that all known costs for a period were reviewed; absence of costs does not imply completeness.
+- **Service Period** — A Bangkok calendar month of Hosted service, with the first month's system fee prorated by calendar day.
+- **Measured Usage** — A source-linked observation of AI provider units or original-file byte-time attributed to the Holding and, when provable, its Company and Branch. It is not a charge.
+- **Verified Provider Cost** — A successful ERPX-funded AI request's provider expense with currency and statement evidence. It becomes rateable only after the complete provider statement reconciles.
+- **Rated Charge** — An immutable result of applying one effective price revision to complete measured usage and verified costs. It is not an issued invoice.
+- **Cost Completeness** — An explicit confirmation that all known meters, provider costs, statement reconciliations, and approved extras for a Service Period were reviewed; absence of records does not imply completeness.
+- **Sandbox Finance Ledger** — The isolated test Company ledger in ERPX Holding that mirrors confirmed Stripe Sandbox receivables, revenue, receipts, and reversals without entering real Company reports.
 
-## Operations & compliance
+## Projects, routines & compliance
 
+- **Projects & Routines** — Coordination of Project and recurring work across Company departments, with accountable owners, handoffs, and resolution of blockers. _Avoid_: Operations as a catch-all menu name.
 - **Directory Authority** — The one writable identity namespace for a domain, including its SID, secrets, LDAP objects and SYSVOL. A restored authority replaces its source; it is not a second independent writable copy.
 - **Provider Identity Alias** — A verified one-to-one mapping from a provider's current immutable identifier to ERPX's existing Provider Identity, used to preserve links and audit history during a directory backend migration.
 - **Project** — A creator-owned collection of Company work with explicitly managed staff membership.
-- **Staff Task** — A piece of operational or Project work with one accountable assignee, a due date, supporting attachments, and ordered approvals before work, after completion, or both.
+- **Staff Task** — A piece of operational or Project work with one accountable assignee and optional due date, supporting attachments, and review. Ordinary tasks may be completed by their assignee; controlled tasks retain the approvals required by their policy.
 - **Completion Note** — The assignee's account of the work delivered for completion review.
 - **Task Revision** — An explicit, explained material change to a submitted task that returns it to draft and restarts its approvals while retaining prior decisions.
 - **Rework** — Work returned to the assignee after completion review rejects the submitted result.

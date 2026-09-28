@@ -10,6 +10,8 @@ import { hasModuleAccess } from "@/data/module-access";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
 import { createCRMLead } from "./crm";
+import { marketingCampaigns, marketingCostSources } from './marketing-campaigns';
+import {hasPermission} from '@/lib/permissions';
 const reason = z.string().trim().min(3).max(3000),
   version = z.number().int().positive();
 const assetSchema = z.object({
@@ -115,11 +117,15 @@ export async function marketingWorkspace(a: WorkContext) {
         )
         .all<Row>(),
     ]);
+  const canLinkCost = hasPermission(a,'finance.read')&&hasPermission(a,'records.write');
   return {
     assets: assets.results,
     candidates: candidates.results,
     branches: branches.results,
     campaignSummary: campaignSummary.results,
+    campaigns: await marketingCampaigns(a),
+    canLinkCost,
+    costSources: canLinkCost ? await marketingCostSources(a) : [],
   };
 }
 export async function createMarketingAsset(
@@ -409,6 +415,10 @@ export async function changeMarketing(
         contactName: String(row.contact_name),
         contactDetail: String(row.contact_detail),
         source: `Marketing form ${row.form_id}; attribution ${row.attribution_json}`,
+        sourceEvidence: `Reviewed candidate ${row.id} from form ${row.form_id} version ${row.form_version}`,
+        sourceKind: 'form',
+        sourceId: String(row.id),
+        campaignId: (()=>{try{return JSON.parse(String(row.attribution_json)).campaignId||undefined;}catch{return undefined;}})(),
         brief: String(row.brief),
         dueDate:
           i.dueDate ??

@@ -84,7 +84,7 @@ The beta AI actions are private summaries and reviewed task drafts, with source 
 checked again before task creation. They do not execute cross-module Flow transactions.
 
 Implementation scope, primary research, acceptance criteria and evidence are recorded in
-[the Social + AI public beta plan](../plan/2026-09-07-social-ai-public-beta.md).
+[the Social + AI public beta plan](../archive/planning-2026-09/2026-09-07-social-ai-public-beta.md).
 
 The alternatives below describe the original long-term business model; the bounded,
 operator-funded pilot allowance is the explicit exception recorded here.

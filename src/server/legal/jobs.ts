@@ -5,8 +5,8 @@ import type { WorkContext } from "../authorization";
 import type { BetaEnvironment } from "../beta-config";
 import { z } from "zod";
 import { executeCommand, assertion } from "../commands";
-import { resolveAiProvider } from "../ai-providers";
-import { generateProviderJson } from "../ai-transport";
+import { resolveAiProvider, aiUsageStatement } from "../ai-providers";
+import { generateProviderJson, withAiGatewayScope } from "../ai-transport";
 import { loadIamAuthority } from "../iam-store";
 import { access, guards, fail } from "./access";
 import { hash } from "./service";
@@ -116,8 +116,12 @@ export async function drainLegalAi(
       actor_json: string;
     }>();
   if (!j) return;
+  let meteredProvider: Awaited<ReturnType<typeof resolveAiProvider>> | null = null;
+  let meteredBranch: string | null = null;
+  let meteredInput = 0, meteredOutput = 0;
   try {
     const a = JSON.parse(j.actor_json) as WorkContext;
+    meteredBranch = a.branchId;
     if (
       !(await db
         .prepare(
@@ -157,9 +161,11 @@ export async function drainLegalAi(
         .bind(r.id)
         .all<{ id: string; version: number; checksum: string; body: string }>()
     ).results;
-    const provider = await resolveAiProvider(db, a.companyId, env, "text"),
+    const provider = await resolveAiProvider(db, a.companyId, env, "text");
+    meteredProvider = provider;
+    const
       response = await generate(
-        provider.endpoint,
+        withAiGatewayScope(provider.endpoint,j.id,"legal",a.branchId),
         [
           {
             role: "system",
@@ -180,6 +186,7 @@ export async function drainLegalAi(
         ],
         4000,
       );
+    meteredInput=response.inputTokens; meteredOutput=response.outputTokens;
     const proposal = z
       .object({
         summary: z.string().max(30000),
@@ -231,7 +238,9 @@ export async function drainLegalAi(
         j.id,
       )
       .run();
+    await aiUsageStatement(db,j.id,provider.snapshot,"legal",fresh.version === j.source_version ? "succeeded" : "failed",fresh.version === j.source_version ? meteredInput : 0,fresh.version === j.source_version ? meteredOutput : 0,meteredBranch).run();
   } catch (e) {
+    if (meteredProvider) await aiUsageStatement(db,j.id,meteredProvider.snapshot,"legal","failed",0,0,meteredBranch).run();
     await db
       .prepare(
         "UPDATE legal_ai_proposals SET state='failed',error=? WHERE id=? AND state='running'",

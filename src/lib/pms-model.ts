@@ -172,6 +172,7 @@ export type Reservation = {
   number: string;
   guestId: string;
   source: string;
+  campaignCode?: string;
   externalRef: string;
   groupName: string;
   notes: string;

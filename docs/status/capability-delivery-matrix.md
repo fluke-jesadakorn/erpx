@@ -1,7 +1,7 @@
 # ERPX capability delivery matrix
 
 Generated from `src/data/module-registry.json` and `src/data/capability-delivery.ts`. Includes Legal. See business-acceptance-manifest.json for independent acceptance gates.
-Generic record CRUD and preview pages do not qualify as domain implementation. Registry status alone does not constitute production sign-off.
+Generic record CRUD and preview pages do not qualify as domain implementation. Registry status alone does not constitute production sign-off. This is an inventory, not the launch scope; see [the current production plan](../production-plan.md).
 
 ## Status rules
 

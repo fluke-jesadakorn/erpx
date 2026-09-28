@@ -1,0 +1,7 @@
+# Shared local PostgreSQL cluster for ERPX environments
+
+Status: Accepted on 2026-09-24. Supersedes the dedicated production PostgreSQL daemon in ADR-024 and the isolated staging cluster described in the original staging install.
+
+ERPX development, private production, and staging use the existing PostgreSQL 18.6 cluster on loopback `5432`, with separate database prefixes, login roles, manifests, auth secrets, files, web processes, and jobs processes. The production and staging clusters formerly on `5433` and `5435` are disabled but retained for rollback. This removes two resident database services while preserving the per-database isolation model and avoiding a new cluster or a higher `max_connections` setting.
+
+The trade-off is a shared availability and administration boundary: restarting `5432` now affects all three ERPX environments and other local projects, and each environment's root-only database administrator is a cluster superuser. Runtime app/jobs/migration logins remain non-superusers. Database grants plus role-specific `pg_hba.conf` rules restrict those logins to their own environment, because other local databases may grant `CONNECT` to `PUBLIC`. Production web remains private on `3101`; staging and development retain their existing public hostnames and ports. See [the cutover runbook](../../ops/macos/postgres-consolidation.md) for backup, verification, and rollback.

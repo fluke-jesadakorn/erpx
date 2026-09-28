@@ -12,7 +12,7 @@ import {
   aiSnapshotGuard,
   aiUsageStatement,
 } from "./ai-providers";
-import { generateProviderJson } from "./ai-transport";
+import { generateProviderJson, withAiGatewayScope } from "./ai-transport";
 import {
   employeeRequestDetail,
   requestVersionGuard,
@@ -24,6 +24,10 @@ import {
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
 import { assertProductionModuleEnabled, productionFeatureGuard } from "./hospitality-rollout";
+import {
+  generateThaiHotelMockAi,
+  isThaiHotelAiMockEnabled,
+} from "./simulation-only-adapters";
 export const requestAiInput = z.object({
   expectedVersion: z.number().int().positive(),
   retry: z.boolean().default(false),
@@ -75,7 +79,7 @@ export async function requestAiStatus(
     provider: string | null = null;
   try {
     provider = JSON.stringify(
-      (await resolveAiProvider(db, actor.companyId, env, "text")).snapshot,
+      (await resolveAiProvider(db, actor.companyId, env, "text", actor.holdingSlug)).snapshot,
     );
   } catch (e) {
     unavailable =
@@ -141,7 +145,7 @@ export async function queueRequestAi(
       "REQUEST_TEXT_REQUIRED",
       "Save a description of the issue or need before asking AI for suggestions.",
     );
-  const provider = await resolveAiProvider(db, actor.companyId, env, "text"),
+  const provider = await resolveAiProvider(db, actor.companyId, env, "text", actor.holdingSlug),
     providerJson = JSON.stringify(provider.snapshot);
   const old = await db
     .prepare(
@@ -269,7 +273,7 @@ export async function runRequestAi(
   db: SqlDatabase,
   env: BetaEnvironment,
   id: string,
-  generate = generateProviderJson,
+  generate?: typeof generateProviderJson,
 ) {
   const token = crypto.randomUUID(),
     now = Date.now();
@@ -283,6 +287,11 @@ export async function runRequestAi(
   let provider: Awaited<ReturnType<typeof resolveAiProvider>> | null = null;
   try {
     const actor = JSON.parse(claimed.actor_json) as WorkContext;
+    const runProvider =
+      generate ??
+      (isThaiHotelAiMockEnabled(actor.holdingSlug)
+        ? generateThaiHotelMockAi
+        : generateProviderJson);
     await assertProductionModuleEnabled(db, actor.companyId, "operations");
     requireJobAuthority(actor);
     const grant = await db
@@ -301,7 +310,7 @@ export async function runRequestAi(
     const authorizationKey=crypto.randomUUID();await db.batch([...iamMutationGuards(db,actor,authorizationKey),db.prepare('DELETE FROM command_assertions WHERE command_id=?').bind(authorizationKey)]);
     const before = await allowed(db, actor, claimed.request_id);
     await validateServiceScope(db, actor, before.request);
-    provider = await resolveAiProvider(db, actor.companyId, env, "text");
+    provider = await resolveAiProvider(db, actor.companyId, env, "text", actor.holdingSlug);
     if (
       before.request.version !== claimed.source_version ||
       JSON.stringify(provider.snapshot) !== claimed.provider_json
@@ -311,8 +320,8 @@ export async function runRequestAi(
         "AI_STALE",
         "The request or provider changed. Prepare a fresh suggestion.",
       );
-    const output = await generate(
-      { ...provider.endpoint, sessionId: await aiSessionHash(`request:${actor.companyId}:${claimed.request_id}`) },
+    const output = await runProvider(
+      { ...withAiGatewayScope(provider.endpoint,`${id}:${claimed.attempts}`,"employee_request",actor.branchId), sessionId: await aiSessionHash(`request:${actor.companyId}:${claimed.request_id}`) },
       [
         {
           role: "system",
@@ -340,7 +349,7 @@ export async function runRequestAi(
       snap = await serviceAuthoritySnapshot(db, actor.companyId),
       current = await allowed(db, actor, claimed.request_id);
     await validateServiceScope(db, actor, current.request);
-    const latest = await resolveAiProvider(db, actor.companyId, env, "text");
+    const latest = await resolveAiProvider(db, actor.companyId, env, "text", actor.holdingSlug);
     if (
       current.request.version !== claimed.source_version ||
       JSON.stringify(latest.snapshot) !== claimed.provider_json
@@ -382,6 +391,7 @@ export async function runRequestAi(
         "succeeded",
         output.inputTokens,
         output.outputTokens,
+        actor.branchId,
       ),
       db
         .prepare("DELETE FROM command_assertions WHERE command_id=?")
@@ -421,6 +431,9 @@ export async function runRequestAi(
           provider.snapshot,
           "employee_request",
           "failed",
+          0,
+          0,
+          (JSON.parse(claimed.actor_json) as WorkContext).branchId,
         ).run();
     }
   }

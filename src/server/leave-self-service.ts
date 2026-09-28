@@ -2,7 +2,7 @@ import "server-only";
 import type { WorkContext } from "./authorization";
 import type { SqlDatabase } from "./runtime/types";
 import { holdingResources } from "./runtime";
-import { activeStaff, requestRoute, requireCompanyAuthority } from "./staff-policy";
+import { activeStaff, requireCompanyAuthority } from "./staff-policy";
 import { ApiError } from "./http";
 import type { PostgresDatabase } from "./runtime/postgres";
 import { executeCommand, replayCommand } from "./commands";
@@ -16,7 +16,13 @@ import {
   type LeaveCalculationDay,
 } from "@/lib/leave-self-service";
 import { z } from "zod";
+import { peopleRequestRoute } from "./department-authority";
 import { scheduledFeaturePredicate } from "./hospitality-rollout";
+import type {
+  LeaveEvidencePolicy,
+  LeaveEvidencePurpose,
+} from "./leave-evidence";
+import { availableLeaveEvidence, leaveEvidencePurposes } from "./leave-evidence";
 
 type Policy = {
   assignment_id: string;
@@ -36,6 +42,13 @@ type LeaveType = {
   tracked: boolean;
   evidence_after_units: number | null;
   evidence_note: string;
+  evidence_min_units: number | null;
+  evidence_purpose: LeaveEvidencePurpose | null;
+  evidence_min_count: number;
+  evidence_due_stage: "before_submit" | "before_final_approval";
+  evidence_grace_days: number;
+  rule_evidence_note: string;
+  evidence_privacy: "requester_approvers_hr";
   grant_kind: "annual" | "period" | "accrual" | "untracked";
   grant_units: number;
   accrual_units: number;
@@ -44,6 +57,29 @@ type LeaveType = {
   employee_eligible: boolean;
   contractor_eligible: boolean;
 };
+
+function evidencePolicy(type: LeaveType, units: number): LeaveEvidencePolicy {
+  const minimumUnits = type.evidence_min_units === null
+      ? null
+      : Number(type.evidence_min_units),
+    minimumCount = Number(type.evidence_min_count),
+    required = Boolean(
+      type.evidence_purpose &&
+        minimumUnits !== null &&
+        units >= minimumUnits &&
+        minimumCount > 0,
+    );
+  return {
+    required,
+    minimumUnits,
+    purposeKey: type.evidence_purpose,
+    minimumCount,
+    dueStage: type.evidence_due_stage,
+    graceDays: Number(type.evidence_grace_days),
+    privacy: type.evidence_privacy,
+    note: type.rule_evidence_note,
+  };
+}
 
 async function rows<T>(db: SqlDatabase, sql: string, ...args: unknown[]) {
   return (await db.prepare(sql).bind(...args).all<T>()).results;
@@ -86,7 +122,10 @@ export async function previewLeave(context: WorkContext, raw: z.infer<typeof lea
   const write = database ?? (await holdingResources(context.holdingId)).write;
   const { staff, policy } = await policyFor(write, context, input.startDate);
   if (!policy) throw new ApiError(409, "LEAVE_POLICY_REQUIRED", "HR setup required: ask HR to assign a leave policy to your active engagement.");
-  const type = await write.prepare(`SELECT t.id,t.code,t.name,t.description,t.tracked,t.evidence_after_units,t.evidence_note,r.grant_kind,r.grant_units,r.accrual_units,r.accrual_period,r.carryover_limit,r.employee_eligible,r.contractor_eligible
+  const type = await write.prepare(`SELECT t.id,t.code,t.name,t.description,t.tracked,t.evidence_after_units,t.evidence_note,
+      r.evidence_min_units,r.evidence_purpose,r.evidence_min_count,r.evidence_due_stage,r.evidence_grace_days,
+      r.evidence_note rule_evidence_note,r.evidence_privacy,
+      r.grant_kind,r.grant_units,r.accrual_units,r.accrual_period,r.carryover_limit,r.employee_eligible,r.contractor_eligible
     FROM leave_types t JOIN leave_policy_rules r ON r.leave_type_id=t.id AND r.policy_version_id=?
     WHERE t.id=? AND t.company_id=? AND t.active=true AND t.effective_from<=? AND (t.effective_to IS NULL OR t.effective_to>=?)`)
     .bind(policy.policy_version_id, input.leaveTypeId, context.companyId, input.startDate, input.endDate).first<LeaveType>();
@@ -121,7 +160,7 @@ export async function previewLeave(context: WorkContext, raw: z.infer<typeof lea
   const legacy = await rows<{id:string;number:string;state:string}>(write,`SELECT r.id,r.number,r.state FROM leave_requests r WHERE r.company_id=? AND r.engagement_id=? AND r.id IS DISTINCT FROM ? AND r.state IN ('pending_approval','approved') AND r.start_date<=? AND coalesce(r.end_date,r.start_date)>=? AND NOT EXISTS(SELECT 1 FROM leave_day_segments s WHERE s.request_id=r.id)`,context.companyId,staff.engagement_id,excludeId,input.endDate,input.startDate);
   const overlaps = [...new Map([...legacy,...candidates.filter(other=>days.some(day=>day.date===other.leave_date&&(day.segment==='full'||other.segment==='full'||day.segment===other.segment)))].map(row=>[row.id,{id:row.id,number:row.number,state:row.state}])).values()];
   const accounts=await Promise.all([...new Set(days.map(d=>Number(d.date.slice(0,4))))].map(async year=>({year,units:days.filter(d=>Number(d.date.slice(0,4))===year).reduce((n,d)=>n+d.units,0),...(await balance(write,context.companyId,staff.engagement_id,type.id,year))!})));
-  const route = await requestRoute(write, context.companyId, context.userId, "leave");
+  const route = await peopleRequestRoute(write, context.companyId, context.userId);
   const approvers = route.steps.length ? await rows<{ user_id: string; legal_name: string }>(write,
     "SELECT user_id,legal_name FROM hr_people WHERE company_id=? AND user_id=ANY(?::text[])", context.companyId, `{${route.steps.map((x) => x.userId).join(",")}}`) : [];
   const blockers = [
@@ -129,6 +168,7 @@ export async function previewLeave(context: WorkContext, raw: z.infer<typeof lea
     ...(route.blockedReason ? [route.blockedReason] : []),
     ...accounts.filter(a=>type.tracked&&!policy.allow_negative&&a.available<a.units).map(a=>`${a.year}: insufficient balance (${a.available} available, ${a.units} requested).`),
   ];
+  const evidence = evidencePolicy(type, units);
   return {
     accounts,
     leaveType: type,
@@ -137,8 +177,9 @@ export async function previewLeave(context: WorkContext, raw: z.infer<typeof lea
     units,
     balanceBefore: current.available,
     balanceAfter: type.tracked ? current.available - units : null,
-    evidenceRequired: type.evidence_after_units !== null && units >= type.evidence_after_units,
-    evidenceNote: type.evidence_note,
+    evidence,
+    evidenceRequired: evidence.required,
+    evidenceNote: evidence.note,
     overlaps,
     approverRoute: route.steps.map((step) => ({
       stage: step.authority === "hr_admin" ? "HR review" : "Manager review",
@@ -164,7 +205,10 @@ export async function leaveSummary(context: WorkContext) {
     };
   }
   const assigned = await policyFor(write, context, new Date().toISOString().slice(0, 10));
-  const types = assigned.policy ? await rows<LeaveType>(write, `SELECT t.id,t.code,t.name,t.description,t.tracked,t.evidence_after_units,t.evidence_note,r.grant_kind,r.grant_units,r.accrual_units,r.accrual_period,r.carryover_limit,r.employee_eligible,r.contractor_eligible
+  const types = assigned.policy ? await rows<LeaveType>(write, `SELECT t.id,t.code,t.name,t.description,t.tracked,t.evidence_after_units,t.evidence_note,
+      r.evidence_min_units,r.evidence_purpose,r.evidence_min_count,r.evidence_due_stage,r.evidence_grace_days,
+      r.evidence_note rule_evidence_note,r.evidence_privacy,
+      r.grant_kind,r.grant_units,r.accrual_units,r.accrual_period,r.carryover_limit,r.employee_eligible,r.contractor_eligible
     FROM leave_policy_rules r JOIN leave_types t ON t.id=r.leave_type_id WHERE r.policy_version_id=? AND t.active=true ORDER BY t.name`, assigned.policy.policy_version_id) : [];
   const balances = await Promise.all(types.map(async (type) => ({ type, ...((await balance(write, context.companyId, staff.engagement_id, type.id)) ?? { available: 0, reserved: 0, used: 0, accrued: 0 }) })));
   const requests = await rows<Record<string, unknown>>(write, `SELECT r.id,r.number,r.start_date,r.end_date,r.start_segment,r.end_segment,r.calculated_units,r.days,r.state,r.cancellation_state,r.version,r.created_at,r.updated_at,r.decision_note,t.name leave_type_name
@@ -344,9 +388,9 @@ export async function leaveCalendarMonth(
         JOIN leave_policy_versions p ON p.id=a.policy_version_id AND p.company_id=a.company_id
         JOIN leave_holidays h ON h.calendar_id=a.holiday_calendar_id
         WHERE a.company_id=? AND a.engagement_id=? AND a.holiday_calendar_id IS NOT NULL
-          AND a.effective_from<=?::date AND (a.effective_to IS NULL OR a.effective_to>=?::date)
-          AND p.effective_from<=?::date AND (p.effective_to IS NULL OR p.effective_to>=?::date)
-          AND h.holiday_date BETWEEN ?::date AND ?::date
+          AND a.effective_from<=? AND (a.effective_to IS NULL OR a.effective_to>=?)
+          AND p.effective_from<=? AND (p.effective_to IS NULL OR p.effective_to>=?)
+          AND h.holiday_date BETWEEN ? AND ?
         ORDER BY h.holiday_date,h.name`,
       context.companyId,
       staff.engagement_id,
@@ -380,7 +424,11 @@ async function saveSelfServiceLeave(context:WorkContext,recordId:string|null,inp
   if(row&&row.engagement_id!==staff.engagement_id)throw new ApiError(409,'ENGAGEMENT_CHANGED','Start a new request for your current engagement.');
   const preview=await previewLeave(context,input,id,write);
   if(!input.saveOnly&&!preview.canSubmit)throw new ApiError(409,'LEAVE_BLOCKED',preview.blockers.join(' '));
-  if(!input.saveOnly&&preview.evidenceRequired&&!await write.prepare("SELECT 1 FROM attachments a JOIN leave_requests r ON r.id=a.owner_id WHERE r.company_id=? AND a.owner_type='leave_request' AND a.owner_id=? AND a.revoked_at IS NULL").bind(context.companyId,id).first())throw new ApiError(409,'LEAVE_EVIDENCE_REQUIRED','Save a draft and attach the required private evidence before submission.');
+  if(!input.saveOnly&&preview.evidence.required&&preview.evidence.dueStage==='before_submit') {
+   const evidence=await availableLeaveEvidence(write,id,preview.evidence);
+   if(evidence.count<preview.evidence.minimumCount)
+    throw new ApiError(409,'LEAVE_EVIDENCE_REQUIRED',`Attach ${preview.evidence.minimumCount} clean ${preview.evidence.purposeKey?.replaceAll('_',' ') ?? 'evidence'} file${preview.evidence.minimumCount===1?'':'s'} before submission.`);
+  }
   const version=(row?.version??0)+1,state=input.saveOnly?'draft':'pending_approval',statements=[];
   if(!row) {
    const employee=await write.prepare('SELECT id FROM employees WHERE person_id=? AND company_id=?').bind(staff.person_id,context.companyId).first<{id:string}>();
@@ -388,9 +436,18 @@ async function saveSelfServiceLeave(context:WorkContext,recordId:string|null,inp
    if(!employee)statements.push(write.prepare("INSERT INTO employees(id,person_id,company_id,branch_id,department_id,display_name,status,created_at) VALUES(?,?,?,?,?,?,'active',?)").bind(employeeId,staff.person_id,context.companyId,staff.branch_id??'',staff.department_id,staff.legal_name,now));
    statements.push(write.prepare('INSERT INTO leave_requests(id,number,employee_id,person_id,engagement_id,company_id,branch_id,department_id,start_date,days,handover_note,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(id,`LR-${key}`,employeeId,staff.person_id,staff.engagement_id,context.companyId,staff.branch_id??'',staff.department_id,input.startDate,Math.ceil(preview.units),input.handoverNote,context.userId,now,now));
   }
-  statements.push(write.prepare('UPDATE leave_requests SET start_date=?,days=?,handover_note=?,leave_type_id=?,end_date=?,start_segment=?,end_segment=?,policy_version_id=?,calculated_units=?,calculation_snapshot=?::jsonb,state=?,version=?,prepared_by=?,decided_by=NULL,decision_note=NULL,last_command_id=?,updated_at=? WHERE id=?').bind(input.startDate,Math.ceil(preview.units),input.handoverNote,input.leaveTypeId,input.endDate,input.startSegment,input.endSegment,preview.policy.id,preview.units,JSON.stringify(preview),state,version,context.userId,key,now,id),write.prepare('DELETE FROM leave_day_segments WHERE request_id=?').bind(id),...preview.days.map(day=>write.prepare('INSERT INTO leave_day_segments(id,request_id,company_id,leave_date,segment,units,source) VALUES(?,?,?,?,?,?,?)').bind(crypto.randomUUID(),id,context.companyId,day.date,day.segment,day.units,day.source)));
+  const evidenceDueAt=!input.saveOnly&&preview.evidence.required
+   ? now+preview.evidence.graceDays*86_400_000
+   : null;
+  statements.push(write.prepare(`UPDATE leave_requests SET start_date=?,days=?,handover_note=?,leave_type_id=?,end_date=?,start_segment=?,end_segment=?,policy_version_id=?,calculated_units=?,calculation_snapshot=?::jsonb,
+    evidence_policy_snapshot=?::jsonb,evidence_due_at=?,submitted_at=CASE WHEN ?='pending_approval' THEN ? ELSE submitted_at END,
+    state=?,version=?,prepared_by=?,decided_by=NULL,decision_note=NULL,last_command_id=?,updated_at=? WHERE id=?`).bind(
+    input.startDate,Math.ceil(preview.units),input.handoverNote,input.leaveTypeId,input.endDate,input.startSegment,input.endSegment,
+    preview.policy.id,preview.units,JSON.stringify(preview),JSON.stringify(preview.evidence),evidenceDueAt,state,now,state,version,context.userId,key,now,id),
+   write.prepare('DELETE FROM leave_day_segments WHERE request_id=?').bind(id),
+   ...preview.days.map(day=>write.prepare('INSERT INTO leave_day_segments(id,request_id,company_id,leave_date,segment,units,source) VALUES(?,?,?,?,?,?,?)').bind(crypto.randomUUID(),id,context.companyId,day.date,day.segment,day.units,day.source)));
   if(!input.saveOnly) {
-   const route=await requestRoute(write,context.companyId,context.userId,'leave');
+   const route=await peopleRequestRoute(write,context.companyId,context.userId);
    statements.push(...(await openApproval(write,key,'leave',id,'request',context.userId,null,route,version)).statements);
    if(preview.leaveType.tracked)for(const account of preview.accounts)statements.push(write.prepare("INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,request_id,kind,units,effective_date,entitlement_year,command_key,note,created_by,created_at) VALUES(?,?,?,?,?,'reservation',?,?,?,?,?,?,?)").bind(crypto.randomUUID(),context.companyId,staff.engagement_id,input.leaveTypeId,id,-account.units,`${account.year}-01-01`,account.year,`${key}:${account.year}`,'Pending leave reservation',context.userId,now));
   }
@@ -418,10 +475,31 @@ export async function listOwnLeave(context: WorkContext, state?: string) {
   return state ? summary.history.filter((row) => row.state === state) : summary.history;
 }
 
+const leavePolicyRuleSchema = z.object({
+  leaveTypeId: z.string().min(1),
+  grantKind: z.enum(["annual","period","accrual","untracked"]),
+  grantUnits: z.number().min(0).default(0),
+  accrualUnits: z.number().min(0).default(0),
+  accrualPeriod: z.enum(["monthly","quarterly","annual"]).nullable().default(null),
+  carryoverLimit: z.number().min(0).nullable().default(null),
+  employeeEligible:z.boolean().default(true),
+  contractorEligible:z.boolean().default(false),
+  evidencePurpose: z.enum(leaveEvidencePurposes).nullable().default(null),
+  evidenceMinUnits: z.number().positive().max(365).nullable().default(null),
+  evidenceMinCount: z.number().int().min(0).max(100).default(0),
+  evidenceDueStage: z.enum(["before_submit","before_final_approval"]).default("before_final_approval"),
+  evidenceGraceDays: z.number().int().min(0).max(365).default(0),
+  evidenceNote: z.string().trim().max(500).default(""),
+}).superRefine((rule,ctx)=>{
+  const configured=rule.evidencePurpose!==null||rule.evidenceMinUnits!==null||rule.evidenceMinCount>0;
+  if(configured && (!rule.evidencePurpose||rule.evidenceMinUnits===null||rule.evidenceMinCount<1))
+    ctx.addIssue({code:"custom",message:"Evidence rules need a purpose, minimum leave units, and at least one required file."});
+});
+
 export const leaveAdminSchema = z.discriminatedUnion("resource", [
   z.object({ resource: z.literal("type"), code: z.string().min(1).max(40), name: z.string().min(1).max(100), description: z.string().max(500).default(""), tracked: z.boolean().default(true), evidenceAfterUnits: z.number().positive().nullable().default(null), evidenceNote: z.string().max(500).default("") }),
   z.object({ resource: z.literal("calendar"), name: z.string().min(1).max(100), timezone: z.string().min(1).max(80) }),
-  z.object({ resource: z.literal("policy"), policyKey: z.string().min(1).max(80), version: z.number().int().positive(), name: z.string().min(1).max(100), effectiveFrom: z.iso.date(), effectiveTo: z.iso.date().nullable().default(null), timezone: z.string().min(1).max(80), workweek: z.array(z.number().int().min(1).max(7)).min(1), allowNegative: z.boolean().default(false), rules: z.array(z.object({ leaveTypeId: z.string().min(1), grantKind: z.enum(["annual","period","accrual","untracked"]), grantUnits: z.number().min(0).default(0), accrualUnits: z.number().min(0).default(0), accrualPeriod: z.enum(["monthly","quarterly","annual"]).nullable().default(null), carryoverLimit: z.number().min(0).nullable().default(null), employeeEligible:z.boolean().default(true), contractorEligible:z.boolean().default(false) })).min(1) }),
+  z.object({ resource: z.literal("policy"), policyKey: z.string().min(1).max(80), version: z.number().int().positive(), name: z.string().min(1).max(100), effectiveFrom: z.iso.date(), effectiveTo: z.iso.date().nullable().default(null), timezone: z.string().min(1).max(80), workweek: z.array(z.number().int().min(1).max(7)).min(1), allowNegative: z.boolean().default(false), rules: z.array(leavePolicyRuleSchema).min(1) }),
   z.object({ resource: z.literal("holiday"), calendarId: z.string().min(1), date: z.iso.date(), name: z.string().min(1).max(100) }),
   z.object({ resource: z.literal("assignment"), engagementId: z.string().min(1), policyVersionId: z.string().min(1), calendarId: z.string().min(1).nullable().default(null), effectiveFrom: z.iso.date(), effectiveTo: z.iso.date().nullable().default(null) }),
   z.object({resource:z.literal("assignment_end"),id:z.string().min(1),expectedVersion:z.number().int().positive(),effectiveTo:z.iso.date()}),
@@ -446,7 +524,12 @@ export async function administerLeave(context: WorkContext, raw: z.infer<typeof 
   else if (input.resource === "calendar") await write.prepare("INSERT INTO leave_holiday_calendars(id,company_id,name,timezone,created_by,created_at) VALUES(?,?,?,?,?,?)").bind(id, context.companyId, input.name, input.timezone, context.userId, now).run();
   else if (input.resource === "policy") await write.batch([
     write.prepare("INSERT INTO leave_policy_versions(id,company_id,policy_key,version,name,status,effective_from,effective_to,timezone,workweek_json,allow_negative,created_by,created_at) VALUES(?,?,?,?,?,'active',?,?,?,?::jsonb,?,?,?)").bind(id,context.companyId,input.policyKey,input.version,input.name,input.effectiveFrom,input.effectiveTo,input.timezone,JSON.stringify(input.workweek),input.allowNegative,context.userId,now),
-    ...input.rules.map((rule)=>write.prepare("INSERT INTO leave_policy_rules(policy_version_id,leave_type_id,grant_kind,grant_units,accrual_units,accrual_period,carryover_limit,employee_eligible,contractor_eligible) SELECT ?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM leave_types WHERE id=? AND company_id=?)").bind(id,rule.leaveTypeId,rule.grantKind,rule.grantUnits,rule.accrualUnits,rule.accrualPeriod,rule.carryoverLimit,rule.employeeEligible,rule.contractorEligible,rule.leaveTypeId,context.companyId)),
+    ...input.rules.map((rule)=>write.prepare(`INSERT INTO leave_policy_rules(
+      policy_version_id,leave_type_id,grant_kind,grant_units,accrual_units,accrual_period,carryover_limit,employee_eligible,contractor_eligible,
+      evidence_min_units,evidence_purpose,evidence_min_count,evidence_due_stage,evidence_grace_days,evidence_note,evidence_privacy
+    ) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'requester_approvers_hr' WHERE EXISTS(SELECT 1 FROM leave_types WHERE id=? AND company_id=?)`).bind(
+      id,rule.leaveTypeId,rule.grantKind,rule.grantUnits,rule.accrualUnits,rule.accrualPeriod,rule.carryoverLimit,rule.employeeEligible,rule.contractorEligible,
+      rule.evidenceMinUnits,rule.evidencePurpose,rule.evidenceMinCount,rule.evidenceDueStage,rule.evidenceGraceDays,rule.evidenceNote,rule.leaveTypeId,context.companyId)),
   ]);
   else if (input.resource === "holiday") await write.prepare("INSERT INTO leave_holidays(id,calendar_id,holiday_date,name) SELECT ?,?,?,? WHERE EXISTS(SELECT 1 FROM leave_holiday_calendars WHERE id=? AND company_id=?)").bind(id,input.calendarId,input.date,input.name,input.calendarId,context.companyId).run();
   else if (input.resource === "assignment") {
@@ -468,14 +551,14 @@ export async function administerLeave(context: WorkContext, raw: z.infer<typeof 
 }
 
 /** Catch up every due period, including grants and carryover, with stable entitlement keys. */
-export async function runLeaveAccruals(db:SqlDatabase,effectiveDate:string) {
+export async function runLeaveAccruals(db:SqlDatabase,effectiveDate:string,companyId?:string) {
  z.iso.date().parse(effectiveDate);
  const due=await rows<{company_id:string;engagement_id:string;leave_type_id:string;assignment_id:string;policy_version_id:string;grant_kind:string;grant_units:number;accrual_units:number;accrual_period:string|null;carryover_limit:number|null;first_day:string;last_day:string}>(db,`SELECT a.company_id,a.engagement_id,r.leave_type_id,a.id assignment_id,p.id policy_version_id,r.grant_kind,r.grant_units,r.accrual_units,r.accrual_period,r.carryover_limit,
  greatest(a.effective_from,p.effective_from,e.start_date) first_day,least(coalesce(a.effective_to,?),coalesce(p.effective_to,?),coalesce(e.end_date,?),?) last_day
  FROM leave_policy_assignments a JOIN leave_policy_versions p ON p.id=a.policy_version_id AND p.company_id=a.company_id JOIN leave_policy_rules r ON r.policy_version_id=p.id
  JOIN hr_engagements e ON e.id=a.engagement_id AND e.company_id=a.company_id JOIN leave_types t ON t.id=r.leave_type_id AND t.company_id=a.company_id
- WHERE p.status IN ('active','retired') AND t.tracked=true AND a.effective_from<=? AND (CASE WHEN e.worker_type='contractor' THEN r.contractor_eligible ELSE r.employee_eligible END)
- AND ${scheduledFeaturePredicate("a.company_id","people_payroll")} ORDER BY first_day,a.id,r.leave_type_id`,effectiveDate,effectiveDate,effectiveDate,effectiveDate,effectiveDate);
+ WHERE p.status IN ('active','retired') AND t.tracked=true AND a.effective_from<=? AND (?::text IS NULL OR a.company_id=?) AND (CASE WHEN e.worker_type='contractor' THEN r.contractor_eligible ELSE r.employee_eligible END)
+ AND ${scheduledFeaturePredicate("a.company_id","people_payroll")} ORDER BY first_day,a.id,r.leave_type_id`,effectiveDate,effectiveDate,effectiveDate,effectiveDate,effectiveDate,companyId??null,companyId??null);
  let inserted=0;
  for(const item of due) {
   if(item.first_day>item.last_day)continue;

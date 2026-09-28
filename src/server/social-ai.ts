@@ -6,7 +6,7 @@ import { assertion, workContextGuards } from "./commands";
 import { sourceSnapshot, sourceGuard, readablePost } from "./social-source";
 import { staffPeople, type StaffActor } from "./staff-policy";
 import type { BetaEnvironment } from "./beta-config";
-import { generateProviderJson, type AiEndpoint } from "./ai-transport";
+import { generateProviderJson, withAiGatewayScope, type AiEndpoint } from "./ai-transport";
 import {
   resolveAiProvider,
   aiSnapshotGuard,
@@ -229,7 +229,7 @@ export async function createAiDraft(
       roster,
     };
     const output = configured
-      ? await socialOutput({ ...configured.endpoint, sessionId: await sha256(`post:${actor.companyId}:${postId}`) }, request)
+      ? await socialOutput({ ...withAiGatewayScope(configured.endpoint,id,"social",actor.branchId), sessionId: await sha256(`post:${actor.companyId}:${postId}`) }, request)
       : await provider(env, request);
     const result = aiResultSchema.parse(output.result),
       sourceIds = new Set(source.sources.map((s) => s.id)),
@@ -275,6 +275,7 @@ export async function createAiDraft(
               "succeeded",
               output.inputTokens,
               output.outputTokens,
+              actor.branchId,
             ),
           ]
         : []),
@@ -302,7 +303,7 @@ export async function createAiDraft(
   } catch {
     await db.batch([
       ...(configured
-        ? [aiUsageStatement(db, id, configured.snapshot, "social", "failed")]
+        ? [aiUsageStatement(db, id, configured.snapshot, "social", "failed", 0, 0, actor.branchId)]
         : []),
       db
         .prepare(

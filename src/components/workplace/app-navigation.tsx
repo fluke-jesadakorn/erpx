@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronDown, Grid2X2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ChevronDown, CirclePlus, Grid2X2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ComponentType } from "react";
 import { Dialog } from "@/components/ui/dialog";
 import {
@@ -21,6 +21,7 @@ import {
   type NavigationItem,
 } from "@/lib/workplace-navigation";
 import { useNavigationCounts } from "./navigation-counts";
+import { StartActions } from "@/components/today/start-actions";
 import styles from "./shell.module.css";
 import appStyles from "./app-navigation.module.css";
 
@@ -40,13 +41,17 @@ export function AppNavigation({ context, mobile = false, Icon }: {
   const pathname = usePathname();
   const query = useSearchParams();
   const active = resolveNavigation(model, base, pathname, query);
+  const activePrimary = model.primary.some((entry) => entry.id === active.activeId);
   const activeCategoryId = navigationCategory(model, active)?.id ?? null;
   const { counts, readHome } = useNavigationCounts();
   const [launcherOpen, setLauncherOpen] = useState(false);
+  const [startOpen, setStartOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [rail, setRail] = useState(false);
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(activeCategoryId);
+  const [openPrimaryId, setOpenPrimaryId] = useState<string | null>(["work", "inbox", "calendar"].includes(active.activeId) ? active.activeId : null);
   const navRef = useRef<HTMLElement>(null);
+  const activeLinkRef = useRef<HTMLAnchorElement>(null);
   const triggerRefs = useRef(new Map<string, HTMLButtonElement>());
   const treeId = useId().replaceAll(":", "");
   const location = `${pathname}?${query}`;
@@ -61,16 +66,29 @@ export function AppNavigation({ context, mobile = false, Icon }: {
         const saved = window.localStorage.getItem(accordionKey);
         setOpenCategoryId(
           activeCategoryId ??
-            (saved && categoryIds.split(":").includes(saved) ? saved : null),
+            (activePrimary ? null : saved && categoryIds.split(":").includes(saved) ? saved : null),
         );
-        setRail(window.localStorage.getItem(railKey) === "true");
+        if (["work", "inbox", "calendar"].includes(active.activeId)) setOpenPrimaryId(active.activeId);
       } catch {
         setOpenCategoryId(activeCategoryId);
-        setRail(false);
       }
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [accordionKey, railKey, activeCategoryId, location, categoryIds]);
+  }, [accordionKey, activeCategoryId, active.activeId, activePrimary, location, categoryIds]);
+
+  useEffect(() => {
+    const wideScreen = window.matchMedia("(min-width: 1440px)");
+    const syncRail = () => {
+      try {
+        setRail(!wideScreen.matches && window.localStorage.getItem(railKey) === "true");
+      } catch {
+        setRail(false);
+      }
+    };
+    syncRail();
+    wideScreen.addEventListener("change", syncRail);
+    return () => wideScreen.removeEventListener("change", syncRail);
+  }, [railKey]);
 
   useEffect(() => {
     if (!rail || !openCategoryId) return;
@@ -91,6 +109,12 @@ export function AppNavigation({ context, mobile = false, Icon }: {
       document.removeEventListener("keydown", closeEscape);
     };
   }, [rail, openCategoryId]);
+
+  useEffect(() => {
+    if (rail || !openCategoryId) return;
+    const frame = window.requestAnimationFrame(() => activeLinkRef.current?.scrollIntoView({ block: "nearest" }));
+    return () => window.cancelAnimationFrame(frame);
+  }, [rail, openCategoryId, location]);
 
   function toggleCategory(id: NavigationCategory["id"]) {
     const next = openCategoryId === id ? null : id;
@@ -120,12 +144,13 @@ export function AppNavigation({ context, mobile = false, Icon }: {
   }
 
   function primaryLink(item: NavigationItem) {
-    const count = counts[item.id as "home" | "work"];
-    return (
+    const count = item.id === "home" && base !== "/platform" ? counts.work : counts[item.id as "home" | "work"];
+    const submodules = !mobile && !rail ? item.submodules : undefined;
+    const link = (
       <Link
         key={item.id}
         href={pmsSidebarHref(item, pathname, query)}
-        aria-current={active.activeId === item.id ? "page" : undefined}
+        aria-current={active.activeId === item.id && (!item.submodules?.length || mobile || rail) ? "page" : undefined}
         aria-label={rail && !mobile ? item.label : undefined}
         title={rail && !mobile ? item.label : undefined}
         onClick={() => {
@@ -138,26 +163,60 @@ export function AppNavigation({ context, mobile = false, Icon }: {
         {["home", "work"].includes(item.id) && (
           <span
             className={styles.navBadge}
-            title={item.id === "work" ? "My actions; – means incomplete" : "Unread updates"}
+            title={item.id === "work" || item.id === "home" && base !== "/platform" ? "My actions; – means incomplete" : "Unread updates"}
           >
             {count ?? "–"}
           </span>
         )}
       </Link>
     );
+    if (!submodules?.length) return link;
+    const expanded = openPrimaryId === item.id;
+    return (
+      <div key={item.id} className={appStyles.primaryGroup} data-active={active.activeId === item.id || undefined}>
+      <div className={appStyles.primaryHead}>
+        {link}
+        <button type="button" aria-label={`${expanded ? "Collapse" : "Expand"} ${item.label} views`} aria-expanded={expanded} onClick={() => setOpenPrimaryId(expanded ? null : item.id)}>
+          <ChevronDown size={16} aria-hidden="true" />
+        </button>
+      </div>
+      {expanded && (
+        <div className={appStyles.primarySubmenu} aria-label={`${item.label} views`}>
+          {submodules.map((submodule) => {
+            const tab = query.get("tab");
+            const current = item.id === "work"
+              ? (query.get("view") ?? "actions") === submodule.id.slice(5)
+              : item.id === "inbox"
+                ? (tab ?? "chats") === submodule.id.slice(6)
+                : query.get("preset") === "coverage"
+                  ? submodule.id === "calendar-coverage"
+                  : (query.get("mode") ?? "team") === "mine"
+                    ? submodule.id === "calendar-mine"
+                    : submodule.id === "calendar-team";
+            return <Link key={submodule.id} href={submodule.href} aria-current={pathname === item.href && current ? "page" : undefined}>{submodule.label}</Link>;
+          })}
+        </div>
+      )}
+      </div>
+    );
   }
 
   function appLink(item: NavigationItem, inFlyout = false) {
-    const current = item.submodules?.length
-      ? pathname === item.href && active.activeId === "people-directory"
+    const current = item.id === "people-current"
+      ? pathname === item.href && query.get("status") !== "archived" && query.get("view") !== "payroll"
+      : item.id === "people-archived"
+        ? pathname === item.href.split("?")[0] && query.get("status") === "archived"
+      : item.submodules?.length
+      ? item.id !== "people" && active.groupId === item.id && active.activeId === model.apps.find((app) => app.id === item.id)?.items[0]?.id
       : itemCurrent(item);
     return (
       <Link
         key={item.id}
+        ref={current ? activeLinkRef : undefined}
         className={inFlyout ? appStyles.flyoutLink : styles.navAppLink}
         href={pmsSidebarHref(item, pathname, query)}
         aria-current={current ? "page" : undefined}
-        data-active={itemCurrent(item) || undefined}
+        data-active={current || undefined}
         onClick={() => {
           if (rail) setOpenCategoryId(null);
         }}
@@ -169,29 +228,27 @@ export function AppNavigation({ context, mobile = false, Icon }: {
   }
 
   function categoryItems(category: NavigationCategory, inFlyout = false) {
-    return category.apps.map((item) => (
-      <div
-        className={item.submodules?.length ? appStyles.submoduleGroup : undefined}
-        key={item.id}
-      >
-        {appLink(item, inFlyout)}
-        {!!item.submodules?.length && (
-          <div className={inFlyout ? appStyles.flyoutSubmoduleList : appStyles.submoduleList}>
-            {item.submodules.map((submodule) => appLink(submodule, inFlyout))}
-          </div>
-        )}
-      </div>
-    ));
+    return category.apps.flatMap((item) => {
+      if (!item.submodules?.length) return [appLink(item, inFlyout)];
+      const app = model.apps.find((entry) => entry.id === item.id);
+      const root = app?.items[0];
+      if (!root) return [appLink(item, inFlyout)];
+
+      const destinations = [
+        { ...root, ...(item.id === "people" ? { label: "People" } : {}) },
+        ...item.submodules.filter((entry) => entry.id !== "people-current" && entry.id !== root.id),
+      ];
+      return destinations.map((entry) => appLink(entry, inFlyout));
+    });
   }
 
   function categorySection(category: NavigationCategory) {
     const expanded = openCategoryId === category.id;
-    const activeCategory = activeCategoryId === category.id;
     const childrenId = `${treeId}-${category.id}`;
     return (
       <section
         className={rail ? appStyles.railCategory : styles.navCategory}
-        data-active={activeCategory || undefined}
+        data-active={rail && !expanded && activeCategoryId === category.id ? true : undefined}
         key={category.id}
       >
         <button
@@ -249,25 +306,21 @@ export function AppNavigation({ context, mobile = false, Icon }: {
     <>
       <nav
         ref={navRef}
-        className={mobile ? styles.mobileNav : styles.nav}
+        className={mobile ? styles.mobileNav : `${styles.nav} ${appStyles.appNav}`}
         aria-label={mobile ? "Mobile navigation" : "Primary"}
         data-rail={!mobile && rail ? "true" : undefined}
       >
-        {model.primary.map(primaryLink)}
-        {!mobile && (
-          <button
-            type="button"
-            className={appStyles.railToggle}
-            onClick={toggleRail}
-            aria-label={rail ? "Expand sidebar" : "Collapse sidebar"}
-            title={rail ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {rail ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-            <span>{rail ? "Expand sidebar" : "Collapse sidebar"}</span>
-          </button>
-        )}
+        {model.primary.flatMap((entry, index) => mobile && base !== "/platform" && index === 2
+          ? [<button key="start" type="button" className={appStyles.mobileStart} onClick={() => setStartOpen(true)} aria-label="Start work"><CirclePlus size={24} aria-hidden="true" /><span>Start</span></button>, primaryLink(entry)]
+          : [primaryLink(entry)])}
+        {!mobile && base !== "/platform" && <button type="button" className={appStyles.launcherButton} onClick={() => setStartOpen(true)}><CirclePlus size={18} aria-hidden="true"/><span>Start</span></button>}
+        {!mobile && model.categories
+          .filter((category) => category.id === "erpx-management")
+          .map(categorySection)}
         {!mobile && <span className={styles.navLabel}>Apps by work</span>}
-        {!mobile && model.categories.map(categorySection)}
+        {!mobile && model.categories
+          .filter((category) => category.id !== "erpx-management")
+          .map(categorySection)}
         <button
           type="button"
           className={mobile ? styles.moreButton : appStyles.launcherButton}
@@ -280,6 +333,18 @@ export function AppNavigation({ context, mobile = false, Icon }: {
           <Grid2X2 size={18} />
           <span>Apps</span>
         </button>
+        {!mobile && (
+          <button
+            type="button"
+            className={appStyles.railToggle}
+            onClick={toggleRail}
+            aria-label={rail ? "Expand sidebar" : "Collapse sidebar"}
+            title={rail ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {rail ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            <span>{rail ? "Expand sidebar" : "Collapse sidebar"}</span>
+          </button>
+        )}
       </nav>
 
       <Dialog
@@ -319,6 +384,9 @@ export function AppNavigation({ context, mobile = false, Icon }: {
             </div>
           )}
         </div>
+      </Dialog>
+      <Dialog title="Start work" open={startOpen} onClose={() => setStartOpen(false)} presentation="responsive-panel">
+        <StartActions base={base} compact onNavigate={() => setStartOpen(false)} />
       </Dialog>
     </>
   );

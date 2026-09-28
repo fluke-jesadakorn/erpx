@@ -16,7 +16,6 @@ import {
   ArrowUpRight,
   Banknote,
   CalendarDays,
-  Bell,
   BookOpenText,
   BookOpen,
   Bot,
@@ -73,7 +72,7 @@ import styles from "./shell.module.css";
 const icons: Record<NavigationIconId, LucideIcon> = {
   home: Home,
   work: BriefcaseBusiness,
-  inbox: Bell,
+  inbox: MessagesSquare,
   calendar: CalendarDays,
   people: UsersRound,
   commerce: Package,
@@ -147,7 +146,7 @@ export function Appearance({
 }) {
   const theme = useSyncExternalStore(
     subscribeAppearance,
-    () => document.documentElement.getAttribute("data-theme") ?? "light",
+    () => document.documentElement.getAttribute("data-theme") ?? "system",
     () => initialTheme,
   );
   return (

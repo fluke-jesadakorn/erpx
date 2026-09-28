@@ -5,6 +5,7 @@ import { ApiError, errorResponse } from "@/server/http";
 import { publishedAnnouncements } from "@/server/calendar/announcements";
 import { today } from "@/lib/calendar";
 import { POST as command } from "../route";
+import { calendarAvailability } from "@/server/calendar/availability";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path: string[] }> };
 export async function GET(request: Request, context: Context) {
@@ -13,7 +14,9 @@ export async function GET(request: Request, context: Context) {
       actor = await requireWorkContext(holdingSlug),
       { write } = await holdingResources(actor.holdingId),
       q = new URL(request.url).searchParams;
-    const data =
+    const data = path.length===1&&path[0]==="availability"
+      ? await calendarAvailability(write,actor,q.getAll("userId"),Number(q.get("from")),Number(q.get("to")))
+      :
       path.length === 1 &&
       path[0] === "announcements" &&
       q.get("published") === "true"

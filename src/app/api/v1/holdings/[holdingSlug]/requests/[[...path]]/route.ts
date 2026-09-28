@@ -1,8 +1,10 @@
 import {
   requestAiStatus,
   queueRequestAi,
+  runRequestAi,
   requestAiInput,
 } from "@/server/request-ai";
+import { isThaiHotelAiMockEnabled } from "@/server/simulation-only-adapters";
 import { runtimeEnv } from "@/server/runtime";
 import { requireWorkContext } from "@/server/authorization";
 import { holdingResources } from "@/server/runtime";
@@ -81,7 +83,10 @@ export async function POST(request: Request, context: Context) {
         requestAiInput.parse(input),
         key,
       );
-      // The native jobs process polls the committed outbox.
+      // The simulation runs the same committed worker handler inline so browser
+      // acceptance does not depend on a separately running jobs process.
+      if (isThaiHotelAiMockEnabled(holdingSlug))
+        await runRequestAi(write, env, data.proposalId);
     } else if (path.length === 2 && path[1] === "actions")
       data = await actOnEmployeeRequest(
         write,

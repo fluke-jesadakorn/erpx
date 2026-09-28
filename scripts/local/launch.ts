@@ -6,9 +6,13 @@ import { getRuntime,closeRuntime } from '../../src/server/runtime/env';
 const role=process.argv[2];
 if(role!=='web'&&role!=='jobs'&&role!=='tunnel')throw new Error('INVALID_SERVICE_ROLE');
 const base=process.env.ERPX_HOME??'/Library/Application Support/ERPX';
-process.loadEnvFile(join(base,'config/production.env'));
+const envFile=process.env.ERPX_ENV_FILE??'production.env';
+if(!/^[A-Za-z0-9][A-Za-z0-9._-]*\.env$/.test(envFile))throw new Error('INVALID_ENV_FILE');
+process.loadEnvFile(join(base,'config',envFile));
+const port=process.env.ERPX_PORT??'3101';
+if(!/^\d{1,5}$/.test(port)||Number(port)<1024||Number(port)>65535)throw new Error('INVALID_ERP_PORT');
 const environment={NODE_ENV:'production',ERPX_DATA_DIR:join(base,'data'),ERPX_PROCESS_ROLE:role==='jobs'?'jobs':'app',
-  ERPX_DATABASE_MANIFEST:join(base,'data/config',role==='jobs'?'databases-jobs.json':'databases.json'),HOSTNAME:'127.0.0.1',PORT:'3101'} as Record<string,string>;
+  ERPX_DATABASE_MANIFEST:join(base,'data/config',role==='jobs'?'databases-jobs.json':'databases.json'),HOSTNAME:'127.0.0.1',PORT:port} as Record<string,string>;
 if(role==='web') environment.ERPX_MIGRATION_DATABASE_MANIFEST=join(base,'data/config','databases-migrations.json');
 Object.assign(process.env,environment);
 const log=join(base,'logs',`${role}.log`);

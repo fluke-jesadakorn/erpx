@@ -1,0 +1,12 @@
+.shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.shortcuts :global(.button) {
+  white-space: normal;
+  text-align: center;
+}

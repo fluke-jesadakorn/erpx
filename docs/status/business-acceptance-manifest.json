@@ -1,6 +1,6 @@
 {
-  "scope": "S01-S21; simulation first; live rollout awaits Company inputs and independent sign-off",
-  "note": "Gate defaults are pending. Historical status, test paths and scoped observations do not attest an entire capability. Evidence is preserved separately in business-acceptance-evidence.json and checksum-validated before generation; generation never promotes a gate.",
+  "scope": "Reference inventory S01-S21; current release scope is docs/production-plan.md",
+  "note": "Gate defaults are pending; explicit reviews come from capability-gate-reviews.json. Observations never promote gates. Company release acceptance is stored separately in PostgreSQL and cannot be granted by this generator.",
   "capabilities": [
     {
       "id": "brand/feature-draft-workspace",

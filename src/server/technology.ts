@@ -347,7 +347,9 @@ async function buildPreview(
         ),
       ]) {
         if (wanted.includes(groupId)) continue;
-        const removable = members.filter(
+        // Retire every replaced package source under the Directory worker's
+        // connection lock, including memberships another source still needs.
+        const ownedMembers = members.filter(
           (memberId) =>
             sources.some(
               (s) =>
@@ -355,7 +357,10 @@ async function buildPreview(
                 s.group_id === groupId &&
                 s.member_id === memberId &&
                 old.some((a) => a.id === s.application_id),
-            ) &&
+            ),
+        );
+        const removable = ownedMembers.filter(
+          (memberId) =>
             !sources.some(
               (s) =>
                 s.connection_id === connectionId &&
@@ -364,7 +369,7 @@ async function buildPreview(
                 !old.some((a) => a.id === s.application_id),
             ),
         );
-        if (removable.length)
+        if (ownedMembers.length)
           changes.push(
             directoryChangeInput.parse({
               connectionId,
@@ -372,7 +377,7 @@ async function buildPreview(
               action: {
                 kind: "group.members",
                 objectId: groupId,
-                memberIds: removable,
+                memberIds: ownedMembers,
                 action: "remove",
               },
               reason: input.reason,
@@ -719,6 +724,13 @@ export async function drainProvisioning(raw: PostgresDatabase) {
     const c = await db.pool.connect();
     try {
       await c.query("BEGIN ISOLATION LEVEL SERIALIZABLE");
+      // Keep package source retirement atomic with the GPO reconciler's final
+      // source check. A busy Directory pass defers this tick without failing it.
+      const available = (await c.query("SELECT pg_try_advisory_xact_lock(821039320) AS available")).rows[0]?.available;
+      if (!available) {
+        await c.query("COMMIT");
+        break;
+      }
       const op = (
         await c.query(
           "SELECT * FROM people_provision_operations WHERE id=$1 AND status IN ('queued','running','retry') FOR UPDATE SKIP LOCKED",

@@ -8,6 +8,7 @@ import {
   marketingDetail,
   marketingWorkspace,
 } from "@/server/marketing";
+import {changeMarketingCampaign} from '@/server/marketing-campaigns';
 type C = { params: Promise<{ holdingSlug: string }> };
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET(r: Request, c: C) {
@@ -43,7 +44,9 @@ export async function POST(r: Request, c: C) {
     const a = await requireWorkContext((await c.params).holdingSlug),
       i = await r.json(),
       data =
-        typeof i.id === "string"
+        i.entity === 'campaign'
+          ? await changeMarketingCampaign(a,i,key)
+          : typeof i.id === "string"
           ? await changeMarketing(a, i.entity, i.id, i, key)
           : i.entity === "asset"
             ? await createMarketingAsset(a, i, key)

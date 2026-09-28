@@ -13,5 +13,5 @@ export default async function StripeSettings({params}:PageProps<'/holdings/[hold
  const base=workspaceBase(publicScope(actor)),{write}=await holdingResources(actor.holdingId);
  const connection=await write.prepare('SELECT * FROM pos_connections WHERE company_id=?').bind(actor.companyId).first();
  const jobs=(await write.prepare("SELECT id,kind,state,last_error,payload_json FROM pos_jobs WHERE company_id=? AND kind IN ('connect','connect_refresh') ORDER BY created_at DESC LIMIT 10").bind(actor.companyId).all()).results;
- return <main className="content-stack"><Link href={`${base}/settings`}>← Settings</Link><h1>Company Stripe</h1><CompanyStripe base={base} connection={connection as Parameters<typeof CompanyStripe>[0]['connection']} jobs={jobs as Parameters<typeof CompanyStripe>[0]['jobs']} liveEnabled={process.env.POS_STRIPE_LIVE_ENABLED==='true'}/></main>;
+ return <div className="content-stack"><Link href={`${base}/settings`}>← Settings</Link><h1>Company Stripe</h1><CompanyStripe base={base} connection={connection as Parameters<typeof CompanyStripe>[0]['connection']} jobs={jobs as Parameters<typeof CompanyStripe>[0]['jobs']} liveEnabled={process.env.POS_STRIPE_LIVE_ENABLED==='true'}/></div>;
 }

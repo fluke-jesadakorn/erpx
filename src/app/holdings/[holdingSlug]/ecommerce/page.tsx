@@ -4,6 +4,10 @@ import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/page-error";
 import { ecommerceWorkspace } from "@/server/ecommerce";
 import { EcommerceConsole } from "@/components/modules/ecommerce-console";
+import { RecordDocumentDrawer } from "@/components/attachments/record-document-drawer";
+import { MediaPublicationPanel } from "@/components/attachments/media-publication-panel";
+import { AttachmentFeatureSurface } from "@/components/attachments/attachment-feature-context";
+import { hasPermission } from "@/lib/permissions";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -26,6 +30,61 @@ export default async function Page({
         owner records.
       </p>
       <EcommerceConsole base={base} data={data} />
+      {data.listings.map((listing) => (
+        <AttachmentFeatureSurface key={`files-${String(listing.id)}`}>
+          <section className="card">
+            <div className="section-head">
+              <div>
+                <h2>{String(listing.title)}</h2>
+                <p className="muted">
+                  Listing files · version {String(listing.version)}
+                </p>
+              </div>
+              <RecordDocumentDrawer
+                base={base}
+                targetType="ecommerce_listing"
+                targetId={String(listing.id)}
+                expectedTargetVersion={Number(listing.version)}
+                editable={hasPermission(actor, "commerce.sales")}
+                title="Listing media and channel documents"
+                triggerLabel="Private files"
+                purposes={[
+                  {
+                    key: "listing_media",
+                    label: "Listing media",
+                    description:
+                      "Attach private product or storefront source images. Public use requires a separately approved sanitized publication.",
+                  },
+                  {
+                    key: "channel_document",
+                    label: "Channel document",
+                    description:
+                      "Attach channel terms, listing instructions, or marketplace correspondence.",
+                  },
+                  {
+                    key: "compliance_document",
+                    label: "Compliance document",
+                    description:
+                      "Attach the reviewed channel or product compliance document for this listing.",
+                  },
+                ]}
+              />
+            </div>
+            <details>
+              <summary>Approved public listing media</summary>
+              <MediaPublicationPanel
+                base={base}
+                targetType="ecommerce_listing"
+                targetId={String(listing.id)}
+                purposeKey="listing_media"
+                title="Approved public listing media"
+                canCreate={hasPermission(actor, "commerce.sales")}
+                canReview={hasPermission(actor, "commerce.approve")}
+              />
+            </details>
+          </section>
+        </AttachmentFeatureSurface>
+      ))}
       <section className="card">
         <h2>Checkout handoffs</h2>
         {data.checkouts.map((x) => (

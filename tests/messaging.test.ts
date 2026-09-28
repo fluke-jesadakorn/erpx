@@ -25,6 +25,36 @@ vi.mock("../src/server/runtime", () => ({
   holdingResources: async () => ({ write: db, files: env.H001_FILES }),
   runtimeEnv: async () => env,
 }));
+vi.mock("../src/server/attachments/scanner", () => ({
+  attachmentScannerReadiness: async () => ({
+    enabled: true,
+    ready: true,
+    engine: "ClamAV messaging test",
+    definitionUpdatedAt: Date.now(),
+    error: null,
+  }),
+  scanAttachmentBytes: async () => ({
+    clean: true,
+    signature: null,
+    engine: "ClamAV messaging test",
+    definitionUpdatedAt: Date.now(),
+  }),
+}));
+vi.mock("../src/server/attachments/preview", async () => {
+  const actual = await vi.importActual<
+    typeof import("../src/server/attachments/preview")
+  >("../src/server/attachments/preview");
+  return {
+    ...actual,
+    attachmentPreviewReadiness: async () => ({
+      ready: true,
+      heifConvert: "/test/heif-convert",
+      pdftoppm: "/test/pdftoppm",
+      error: null,
+    }),
+    sanitizedAttachmentPreview: async () => null,
+  };
+});
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async () => {
   await applyMigrations(db, env.STAFF_TEST_MIGRATIONS);
@@ -240,6 +270,10 @@ it("creates General and isolates private channels; team removal also clears priv
   ).toBe("Private");
 });
 it("keeps draft files private, binds attachments once, and revokes downloads with membership", async () => {
+  const previousGate = process.env.ERPX_ATTACHMENTS_V2;
+  const previousReadOnly = process.env.ERPX_ATTACHMENTS_READ_ONLY;
+  process.env.ERPX_ATTACHMENTS_V2 = "false";
+  delete process.env.ERPX_ATTACHMENTS_READ_ONLY;
   const t = await createMessagingTeam(
     db,
     f.claimant,
@@ -260,7 +294,14 @@ it("keeps draft files private, binds attachments once, and revokes downloads wit
         body: "a,b\n1,2",
       }),
     );
-  await upload();
+  const completed = await upload();
+  expect(completed).toMatchObject({ state: "available" });
+  expect(
+    await db
+      .prepare("SELECT source_state FROM attachments WHERE id=?")
+      .bind(completed.sourceId)
+      .first("source_state"),
+  ).toBe("available");
   await upload();
   await expect(messagingFile(db, f.head, id)).rejects.toMatchObject({
     status: 404,
@@ -300,13 +341,62 @@ it("keeps draft files private, binds attachments once, and revokes downloads wit
       new Request("http://localhost/upload", { method: "PUT", body: "a,b" }),
     ),
   ).rejects.toMatchObject({ status: 404 });
+  if (previousGate === undefined) delete process.env.ERPX_ATTACHMENTS_V2;
+  else process.env.ERPX_ATTACHMENTS_V2 = previousGate;
+  if (previousReadOnly === undefined)
+    delete process.env.ERPX_ATTACHMENTS_READ_ONLY;
+  else process.env.ERPX_ATTACHMENTS_READ_ONLY = previousReadOnly;
+});
+
+it("blocks message file intake without mutating rows in rollback mode", async () => {
+  const previousGate = process.env.ERPX_ATTACHMENTS_V2;
+  const previousReadOnly = process.env.ERPX_ATTACHMENTS_READ_ONLY;
+  const { id } = await direct();
+  const beforeFiles = Number(
+    await db.prepare("SELECT count(*) FROM messaging_files").first("count"),
+  );
+  const beforeSources = Number(
+    await db.prepare("SELECT count(*) FROM attachments").first("count"),
+  );
+  process.env.ERPX_ATTACHMENTS_V2 = "false";
+  process.env.ERPX_ATTACHMENTS_READ_ONLY = "true";
+  try {
+    await expect(
+      uploadMessagingFile(
+        db,
+        env.H001_FILES,
+        f.claimant,
+        id,
+        { id: key(), name: "blocked.csv", type: "text/csv" },
+        new Request("http://localhost/upload", {
+          method: "PUT",
+          body: "a,b\n1,2",
+        }),
+      ),
+    ).rejects.toMatchObject({ status: 503, code: "ATTACHMENTS_READ_ONLY" });
+    expect(
+      Number(await db.prepare("SELECT count(*) FROM messaging_files").first("count")),
+    ).toBe(beforeFiles);
+    expect(
+      Number(await db.prepare("SELECT count(*) FROM attachments").first("count")),
+    ).toBe(beforeSources);
+  } finally {
+    if (previousGate === undefined) delete process.env.ERPX_ATTACHMENTS_V2;
+    else process.env.ERPX_ATTACHMENTS_V2 = previousGate;
+    if (previousReadOnly === undefined)
+      delete process.env.ERPX_ATTACHMENTS_READ_ONLY;
+    else process.env.ERPX_ATTACHMENTS_READ_ONLY = previousReadOnly;
+  }
 });
 it("rejects invalid content, oversize files, nonexistent and other-company recipients", async () => {
   const { id } = await direct();
   expect(() => messageSchema.parse({ body: " " })).toThrow();
   expect(() => messageSchema.parse({ body: "x".repeat(5001) })).toThrow();
   expect(() =>
-    messageSchema.parse({ body: "", files: Array.from({ length: 6 }, key) }),
+    messageSchema.parse({ body: "", files: Array.from({ length: 10 }, key) }),
+  ).not.toThrow();
+  expect(() =>
+    messageSchema.parse({ body: "", files: Array.from({ length: 11 }, key) }),
   ).toThrow();
   await expect(
     uploadMessagingFile(

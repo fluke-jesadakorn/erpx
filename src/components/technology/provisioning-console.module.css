@@ -1,0 +1,529 @@
+.workspace {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.toolbar,
+.heading,
+.actions,
+.listHeader,
+.detailSectionHead,
+.accessHead,
+.detailActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toolbar,
+.listHeader,
+.detailSectionHead,
+.accessHead {
+  justify-content: space-between;
+}
+
+.toolbar {
+  flex-wrap: wrap;
+  min-height: 44px;
+}
+
+.heading {
+  flex-wrap: wrap;
+}
+
+.heading h2 {
+  margin: 0;
+  color: var(--ink-strong);
+  font-size: 17px;
+  line-height: 1.3;
+}
+
+.count,
+.listHeader,
+.detailSectionHead span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.actions {
+  margin-left: auto;
+}
+
+.textAction {
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 6px;
+}
+
+.textAction:hover,
+.detailActions a:hover {
+  text-decoration: underline;
+}
+
+.notice,
+.error {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+}
+
+.notice {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.error {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.console {
+  display: grid;
+  grid-template-columns: minmax(290px, 38%) minmax(0, 1fr);
+  height: min(710px, calc(100dvh - 290px));
+  min-height: 430px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
+}
+
+.listPane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+}
+
+.listControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(130px, 39%);
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.searchLabel,
+.filterLabel {
+  min-width: 0;
+}
+
+.searchLabel input,
+.filterLabel select {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+
+.searchLabel input:focus-visible,
+.filterLabel select:focus-visible,
+.listRow input:focus-visible,
+.rowButton:focus-visible,
+.back:focus-visible,
+.textAction:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.listHeader {
+  min-height: 37px;
+  padding: 7px 13px;
+  border-bottom: 1px solid var(--line);
+  background: var(--card-2);
+}
+
+.listHeader label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.listHeader input,
+.listRow input {
+  accent-color: var(--brand);
+}
+
+.listScroll {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.listRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 61px;
+  padding-left: 13px;
+  border-bottom: 1px solid var(--line);
+}
+
+.listRow[data-selected="true"] {
+  background: var(--brand-soft);
+  box-shadow: inset 3px 0 var(--brand);
+}
+
+.listRow:hover {
+  background: var(--card-2);
+}
+
+.listRow[data-selected="true"]:hover {
+  background: var(--brand-soft);
+}
+
+.rowButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 60px;
+  min-width: 0;
+  padding: 9px 13px 9px 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rowMain {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.rowMain strong,
+.rowMain > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowMain strong {
+  color: var(--ink-strong);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.rowMain > span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.badge,
+.reviewCount {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: var(--card-2);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.badge[data-status="Ready"] {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.badge[data-status="In progress"] {
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.badge[data-status="Needs attention"] {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.badge[data-status="Waiting for IT"] {
+  background: var(--amber-soft);
+  color: var(--amber);
+}
+
+.detailPane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.back {
+  display: none;
+}
+
+.detailHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.eyebrow {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.detailHead h3 {
+  margin: 3px 0 4px;
+  color: var(--ink-strong);
+  font-size: 19px;
+  line-height: 1.25;
+}
+
+.detailHead p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.detailScroll {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-height: 0;
+  padding: 18px 22px 24px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.detailSectionHead {
+  flex-wrap: wrap;
+}
+
+.detailSectionHead h4 {
+  margin: 0;
+  color: var(--ink-strong);
+  font-size: 13px;
+}
+
+.accessCard {
+  display: grid;
+  gap: 15px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--card);
+}
+
+.accessHead {
+  align-items: flex-start;
+}
+
+.accessHead > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.accessHead strong {
+  color: var(--ink-strong);
+  font-size: 13px;
+}
+
+.accessHead > div > span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.factGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 20px;
+  margin: 0;
+}
+
+.factGrid div {
+  min-width: 0;
+}
+
+.factGrid dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.factGrid dd {
+  margin: 3px 0 0;
+  color: var(--ink);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.factGrid small {
+  color: var(--muted);
+}
+
+.accessCard > button {
+  justify-self: start;
+}
+
+.empty,
+.emptyDetail {
+  padding: 30px 20px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.empty strong {
+  color: var(--ink-strong);
+  font-size: 13px;
+}
+
+.empty p {
+  margin: 5px 0 8px;
+}
+
+.steps {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.steps li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.steps li:last-child {
+  border-bottom: 0;
+}
+
+.steps li strong {
+  color: var(--ink-strong);
+  font-weight: 600;
+}
+
+.steps li span {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.detailActions {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.detailActions a {
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+@media (max-width: 900px) {
+  .console {
+    grid-template-columns: minmax(260px, 43%) minmax(0, 1fr);
+  }
+
+  .listControls {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .toolbar {
+    align-items: flex-start;
+  }
+
+  .actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .console {
+    display: block;
+    height: min(690px, calc(100dvh - 250px));
+    min-height: 420px;
+  }
+
+  .listPane,
+  .detailPane {
+    height: 100%;
+    border-right: 0;
+  }
+
+  .console[data-mobile-detail="false"] .detailPane,
+  .console[data-mobile-detail="true"] .listPane {
+    display: none;
+  }
+
+  .listControls {
+    grid-template-columns: minmax(0, 1fr) minmax(125px, 37%);
+  }
+
+  .back {
+    display: block;
+    align-self: flex-start;
+    margin: 12px 14px 0;
+    padding: 6px;
+    border: 0;
+    background: transparent;
+    color: var(--brand);
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .detailHead {
+    padding: 12px 18px 17px;
+  }
+
+  .detailScroll {
+    padding: 16px 18px 22px;
+  }
+}
+
+@media (max-width: 430px) {
+  .listControls {
+    grid-template-columns: 1fr;
+  }
+
+  .factGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .accessHead {
+    flex-wrap: wrap;
+  }
+}

@@ -7,6 +7,7 @@ import {
   key,
 } from "./helpers/expense-fixture";
 import { iamDb } from "../src/server/iam-db";
+import { changeAppointment } from "../src/server/department-authority";
 import { iamActorFromWork, type IamActor } from "../src/server/iam-context";
 import { selectWorkRole } from "../src/server/work-role-store";
 import { loadIamAuthority } from "../src/server/iam-store";
@@ -151,8 +152,10 @@ async function fixture() {
   const f = await expenseFixture(false),
     it = await authorize(f.it),
     owner = await authorize(f.owner),
-    hr = await authorize(await f.member("HR", "hr_admin")),
+    hrMember = await f.member("HR", "hr_admin"),
     connectionId = key();
+  await changeAppointment(raw, owner, {kind:"hr",departmentId:null,positionId:null,personId:`person-${hrMember.userId}`,expectedVersion:0,reason:"Appoint fixture HR reviewer"}, key());
+  const hr = await authorize(hrMember);
   await db.pool.query(
     "INSERT INTO iam_connections(id,company_id,name,provider,config,status,version,created_by,created_at) VALUES($1,$2,'Test UCS','univention',$3,'active',1,$4,$5)",
     [
@@ -800,4 +803,92 @@ it("rejects group cycles formed across individually valid batch steps",async()=>
  await db.pool.query("UPDATE people_directory_state SET inventory=$2 WHERE connection_id=$1",[f.input.connectionId,JSON.stringify({...inventory,objects:[...inventory.objects,second]})]);
  const input=directoryChangeInput.parse({...f.input,action:{kind:'group.members',objectId:'group',memberIds:['second-group'],action:'add'},additionalActions:[{kind:'group.members',objectId:'second-group',memberIds:['group'],action:'add'}]});
  await expect(previewDirectoryChange(db,f.it,input)).rejects.toMatchObject({code:'DIRECTORY_GROUP_CYCLE'});
+});
+
+it("rechecks organization membership ownership after a manual removal was reviewed",async()=>{
+  const f=await fixture();await enable(f);
+  const input=directoryChangeInput.parse({...f.input,action:{kind:"group.members",objectId:"group",memberIds:["user"],action:"remove"}});
+  const preview=await previewDirectoryChange(db,f.it,input);
+  const job=await submitDirectoryChange(db,f.it,input,preview.token,key(),true);
+  await db.pool.query("INSERT INTO people_directory_membership_sources(connection_id,group_id,member_id,source_id,created_at) VALUES($1,'group','user','gpo-rule:new',$2)",[f.connectionId,Date.now()]);
+  await db.pool.query(`INSERT INTO organization_gpo_membership_claims(connection_id,group_id,member_id,source_id,rule_id,company_id,position_id,engagement_id,person_id,revision,engagement_version,gpo_id,computer_target_ou_id)
+    VALUES($1,'group','user','gpo-rule:new','new-rule',$2,'position','engagement','person',1,1,'gpo','ou')`,[f.connectionId,f.company]);
+  await drainDirectoryOperations(db);
+  expect(provider.apply).not.toHaveBeenCalled();
+  expect((await db.pool.query("SELECT status,last_error FROM people_directory_operations WHERE id=$1",[job.id])).rows[0])
+    .toMatchObject({status:"blocked",last_error:"DIRECTORY_MEMBERSHIP_SOURCE_RETAINED"});
+  // An explicit manual removal of an untracked member retains its existing meaning.
+  await db.pool.query("DELETE FROM people_directory_membership_sources WHERE connection_id=$1",[f.connectionId]);
+  const nextPreview=await previewDirectoryChange(db,f.it,input);
+  await submitDirectoryChange(db,f.it,input,nextPreview.token,key(),true);
+  await drainDirectoryOperations(db);
+  expect(provider.apply).toHaveBeenCalledOnce();
+});
+
+it("retains a new organization source when a previously reviewed package removal runs",async()=>{
+  const f=await fixture();await enable(f);
+  const input=directoryChangeInput.parse({...f.input,action:{kind:"group.members",objectId:"group",memberIds:["user"],action:"remove"}});
+  const preview=await previewDirectoryChange(db,f.it,input);
+  const job=await submitDirectoryChange(db,f.it,input,preview.token,key(),true);
+  const engagement=(await db.pool.query("SELECT id,version,person_id FROM hr_engagements WHERE company_id=$1 ORDER BY id LIMIT 1",[f.company])).rows[0];
+  const provision=key(),oldApplication=key(),packageId=key();
+  await db.pool.query("INSERT INTO people_access_packages(company_id,id,version,published_revision,definition) VALUES($1,$2,1,1,'{}')",[f.company,packageId]);
+  await db.pool.query("INSERT INTO people_package_revisions(company_id,package_id,revision,definition,created_by,created_at) VALUES($1,$2,1,'{}',$3,$4)",[f.company,packageId,f.it.userId,Date.now()]);
+  await db.pool.query(`INSERT INTO people_applied_packages(id,company_id,person_id,engagement_id,package_id,package_revision,definition,source_kind,scope,authorizing_assignment_id,valid_from,valid_until,created_at)
+    VALUES($1,$2,$3,$4,$5,1,'{}','position','{}',$6,$7,$8,$7)`,[oldApplication,f.company,engagement.person_id,engagement.id,packageId,f.it.assignmentId,Date.now(),Date.now()+3600000]);
+  await db.pool.query("INSERT INTO people_directory_membership_sources(connection_id,group_id,member_id,source_id,application_id,created_at) VALUES($1,'group','user',$2,$2,$3)",[f.connectionId,oldApplication,Date.now()]);
+  await db.pool.query(`INSERT INTO people_provision_operations(id,company_id,definition,evidence,status,created_by,assignment_id,session_id,created_at,updated_at)
+    VALUES($1,$2,$3,$4,'queued',$5,$6,'fixture-session',$7,$7)`,[
+      provision,f.company,JSON.stringify({revokeOnly:true}),JSON.stringify({plans:[{id:engagement.id,engagementVersion:engagement.version,oldIds:[oldApplication],definition:{connectionId:f.connectionId,directoryGroupIds:[]},directoryMembers:["user"]}]}),f.it.userId,f.it.assignmentId,Date.now(),
+    ]);
+  await db.pool.query("UPDATE people_directory_operations SET provision_id=$2 WHERE id=$1",[job.id,provision]);
+  await db.pool.query("INSERT INTO people_directory_membership_sources(connection_id,group_id,member_id,source_id,created_at) VALUES($1,'group','user','gpo-rule:after-preview',$2)",[f.connectionId,Date.now()]);
+  await drainDirectoryOperations(db);
+  expect(provider.apply).not.toHaveBeenCalled();
+  const result=(await db.pool.query("SELECT status,steps FROM people_directory_operations WHERE id=$1",[job.id])).rows[0];
+  expect(result.status).toBe("completed");
+  expect(result.steps[0].result.retainedMemberIds).toEqual(["user"]);
+  expect((await db.pool.query("SELECT source_id FROM people_directory_membership_sources WHERE connection_id=$1",[f.connectionId])).rows)
+    .toEqual([{source_id:"gpo-rule:after-preview"}]);
+});
+
+it("schedules package-source cleanup for a shared GPO membership and retires it before finalization",async()=>{
+  const {previewProvisioning,applyProvisioning,drainProvisioning}=await import("../src/server/technology");
+  const {provisioningInput}=await import("../src/lib/technology");
+  const {packageDefinition}=await import("../src/lib/people-lifecycle");
+  const liveInventory=structuredClone(inventory);
+  liveInventory.objects.find(object=>object.id==="group")!.memberIds=["user"];
+  provider.read.mockImplementation(async()=>structuredClone(liveInventory));
+  const f=await fixture();await enable(f);
+  const engagement=(await db.pool.query("SELECT e.id,e.person_id,p.user_id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id AND p.company_id=e.company_id WHERE e.company_id=$1 AND p.user_id=$2",[f.company,f.claimant.userId])).rows[0];
+  const packageId=key(),oldApplication=key(),identityId=key(),now=Date.now();
+  const recipe=packageDefinition.parse({name:"Shared Directory access",account:"univention",connectionId:f.connectionId,grants:[],groupIds:[],directoryGroupIds:["group"],tasks:[]});
+  await db.pool.query("INSERT INTO people_access_packages(company_id,id,version,published_revision,definition) VALUES($1,$2,1,1,$3)",[f.company,packageId,JSON.stringify(recipe)]);
+  await db.pool.query("INSERT INTO people_package_revisions(company_id,package_id,revision,definition,created_by,created_at) VALUES($1,$2,1,$3,$4,$5)",[f.company,packageId,JSON.stringify(recipe),f.it.userId,now]);
+  await db.pool.query(`INSERT INTO people_applied_packages(id,company_id,person_id,engagement_id,package_id,package_revision,definition,source_kind,scope,authorizing_assignment_id,valid_from,valid_until,created_at)
+    VALUES($1,$2,$3,$4,$5,1,$6,'position','{}',$7,$8,$9,$8)`,[oldApplication,f.company,engagement.person_id,engagement.id,packageId,JSON.stringify(recipe),f.it.assignmentId,now,now+3600000]);
+  await db.pool.query("INSERT INTO iam_identities(id,company_id,connection_id,external_id,username,name,enabled,observed_at,user_id,person_id) VALUES($1,$2,$3,'user','user','Linked employee',true,$4,$5,$6)",[identityId,f.company,f.connectionId,now,engagement.user_id,engagement.person_id]);
+  await db.pool.query(`INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy,connection_id,identity_id)
+    VALUES($1,$2,$3,$4,'active','directory',$5,$6) ON CONFLICT(company_id,user_id) DO UPDATE SET person_id=excluded.person_id,status='active',login_policy='directory',connection_id=excluded.connection_id,identity_id=excluded.identity_id`,[f.company,engagement.user_id,key(),engagement.person_id,f.connectionId,identityId]);
+  await db.pool.query("INSERT INTO people_directory_membership_sources(connection_id,group_id,member_id,source_id,application_id,created_at) VALUES($1,'group','user',$2,$2,$3),($1,'group','user','gpo-rule:shared',NULL,$3)",[f.connectionId,oldApplication,now]);
+  await db.pool.query(`INSERT INTO organization_gpo_membership_claims(connection_id,group_id,member_id,source_id,rule_id,company_id,position_id,engagement_id,person_id,revision,engagement_version,gpo_id,computer_target_ou_id)
+    VALUES($1,'group','user','gpo-rule:shared','shared-rule',$2,'position',$3,$4,1,1,'gpo','ou')`,[f.connectionId,f.company,engagement.id,engagement.person_id]);
+  const input=provisioningInput.parse({engagementIds:[engagement.id],packageId,revision:1,revokeOnly:true,revokeApplicationIds:[oldApplication],validUntil:now+3600000,reason:"Retire only the selected package source"});
+  const preview=await previewProvisioning(db,f.it,input);
+  expect(preview.employees[0].retained).toContain("Directory membership from another or untracked source · group");
+  const operation=await applyProvisioning(db,f.it,input,preview.token,key());
+  const children=(await db.pool.query("SELECT id,definition FROM people_directory_operations WHERE provision_id=$1",[operation.id])).rows;
+  expect(children).toHaveLength(1);
+  expect(children[0].definition.action).toMatchObject({kind:"group.members",objectId:"group",memberIds:["user"],action:"remove"});
+  await drainDirectoryOperations(db);
+  expect(provider.apply).not.toHaveBeenCalled();
+  expect(liveInventory.objects.find(object=>object.id==="group")!.memberIds).toContain("user");
+  expect((await db.pool.query("SELECT status,steps FROM people_directory_operations WHERE id=$1",[children[0].id])).rows[0])
+    .toMatchObject({status:"completed",steps:[{status:"completed",result:{retainedMemberIds:["user"]}}]});
+  expect((await db.pool.query("SELECT source_id FROM people_directory_membership_sources WHERE connection_id=$1",[f.connectionId])).rows).toEqual([{source_id:"gpo-rule:shared"}]);
+  expect((await db.pool.query("SELECT ended_at FROM people_applied_packages WHERE id=$1",[oldApplication])).rows[0].ended_at).toBeNull();
+  await drainProvisioning(db);
+  expect((await db.pool.query("SELECT status FROM people_provision_operations WHERE id=$1",[operation.id])).rows[0].status).toBe("completed");
+  expect((await db.pool.query("SELECT ended_at FROM people_applied_packages WHERE id=$1",[oldApplication])).rows[0].ended_at).not.toBeNull();
+  expect((await db.pool.query("SELECT source_id FROM people_directory_membership_sources WHERE connection_id=$1",[f.connectionId])).rows).toEqual([{source_id:"gpo-rule:shared"}]);
 });

@@ -5,7 +5,7 @@ export const clearanceLabels: Record<ClearanceKind,string> = {hr:"Review HR reco
 export const clearancePermissions: Record<ClearanceKind,string | null> = {hr:"people.manage",handover:null,equipment:null,directory:"iam.directory.manage",payroll:"payroll.prepare",finance:"finance.write"};
 export const clearanceReference = z.object({kind:z.enum(["payroll","expense","invoice","journal"]),id:z.string().min(1).max(180)}).strict();
 export type ClearanceReference = z.infer<typeof clearanceReference>;
-export const clearanceCompletion = {status:z.enum(["completed","not_required"]).default("completed"),reason:z.string().trim().max(2000).default(""),references:z.array(clearanceReference).max(30).default([])};
+export const clearanceCompletion = {status:z.enum(["completed","not_required"]).default("completed"),reason:z.string().trim().max(2000).default(""),references:z.array(clearanceReference).max(30).default([]),attachmentSetIds:z.array(z.string().min(1)).max(20).default([])};
 export function retirementLocalTime(timestamp:number,timezone:string) {
  const parts = new Intl.DateTimeFormat("en-CA",{timeZone:timezone,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).formatToParts(timestamp);
  const get=(name:string)=>parts.find(p=>p.type===name)!.value;

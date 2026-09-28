@@ -8,6 +8,7 @@ import type { AiResult } from "@/server/social-ai";
 import type { TaskSource } from "@/server/social-task";
 import { betaFetch } from "@/lib/beta-client";
 import { Dialog } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/foundation";
 import { useSocialCommand } from "./social-command";
 import type { Meta } from "./social-types";
 export function SocialTaskDialog({
@@ -37,7 +38,8 @@ export function SocialTaskDialog({
     [assignee, setAssignee] = useState(""),
     [reviewer, setReviewer] = useState(""),
     [due, setDue] = useState("");
-  const [commentIds, setCommentIds] = useState<string[]>([]);
+  const [commentIds, setCommentIds] = useState<string[]>([]),
+    [aiPreparing, setAiPreparing] = useState(false);
   const sourceQuery = new URLSearchParams(
     commentIds.map((id) => ["commentId", id]),
   ).toString();
@@ -77,56 +79,65 @@ export function SocialTaskDialog({
   ) {
     setAi(null);
     setSource(null);
-    await run(async () => {
-      const snapshot = await betaFetch<{
-        post: { version: number };
-        hash: string;
-        commentIds: string[];
-      }>(
-        `${api}/posts/${post.id}/task-source?${commentIds.map((id) => `commentId=${encodeURIComponent(id)}`).join("&")}`,
-      );
-      setSource({
-        postId: post.id,
-        sourceVersion: snapshot.post.version,
-        sourceHash: snapshot.hash,
-        commentIds,
-        aiDraftId: null,
-      });
-      if (useAi) {
-        const generated = await send<{
-          id: string;
-          result: AiResult;
-          sourceVersion: number;
-          sourceHash: string;
-        }>(`${api}/posts/${post.id}/ai-drafts`, { kind, commentIds });
-        setAi(generated.result);
+    if (useAi) setAiPreparing(true);
+    try {
+      await run(async () => {
+        const snapshot = await betaFetch<{
+          post: { version: number };
+          hash: string;
+          commentIds: string[];
+        }>(
+          `${api}/posts/${post.id}/task-source?${commentIds.map((id) => `commentId=${encodeURIComponent(id)}`).join("&")}`,
+        );
         setSource({
           postId: post.id,
-          sourceVersion: generated.sourceVersion,
-          sourceHash: generated.sourceHash,
+          sourceVersion: snapshot.post.version,
+          sourceHash: snapshot.hash,
           commentIds,
-          aiDraftId: generated.id,
+          aiDraftId: null,
         });
-        setTitle((value) => value || generated.result.title || "");
-        setDescription((value) =>
-          value && value !== post.body
-            ? value
-            : (generated.result.description ?? post.body),
-        );
-        setAssignee((value) => value || generated.result.assigneeUserId || "");
-        setReviewer((value) => value || generated.result.reviewerUserId || "");
-        if (generated.result.dueAt) {
-          const date = new Date(generated.result.dueAt);
-          setDue(
-            (value) =>
-              value ||
-              new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-                .toISOString()
-                .slice(0, 16),
+        if (useAi) {
+          const generated = await send<{
+            id: string;
+            result: AiResult;
+            sourceVersion: number;
+            sourceHash: string;
+          }>(`${api}/posts/${post.id}/ai-drafts`, { kind, commentIds });
+          setAi(generated.result);
+          setSource({
+            postId: post.id,
+            sourceVersion: generated.sourceVersion,
+            sourceHash: generated.sourceHash,
+            commentIds,
+            aiDraftId: generated.id,
+          });
+          setTitle((value) => value || generated.result.title || "");
+          setDescription((value) =>
+            value && value !== post.body
+              ? value
+              : (generated.result.description ?? post.body),
           );
+          setAssignee(
+            (value) => value || generated.result.assigneeUserId || "",
+          );
+          setReviewer(
+            (value) => value || generated.result.reviewerUserId || "",
+          );
+          if (generated.result.dueAt) {
+            const date = new Date(generated.result.dueAt);
+            setDue(
+              (value) =>
+                value ||
+                new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+                  .toISOString()
+                  .slice(0, 16),
+            );
+          }
         }
-      }
-    });
+      });
+    } finally {
+      if (useAi) setAiPreparing(false);
+    }
   }
   return (
     <Dialog
@@ -185,26 +196,36 @@ export function SocialTaskDialog({
         )}
         {mode === "summary" ? (
           <>
-            <button
+            <Button
+              variant="secondary"
               className="button secondary"
               disabled={busy}
+              pending={aiPreparing}
               onClick={() => prepare(selected, "summary", true)}
             >
-              Prepare summary
-            </button>
+              {aiPreparing ? "Preparing summary…" : "Prepare summary"}
+            </Button>
             <button className="button ghost" onClick={onClose}>
               Back to conversation
             </button>
           </>
         ) : (
           <>
-            <button
+            <Button
+              variant="secondary"
               className="button secondary"
               disabled={busy}
+              pending={aiPreparing}
               onClick={() => prepare(selected, "task", true)}
             >
-              <Sparkles size={15} /> Let AI prepare this task
-            </button>
+              {aiPreparing ? (
+                "Preparing task…"
+              ) : (
+                <>
+                  <Sparkles size={15} /> Let AI prepare this task
+                </>
+              )}
+            </Button>
             <details>
               <summary>Conversation context</summary>
               <button

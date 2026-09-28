@@ -2,7 +2,8 @@ import {beforeAll,beforeEach,it,expect,vi} from 'vitest';
 import {applyMigrations,env} from './runtime-env';
 import {expenseDb as db,expenseFixture,key} from './helpers/expense-fixture';
 import {saveMaster,saveOrder,orderSchema} from '../src/server/commerce';
-import {createCRMLead,changeCRMLead} from '../src/server/crm';
+import {createCRMLead,changeCRMLead,getCRMLead} from '../src/server/crm';
+import {changeCRMIdentity} from '../src/server/crm-identities';
 import {createCustomerNote,changeCustomerNote} from '../src/server/customer-notes';
 import {createCustomerFollowup,changeCustomerFollowup} from '../src/server/customer-followups';
 import {customerDirectory,customerTimeline} from '../src/server/customer-timeline';
@@ -12,6 +13,7 @@ beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Timeline customer'},key())).id);const w=await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Timeline warehouse'},key()),p=await saveMaster(f.owner,'products',null,{sku:key(),name:'Timeline product',price:'10'},key());order=String((await saveOrder(f.owner,null,orderSchema.parse({kind:'quote',partyId:customer,warehouseId:w.id,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:p.id,quantity:'1',price:'10',taxBps:0}]}),key())).id);});
 it('federates actual CRM, notes and follow-up source events without copying private payloads or mutating their owners',async()=>{
  const lead=String((await createCRMLead(f.owner,{branchId:f.branch,title:'Timeline inquiry',contactName:'Private simulated contact',contactDetail:'PRIVATE_CONTACT',source:'Phone',brief:'PRIVATE_BRIEF',dueDate:'2026-09-23'},key())).id);
+ f.head.role='sales_manager';f.head.assignmentId=await f.grant(f.head,'sales_manager');const leadRow=await getCRMLead(f.owner,lead);await changeCRMIdentity(f.head,{action:'link-finance',accountId:leadRow.account_id,customerId:customer,expectedVersion:1,evidence:'Reviewed customer identity in Finance'},key());
  await changeCRMLead(f.owner,lead,{action:'qualify',expectedVersion:1,customerId:customer,expectedValue:'10',closeDate:'2026-09-25',reason:'PRIVATE_CRM_REASON'},key());
  const note=await createCustomerNote(f.owner,{orderId:order,expectedVersion:1,channel:'phone',occurredAt:Date.now(),body:'PRIVATE_NOTE_CONTENT'},key());
  await changeCustomerNote(f.owner,String(note.id),{action:'correct',expectedVersion:1,body:'CORRECTED_PRIVATE_NOTE',reason:'PRIVATE_CORRECTION'},key());

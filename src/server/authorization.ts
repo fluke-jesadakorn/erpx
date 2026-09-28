@@ -489,11 +489,13 @@ const cachedWorkContext=cache(async (key:string):Promise<WorkContext>=>{
   throw new ApiError(409,"WORK_CONTEXT_CHANGED","Your work role changed. Reload and review before submitting.");
  const beta=await betaAccess(write,scope.companyId,access.requestHeaders);
  const iam=await loadIamAuthority(write,scope.companyId,access.userId,assignment.role,access.sessionId);
+ const assignedModules=beta?[]:assignment.role.startsWith("custom_")?[...new Set(iam.permissions.filter(p=>p.startsWith("module.")).map(p=>p.split(".")[1]))]:modulesForRole(assignment.role,assignment.modules);
+ const modules=iam.permissions.includes("module.people_payroll.read")?[...new Set([...assignedModules,"people_payroll"])]:assignedModules.filter(module=>module!=="people_payroll");
  await assertProductionFeatureRoute(write,scope.companyId,access.requestHeaders.get('x-erpx-destination')??'',method??'GET');
  return {iam,userId:access.userId,name:access.name,email:access.email,assignmentId:assignment.id,role:assignment.role,
  companyId:scope.companyId,branchId:scope.kind==="holding"?null:scope.branchId,departmentId:scope.kind==="department"?scope.departmentId:null,
  holdingId:scope.holdingId,holdingSlug:scope.holdingSlug,holdingName:scope.holdingName,beta,scope,assignmentScope:assignment.scopeKind,
- inherited:assignment.scopeKind!==scope.kind,modules:beta?[]:assignment.role.startsWith("custom_")?[...new Set(iam.permissions.filter(p=>p.startsWith("module.")).map(p=>p.split(".")[1]))]:modulesForRole(assignment.role,assignment.modules),assignments:[assignment],availableAssignments:access.assignments,
+ inherited:assignment.scopeKind!==scope.kind,modules,assignments:[assignment],availableAssignments:access.assignments,
  authority:{sessionId:access.sessionId,revision:selection.revision,assignmentVersion:assignment.version!},
  workspaces:await listAuthorizedWorkspaces(write,scope.holdingSlug,access.assignments)};
 });
@@ -540,7 +542,28 @@ export async function requirePlatformContext(): Promise<PlatformContext> {
   };
 }
 
-/** Manage ERPX requires the selected ERPX Holding role and a live Platform role. */
+/** Show the ERPX destination when an eligible Holding role and Platform role exist. */
+export async function canEnterManageErpx(): Promise<boolean> {
+  const [{ session }, platform] = await Promise.all([
+    currentSession(),
+    requirePlatformContext(),
+  ]);
+  if (session.user.id !== platform.userId) return false;
+  const { write } = await holdingResources("h003");
+  const now = Date.now();
+  const rows = (await write.prepare(`SELECT a.role,a.company_id FROM assignments a
+    JOIN organization_nodes c ON c.id=a.company_id AND c.kind='company' AND c.status='active'
+    WHERE a.user_id=? AND a.scope_kind='holding' AND a.revoked_at IS NULL
+      AND iam_assignment_active(a.id,?) AND iam_principal_active(a.user_id,a.company_id,?)
+      AND a.valid_from<=? AND a.valid_until>?`)
+    .bind(session.user.id, now, now, now, now).all<{role:string;company_id:string}>()).results;
+  for (const companyId of new Set(rows.map((row) => row.company_id))) {
+    const roles = await iamRoles(write, companyId, rows.filter((row) => row.company_id === companyId).map((row) => row.role));
+    if (rows.some((row) => row.company_id === companyId && roles.get(row.role)?.scopes.includes("holding") && roles.get(row.role)?.permissions.includes("manage_erpx.access"))) return true;
+  }
+  return false;
+}
+
 export async function requireManageErpxContext(): Promise<{ work: WorkContext; platform: PlatformContext }> {
   const requestHeaders = await headers();
   const method = requestHeaders.get("x-erpx-method") ?? requestHeaders.get("x-erpx-request-method");

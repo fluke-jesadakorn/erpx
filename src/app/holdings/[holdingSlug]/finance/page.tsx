@@ -5,6 +5,7 @@ import { workspaceBase } from "@/lib/workspace";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { financeWorkbench } from "@/server/finance-workspace";
 import Link from "next/link";
+import { pageError } from "@/server/page-error";
 
 export const dynamic = "force-dynamic";
 
@@ -16,9 +17,10 @@ const roleDescription = (data: Awaited<ReturnType<typeof financeWorkbench>>) => 
 };
 
 export default async function FinanceWorkbenchPage({ params }: { params: Promise<{ holdingSlug: string }> }) {
-  const actor = await requireWorkContext((await params).holdingSlug);
+  const holdingSlug = (await params).holdingSlug;
+  const actor = await requireWorkContext(holdingSlug);
   const base = workspaceBase(publicScope(actor));
-  const data = await financeWorkbench(actor);
+  const data = await financeWorkbench(actor).catch(error => pageError(error, holdingSlug));
   return <FeaturePage className="content-stack" data-source="live" data-module="finance">
     <FinanceWorkspace base={base} active="work" title="My finance work" description={roleDescription(data)} actions={data.canPrepare ? <Link className="button" href={`${base}/finance/invoices?new=1`}>Add document</Link> : undefined}>
       <section className={styles.hero}>

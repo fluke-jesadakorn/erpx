@@ -1,5 +1,8 @@
 "use client";
 import { FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { AttachmentPanel } from "@/components/attachments/attachment-panel";
+import { AttachmentFeatureSurface } from "@/components/attachments/attachment-feature-context";
+import { RecordDocumentPanel, type RecordDocumentPurpose } from "@/components/attachments/record-document-panel";
 
 import { SetupChecklist } from "@/components/ui/setup-checklist";
 import { TaxDocumentReference } from "@/components/hospitality/tax-document-reference";
@@ -60,7 +63,59 @@ type Field = {
   required?: boolean;
   min?: number;
 };
-type Send = (op: string, input: unknown, version?: number) => Promise<boolean>;
+type Send = (
+  op: string,
+  input: unknown,
+  version?: number,
+  attachmentSetIds?: string[],
+) => Promise<boolean>;
+type ActionAttachment = {
+  base: string;
+  targetType: string;
+  targetId: string;
+  expectedTargetVersion: number;
+  purposeKey: string;
+  title: string;
+  description: string;
+};
+const guestDocumentPurposes: readonly RecordDocumentPurpose[] = [
+  { key: "identity_document", label: "Identity document", description: "Attach the verified guest identity document. The original remains restricted and download-only." },
+  { key: "consent", label: "Guest consent", description: "Attach the signed privacy, service, or marketing consent reviewed for this guest." },
+];
+const reservationDocumentPurposes: readonly RecordDocumentPurpose[] = [
+  { key: "voucher", label: "Reservation voucher", description: "Attach the OTA, travel-agent, or customer reservation voucher." },
+];
+const stayDocumentPurposes: readonly RecordDocumentPurpose[] = [
+  { key: "signed_registration", label: "Signed registration", description: "Attach the signed registration card for this stay." },
+  { key: "transfer_slip", label: "Transfer slip", description: "Attach the bank-transfer slip associated with this stay." },
+];
+const lostPropertyDocumentPurposes: readonly RecordDocumentPurpose[] = [
+  { key: "lost_property_photo", label: "Lost-property photos", description: "Attach photos that identify the item and document its condition while held by the hotel." },
+];
+
+function PmsRecordDocuments({
+  base,
+  targetType,
+  targetId,
+  expectedTargetVersion,
+  title,
+  purposes,
+  editable,
+}: {
+  base: string;
+  targetType: "pms_guest" | "pms_reservation" | "pms_stay" | "pms_lost_property";
+  targetId: string;
+  expectedTargetVersion: number;
+  title: string;
+  purposes: readonly RecordDocumentPurpose[];
+  editable: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  return <AttachmentFeatureSurface><details className={styles.action} onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <summary>{title}</summary>
+    {open && <RecordDocumentPanel base={base} targetType={targetType} targetId={targetId} expectedTargetVersion={expectedTargetVersion} title={title} purposes={purposes} editable={editable}/>}
+  </details></AttachmentFeatureSurface>;
+}
 const field = (
   name: string,
   label: string,
@@ -86,6 +141,7 @@ function Form({
   permissions,
   version,
   transform,
+  attachments = [],
   open = false,
 }: {
   title: string;
@@ -96,6 +152,7 @@ function Form({
   permissions: string[];
   version?: number;
   transform?: (v: Record<string, unknown>) => unknown;
+  attachments?: ActionAttachment[];
   open?: boolean;
 }) {
   const language = useFrontLanguage();
@@ -179,6 +236,7 @@ function Form({
               op,
               output,
               editingVersion.current ?? version,
+              values.getAll("attachmentSetId").map(String).filter(Boolean),
             );
             if (ok) {
               setSuccess(true);
@@ -250,6 +308,17 @@ function Form({
               />
             )}
           </label>
+        ))}
+        {attachments.map((attachment) => (
+          <AttachmentPanel
+            key={`${attachment.purposeKey}:${attachment.targetId}`}
+            {...attachment}
+            componentKind="action"
+            componentRef={op}
+            fieldName="attachmentSetId"
+            bindMode="action"
+            visibility="Visible only to hotel staff authorized for this property and action."
+          />
         ))}
         {op === "reservation.create" && (
           <div className={styles.formFoot}>
@@ -360,6 +429,328 @@ const labelState: Record<string, string> = {
   disposed: "Disposed",
 };
 
+type FrontPmsForm = (
+  title: string,
+  op: string,
+  fields?: Field[],
+  hidden?: Record<string, unknown>,
+  transform?: (v: Record<string, unknown>) => unknown,
+  attachments?: ActionAttachment[],
+) => ReactNode;
+type FrontPmsRows = <K extends Kind>(kind: K) => PmsRecord<K>[];
+
+function FrontPmsDaily({
+  data,
+  base,
+  frontHref,
+  section,
+  snapshot,
+  property,
+  propertyId,
+  today,
+  from,
+  setFrom,
+  query,
+  setQuery,
+  setFolioId,
+  currentFolio,
+  rows,
+  roomName,
+  guestName,
+  rooms,
+  guests,
+  rates,
+  folios,
+  stays,
+  openShifts,
+  payments,
+  can,
+  form,
+  send,
+  error,
+  notice,
+  onRefresh,
+  onPropertyChange,
+}: {
+  data: PmsWorkspace;
+  base: string;
+  frontHref: string;
+  section: string;
+  snapshot: NonNullable<PmsWorkspace["snapshot"]> | null;
+  property: NonNullable<PmsWorkspace["snapshot"]>["property"] | undefined;
+  propertyId?: string;
+  today: string;
+  from: string;
+  setFrom: (value: string) => void;
+  query: string;
+  setQuery: (value: string) => void;
+  setFolioId: (value: string) => void;
+  currentFolio?: PmsRecord<"folio">;
+  rows: FrontPmsRows;
+  roomName: (id: string) => string;
+  guestName: (id: string) => string;
+  rooms: Option[];
+  guests: Option[];
+  rates: Option[];
+  folios: Option[];
+  stays: PmsRecord<"stay">[];
+  openShifts: Option[];
+  payments: Field[];
+  can: (permission: string) => boolean;
+  form: FrontPmsForm;
+  send: Send;
+  error: string;
+  notice: string;
+  onRefresh: () => void;
+  onPropertyChange: (value: string) => void;
+}) {
+  const language = useFrontLanguage();
+  const tr = (value: string) => frontText(value, language);
+  const roomRows = rows("room");
+  const taskRows = rows("task");
+  const reservationRows = rows("reservation").filter((row) =>
+    `${row.data.number} ${guestName(row.data.guestId)} ${row.data.externalRef} ${row.data.source}`
+      .toLowerCase()
+      .includes(query.toLowerCase()),
+  );
+  const operationalNightBlockers = snapshot
+    ? [
+        ...stays
+          .filter(
+            (row) =>
+              (row.data.state === "reserved" && row.data.arrival <= today) ||
+              (row.data.state === "in_house" && row.data.departure <= today),
+          )
+          .map((row) =>
+            row.data.state === "reserved"
+              ? `${guestName(row.data.guestId)} · ${tr("Needs check-in or no-show")}`
+              : `${guestName(row.data.guestId)} · ${tr("Checkout due")}`,
+          ),
+        ...rows("shift")
+          .filter((row) => row.data.state === "open")
+          .map((row) => `${row.data.name} · ${tr("Close cash shift")}`),
+      ]
+    : [];
+  const canOperate = Boolean(data.frontReady ?? (property && property.state === "open"));
+  const showReservationForms = can("pms.reservations");
+  const showFrontDeskForms = can("pms.frontdesk");
+  const showCashierForms = can("pms.cashier");
+  const showHousekeepingForms = can("pms.housekeeping");
+  const showInspectionForms = can("pms.inspect");
+  const showMaintenanceForms = can("pms.maintenance");
+  return (
+    <FrontLocalizedTree>
+      <div className={styles.workspace} data-source="live" data-front-daily="pms">
+        <header className={styles.header}>
+          <div>
+            <p className={styles.eyebrow}>{tr("Today's work")}</p>
+            <h1><Hotel size={28} /> {property?.name ?? tr("Hotel")}</h1>
+            <p className={styles.subtitle}>{tr("Guests, rooms, payments and day close")}</p>
+          </div>
+          <div className={styles.headerTools}>
+            {property && <span>{tr("Business date")} {today} · {property.config.currency}</span>}
+            <button className="button secondary" type="button" onClick={onRefresh} aria-label={tr("Refresh")}>
+              <RefreshCw size={16} />
+            </button>
+          </div>
+        </header>
+        <div className={styles.toolbar}>
+          <label>
+            {tr("Hotel")}
+            <select aria-label={tr("Hotel")} value={propertyId ?? property?.id ?? ""} onChange={(event) => onPropertyChange(event.target.value)}>
+              <option value="">{tr("Select hotel")}</option>
+              {data.properties.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+          </label>
+        </div>
+        {error && <div className={styles.error} role="alert">{error}</div>}
+        {notice && <div className={styles.notice} role="status">{notice}</div>}
+        {!canOperate ? (
+          <section className={styles.setupCard} role="status">
+            <h2>{tr("Not ready for daily work")}</h2>
+            <p>{!property
+              ? tr("No hotel has been set up for this company yet.")
+              : property.state === "setup"
+                ? tr("This hotel has not been opened for daily work yet.")
+                : property.state === "closing"
+                  ? tr("This hotel is closing its business day. Ask the hotel administrator to finish the day close.")
+                  : tr("Complete these hotel setup steps before daily work can begin.")}</p>
+            {data.readiness.length > 0 && <ul>{data.readiness.map((item) => <li key={item}>{tr(item)}</li>)}</ul>}
+            {property?.state === "setup" && data.readiness.length === 0 && <p>{tr("The hotel administrator must verify readiness and open the hotel.")}</p>}
+            <p>{tr("Ask your hotel administrator or Finance approver to complete these steps.")}{property ? ` · ${tr("Hotel")}: ${property.name} (${property.id.slice(0, 8)})` : ""}</p>
+          </section>
+        ) : (
+          <>
+            {section === "dashboard" && (
+              <>
+                <section className={styles.frontQueues} aria-label={tr("Today's work")}>
+                  {[
+                    {label:language==="th"?"รอเช็กอิน":"Arrivals",count:stays.filter((row)=>row.data.state==="reserved"&&row.data.arrival<=today).length,action:language==="th"?"เปิดคิวเช็กอิน":"Open check-in queue",href:"front-desk?queue=arrivals",show:showFrontDeskForms},
+                    {label:language==="th"?"รอเช็กเอาต์":"Departures",count:stays.filter((row)=>row.data.state==="in_house"&&row.data.departure<=today).length,action:language==="th"?"เปิดคิวเช็กเอาต์":"Open checkout queue",href:"front-desk?queue=departures",show:showFrontDeskForms},
+                    {label:language==="th"?"ห้องต้องเตรียม":"Rooms to prepare",count:taskRows.filter((row)=>!["done","superseded"].includes(row.data.state)).length,action:language==="th"?"เปิดงานแม่บ้าน":"Open housekeeping",href:"housekeeping",show:showHousekeepingForms||showInspectionForms},
+                    {label:language==="th"?"ยอดค้างรับ":"Balances due",count:rows("folio").filter((row)=>row.data.state!=="closed"&&row.data.due>0).length,action:language==="th"?"เปิดบัญชีผู้เข้าพัก":"Open guest folios",href:"folios",show:showCashierForms},
+                  ].filter((item)=>item.show).map((item)=><Link className={styles.frontQueue} key={item.href+item.label} href={frontHref+item.href}><span>{item.label}</span><strong>{item.count}</strong><small>{item.action} →</small></Link>)}
+                </section>
+                <div className={styles.stats}>
+                  {[
+                    [BedDouble, "Guests", stays.filter((row) => row.data.state === "in_house").length],
+                    [CalendarDays, "Arriving today", stays.filter((row) => row.data.arrival === today && row.data.state === "reserved").length],
+                    [Wallet, "Departing today", stays.filter((row) => row.data.departure === today && row.data.state === "in_house").length],
+                    [ClipboardCheck, "Open room tasks", taskRows.filter((row) => !["done", "superseded"].includes(row.data.state)).length],
+                  ].map(([Icon, label, value], index) => {
+                    const StatIcon = Icon as typeof Hotel;
+                    return <div className={styles.stat} key={index}><StatIcon size={22} /><span>{tr(String(label))}</span><strong>{String(value)}</strong></div>;
+                  })}
+                </div>
+                <Panel title="Room status">
+                  <div className={styles.roomGrid}>
+                    {roomRows.map((row) => {
+                      const occupied = stays.some((stay) => stay.data.state === "in_house" && stay.data.roomId === row.id);
+                      return <article className={`${styles.room} ${row.data.cleanliness === "inspected" ? styles.ready : ""}`} key={row.id}>
+                        <strong>{row.data.number}</strong>
+                        <span>{tr(occupied ? "Occupied" : "Vacant")}</span>
+                        <Badge>{labelState[row.data.cleanliness]}</Badge>
+                        {row.data.dnd && <small>{tr("Do not disturb")}</small>}
+                      </article>;
+                    })}
+                  </div>
+                  {!roomRows.length && <Empty>{tr("No rooms are available for daily work")}</Empty>}
+                </Panel>
+                <Panel title="Today's work">
+                  {stays.filter((row) => (row.data.arrival === today && row.data.state === "reserved") || (row.data.departure === today && row.data.state === "in_house")).map((row) => <div className={styles.line} key={row.id}><strong>{guestName(row.data.guestId)}</strong><span>{roomName(row.data.roomId)} · {labelState[row.data.state]}</span></div>)}
+                  {!stays.some((row) => row.data.arrival === today || row.data.departure === today) && <Empty>{tr("No arrivals or departures today")}</Empty>}
+                </Panel>
+              </>
+            )}
+
+            {section === "reservations" && (
+              <>
+                <Panel title="Availability and new reservation">
+                  <label>{tr("Start date")} <input type="date" value={from} onChange={(event) => event.target.value && setFrom(event.target.value)} /></label>
+                  {showReservationForms && <BookingFlow
+                    key={property!.id}
+                    slug={base.split("/")[2] ?? ""}
+                    today={today}
+                    staff={{
+                      base,
+                      propertyId: property!.id,
+                      guests: rows("guest"),
+                      blocks: rows("block").filter((block) => block.data.kind === "group" && block.data.state === "active").map((block) => ({ id: block.id, name: block.data.name })),
+                      save: (input) => send("reservation.create", input),
+                    }}
+                  />}
+                </Panel>
+                <Panel title="Reservations">
+                  <input aria-label={tr("Search reservations")} placeholder={tr("Search by name or confirmation number")} value={query} onChange={(event) => setQuery(event.target.value)} />
+                  {reservationRows.map((row) => <article className={styles.record} key={row.id}>
+                    <div className={styles.line}><strong>{row.data.number}</strong><Badge>{labelState[row.data.state]}</Badge></div>
+                    <p>{guestName(row.data.guestId)} · {row.data.source}</p>
+                    {stays.filter((stay) => stay.data.reservationId === row.id).map((stay) => <p className={styles.muted} key={stay.id}>{stay.data.arrival} → {stay.data.departure} · {roomName(stay.data.roomId)}</p>)}
+                    <PmsRecordDocuments base={base} targetType="pms_reservation" targetId={row.id} expectedTargetVersion={row.version} title="Reservation documents" purposes={reservationDocumentPurposes} editable={showReservationForms}/>
+                    {rows("guest").filter((guest) => guest.id === row.data.guestId).map((guest) => <PmsRecordDocuments key={guest.id} base={base} targetType="pms_guest" targetId={guest.id} expectedTargetVersion={guest.version} title="Guest identity and consent" purposes={guestDocumentPurposes} editable={showReservationForms}/>)}
+                    {row.data.state === "confirmed" && showReservationForms && <div className={styles.actions}>
+                      {form("Cancel reservation", "reservation.cancel", [field("reason", "Reason"), field("fee", "Fee", "money", 0)], { id: row.id })}
+                      {form("Record no-show", "reservation.no_show", [field("reason", "Reason"), field("fee", "Fee", "money", 0)], { id: row.id })}
+                    </div>}
+                  </article>)}
+                  {!reservationRows.length && <Empty>{tr("No reservations found")}</Empty>}
+                </Panel>
+              </>
+            )}
+
+            {section === "front-desk" && <Panel title="Front desk">
+              <div className={styles.filters}>{["", "arrivals", "departures", "reserved", "in_house"].map((value) => <button type="button" key={value} className={`button ${query === value ? "" : "secondary"}`} onClick={() => setQuery(value)}>{tr(labelState[value] ?? "All")}</button>)}</div>
+              {stays.filter((row) => query === "arrivals" ? row.data.state === "reserved" && row.data.arrival === today : query === "departures" ? row.data.state === "in_house" && row.data.departure <= today : !query || row.data.state === query).map((row) => <article className={styles.record} key={row.id}>
+                <div className={styles.line}><h3>{guestName(row.data.guestId)}</h3><Badge>{labelState[row.data.state]}</Badge></div>
+                <p>{roomName(row.data.roomId)} · {row.data.arrival} → {row.data.departure} · {row.data.adults} guests</p>
+                <PmsRecordDocuments base={base} targetType="pms_stay" targetId={row.id} expectedTargetVersion={row.version} title="Registration and transfer documents" purposes={stayDocumentPurposes} editable={showFrontDeskForms}/>
+                {rows("guest").filter((guest) => guest.id === row.data.guestId).map((guest) => <PmsRecordDocuments key={guest.id} base={base} targetType="pms_guest" targetId={guest.id} expectedTargetVersion={guest.version} title="Guest identity and consent" purposes={guestDocumentPurposes} editable={showReservationForms}/>)}
+                {showFrontDeskForms && <>
+                  {form(row.data.state === "in_house" ? "Move room" : "Assign room", row.data.state === "in_house" ? "stay.move" : "stay.assign", [select("roomId", "Room", rooms), field("reason", "Notes", "text", "", false)], { id: row.id })}
+                  {row.data.state === "reserved" ? <>
+                    {form("Check in", "stay.check_in", [], { id: row.id })}
+                    {form("Cancel this stay", "stay.cancel", [field("reason", "Reason"), field("fee", "Fee", "money", 0)], { id: row.id })}
+                    {form("No-show this stay", "stay.no_show", [field("reason", "Reason"), field("fee", "Fee", "money", 0)], { id: row.id })}
+                  </> : <>
+                    {form("Post room charge before check-out", "stay.preview_checkout", [], { id: row.id })}
+                    {form("Check out", "stay.check_out", [field("lateFee", "Late check-out fee", "money", 0), field("reason", "Notes", "text", "", false)], { id: row.id })}
+                  </>}
+                  {form("Assign guest to this room", "stay.guest", [select("guestId", "Guest", guests, row.data.guestId)], { id: row.id })}
+                  {form("Route next room charge", "stay.route_folio", [select("folioId", "Destination folio", folios)], { id: row.id })}
+                  {form("Change dates / extend stay", "stay.change_dates", [field("arrival", "Arrival date", "date", row.data.arrival), field("departure", "New departure date", "date", row.data.departure), select("rateId", "Rate plan", rates, row.data.rateId), field("reason", "Reason")], { id: row.id })}
+                </>}
+              </article>)}
+              {!stays.length && <Empty>{tr("No guests are currently in house")}</Empty>}
+            </Panel>}
+
+            {section === "rooms" && <Panel title="Rooms">
+              <div className={styles.roomGrid}>{roomRows.map((row) => <article className={`${styles.room} ${row.data.cleanliness === "inspected" ? styles.ready : ""}`} key={row.id}>
+                <strong>{row.data.number}</strong><small>{row.data.building} · {tr("Floor")} {row.data.floor}</small><Badge>{labelState[row.data.cleanliness]}</Badge><span>{tr(stays.some((stay) => stay.data.state === "in_house" && stay.data.roomId === row.id) ? "Occupied" : "Vacant")} {row.data.dnd ? "· DND" : ""}</span>
+                {showHousekeepingForms && form("Do-not-disturb request", "room.dnd", [field("dnd", "DND", "checkbox", row.data.dnd)], { id: row.id })}
+                {showHousekeepingForms && form("Verify occupancy", "room.observe", [field("occupied", "Guest present", "checkbox", false)], { id: row.id })}
+                {showMaintenanceForms && form("Close room for maintenance", "maintenance.open", [field("from", "Start date", "date", today), field("to", "Expected completion", "date", plusDays(today, 1)), field("reason", "Details")], { roomId: row.id })}
+              </article>)}</div>
+              {!roomRows.length && <Empty>{tr("No rooms are available for daily work")}</Empty>}
+            </Panel>}
+
+            {section === "housekeeping" && <>
+              <Panel title="Housekeeping tasks">
+                {roomRows.map((row) => showHousekeepingForms && form(`${tr("Create housekeeping task")} · ${tr("Room")} ${row.data.number}`, "task.create", [select("type", "Task type", [{ id: "arrival", name: "Before arrival" }, { id: "stayover", name: "During stay" }, { id: "departure", name: "After check-out" }], "arrival"), field("date", "Work date", "date", today)], { roomId: row.id }))}
+                {taskRows.filter((row) => !["done", "superseded"].includes(row.data.state)).map((row) => <article className={styles.record} key={row.id}>
+                  <div className={styles.line}><h3>{tr("Room")} {roomName(row.data.roomId)} · {labelState[row.data.type]}</h3><Badge>{labelState[row.data.state]}</Badge></div>
+                  <p>{row.data.date} · {row.data.priority === "urgent" ? tr("Urgent") : tr("Normal")}</p>
+                  {showInspectionForms && form("Assign task", "task.assign", [select("assigneeId", "Staff member", data.staff), select("priority", "Priority", [{ id: "normal", name: "Normal" }, { id: "urgent", name: "Urgent" }], row.data.priority)], { id: row.id })}
+                  {showHousekeepingForms && row.data.state === "pending" && form("Start task", "task.start", [], { id: row.id })}
+                  {showHousekeepingForms && ["pending", "working"].includes(row.data.state) && form("Mark task complete", "task.complete", [...row.data.checklist.map((name, index) => field(`check_${index}`, name, "checkbox", false)), field("notes", "Notes", "textarea", "", false)], { id: row.id }, (value) => ({ ...value, checked: row.data.checklist.filter((_, index) => value[`check_${index}`]) }), [
+                    { base, targetType: "pms_task", targetId: row.id, expectedTargetVersion: row.version, purposeKey: "room_photo", title: "Room completion photos", description: "Attach room-condition photos taken while completing this task." },
+                    { base, targetType: "pms_task", targetId: row.id, expectedTargetVersion: row.version, purposeKey: "damage_photo", title: "Damage evidence", description: "Attach damage photos when the completed task found an exception." },
+                  ])}
+                  {showInspectionForms && row.data.state === "clean" && form("Inspect task", "task.inspect", [], { id: row.id })}
+                </article>)}
+                {!taskRows.some((row) => !["done", "superseded"].includes(row.data.state)) && <Empty>{tr("No open room tasks")}</Empty>}
+              </Panel>
+              <Panel title="Rooms under maintenance">
+                {rows("block").filter((row) => row.data.kind === "maintenance" && row.data.state === "active").map((row) => <div className={styles.record} key={row.id}><strong>{tr("Room")} {roomName(row.data.roomId)} · {row.data.name}</strong><p>{row.data.from} → {row.data.to}</p>{showMaintenanceForms && form("Reopen room after inspection", "maintenance.close", [], { id: row.id })}</div>)}
+              </Panel>
+            </>}
+
+            {section === "folios" && showCashierForms && <Panel title="Guest folio">
+              <label>{tr("Select folio")} <select value={currentFolio?.id ?? ""} onChange={(event) => setFolioId(event.target.value)}>{folios.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+              {currentFolio ? <>
+                <div className={styles.stats}>{[["Balance due", currentFolio.data.due], ["Advance", currentFolio.data.advance], ["Deposit", currentFolio.data.deposit]].map(([label, value]) => <div className={styles.stat} key={String(label)}><span>{tr(String(label))}</span><strong>{money(Number(value))}</strong></div>)}</div>
+                <Badge>{labelState[currentFolio.data.state]}</Badge>
+                <div className={styles.tableWrap}><table><thead><tr><th>{tr("Date")}</th><th>{tr("Item")}</th><th>{tr("Amount")}</th></tr></thead><tbody>{rows("entry").filter((entry) => entry.data.folioId === currentFolio.id).map((entry) => <tr key={entry.id}><td>{entry.data.date}</td><td>{entry.data.description}<small className={styles.muted}>{entry.data.kind} · {entry.data.reference}</small></td><td>{money(entry.data.total)}</td></tr>)}</tbody></table></div>
+                {form("Receive payment / advance", "payment.receive", [field("amount", "Amount", "money", currentFolio.data.due / 100), ...payments], { folioId: currentFolio.id })}
+                {form("Receive deposit", "payment.deposit", [field("amount", "Amount", "money", 0), ...payments], { folioId: currentFolio.id })}
+                {openShifts.length > 0 && form("Record bank transfer pending verification", "payment.request_transfer", [field("amount", "Transfer amount", "money", currentFolio.data.due / 100), field("reference", "Bank transfer reference"), select("kind", "Transfer purpose", [{ id: "receipt", name: "Room payment" }, { id: "deposit", name: "Security deposit" }], "receipt"), select("shiftId", "Cashier shift", openShifts, openShifts[0]?.id)], { folioId: currentFolio.id })}
+                {data.transferRequests.filter((item) => item.folio_id === currentFolio.id && item.recorded_by === data.userId).map((item) => <article className={styles.record} key={item.id}><strong>{money(Number(item.amount_minor))} · {item.reference}</strong><Badge>{item.state}</Badge>{item.state === "pending" && form("Cancel transfer request", "payment.cancel_transfer", [], { id: item.id, expectedTransferVersion: Number(item.version) })}</article>)}
+                {form("Add service charge", "charge.add", [field("description", "Item"), field("price", "Price", "money", 0)], { folioId: currentFolio.id })}
+                {form("Apply deposit to balance due", "payment.apply_deposit", [field("amount", "Amount", "money", 0), field("reason", "Reason")], { folioId: currentFolio.id })}
+                {form("Request refund", "refund.request", [select("pocket", "Fund type", [{ id: "advance", name: "Advance" }, { id: "deposit", name: "Deposit" }], "advance"), field("amount", "Amount", "money", 0), field("reason", "Reason")], { folioId: currentFolio.id })}
+                {form("Close folio", "folio.close", [], { id: currentFolio.id })}
+              </> : <Empty>{tr("The folio will be created when the reservation is confirmed")}</Empty>}
+            </Panel>}
+
+            {section === "cashier" && showCashierForms && <Panel title="Cashier shifts">
+              {form("Open cash shift", "shift.open", [field("name", "Shift / till name"), field("opening", "Opening float", "money", 0)])}
+              {rows("shift").map((row) => <article className={styles.record} key={row.id}><div className={styles.line}><h3>{row.data.name}</h3><Badge>{labelState[row.data.state]}</Badge></div><p>{row.data.date}</p><p>{tr("System cash")} {money(row.data.cash)} · {tr("Counted cash")} {money(row.data.counted)} · {tr("Variance")} {money(row.data.variance)}</p>{row.data.state === "open" && <>{form("Move cash / deposit", "cash.move", [{ ...field("amount", "Amount (+cash in / −bank deposit)", "money", 0), min: -9999999 }, field("reason", "Reason")], { shiftId: row.id })}{form("Close cash shift", "shift.close", [field("counted", "Counted cash", "money", row.data.cash / 100), field("handover", "Handover record", "textarea", "", false)], { id: row.id })}</>}</article>)}
+              {!rows("shift").length && <Empty>{tr("No cash shifts yet")}</Empty>}
+            </Panel>}
+
+            {section === "night-audit" && can("pms.audit") && <Panel title="Night audit">
+              <div className={styles.auditHero}><MoonStar size={38} /><div><h3>{tr("Close business day")} {today}</h3><p>{tr("Post room charges and start the next day after today's work is complete")}</p></div></div>
+              {data.dayControls && <section className={styles.record}><p>{tr("Business date")} {data.dayControls.businessDate} · {data.dayControls.openBills} {tr("open bills")} · {data.dayControls.pendingPayments} {tr("pending payments")} · {data.dayControls.openShifts} {tr("open cash shifts")}</p>{data.dayControls.blockers.length > 0 && <ul className={styles.blockers}>{data.dayControls.blockers.map((item) => <li key={item}>{item}</li>)}</ul>}</section>}
+              {operationalNightBlockers.length > 0 ? <ul className={styles.blockers}>{operationalNightBlockers.map((item) => <li key={item}>{item}</li>)}</ul> : <p className={styles.notice}>{tr("Ready to close the day")}</p>}
+              {!operationalNightBlockers.length && !data.dayControls?.blockers.length && form("Start day close", "night.start")}
+              {rows("night").slice().reverse().map((row) => <article className={styles.record} key={row.id}><strong>{row.data.date}</strong> <Badge tone={row.data.state === "completed" ? "good" : "warn"}>{labelState[row.data.state]}</Badge><p>{row.data.message}</p>{row.data.state === "blocked" && form("Resolve and continue", "night.resume", [], { id: row.id })}</article>)}
+            </Panel>}
+          </>
+        )}
+      </div>
+    </FrontLocalizedTree>
+  );
+}
+
 export function PmsWorkspaceView({
   initial,
   base,
@@ -368,6 +759,9 @@ export function PmsWorkspaceView({
   selectedFolio,
   crossLinks,
   frontMode = false,
+  frontHref,
+  frontPosHref,
+  initialQueue,
 }: {
   initial: PmsWorkspace;
   base: string;
@@ -376,18 +770,27 @@ export function PmsWorkspaceView({
   selectedFolio?: string;
   crossLinks: { inventory: boolean; finance: boolean; pos: boolean };
   frontMode?: boolean;
+  frontHref?: string;
+  frontPosHref?: string;
+  initialQueue?: string;
 }) {
   const language = useFrontLanguage();
   const tr = useCallback((value: string) => frontText(value, language), [language]);
   const router = useRouter();
   const [data, setData] = useState(initial),
     [error, setError] = useState(""),
-    [query, setQuery] = useState(""),
+    [query, setQuery] = useState(initialQueue ?? ""),
     [folioId, setFolioId] = useState(selectedFolio ?? ""),
     [from, setFrom] = useState(
       initial.snapshot?.property.businessDate ?? initial.defaultDate,
     );
   const [notice, setNotice] = useState("");
+  const dailyPmsHref = (target: string, params: Record<string, string> = {}) => {
+    const root = frontHref ? frontHref + (target ? target : "") : `${base}/pms/${target}`;
+    const query = new URLSearchParams(params);
+    return query.size ? `${root}?${query}` : root;
+  };
+  const dailyPosHref = (tab: string) => `${frontPosHref ?? `${base}/pos`}?tab=${encodeURIComponent(tab)}`;
   const attempts = useRef(new Map<string, { body: string; key: string }>());
   const propertyId = data.snapshot?.property.id;
   const [previousInitial, setPreviousInitial] = useState(initial);
@@ -423,7 +826,7 @@ export function PmsWorkspaceView({
       clearInterval(timer);
     };
   }, [base, language, propertyId, section, tr]);
-  const send: Send = async (op, input, version) => {
+  const send: Send = async (op, input, version, attachmentSetIds = []) => {
     if (frontMode && (op === "property.create" || op.startsWith("settings."))) {
       setError(tr("Hotel setup is available in ERPX administration."));
       return false;
@@ -437,8 +840,9 @@ export function PmsWorkspaceView({
           }
         : {}),
       input,
+      attachmentSetIds,
     });
-    const signature = JSON.stringify({ propertyId, op, input });
+    const signature = JSON.stringify({ propertyId, op, input, attachmentSetIds });
     if (!attempts.current.has(signature))
       attempts.current.set(signature, { body, key: crypto.randomUUID() });
     const attempt = attempts.current.get(signature)!;
@@ -500,6 +904,7 @@ export function PmsWorkspaceView({
     fields: Field[] = [],
     hidden: Record<string, unknown> = {},
     transform?: (v: Record<string, unknown>) => unknown,
+    attachments?: ActionAttachment[],
   ) => (
     <Form
       key={`${op}:${JSON.stringify(hidden)}`}
@@ -511,6 +916,7 @@ export function PmsWorkspaceView({
       permissions={permissions}
       version={version}
       transform={transform}
+      attachments={attachments}
     />
   );
   const rows = <K extends Kind>(kind: K): PmsRecord<K>[] =>
@@ -601,8 +1007,45 @@ export function PmsWorkspaceView({
       field("active", "Rate plan active", "checkbox", d?.active ?? true),
     ];
   }
+  if (frontMode)
+    return <FrontPmsDaily
+      data={data}
+      base={base}
+      frontHref={frontHref ?? `${base}/pms/`}
+      section={section}
+      snapshot={s}
+      property={p}
+      propertyId={propertyId}
+      today={today}
+      from={from}
+      setFrom={setFrom}
+      query={query}
+      setQuery={setQuery}
+      setFolioId={setFolioId}
+      currentFolio={currentFolio}
+      rows={rows}
+      roomName={roomName}
+      guestName={guestName}
+      rooms={rooms}
+      guests={guests}
+      rates={rates}
+      folios={folios}
+      stays={stays}
+      openShifts={openShifts}
+      payments={payments}
+      can={can}
+      form={form}
+      send={send}
+      error={error}
+      notice={notice}
+      onRefresh={() => {
+        router.refresh();
+        setNotice(tr("Loading the latest data"));
+      }}
+      onPropertyChange={(next) => router.push(`${frontHref ?? `${base}/pms/`}${section === "dashboard" ? "" : section}?property=${encodeURIComponent(next)}`)}
+    />;
   return (
-    <FrontLocalizedTree><main className={styles.workspace} data-source="live">
+    <FrontLocalizedTree><div className={styles.workspace} data-source="live">
       <header className={styles.header}>
         <div>
           <p className={styles.eyebrow}>{tr("ERPX HOSPITALITY")}</p>
@@ -693,7 +1136,7 @@ export function PmsWorkspaceView({
       ) : (
         <>
           
-          {p.state === "setup" && <SetupChecklist title={tr("Hotel readiness")} items={data.readiness.length ? data.readiness.map((label,index)=>({id:String(index),label:tr(label),ready:false,owner:tr(/account|tax|ledger/i.test(label)?"Finance approver":"Hotel administrator"),href:`${erpBase}/pms/settings?property=${p.id}`})) : [{id:"open",label:tr("Verify readiness and open hotel"),ready:false,owner:tr("Hotel administrator"),href:`${erpBase}/pms/settings?property=${p.id}`}]} />}
+          {p.state === "setup" && <SetupChecklist title={tr("Hotel readiness")} items={data.readiness.length ? data.readiness.map((label,index)=>({id:String(index),label:tr(label),ready:false,owner:tr(/finance|account|tax|ledger/i.test(label)?"Finance approver":"Hotel administrator"),href:`${erpBase}/pms/settings?property=${p.id}`})) : [{id:"open",label:tr("Verify readiness and open hotel"),ready:false,owner:tr("Hotel administrator"),href:`${erpBase}/pms/settings?property=${p.id}`}]} />}
           {section === "dashboard" && (
             <>
               <div className={styles.stats}>
@@ -749,7 +1192,7 @@ export function PmsWorkspaceView({
                       return (
                         <Link
                           className={`${styles.room} ${r.data.cleanliness === "inspected" ? styles.ready : ""}`}
-                          href={`${base}/pms/rooms?property=${p.id}`}
+                          href={dailyPmsHref("rooms", { property: p.id })}
                           key={r.id}
                         >
                           <strong>{r.data.number}</strong>
@@ -776,7 +1219,7 @@ export function PmsWorkspaceView({
                     .map((r) => (
                       <Link
                         className={styles.line}
-                        href={`${base}/pms/front-desk?property=${p.id}`}
+                        href={dailyPmsHref("front-desk", { property: p.id })}
                         key={r.id}
                       >
                         <strong>{guestName(r.data.guestId)}</strong>
@@ -792,7 +1235,7 @@ export function PmsWorkspaceView({
                   )}
                   <Link
                     className="button secondary"
-                    href={`${base}/pms/reservations?property=${p.id}`}
+                    href={dailyPmsHref("reservations", { property: p.id })}
                   >
                     View all reservations
                   </Link>
@@ -929,6 +1372,8 @@ export function PmsWorkspaceView({
                           )
                           .join(" · ")}
                       </p>
+                      <PmsRecordDocuments base={base} targetType="pms_reservation" targetId={r.id} expectedTargetVersion={r.version} title="Reservation documents" purposes={reservationDocumentPurposes} editable={can("pms.reservations")}/>
+                      {rows("guest").filter((guest) => guest.id === r.data.guestId).map((guest) => <PmsRecordDocuments key={guest.id} base={base} targetType="pms_guest" targetId={guest.id} expectedTargetVersion={guest.version} title="Guest identity and consent" purposes={guestDocumentPurposes} editable={can("pms.reservations")}/>)}
                       <details className={styles.action}>
                         <summary>Reservation details & history</summary>
                         <p>
@@ -966,7 +1411,7 @@ export function PmsWorkspaceView({
                                 )}
                               </span>
                               <Link
-                                href={`${base}/pms/folios?property=${p.id}&folio=${st.data.folioId}`}
+                                href={dailyPmsHref("folios", { property: p.id, folio: st.data.folioId })}
                               >
                                 Open folio
                               </Link>
@@ -986,13 +1431,13 @@ export function PmsWorkspaceView({
                       <div className={styles.actions}>
                         <Link
                           className="button secondary"
-                          href={`${base}/pms/front-desk?property=${p.id}`}
+                          href={dailyPmsHref("front-desk", { property: p.id })}
                         >
                           Assign room / check in
                         </Link>
                         <Link
                           className="button secondary"
-                          href={`${base}/pms/folios?property=${p.id}&folio=${stays.find((st) => st.data.reservationId === r.id)?.data.folioId ?? ""}`}
+                          href={dailyPmsHref("folios", { property: p.id, folio: stays.find((st) => st.data.reservationId === r.id)?.data.folioId ?? "" })}
                         >
                           Folio / deposit
                         </Link>
@@ -1062,8 +1507,10 @@ export function PmsWorkspaceView({
                       {roomName(r.data.roomId)} · {r.data.arrival} →{" "}
                       {r.data.departure} · {r.data.adults} guests
                     </p>
+                    <PmsRecordDocuments base={base} targetType="pms_stay" targetId={r.id} expectedTargetVersion={r.version} title="Registration and transfer documents" purposes={stayDocumentPurposes} editable={can("pms.frontdesk")}/>
+                    {rows("guest").filter((guest) => guest.id === r.data.guestId).map((guest) => <PmsRecordDocuments key={guest.id} base={base} targetType="pms_guest" targetId={guest.id} expectedTargetVersion={guest.version} title="Guest identity and consent" purposes={guestDocumentPurposes} editable={can("pms.reservations")}/>)}
                     <Link
-                      href={`${base}/pms/folios?property=${p.id}&folio=${r.data.folioId}`}
+                      href={dailyPmsHref("folios", { property: p.id, folio: r.data.folioId })}
                     >
                       Open this folio
                     </Link>
@@ -1314,6 +1761,26 @@ export function PmsWorkspaceView({
                               (_, i) => v[`check_${i}`],
                             ),
                           }),
+                          [
+                            {
+                              base,
+                              targetType: "pms_task",
+                              targetId: r.id,
+                              expectedTargetVersion: r.version,
+                              purposeKey: "room_photo",
+                              title: "Room completion photos",
+                              description: "Attach room-condition photos taken while completing this task.",
+                            },
+                            {
+                              base,
+                              targetType: "pms_task",
+                              targetId: r.id,
+                              expectedTargetVersion: r.version,
+                              purposeKey: "damage_photo",
+                              title: "Damage evidence",
+                              description: "Attach damage photos when the completed task found an exception.",
+                            },
+                          ],
                         )}
                       {r.data.state === "clean" &&
                         form("Inspect task", "task.inspect", [], { id: r.id })}
@@ -1590,6 +2057,18 @@ export function PmsWorkspaceView({
                               ),
                             ],
                             { folioId: currentFolio.id },
+                            undefined,
+                            [
+                              {
+                                base,
+                                targetType: "pms_property",
+                                targetId: p.id,
+                                expectedTargetVersion: p.version,
+                                purposeKey: "ota_reconciliation",
+                                title: "OTA reconciliation evidence",
+                                description: "Attach the OTA or agent settlement evidence used for this posting.",
+                              },
+                            ],
                           )}
                           {form(
                             "Issue invoice / close folio",
@@ -1856,6 +2335,7 @@ export function PmsWorkspaceView({
                       Room {roomName(r.data.roomId)} · {r.data.location} ·{" "}
                       {labelState[r.data.state]}
                     </p>
+                    <PmsRecordDocuments base={base} targetType="pms_lost_property" targetId={r.id} expectedTargetVersion={r.version} title="Lost-property photos" purposes={lostPropertyDocumentPurposes} editable={can("pms.housekeeping")}/>
                     {r.data.state === "stored" &&
                       form(
                         "Return / dispose",
@@ -1873,6 +2353,18 @@ export function PmsWorkspaceView({
                           field("notes", "Recipient and evidence"),
                         ],
                         { id: r.id },
+                        undefined,
+                        [
+                          {
+                            base,
+                            targetType: "pms_lost_property",
+                            targetId: r.id,
+                            expectedTargetVersion: r.version,
+                            purposeKey: "handover_evidence",
+                            title: "Handover evidence",
+                            description: "Attach the signed handover or disposal evidence for this action.",
+                          },
+                        ],
                       )}
                   </div>
                 ))}
@@ -1938,7 +2430,7 @@ export function PmsWorkspaceView({
                           <span>{roomName(st.data.roomId)}</span>
                           <Badge>{labelState[st.data.state]}</Badge>
                           <Link
-                            href={`${base}/pms/folios?property=${p.id}&folio=${st.data.folioId}`}
+                            href={dailyPmsHref("folios", { property: p.id, folio: st.data.folioId })}
                           >
                             Stay folio
                           </Link>
@@ -2000,7 +2492,7 @@ export function PmsWorkspaceView({
                         <p>Business date {data.dayControls.businessDate} · {data.dayControls.openBills} open bills · {data.dayControls.pendingPayments} pending payments · {data.dayControls.openShifts} open cash sessions</p>
                         <p>Direct sales {money(data.dayControls.directSalesMinor)} · Room charges {money(data.dayControls.roomChargesMinor)} · Cash received {money(data.dayControls.cashReceivedMinor)} · Verified transfers {money(data.dayControls.verifiedTransferMinor)}</p>
                         <p>Restaurant stock movement {money(data.dayControls.stockValueMinor)} · Inventory ledger movement {money(data.dayControls.stockLedgerMinor)}</p>
-                        {data.dayControls.blockers.length ? <><ul className={styles.blockers}>{data.dayControls.blockers.map(blocker=><li key={blocker}>{blocker}</li>)}</ul>{crossLinks.pos && <><Link href={`${base}/pos?tab=shifts`}>Review restaurant cash sessions</Link> · <Link href={`${base}/pos?tab=history`}>Review restaurant receipts</Link></>}</> : <p className={styles.notice}>Restaurant controls are ready for day close.</p>}
+                        {data.dayControls.blockers.length ? <><ul className={styles.blockers}>{data.dayControls.blockers.map(blocker=><li key={blocker}>{blocker}</li>)}</ul>{crossLinks.pos && <><Link href={dailyPosHref("shifts")}>Review restaurant cash sessions</Link> · <Link href={dailyPosHref("history")}>Review restaurant receipts</Link></>}</> : <p className={styles.notice}>Restaurant controls are ready for day close.</p>}
                       </section>}
                       {nightBlockers(s!).length ? (
                         <ul className={styles.blockers}>
@@ -2145,7 +2637,7 @@ export function PmsWorkspaceView({
                     <Link
                       className={styles.line}
                       key={r.id}
-                      href={`${base}/pms/folios?property=${p.id}&folio=${r.id}`}
+                      href={dailyPmsHref("folios", { property: p.id, folio: r.id })}
                     >
                       <strong>{r.data.name}</strong>
                       <span>
@@ -2407,6 +2899,6 @@ export function PmsWorkspaceView({
           )}
         </>
       )}
-    </WidgetGrid></main></FrontLocalizedTree>
+    </WidgetGrid></div></FrontLocalizedTree>
   );
 }

@@ -4,11 +4,12 @@ import { expenseDb as db,expenseFixture,key } from "./helpers/expense-fixture";
 import { approvePayrollRun,calculatePayrollRun,createPaymentBatch,approvePaymentBatch,confirmPaymentBatch,exportPaymentBatch,getPaymentFile,createPayrollRun,decidePayrollCorrection,decidePayrollAdvance,exportPayrollReview,getPayrollReviewFile,getPayrollRun,payrollRunSchema,prepareFinalPay,finalPayPreparationSchema,requestPayrollCorrection,requestPayrollAdvance,payrollAdvanceRequestSchema,payrollAdvancePage,postPayroll,payrollPostSchema } from "../src/server/people-payroll";
 import { listStaffNotifications } from "../src/server/staff-notifications";
 import { resolveFlow } from "../src/server/flow-routing";
+import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from "./helpers/attachment-v2";
 
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 
 let f:Awaited<ReturnType<typeof expenseFixture>>;
-beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
+beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);enableAttachmentV2ForTest();});
 beforeEach(async()=>{f=await expenseFixture();});
 
 it("snapshots configured proration and overtime and exports an immutable review revision",async()=>{
@@ -94,7 +95,9 @@ it("requires an independent correction decision and preserves every reviewed pay
   const calculated=await calculatePayrollRun(f.owner,String(created.id),key());
   const exported=await exportPayrollReview(f.owner,String(created.id),key());
   const approved=await approvePayrollRun(f.manager,String(created.id),Number(calculated.version),key());
-  const correction=await requestPayrollCorrection(f.owner,String(created.id),{expectedVersion:Number(approved.version),reason:"Approved allowance evidence arrived after review"},key());
+  const correctionEvidence=await seedAttachmentSet(db,f.owner,{targetType:"payroll_run",targetId:String(created.id),componentKind:"action",componentRef:"correction-request",purposeKey:"correction_support",expectedTargetVersion:Number(approved.version)}),correctionKey=key();
+  const correction=await requestPayrollCorrection(f.owner,String(created.id),{expectedVersion:Number(approved.version),reason:"Approved allowance evidence arrived after review",attachmentSetIds:[correctionEvidence.setId]},correctionKey);
+  expect(await attachmentBindingState(db,correctionEvidence.setId)).toMatchObject({set_state:"bound",link_state:"bound",binding_type:"payroll_correction_request",binding_id:String(correction.id)});
 
   await expect(decidePayrollCorrection(requesterWithApprovalAuthority,String(correction.id),{expectedVersion:1,action:"approve",reason:"Trying to review my own request"},key())).rejects.toMatchObject({code:"SELF_REVIEW_FORBIDDEN"});
   const notifications=await listStaffNotifications(db,f.manager);

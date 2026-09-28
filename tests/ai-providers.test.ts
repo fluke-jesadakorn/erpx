@@ -9,6 +9,7 @@ import {
 } from "./helpers/expense-fixture";
 import {
   activateAiConnection,
+  aiSnapshotGuard,
   aiConnectionSchema,
   aiProviderOverview,
   disableAiConnection,
@@ -67,6 +68,21 @@ beforeEach(async () => {
   synthetic.mockClear();
 });
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+it("builds the simulation AI snapshot guard without deployment parameters", async () => {
+  const commandId = key();
+  await db.batch([
+    aiSnapshotGuard(db, commandId, {
+      companyId: f.company,
+      connectionId: null,
+      revision: 1,
+      settingsVersion: 0,
+      model: "thai-hotel-v1-ai-deterministic-v1",
+      kind: "text",
+      deploymentDigest: "simulation:thai-hotel-v1-ai-deterministic-v1",
+    }),
+    db.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(commandId),
+  ]);
+});
 it("requires explicit company selection before any production AI provider can run", async () => {
   const deployment = {
     ...aiEnv,
@@ -476,6 +492,14 @@ it("stores PDF pages under original access and quota, rejects missing pages and 
     { page: 2, pageCount: 2, originalChecksum: "pdf-original", bytes: jpeg },
     key(),
   );
+  expect(
+    await db
+      .prepare(
+        "SELECT count(*)::int count,COALESCE(sum(bytes),0)::int bytes FROM attachment_storage_ledger WHERE attachment_id=? AND variant='derivative' AND state='stored'",
+      )
+      .bind(attachment)
+      .first(),
+  ).toEqual({ count: 2, bytes: jpeg.byteLength * 2 });
   const proposal = await queueExpenseAi(
     db,
     f.claimant,

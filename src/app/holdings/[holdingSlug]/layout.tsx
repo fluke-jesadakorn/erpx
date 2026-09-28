@@ -1,5 +1,6 @@
 import { measureReadPhase } from "@/server/runtime/read-metrics";
 import { ProductBrand } from "@/components/brand/product-brand";
+import { appearancePreference } from "@/lib/appearance-preference";
 import { WorkspaceBrandMark } from "@/components/brand/workspace-brand";
 import { FeatureEnvironment } from "@/components/features/feature-page";
 import { NavigationCountsProvider } from "@/components/workplace/navigation-counts";
@@ -23,7 +24,7 @@ import {
 listWorkspaceCompanies,
 publicScope,
 requireWorkContext,
-requireManageErpxContext,
+canEnterManageErpx,
 requirePlatformContext,
 } from "@/server/authorization";
 import { resolveWorkspaceBrand } from "@/server/branding";
@@ -40,7 +41,7 @@ import { AccountSwitcher } from "./account-switcher";
 async function DeferredWorkspaceMenu(props: Omit<ComponentProps<typeof WorkspaceMenu>, "choices" | "canManageErpx">) {
   const [choices, canManageErpx] = await Promise.all([
     workspaceChoices(),
-    requireManageErpxContext().then(() => true).catch(() => false),
+    canEnterManageErpx().catch(() => false),
   ]);
   return <WorkspaceMenu {...props} choices={choices} canManageErpx={canManageErpx}/>;
 }
@@ -56,7 +57,7 @@ export default async function WorkplaceLayout({
   } catch (error) {
     return pageError(error, holdingSlug);
   }
-  const theme = (await cookies()).get("erpx_appearance")?.value ?? "light";
+  const theme = appearancePreference((await cookies()).get("erpx_appearance")?.value);
   const holdingName = context.holdingName;
   const base = workspaceBase(publicScope(context));
   const scopeLabel =
@@ -66,6 +67,19 @@ export default async function WorkplaceLayout({
         ? context.scope.branchName
         : "Holding";
   const { write } = await holdingResources(context.holdingId);
+  const companySlug = (await write.prepare("SELECT slug FROM organization_nodes WHERE id=? AND kind='company' AND status='active'")
+    .bind(context.companyId).first<{ slug: string }>())?.slug;
+  const frontLocation = context.scope.kind === "holding"
+    ? "holding"
+    : context.scope.kind === "branch"
+      ? `branches/${context.scope.branchSlug}`
+      : context.scope.branchSlug
+        ? `branches/${context.scope.branchSlug}/departments/${context.scope.departmentSlug}`
+        : `departments/${context.scope.departmentSlug}`;
+  const frontBase = companySlug
+    ? `/front/${encodeURIComponent(holdingSlug)}/${encodeURIComponent(companySlug)}`
+    : undefined;
+  const frontHref = (app: "pos" | "pms") => frontBase ? `${frontBase}/${app}/${frontLocation}/` : undefined;
   const [workspaceBrand, companies, admin] = await measureReadPhase("layout",()=>Promise.all([
     resolveWorkspaceBrand(write, context),
     context.scope.kind === "holding" ? listWorkspaceCompanies(context.holdingId) : Promise.resolve([]),
@@ -79,6 +93,8 @@ export default async function WorkplaceLayout({
       await requirePlatformContext().then((platform) => platform.userId === context.userId).catch(() => false),
     executiveVisible: await executiveVisible(write,context),
     workspaceBase: base,
+    frontPosHref: frontHref("pos"),
+    frontPmsHref: frontHref("pms"),
     scopeKind: context.scope.kind,
     beta: context.beta,
     role: context.role,
@@ -90,7 +106,12 @@ export default async function WorkplaceLayout({
         const enabled = new Set(featureCatalogue.filter((entry) => ['Available','Pilot','Setup required'].includes(entry.state)).map((entry) => entry.id));
         const apps: string[] = [];
         if (['organization','identity_access','people_payroll'].some((id) => enabled.has(id))) apps.push('people');
-        if (enabled.has('procurement')) apps.push('operations');
+        if (enabled.has('procurement')) apps.push('procurement');
+        if (enabled.has('sales')) apps.push('sales');
+        if (enabled.has('crm')) apps.push('crm');
+        if (enabled.has('support')) apps.push('support');
+        if (enabled.has('quality')) apps.push('quality');
+        if (enabled.has('projects')) apps.push('projects');
         if (enabled.has('inventory')) apps.push('inventory');
         if (enabled.has('pos')) apps.push('pos');
         if (enabled.has('pms')) apps.push('pms');
@@ -216,7 +237,7 @@ export default async function WorkplaceLayout({
             />
           </div>
         </header>
-        <div id="workspace-content" tabIndex={-1}>
+        <div>
           <WorkContextBoundary
             key={`${context.companyId}:${context.assignmentId}:${context.authority!.revision}`}
             base={base}
@@ -224,8 +245,12 @@ export default async function WorkplaceLayout({
             assignmentId={context.assignmentId}
             revision={context.authority!.revision}
           >
-            <FeatureEnvironment navigation={navigation} productionCatalogue={process.env.NODE_ENV === 'production' ? featureCatalogue.map(({id,name,state})=>({id,name,state})) : undefined}>{children}</FeatureEnvironment>
-            <Suspense><WorkspaceAssistant base={base} crossContext={hasPermission(context,"ai.context.cross")}/></Suspense>
+            <div className={styles.workspaceBody}>
+              <div id="workspace-content" className={styles.workspacePage} tabIndex={-1}>
+                <FeatureEnvironment navigation={navigation} productionCatalogue={process.env.NODE_ENV === 'production' ? featureCatalogue.map(({id,name,state})=>({id,name,state})) : undefined}>{children}</FeatureEnvironment>
+              </div>
+            </div>
+            <Suspense><WorkspaceAssistant base={base} userId={context.userId} companyId={context.companyId} assignmentId={context.assignmentId} crossContext={hasPermission(context,"ai.context.cross")}/></Suspense>
           </WorkContextBoundary>
         </div>
       </div>

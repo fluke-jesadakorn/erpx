@@ -7,6 +7,8 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useRecoverableDraft } from "@/components/ui/use-recoverable-draft";
+import { clearGuidedIntakeHandoff, readGuidedIntakeHandoff } from "@/lib/ai/guided-intake";
+import { formatUiDateTime } from "@/lib/ui-format";
 import { useStaffCommand } from "@/components/modules/staff-work-controls";
 import {
   serviceCategories,
@@ -31,6 +33,8 @@ export type RequestOptions = {
   departmentId: string | null;
   companyId: string;
   userId: string;
+  assignmentId?: string;
+  currency?: string;
 };
 export function RequestEditor({
   base,
@@ -52,7 +56,8 @@ export function RequestEditor({
     command = useStaffCommand(base);
   const creationKey = `erpx:request-create:${base}:${options.companyId}:${options.userId}:${kind}:${parentRequestId ?? "new"}`;
   const createOnce = useRef(createRequestDraftOnce()), uploader = useRef(createRequestUploader());
-  const [files,setFiles] = useState<File[]>([]), [saving,setSaving] = useState(false), [saveError,setSaveError] = useState(""), [createdId,setCreatedId] = useState(""), [recovering,setRecovering] = useState(false);
+  const [files,setFiles] = useState<File[]>([]), [saving,setSaving] = useState(false), [saveError,setSaveError] = useState(""), [createdId,setCreatedId] = useState(""), [recovering,setRecovering] = useState(false), [reviewing,setReviewing] = useState(false);
+  const [guided,setGuided] = useState<Record<string,string>|null>(null);
   useEffect(() => {
     try {
       const id = sessionStorage.getItem(`${creationKey}:created`);
@@ -73,12 +78,12 @@ export function RequestEditor({
     title: request?.title ?? "",
     description: request?.description ?? "",
     category: request?.category ?? "it",
-    location: request?.location ?? "",
+    location: request?.location ?? options.nodes.find(node => node.id === options.branchId)?.display_name ?? "",
     impact: request?.impact ?? "normal",
     branchId: request?.branch_id ?? options.branchId ?? "",
     departmentId: request?.department_id ?? options.departmentId ?? "",
     neededDate: request?.needed_date ?? "",
-    currency: request?.currency ?? "",
+    currency: request?.currency ?? options.currency ?? "",
     items:
       request?.items_json ??
       JSON.stringify([{ description: "", quantity: "", unit: "each", estimatedCost: "" }]),
@@ -89,6 +94,30 @@ export function RequestEditor({
       "request",
     ),
     fields = draft.fields;
+  useEffect(()=>{
+    if (kind!=="purchase" || request || !options.assignmentId) return;
+    const restore=()=>setGuided(readGuidedIntakeHandoff(options.companyId,options.userId,options.assignmentId!,base,"purchase"));
+    restore();
+    window.addEventListener("erpx:guided-intake-handoff",restore);
+    return()=>window.removeEventListener("erpx:guided-intake-handoff",restore);
+  },[kind,request,options.companyId,options.userId,options.assignmentId,base]);
+  function applyGuided() {
+    if (!guided) return;
+    draft.update(previous=>{
+      const existing = JSON.parse(previous.items) as RequestItem[];
+      const first = existing[0] ?? {description:"",quantity:"",unit:"each",estimatedCost:""};
+      const proposedQuantity = /^\d+(?:\.\d+)?$/.test(guided.quantity??"") && Number(guided.quantity)>0 ? guided.quantity : "";
+      return {...previous,
+        title: guided.title || guided.itemName || previous.title,
+        description: guided.description || previous.description,
+        location: guided.location || previous.location,
+        neededDate: /^\d{4}-\d{2}-\d{2}$/.test(guided.neededDate??"") ? guided.neededDate : previous.neededDate,
+        items: JSON.stringify([{...first,description:guided.itemName||first.description,quantity:proposedQuantity||first.quantity},...existing.slice(1)]),
+      };
+    });
+    clearGuidedIntakeHandoff(options.companyId,options.userId,options.assignmentId!,base,"purchase");
+    setGuided(null);
+  }
   const receiveAi = draft.receiveAi;
   useEffect(() => {
     function suggestion(event: Event) {
@@ -125,15 +154,24 @@ export function RequestEditor({
         ),
       ),
     );
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
+  async function persistDraft(submit: boolean) {
+    if (draft.conflict || saving) return;
     setSaving(true); setSaveError("");
     try {
       const input = {...fields,kind,branchId:fields.branchId || null,departmentId:fields.departmentId || null,items:kind === "service" ? [] : items,parentRequestId:request?.parent_request_id ?? parentRequestId,expectedVersion:request?.version ?? 1};
-      const saved = request ? await command.send(`requests/${request.id}`,input) : {id: await createOnce.current(base,creationKey,input)};
+      const saved = createdId ? {id:createdId} : request ? await command.send(`requests/${request.id}`,input) : {id: await createOnce.current(base,creationKey,input)};
       if (!saved) return;
       if (!request) { setCreatedId(saved.id); setRecovering(false); }
       for (const file of files) await uploader.current(base,saved.id,file);
+      if (submit) {
+        const response = await workFetch(`/api/v1${base}/requests/${saved.id}`,{cache:"no-store"});
+        const result = await response.json() as {data?:{request?:{version:number}};error?:{message:string}};
+        if (!response.ok || !result.data?.request) throw Error(result.error?.message ?? "Unable to review the saved request.");
+        const submitted = await command.send(`requests/${saved.id}/actions`,{
+          action:"submit",expectedVersion:result.data.request.version,
+        });
+        if (!submitted) return;
+      }
       draft.clear();
       if (!request) router.push(`${base}/requests/${saved.id}${returnTo ? `?${new URLSearchParams({return:returnTo})}` : ""}`);
       else { setFiles([]); router.refresh(); }
@@ -148,16 +186,13 @@ export function RequestEditor({
           ? "Request details"
           : requestKinds.find(([id]) => id === kind)?.[1]}
       </h2>
-      <p className={styles.quiet}>
-        Review your details and attach supporting files here. A draft keeps your progress safe.
-      </p>
+      <p className={styles.quiet}>Tell us what you need. Review the request before sending it; you can also save a draft at any time.</p>
+      {guided && <div className="notice" role="status"><p>AI prepared details from your message. Review them before using them in this request.</p><button type="button" className="button secondary" onClick={applyGuided}>Use prepared details</button> <button type="button" className="button ghost" onClick={()=>{if(options.assignmentId)clearGuidedIntakeHandoff(options.companyId,options.userId,options.assignmentId,base,"purchase");setGuided(null);}}>Discard suggestion</button></div>}
       {draft.notice}
       {saveError && <p role="alert">{saveError}</p>}
       {createdId && <p><Link href={`${base}/requests/${createdId}`}>Open saved draft</Link> · Retry uploads below without creating another request.</p>}
-      <form onSubmit={save}>
-        <label>Supporting files<input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" disabled={!ready || saving} onChange={e => setFiles(Array.from(e.target.files ?? []))}/></label>
-        {!!files.length && <p>{files.map(file => file.name).join(", ")}</p>}
-        {(createdId || recovering) && <button className="button" disabled={saving}>{saving ? "Saving…" : recovering ? "Recover saved draft" : "Retry uploads and open draft"}</button>}
+      <form onSubmit={e=>{e.preventDefault();if(reviewing) void persistDraft(true);else setReviewing(true);}}>
+        {(createdId || recovering) && <button className="button" type="button" disabled={saving} onClick={()=>void persistDraft(reviewing)}>{saving ? "Saving…" : recovering ? "Recover saved draft" : "Retry saved request"}</button>}
 
         <fieldset disabled={!ready || command.busy || saving || !!createdId || recovering} className={styles.form}>
           {kind === "service" && (
@@ -189,9 +224,10 @@ export function RequestEditor({
             </div>
           )}
           <label>
-            Title
+            {kind === "purchase" ? "What do you need?" : "Title"}
             <input
               maxLength={200}
+              required
               value={fields.title}
               onChange={(e) => set("title", e.target.value)}
               placeholder={
@@ -202,13 +238,16 @@ export function RequestEditor({
             />
           </label>
           <label>
-            {kind === "service" ? "Describe the issue" : "Purpose and details"}
+            {kind === "service" ? "Describe the issue" : "Why is it needed?"}
             <textarea
               maxLength={10000}
+              required
               value={fields.description}
               onChange={(e) => set("description", e.target.value)}
             />
           </label>
+          <details className={styles.details}>
+            <summary>Change branch or department (if needed)</summary>
           <div className={styles.pair}>
             <label>
               Branch
@@ -250,10 +289,12 @@ export function RequestEditor({
               </select>
             </label>
           </div>
+          </details>
           <label>
-            Location
+            {kind === "purchase" ? "Where will it be used or delivered?" : "Location"}
             <input
               maxLength={300}
+              required
               value={fields.location}
               onChange={(e) => set("location", e.target.value)}
               placeholder="Building, floor, room, or shared workplace"
@@ -266,6 +307,7 @@ export function RequestEditor({
                   Needed by{kind === "purchase" ? " (optional)" : ""}
                   <input
                     type="date"
+                    required={kind === "equipment"}
                     value={fields.neededDate}
                     onChange={(e) => set("neededDate", e.target.value)}
                   />
@@ -286,9 +328,10 @@ export function RequestEditor({
                 <div className={styles.item} key={index}>
                   <label>
                     Item {index + 1}
-                    <input
-                      value={item.description}
-                      maxLength={500}
+                  <input
+                    value={item.description}
+                    maxLength={500}
+                    required
                       onChange={(e) =>
                         itemChange(index, "description", e.target.value)
                       }
@@ -296,9 +339,12 @@ export function RequestEditor({
                   </label>
                   <label>
                     Quantity
-                    <input
-                      inputMode="decimal"
-                      value={item.quantity}
+                  <input
+                    type="number"
+                    min="0.001"
+                    step="0.001"
+                    required
+                    value={item.quantity}
                       onChange={(e) =>
                         itemChange(index, "quantity", e.target.value)
                       }
@@ -358,26 +404,22 @@ export function RequestEditor({
               )}
             </>
           )}
-          <section aria-label="Review request"><h3>Review</h3><p>{fields.title || "Add a title"} · {fields.location || "No location specified"}</p><p>{fields.description || "Add a description"}</p><p>{files.length} supporting files · Approval is requested after you review the saved draft.</p></section>
+        </fieldset>
+          <label>Supporting files (optional)<input type="file" multiple accept="image/jpeg,image/png,image/webp,application/pdf" disabled={!ready || saving} onChange={e => setFiles(Array.from(e.target.files ?? []))}/></label>
+          {!!files.length && <p>{files.map(file => file.name).join(", ")}</p>}
+          {reviewing && <section className="card" aria-label="Review request" role="region">
+            <h3>Review before you send</h3>
+            <p><strong>{fields.title || "Untitled request"}</strong> · {fields.location || "Location needed"}</p>
+            <p>{fields.description}</p>
+            {kind !== "service" && <ul>{items.map((item,index)=><li key={index}>{item.quantity || "?"} {item.unit || "each"} · {item.description || "Item needed"}{item.estimatedCost ? ` · Estimated ${fields.currency} ${item.estimatedCost}` : ""}</li>)}</ul>}
+            <p>{fields.neededDate ? `Needed by ${fields.neededDate}` : "No requested date"} · {files.length} new supporting files</p>
+            <p className={styles.quiet}>{kind === "purchase" ? "Sending asks the company to review this purchase. Purchasing will source approved items using the same request." : "Sending places this request with the responsible team for review."}</p>
+          </section>}
           <div className={styles.actions}>
-            <button className="button" disabled={draft.conflict}>
-              Save draft
-            </button>
-            {request && (
-              <button
-                className="button secondary"
-                type="button"
-                disabled={dirty || draft.conflict}
-                onClick={() =>
-                  void command.send(`requests/${request.id}/actions`, {
-                    action: "submit",
-                    expectedVersion: request.version,
-                  })
-                }
-              >
-                Submit request
-              </button>
-            )}
+            {!reviewing && <button className="button" disabled={draft.conflict || kind !== "service" && items.length===0}>Review &amp; submit</button>}
+            {reviewing && <button className="button" disabled={saving || command.busy || draft.conflict}>{saving ? "Sending…" : "Confirm & submit"}</button>}
+            <button className="button secondary" type="button" disabled={saving || !!createdId || draft.conflict} onClick={()=>void persistDraft(false)}>Save draft</button>
+            {reviewing && <button className="button ghost" type="button" onClick={()=>setReviewing(false)}>Edit details</button>}
             {request && (
               <button
                 className="button ghost"
@@ -393,10 +435,7 @@ export function RequestEditor({
               </button>
             )}
           </div>
-          {request && dirty && (
-            <p className={styles.quiet}>Save your changes before submitting.</p>
-          )}
-        </fieldset>
+          {request && dirty && !reviewing && <p className={styles.quiet}>Your changes will be saved when you confirm.</p>}
       </form>
       {command.error && (
         <p role="alert">
@@ -635,19 +674,22 @@ export function RequestFiles({
     </section>
   );
 }
-export function RequestHistory({ detail }: { detail: Detail }) {
+export function RequestHistory({ detail, approverNames = {} }: { detail: Detail; approverNames?: Record<string,string> }) {
+  const approval=JSON.parse(detail.request.approval_json) as {currentStep?:number;route?:{steps?:{userId:string;stage?:string;snapshot?:{departmentPolicyId?:string|null;departmentPolicyVersion?:number;selector?:{kind?:string};rerouted?:boolean}}[]};decisions?:{override?:boolean;userId?:string;originalApproverUserId?:string;actualApproverUserId?:string;note?:string;at?:number}[]};
+  const current=approval.route?.steps?.[approval.currentStep??0];
   return (
     <details className={`card ${styles.details}`}>
       <summary>Conversation and history</summary>
+      {current&&detail.request.state==="awaiting_approval"&&<p>Current {current.stage?.replaceAll("_"," ")??"approval"} step: {approverNames[current.userId]??current.userId}</p>}
+      {!!approval.route?.steps?.length&&<><p>Saved route at submission · {approval.route.steps.length} steps. Later policy changes do not change this route.</p><ol>{approval.route.steps.map((step,index)=><li key={index}>{index+1}. {step.stage?.replaceAll("_"," ")??"Approval"} · {approverNames[step.userId]??step.userId}{step.snapshot?.departmentPolicyVersion!==undefined&&<small className="muted"> · {step.snapshot.departmentPolicyId?`Department flow v${step.snapshot.departmentPolicyVersion}`:"Appointed department head"} · {step.snapshot.selector?.kind??"person"}{step.snapshot.rerouted?" · approver changed":""}</small>}</li>)}</ol></>}
+      {approval.decisions?.filter(decision=>decision.override).map((decision,index)=><p key={`override-${index}`}><strong>Decision on behalf of assigned approver:</strong> {approverNames[decision.originalApproverUserId??""]??decision.originalApproverUserId} → {approverNames[decision.actualApproverUserId??""]??decision.actualApproverUserId} · {decision.note}{decision.at?` · ${formatUiDateTime(decision.at)}`:""}</p>)}
       {detail.events.map((e) => (
         <article key={e.id} className={styles.history}>
           <strong>{e.action.replaceAll("-", " ")}</strong>
           <small className={styles.quiet}>
             {" "}
             ·{" "}
-            {new Date(e.created_at).toLocaleString("en-GB", {
-              timeZone: "Asia/Bangkok",
-            })}
+            {formatUiDateTime(e.created_at)}
           </small>
           {e.note && <p>{e.note}</p>}
           <small className={styles.quiet}>

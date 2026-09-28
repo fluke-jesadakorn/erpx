@@ -113,6 +113,17 @@ export type CalendarItem = {
   warnings: string[];
   history: CalendarHistory[];
   redacted?: boolean;
+  occurrenceId?: string;
+  seriesId?: string;
+  myResponse?: "pending" | "accepted" | "tentative" | "declined";
+  recurrence?: {
+    frequency: "daily" | "weekly" | "monthly" | "yearly";
+    intervalCount: number;
+    weekdays: number[];
+    endKind: "never" | "count" | "until";
+    occurrenceCount?: number | null;
+    untilDate?: string | null;
+  };
   capacity?: number;
   assigned?: number;
   details?: {
@@ -121,6 +132,7 @@ export type CalendarItem = {
     guests?: { name: string; email: string; phone: string }[];
     private?: boolean;
     organizerPersonId?: string;
+    attendees?: { userId: string; name: string; attendance: "organizer" | "required" | "optional"; response: "pending" | "accepted" | "tentative" | "declined" }[];
     caseId?: string;
     responsibility?: string;
     assigneeId?: string | null;
@@ -200,16 +212,30 @@ const localDateTime = z
     (value) => z.iso.date().safeParse(value.slice(0, 10)).success,
     "Choose a valid local date and time.",
   );
+const recurrenceSchema=z.object({
+  frequency:z.enum(["daily","weekly","monthly","yearly"]),
+  intervalCount:z.number().int().min(1).max(99).default(1),
+  weekdays:z.array(z.number().int().min(1).max(7)).max(7).default([]),
+  endKind:z.enum(["never","count","until"]).default("never"),
+  occurrenceCount:z.number().int().min(1).max(1000).optional(),
+  untilDate:z.iso.date().optional(),
+}).refine(v=>v.endKind!=="count"||v.occurrenceCount!==undefined,"Choose the number of occurrences.")
+  .refine(v=>v.endKind!=="until"||v.untilDate!==undefined,"Choose a final date.");
 export const appointmentInput = z.object({
   action: z.literal("appointment.save"),
   id: id.optional(),
   expectedVersion: z.number().int().positive().optional(),
-  organizerPersonId: id,
+  organizerPersonId: id.optional(),
   participantIds: z.array(id).max(100).default([]),
+  attendees:z.array(z.object({userId:id,attendance:z.enum(["required","optional"])})).max(100).optional(),
   title: z.string().trim().min(1).max(160),
   description: z.string().trim().max(3000).default(""),
-  startLocal: localDateTime,
-  endLocal: localDateTime,
+  startLocal: localDateTime.optional(),
+  endLocal: localDateTime.optional(),
+  allDay:z.boolean().default(false),
+  startDate:z.iso.date().optional(),
+  endDate:z.iso.date().optional(),
+  recurrence:z.union([recurrenceSchema,z.null()]).optional(),
   timezone: timezone.default("Asia/Bangkok"),
   location: z.string().trim().max(300).default(""),
   meetingUrl: z
@@ -231,7 +257,8 @@ export const appointmentInput = z.object({
     )
     .max(30)
     .default([]),
-});
+}).refine(v=>v.allDay?Boolean(v.startDate&&v.endDate&&v.endDate>v.startDate):Boolean(v.startLocal&&v.endLocal),
+  "Choose a valid start and end.");
 export const announcementInput = z
   .object({
     action: z.literal("announcement.save"),
@@ -257,6 +284,8 @@ export const calendarCommandSchema = z.union([
     startLocal: localDateTime,
     endLocal: localDateTime,
     timezone,
+    occurrenceId:localDateTime.optional(),
+    scope:z.enum(["single","future","series"]).optional(),
   }),
   z
     .object({
@@ -287,7 +316,14 @@ export const calendarCommandSchema = z.union([
     id,
     expectedVersion: z.number().int().positive(),
     status: z.enum(["cancelled", "completed", "no_show"]),
+    occurrenceId:localDateTime.optional(),
+    scope:z.enum(["single","future","series"]).optional(),
   }),
+  z.object({action:z.literal("appointment.respond"),id,expectedVersion:z.number().int().positive().optional(),
+    response:z.enum(["accepted","tentative","declined"]),occurrenceId:localDateTime.optional(),
+    scope:z.enum(["single","series"]).default("series")}),
+  z.object({action:z.literal("appointment.reminder.set"),id,expectedVersion:z.number().int().positive().optional(),
+    minutes:z.number().int().min(0).max(10080).nullable()}),
   z.object({
     action: z.literal("announcement.status"),
     id,

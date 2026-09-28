@@ -1,7 +1,8 @@
 import { mentionsSchema, textSuggestions } from "./social-text";
 import { retryAgentReply } from "./social-agent";
 import { z } from "zod";
-import { requireWorkContext } from "./authorization";
+import { publicScope, requireWorkContext } from "./authorization";
+import { workspaceBase } from "@/lib/workspace";
 import { runtimeEnv, holdingResources } from "./runtime";
 import { betaBody } from "./beta-http";
 import { ApiError, errorResponse } from "./http";
@@ -12,6 +13,7 @@ import {
   postView,
   publishPost,
   savePostDraft,
+  socialAudienceOptions,
 } from "./social-home";
 import { sourceSnapshot, readablePost } from "./social-source";
 import { createAiDraft, aiRequestSchema } from "./social-ai";
@@ -70,31 +72,36 @@ export function betaHandler(resource = "beta") {
                   ? z.coerce.number().int().min(1).max(20).parse(query.get("limit"))
                   : undefined,
               });
-        else if (path[0] === "meta")
+        else if (path[0] === "meta") {
+          const branches = (
+            await db.prepare(
+              "SELECT id,display_name FROM organization_nodes WHERE kind='branch' AND company_id=? AND status='active' AND (?::text IS NULL OR id=?)",
+            ).bind(actor.companyId, actor.branchId, actor.branchId)
+              .all<{ id: string; display_name: string }>()
+          ).results;
+          const options = await socialAudienceOptions(db, actor);
           data = {
+            handoffContext: { companyId: actor.companyId, userId: actor.userId,
+              assignmentId: actor.assignmentId, base: workspaceBase(publicScope(actor)) },
             people: (await staffPeople(db, actor.companyId)).map((p) => ({
               id: p.user_id,
               name: p.legal_name,
               branchId: p.branch_id,
             })),
-            branches: (
-              await db
-                .prepare(
-                  "SELECT id,display_name FROM organization_nodes WHERE kind='branch' AND company_id=? AND status='active' AND (?::text IS NULL OR id=?)",
-                )
-                .bind(actor.companyId, actor.branchId, actor.branchId)
-                .all()
-            ).results,
+            branches,
+            audiences: options.audiences,
+            projects: options.projects,
             drafts: (
               await db
                 .prepare(
-                  "SELECT id,body,branch_id,version,mentions_json FROM social_post_drafts WHERE author_id=? AND company_id=? AND published_post_id IS NULL ORDER BY updated_at DESC LIMIT 20",
+                  "SELECT id,body,branch_id,department_id,audience_kind,audience_id,participants_json,sources_json,purpose,version,mentions_json,content_json FROM social_post_drafts WHERE author_id=? AND company_id=? AND published_post_id IS NULL ORDER BY updated_at DESC LIMIT 20",
                 )
                 .bind(actor.userId, actor.companyId)
                 .all()
             ).results,
             tasks: await listTasks(db, actor),
           };
+        }
         else if (path[0] === "settings") {
           await requireCompanyAuthority(db, actor, ["holding_owner"]);
           data = {
@@ -231,11 +238,15 @@ export function betaHandler(resource = "beta") {
                   "follow",
                   "report",
                   "hide",
+                  "edit",
+                  "retract",
                 ]),
-                body: z.string().max(2000).optional(),
+                body: z.string().max(3000).optional(),
+                expectedVersion: z.number().int().positive().optional(),
                 active: z.boolean().optional(),
                 mentions: mentionsSchema.optional(),
                 mentionUserIds: z.array(z.string().max(160)).max(10).optional(),
+                parentCommentId: z.string().min(1).max(160).optional(),
               })
               .parse(input),
             key,

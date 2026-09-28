@@ -1,5 +1,70 @@
-import {customerPortalList} from '@/server/customer-portal';
-import {pageError} from '@/server/page-error';
-import {CustomerPortalActions} from '@/components/customer-portal/customer-portal-actions';
-export const dynamic='force-dynamic';
-export default async function Page({params}:{params:Promise<{holdingSlug:string}>}){const {holdingSlug}=await params,data=await customerPortalList(holdingSlug).catch(e=>pageError(e));return <main className="content-stack"><h1>Customer documents</h1><p>Only documents explicitly approved for your verified account are shown. Each view is recorded in the access audit.</p>{data.items.map(r=><section className="card" key={String(r.binding_id)}><h2>{String(r.number)}</h2><p>{String(r.kind)} · {String(r.state)} · Due {String(r.due_date)} · {String(r.currency)}</p><h3>Deliveries</h3>{(Array.isArray(r.fulfillments)?r.fulfillments:[]).map((f:Record<string,unknown>)=><p key={String(f.number)}>{String(f.number)} · recorded {new Date(Number(f.createdAt)).toISOString()}</p>)}<CustomerPortalActions holdingSlug={holdingSlug} bindingId={String(r.binding_id)} bindingVersion={Number(r.binding_version)} actions={Array.isArray(r.actions)?(r.actions as Record<string,unknown>[]):[]}/></section>)}{!data.items.length&&<p>No approved customer documents are available for this account.</p>}</main>;}
+import { CustomerPortalActions } from "@/components/customer-portal/customer-portal-actions";
+import { EmptyState, StatusBadge } from "@/components/ui/primitives";
+import { QuickAccessShelf } from "@/components/quick-access/shelf";
+import rail from "@/components/quick-access/area-rail.module.css";
+import { customerPortalContext, customerPortalProjection } from "@/server/customer-portal";
+import { customerPortalQuickAccess } from "@/server/portal-quick-access";
+import { readQuickAccessPreferences } from "@/server/quick-access-preferences";
+import { holdingBindingBySlug } from "@/server/runtime";
+import { pageError } from "@/server/page-error";
+
+export const dynamic = "force-dynamic";
+
+export default async function Page({ params }: { params: Promise<{ holdingSlug: string }> }) {
+  const { holdingSlug } = await params;
+  const { data, items, preferences } = await (async () => {
+    const binding = await holdingBindingBySlug(holdingSlug);
+    const { write, actor } = await customerPortalContext(holdingSlug);
+    const data = await customerPortalProjection(write, actor);
+    const items = customerPortalQuickAccess(holdingSlug, data.items);
+    const preferences = await readQuickAccessPreferences(actor.userId, "customer_portal", binding.id);
+    return { data, items, preferences };
+  })().catch((error) => pageError(error));
+
+  return (
+    <>
+      <a href="#customer-portal-content" className="skip-link">Skip to documents</a>
+      <main className="content-stack">
+        <header>
+          <h1>Customer documents</h1>
+          <p>Only documents explicitly approved for your verified account are shown. Each view is recorded in the access audit.</p>
+        </header>
+        <div className={rail.layout}>
+        <aside className={rail.rail} aria-label="Quick access">
+          <QuickAccessShelf
+            title="Quick access"
+            items={items}
+            initialPreferences={preferences}
+            defaultIds={items.slice(0, 6).map((item) => item.id)}
+            endpoint={`/api/customer-portal/${encodeURIComponent(holdingSlug)}/quick-access`}
+            requestMode="plain"
+            embedded
+            placement="rail"
+            showAllMode={false}
+          />
+        </aside>
+        <div id="customer-portal-content" tabIndex={-1} className={rail.content}>
+          {data.items.map((record) => (
+            <section className="card" id={`customer-order-${encodeURIComponent(String(record.binding_id))}`} key={String(record.binding_id)}>
+              <h2>{String(record.number)}</h2>
+              <p className="customer-record-meta"><StatusBadge status={String(record.state)} /><span>{String(record.kind)} · Due {String(record.due_date)} · {String(record.currency)}</span></p>
+              <h3>Deliveries</h3>
+              {(Array.isArray(record.fulfillments) ? record.fulfillments : []).map((fulfillment: Record<string, unknown>) => (
+                <p key={String(fulfillment.number)}>{String(fulfillment.number)} · recorded {new Date(Number(fulfillment.createdAt)).toISOString()}</p>
+              ))}
+              <CustomerPortalActions
+                holdingSlug={holdingSlug}
+                bindingId={String(record.binding_id)}
+                bindingVersion={Number(record.binding_version)}
+                actions={Array.isArray(record.actions) ? record.actions as Record<string, unknown>[] : []}
+                sharedFiles={Array.isArray(record.sharedFiles) ? record.sharedFiles as Array<{linkId:string;label:string;previewAvailable:true}> : []}
+              />
+            </section>
+          ))}
+          {!data.items.length && <EmptyState title="No approved documents yet" description="Documents approved for your verified account will appear here." />}
+        </div>
+        </div>
+      </main>
+    </>
+  );
+}

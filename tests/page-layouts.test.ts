@@ -252,6 +252,23 @@ it("keeps detail layouts record independent and legacy links focusable", () => {
     }).some((w) => w.id === "people-explorer"),
   ).toBe(false);
 });
+it("keeps saved commerce layouts after customer and supplier pages move", () => {
+  const context = {
+    workspaceBase: "/holdings/acme",
+    role: "holding_owner",
+    scopeKind: "holding" as const,
+  };
+  for (const kind of ["customer", "supplier"]) {
+    const location = featureLocation(
+      context,
+      "/holdings/acme/commerce",
+      new URLSearchParams(`view=parties&kind=${kind}`),
+    );
+    expect(location.pageKey).toBe("operations-parties");
+    expect(allowedWidgets(location.pageKey, context).length).toBeGreaterThan(0);
+  }
+  expect(allowedWidgets("commerce-orders-detail", context).length).toBeGreaterThan(0);
+});
 it("splits standard People tabs while leaving Beta People navigation unchanged", () => {
   const locate = (context: Parameters<typeof featureLocation>[0], path = "people") =>
     featureLocation(context, `${context.workspaceBase}/${path}`, new URLSearchParams());

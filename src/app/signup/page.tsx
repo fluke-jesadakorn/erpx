@@ -1,24 +1,16 @@
-import betaStyles from "@/components/beta/beta.module.css";
 import { BetaAuthForm } from "@/components/beta/auth-form";
+import { AuthShell } from "@/components/workplace/auth-shell";
 import { runtimeEnv } from "@/server/runtime";
 export const dynamic = "force-dynamic";
 export default async function Signup() {
   const enabled = (await runtimeEnv()).ERPX_PUBLIC_BETA === "true";
   return (
-    <main className={`beta-entry ${betaStyles.surface}`}>
-      <p className="eyebrow">ERPX · Public beta</p>
-      <h1>A shared home for your team’s work</h1>
-      <p>
-        Free during beta. No card required. Joining does not start a paid
-        subscription.
-      </p>
+    <AuthShell eyebrow="EARLY ACCESS" title={enabled ? "Create your account." : "Registration is closed."} description={enabled ? "Join the early-access workspace. No card required." : "New accounts are not open at this time. If you already have access, sign in to continue."}>
       {enabled ? (
         <BetaAuthForm mode="signup" />
       ) : (
-        <p>
-          Registration is not open yet. <a href="/login">Sign in</a>
-        </p>
+        <p><a href="/login">Sign in to your account</a></p>
       )}
-    </main>
+    </AuthShell>
   );
 }

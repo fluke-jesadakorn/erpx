@@ -4,6 +4,8 @@ import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/page-error";
 import { talentDetail } from "@/server/talent";
 import { TalentConsole } from "@/components/modules/talent-console";
+import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
+import { hasPermission } from "@/lib/permissions";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -14,7 +16,8 @@ export default async function Page({
     a = await requireWorkContext(holdingSlug),
     base = workspaceBase(publicScope(a)),
     data = await talentDetail(a, id).catch((e) => pageError(e, holdingSlug)),
-    x = data.application;
+    x = data.application,
+    canReadDocuments = hasPermission(a, "talent.documents.read");
   return (
     <div className="content-stack">
       <Link href={`${base}/talent`}>Talent</Link>
@@ -24,6 +27,58 @@ export default async function Page({
         {String(x.retention_until)}
       </p>
       <TalentConsole base={base} detail={data} />
+      {canReadDocuments && (
+        <RecordDocumentPanel
+          base={base}
+          targetType="talent_candidate"
+          targetId={String(x.candidate_id)}
+          expectedTargetVersion={Number(x.candidate_version)}
+          editable={data.canManageDocuments}
+          title="Candidate documents"
+          purposes={[
+            {
+              key: "cv",
+              label: "CV / résumé",
+              description: "Attach the candidate-provided CV for this retained candidate record.",
+            },
+            {
+              key: "portfolio",
+              label: "Portfolio",
+              description: "Attach candidate portfolio material relevant to this application.",
+            },
+            {
+              key: "work_sample",
+              label: "Work sample",
+              description: "Attach a candidate-provided work sample with recorded consent.",
+            },
+            {
+              key: "background_document",
+              label: "Background document",
+              description: "Attach authorized background or eligibility documents.",
+              visibility:
+                "Restricted to the assigned Talent owner and dedicated Talent document managers.",
+            },
+          ]}
+        />
+      )}
+      {canReadDocuments && data.offer && (
+        <RecordDocumentPanel
+          base={base}
+          targetType="talent_offer"
+          targetId={String(data.offer.id)}
+          expectedTargetVersion={Number(data.offer.version)}
+          editable={data.canManageDocuments}
+          title="Offer documents"
+          purposes={[
+            {
+              key: "offer_document",
+              label: "Offer document",
+              description:
+                "Attach the reviewed or signed offer revision. Candidate acceptance text remains separate workflow evidence.",
+            },
+          ]}
+        />
+      )}
       <section className="card">
         <h2>Application history</h2>
         {data.history.map((h) => (

@@ -11,7 +11,7 @@ type TaskAlertRow = {
   id: string;
   company_id: string;
   title: string;
-  due_at: number;
+  due_at: number | null;
   version: number;
   assignee_user_id: string;
   creator_user_id: string;
@@ -40,7 +40,7 @@ export async function escalateStaffTasks(
            WHERE sd.task_id=t.id AND sd.company_id=t.company_id AND sd.status='active'
              AND sd.starts_at<=? AND sd.expires_at>?
            ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1) d ON TRUE
-         WHERE t.state NOT IN ('completed','cancelled') AND t.due_at<=?
+         WHERE t.state NOT IN ('completed','cancelled') AND t.due_at IS NOT NULL AND t.due_at<=?
            AND ${scheduledFeaturePredicate("t.company_id","operations")}
          ORDER BY t.due_at,t.id
          LIMIT 500`,
@@ -52,7 +52,8 @@ export async function escalateStaffTasks(
   let dueSoon = 0;
   let overdue = 0;
   for (const task of rows) {
-    const isOverdue = Number(task.due_at) < now;
+    if (task.due_at === null) continue;
+    const isOverdue = task.due_at < now;
     const phase = isOverdue ? "overdue" : "due-soon";
     const message = isOverdue
       ? `Task overdue: ${task.title}. Follow up or escalate the owner.`

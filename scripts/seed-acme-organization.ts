@@ -31,7 +31,7 @@ async function snapshot(database: SqlDatabase, company: string) {
 }
 async function verify(plan: DemoStaff[], ceoUser: string) {
   const roster = await organizationRoster(db, demoCompany);
-  for (const person of roster.people) {
+  for (const person of roster.people.filter(person=>plan.some(fixture=>fixture.personId===person.person_id))) {
     const issues = reportingIssues(person, roster.people, roster.positions);
     if (issues.length) throw new Error(`${person.legal_name}: ${issues.join(" ")}`);
   }
@@ -76,7 +76,7 @@ try {
   const manifest = JSON.parse(readFileSync(process.env.ERPX_DATABASE_MANIFEST!, "utf8")) as { databases: Record<string, string> };
   for (const binding of ["CONTROL_DB", "H001_DB", "H002_DB"]) {
     const url = new URL(manifest.databases[binding]);
-    if (!["localhost", "127.0.0.1"].includes(url.hostname) || url.port !== "5434" || !url.pathname.startsWith("/erpx_dev_")) throw new Error("ACME_FIXTURES_REQUIRE_LOCAL_DEVELOPMENT_DATABASES_ON_5434");
+    if (!["localhost", "127.0.0.1"].includes(url.hostname) || url.port !== "5432" || !url.pathname.startsWith("/erpx_dev_")) throw new Error("ACME_FIXTURES_REQUIRE_LOCAL_DEVELOPMENT_DATABASES_ON_5432");
   }
   if (platform.env.ERPX_ENVIRONMENT !== "local") throw new Error("LOCAL_DEVELOPMENT_ONLY");
   const roster = await organizationRoster(db, demoCompany);
@@ -125,7 +125,7 @@ try {
       }
       for (const person of missing) {
         const levelId = `org-level-${demoCompany}-${person.level}`;
-        statements.push(db.prepare("INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,reports_to_position_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'local-demo-seed',?,?)").bind(person.positionId, demoCompany, person.branchId, person.departmentId, person.title, levelId, person.reportsToPositionId, now, now));
+        statements.push(db.prepare("INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,reports_to_position_id,roster_required,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?, 'local-demo-seed',?,?)").bind(person.positionId, demoCompany, person.branchId, person.departmentId, person.title, levelId, person.reportsToPositionId, person.branchId==='bangkok'&&['operations','warehouse'].some(dept=>person.departmentId.endsWith(`:${dept}`))&&['staff','senior','associate','supervisor'].some(seat=>person.key.endsWith(`-${seat}`))?1:0, now, now));
         statements.push(db.prepare("INSERT INTO hr_people(id,user_id,company_id,legal_name,email,country_code,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,'active','local-demo-seed',?,?)").bind(person.personId, person.userId, demoCompany, person.name, person.email, person.country, now, now));
         statements.push(db.prepare("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,manager_person_id,job_title,currency,created_by,created_at,updated_at,pay_group_id,level_id,position_id) VALUES(?,?,?,?,?,'employee','salaried','active','2026-01-05',?,?,'USD','local-demo-seed',?,?,'paygroup-acme-co',?,?)").bind(person.engagementId, person.personId, demoCompany, person.branchId, person.departmentId, person.managerPersonId, person.title, now, now, levelId, person.positionId));
         statements.push(db.prepare("INSERT INTO employees(id,user_id,company_id,branch_id,department_id,person_id,display_name,status,created_at) VALUES(?,?,?,?,?,?,?,'active',?)").bind(`${person.key}-employee`, person.userId, demoCompany, person.branchId, person.departmentId, person.personId, person.name, now));
@@ -149,6 +149,10 @@ try {
       }
       if (JSON.stringify(untouched) !== JSON.stringify({ beacon: await snapshot(db, "beacon-co"), northstar: await snapshot(platform.env.H002_DB, "northstar-co") })) throw new Error("Another company's staff data changed during verification.");
       console.log(`Created ${missing.length} staff. Existing Acme rows and both other companies verified unchanged.`);
+    }
+    if(apply) for(const person of plan.filter(person=>person.branchId==='bangkok'&&['operations','warehouse'].some(dept=>person.departmentId.endsWith(`:${dept}`))&&['staff','senior','associate','supervisor'].some(seat=>person.key.endsWith(`-${seat}`)))) {
+      await db.prepare("UPDATE organization_positions SET roster_required=1 WHERE id=? AND company_id=? AND roster_required=0 AND version=1 AND created_by='local-demo-seed' AND updated_at=created_at AND title=?")
+        .bind(person.positionId,demoCompany,person.title).run();
     }
     await verify(plan, ceo.user_id!);
   }

@@ -7,10 +7,11 @@ import { workspaceBase } from "@/lib/workspace";
 import { publicScope,requireWorkContext } from "@/server/authorization";
 import { canPrepareCounts,countOptions,countsPage } from "@/server/inventory-counts";
 import Link from "next/link";
+import { pageError } from "@/server/page-error";
 export const dynamic="force-dynamic";
 export default async function Counts({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<{q?:string;status?:string;cursor?:string;new?:string}>}){
  const {holdingSlug}=await params,actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor));const search=await searchParams;
- const [page,options]=await Promise.all([countsPage(actor,search),search.new==='1'&&canPrepareCounts(actor)?countOptions(actor):null]);
+ const [page,options]=await Promise.all([countsPage(actor,search).catch(error=>pageError(error,holdingSlug)),search.new==='1'&&canPrepareCounts(actor)?countOptions(actor).catch(error=>pageError(error,holdingSlug)):null]);
  const filtered=page.items;
  return <FeaturePage className="content-stack" data-source="live"><PageHeader eyebrow="Inventory · Finance" title="Physical stock counts" description="Count actual stock, review differences, and post the quantity and value adjustment together." action={<Link className="button secondary" href={`${base}/commerce?view=stock`}>Stock and movements</Link>}/><FeatureTabs/><WidgetGrid pageKey="operations-counts">{canPrepareCounts(actor)&&(options?<FeatureWidget id="operations-counts-stock-count" title="Stock count"><CountEditor base={base} options={options} initialOpen/></FeatureWidget>:<Link className="button" href="?new=1">New stock count</Link>)}
  <form className="business-form"><label>Search stock counts<input name="q" defaultValue={search.q} placeholder="Count, warehouse or reason"/></label><label>Count status<select name="status" defaultValue={search.status??""}><option value="">All statuses</option>{["draft","submitted","rejected","posted","cancelled"].map(s=><option key={s} value={s}>{s}</option>)}</select></label><button className="button secondary">Filter counts</button></form>

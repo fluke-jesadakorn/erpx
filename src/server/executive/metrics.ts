@@ -636,12 +636,11 @@ export async function metricCatalogFor(db: SqlDatabase, a: WorkContext): Promise
       : metric);
   }
   if (process.env.NODE_ENV !== "production") return catalog;
-  const enabled = new Set((await db.prepare(`SELECT module_id FROM company_feature_rollouts
-    WHERE company_id=? AND rollout_state IN ('pilot','available')`).bind(a.companyId).all<{ module_id: string }>()).results.map((row) => row.module_id));
+  const enabled = await (await import('../hospitality-rollout')).enabledProductionModules(db,a.companyId);
   return catalog.map((metric) => {
     const moduleId = specs[metric.id].moduleId;
     if (metric.acceptancePending) return { ...metric, available: false, reason: "Source reconciliation and business acceptance are still pending." };
-    if (enabled.has(moduleId) && ["organization", "identity_access", "people_payroll", "operations", "procurement", "inventory", "finance", "pos", "pms", "collaboration"].includes(moduleId)) return metric;
+    if (enabled.has(moduleId)) return metric;
     return { ...metric, available: false, reason: "This module is outside the approved production pilot or is not enabled for this company." };
   });
 }

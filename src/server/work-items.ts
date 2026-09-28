@@ -14,6 +14,7 @@ import { compareWork, isMyAction, type WorkItem } from "@/lib/work-item";
 
 import { holdingResources } from "./runtime";
 import { employeeRequestWork } from "./employee-requests";
+import { departmentOverrideWork } from "./department-decisions";
 import { ApiError } from "./http";
 
 export type WorkSnapshot = { items: WorkItem[]; unavailableSources: string[] };
@@ -21,7 +22,7 @@ export type WorkSnapshot = { items: WorkItem[]; unavailableSources: string[] };
 export function mergeWorkItems(rows: WorkItem[]) {
   const merged = new Map<string, WorkItem>();
   for (const item of rows) {
-    const key = `${item.type}:${item.id}`,
+    const key = `${item.type}:${item.id}:${item.actionKind === "override" ? "override" : "record"}`,
       old = merged.get(key);
     if (!old) {
       merged.set(key, { ...item, nextAction: item.nextAction ?? item.detail });
@@ -136,6 +137,7 @@ export async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot
         actor,
       ),
   });
+  jobs.push({label:"Department overrides",load:()=>departmentOverrideWork(actor)});
   if (!actor.beta) jobs.push({label:"Retirement clearance",load:async()=>retirementWork((await holdingResources(actor.holdingId)).write,actor)});
   if (!actor.beta) jobs.push({label:"People & IT preparation",load:async()=>peopleLifecycleWork((await holdingResources(actor.holdingId)).write,actor)});
   if (!actor.beta) jobs.push({label:"Organization changes",load:async()=>(await import("./organization-work")).organizationChangeWork((await holdingResources(actor.holdingId)).write,actor)});
@@ -171,8 +173,7 @@ export async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot
   jobs.push({label:"Commercial and financial workflows",load:() => otherFlowWork(actor)});
   if (process.env.NODE_ENV === 'production') {
     const { write } = await holdingResources(actor.holdingId);
-    const enabled = new Set((await write.prepare("SELECT module_id FROM company_feature_rollouts WHERE company_id=? AND rollout_state IN ('pilot','available')")
-      .bind(actor.companyId).all<{module_id:string}>()).results.map((row)=>row.module_id));
+    const enabled = await (await import('./hospitality-rollout')).enabledProductionModules(write,actor.companyId);
     const sources: Record<string,string[]> = {
       Legal:['legal'], Overtime:['people_payroll'], 'Hotel operations':['pms'],
       'Expense claims':['people_payroll'], 'Stock counts':['inventory'], 'Warehouse transfers':['inventory'],

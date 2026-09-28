@@ -145,7 +145,7 @@ export const directoryAction = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("gpo.filter"),
     objectId: id,
-    groupIds: z.array(id).min(1).max(100),
+    groupIds: z.array(id).max(100),
   }),
 ]);
 export type DirectoryAction = z.infer<typeof directoryAction>;

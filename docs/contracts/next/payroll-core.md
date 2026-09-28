@@ -1,6 +1,12 @@
 # Payroll core and controlled corrections
 
-The payroll core is a Company-scoped gross-pay preparation workflow. It snapshots approved compensation, approved time, payroll handoffs and approved payroll-advance repayments with the pay-group proration and overtime policy, then produces a versioned preview. It does not calculate statutory deductions, post a ledger entry or instruct a bank unless a separately validated country adapter is installed.
+The payroll core is a Company-scoped gross-pay preparation workflow. It snapshots approved compensation, approved time, payroll handoffs and approved payroll-advance repayments with the pay-group proration and overtime policy, then produces a versioned preview. It does not calculate Thai statutory deductions: `createPayrollRun` rejects `mode=production` with `PAYROLL_ENGINE_UNAVAILABLE`. Country-pack records alone do not install a calculation adapter.
+
+Each Position may have a versioned monthly pay default with pay group and currency. People and Organization show its amount only to authorized compensation readers. When HR accepts a recommendation for an Engagement without compensation history, the system creates a draft Compensation Revision; a different person must approve it. Existing approved Compensation Revisions remain the sole pay basis for Payroll. A Position default change does not change current pay or rewrite past revisions. Acme development amounts are fictional USD fixtures, not certified compensation or Thai statutory rules.
+
+`POST /api/v1/holdings/{holdingSlug}/people/organization/positions/{positionId}/default-pay` creates the next version using a matching active monthly pay group, amount in minor units, and expected version. People directory and lifecycle placement requests carry explicit `acceptRecommendedPay`; no pay amount is returned to a caller without compensation permission.
+
+Controlled Finance GL posting and payment-batch preparation/approval/export/result confirmation exist for approved core runs (`postPayroll` and payment services in `src/server/people-payroll.ts`). They do not certify Thai gross-to-net or execute a bank transfer. Production rollout still closes payroll processing until the required adapter and acceptance are delivered. The [production plan](../../production-plan.md) requires Thai payroll before the whole hotel release opens; it is no longer deferred from the delivery scope.
 
 ## Review and correction lifecycle
 

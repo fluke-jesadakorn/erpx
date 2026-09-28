@@ -9,6 +9,7 @@ import type { WorkContext } from "@/server/authorization";
 import { holdingResources } from "@/server/runtime";
 import { ApiError } from "@/server/http";
 import { decimalToMinor as parseMinor, minorToDecimal } from "@/lib/finance-money";
+import { prepareAttachmentBinding } from "./attachments/service";
 
 /** Money crossing an API boundary is a decimal string. Storage uses integer minor units. */
 export const moneySchema = z.string().regex(/^-?\d+(\.\d{1,6})?$/, "Use a decimal money amount.");
@@ -119,6 +120,7 @@ export const createPeriodSchema = z.object({
 export const closeProofSchema = z.object({
   proof: z.string().trim().min(1).max(2000),
   expectedVersion: z.number().int().nonnegative().optional(),
+  attachmentSetIds: z.array(z.string().min(1)).max(20).default([]),
 });
 
 type FinanceRow = Record<string, string | number | null>;
@@ -731,12 +733,14 @@ export async function beginClose(actor: WorkContext, periodId: string, id: strin
 }
 
 export async function closePeriod(actor: WorkContext, periodId: string, input: z.infer<typeof closeProofSchema>, id: string) {
+  input = { ...input, attachmentSetIds: input.attachmentSetIds ?? [] };
   actor = requirePermission(actor,"finance.write");
 
   requireFinanceRole(actor, true); const { write } = await resources(actor); const previous = await replayCommand(write,actor,id,"finance.period.close",periodId,input); if (previous) return previous;
   const period = await write.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=?").bind(periodId, actor.companyId).first<FinanceRow>(); if (!period) throw new ApiError(404, "PERIOD_NOT_FOUND", "Accounting period not found."); if (period.state !== "closing") throw new ApiError(409, "INVALID_PERIOD_TRANSITION", "Begin the close before approving it."); if (String(period.close_started_by) === actor.userId) throw new ApiError(409, "CLOSE_APPROVAL_SEPARATION", "A different person must approve the period close."); if (input.expectedVersion !== undefined && input.expectedVersion !== Number(period.close_version)) throw new ApiError(409, "VERSION_CONFLICT", "The close changed. Refresh and review again.");
   const reconciliation=await calculateCloseReconciliations(write,actor,period);if(!reconciliation.ready||reconciliation.reconciliationHash!==period.reconciliation_hash)throw new ApiError(409,"CLOSE_RECONCILIATION_STALE","Ledger, subledger, or bank evidence changed after preparation. Reopen the period and prepare the close again.");
-  const now=Date.now();const version=Number(period.close_version);return executeCommand(write,actor,id,"finance.period.close",input,periodId,version+1,{id:periodId,state:"closed",version:version+1},[
+  const now=Date.now(),version=Number(period.close_version),attachmentBinding=input.attachmentSetIds.length?await prepareAttachmentBinding(write,actor,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:"finance_period",bindingType:"finance_period_close",contexts:[{purposeKey:"close_workpaper",componentKind:"action",componentRef:"close-approval"}]},targetId:periodId,expectedTargetVersion:version,commandId:id,bindingId:`${periodId}:${version+1}`}):null;return executeCommand(write,actor,id,"finance.period.close",input,periodId,version+1,{id:periodId,state:"closed",version:version+1},[
+    ...(attachmentBinding?.guards??[]),
     assertion(write,id,"period","EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='closing' AND close_version=? AND close_started_by!=?)",[periodId,actor.companyId,version,actor.userId]),
     ...refundCloseGuards(write,actor,period,id),
     assertion(write,id,"close-journals","NOT EXISTS(SELECT 1 FROM finance_journals WHERE company_id=? AND period_id=? AND status IN ('draft','in_review'))",[actor.companyId,periodId]),
@@ -746,14 +750,17 @@ export async function closePeriod(actor: WorkContext, periodId: string, input: z
     assertion(write,id,"close-calculations","NOT EXISTS(SELECT 1 FROM finance_calculation_runs WHERE company_id=? AND period_id=? AND status IN ('prepared','reviewed','stale'))",[actor.companyId,periodId]),
     ...reconciliationAssertions(write,actor,period,id,reconciliation.rows),
     write.prepare("UPDATE finance_periods SET state='closed',closed_by=?,closed_at=?,close_version=close_version+1 WHERE id=?").bind(actor.userId,now,periodId),
+    ...(attachmentBinding?.steps??[]),
     write.prepare("INSERT INTO decision_evidence VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(),id,periodId,"finance.period.close",actor.userId,actor.assignmentId,version,await hash(input),now),
   ]);
 }
 
 export async function reopenPeriod(actor: WorkContext, periodId: string, input: z.infer<typeof closeProofSchema>, id: string) {
+  input = { ...input, attachmentSetIds: input.attachmentSetIds ?? [] };
   actor = requirePermission(actor,"finance.write");
 
   requireFinanceRole(actor,true);const {write}=await resources(actor);const previous=await replayCommand(write,actor,id,"finance.period.reopen",periodId,input);if(previous)return previous;
+  if(input.attachmentSetIds.length)throw new ApiError(422,"ATTACHMENT_ACTION_UNSUPPORTED","Close workpapers bind only to the close approval, not to reopening a period.");
   const period=await write.prepare("SELECT * FROM finance_periods WHERE id=? AND company_id=? AND state='closed'").bind(periodId,actor.companyId).first<FinanceRow>();if(!period)throw new ApiError(404,"PERIOD_NOT_CLOSED","Closed period not found.");
   if(period.closed_by===actor.userId)throw new ApiError(409,"CLOSE_APPROVAL_SEPARATION","A different approver must reopen this period.");
   const version=input.expectedVersion??Number(period.close_version);return executeCommand(write,actor,id,"finance.period.reopen",input,periodId,version+1,{id:periodId,state:"open",version:version+1},[
@@ -852,6 +859,7 @@ export const confirmPaymentSchema=z.object({
  bankReference:z.string().trim().min(2).max(160),proof:z.string().trim().min(3).max(1000),
  fxRate:z.string().optional(),fxGainAccountId:z.string().min(1).optional(),fxLossAccountId:z.string().min(1).optional(),
  allocations:z.array(z.object({invoiceId:z.string().min(1),amount:moneySchema})).min(1).max(100),
+ attachmentSetIds:z.array(z.string().min(1)).max(20).default([]),
 });
 
 export async function confirmPayment(actor:WorkContext,paymentId:string,input:z.infer<typeof confirmPaymentSchema>,key:string){
@@ -862,6 +870,7 @@ export async function confirmPayment(actor:WorkContext,paymentId:string,input:z.
  if(payment.kind==="refund")throw new ApiError(422,"REFUND_OWNER_WORKFLOW_REQUIRED","Confirm refunds from their approved refund obligation.");
  if(!payment.party_id||!payment.bank_account)throw new ApiError(422,"PAYMENT_SETUP_REQUIRED","The payment needs a party and bank ledger account.");
  if(samePerson(actor,payment.created_by)||samePerson(actor,payment.approved_by)||!samePerson(actor,payment.released_by))throw new ApiError(403,"INDEPENDENT_PAYER_REQUIRED","The independent payer who released this payment must confirm its bank result.");
+ const attachmentBinding=input.attachmentSetIds.length?await prepareAttachmentBinding(write,actor,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:"finance_payment",bindingType:"finance_payment_confirmation",contexts:[{purposeKey:"payment_proof",componentKind:"action",componentRef:"bank-confirmation"}]},targetId:paymentId,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:`${paymentId}:${input.expectedVersion+1}`}):null;
  const ids=input.allocations.map(item=>item.invoiceId);if(new Set(ids).size!==ids.length)throw new ApiError(422,"DUPLICATE_ALLOCATION","Each invoice may appear once.");
  const amounts=input.allocations.map(item=>decimalToMinor(item.amount));if(amounts.some(amount=>amount<=0)||amounts.reduce((sum,amount)=>sum+amount,0)!==Number(payment.outstanding_minor))throw new ApiError(422,"ALLOCATION_TOTAL_MISMATCH","Allocation amounts must equal the payment amount.");
  const invoices=await write.prepare(`SELECT * FROM finance_invoices WHERE company_id=? AND id IN (${ids.map(()=>"?").join(",")})`).bind(actor.companyId,...ids).all<FinanceRow>();
@@ -884,6 +893,7 @@ export async function confirmPayment(actor:WorkContext,paymentId:string,input:z.
  if(gain||loss){const required=[...(gain?[input.fxGainAccountId!]:[]),...(loss?[input.fxLossAccountId!]:[])],validFx=await write.prepare(`SELECT id FROM finance_accounts WHERE company_id=? AND chart_id=? AND status='active' AND currency=? AND ((id=? AND category='other_income') OR (id=? AND category='other_expense'))`).bind(actor.companyId,bankAccount.chart_id,bankAccount.base_currency,gain?input.fxGainAccountId!:"",loss?input.fxLossAccountId!:"").all();if(validFx.results.length!==new Set(required).size)throw new ApiError(422,"FX_ACCOUNT_INVALID","Realized gain and loss accounts must use the ledger functional currency and matching account category.");}
  const fxJournal=adjustmentLines.length?await prepareJournal(write,actor,{chartId:String(bankAccount.chart_id),periodId:input.periodId,entryDate:String(bank.transaction_date),currency:String(bankAccount.base_currency),memo:`Realized FX for ${payment.payment_number}`,sourceType:"payment_fx",sourceId:paymentId,isOpening:false,lines:adjustmentLines},`${key}-fx`,"posted"):null,now=Date.now();
  return executeCommand(write,actor,key,"finance.payment.confirm",input,paymentId,input.expectedVersion+1,{id:paymentId,status:"settled",version:input.expectedVersion+1,journalId:journal.result.id,fxJournalId:fxJournal?.result.id??null,realizedFx:minorToDecimal(gain-loss),bankTransactionId:bank.id},[
+  ...(attachmentBinding?.guards??[]),
   assertion(write,key,"payment","EXISTS(SELECT 1 FROM finance_payments WHERE id=? AND company_id=? AND version=? AND status='released' AND released_by=? AND created_by!=? AND approved_by!=?)",[paymentId,actor.companyId,input.expectedVersion,actor.userId,actor.userId,actor.userId]),
   assertion(write,key,"bank","EXISTS(SELECT 1 FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? AND t.version=? AND t.match_status IN ('unmatched','proposed') AND s.bank_account=? AND t.currency=? AND t.amount_minor=? AND t.transaction_date>=?)",[bank.id,actor.companyId,input.bankVersion,payment.bank_account,payment.currency,signed,payment.payment_date]),
   ...input.allocations.map((item,index)=>assertion(write,key,`invoice-${index}`,"EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=? AND version=? AND status IN ('posted','partially_paid') AND outstanding_minor>=?)",[item.invoiceId,actor.companyId,byId.get(item.invoiceId)!.version,amounts[index]])),
@@ -893,6 +903,7 @@ export async function confirmPayment(actor:WorkContext,paymentId:string,input:z.
   ...baseAllocations.map(item=>write.prepare("UPDATE finance_invoices SET outstanding_minor=outstanding_minor-?,base_outstanding_minor=base_outstanding_minor-?,status=CASE WHEN outstanding_minor=? THEN 'paid' ELSE 'partially_paid' END,version=version+1,updated_at=? WHERE id=?").bind(item.amount,item.baseInvoice,item.amount,now,item.invoiceId)),
   write.prepare("UPDATE finance_payments SET outstanding_minor=0,status='settled',journal_id=?,fx_rate_micros=?,base_amount_minor=?,fx_journal_id=?,version=version+1,updated_at=? WHERE id=?").bind(journal.result.id,settlementRate,basePayment,fxJournal?.result.id??null,now,paymentId),
   write.prepare("UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=?").bind(paymentId,bank.id),
+  ...(attachmentBinding?.steps??[]),
   write.prepare("INSERT INTO decision_evidence(id,command_id,record_id,action,actor_id,assignment_id,reviewed_version,input_digest,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(),key,paymentId,"finance.payment.confirm",actor.userId,actor.assignmentId,input.expectedVersion,await hash(input),now),
  ]);
 }
@@ -949,14 +960,17 @@ export async function importBankStatement(actor:WorkContext,input:{bankAccount:s
     ...input.rows.map((r,i)=>write.prepare("INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,description,amount_minor,currency) VALUES(?,?,?,?,?,?,?,?)").bind(`bankrow-${key}-${i}`,id,actor.companyId,r.transactionDate,r.externalId,r.description??"",amounts[i],r.currency.toUpperCase())),
   ]);
 }
-export async function reconcileBankTransaction(actor:WorkContext,transactionId:string,input:{expectedVersion:number;matchedType:string;matchedId:string;proof:string},key:string){
+export async function reconcileBankTransaction(actor:WorkContext,transactionId:string,input:{expectedVersion:number;matchedType:string;matchedId:string;proof:string;attachmentSetIds:string[]},key:string){
   actor = requirePermission(actor,"finance.write");
 
   requireFinanceRole(actor,true);const {write}=await resources(actor);if(input.matchedType!=="payment"||!input.proof.trim())throw new ApiError(422,"MATCH_INPUT_INVALID","Select a posted payment and provide review evidence.");
+  const attachmentBinding=input.attachmentSetIds.length?await prepareAttachmentBinding(write,actor,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:"finance_bank_transaction",bindingType:"finance_bank_reconciliation",contexts:[{purposeKey:"reconciliation_workpaper",componentKind:"action",componentRef:"reconcile"}]},targetId:transactionId,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:`${transactionId}:${input.expectedVersion+1}`}):null;
   return executeCommand(write,actor,key,"finance.bank.reconcile",input,transactionId,input.expectedVersion+1,{id:transactionId,status:"matched",version:input.expectedVersion+1},[
+    ...(attachmentBinding?.guards??[]),
     assertion(write,key,"payment-match","EXISTS(SELECT 1 FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id JOIN finance_payments p ON p.id=? JOIN finance_journals j ON j.id=p.journal_id WHERE t.id=? AND t.company_id=? AND p.company_id=t.company_id AND t.version=? AND t.match_status IN ('unmatched','proposed') AND p.currency=t.currency AND p.bank_account=s.bank_account AND p.status IN ('released','settled') AND j.status='posted' AND t.amount_minor=CASE WHEN p.kind='receipt' THEN p.amount_minor ELSE -p.amount_minor END)",[input.matchedId,transactionId,actor.companyId,input.expectedVersion]),
     assertion(write,key,"already-matched","NOT EXISTS(SELECT 1 FROM finance_bank_transactions WHERE company_id=? AND matched_type='payment' AND matched_id=? AND match_status='matched')",[actor.companyId,input.matchedId]),
     write.prepare("UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=?").bind(input.matchedId,transactionId),
+    ...(attachmentBinding?.steps??[]),
     write.prepare("INSERT INTO decision_evidence(id,command_id,record_id,action,actor_id,assignment_id,reviewed_version,input_digest,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(),key,transactionId,"finance.bank.reconcile",actor.userId,actor.assignmentId,input.expectedVersion,await hash(input),Date.now()),
   ]);
 }

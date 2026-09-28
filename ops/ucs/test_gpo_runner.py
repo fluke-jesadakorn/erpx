@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
-from gpo_runner import Runner, Conflict, validate_policy, registry_values, merge_preferences, parse_links, encode_links
+from gpo_runner import Runner, Conflict, APPLY_GUID, validate_policy, registry_values, merge_preferences, parse_links, encode_links, remove_represented_apply_aces
 
 class RunnerTests(unittest.TestCase):
     def test_finite_settings_and_explicit_computers(self):
@@ -31,6 +31,19 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(encode_links(parse_links(value)),value)
         self.assertTrue(parse_links(value)[0]["dn"].startswith("CN={B}"))  # GPMC order 1 is the rightmost LDAP link.
         with self.assertRaises(Conflict): parse_links(value+'junk')
+
+    def test_filter_update_preserves_unrepresented_apply_aces(self):
+        managed='S-1-5-21-100'
+        unmanaged='S-1-5-21-200'
+        managed_ace='(OA;;CR;%s;;%s)' % (APPLY_GUID,managed)
+        unmanaged_ace='(OA;;CR;%s;;%s)' % (APPLY_GUID,unmanaged)
+        read_ace='(A;;RPLCRC;;;%s)' % managed
+        sddl='O:SYG:SYD:'+managed_ace+unmanaged_ace+read_ace
+        updated=remove_represented_apply_aces(sddl,{managed})
+        self.assertNotIn(managed_ace,updated)
+        self.assertIn(unmanaged_ace,updated)
+        self.assertIn(read_ace,updated)
+        self.assertNotIn(unmanaged_ace,remove_represented_apply_aces(sddl))
 
     def test_journal_idempotency_and_uncertain_partial_failure(self):
         class Adapter:

@@ -11,5 +11,6 @@ export const commandSchema = z.object({
   operation: z.string().min(1).max(80),
   propertyId: z.string().max(128).optional(),
   expectedVersion: z.number().int().positive().optional(),
+  attachmentSetIds: z.array(z.string().min(1)).max(20).default([]),
   input: z.unknown(),
 });

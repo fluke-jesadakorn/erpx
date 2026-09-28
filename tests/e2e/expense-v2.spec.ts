@@ -449,7 +449,6 @@ test("IT can save a masked custom provider draft while employees are denied", as
     const body = await response.text();
     expect(body).not.toContain("synthetic-test-key");
     expect(body).not.toContain("credential_json");
-    await snapshots(page, `providers-${info.project.name}`);
     const card = page
       .getByRole("article")
       .filter({ has: page.getByRole("heading", { name, exact: true }) });
@@ -457,9 +456,33 @@ test("IT can save a masked custom provider draft while employees are denied", as
       card.getByRole("button", { name: "Activate", exact: true }),
     ).toBeDisabled();
     await card.getByRole("button", { name: "Edit connection", exact: true }).click();
-    await expect(page.getByLabel("API key", { exact: true })).toHaveValue("");
+    const apiKey = page.getByLabel("API key", { exact: true });
+    const authentication = page.getByRole("combobox", {
+      name: "Authentication",
+      exact: true,
+    });
+    await expect(apiKey).toHaveValue("");
+    await authentication.selectOption("none");
+    await expect(apiKey).toBeDisabled();
+    await expect(page.getByLabel(/Remove saved key/)).toHaveCount(0);
+    await expect(
+      page.getByText(
+        "This draft will use an unauthenticated endpoint and will not retain the saved key.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(page.getByText("No credential stored", { exact: true })).toBeVisible();
+    await authentication.selectOption("bearer");
+    await expect(apiKey).toBeEnabled();
+    await expect(page.getByLabel(/Remove saved key/)).not.toBeChecked();
+    await expect(
+      page.getByText("Leave blank to keep the saved credential.", {
+        exact: true,
+      }),
+    ).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
+    await snapshots(page, `providers-${info.project.name}`);
   } finally {
     await context.close();
     await employee.close();
@@ -479,10 +502,12 @@ test("AI suggestions fill blanks, preserve human edits and require explicit repl
     expect(created.status()).toBe(201);
     const id = (await created.json()).data.id;
     const page = await context.newPage();
+    const aiRequestMethods: string[] = [];
     // The service/worker is tested in integration; this controlled response tests
     // the suggestion-to-form handoff without contacting a real AI provider.
-    await page.route(`**/expenses/${id}/ai`, (route) =>
-      route.fulfill({
+    await page.route(`**/expenses/${id}/ai`, (route) => {
+      aiRequestMethods.push(route.request().method());
+      return route.fulfill({
         json: {
           data: {
             allowed: true,
@@ -520,9 +545,11 @@ test("AI suggestions fill blanks, preserve human edits and require explicit repl
             },
           },
         },
-      }),
-    );
+      });
+    });
     await page.goto(`${base}/expenses/${id}`);
+    await expect.poll(() => aiRequestMethods.length).toBeGreaterThan(0);
+    expect(aiRequestMethods).toEqual(["GET"]);
     await expect(page.getByLabel("Merchant", { exact: true })).toHaveValue(
       "Human merchant",
     );

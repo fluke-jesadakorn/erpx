@@ -1,10 +1,9 @@
-import betaStyles from "@/components/beta/beta.module.css";
 import { BetaAuthForm } from "@/components/beta/auth-form";
+import { AuthShell } from "@/components/workplace/auth-shell";
 export default function Forgot() {
   return (
-    <main className={`beta-entry ${betaStyles.surface}`}>
-      <h1>Reset your password</h1>
+    <AuthShell eyebrow="ACCOUNT RECOVERY" title="Reset your password." description="Enter your work email and we’ll send you a secure link to continue.">
       <BetaAuthForm mode="forgot" />
-    </main>
+    </AuthShell>
   );
 }

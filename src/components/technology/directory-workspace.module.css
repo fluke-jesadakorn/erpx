@@ -1,0 +1,78 @@
+.workspace { gap: 8px; padding: 10px !important; }
+.workspace > details { margin-top: 0; }
+.workspaceHeader {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+.workspaceHeader > label { flex: 0 0 200px; min-width: 0; }
+.workspaceHeader > label select { min-height: 34px; padding: 6px 8px; font-size: 12px; }
+.workspaceHeader > p {
+  flex: 1 1 115px;
+  min-width: 80px;
+  overflow: hidden;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspaceHeader > button { flex: none; min-height: 34px; margin-bottom: 2px; padding: 6px 9px; font-size: 12px; }
+.quickActions {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 1px 0 2px;
+}
+.quickActions button { flex: none; min-height: 34px; padding: 6px 9px; font-size: 12px; white-space: nowrap; }
+.moreActions { position: relative; flex: none; }
+.moreActions > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--card);
+  color: var(--ink);
+  font-size: 12px;
+  list-style: none;
+  cursor: pointer;
+}
+.moreActions > summary::-webkit-details-marker { display: none; }
+.moreActions > summary::after { content: "⌄"; margin-left: 6px; color: var(--muted); }
+.moreMenu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 5px);
+  right: 0;
+  display: grid;
+  width: max-content;
+  min-width: 190px;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .16);
+}
+.moreMenu button {
+  width: 100%;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.moreMenu button:hover { background: var(--brand-soft); color: var(--brand); }
+@media (max-width: 900px) {
+  .workspaceHeader > p { order: 3; flex-basis: 100%; margin: 0; }
+  .quickActions { order: 4; flex-basis: 100%; }
+}
+@media (max-width: 720px) {
+  .workspaceHeader > label { flex: 1 1 170px; }
+}

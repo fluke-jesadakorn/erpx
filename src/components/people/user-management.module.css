@@ -1,6 +1,43 @@
 .workspace {
   min-width: 0;
 }
+.workspace[data-compact-console="true"] .intro {
+  margin: 0 0 12px;
+}
+.workspace[data-compact-console="true"] .intro > div {
+  display: none;
+}
+.workspace[data-compact-console="true"] .topbar {
+  padding-bottom: 8px;
+  margin-bottom: 12px;
+}
+.workspace[data-compact-console="true"] .panes {
+  grid-template-columns: minmax(300px, 1fr) minmax(330px, 1fr);
+  min-height: 390px;
+  height: clamp(390px, calc(100dvh - 420px), 760px);
+}
+.workspace[data-compact-console="true"] .results,
+.workspace[data-compact-console="true"] .detail {
+  max-height: none;
+}
+.workspace[data-compact-console="true"] .results {
+  border-left: 0;
+}
+.targetFilter {
+  display: grid;
+  gap: 5px;
+  margin: 10px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.targetFilter select {
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--ink);
+}
 .topbar,
 .intro,
 .actions,
@@ -383,6 +420,17 @@
   display: none;
 }
 @media (max-width: 1100px) {
+  .workspace[data-compact-console="true"] .panes {
+    grid-template-columns: minmax(240px, 1fr) minmax(270px, 1fr);
+  }
+  .workspace[data-compact-console="true"] .detail {
+    grid-column: auto;
+    border-top: 0;
+    border-left: 1px solid var(--line);
+  }
+  .workspace[data-compact-console="true"] .results {
+    max-height: none;
+  }
   .panes {
     grid-template-columns: minmax(145px, 0.65fr) minmax(180px, 1fr);
   }
@@ -398,6 +446,17 @@
   }
 }
 @media (max-width: 600px) {
+  .workspace[data-compact-console="true"] .panes {
+    height: min(64dvh, 620px);
+    min-height: 420px;
+    overflow: hidden;
+  }
+  .workspace[data-compact-console="true"] .results,
+  .workspace[data-compact-console="true"] .detail {
+    max-height: none;
+    height: 100%;
+    overflow: auto;
+  }
   .panes {
     display: block;
     min-height: 360px;
@@ -440,4 +499,17 @@
   .candidate {
     flex-wrap: wrap;
   }
+}
+@media (min-width: 601px) and (max-width: 760px) {
+  .workspace[data-compact-console="true"] .panes {
+    display: block;
+    height: min(64dvh, 620px);
+    min-height: 420px;
+    overflow: hidden;
+  }
+  .workspace[data-compact-console="true"] .results,
+  .workspace[data-compact-console="true"] .detail { display: none; border: 0; max-height: none; height: 100%; overflow: auto; }
+  .workspace[data-compact-console="true"] .panes[data-screen="results"] .results,
+  .workspace[data-compact-console="true"] .panes[data-screen="detail"] .detail { display: block; }
+  .workspace[data-compact-console="true"] .mobileSteps { display: flex; margin-bottom: 12px; }
 }

@@ -12,14 +12,15 @@ import {assertion,executeCommand,replayCommand} from './commands';
 import {decimalToMinor} from '@/lib/finance-money';
 import {scaledAmount} from '@/lib/commerce-math';
 import {sha256} from './crypto';
+import {prepareAttachmentBinding} from './attachments/service';
 type Row=Record<string,string|number|null>;
 const reason=z.string().trim().min(3).max(2000),version=z.number().int().positive();
 const measuredValue=z.string().regex(/^-?\d{1,12}(\.\d{1,6})?$/);
 export const qualityHoldSchema=z.object({warehouseId:z.string().min(1),productId:z.string().min(1),lotId:z.string().min(1).optional(),expectedStockVersion:version,expectedLotVersion:version.optional(),dueDate:z.iso.date(),reason});
-export const qualityInspectionSchema=z.object({expectedVersion:version,result:z.enum(['pass','fail']).optional(),evidence:reason,measurements:z.array(z.object({metricId:z.string().min(1),value:measuredValue})).max(100).default([]),attachmentIds:z.array(z.string().min(1)).max(10).default([])});
+export const qualityInspectionSchema=z.object({expectedVersion:version,result:z.enum(['pass','fail']).optional(),evidence:reason,measurements:z.array(z.object({metricId:z.string().min(1),value:measuredValue})).max(100).default([]),attachmentIds:z.array(z.string().min(1)).max(10).default([]),attachmentSetIds:z.array(z.string().min(1)).max(10).default([])});
 export const qualityCancellationSchema=z.object({expectedVersion:version,action:z.enum(['request','approve','reject']),reason});
 export const qualityReleaseSchema=z.object({expectedVersion:version,reason});
-export const qualityDispositionSchema=z.object({expectedVersion:version,dispositionDate:z.iso.date(),quantity:z.string().regex(/^\d{1,12}(\.\d{1,3})?$/),reason:z.string().trim().min(5).max(2000)});
+export const qualityDispositionSchema=z.object({expectedVersion:version,attachmentSetIds:z.array(z.string().min(1)).max(10).default([]),dispositionDate:z.iso.date(),quantity:z.string().regex(/^\d{1,12}(\.\d{1,3})?$/),reason:z.string().trim().min(5).max(2000)});
 export const qualitySpecSchema=z.object({productId:z.string().min(1),name:z.string().trim().min(3).max(160),expectedVersion:version.optional(),metrics:z.array(z.object({code:z.string().trim().regex(/^[A-Za-z0-9_-]{1,40}$/),label:z.string().trim().min(2).max(120),unit:z.string().trim().min(1).max(40),minimum:z.union([measuredValue,z.literal('')]),maximum:z.union([measuredValue,z.literal('')])})).min(1).max(50)});
 export const qualitySpecActionSchema=z.object({expectedVersion:version,action:z.enum(['activate','cancel']),reason:z.string().trim().min(5).max(2000)});
 function access(actor:WorkContext){requirePermission(actor,'quality.read');if(actor.departmentId)throw new ApiError(403,'QUALITY_SCOPE_REQUIRED','Use a Company or Branch quality assignment.');}
@@ -102,11 +103,12 @@ export async function inspectQualityHold(actor:WorkContext,id:string,input:z.inf
  if(new Set(input.attachmentIds).size!==input.attachmentIds.length)throw new ApiError(422,'QUALITY_ATTACHMENT_DUPLICATE','Choose each inspection file once.');
  const evidenceFiles=input.attachmentIds.length?(await write.prepare(`SELECT id FROM attachments WHERE owner_type='quality_hold' AND owner_id=? AND purpose='quality_inspection_evidence' AND created_by=? AND revoked_at IS NULL AND id IN (${input.attachmentIds.map(()=>'?').join(',')}) AND NOT EXISTS(SELECT 1 FROM inventory_quality_inspection_attachments ia WHERE ia.attachment_id=attachments.id)`).bind(id,actor.userId,...input.attachmentIds).all<Row>()).results:[];
  if(evidenceFiles.length!==input.attachmentIds.length)throw new ApiError(422,'QUALITY_ATTACHMENT_INVALID','Choose ready, unbound inspection evidence uploaded by the current inspector.');
- const inspectionId=`inspection-${key}`,now=Date.now(),status=result==='pass'?'awaiting_release':'held',steps=[assertion(write,key,'version',"EXISTS(SELECT 1 FROM inventory_quality_holds WHERE id=? AND company_id=? AND version=? AND status IN ('held','awaiting_release'))",[id,actor.companyId,input.expectedVersion])];
+ const inspectionId=`inspection-${key}`,now=Date.now(),status=result==='pass'?'awaiting_release':'held',attachmentBinding=input.attachmentSetIds.length?await prepareAttachmentBinding(write,actor,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:'quality_hold',bindingType:'quality_inspection',contexts:[{purposeKey:'quality_inspection_evidence',componentKind:'action',componentRef:'inspection'}]},targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:inspectionId}):null,steps=[...(attachmentBinding?.guards??[]),assertion(write,key,'version',"EXISTS(SELECT 1 FROM inventory_quality_holds WHERE id=? AND company_id=? AND version=? AND status IN ('held','awaiting_release'))",[id,actor.companyId,input.expectedVersion])];
  if(h.spec_id)steps.push(assertion(write,key,'spec-snapshot',"EXISTS(SELECT 1 FROM inventory_quality_specs WHERE id=? AND version=? AND status IN ('active','superseded'))",[h.spec_id,h.spec_version]));
  steps.push(write.prepare('INSERT INTO inventory_quality_inspections(id,hold_id,reviewed_version,result,evidence,inspected_by,created_at,spec_id,spec_version) VALUES(?,?,?,?,?,?,?,?,?)').bind(inspectionId,id,input.expectedVersion,result,input.evidence,actor.userId,now,h.spec_id??null,h.spec_version??null));
  input.attachmentIds.forEach((attachmentId,index)=>steps.push(write.prepare('INSERT INTO inventory_quality_inspection_attachments(inspection_id,attachment_id,ordinal) VALUES(?,?,?)').bind(inspectionId,attachmentId,index)));
  metrics.forEach((metric,index)=>{const value=provided.get(String(metric.id))!,passed=(metric.minimum_value===null||Number(value)>=Number(metric.minimum_value))&&(metric.maximum_value===null||Number(value)<=Number(metric.maximum_value));steps.push(write.prepare('INSERT INTO inventory_quality_measurements(id,inspection_id,metric_id,code,label,unit,minimum_value,maximum_value,measured_value,passed,ordinal) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(`${inspectionId}-metric-${index}`,inspectionId,metric.id,metric.code,metric.label,metric.unit,metric.minimum_value,metric.maximum_value,value,passed?1:0,metric.ordinal));});
+ if(attachmentBinding)steps.push(...attachmentBinding.steps);
  steps.push(write.prepare('UPDATE inventory_quality_holds SET status=?,last_result=?,last_inspector=?,version=version+1,updated_at=? WHERE id=?').bind(status,result,actor.userId,now,id),notify(write,key,id));
  return executeCommand(write,actor,key,operation,input,id,input.expectedVersion+1,{id,status,result,version:input.expectedVersion+1},steps,{companyId:actor.companyId,branchId:String(h.branch_id),departmentId:null});
 }
@@ -132,7 +134,9 @@ export async function createQualityScrapDisposition(actor:WorkContext,id:string,
  const scrapValue=target?scaledAmount(Number(target.value_minor),quantity,Number(target.quantity_milli)):scaledAmount(Number(stock.value_minor),quantity,Number(stock.quantity_milli));
  const countedQuantity=Number(stock.quantity_milli)-quantity,countedValue=Number(stock.value_minor)-scrapValue;
  const countId=`quality-scrap-${key}`,lineId=`${countId}-0`,now=Date.now(),number=`QSCRAP-${(await sha256(countId)).slice(0,14).toUpperCase()}`;
+ const attachmentBinding=input.attachmentSetIds.length?await prepareAttachmentBinding(write,actor,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:'quality_hold',bindingType:'quality_disposition',contexts:[{purposeKey:'disposition_evidence',componentKind:'action',componentRef:'disposition'}]},targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:countId}):null;
  const steps=[
+  ...(attachmentBinding?.guards??[]),
   assertion(write,key,'hold-version',"EXISTS(SELECT 1 FROM inventory_quality_holds WHERE id=? AND company_id=? AND version=? AND status='held' AND last_result='fail')",[id,actor.companyId,input.expectedVersion]),
   assertion(write,key,'stock-version','EXISTS(SELECT 1 FROM commerce_stock WHERE warehouse_id=? AND product_id=? AND version=? AND quantity_milli=? AND value_minor=?)',[h.warehouse_id,h.product_id,stock.version,stock.quantity_milli,stock.value_minor]),
   assertion(write,key,'movement-date','NOT EXISTS(SELECT 1 FROM inventory_ledger WHERE warehouse_id=? AND product_id=? AND movement_date>?)',[h.warehouse_id,h.product_id,input.dispositionDate]),
@@ -144,6 +148,7 @@ export async function createQualityScrapDisposition(actor:WorkContext,id:string,
   steps.push(assertion(write,key,`lot-${index}`,'EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=? AND version=? AND quantity_milli=? AND value_minor=?)',[lot.id,h.warehouse_id,lot.balance_version,lot.quantity_milli,lot.value_minor]));
   steps.push(write.prepare('INSERT INTO inventory_count_lot_lines(id,count_line_id,source_lot_id,result_lot_id,tracking_mode,lot_code,serial_number,manufactured_date,expiry_date,snapshot_quantity_milli,snapshot_value_minor,snapshot_version,counted_quantity_milli,counted_value_minor,unit_cost_minor) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)').bind(`${lineId}-lot-${index}`,lineId,lot.id,lot.id,lot.tracking_mode,lot.lot_code,lot.serial_number,lot.manufactured_date,lot.expiry_date,lot.quantity_milli,lot.value_minor,lot.balance_version,Number(lot.quantity_milli)-reduce,Number(lot.value_minor)-lotValue));
  }
+ if(attachmentBinding)steps.push(...attachmentBinding.steps);
  steps.push(
   write.prepare("UPDATE inventory_counts SET status='submitted' WHERE id=?").bind(countId),
   write.prepare("UPDATE inventory_quality_holds SET status='disposition_pending',disposition_kind='scrap',disposition_reason=?,disposition_requested_by=?,disposition_count_id=?,disposition_quantity_milli=?,version=version+1,updated_at=? WHERE id=?").bind(input.reason,actor.userId,countId,quantity,now,id),

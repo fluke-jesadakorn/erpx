@@ -6,6 +6,7 @@ import { accountKeys,saleAmounts,portion,recipeQuantities,formatPosMoney,busines
 import { defaultConfig,pmsAccountKeys } from '../src/lib/pms';
 import { drainPos,posStripeWebhook,verifyPosStripeSignature } from '../src/server/pos-stripe';
 import type { WorkContext } from '../src/server/authorization';
+import { attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet } from './helpers/attachment-v2';
 vi.mock('../src/server/runtime',async()=>{const {env}=await import('./runtime-env');return {runtimeEnv:async()=>env,holdingResources:async()=>({write:env.H001_DB})};});
 const db=env.H001_DB;
 afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();});
@@ -21,7 +22,7 @@ async function add(sale:string,product='tea',qty=1000){await change('sale.add',s
 async function pay(sale:string,amount=10700){await change('payment.create',sale,{method:'cash',amountMinor:amount,tenderedMinor:amount,reference:''});}
 async function kitchen(sale:string,action:string){const f=(await one(db,'SELECT f.* FROM pos_fulfillments f JOIN pos_lines l ON l.fulfillment_id=f.id WHERE l.sale_id=?',sale))!;return command(`kitchen.${action}`,{id:f.id,expectedVersion:f.version,reason:'customer changed order'});}
 async function clearPosSetup(){await run(db,'DELETE FROM pos_shifts');await run(db,'DELETE FROM pos_tables');await run(db,'DELETE FROM pos_registers');await run(db,'DELETE FROM pos_settings');}
-beforeAll(async()=>{await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS)]);},120000);
+beforeAll(async()=>{await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS)]);enableAttachmentV2ForTest();},120000);
 beforeEach(async()=>{
  await db.exec(`TRUNCATE hospitality_tax_documents,company_feature_rollouts,pms_sources,pms_postings,pms_records,pms_properties,pos_receipts,pos_audit,pos_jobs,pos_stripe_events,pos_settlements,pos_oauth_states,pos_connections,pos_connection_history,pos_cash_movements,pos_refund_payments,pos_refunds,pos_payments,pos_lines,pos_reservations,pos_stock_moves,pos_fulfillments,pos_sales,pos_tables,pos_shifts,pos_registers,pos_catalog,pos_settings,pos_postings,finance_bank_transactions,finance_bank_statements,finance_allocations,finance_invoices,finance_payments,finance_journal_lines,finance_journals,finance_parties,commerce_stock,commerce_products,commerce_warehouses,commerce_settings,finance_accounts,finance_periods,finance_charts,assignments,command_assertions CASCADE;
  INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES('pos-company','company','pos-company','POS test','pos-company') ON CONFLICT DO NOTHING;
@@ -399,11 +400,27 @@ describe('POS committed business flows',()=>{
   expect(await one(db,'SELECT COUNT(*) n FROM finance_allocations')).toEqual({n:1});
   await expect(command('sale.complete',{...input,expectedVersion:99},actor,'pos-complete-replay')).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
  });
+ it('binds void evidence atomically and rejects a stale POS sale set',async()=>{
+  const sale=await createSale();await add(sale);
+  const original=await one(db,'SELECT version FROM pos_sales WHERE id=?',sale);
+  const stale=await seedAttachmentSet(db,actor,{targetType:'pos_sale',targetId:sale,componentKind:'action',componentRef:'void',purposeKey:'void_evidence',expectedTargetVersion:Number(original!.version)});
+  await change('sale.hold',sale);
+  const held=await one(db,'SELECT version,state FROM pos_sales WHERE id=?',sale);
+  await expect(command('sale.cancel',{id:sale,expectedVersion:Number(held!.version),attachmentSetIds:[stale.setId]})).rejects.toMatchObject({status:409,code:'ATTACHMENT_SET_STALE'});
+  expect(await one(db,'SELECT state FROM pos_sales WHERE id=?',sale)).toEqual({state:'held'});
+  expect(await attachmentBindingState(db,stale.setId)).toMatchObject({set_state:'draft',link_state:'draft'});
+  const evidence=await seedAttachmentSet(db,actor,{targetType:'pos_sale',targetId:sale,componentKind:'action',componentRef:'void',purposeKey:'void_evidence',expectedTargetVersion:Number(held!.version)});
+  await command('sale.cancel',{id:sale,expectedVersion:Number(held!.version),attachmentSetIds:[evidence.setId]});
+  expect(await one(db,'SELECT state FROM pos_sales WHERE id=?',sale)).toEqual({state:'cancelled'});
+  expect(await attachmentBindingState(db,evidence.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'pos_void'});
+ });
  it('split tender never overpays and closing a shift does not repost sales',async()=>{
   const sale=await createSale();await add(sale);await pay(sale,5000);await change('payment.create',sale,{method:'edc',amountMinor:5700,tenderedMinor:5700,reference:'EDC-123'});await change('sale.complete',sale);
   const before=await one(db,'SELECT COUNT(*) n FROM finance_journals');await command('shift.close',{id:'shift-retail',expectedVersion:1,countedMinor:15000});expect(await one(db,'SELECT COUNT(*) n FROM finance_journals')).toEqual(before);
   await expect(command('shift.review',{id:'shift-retail',expectedVersion:2,reason:'count matches'})).rejects.toMatchObject({code:'POS_INDEPENDENT_REVIEW'});
-  await command('shift.review',{id:'shift-retail',expectedVersion:2,reason:'count matches'},manager);
+  const variance=await seedAttachmentSet(db,manager,{targetType:'pos_shift',targetId:'shift-retail',componentKind:'action',componentRef:'variance-review',purposeKey:'cash_variance',expectedTargetVersion:2});
+  await command('shift.review',{id:'shift-retail',expectedVersion:2,reason:'count matches',attachmentSetIds:[variance.setId]},manager);
+  expect(await attachmentBindingState(db,variance.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'pos_cash_variance_review'});
  });
  it('serializes two tills reserving the final unit and guards other inventory writers',async()=>{
   await run(db,"UPDATE commerce_stock SET quantity_milli=1000,value_minor=3000 WHERE product_id='tea'");const a=await createSale(),b=await createSale();await add(a);await add(b);
@@ -456,7 +473,9 @@ describe('POS committed business flows',()=>{
   const sale=await createSale();await add(sale,'tea',2000);await pay(sale,21400);await change('sale.complete',sale);const line=(await one(db,'SELECT * FROM pos_lines WHERE sale_id=?',sale))!;
   const refund=await change('refund.request',sale,{reason:'one damaged package',payoutShiftId:'shift-retail',lines:[{lineId:line.id,quantityMilli:1000,restock:true}]});
   await expect(command('refund.approve',{id:refund.id,expectedVersion:1,reason:'cash returned'})).rejects.toMatchObject({code:'POS_INDEPENDENT_REVIEW'});
-  await command('refund.approve',{id:refund.id,expectedVersion:1,reason:'cash returned'},manager);
+  const evidence=await seedAttachmentSet(db,manager,{targetType:'pos_refund',targetId:String(refund.id),componentKind:'action',componentRef:'refund-decision',purposeKey:'refund_evidence',expectedTargetVersion:1});
+  await command('refund.approve',{id:refund.id,expectedVersion:1,reason:'cash returned',attachmentSetIds:[evidence.setId]},manager);
+  expect(await attachmentBindingState(db,evidence.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'pos_refund_decision'});
   expect(await one(db,"SELECT quantity_milli,value_minor FROM commerce_stock WHERE product_id='tea'")).toEqual({quantity_milli:9000,value_minor:27000});
   expect(await one(db,'SELECT state FROM pos_refunds WHERE id=?',refund.id)).toEqual({state:'completed'});
   await expect(change('refund.request',sale,{reason:'too many',lines:[{lineId:line.id,quantityMilli:2000,restock:true}]})).rejects.toMatchObject({code:'POS_REFUND_QUANTITY'});

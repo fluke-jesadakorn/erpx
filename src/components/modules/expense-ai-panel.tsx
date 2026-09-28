@@ -50,8 +50,7 @@ export function ExpenseAiPanel({
     [error, setError] = useState(""),
     [pending, setPending] = useState(false),
     [progress, setProgress] = useState("");
-  const attempted = useRef(""),
-    filled = useRef(""),
+  const filled = useRef(""),
     key = useRef<{ body: string; id: string } | null>(null),
     preparing = useRef(false);
   const path = `/api/v1${base}/expenses/${expenseId}/ai`,
@@ -125,6 +124,7 @@ export function ExpenseAiPanel({
           expectedVersion: current.sourceVersion,
           paymentId,
           retry,
+          contentAccessConsent: true,
         });
         if (key.current?.body !== body)
           key.current = { body, id: crypto.randomUUID() };
@@ -159,19 +159,7 @@ export function ExpenseAiPanel({
     let stopped = false;
     async function load() {
       try {
-        const current = await refresh();
-        if (stopped) return;
-        const fingerprint = `${version}:${current.evidenceDigest}`;
-        if (
-          current.allowed &&
-          !current.unavailable &&
-          current.hasEvidence &&
-          !current.proposal &&
-          attempted.current !== fingerprint
-        ) {
-          attempted.current = fingerprint;
-          await prepare(current);
-        }
+        await refresh();
       } catch (error) {
         if (!stopped)
           setError(
@@ -183,7 +171,7 @@ export function ExpenseAiPanel({
     return () => {
       stopped = true;
     };
-  }, [refresh, prepare, version, evidenceKey]);
+  }, [refresh, version, evidenceKey]);
   useEffect(() => {
     if (
       !status?.proposal ||
@@ -247,7 +235,7 @@ export function ExpenseAiPanel({
   return (
     <section className={compact ? styles.aiExtract : "card"} aria-label="Receipt AI extraction" aria-busy={running}>
       <div className={styles.aiExtractHeader}>
-        <div><h2><Sparkles size={18} /> Fill from receipt</h2><p>Read attached receipts and fill empty fields for review.</p></div>
+        <div><h2><Sparkles size={18} /> Fill from receipt</h2><p>Only after you choose AI extract, send the attached receipt to the configured AI provider and fill empty fields for review.</p></div>
         <button type="button" className="button" disabled={running || !!status && (!status.allowed || !status.hasEvidence || !!status.unavailable)} onClick={() => void extract()}>
           {running ? <LoaderCircle size={16} className={styles.aiSpinner} /> : <Sparkles size={16} />}
           {running ? "Extracting…" : "AI extract"}
@@ -267,7 +255,7 @@ export function ExpenseAiPanel({
       {result && <p role="status">AI has prepared the receipt details. Available fields are filled for review; your own edits are preserved.</p>}
       {progress && <p role="status">{progress}</p>}
       {!status?.hasEvidence && (
-        <p>Attach your receipt to prepare suggestions automatically.</p>
+        <p>Attach your receipt, then choose AI extract if you want to send its contents to the configured AI provider.</p>
       )}
       {status?.proposal &&
         ["queued", "running"].includes(status.proposal.state) && (

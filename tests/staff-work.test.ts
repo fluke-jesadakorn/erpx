@@ -61,6 +61,7 @@ import {
 import { executeCommand } from "../src/server/commands";
 import { administrationAccess } from "../src/server/administration";
 import type { WorkContext } from "../src/server/authorization";
+import { attachmentBindingState, enableAttachmentV2ForTest, seedAttachmentSet } from "./helpers/attachment-v2";
 vi.mock("../src/server/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
 }));
@@ -208,6 +209,7 @@ async function action(
 }
 
 beforeAll(async () => {
+  enableAttachmentV2ForTest();
   await applyMigrations(
     db,
     (env as typeof env & { STAFF_TEST_MIGRATIONS: TestMigration[] })
@@ -411,10 +413,8 @@ describe("Staff request routing and approval transactions", () => {
       .bind(`person-${requester.userId}`)
       .run();
     const id = await leave();
-    await expect(submit(id)).rejects.toMatchObject({
-      code: "APPROVAL_ROUTE_BLOCKED",
-    });
-    expect((await getLeave("h001", id, requester)).state).toBe("draft");
+    await submit(id);
+    expect((await getLeave("h001", id, requester)).state).toBe("pending_approval");
     await setDepartmentHead(
       db,
       owner,
@@ -727,6 +727,61 @@ describe("Staff request routing and approval transactions", () => {
   });
 });
 describe("Projects, task phases and evidence boundaries", () => {
+  it("creates an ordinary task without a deadline or reviewers and lets the assignee finish it directly", async () => {
+    const input = taskSchema.parse({
+      title: "Prepare meeting room",
+      assigneeUserId: worker.userId,
+    });
+    expect(input.dueAt).toBeNull();
+    const created = await saveTask(db, requester, null, input, key());
+    expect(created).toMatchObject({ state: "ready", version: 1 });
+    const record = await getTask(db, worker, String(created.id));
+    expect(record.due_at).toBeNull();
+    expect((await taskDetail(db, worker, record.id)).permittedActions).toContain("complete");
+    await transitionTask(db, worker, record.id, {
+      action: "complete", expectedVersion: record.version, note: "",
+    }, key());
+    expect((await getTask(db, worker, record.id)).state).toBe("completed");
+    const approvals = await db.prepare("SELECT COUNT(*)::int count FROM approval_instances WHERE record_type='task' AND record_id=?")
+      .bind(record.id).first<{ count: number }>();
+    expect(approvals?.count).toBe(0);
+  });
+  it("binds clean task evidence in the same completion transaction", async () => {
+    const created=await saveTask(db,requester,null,taskSchema.parse({title:"Document completed site check",assigneeUserId:worker.userId}),key());
+    const evidence=await seedAttachmentSet(db,worker,{targetType:"staff_task",targetId:String(created.id),purposeKey:"task_evidence",componentKind:"action",componentRef:"task:ready",expectedTargetVersion:1});
+    const command=key();
+    await transitionTask(db,worker,String(created.id),{action:"complete",expectedVersion:1,note:"Site check completed with attached evidence",attachmentSetIds:[evidence.setId]},command);
+    expect(await attachmentBindingState(db,evidence.setId)).toMatchObject({set_state:"bound",link_state:"bound",binding_type:"task_action",binding_id:`${created.id}:complete:2`});
+    expect(await getTask(db,worker,String(created.id))).toMatchObject({state:"completed",version:2});
+  });
+  it("updates an ordinary task without introducing a review cycle", async () => {
+    const created = await saveTask(db, requester, null, taskSchema.parse({
+      title: "Prepare display", assigneeUserId: worker.userId,
+    }), key());
+    const revised = await saveTask(db, requester, String(created.id), taskSchema.parse({
+      title: "Prepare entrance display", assigneeUserId: worker.userId,
+      dueAt: "2026-10-02T02:00:00Z", expectedVersion: 1,
+    }), key(), true);
+    expect(revised).toMatchObject({ state: "ready", version: 2 });
+    const record = await getTask(db, worker, String(created.id));
+    expect(record.due_at).toBe(Date.parse("2026-10-02T02:00:00Z"));
+    expect(record.revision).toBe(2);
+  });
+  it("keeps approval and due date requirements on reviewed tasks and routine templates", async () => {
+    expect(taskSchema.safeParse({
+      title: "Review delivery", assigneeUserId: worker.userId,
+      completionApprovers: [head.userId],
+    }).success).toBe(false);
+    expect(templateSchema.safeParse({
+      title: "Weekly review", assigneeUserId: worker.userId,
+    }).success).toBe(false);
+    const id = await task();
+    const row = await getTask(db, requester, id);
+    await expect(saveTask(db, requester, id, taskSchema.parse({
+      title: "Remove review", assigneeUserId: worker.userId,
+      expectedVersion: row.version,
+    }), key())).rejects.toMatchObject({ code: "TASK_REVIEW_REQUIRED" });
+  });
   it.each(["before", "after", "both"] as const)(
     "runs %s approval with cross-department staff and denies unrelated readers",
     async (mode) => {

@@ -9,7 +9,7 @@ test("workspace header keeps context, navigation and role actions usable across 
   const credentials=JSON.parse(await readFile(resolve(`.runtime/browser/${run}/credentials.json`),"utf8")) as {password:string;users:{email:string;role:string;roles?:string[]}[]};
   const user=credentials.users.find(u=>u.roles?.includes("hr_admin"));
   expect(user).toBeTruthy();
-  const headers={Origin:"http://127.0.0.1:3102"};
+  const headers={Origin:(process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102")};
   const login=await context.request.post("/api/auth/sign-in/email",{headers,data:{email:user!.email,password:credentials.password}});
   expect(login.ok(),await login.text()).toBe(true);
   const activeEndpoint="/api/v1/holdings/simulation/assignments/active";
@@ -41,7 +41,7 @@ test("workspace header keeps context, navigation and role actions usable across 
     });
   }
   for(const theme of ["light","dark"]){
-    await context.addCookies([{name:"erpx_appearance",value:theme,url:"http://127.0.0.1:3102"}]);
+    await context.addCookies([{name:"erpx_appearance",value:theme,url:(process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102")}]);
     await page.goto(path);await ready();
     await expect(page.locator("html")).toHaveAttribute("data-theme",theme);
     for(const width of [320,393,650,651,768,1000,1001,1100,1440]){

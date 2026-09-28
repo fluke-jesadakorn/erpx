@@ -19,7 +19,9 @@ export function buildWorkCards(
   ]);
   return workCardCatalog.flatMap((card) => {
     const matches = items.filter((i) =>
-      card.type
+      card.id === "shifts"
+        ? false
+        : card.type
         ? i.type === card.type
         : card.id === "approvals"
           ? i.queue === "todo" && i.relationships?.includes("approval")
@@ -32,11 +34,13 @@ export function buildWorkCards(
           (card.id === "tasks" && c.kind === "conversation"),
       ) ?? null;
     const visible =
-      card.id === "team"
+      card.id === "shifts"
+        ? !!capabilities.rosterAccess
+        : card.id === "team"
         ? capabilities.teamQueue
         : !!create || matches.length > 0;
     if (!visible) return [];
-    const incomplete = card.sources.some((s) => unavailable.has(s));
+    const incomplete = card.id !== "shifts" && card.sources.some((s) => unavailable.has(s));
     const query = new URLSearchParams(
       card.type
         ? { type: card.type, queue: "all" }
@@ -51,7 +55,7 @@ export function buildWorkCards(
         title: card.title,
         icon: card.id,
         href:
-          ["leave","overtime"].includes(card.id)
+          ["shifts","leave","overtime"].includes(card.id)
             ? selfServiceHref(base,card.id)!
             : `${base}/work?${query}#work-results`,
         create,

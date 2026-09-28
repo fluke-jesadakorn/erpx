@@ -17,11 +17,17 @@ import { z } from "zod";
 import { requireBrandManagement } from "@/server/branding";
 import { qualityEvidenceGuard } from "@/server/quality";
 import { deliveryEvidenceGuard } from "@/server/commerce-delivery-evidence";
+import { attachmentsV2ReadOnly } from "@/server/attachments/feature";
+import { attachmentPolicy, authorizeAttachmentTarget } from "@/server/attachments/policy";
+import { createAttachmentSet, reserveAttachmentFile } from "@/server/attachments/service";
+import { legacyAttachmentPolicy } from "@/server/attachments/legacy-policy";
 
 const allowedTypes = [
   "image/jpeg",
   "image/png",
   "image/webp",
+  "image/heic",
+  "image/heif",
   "application/pdf",
   "text/csv",
 ] as const;
@@ -74,6 +80,28 @@ export async function POST(
         "VALIDATION_FAILED",
         parsed.error.issues[0]?.message ?? "Invalid upload.",
       );
+    if (!attachmentsV2ReadOnly()) {
+      const commandKey=request.headers.get("Idempotency-Key")??"";
+      if(!/^[a-zA-Z0-9:_.-]{8,180}$/.test(commandKey))throw new ApiError(422,"COMMAND_KEY_REQUIRED","A valid Idempotency-Key is required.");
+      const mapped=legacyAttachmentPolicy(parsed.data.ownerType,parsed.data.purpose);
+      if(!mapped)throw new ApiError(422,"ATTACHMENT_PURPOSE_UNSUPPORTED","This legacy file purpose is not registered. Use an explicit attachment set and purpose.");
+      const {write}=await holdingResources(actor.holdingId),policy=attachmentPolicy(parsed.data.ownerType,mapped.purposeKey,mapped.componentKind),scope=await authorizeAttachmentTarget(write,actor,policy,parsed.data.ownerId,"write");
+      const expectedTargetVersion=parsed.data.expectedVersion??scope.version;
+      const dynamicTaskState=mapped.componentRef===null
+        ? await write.prepare("SELECT state FROM staff_tasks WHERE id=? AND company_id=?").bind(parsed.data.ownerId,actor.companyId).first<{state:string}>()
+        : null;
+      const componentRef=mapped.componentRef??(dynamicTaskState?`task:${dynamicTaskState.state}`:null);
+      if(!componentRef)throw new ApiError(422,"ATTACHMENT_CONTEXT_UNSUPPORTED","This legacy file owner has no active domain binding context.");
+      const set=await createAttachmentSet(write,actor,{targetType:parsed.data.ownerType,targetId:parsed.data.ownerId,componentKind:mapped.componentKind,componentRef,purposeKey:mapped.purposeKey,expectedTargetVersion},`${commandKey}:set`,{compatibilityAdapter:true});
+      const reserved=await reserveAttachmentFile(write,actor,set.id,{filename:parsed.data.filename,mediaType:parsed.data.mediaType,bytes:parsed.data.bytes},`${commandKey}:file`,{compatibilityAdapter:true});
+      return Response.json({data:{
+        id:reserved.uploadIntentId,
+        ...reserved,
+        attachmentSetId:set.id,
+        expectedTargetVersion,
+      }},{status:201});
+    }
+    if(attachmentsV2ReadOnly())throw new ApiError(503,"ATTACHMENTS_READ_ONLY","Attachment intake is disabled during rollback. Existing clean bound evidence remains readable.");
     const requestSnapshot = parsed.data.ownerType === "employee_request" ? await serviceAuthoritySnapshot((await holdingResources(actor.holdingId)).write, actor.companyId) : null;
     if (parsed.data.ownerType === "holding_brand" || parsed.data.ownerType === "branch_brand" || parsed.data.ownerType === "company_storefront_brand") {
       if (!(["image/png", "image/webp"] as string[]).includes(parsed.data.mediaType))

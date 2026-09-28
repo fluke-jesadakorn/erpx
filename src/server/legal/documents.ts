@@ -15,6 +15,15 @@ import type { DocumentVersion } from "@/lib/legal/model";
 import { access, guards, event, fail } from "./access";
 import { executeCommand, replayCommand } from "../commands";
 import { hash } from "./service";
+import { attachmentsV2ReadOnly } from "../attachments/feature";
+import {
+  attachmentContent,
+  completeAttachmentUpload,
+  createAttachmentSet,
+  prepareAttachmentBinding,
+  reserveAttachmentFile,
+  scanAttachmentNow,
+} from "../attachments/service";
 const exec = promisify(execFile);
 export async function uploadDocument(
   db: SqlDatabase,
@@ -61,6 +70,128 @@ export async function uploadDocument(
   if (prior) return prior;
   if (r.version !== version)
     fail("The record changed. Refresh first.", "LEGAL_VERSION_CONFLICT", 409);
+  if(attachmentsV2ReadOnly())fail("Attachment intake is disabled during rollback.","ATTACHMENTS_READ_ONLY",503);
+  if (!attachmentsV2ReadOnly()) {
+    const set = await createAttachmentSet(
+      db,
+      a,
+      {
+        targetType: "legal_item",
+        targetId: id,
+        componentKind: "record",
+        componentRef: key,
+        purposeKey: "legal_document",
+        expectedTargetVersion: version,
+      },
+      `${key}:set`,
+      { compatibilityAdapter: true },
+    );
+    const reserved = await reserveAttachmentFile(
+      db,
+      a,
+      set.id,
+      { filename: name, mediaType: type, bytes: bytes.byteLength },
+      `${key}:file`,
+      { compatibilityAdapter: true },
+    );
+    const uploaded = await completeAttachmentUpload(
+      db,
+      files,
+      a,
+      reserved.uploadIntentId,
+      Uint8Array.from(bytes).buffer,
+      { compatibilityAdapter: true },
+    );
+    const sourceState = await scanAttachmentNow(db, files, uploaded.sourceId);
+    if (sourceState !== "available")
+      fail(
+        sourceState === "malware_rejected"
+          ? "The upload was rejected by malware scanning."
+          : "The upload could not pass malware scanning.",
+        sourceState === "malware_rejected"
+          ? "LEGAL_UPLOAD_REJECTED"
+          : "LEGAL_SCAN_UNAVAILABLE",
+        sourceState === "malware_rejected" ? 422 : 503,
+      );
+    const source = await db
+      .prepare(
+        "SELECT object_key,checksum_sha256,media_type,bytes FROM attachments WHERE id=? AND company_id=? AND source_state='available'",
+      )
+      .bind(uploaded.sourceId, a.companyId)
+      .first<{
+        object_key: string;
+        checksum_sha256: string;
+        media_type: string;
+        bytes: number;
+      }>();
+    if (!source || source.checksum_sha256 !== checksum)
+      fail("Stored file integrity check failed.", "LEGAL_INTEGRITY", 409);
+    const documentId = crypto.randomUUID();
+    const binding = await prepareAttachmentBinding(db, a, {
+      attachmentSetIds: [set.id],
+      bindingContract: {
+        targetType: "legal_item",
+        bindingType: "legal_document",
+        contexts: [{ purposeKey: "legal_document", componentKind: "record", componentRef: key }],
+      },
+      targetId: id,
+      expectedTargetVersion: version,
+      commandId: key,
+      bindingId: documentId,
+    },{compatibilityAdapter:true});
+    const next = (await db
+      .prepare(
+        "SELECT coalesce(max(version),0)+1 n FROM legal_documents WHERE item_id=?",
+      )
+      .bind(id)
+      .first<{ n: number }>())!.n;
+    return executeCommand(
+      db,
+      a,
+      key,
+      "legal.document.upload",
+      input,
+      id,
+      version + 1,
+      { id, version: version + 1 },
+      [
+        ...guards(db, a, id, version, key, true),
+        ...binding.guards,
+        db
+          .prepare(
+            "INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,object_key,created_by,created_at,attachment_link_id,attachment_source_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+          )
+          .bind(
+            documentId,
+            id,
+            next,
+            name,
+            source.media_type,
+            source.checksum_sha256,
+            Number(source.bytes),
+            source.object_key,
+            a.userId,
+            Date.now(),
+            uploaded.attachmentLinkId,
+            uploaded.sourceId,
+          ),
+        db
+          .prepare(
+            "UPDATE legal_items SET version=version+1,updated_at=? WHERE id=?",
+          )
+          .bind(Date.now(), id),
+        ...binding.steps,
+        event(
+          db,
+          a,
+          id,
+          "document.upload",
+          `${name} · ${checksum}`,
+          version + 1,
+        ),
+      ],
+    );
+  }
   const objectKey = `legal/${a.companyId}/${id}/${key}/${checksum}`;
   await files.put(objectKey, bytes, {
     onlyIf: { etagDoesNotMatch: "*" },
@@ -151,6 +282,34 @@ export async function documentBytes(files: FileStore, d: DocumentVersion) {
     fail("Document integrity check failed.", "LEGAL_INTEGRITY", 409);
   return bytes;
 }
+async function authorizedDocumentBytes(
+  db: SqlDatabase,
+  files: FileStore,
+  a: WorkContext,
+  d: DocumentVersion,
+) {
+  if (d.attachment_link_id) {
+    const canonical = await attachmentContent(
+      db,
+      files,
+      a,
+      d.attachment_link_id,
+      "original",
+      {compatibilityAdapter:true},
+    );
+    const bytes = new Uint8Array(await canonical.object.arrayBuffer());
+    if (hash(bytes) !== d.checksum)
+      fail("Document integrity check failed.", "LEGAL_INTEGRITY", 409);
+    return bytes;
+  }
+  if (d.object_key)
+    fail(
+      "This document has not been migrated to the current attachment lifecycle.",
+      "LEGAL_ATTACHMENT_LINK_REQUIRED",
+      404,
+    );
+  return documentBytes(files, d);
+}
 export async function documentExport(
   db: SqlDatabase,
   files: FileStore,
@@ -159,7 +318,7 @@ export async function documentExport(
   format: string | null,
 ) {
   const d = await documentAccess(db, a, id, "legal.export");
-  let bytes: Uint8Array = await documentBytes(files, d);
+  let bytes: Uint8Array = await authorizedDocumentBytes(db, files, a, d);
   let type = d.media_type,
     name = d.name;
   if (!d.object_key && format === "docx") {
@@ -249,7 +408,7 @@ export async function inspectDocument(
   kind: "ocr" | "verify",
 ) {
   const d = await documentAccess(db, a, id),
-    bytes = await documentBytes(files, d),
+    bytes = await authorizedDocumentBytes(db, files, a, d),
     directory = await mkdtemp(join(tmpdir(), "erpx-legal-"));
   try {
     const path = join(directory, "input");
@@ -429,10 +588,29 @@ export async function externalSubmission(
       name: string;
       media_type: string;
       bytes: number;
+      attachment_link_id: string | null;
+      attachment_source_id: string | null;
     }>();
   if (!row) fail("Submission unavailable.", "LEGAL_NOT_FOUND", 404);
   await access(db, a, row.item_id, "legal.export");
-  const f = await files.get(row.object_key);
+  if (!row.attachment_link_id)
+    fail(
+      "This submission has not been migrated to the current attachment lifecycle.",
+      "LEGAL_ATTACHMENT_LINK_REQUIRED",
+      404,
+    );
+  const canonical =
+    row.attachment_link_id
+      ? await attachmentContent(
+          db,
+          files,
+          a,
+          row.attachment_link_id,
+          "original",
+          {compatibilityAdapter:true},
+        )
+      : null;
+  const f = canonical?.object ?? (await files.get(row.object_key));
   if (!f) fail("File unavailable.", "LEGAL_STORAGE_UNAVAILABLE", 503);
   const bytes = new Uint8Array(await f.arrayBuffer());
   if (hash(bytes) !== row.checksum) fail("File integrity check failed.");

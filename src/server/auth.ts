@@ -18,13 +18,15 @@ import {
 export async function createAuth(requestOrigin?: string, directoryId?: string, legalInvitationEmail?:string) {
   const env = await runtimeEnv();
   const local = env.ERPX_ENVIRONMENT === "local";
-  const baseURL = local ? requestOrigin ?? env.BETTER_AUTH_URL : env.BETTER_AUTH_URL;
+  const allowedOrigins = [env.BETTER_AUTH_URL, process.env.ERPX_FRONT_PMS_ORIGIN, process.env.ERPX_FRONT_POS_ORIGIN].filter((origin): origin is string => typeof origin === "string" && !!origin);
+  const baseURL = requestOrigin && (local || allowedOrigins.includes(requestOrigin)) ? requestOrigin : env.BETTER_AUTH_URL;
+  const cookiePrefix = baseURL === process.env.ERPX_FRONT_PMS_ORIGIN ? "erpx-pms" : baseURL === process.env.ERPX_FRONT_POS_ORIGIN ? "erpx-pos" : "better-auth";
   const beta = env.ERPX_PUBLIC_BETA === "true";
   return betterAuth({
     database: drizzleAdapter(drizzle((env.CONTROL_DB as PostgresDatabase).pool),{provider:"pg",schema:authSchema,transaction:true}),
     baseURL,
     secret: env.BETTER_AUTH_SECRET,
-    advanced: { useSecureCookies: !local, ...(!local ? { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } } : {}) },
+    advanced: { cookiePrefix, useSecureCookies: !local, ...(!local ? { ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] } } : {}) },
     emailAndPassword: {
       enabled: true,
       disableSignUp: !beta && !legalInvitationEmail,
@@ -55,7 +57,7 @@ export async function createAuth(requestOrigin?: string, directoryId?: string, l
       sendOnSignUp: beta || !!legalInvitationEmail, autoSignInAfterVerification: true,
       sendVerificationEmail: async ({ user, url }) => {
         const { sendBetaEmail } = await import("./beta-email");
-        await sendBetaEmail(env, user.email, "Verify your ERPX email", url);
+        await sendBetaEmail(env, user.email, `Verify your ${cookiePrefix === "erpx-pms" ? "PMS Front" : cookiePrefix === "erpx-pos" ? "POS Front" : "ERPX"} email`, url);
       },
     },
     session: {
@@ -70,8 +72,7 @@ export async function createAuth(requestOrigin?: string, directoryId?: string, l
     databaseHooks: { ...(legalInvitationEmail?{user:{create:{before:async(user:{email:string})=>user.email.toLowerCase()===legalInvitationEmail.toLowerCase()?undefined:false}}}:{}), account: { create: { before: async account => account.providerId === "credential" && !await localCredentialAllowed(account.userId) ? false : undefined } } },
     plugins: [multiSession({ maximumSessions: 5 }), directoryAuthPlugin(), ...(directoryId ? [genericOAuth({config:[await directoryOidcConfig(directoryId)]})] : [])],
     trustedOrigins: [
-      baseURL,
-      env.BETTER_AUTH_URL,
+      ...new Set([baseURL, ...allowedOrigins]),
       ...(local ? ["http://localhost:3100",
       "http://127.0.0.1:3100",
       "http://localhost:8787",

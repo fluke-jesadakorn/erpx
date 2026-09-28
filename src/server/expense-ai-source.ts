@@ -8,6 +8,10 @@ import { approvalView } from "./approvals";
 import { expenseRoleUsers } from "./expense-routing";
 import { sha256 } from "./crypto";
 import type { StaffActor } from "./staff-policy";
+import {
+  attachmentsV2Readable,
+  attachmentsV2ReadOnly,
+} from "./attachments/feature";
 export type AiClaim = Record<string, string | number | null> & {
   id: string;
   company_id: string;
@@ -109,10 +113,19 @@ export async function expenseAiAllowed(
     (await expenseRoleUsers(db, claim, "treasury")).includes(actor.userId)
   );
 }
-const evidenceSql = `SELECT erpx_json_array_agg(jsonb_build_object('id',a.id,'name',a.original_name,'type',a.media_type,'purpose',a.owner_type,'key',a.object_key,'checksum',a.checksum_sha256,'bytes',a.bytes,
+function expenseEvidenceSql() {
+  const lifecycle = attachmentsV2Readable()
+    ? `AND a.source_state='available' AND EXISTS(
+         SELECT 1 FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id
+         WHERE l.attachment_id=a.id AND l.state${attachmentsV2ReadOnly() ? "='bound'" : " IN ('draft','bound')"}
+           AND s.company_id=? AND s.target_type=a.owner_type AND s.target_id=a.owner_id
+       )`
+    : "";
+  return `SELECT erpx_json_array_agg(jsonb_build_object('id',a.id,'name',a.original_name,'type',a.media_type,'purpose',a.owner_type,'key',a.object_key,'checksum',a.checksum_sha256,'bytes',a.bytes,
  'pageCount',(SELECT page_count FROM attachment_documents WHERE attachment_id=a.id AND original_checksum=a.checksum_sha256),
  'pages',erpx_json((SELECT erpx_json_array_agg(jsonb_build_object('page',page_number,'key',object_key,'checksum',checksum_sha256,'bytes',bytes)) FROM (SELECT * FROM attachment_derivatives WHERE attachment_id=a.id AND original_checksum=a.checksum_sha256 ORDER BY page_number)))
- )) manifest FROM (SELECT * FROM attachments WHERE revoked_at IS NULL AND ((owner_type='expense_claim' AND owner_id=?) OR (owner_type='expense_payment' AND owner_id=?)) ORDER BY id) a`;
+ )) manifest FROM (SELECT * FROM attachments a WHERE revoked_at IS NULL AND ((owner_type='expense_claim' AND owner_id=?) OR (owner_type='expense_payment' AND owner_id=?)) ${lifecycle} ORDER BY id) a`;
+}
 export async function expenseAiSource(
   db: SqlDatabase,
   companyId: string,
@@ -120,6 +133,8 @@ export async function expenseAiSource(
   paymentId: string | null = null,
 ) {
   const claim = await aiClaim(db, companyId, id);
+  const evidenceSql = expenseEvidenceSql();
+  const evidenceArgs = [id, paymentId, ...(attachmentsV2Readable() ? [companyId] : [])];
   const payment = paymentId
     ? await db
         .prepare(
@@ -136,7 +151,7 @@ export async function expenseAiSource(
     );
   const raw = (await db
     .prepare(evidenceSql)
-    .bind(id, paymentId)
+    .bind(...evidenceArgs)
     .first<{ manifest: string }>())!.manifest;
   const evidence = JSON.parse(raw) as EvidenceDocument[];
   const digest = await sha256(
@@ -172,8 +187,7 @@ export async function expenseAiSource(
           ]
         : []),
       assertion(db, key, "ai-evidence-source", `(${evidenceSql})=?`, [
-        id,
-        paymentId,
+        ...evidenceArgs,
         raw,
       ]),
     ],

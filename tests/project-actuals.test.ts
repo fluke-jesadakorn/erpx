@@ -20,12 +20,26 @@ import { queryMetric } from "../src/server/executive/metrics";
 import { readExecutiveEvidence, searchExecutiveEvidence } from "../src/server/executive/evidence";
 import { createReport, saveReport, saveShare, saveSchema } from "../src/server/executive/reports";
 import { defaultFilters, definitionSchema, emptyDefinition, shareSchema } from "../src/lib/executive/canvas";
+import { listAttachmentSets,prepareAttachmentBinding } from "../src/server/attachments/service";
+import { attachmentPolicy,authorizeAttachmentTarget } from "../src/server/attachments/policy";
+import { attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet } from "./helpers/attachment-v2";
 
 vi.mock("../src/server/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 
 let f: Awaited<ReturnType<typeof expenseFixture>>;
-beforeAll(async () => { await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
+beforeAll(async () => { enableAttachmentV2ForTest();await applyMigrations(db, env.STAFF_TEST_MIGRATIONS); });
 beforeEach(async () => { f = await expenseFixture(); });
+
+it("keeps project documents inside exact project membership and owner authority",async()=>{
+  const project=await saveProject(db,f.owner,null,projectSchema.parse({title:"Attachment ownership fixture",memberUserIds:[f.claimant.userId]}),key());
+  const files=await seedAttachmentSet(db,f.owner,{targetType:"project",targetId:project.id,componentKind:"record",purposeKey:"project_document",expectedTargetVersion:1});
+  expect(await listAttachmentSets(db,f.owner,{targetType:"project",targetId:project.id,purposeKey:"project_document",componentKind:"record"})).toHaveLength(1);
+  const member={...f.claimant,role:"holding_owner",branchId:null,departmentId:null};member.assignmentId=await f.grant(member,"holding_owner");
+  await expect(prepareAttachmentBinding(db,member,{attachmentSetIds:[files.setId],bindingContract:{targetType:"project",bindingType:"record_document",contexts:[{purposeKey:"project_document",componentKind:"record",componentRef:null}]},targetId:project.id,expectedTargetVersion:1,commandId:key(),bindingId:project.id})).rejects.toMatchObject({code:"ATTACHMENT_PROJECT_OWNER_REQUIRED"});
+  expect(await attachmentBindingState(db,files.setId)).toMatchObject({set_state:"draft",link_state:"draft"});
+  const outsider={...f.head,role:"holding_owner",branchId:null,departmentId:null};outsider.assignmentId=await f.grant(outsider,"holding_owner");
+  await expect(authorizeAttachmentTarget(db,outsider,attachmentPolicy("project","project_document","record"),project.id,"read")).rejects.toMatchObject({status:404});
+});
 
 it("counts only independently approved project work logs and limits record evidence to the owner or contributor", async () => {
   const project = await saveProject(db, f.owner, null, projectSchema.parse({ title: "Executive actual-hours fixture", memberUserIds: [f.claimant.userId] }), key());

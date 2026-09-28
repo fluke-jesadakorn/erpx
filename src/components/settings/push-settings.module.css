@@ -1,0 +1,9 @@
+.root{max-width:42rem;padding:1.25rem;border:1px solid var(--line);border-radius:1rem;background:var(--card);color:var(--ink)}
+.root h2{margin:0 0 .5rem}.root p{line-height:1.5}.status{font-weight:600}.actions{display:flex;flex-wrap:wrap;gap:.65rem;margin:1rem 0}
+.root button{min-height:44px;padding:.65rem .9rem;border-radius:.65rem;border:1px solid var(--control-border);background:var(--card-2);color:var(--ink-strong);cursor:pointer}
+.root button:first-child,.preferences>button{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}.root button:disabled{opacity:.55;cursor:not-allowed}
+.preferences{border:0;border-top:1px solid var(--line);margin:1rem 0 0;padding:1rem 0 0;display:grid;gap:.65rem}
+.preferences legend{font-weight:700;padding-top:.7rem}.preferences>label{display:flex;align-items:center;gap:.6rem;min-height:36px}
+.preferences input[type=checkbox]{width:19px;height:19px}.quiet{display:grid;gap:.55rem;margin:.6rem 0}.quiet>span{font-weight:600}
+.quiet label{display:flex;align-items:center;gap:.5rem}.quiet input{min-height:40px;padding:.35rem;border:1px solid var(--control-border);border-radius:.4rem;background:var(--card);color:var(--ink-strong)}
+.quiet button{justify-self:start}.preferences>button{justify-self:start}.message{margin-bottom:0}

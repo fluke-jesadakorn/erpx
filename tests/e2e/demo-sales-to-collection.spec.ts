@@ -7,16 +7,16 @@ type Credentials = { password: string; users: DemoUser[] };
 type DemoState = { fixture: { quotationId: string; periodId: string; customerRefundBankTransactionId: string } };
 
 async function signInRole(context: BrowserContext, page: Page, credentials: Credentials, role: string, user: DemoUser, path: string) {
-  const login = await context.request.post("/api/auth/sign-in/email", { headers: { Origin: "http://127.0.0.1:3102" }, data: { email: user.email, password: credentials.password } });
+  const login = await context.request.post("/api/auth/sign-in/email", { headers: { Origin: (process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102") }, data: { email: user.email, password: credentials.password } });
   expect(login.ok(), await login.text()).toBe(true);
   const endpoint = "/api/v1/holdings/simulation/assignments/active";
   const active = (await (await context.request.get(endpoint)).json()).data;
   const assignment = active.options.find((item: { role: string }) => item.role === role);
   expect(assignment, `${user.label} ${role} assignment`).toBeTruthy();
-  const selected = await context.request.post(endpoint, { headers: { Origin: "http://127.0.0.1:3102" }, data: { assignmentId: assignment.id, revision: active.revision } });
+  const selected = await context.request.post(endpoint, { headers: { Origin: (process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102") }, data: { assignmentId: assignment.id, revision: active.revision } });
   expect(selected.ok(), await selected.text()).toBe(true);
   const separator = path.includes("?") ? "&" : "?";
-  await page.goto(`${path}${separator}refresh=${Date.now()}`, { waitUntil: "commit" });
+  await page.goto(`${path}${separator}refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
   await expect(page.locator("[data-work-stale]")).toHaveAttribute("data-work-stale", "false");
 }
 
@@ -27,7 +27,7 @@ async function clickCommand(page: Page, endpoint: string, button: string) {
   expect((await responsePromise).status()).toBeLessThan(400);
   await page.waitForTimeout(1_500);
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    await page.reload({ waitUntil: "commit" });
+    await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.locator("[data-work-stale]")).toHaveAttribute("data-work-stale", "false");
     if (!(await page.getByRole("button", { name: button, exact: true }).isVisible().catch(() => false))) return;
     await page.waitForTimeout(500);
@@ -81,7 +81,7 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
     await signInRole(managerContext, managerPage, credentials, "sales_manager", salesManager!, quotePath);
     await clickCommand(managerPage, `/commerce/orders/${quotationId}/transition`, "Approve order");
 
-    await salesPage.goto(quotePath, { waitUntil: "commit" });
+    await salesPage.goto(quotePath, { waitUntil: "domcontentloaded" });
     await expect(salesPage.locator("[data-work-stale]")).toHaveAttribute("data-work-stale", "false");
     await expect(salesPage.locator("h1").filter({ hasText: "QT-" }).first()).toBeVisible();
     await expect(salesPage.getByRole("button", { name: "Create sales order", exact: true })).toBeVisible();
@@ -94,7 +94,7 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
     const salesOrderId = salesOrderPath.split("/").at(-1)!;
     await clickCommand(salesPage, `/commerce/orders/${salesOrderId}/transition`, "Submit for approval");
 
-    await managerPage.goto(salesOrderPath, { waitUntil: "commit" });
+    await managerPage.goto(salesOrderPath, { waitUntil: "domcontentloaded" });
     await expect(managerPage.locator("[data-work-stale]")).toHaveAttribute("data-work-stale", "false");
     await expect(managerPage.locator("h1").filter({ hasText: "SO-" }).first()).toBeVisible();
     await expect(managerPage.getByRole("button", { name: "Approve order", exact: true })).toBeVisible();
@@ -113,7 +113,7 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
     // Confirm an uploaded proof survives a reload, then submit against the
     // freshly rendered order version so delayed workflow refreshes do not
     // leave the delivery form holding stale state.
-    await warehousePage.reload({ waitUntil: "commit" });
+    await warehousePage.reload({ waitUntil: "domcontentloaded" });
     await expect(warehousePage.getByRole("heading", { name: "Deliver goods", exact: true })).toBeVisible();
     deliveryCard = warehousePage.locator("#workspace-content section.card").filter({ hasText: "Deliver goods" });
     deliveryForm = deliveryCard.locator("form");
@@ -128,7 +128,7 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
     expect(deliveryResult.status(), await deliveryResult.text()).toBe(200);
     await warehousePage.waitForTimeout(1_500);
     for (let attempt = 0; attempt < 8; attempt += 1) {
-      await warehousePage.reload({ waitUntil: "commit" });
+      await warehousePage.reload({ waitUntil: "domcontentloaded" });
       await expect(warehousePage.locator("[data-work-stale]")).toHaveAttribute("data-work-stale", "false");
       if (await warehousePage.getByText("Delivery confirmation:", { exact: true }).isVisible().catch(() => false)) break;
       await warehousePage.waitForTimeout(500);
@@ -172,7 +172,7 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
     await treasuryPage.getByRole("button", { name: "Record and allocate payment", exact: true }).click();
     const settleResult = await settleResponse;
     expect(settleResult.ok(), await settleResult.text()).toBe(true);
-    await treasuryPage.reload({ waitUntil: "commit" });
+    await treasuryPage.reload({ waitUntil: "domcontentloaded" });
     await expect(treasuryPage.getByText("paid", { exact: true }).first()).toBeVisible();
     await expect(treasuryPage.getByText("THB 0.00", { exact: true }).first()).toBeVisible();
     const invoiceCheck = await treasuryPage.request.get(`/api/v1/holdings/simulation/finance/invoices/${invoiceId}`);
@@ -180,21 +180,25 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
     expect((await invoiceCheck.json()).data.invoice).toMatchObject({ status: "paid", outstanding_minor: 0 });
 
     // Continue the same accepted sale through a customer return and controlled refund.
-    await salesPage.goto(salesOrderPath, { waitUntil: "commit" });
+    await salesPage.goto(salesOrderPath, { waitUntil: "domcontentloaded" });
     await expect(salesPage.getByRole("button", { name: "Request return", exact: true })).toBeVisible();
     await salesPage.getByRole("button", { name: "Request return", exact: true }).click();
     await salesPage.getByLabel("Return quantity", { exact: true }).fill("1");
     await salesPage.getByLabel("Condition evidence", { exact: true }).fill("Customer reported a sealed unit returned for inspection.");
-    await salesPage.getByLabel("Quality review due", { exact: true }).fill("2026-09-23");
+    const qualityReviewDue = salesPage.getByLabel("Quality review due", { exact: true });
+    await qualityReviewDue.fill(
+      (await qualityReviewDue.getAttribute("min")) ?? new Date().toISOString().slice(0, 10),
+    );
     await salesPage.getByLabel("Return reason", { exact: true }).fill("Customer return for inspection and refund.");
     const returnRequest = salesPage.waitForRequest((item) => item.method() === "POST" && /\/commerce\/fulfillments\/[^/]+\/returns$/.test(new URL(item.url()).pathname));
     await salesPage.getByRole("button", { name: "Submit return for review", exact: true }).click();
     await returnRequest;
     await salesPage.waitForTimeout(1_500);
 
-    await managerPage.goto(salesOrderPath, { waitUntil: "commit" });
-    await expect(managerPage.getByLabel("Review evidence", { exact: true })).toBeVisible({ timeout: 20_000 });
-    await managerPage.getByLabel("Review evidence", { exact: true }).fill("Return evidence reviewed and accepted for controlled credit.");
+    await managerPage.goto(salesOrderPath, { waitUntil: "domcontentloaded" });
+    const returnReviewEvidence = managerPage.getByLabel("Review evidence", { exact: true }).filter({ visible: true }).first();
+    await expect(returnReviewEvidence).toBeVisible({ timeout: 20_000 });
+    await returnReviewEvidence.fill("Return evidence reviewed and accepted for controlled credit.");
     const returnApprove = managerPage.waitForRequest((item) => item.method() === "POST" && /\/commerce\/returns\/[^/]+\/approve$/.test(new URL(item.url()).pathname));
     await managerPage.getByRole("button", { name: "Approve return", exact: true }).click();
     await returnApprove;
@@ -203,7 +207,7 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
     // Returned customer stock is quarantined until independent Quality
     // inspection and release. Exercise that handoff before Finance posts the
     // return journals, using separate inspector and release contexts.
-    await managerPage.goto(salesOrderPath, { waitUntil: "commit" });
+    await managerPage.goto(salesOrderPath, { waitUntil: "domcontentloaded" });
     const qualityLink = managerPage.getByRole("link", { name: /Quality disposition/ }).first();
     await expect(qualityLink).toBeVisible({ timeout: 20_000 });
     const qualityPath = new URL(await qualityLink.getAttribute("href") ?? "", managerPage.url()).pathname;
@@ -215,7 +219,7 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
     const inspectionResponse = preparerPage.waitForResponse((item) => item.request().method() === "POST" && /\/quality\/[^/]+\/inspect$/.test(new URL(item.url()).pathname));
     await inspectionForm.getByRole("button", { name: "Record inspection", exact: true }).click();
     expect((await inspectionResponse).ok()).toBe(true);
-    await preparerPage.reload({ waitUntil: "commit" });
+    await preparerPage.reload({ waitUntil: "domcontentloaded" });
     await expect(preparerPage.locator("#workspace-content").getByText(/awaiting_release/)).toBeVisible({ timeout: 20_000 });
 
     await signInRole(treasuryContext, treasuryPage, credentials, "quality_manager", treasury!, qualityPath);
@@ -227,7 +231,7 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
     const releaseResult = await releaseResponse;
     expect(releaseResult.ok()).toBe(true);
     expect((await releaseResult.json()).data.status).toBe("released");
-    await treasuryPage.reload({ waitUntil: "commit" });
+    await treasuryPage.reload({ waitUntil: "domcontentloaded" });
     await expect(treasuryPage.locator("#workspace-content").getByText(/ · released · Due /)).toBeVisible({ timeout: 20_000 });
 
     await signInRole(approverContext, approverPage, credentials, "finance_approver", financeApprover!, `${salesOrderPath}?return=${Date.now()}`);
@@ -245,7 +249,7 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
       await clickCommand(approverPage, "/finance/journals/", "Approve and post journal");
     }
 
-    await approverPage.goto(salesOrderPath, { waitUntil: "commit" });
+    await approverPage.goto(salesOrderPath, { waitUntil: "domcontentloaded" });
     await expect(approverPage.getByRole("button", { name: "Complete credit / debit note", exact: true })).toBeVisible({ timeout: 20_000 });
     const completeReturn = approverPage.waitForRequest((item) => item.method() === "POST" && /\/commerce\/returns\/[^/]+\/complete$/.test(new URL(item.url()).pathname));
     await approverPage.getByRole("button", { name: "Complete credit / debit note", exact: true }).click();
@@ -267,7 +271,10 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
     await signInRole(treasuryContext, treasuryPage, credentials, "treasury", treasury!, refundPath);
     await expect(treasuryPage.getByRole("heading", { name: "Prepare partial or final instruction", exact: true })).toBeVisible({ timeout: 20_000 });
     await treasuryPage.getByLabel(/Amount \(THB\)/).fill("10.00");
-    await treasuryPage.getByLabel("Planned payment date", { exact: true }).fill("2026-09-23");
+    const plannedRefundDate = treasuryPage.getByLabel("Planned payment date", { exact: true });
+    await plannedRefundDate.fill(
+      (await plannedRefundDate.getAttribute("min")) ?? new Date().toISOString().slice(0, 10),
+    );
     await treasuryPage.locator('select[name="cash"]').selectOption({ index: 1 });
     const refundPrepare = treasuryPage.waitForResponse((item) => item.request().method() === "POST" && /\/finance\/refunds\/[^/]+\/instructions$/.test(new URL(item.url()).pathname));
     await treasuryPage.getByRole("button", { name: "Reserve amount and prepare instruction", exact: true }).click();
@@ -283,7 +290,7 @@ test("isolated demo carries a quotation through sales delivery, customer invoice
     const refundConfirm = treasuryPage.waitForResponse((item) => item.request().method() === "POST" && /\/finance\/refund-instructions\/[^/]+\/confirm$/.test(new URL(item.url()).pathname));
     await treasuryPage.getByRole("button", { name: "Confirm bank result and post refund", exact: true }).click();
     expect((await refundConfirm).ok()).toBe(true);
-    await treasuryPage.reload({ waitUntil: "commit" });
+    await treasuryPage.reload({ waitUntil: "domcontentloaded" });
     await expect(treasuryPage.getByText(/Pay customer · settled/)).toBeVisible();
     const refundCheck = await treasuryPage.request.get(`/api/v1/holdings/simulation/finance/refunds/${refundPath.split("/").at(-1)}`);
     expect(refundCheck.ok(), await refundCheck.text()).toBe(true);

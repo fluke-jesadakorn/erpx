@@ -41,8 +41,14 @@ import {
 import { setDirectoryStatus } from "../src/server/people-directory";
 import { transitionEngagement } from "../src/server/people-payroll";
 import { companyMembers } from "../src/server/member-directory";
+import { changeAppointment } from "../src/server/department-authority";
 import { enrichFlowWork } from "../src/server/flow-work";
 import type { WorkContext } from "../src/server/authorization";
+import {
+  attachmentBindingState,
+  enableAttachmentV2ForTest,
+  seedAttachmentSet,
+} from "./helpers/attachment-v2";
 vi.mock("../src/server/runtime", () => ({
   holdingResources: async () => ({ write: raw, files: env.H001_FILES }),
   runtimeEnv: async () => env,
@@ -52,6 +58,7 @@ const db = iamDb(raw);
 beforeAll(async () => {
   await applyMigrations(raw, env.STAFF_TEST_MIGRATIONS);
   await applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS);
+  enableAttachmentV2ForTest();
 });
 async function authorize(a: WorkContext) {
   const sessionId = key();
@@ -79,7 +86,9 @@ async function fixture() {
   const f = await expenseFixture(false),
     owner = await authorize(f.owner),
     it = await authorize(f.it),
-    hr = await authorize(await f.member("hr", "hr_admin"));
+    hrMember = await f.member("hr", "hr_admin");
+  await changeAppointment(raw, owner, {kind:"hr",departmentId:null,positionId:null,personId:`person-${hrMember.userId}`,expectedVersion:0,reason:"Appoint fixture HR reviewer"}, key());
+  const hr = await authorize(hrMember);
   await installStaffLevels(raw, owner, key());
   const ceo = String(
     (
@@ -502,7 +511,7 @@ it("requires independent personal reviews and does not grant before the effectiv
 });
 it("routes Company IAM to People while keeping advanced destinations explicit", () => {
   expect(peopleIamDestination("users")).toBe("people");
-  expect(peopleIamDestination("groups")).toBe("technology?view=directory");
+  expect(peopleIamDestination("groups")).toBe("technology?view=organization");
   expect(peopleIamDestination("roles")).toBe("people/settings?section=roles");
 });
 
@@ -1134,22 +1143,27 @@ it("retirement cancellation keeps history and cancels pending clearance before c
  expect(await raw.prepare("SELECT iam_assignment_active(?,?) ok").bind(f.claimant.assignmentId,Date.now()+86400001).first("ok")).toBe(true);
 });
 
-it("reads retirement evidence through source permissions and never changes the financial document",async()=>{
+it("reads retirement evidence only for the assigned task owner and never changes the financial document",async()=>{
  const {calendarCommand}=await import("../src/server/calendar/commands");
  const {clearanceCase}=await import("../src/server/retirement-clearance");
- const f=await fixture(),finance=await authorize(await f.member("clearance-evidence","finance_preparer")),expenseId=await f.claim(finance);
+ const f=await fixture(),finance=await authorize(await f.member("clearance-evidence","finance_preparer")),otherFinance=await authorize(await f.member("clearance-evidence-other","finance_preparer")),expenseId=await f.claim(finance);
  const before=await raw.prepare("SELECT status,version FROM finance_expenses WHERE id=?").bind(expenseId).first();
  const input=lifecycleInput.parse({kind:"offboarding",departureReason:"retirement",expectedVersion:0,personId:f.person,engagementId:f.engagement,positionId:null,lastWorkingDate:"2026-12-31",effectiveAt:Date.now()+86400000,reason:"Retirement evidence review",clearanceOwners:{finance:finance.userId}});
  const saved=await saveLifecycle(raw,f.hr,input,key(),true,(await previewLifecycle(raw,f.hr,input)).token),task=(await peopleLifecycleData(raw,f.hr)).tasks.find(t=>t.case_id===saved.id&&t.clearance_type==="finance")!;
  await expect(calendarCommand(raw,finance,{action:"task.complete",id:task.id,expectedVersion:1,status:"completed",reason:"Review without source"},key())).rejects.toMatchObject({status:422});
- const command={action:"task.complete",id:task.id,expectedVersion:1,status:"completed",reason:"Reviewed source ledger; no payment performed",references:[{kind:"expense",id:expenseId}]};
+ const files=await seedAttachmentSet(raw,finance,{targetType:"people_clearance_task",targetId:String(task.id),componentKind:"action",componentRef:"finance",purposeKey:"clearance_evidence",expectedTargetVersion:1});
+ const command={action:"task.complete",id:task.id,expectedVersion:1,status:"completed",reason:"Reviewed source ledger; no payment performed",references:[{kind:"expense",id:expenseId}],attachmentSetIds:[files.setId]};
  const receipt=key();await calendarCommand(raw,finance,command,receipt);await calendarCommand(raw,finance,command,receipt);
+ expect(await attachmentBindingState(raw,files.setId)).toMatchObject({set_state:"bound",link_state:"bound",binding_type:"retirement_clearance_completion",binding_id:String(task.id)});
  await expect(calendarCommand(raw,finance,command,key())).rejects.toMatchObject({status:409});
  expect(await raw.prepare("SELECT status,version FROM finance_expenses WHERE id=?").bind(expenseId).first()).toEqual(before);
  expect((await clearanceCase(raw,finance,String(saved.id))).tasks.find(t=>t.id===task.id)!.evidence[0].status).toBe("draft");
- const hrEvidence=(await clearanceCase(raw,f.hr,String(saved.id))).tasks.find(t=>t.id===task.id)!.evidence[0];
- expect(hrEvidence.href).toBeNull();
- expect((await clearanceCase(raw,f.hr,String(saved.id))).tasks.find(t=>t.id===task.id)!.completion_reason).toBeNull();
+ const unrelatedFinanceTask=(await clearanceCase(raw,otherFinance,String(saved.id))).tasks.find(t=>t.id===task.id)!;
+ expect(unrelatedFinanceTask.evidence).toEqual([]);
+ expect(unrelatedFinanceTask.completion_reason).toBeNull();
+ const hrTask=(await clearanceCase(raw,f.hr,String(saved.id))).tasks.find(t=>t.id===task.id)!;
+ expect(hrTask.evidence).toEqual([]);
+ expect(hrTask.completion_reason).toBeNull();
  expect(JSON.stringify(await peopleLifecycleData(raw,f.hr))).not.toContain(expenseId);
  const other=await fixture();await expect(clearanceCase(raw,other.hr,String(saved.id))).rejects.toMatchObject({status:404});
 });
@@ -1196,6 +1210,168 @@ it("HR placement works without a package, linked account or IT preparation and n
   expect((await raw.prepare("SELECT position_id,status FROM hr_engagements WHERE id=?").bind(f.engagement).first())).toMatchObject({position_id:f.position,status:'active'});
   expect(await raw.prepare("SELECT count(*) n FROM assignments WHERE company_id=?").bind(f.company).first()).toEqual(count);
   expect((await peopleLifecycleData(raw,f.hr)).roster.find(p=>p.id===f.person)?.itStatus).toBe('waiting');
+});
+
+it("submits and applies HR placement while Position GPO delivery is pending or blocked",async()=>{
+  for(const directoryStatus of ["pending","blocked"] as const){
+    const f=await fixture(),connection=`gpo-${key()}`,now=Date.now();
+    const jobStatus=directoryStatus==="blocked"?"blocked":"queued";
+    await raw.prepare("INSERT INTO iam_connections(id,company_id,name,provider,config,status,created_by,created_at) VALUES(?,?,'Position GPO','active_directory','{}'::jsonb,'active',?,?)").bind(connection,f.company,f.it.userId,now).run();
+    await raw.prepare("INSERT INTO position_gpo_policies(company_id,position_id,version,revision,connection_id,gpo_id,user_filter_group_id,computer_target_ou_id,directory_config_status,directory_config_error,updated_at) VALUES(?,?,1,1,?,'gpo-target','group-target','ou-target',?,?,?)")
+      .bind(f.company,f.position,connection,directoryStatus,directoryStatus==="blocked"?"IT_PRIVATE_CONFIG_ERROR":null,now).run();
+    const engagementVersion=await raw.prepare("SELECT version FROM hr_engagements WHERE id=?").bind(f.engagement).first<number>("version");
+    await raw.prepare(`INSERT INTO position_gpo_jobs(id,company_id,position_id,person_id,revision,engagement_version,connection_id,gpo_id,filter_group_id,computer_target_ou_id,desired_action,status,last_error,created_at,updated_at,engagement_id,account_id)
+      VALUES(?,?,?,?,1,?,?,'gpo-target','group-target','ou-target','add',?,?,?,?,?,'account-target')`)
+      .bind(`gpo-job-${key()}`,f.company,f.position,f.person,engagementVersion,connection,jobStatus,jobStatus==="blocked"?"IT_PRIVATE_JOB_ERROR":null,now,now,f.engagement).run();
+
+    const effectiveAt=Date.now()+60000;
+    const input=lifecycleInput.parse({expectedVersion:0,kind:"transfer",personId:f.person,engagementId:f.engagement,positionId:f.position,managerPersonId:`person-${f.owner.userId}`,effectiveAt,reason:`HR placement with ${directoryStatus} GPO`});
+    const preview=await previewLifecycle(raw,f.hr,input,true);
+    expect(preview.ready,`${directoryStatus} GPO leaves HR placement ready`).toBe(true);
+    expect(preview.blockers).toEqual([]);
+    const placed=await saveLifecycle(raw,f.hr,input,key(),true,preview.token,true);
+    expect(placed.status).toBe("scheduled");
+    await drainPeopleLifecycle(raw,effectiveAt+1);
+    expect(await raw.prepare("SELECT status,last_error FROM people_lifecycle_cases WHERE id=?").bind(placed.id).first()).toMatchObject({status:"completed",last_error:null});
+    expect(await raw.prepare("SELECT position_id,status FROM hr_engagements WHERE id=?").bind(f.engagement).first()).toMatchObject({position_id:f.position,status:"active"});
+    const data=await peopleLifecycleData(raw,f.hr);
+    expect(data.positions.find(p=>p.id===f.position)?.gpo).toEqual({mapped:true,directoryStatus});
+    expect(data.roster.find(p=>p.engagementId===f.engagement)?.gpoDelivery).toBe(directoryStatus==="blocked"?"blocked":"awaiting_identity");
+  }
+});
+
+async function scheduledHrPlacement(f:Awaited<ReturnType<typeof fixture>>,effectiveAt=Date.now()+60000){
+  const input=lifecycleInput.parse({expectedVersion:0,kind:"transfer",personId:f.person,engagementId:f.engagement,positionId:f.position,managerPersonId:`person-${f.owner.userId}`,effectiveAt,reason:"Scheduled HR placement"});
+  const preview=await previewLifecycle(raw,f.hr,input,true);
+  const result=await saveLifecycle(raw,f.hr,input,key(),true,preview.token,true);
+  return {id:String(result.id),effectiveAt};
+}
+
+it("applies scheduled HR placement after an unrelated engagement edit",async()=>{
+  const f=await fixture(),scheduled=await scheduledHrPlacement(f);
+  await raw.prepare("UPDATE hr_engagements SET currency='THB',version=version+1 WHERE id=?").bind(f.engagement).run();
+  await drainPeopleLifecycle(raw,scheduled.effectiveAt+1);
+  expect(await raw.prepare("SELECT status,last_error FROM people_lifecycle_cases WHERE id=?").bind(scheduled.id).first()).toMatchObject({status:"completed",last_error:null});
+  expect(await raw.prepare("SELECT position_id,currency FROM hr_engagements WHERE id=?").bind(f.engagement).first()).toMatchObject({position_id:f.position,currency:"THB"});
+});
+
+it("holds scheduled HR placement after a placement change and fails closed on old snapshots",async()=>{
+  const changed=await fixture(),newCase=await scheduledHrPlacement(changed);
+  await raw.prepare("UPDATE hr_engagements SET position_id=?,version=version+1 WHERE id=?").bind(changed.ceo,changed.engagement).run();
+  await drainPeopleLifecycle(raw,newCase.effectiveAt+1);
+  expect(await raw.prepare("SELECT status,last_error FROM people_lifecycle_cases WHERE id=?").bind(newCase.id).first()).toMatchObject({status:"scheduled",last_error:"LIFECYCLE_PLACEMENT_CHANGED"});
+  expect(await raw.prepare("SELECT position_id FROM hr_engagements WHERE id=?").bind(changed.engagement).first("position_id")).toBe(changed.ceo);
+
+  const older=await fixture(),oldCase=await scheduledHrPlacement(older);
+  await raw.prepare("UPDATE people_lifecycle_cases SET review_snapshot=review_snapshot-'engagementPlacement' WHERE id=?").bind(oldCase.id).run();
+  await raw.prepare("UPDATE hr_engagements SET currency='THB',version=version+1 WHERE id=?").bind(older.engagement).run();
+  await drainPeopleLifecycle(raw,oldCase.effectiveAt+1);
+  expect(await raw.prepare("SELECT status,last_error FROM people_lifecycle_cases WHERE id=?").bind(oldCase.id).first()).toMatchObject({status:"scheduled",last_error:"LIFECYCLE_PLACEMENT_CHANGED"});
+});
+
+it("requires explicit confirmation to supersede a legacy waiting case while keeping its history",async()=>{
+ const f=await fixture();
+ const legacyInput=lifecycleInput.parse({expectedVersion:0,kind:"transfer",personId:f.person,engagementId:f.engagement,positionId:f.position,managerPersonId:`person-${f.owner.userId}`,effectiveAt:Date.now()+60000,reason:"Old access-led transfer"});
+ const oldPreview=await previewLifecycle(raw,f.hr,legacyInput);
+ const old=await saveLifecycle(raw,f.hr,legacyInput,key(),true,oldPreview.token);
+ expect(old.status).toBe("waiting_it");
+ const placementInput=lifecycleInput.parse({...legacyInput,reason:"HR placement without access approval"});
+ const preview=await previewLifecycle(raw,f.hr,placementInput,true);
+ expect(preview.ready).toBe(true);
+ expect(preview.legacyCaseToSupersede).toMatchObject({id:old.id,version:old.version,status:"waiting_it"});
+ await expect(saveLifecycle(raw,f.hr,placementInput,key(),true,preview.token,true)).rejects.toMatchObject({code:"LEGACY_SUPERSEDE_REQUIRED"});
+ await expect(saveLifecycle(raw,f.hr,placementInput,key(),true,preview.token,true,{id:String(old.id),expectedVersion:old.version+1})).rejects.toMatchObject({code:"LEGACY_CASE_CHANGED"});
+ const command=key(),result=await saveLifecycle(raw,f.hr,placementInput,command,true,preview.token,true,{id:String(old.id),expectedVersion:old.version});
+ expect(result.status).toBe("scheduled");
+ expect(await saveLifecycle(raw,f.hr,placementInput,command,true,preview.token,true,{id:String(old.id),expectedVersion:old.version})).toEqual(result);
+ expect(await raw.prepare("SELECT status,version,workflow FROM people_lifecycle_cases WHERE id=?").bind(old.id).first()).toMatchObject({status:"cancelled",version:old.version+1,workflow:"legacy"});
+ expect(await raw.prepare("SELECT status,workflow,package_id FROM people_lifecycle_cases WHERE id=?").bind(result.id).first()).toMatchObject({status:"scheduled",workflow:"placement",package_id:null});
+ expect(await raw.prepare("SELECT count(*)::integer n FROM audit_events WHERE command_id=? AND action='people.lifecycle.supersede' AND record_id=?").bind(command,old.id).first("n")).toBe(1);
+});
+
+it("superseding a reviewed legacy case closes its pending reviews and preparation tasks",async()=>{
+ const f=await fixture();await prepare(f);
+ const input=lifecycleInput.parse({expectedVersion:0,kind:"transfer",personId:f.person,engagementId:f.engagement,positionId:f.position,managerPersonId:`person-${f.owner.userId}`,effectiveAt:Date.now()+60000,reason:"Old reviewed transfer"});
+ const oldPreview=await previewLifecycle(raw,f.hr,input),old=await saveLifecycle(raw,f.hr,input,key(),true,oldPreview.token);
+ expect(old.status).toBe("pending_review");
+ const requested=await requestLifecycleAccess(raw,f.hr,String(old.id),old.version,key());
+ expect(requested.reviews.length).toBeGreaterThan(0);
+ const replacement=lifecycleInput.parse({...input,reason:"HR placement after old review"}),preview=await previewLifecycle(raw,f.hr,replacement,true);
+ expect(preview.legacyCaseToSupersede).toMatchObject({id:old.id,status:"pending_review"});
+ await saveLifecycle(raw,f.hr,replacement,key(),true,preview.token,true,{id:String(old.id),expectedVersion:old.version+1});
+ expect(await raw.prepare("SELECT status FROM iam_reviews WHERE id=?").bind(requested.reviews[0]).first("status")).toBe("failed");
+  expect(await raw.prepare("SELECT count(*)::integer n FROM people_preparation_tasks WHERE case_id=? AND status='pending'").bind(old.id).first("n")).toBe(0);
+});
+
+it("superseding a scheduled legacy case revokes its approved grant before HR placement",async()=>{
+ const f=await fixture();await prepare(f);
+ const input=lifecycleInput.parse({expectedVersion:0,kind:"transfer",personId:f.person,engagementId:f.engagement,positionId:f.position,managerPersonId:`person-${f.owner.userId}`,effectiveAt:Date.now()+60000,reason:"Old scheduled access"});
+ const oldPreview=await previewLifecycle(raw,f.hr,input),old=await saveLifecycle(raw,f.hr,input,key(),true,oldPreview.token);
+ const requested=await requestLifecycleAccess(raw,f.hr,String(old.id),old.version,key()),reviewer=iamActorFromWork(f.owner);
+ for(const reviewId of requested.reviews)await decideIamReview(raw,reviewer,reviewId,{expectedVersion:1,decision:"approve",reason:"Approve old access"},key(),(c,kind,p)=>applyLifecycleReview(c,reviewer,kind,p));
+ const scheduled=await raw.prepare("SELECT version,status FROM people_lifecycle_cases WHERE id=?").bind(old.id).first<{version:number;status:string}>();
+ expect(scheduled?.status).toBe("scheduled");
+ const grantId=await raw.prepare("SELECT assignment_id FROM people_lifecycle_grants WHERE case_id=? LIMIT 1").bind(old.id).first<string>("assignment_id");
+ expect(grantId).toBeTruthy();
+ const replacement=lifecycleInput.parse({...input,reason:"HR-only replacement"}),preview=await previewLifecycle(raw,f.hr,replacement,true);
+ await saveLifecycle(raw,f.hr,replacement,key(),true,preview.token,true,{id:String(old.id),expectedVersion:scheduled!.version});
+ expect(await raw.prepare("SELECT revoked_at IS NOT NULL AS revoked FROM assignments WHERE id=?").bind(grantId).first("revoked")).toBe(true);
+ expect(await raw.prepare("SELECT status FROM iam_reviews WHERE id=?").bind(requested.reviews[0]).first("status")).toBe("approved");
+});
+
+it("shows Position GPO mapping and employee Directory delivery without exposing targets",async()=>{
+ const f=await fixture(),connection=`gpo-${key()}`,identity=`identity-${key()}`,now=Date.now();
+ await raw.prepare("UPDATE hr_engagements SET position_id=?,status='active',version=version+1 WHERE id=?").bind(f.position,f.engagement).run();
+ expect((await peopleLifecycleData(raw,f.hr)).roster.find(r=>r.engagementId===f.engagement)?.gpoDelivery).toBe("none");
+ await raw.prepare("INSERT INTO iam_connections(id,company_id,name,provider,config,status,created_by,created_at) VALUES(?,?,'Position GPO','active_directory','{}'::jsonb,'active',?,?)").bind(connection,f.company,f.it.userId,now).run();
+ await raw.prepare("INSERT INTO position_gpo_policies(company_id,position_id,version,revision,connection_id,gpo_id,user_filter_group_id,computer_target_ou_id,updated_at) VALUES(?,?,1,1,?,'gpo-target','group-target','ou-target',?)").bind(f.company,f.position,connection,now).run();
+ let data=await peopleLifecycleData(raw,f.hr);
+ expect(data.positions.find(p=>p.id===f.position)?.gpo).toEqual({mapped:true,directoryStatus:"pending"});
+ expect(data.positions.find(p=>p.id===f.ceo)?.gpo).toEqual({mapped:false,directoryStatus:null});
+ expect(data.roster.find(r=>r.engagementId===f.engagement)?.gpoDelivery).toBe("awaiting_identity");
+ await raw.prepare("INSERT INTO iam_identities(id,company_id,connection_id,external_id,username,name,enabled,observed_at,user_id,person_id) VALUES(?,?,?,'account-target','employee','Employee',true,?,?,?)").bind(identity,f.company,connection,now,f.claimant.userId,f.person).run();
+ await raw.prepare("INSERT INTO iam_members(company_id,user_id,principal_id,person_id,status,login_policy,connection_id,identity_id) VALUES(?,?,?,?,'active','directory',?,?) ON CONFLICT(company_id,user_id) DO UPDATE SET person_id=excluded.person_id,status='active',login_policy='directory',connection_id=excluded.connection_id,identity_id=excluded.identity_id").bind(f.company,f.claimant.userId,`directory:${identity}`,f.person,connection,identity).run();
+ const engagementVersion=await raw.prepare("SELECT version FROM hr_engagements WHERE id=?").bind(f.engagement).first<number>("version");
+ const job=`gpo-job-${key()}`;
+ await raw.prepare(`INSERT INTO position_gpo_jobs(id,company_id,position_id,person_id,revision,engagement_version,connection_id,gpo_id,filter_group_id,computer_target_ou_id,desired_action,status,created_at,updated_at,engagement_id,account_id)
+   VALUES(?,?,?,?,1,?,?, 'gpo-target','group-target','ou-target','add','queued',?,?,?, 'account-target')`)
+   .bind(job,f.company,f.position,f.person,engagementVersion,connection,now,now,f.engagement).run();
+ data=await peopleLifecycleData(raw,f.hr);
+ expect(data.roster.find(r=>r.engagementId===f.engagement)?.gpoDelivery).toBe("queued");
+ await raw.prepare("UPDATE position_gpo_jobs SET status='directory_applied' WHERE id=?").bind(job).run();
+ await raw.prepare("UPDATE position_gpo_policies SET directory_config_status='directory_applied' WHERE company_id=? AND position_id=?").bind(f.company,f.position).run();
+ data=await peopleLifecycleData(raw,f.hr);
+ expect(data.roster.find(r=>r.engagementId===f.engagement)?.gpoDelivery).toBe("directory_applied");
+ expect(data.positions.find(p=>p.id===f.position)?.gpo).toEqual({mapped:true,directoryStatus:"directory_applied"});
+ expect(JSON.stringify(data.positions.find(p=>p.id===f.position)?.gpo)).not.toContain(connection);
+ await raw.prepare("UPDATE position_gpo_jobs SET status='blocked',last_error='PRIVATE_PROVIDER_DETAIL' WHERE id=?").bind(job).run();
+ data=await peopleLifecycleData(raw,{...f.hr,branchId:f.branch,departmentId:f.department});
+ expect(data.positions.every(p=>p.id!==f.ceo)).toBe(true);
+ expect(data.roster.find(r=>r.engagementId===f.engagement)?.gpoDelivery).toBe("blocked");
+ expect(JSON.stringify(data.roster.find(r=>r.engagementId===f.engagement)?.gpoDelivery)).not.toContain("PRIVATE_PROVIDER_DETAIL");
+ await raw.prepare("UPDATE position_gpo_policies SET connection_id=NULL,gpo_id=NULL,user_filter_group_id=NULL,computer_target_ou_id=NULL,version=version+1,revision=revision+1 WHERE company_id=? AND position_id=?").bind(f.company,f.position).run();
+ data=await peopleLifecycleData(raw,f.hr);
+ expect(data.positions.find(p=>p.id===f.position)?.gpo).toEqual({mapped:false,directoryStatus:null});
+ expect(data.roster.find(r=>r.engagementId===f.engagement)?.gpoDelivery).toBe("none");
+ const inherited=`level-rule-${key()}`;
+ const level=await raw.prepare("SELECT level_id FROM organization_positions WHERE id=?").bind(f.position).first<string>("level_id");
+ await raw.prepare(`INSERT INTO organization_gpo_rules(id,company_id,target_kind,target_id,version,revision,connection_id,gpo_id,user_filter_group_id,computer_target_ou_id,directory_config_status,last_actor_id,last_reason,updated_at)
+   VALUES(?,?,'level',?,1,1,?,'inherited-gpo','inherited-group','ou-target','directory_applied',?,'Inherited delivery test',?)`)
+   .bind(inherited,f.company,level,connection,f.it.userId,now).run();
+ data=await peopleLifecycleData(raw,f.hr);
+ expect(data.positions.find(p=>p.id===f.position)?.gpo).toEqual({mapped:true,directoryStatus:"directory_applied"});
+ // The removed direct rule's blocked job must not obscure an inherited delivery.
+ expect(data.roster.find(r=>r.engagementId===f.engagement)?.gpoDelivery).toBe("queued");
+ await raw.prepare(`INSERT INTO position_gpo_jobs(id,company_id,position_id,person_id,revision,engagement_version,connection_id,gpo_id,filter_group_id,computer_target_ou_id,desired_action,status,created_at,updated_at,engagement_id,account_id,rule_id,source_id)
+   VALUES(?,?,?,?,1,?,?,'inherited-gpo','inherited-group','ou-target','add','directory_applied',?,?,?,'account-target',?,?)`)
+   .bind(`inherited-job-${key()}`,f.company,f.position,f.person,engagementVersion,connection,now,now,f.engagement,inherited,`organization-gpo:${inherited}:${f.engagement}`).run();
+ expect((await peopleLifecycleData(raw,f.hr)).roster.find(r=>r.engagementId===f.engagement)?.gpoDelivery).toBe("directory_applied");
+ const secondConnection=`unlinked-${key()}`;
+ await raw.prepare("INSERT INTO iam_connections(id,company_id,name,provider,config,status,created_by,created_at) VALUES(?,?,'Second directory','active_directory','{}'::jsonb,'active',?,?)").bind(secondConnection,f.company,f.it.userId,now).run();
+ await raw.prepare(`INSERT INTO organization_gpo_rules(id,company_id,target_kind,target_id,version,revision,connection_id,gpo_id,user_filter_group_id,computer_target_ou_id,directory_config_status,last_actor_id,last_reason,updated_at)
+   VALUES(?,?,'department',?,1,1,?,'second-gpo','second-group','second-ou','directory_applied',?,'Independent directory test',?)`)
+   .bind(`department-rule-${key()}`,f.company,f.department,secondConnection,f.it.userId,now).run();
+ expect((await peopleLifecycleData(raw,f.hr)).roster.find(r=>r.engagementId===f.engagement)?.gpoDelivery).toBe("awaiting_identity");
 });
 
 it("IT applies pinned resources and requests independently reviewed ERPX roles, retaining them across HR transfers",async()=>{

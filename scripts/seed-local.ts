@@ -7,12 +7,13 @@ import { hashPassword } from "better-auth/crypto";
 import { moduleRegistry } from "../src/data/module-registry";
 import { project, type EventMessage, type JobEnv } from "../src/workers/jobs";
 import { calculatePayrollAmounts } from "../src/lib/payroll-math";
+import { readFile } from "node:fs/promises";
 
 /**
  * Reconcile a useful, deterministic local dataset without deleting developer data.
- * The command talks to the same persisted workerd bindings used by `wrangler dev`.
+ * The command talks to the configured development PostgreSQL and private files.
  */
-type SeedEnv = Pick<RuntimeEnv, "CONTROL_DB" | "H001_DB" | "H001_READ_DB" | "H001_FILES" | "H002_DB" | "H002_READ_DB" | "H002_FILES">;
+type SeedEnv = Pick<RuntimeEnv, "ERPX_ENVIRONMENT" | "CONTROL_DB" | "H001_DB" | "H001_READ_DB" | "H001_FILES" | "H002_DB" | "H002_READ_DB" | "H002_FILES">;
 type Db = SqlDatabase;
 
 const now = Date.UTC(2026, 8, 6, 9, 0, 0);
@@ -198,10 +199,15 @@ function peoplePayrollStatements(db: Db, holding: string) {
       const country = company.country;
       const worker=seedWorker(company.id,index);
       const name=worker.name;
+      const position=`seed-position-${company.id}-${String(index+1).padStart(3,"0")}`;
+      statements.push(db.prepare("INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,roster_required,created_by,created_at,updated_at) VALUES(?,?,?,?,?, ?,0,'local-demo-seed',?,?) ON CONFLICT DO NOTHING")
+        .bind(position,company.id,branch,`dept:${branch}:operations`,worker.jobTitle,`org-level-${company.id}-6`,now,now));
       statements.push(db.prepare("INSERT INTO hr_people(id,user_id,company_id,legal_name,preferred_name,email,phone,country_code,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?, 'active',?,?,?) ON CONFLICT DO NOTHING")
         .bind(person, null, company.id, name, null, worker.email, null, country, actor, now - index * 86_400_000, now));
       statements.push(db.prepare("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,worker_type,employment_type,status,start_date,manager_person_id,job_title,currency,created_by,created_at,updated_at,pay_group_id) VALUES(?,?,?,?,?,?,?,'active',?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
         .bind(engagement, person, company.id, branch, `dept:${branch}:operations`, index % 5 === 0 ? "contractor" : "employee", index % 5 === 0 ? "contractor" : "salaried", "2025-01-06", null, worker.jobTitle, currency, actor, now - index * 86_400_000, now, group));
+      statements.push(db.prepare("UPDATE hr_engagements SET position_id=? WHERE id=? AND company_id=? AND position_id IS NULL")
+        .bind(position,engagement,company.id));
       statements.push(db.prepare("INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,hourly_rate_minor,expected_hours,currency,components_json,status,approved_by,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,'approved',?,?,?,?) ON CONFLICT DO NOTHING")
         .bind(`comp-${company.id}-${String(index + 1).padStart(3, "0")}`, engagement, "2026-01-01", "monthly", (index % 5 === 0 ? 3_200 : 5_800 + index * 175) * 100, 0, 160, currency, JSON.stringify([{ code: "health", label: "Health contribution", kind: "employer", amount: "180.00" }, { code: "tax", label: "Withholding", kind: "deduction", amount: index % 3 === 0 ? "600.00" : "820.00" }]), actor, actor, now, now));
       statements.push(db.prepare("INSERT INTO hr_leave_balances(id,engagement_id,leave_code,year,opening_days,accrued_days,used_days,carried_days) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
@@ -386,57 +392,18 @@ function socialStatements(db: Db, holding: string) {
   return statements;
 }
 
-function pdfBytes(title: string, details: string) {
-  const safe = (value: string) => value.replaceAll(/[()\\]/g, "");
-  const stream = `BT /F1 16 Tf 72 720 Td (${safe(title)}) Tj /F1 10 Tf 0 -28 Td (${safe(details)}) Tj ET`;
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    `<< /Length ${new TextEncoder().encode(stream).byteLength} >>\nstream\n${stream}\nendstream`,
-  ];
-  let pdf = "%PDF-1.4\n";
-  const offsets = [0];
-  for (const [index, object] of objects.entries()) {
-    offsets.push(pdf.length);
-    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
-  }
-  const xref = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
-  pdf += offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n `).join("\n") + `\ntrailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
-  return text(pdf);
-}
-
 async function seedFiles(env: SeedEnv, holding: string, db: Db) {
   const files = holding === "h001" ? env.H001_FILES : env.H002_FILES;
   const held = companies.filter((company) => company.holding === holding);
   const actor = holdingActor(holding);
   const reviewer = holdingReviewer(holding);
   const statements: SqlStatement[] = [];
-  for (let index = 0; index < 15; index += 1) {
-    const leaveId = `seed-${holding}-leave-${String(index + 1).padStart(3, "0")}`;
-    const id = `upload-${holding}-evidence-${String(index + 1).padStart(3, "0")}`;
-    const name = index % 2 === 0 ? `handover-${index + 1}.pdf` : `handover-${index + 1}.csv`;
-    const leave = await db.prepare("SELECT l.number,l.start_date,l.days,l.state,l.handover_note,e.display_name FROM leave_requests l JOIN employees e ON e.id=l.employee_id WHERE l.id=?").bind(leaveId).first<{ number: string; start_date: string; days: number; state: string; handover_note: string; display_name: string }>();
-    if (!leave) throw new Error(`Missing leave request for evidence ${leaveId}`);
-    const csvEscape = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
-    const body = index % 2 === 0
-      ? pdfBytes(`Leave evidence ${leave.number}`, `${leave.display_name} | ${leave.start_date} | ${leave.days} day(s) | ${leave.state}`)
-      : text([
-          "leave_request,employee,start_date,days,state,handover_note",
-          [leave.number, leave.display_name, leave.start_date, leave.days, leave.state, leave.handover_note].map(csvEscape).join(","),
-        ].join("\n") + "\n");
-    const key = `${holding}/people/leave/${leaveId}/${name}`;
-    const checksum = await digest(body);
-    if (!(await files.head(key))) {
-      await files.put(key, body, { httpMetadata: { contentType: index % 2 === 0 ? "application/pdf" : "text/csv" }, customMetadata: { sha256: checksum, seed: "erpx-rich-local-2026" } });
-    }
-    statements.push(db.prepare("INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,revision,status,created_by,expires_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
-      .bind(id, "leave_request", leaveId, "leave evidence", name, index % 2 === 0 ? "application/pdf" : "text/csv", body.byteLength, body.byteLength, checksum, `${holding}/staging/${id}`, key, 1, "ready", actor, validUntil, now, now));
-    statements.push(db.prepare("INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING")
-      .bind(`attachment-${holding}-${index + 1}`, id, "leave_request", leaveId, "leave evidence", key, 1, name, index % 2 === 0 ? "application/pdf" : "text/csv", body.byteLength, checksum, actor, now));
-  }
+  // Do not synthesize legacy Leave uploads here. The old seed used an ambiguous
+  // free-form purpose and alternated PDF/CSV handover summaries. Those
+  // bytes cannot truthfully be classified as either a medical certificate or a
+  // supporting photo, and CSV is not a Leave format. Canonical demo evidence is
+  // created through the real attachment lifecycle so quarantine and scanning
+  // are exercised instead of declaring generated fixture bytes clean.
   for (const company of held) for (let index = 0; index < 2; index += 1) {
     const runId = `payrun-${company.id}-2026-${index === 0 ? "07" : "08"}`;
     const batchId = `payment-batch-${company.id}-${index + 1}`;
@@ -453,6 +420,56 @@ async function seedFiles(env: SeedEnv, holding: string, db: Db) {
       .bind(`payment-item-${company.id}-${index}-${row}`, batchId, `eng-${company.id}-${String(row + 1).padStart(3, "0")}`, `hr-${company.id}-${String(row + 1).padStart(3, "0")}`, `PAY-${runId}-${row + 1}`, `Worker ${row + 1}`, amounts[row], currency));
   }
   await batch(db, statements);
+}
+
+/** One employee-authored image post for the local Home feed demo. */
+async function seedHomeImagePost(env: SeedEnv, holding: "h001" | "h002", db: Db) {
+  if (holding !== "h001") return;
+  if (env.ERPX_ENVIRONMENT !== "local") throw new Error("DEMO_IMAGE_SEED_LOCAL_ONLY");
+
+  const bytes = await readFile(new URL("./fixtures/assets/team-planning-demo.webp", import.meta.url));
+  const checksum = await digest(bytes);
+  const draftId = "seed-h001-home-image-draft";
+  const postId = "seed-h001-home-image-post";
+  const uploadId = "seed-h001-home-image-upload";
+  const attachmentId = `attachment-${uploadId}`;
+  const name = "team-planning-demo.webp";
+  const objectKey = `${holding}/objects/${uploadId}/r1`;
+  const first = "Our Bangkok team mapped the next handover together today.";
+  const second = "Thanks for bringing your ideas. #teamwork";
+  const body = `${first}\n${second}`;
+  const content = JSON.stringify([
+    { type: "text", text: first },
+    { type: "image", slotId: "seed-home-image", attachmentId, name, alt: "Four coworkers planning together around a table in a Bangkok office" },
+    { type: "text", text: second },
+  ]);
+  const createdAt = now + 60_000;
+  const files = env.H001_FILES;
+  const existing = await files.head(objectKey);
+  if (existing && existing.customMetadata?.sha256 !== checksum)
+    throw new Error("DEMO_IMAGE_FILE_CONFLICT");
+  if (!existing) {
+    await files.put(objectKey, bytes, {
+      onlyIf: { etagDoesNotMatch: "*" },
+      httpMetadata: { contentType: "image/webp" },
+      customMetadata: { sha256: checksum, seed: "erpx-home-image-demo-2026" },
+    });
+  }
+  await db.batch([
+    db.prepare("INSERT INTO social_post_drafts(id,author_id,company_id,branch_id,body,created_at,updated_at,content_json) VALUES(?,?,?,NULL,?,?,?,?) ON CONFLICT DO NOTHING")
+      .bind(draftId, "usr_mali", "acme-co", body, createdAt, createdAt, content),
+    db.prepare("INSERT INTO social_posts(id,kind,author_id,author_name,company_id,branch_id,body,state,version,created_at,updated_at,content_json) VALUES(?,'team',?,?,?,NULL,?,'published',1,?,?,?) ON CONFLICT DO NOTHING")
+      .bind(postId, "usr_mali", "Mali Srisai", "acme-co", body, createdAt, createdAt, content),
+    db.prepare("UPDATE social_post_drafts SET published_post_id=? WHERE id=? AND published_post_id IS NULL")
+      .bind(postId, draftId),
+    db.prepare("INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,revision,status,created_by,expires_at,created_at,updated_at) VALUES(?,'social_draft',?,'post-image',?,'image/webp',?,?,?,?,?,1,'ready',?,?,?,?) ON CONFLICT DO NOTHING")
+      .bind(uploadId, draftId, name, bytes.byteLength, bytes.byteLength, checksum, `${holding}/staging/${uploadId}`, objectKey, "usr_mali", validUntil, createdAt, createdAt),
+    db.prepare("INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at) VALUES(?,?,'social_draft',?,'post-image',?,1,?,'image/webp',?,?,?,?) ON CONFLICT DO NOTHING")
+      .bind(attachmentId, uploadId, draftId, objectKey, name, bytes.byteLength, checksum, "usr_mali", createdAt),
+    db.prepare("INSERT INTO social_post_topics(post_id,tag) VALUES(?,'teamwork') ON CONFLICT DO NOTHING")
+      .bind(postId),
+  ]);
+  console.log(`[seed:${holding}] Home image post and private attachment ready`);
 }
 
 async function seedEvents(env: SeedEnv, holding: "h001" | "h002") {
@@ -495,8 +512,9 @@ async function seedHolding(env: SeedEnv, holding: "h001" | "h002") {
   await batch(db, financeStatements(db, holding));
   console.log(`[seed:${holding}] social and workflows`);
   await batch(db, socialStatements(db, holding));
-  console.log(`[seed:${holding}] R2 files`);
+  console.log(`[seed:${holding}] private files`);
   await seedFiles(env, holding, db);
+  await seedHomeImagePost(env, holding, db);
   await seedEvents(env, holding);
 }
 

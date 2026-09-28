@@ -80,6 +80,7 @@ export async function getWorkCapabilities(
   return {
     creation,
     teamQueue: checks[1].status === "fulfilled" && checks[1].value,
+    rosterAccess: !actor.beta && checks[0].status==="fulfilled" && checks[0].value?.roster_required===1,
     unavailable,
   };
 }

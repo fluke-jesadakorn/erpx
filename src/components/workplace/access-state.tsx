@@ -5,17 +5,21 @@ import { ArrowRight, FileQuestion, LockKeyhole, RefreshCw, ShieldAlert, WifiOff 
 import { accessProblems, type AccessProblem } from "@/lib/access-problem";
 import styles from "./access-state.module.css";
 import { ProductBrand } from "@/components/brand/product-brand";
+import { FrontError } from "@/components/front/front-error";
 
 function subscribe(callback: () => void) { window.addEventListener("online", callback); window.addEventListener("offline", callback); return () => { window.removeEventListener("online", callback); window.removeEventListener("offline", callback); }; }
 export function AccessState({ problem, email, reference, embedded = false, retry, returnTo }: {
   problem: AccessProblem; email?: string; reference?: string; embedded?: boolean; retry?: () => void; returnTo?: string;
 }) {
   const online = useSyncExternalStore(subscribe, () => navigator.onLine, () => true);
+  const frontHost = useSyncExternalStore(() => () => {}, () => /^(?:(?:dev|stage)-)?(?:pms|pos)$/.test(window.location.hostname.split(".")[0]), () => false);
+  if (frontHost) return <FrontError kind={problem === "not_found" ? "not-found" : "unavailable"} reference={reference} retry={retry} />;
   const reason = online ? problem : "offline";
   const content = accessProblems[reason];
   const Icon = reason === "offline" ? WifiOff : reason === "not_found" || reason === "workspace" ? FileQuestion : reason === "sign_in" ? LockKeyhole : ShieldAlert;
   const canRetry = ["unavailable", "offline", "conflict", "rate_limited"].includes(reason);
-  return <main className={`${styles.page} ${embedded ? styles.embedded : ""}`}>
+  const Surface = embedded ? "div" : "main";
+  return <Surface className={`${styles.page} ${embedded ? styles.embedded : ""}`}>
     <section className={styles.card} aria-labelledby="access-state-title" data-access-reason={reason}>
       <a className={styles.brand} href="/" aria-label="ERPX home"><ProductBrand /></a>
       <div className={styles.icon}><Icon size={26} aria-hidden="true" /></div>
@@ -35,5 +39,5 @@ export function AccessState({ problem, email, reference, embedded = false, retry
       </div>
       <p className={styles.reference}>Reference: {reference && /^[a-zA-Z0-9_-]{1,100}$/.test(reference) ? reference : `ERPX_${reason.toUpperCase()}`}</p>
     </section>
-  </main>;
+  </Surface>;
 }

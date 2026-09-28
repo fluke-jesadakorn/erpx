@@ -3,11 +3,12 @@ import { useEffect, useId, useRef, useState } from "react";
 import { activeToken, editMentions, type Mention, type Suggestion } from "@/lib/social-text";
 import { betaFetch } from "@/lib/beta-client";
 import styles from "./social-text.module.css";
-export function SocialTextInput({api,value,mentions,onChange,onPasteImages,maxLength,label,placeholder,disabled=false}:{api:string;value:string;mentions:Mention[];onChange:(body:string,mentions:Mention[])=>void;onPasteImages?:(files:File[])=>void;maxLength:number;label:string;placeholder:string;disabled?:boolean}) {
+export function SocialTextInput({api,value,mentions,onChange,onPasteImages,onSelectionChange,focusSignal,focusCaret=0,showHint=true,maxLength,label,placeholder,disabled=false}:{api:string;value:string;mentions:Mention[];onChange:(body:string,mentions:Mention[])=>void;onPasteImages?:(files:File[],selection:{start:number;end:number})=>void;onSelectionChange?:(selection:{start:number;end:number})=>void;focusSignal?:number;focusCaret?:number;showHint?:boolean;maxLength:number;label:string;placeholder:string;disabled?:boolean}) {
   const input=useRef<HTMLTextAreaElement>(null), selected=useRef<HTMLButtonElement>(null),listId=useId();
   const [token,setToken]=useState<ReturnType<typeof activeToken>>(null),[results,setResults]=useState<Suggestion[]>([]),[index,setIndex]=useState(0),[status,setStatus]=useState("");
   const [composing,setComposing]=useState(false);
   const trigger=token?.trigger,query=token?.query;
+  useEffect(()=>{if(!focusSignal)return;const node=input.current;if(!node)return;node.focus();node.setSelectionRange(focusCaret,focusCaret);},[focusSignal,focusCaret]);
   useEffect(()=>{
     if(!trigger || composing) return;
     let current=true;
@@ -41,8 +42,8 @@ export function SocialTextInput({api,value,mentions,onChange,onPasteImages,maxLe
       role="combobox" aria-autocomplete="list" aria-expanded={!!token&&!composing} aria-controls={listId} aria-activedescendant={token&&results[index]?`${listId}-${index}`:undefined}
       onCompositionStart={()=>setComposing(true)} onCompositionEnd={e=>{setComposing(false);locate(e.currentTarget.value,e.currentTarget.selectionStart);}}
       onChange={e=>{const body=e.target.value;onChange(body,editMentions(value,body,mentions));locate(body,e.target.selectionStart);}}
-      onPaste={e=>{const images=Array.from(e.clipboardData.items).filter(item=>item.kind==="file"&&item.type.startsWith("image/")).map(item=>item.getAsFile()).filter((file):file is File=>!!file);if(images.length&&onPasteImages){e.preventDefault();onPasteImages(images);}}}
-      onSelect={e=>locate(e.currentTarget.value,e.currentTarget.selectionStart)}
+      onPaste={e=>{const images=Array.from(e.clipboardData.items).filter(item=>item.kind==="file"&&item.type.startsWith("image/")).map(item=>item.getAsFile()).filter((file):file is File=>!!file);if(images.length&&onPasteImages){e.preventDefault();onPasteImages(images,{start:e.currentTarget.selectionStart,end:e.currentTarget.selectionEnd});}}}
+      onSelect={e=>{locate(e.currentTarget.value,e.currentTarget.selectionStart);onSelectionChange?.({start:e.currentTarget.selectionStart,end:e.currentTarget.selectionEnd});}}
       onKeyDown={e=>{if(!token||composing||e.nativeEvent.isComposing)return;if(e.key==="Escape"){e.preventDefault();setToken(null);}else if(results.length&&["ArrowDown","ArrowUp"].includes(e.key)){e.preventDefault();setIndex(i=>(i+(e.key==="ArrowDown"?1:-1)+results.length)%results.length);}else if(results[index]&&["Enter","Tab"].includes(e.key)){e.preventDefault();choose(results[index]);}}}
       onBlur={e=>{if(!e.currentTarget.parentElement?.contains(e.relatedTarget))setToken(null);}} />
     {token&&!composing&&<div className={styles.suggestions}>
@@ -53,7 +54,7 @@ export function SocialTextInput({api,value,mentions,onChange,onPasteImages,maxLe
       </div>)}</div>
       <p role="status">{status||"↑ ↓ to choose · Enter to insert · Esc to close"}</p>
     </div>}
-    <small className={styles.hint}>Use @ for people, AI agents, and records · # for hashtags{onPasteImages?" · Paste images to attach them":""}</small>
+    {showHint&&<small className={styles.hint}>Use @ for people, AI agents, and records · # for hashtags{onPasteImages?" · Paste images to attach them":""}</small>}
     {mentions.some(m=>m.kind==="agent")&&<small className={styles.hint}>ERPX assistant will reply after you publish.</small>}
   </div>;
 }

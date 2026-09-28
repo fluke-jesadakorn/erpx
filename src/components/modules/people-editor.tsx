@@ -6,6 +6,8 @@ import { useHydrated } from "@/components/ui/use-hydrated";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { OrganizationOverview } from "@/lib/organization";
+import type { PeopleLifecycleData } from "@/lib/people-lifecycle";
+import { positionGpoStatus } from "@/components/people/gpo-status";
 type Row = Record<string, unknown>;
 export function PeopleEditor({
   base,
@@ -17,6 +19,7 @@ export function PeopleEditor({
   member,
   returnTo,
   organization,
+  gpoPositions,
   initialPositionId,
   lifecycleManaged = false,
   initialOpen = false,
@@ -31,6 +34,7 @@ export function PeopleEditor({
   member?: { id: string; name: string; email: string };
   returnTo?: string;
   organization?: OrganizationOverview;
+  gpoPositions?: Pick<PeopleLifecycleData["positions"][number], "id" | "gpo">[];
   initialPositionId?:string;
   lifecycleManaged?: boolean;
   initialOpen?: boolean;
@@ -50,7 +54,10 @@ export function PeopleEditor({
   const [positionId,setPositionId]=useState(String(person?.position_id??initialPositionId??""));
   const [levelId,setLevelId]=useState(String(person?.level_id??organization?.positions.find(p=>p.id===initialPositionId)?.level_id??""));
   const selectedPosition=organization?.positions.find(p=>p.id===positionId);
+  const selectedGpo=gpoPositions?.find(p=>p.id===positionId)?.gpo;
   const selectedLevel=organization?.levels.find(l=>l.id===levelId)?.level_number;
+  const suggestedPay=organization?.defaults?.pay.find(item=>item.position_id===positionId);
+  const suggestedLeave=organization?.defaults?.leave.find(item=>item.level_id===levelId);
   const managerPeople=[...new Map([...people,...(organization?.people??[])].map(p=>[String(p.person_id),p])).values()];
   async function send(path: string, input: unknown) {
     const payload = JSON.stringify(input);
@@ -130,6 +137,8 @@ export function PeopleEditor({
               managerPersonId: f.get("managerPersonId") || null,
               levelId: f.get("levelId") || null,
               positionId: positionId || null,
+              acceptRecommendedPay: f.get("acceptRecommendedPay")==="on",
+              acceptRecommendedLeave: f.get("acceptRecommendedLeave")==="on",
               reason: f.get("reason") || "Staff profile updated",
               ...(member ? { linkedMemberUserId: member.id } : {}),
               ...(person ? { expectedVersion: person.version } : {}),
@@ -218,7 +227,8 @@ export function PeopleEditor({
                 ))}
             </select>
           </label>
-          {organization&&<label>Position<select value={positionId} onChange={e=>{setPositionId(e.target.value);const p=organization.positions.find(p=>p.id===e.target.value);if(p)setLevelId(p.level_id);}}><option value="">Not assigned — onboarding draft</option>{organization.positions.filter(p=>p.active===1&&(!p.branch_id||p.branch_id===branch)).map(p=><option key={p.id} value={p.id}>{p.title} · Level {p.level_number}</option>)}</select><small>Positions supply a default level. Confirm the staff level and actual manager below.</small></label>}
+          {organization&&<label>Position<select value={positionId} onChange={e=>{setPositionId(e.target.value);const p=organization.positions.find(p=>p.id===e.target.value);if(p)setLevelId(p.level_id);}}><option value="">Not assigned — onboarding draft</option>{organization.positions.filter(p=>p.active===1&&(!p.branch_id||p.branch_id===branch)).map(p=><option key={p.id} value={p.id}>{p.title} · Level {p.level_number}</option>)}</select><small>Positions supply a default level. Confirm the staff level and actual manager below.</small>{positionId&&<small>{selectedGpo?positionGpoStatus(selectedGpo):"GPO preparation is tracked separately by IT."} HR can save this placement now.</small>}</label>}
+          {organization&&positionId&&<section className="card position-recommendations" aria-label="Position recommendations"><strong>Recommendations for {selectedPosition?.title}</strong><p>Level {selectedLevel??"not set"}</p>{suggestedPay&&<p>Default pay: {suggestedPay.currency} {(suggestedPay.monthly_amount_minor/100).toLocaleString()} / month · v{suggestedPay.version}</p>}{suggestedLeave&&<p>Leave: {suggestedLeave.annual_days} annual days · {suggestedLeave.sick_days} sick days / year · policy v{suggestedLeave.version}</p>}{suggestedPay&&<label><input type="checkbox" name="acceptRecommendedPay" defaultChecked={!person} /> Create pay draft from this recommendation (independent approval required)</label>}{suggestedLeave&&<label><input type="checkbox" name="acceptRecommendedLeave" defaultChecked={!person} /> Assign recommended leave policy</label>}</section>}
           {levelManagedSeparately && !organization ? (
             <input
               type="hidden"

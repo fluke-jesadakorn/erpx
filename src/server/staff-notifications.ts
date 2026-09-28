@@ -10,6 +10,18 @@ import { getLeave } from "./leave";
 import { getExpense } from "./expenses";
 import { getTask } from "./staff-tasks";
 import { ApiError } from "./http";
+/** Every legacy producer type must have a current-access resolver below. */
+export const staffNotificationSourceTypes=[
+  "organization_change","company_business_acceptance","customer_identity","customer_duplicate","customer_access",
+  "support_sla_alert","support_incident","support_policy","support_ticket","support_session",
+  "iam_access_review","payroll_correction","payroll_advance","staff_task_alert","maintenance_work",
+  "field_service_order","commerce_order","collaboration_action","learning_assignment","benefit_election",
+  "talent_application","marketing_candidate","manufacturing_order","crm_lead","crm_activity","landed_cost",
+  "stock_count","customer_followup","supplier_bill","procurement_rfq","supplier_promise","inventory_transit",
+  "quality_hold","quality_alert","supplier_batch","refund","legal","retirement_clearance",
+  "roster_week","roster_request","roster_coverage","overtime","leave","leave_cancellation","expense","request","task","post",
+] as const;
+export function hasStaffNotificationResolver(type:string){return (staffNotificationSourceTypes as readonly string[]).includes(type);}
 export type StaffNotification = {
   id: string;
   record_type: string;
@@ -34,7 +46,7 @@ export async function listStaffNotifications(
   ).results;
   return visibleNotifications(db,actor,rows);
 }
-async function visibleNotifications(db:SqlDatabase,actor:WorkContext,rows:Omit<StaffNotification,"href">[]) {
+export async function visibleNotifications(db:SqlDatabase,actor:WorkContext,rows:Omit<StaffNotification,"href">[]) {
   let retirement: ReturnType<typeof retirementWork> | undefined;
   const visible: StaffNotification[] = [];
   for (const row of rows) {
@@ -86,6 +98,16 @@ async function visibleNotifications(db:SqlDatabase,actor:WorkContext,rows:Omit<S
       if(row.record_type === "marketing_candidate") {await (await import("./marketing")).marketingDetail(actor,row.record_id);visible.push({...row,href:`/marketing/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "manufacturing_order") {await (await import("./production")).productionDetail(actor,row.record_id);visible.push({...row,href:`/manufacturing/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "crm_lead") {await (await import("./crm")).getCRMLead(actor,row.record_id);visible.push({...row,href:`/crm/${encodeURIComponent(row.record_id)}`});continue;}
+      if(row.record_type === "crm_activity") {
+        const record=await db.prepare("SELECT lead_id FROM crm_lead_activities WHERE id=? AND company_id=?").bind(row.record_id,actor.companyId).first<{lead_id:string}>();
+        if(record){await (await import("./crm")).getCRMLead(actor,record.lead_id);visible.push({...row,href:`/crm/${encodeURIComponent(record.lead_id)}#crm-activities`});}
+        continue;
+      }
+      if(row.record_type === "landed_cost") {
+        const record=await (await import("./inventory-landed-costs")).getLandedCost(actor,row.record_id);
+        visible.push({...row,href:`/commerce/orders/${encodeURIComponent(String(record.order_id))}#landed-costs`});continue;
+      }
+      if(row.record_type === "stock_count") {await (await import("./inventory-counts")).getCount(actor,row.record_id);visible.push({...row,href:`/stock-counts/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "customer_followup") {await (await import("./customer-followups")).getCustomerFollowup(actor,row.record_id);visible.push({...row,href:`/customer-followups/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "supplier_bill") {await (await import("./supplier-bill-matching")).getSupplierBill(actor,row.record_id);visible.push({...row,href:`/supplier-bills/${encodeURIComponent(row.record_id)}`});continue;}
       if(row.record_type === "procurement_rfq") {await (await import("./procurement-rfqs")).getRfq(actor,row.record_id);visible.push({...row,href:`/procurement-rfqs/${encodeURIComponent(row.record_id)}`});continue;}
@@ -103,6 +125,12 @@ async function visibleNotifications(db:SqlDatabase,actor:WorkContext,rows:Omit<S
       }
       if (["roster_week", "roster_request"].includes(row.record_type)) {
         visible.push({ ...row, href: await rosterNotificationLink(db, actor, row.record_type, row.record_id) });
+        continue;
+      }
+      if(row.record_type==="roster_coverage") {
+        const match=row.record_id.match(/^(.*):(\d{4}-\d{2}-\d{2}):([^:]+)$/);
+        if(match){const data=await (await import("./people-roster")).rosterData(db,actor,{department:match[1],week:match[2]});
+          if(data.canManage&&data.coverageGaps.some(g=>g.week_start===match[2]&&g.person_id===match[3]))visible.push({...row,href:`/people/roster?department=${encodeURIComponent(match[1])}&week=${match[2]}`});}
         continue;
       }
       if(row.record_type === "overtime") {await getOvertime(actor,row.record_id);visible.push({...row,href:`/overtime/${row.record_id}`});continue;}

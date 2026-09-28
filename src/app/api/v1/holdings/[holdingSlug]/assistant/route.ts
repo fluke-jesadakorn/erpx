@@ -4,6 +4,10 @@ import { holdingResources, runtimeEnv } from "@/server/runtime";
 import { ApiError, errorResponse } from "@/server/http";
 import { requestPublicOrigin } from "@/server/public-origin";
 import { askAssistant, assistantView } from "@/server/workspace-assistant";
+import {
+  generateThaiHotelMockAi,
+  isThaiHotelAiMockEnabled,
+} from "@/server/simulation-only-adapters";
 type Context={params:Promise<{holdingSlug:string}>};
 export async function GET(request:Request,context:Context) {
   try {
@@ -23,7 +27,7 @@ export async function POST(request:Request,context:Context) {
     if(!reader)throw new ApiError(422,"INVALID_JSON","A message is required.");
     while(true){const part=await reader.read();if(part.done)break;bytes+=part.value.byteLength;if(bytes>24000){await reader.cancel();throw new ApiError(413,"MESSAGE_TOO_LARGE","Shorten this message.");}body+=decoder.decode(part.value,{stream:true});}
     let raw:unknown;try{raw=JSON.parse(body+decoder.decode());}catch{throw new ApiError(422,"INVALID_JSON","Use valid JSON.");}
-    const data=await askAssistant(write,actor,await runtimeEnv(),assistantAskSchema.parse(raw),key);
+    const data=await askAssistant(write,actor,await runtimeEnv(),assistantAskSchema.parse(raw),key,isThaiHotelAiMockEnabled(actor.holdingSlug)?generateThaiHotelMockAi:undefined);
     return Response.json({data},{headers:{"Cache-Control":"private, no-store"}});
   }catch(e){return errorResponse(e);}
 }

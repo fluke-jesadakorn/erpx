@@ -1,4 +1,5 @@
 export type WorkItem = {
+  actionKind?: "work" | "approval" | "override";
   canAct?: boolean;
   category?: "operational" | "setup";
   setupReason?: string | null;
@@ -149,7 +150,7 @@ export function isMyAction(item: WorkItem) {
 }
 export function compareWork(a: WorkItem, b: WorkItem) {
   return (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity) ||
-    b.updatedAt - a.updatedAt || `${a.type}:${a.id}`.localeCompare(`${b.type}:${b.id}`);
+    b.updatedAt - a.updatedAt || `${a.type}:${a.id}:${a.actionKind ?? "work"}`.localeCompare(`${b.type}:${b.id}:${b.actionKind ?? "work"}`);
 }
 export function workInView(items: WorkItem[], view: string) {
   return items.filter(item => view === "routing" ? !!(item.flow?.canManage && item.flow.current && item.flow.blocker)

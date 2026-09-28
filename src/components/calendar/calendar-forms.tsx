@@ -1,11 +1,15 @@
 "use client";
-import type { FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import { addDays } from "@/lib/people-roster";
+import { localDateTimeToInstant } from "@/lib/calendar-timeline";
+import { workFetch } from "@/lib/work-fetch";
 import type { CalendarItem, CalendarHierarchy } from "@/lib/calendar";
 import styles from "./calendar.module.css";
 export type CalendarEditor = {
   kind: "appointment" | "announcement" | "task";
   item?: CalendarItem;
+  startLocal?: string;
+  endLocal?: string;
 };
 function localTime(ms: number, zone: string) {
   const p = new Intl.DateTimeFormat("en-CA", {
@@ -28,6 +32,8 @@ export function CalendarForm({
   busy,
   send,
   close,
+  accounts,
+  api,
 }: {
   editor: CalendarEditor;
   hierarchy: CalendarHierarchy;
@@ -36,10 +42,37 @@ export function CalendarForm({
   busy: boolean;
   send: (value: unknown) => void;
   close: () => void;
+  accounts?: {id:string;name:string;email:string}[];
+  api:string;
 }) {
   const item = editor.item,
     people = hierarchy.people,
     zone = item?.timezone ?? "Asia/Bangkok";
+  const [allDay,setAllDay]=useState(item?.allDay??false);
+  const [availability,setAvailability]=useState<{userId:string;startsAt:number;endsAt:number}[]|null>(null);
+  const [availabilityZone,setAvailabilityZone]=useState(zone);
+  const [availabilityMessage,setAvailabilityMessage]=useState("");
+  const [checkingAvailability,setCheckingAvailability]=useState(false);
+  async function checkAvailability(form:HTMLFormElement){
+    const fields=new FormData(form),ids=[...new Set([...fields.getAll("requiredUsers"),...fields.getAll("optionalUsers")].map(String))];
+    if(!ids.length){setAvailability(null);setAvailabilityMessage("Choose at least one attendee.");return;}
+    try{
+      const zone=String(fields.get("timezone")||"Asia/Bangkok");
+      const start=allDay?`${fields.get("startDate")}T00:00`:String(fields.get("start"));
+      const end=allDay?`${fields.get("endDate")}T00:00`:String(fields.get("end"));
+      const from=localDateTimeToInstant(start,zone),to=localDateTimeToInstant(end,zone);
+      if(to<=from)throw Error("Choose an end after the start.");
+      const query=new URLSearchParams({from:String(from),to:String(to)});
+      ids.forEach(id=>query.append("userId",id));
+      setCheckingAvailability(true);setAvailabilityMessage("");
+      const response=await workFetch(`${api}/availability?${query}`);
+      const data=await response.json();
+      if(!response.ok)throw Error(data?.error?.message??"Availability is unavailable.");
+      setAvailabilityZone(zone);
+      setAvailability(data.intervals??[]);
+    }catch(error){setAvailability(null);setAvailabilityMessage(error instanceof Error?error.message:"Availability is unavailable.");}
+    finally{setCheckingAvailability(false);}
+  }
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget),
@@ -53,10 +86,13 @@ export function CalendarForm({
         ...version,
         title: value("title"),
         description: value("description"),
-        organizerPersonId: value("organizer"),
+        organizerPersonId: value("organizer")||undefined,
         participantIds: f.getAll("participants").map(String),
-        startLocal: value("start"),
-        endLocal: value("end"),
+        ...(f.get("allDay") === "on" ? { allDay:true,startDate:value("startDate"),endDate:value("endDate") } : {startLocal:value("start"),endLocal:value("end")}),
+        attendees:f.getAll("requiredUsers").map(String).map(userId=>({userId,attendance:"required"})).concat(f.getAll("optionalUsers").map(String).map(userId=>({userId,attendance:"optional"}))),
+        recurrence:value("frequency")==="none"?null:{frequency:value("frequency"),intervalCount:Number(value("interval")),weekdays:[],endKind:value("endKind"),
+          ...(value("endKind")==="count"?{occurrenceCount:Number(value("count"))}:{}),
+          ...(value("endKind")==="until"?{untilDate:value("untilDate")}:{} )},
         timezone: value("timezone"),
         location: value("location"),
         meetingUrl: value("link"),
@@ -110,12 +146,11 @@ export function CalendarForm({
               Organizer
               <select
                 name="organizer"
-                required
                 defaultValue={
                   item?.details?.organizerPersonId ?? selfPersonId ?? ""
                 }
               >
-                <option value="">Choose a colleague</option>
+                <option value="">Me (Company account)</option>
                 {people
                   .filter((p) => p.status !== "ended")
                   .map((p) => (
@@ -135,17 +170,22 @@ export function CalendarForm({
               />
             </label>
           </div>
-          <div className={styles.formRow}>
+          <label className={styles.check}><input type="checkbox" name="allDay" checked={allDay} onChange={e=>setAllDay(e.target.checked)}/>All day</label>
+          {allDay ? <div className={styles.formRow}>
+            <label>Starts<input name="startDate" type="date" required defaultValue={item?.startDate??date}/></label>
+            <label>Ends before<input name="endDate" type="date" required defaultValue={item?.endDate??addDays(date,1)}/></label>
+          </div> : <div className={styles.formRow}>
             <label>
               Starts
               <input
                 name="start"
                 type="datetime-local"
+                step="900"
                 required
                 defaultValue={
-                  item?.startsAt
+                  editor.startLocal ?? (item?.startsAt
                     ? localTime(item.startsAt, zone)
-                    : `${date}T09:00`
+                    : `${date}T09:00`)
                 }
               />
             </label>
@@ -154,12 +194,40 @@ export function CalendarForm({
               <input
                 name="end"
                 type="datetime-local"
+                step="900"
                 required
                 defaultValue={
-                  item?.endsAt ? localTime(item.endsAt, zone) : `${date}T10:00`
+                  editor.endLocal ?? (item?.endsAt ? localTime(item.endsAt, zone) : `${date}T10:00`)
                 }
               />
             </label>
+          </div>}
+          <div className={styles.formRow}>
+            <label>Repeat<select name="frequency" defaultValue={item?.recurrence?.frequency??"none"}><option value="none">Does not repeat</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label>
+            <label>Every<input name="interval" type="number" min="1" max="100" defaultValue={item?.recurrence?.intervalCount??1}/></label>
+            <label>Ends<select name="endKind" defaultValue={item?.recurrence?.endKind??"never"}><option value="never">Never</option><option value="count">After occurrences</option><option value="until">On date</option></select></label>
+            <label>Occurrences<input name="count" type="number" min="1" max="1000" defaultValue={item?.recurrence?.occurrenceCount??10}/></label>
+            <label>End date<input name="untilDate" type="date" defaultValue={item?.recurrence?.untilDate??""}/></label>
+          </div>
+          <div className={styles.formRow}>
+            <label>Required attendees<select name="requiredUsers" multiple defaultValue={item?.details?.attendees?.filter(p=>p.attendance==="required").map(p=>p.userId)??[]}>
+              {(accounts??[]).map(p=><option key={p.id} value={p.id}>{p.name} · {p.email}</option>)}
+            </select></label>
+            <label>Optional attendees<select name="optionalUsers" multiple defaultValue={item?.details?.attendees?.filter(p=>p.attendance==="optional").map(p=>p.userId)??[]}>
+              {(accounts??[]).map(p=><option key={p.id} value={p.id}>{p.name} · {p.email}</option>)}
+            </select></label>
+          </div>
+          <div>
+            <button type="button" disabled={checkingAvailability} onClick={event=>{const form=event.currentTarget.form;if(form)void checkAvailability(form)}}>
+              {checkingAvailability?"Checking availability…":"Check attendee availability"}
+            </button>
+            {availabilityMessage&&<p role="status">{availabilityMessage}</p>}
+            {availability&&<div role="status" aria-label="Selected attendees' busy times">
+              <strong>{availability.length?"Busy times":"Selected attendees are free for this time"}</strong>
+              {availability.map((interval,index)=><p key={`${interval.userId}:${interval.startsAt}:${index}`}>
+                {accounts?.find(account=>account.id===interval.userId)?.name??"Attendee"}: {new Intl.DateTimeFormat("en",{timeZone:availabilityZone,month:"short",day:"numeric",hour:"2-digit",minute:"2-digit"}).format(interval.startsAt)}–{new Intl.DateTimeFormat("en",{timeZone:availabilityZone,hour:"2-digit",minute:"2-digit"}).format(interval.endsAt)} · Busy
+              </p>)}
+            </div>}
           </div>
           <label>
             Internal participants

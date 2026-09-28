@@ -44,6 +44,19 @@ def require(ok, code="DIRECTORY_ACTION_INVALID"):
     if not ok:
         raise Conflict(code)
 
+def remove_represented_apply_aces(sddl, represented_sids=None):
+    """Remove only Apply ACEs for groups visible in the current inventory.
+
+    A newly created GPO passes None and replaces its default filter. An update
+    passes the represented group SIDs, preserving unknown/out-of-scope ACEs.
+    """
+    for ace in re.findall(r"\([^()]*\)", sddl):
+        fields = ace[1:-1].split(";")
+        if (len(fields) >= 6 and fields[0] == "OA" and fields[3].lower() == APPLY_GUID
+                and (represented_sids is None or fields[5] in represented_sids)):
+            sddl = sddl.replace(ace, "")
+    return sddl
+
 def fingerprint(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
@@ -448,19 +461,15 @@ class SambaAdapter:
         require(self.smb.loadfile(path) == value, "DIRECTORY_READBACK_FAILED")
         self.expected_files[path] = value
 
-    def filter(self, row, groups):
+    def filter(self, row, groups, represented_sids=None):
         from samba.dcerpc import security
         from samba.ndr import ndr_unpack, ndr_pack
         from samba.ntacls import dsacl2fsacl
         sd = ndr_unpack(security.descriptor, bytes(row["nTSecurityDescriptor"][0]))
-        # Remove only Apply Group Policy ACEs; retain read/delegation/owner and unknown ACEs.
-        # Refuse broad control ACEs rather than silently granting broader access.
-        sddl = sd.as_sddl()
-        parts = re.findall(r"\([^()]*\)", sddl)
-        for ace in parts:
-            fields = ace[1:-1].split(";")
-            if len(fields) >= 6 and fields[0] == "OA" and fields[3].lower() == APPLY_GUID:
-                sddl = sddl.replace(ace, "")
+        # The inventory intentionally excludes objects outside the connection's
+        # allowed DNs. Their Apply ACEs are unmanaged and must survive a filter
+        # update for a Position mapping.
+        sddl = remove_represented_apply_aces(sd.as_sddl(), represented_sids)
         suffix = ""
         if "S:" in sddl:
             sddl, tail = sddl.split("S:", 1)
@@ -628,7 +637,8 @@ class SambaAdapter:
                         links.insert(0, {"dn": str(target.dn), "options": 0})
                     self.modify(ou, {"gPLink": encode_links(links)})
             elif kind == "gpo.filter":
-                self.filter(target, [resolved[x] for x in action["groupIds"]])
+                represented_sids = {g["properties"].get("sid") for g in current if g["kind"] == "group"}
+                self.filter(target, [resolved[x] for x in action["groupIds"]], represented_sids)
             elif kind == "gpo.inheritance":
                 require(type(action.get("blocked")) is bool)
                 value = int(self.attr(target, "gPOptions", "0"))

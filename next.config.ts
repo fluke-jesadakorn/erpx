@@ -8,7 +8,14 @@ const nextConfig: NextConfig = {
   output: "standalone",
   skipProxyUrlNormalize: true,
   distDir: process.env.ERPX_BUILD_DIR ?? ".next",
-  allowedDevOrigins: ["127.0.0.1", "erpx.jesadakorn.com"],
+  allowedDevOrigins: [
+    "127.0.0.1",
+    "dev-erpx.jesadakorn.com",
+    "console-dev-erpx.jesadakorn.com",
+    "dev-pms.jesadakorn.com",
+    "dev-pos.jesadakorn.com",
+    ...(process.env.ERPX_BROWSER_SIMULATION_PORT === "3104" ? ["dev-pms.localhost", "dev-pos.localhost"] : []),
+  ],
   poweredByHeader: false,
   headers() {
     // Development chunk names are reused as routes compile and files change.

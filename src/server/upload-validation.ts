@@ -7,5 +7,13 @@ export function matchesUploadSignature(type: string, bytes: Uint8Array) {
   if (type === "image/webp")
     return new TextDecoder().decode(bytes.slice(0, 4)) === "RIFF"
       && new TextDecoder().decode(bytes.slice(8, 12)) === "WEBP";
+  if ((type === "image/heic" || type === "image/heif") && bytes.byteLength >= 12) {
+    const text = new TextDecoder("ascii");
+    if (text.decode(bytes.slice(4, 8)) !== "ftyp") return false;
+    const brand = text.decode(bytes.slice(8, 12));
+    return type === "image/heic"
+      ? ["heic", "heix", "hevc", "hevx", "heim", "heis"].includes(brand)
+      : ["mif1", "msf1"].includes(brand);
+  }
   return type === "text/csv";
 }

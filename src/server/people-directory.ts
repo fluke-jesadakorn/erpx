@@ -9,6 +9,8 @@ import { levelChangeStatements } from "./staff-settings";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { requireCompanyAuthority, authorityGuard } from "./staff-policy";
 import { organizationGuard, validateStaffOrganization } from "./organization";
+import { rosterPositionExitStatements } from "./roster-position-exit";
+import { recommendationStatements } from "./staff-defaults";
 
 export const directorySchema = z.object({
   legalName: z.string().trim().min(2).max(200),
@@ -26,6 +28,8 @@ export const directorySchema = z.object({
   managerPersonId: z.string().nullable().default(null),
   levelId: z.string().min(1).nullable().default(null),
   positionId: z.string().min(1).nullable().optional(),
+  acceptRecommendedPay: z.boolean().default(false),
+  acceptRecommendedLeave: z.boolean().default(false),
   reason: z.string().trim().min(3).max(1000).default("Staff profile updated"),
   linkedMemberUserId: z.string().max(160).optional(),
 });
@@ -41,7 +45,7 @@ export function canManagePeople(actor: WorkContext) {
 }
 export function canReadCompensation(actor: WorkContext, userId: unknown) {
   return (
-    canManagePeople(actor) ||
+    hasPermission(actor,"people.compensation.read") ||
     hasPermission(actor,"people.compensation.payroll") ||
     userId === actor.userId
   );
@@ -361,6 +365,18 @@ export async function saveDirectoryPerson(
     write.prepare("UPDATE hr_engagements SET position_id=? WHERE id=?").bind(positionId,engagement),
     write.prepare("INSERT INTO staff_organization_history(id,company_id,engagement_id,before_json,after_json,actor_id,reason,command_id,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(`org-history-${commandId}`,actor.companyId,engagement,JSON.stringify({positionId:current?.position_id??null,levelId:current?.level_id??null,managerPersonId:current?.manager_person_id??null,branchId:current?.branch_id??null,departmentId:current?.department_id??null}),JSON.stringify({positionId,levelId,managerPersonId:input.managerPersonId,branchId:input.branchId,departmentId:input.departmentId}),actor.userId,input.reason,commandId,now),
   );
+  if (current?.position_id && current.position_id !== positionId) {
+    const previous=await write.prepare("SELECT roster_required FROM organization_positions WHERE company_id=? AND id=?").bind(actor.companyId,current.position_id).first<{roster_required:number}>();
+    const next=positionId?await write.prepare("SELECT roster_required FROM organization_positions WHERE company_id=? AND id=?").bind(actor.companyId,positionId).first<{roster_required:number}>():null;
+    if(previous?.roster_required===1 && next?.roster_required!==1) steps.push(...rosterPositionExitStatements(write,actor,[engagement],commandId,input.reason));
+  }
+  steps.push(...await recommendationStatements(write,actor,{
+    engagementId:engagement,positionId,levelId,
+    priorLevelId:current?.level_id ? String(current.level_id) : null,
+    startDate:input.startDate,currency:input.currency,
+    acceptPay:input.acceptRecommendedPay,acceptLeave:input.acceptRecommendedLeave,
+    commandId,
+  }));
   return executeCommand(
     write,
     actor,

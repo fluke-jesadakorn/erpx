@@ -1,10 +1,8 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { join } from "node:path";
 import { requireManageErpxContext, requireWorkContext } from "./authorization";
 import { runtimeEnv, holdingResources } from "./runtime";
 import type { PostgresDatabase } from "./runtime/postgres";
-import { LocalFileStore } from "./runtime/filesystem";
 import { requireCompanyAuthority } from "./staff-policy";
 import { ApiError, errorResponse } from "./http";
 import { betaBody } from "./beta-http";
@@ -16,7 +14,10 @@ import {
   type BillingActor,
 } from "./billing";
 import { billingStripe } from "./billing-stripe";
-import { matchesUploadSignature } from "./upload-validation";
+import { attachmentUploadsFrozen, attachmentsV2ReadOnly } from "./attachments/feature";
+import { detectedAttachmentMediaType } from "./attachments/preview";
+import { attachmentScannerReadiness } from "./attachments/scanner";
+import { billingEvidenceStore } from "./billing-attachments";
 export function billingHandler(platform: boolean) {
   return async (
     request: Request,
@@ -94,9 +95,7 @@ export function billingHandler(platform: boolean) {
             "FORBIDDEN",
             "Evidence is private to Platform billing.",
           );
-        const store = new LocalFileStore(
-          join(env.ERPX_DATA_DIR, "files", "platform-billing"),
-        );
+        const store = billingEvidenceStore(env);
         if (request.method === "GET" && path[1]) {
           const row = (
             await db.pool.query(
@@ -105,9 +104,16 @@ export function billingHandler(platform: boolean) {
             )
           ).rows[0];
           if (!row) throw new ApiError(404, "NOT_FOUND", "Evidence not found.");
-          const file = await store.get(`${holdingId}/${row.id}`);
-          if (!file)
+          if(row.source_state!=="available"){
+            await db.pool.query("INSERT INTO billing_evidence_access_events(id,evidence_id,holding_id,actor,outcome,reason,created_at) VALUES($1,$2,$3,$4,'denied',$5,$6)",[`billing-access-${crypto.randomUUID()}`,row.id,holdingId,actor.userId,"EVIDENCE_NOT_AVAILABLE",Date.now()]);
+            throw new ApiError(423,"EVIDENCE_NOT_AVAILABLE","Evidence is quarantined, rejected, or awaiting a clean scan.");
+          }
+          const file = await store.get(row.object_key??`${holdingId}/${row.id}`);
+          if (!file){
+            await db.pool.query("INSERT INTO billing_evidence_access_events(id,evidence_id,holding_id,actor,outcome,reason,created_at) VALUES($1,$2,$3,$4,'denied',$5,$6)",[`billing-access-${crypto.randomUUID()}`,row.id,holdingId,actor.userId,"FILE_UNAVAILABLE",Date.now()]);
             throw new ApiError(404, "NOT_FOUND", "Evidence file missing.");
+          }
+          await db.pool.query("INSERT INTO billing_evidence_access_events(id,evidence_id,holding_id,actor,outcome,created_at) VALUES($1,$2,$3,$4,'allowed',$5)",[`billing-access-${crypto.randomUUID()}`,row.id,holdingId,actor.userId,Date.now()]);
           return new Response(file.body, {
             headers: {
               "Content-Type": row.mime,
@@ -118,6 +124,8 @@ export function billingHandler(platform: boolean) {
           });
         }
         if (request.method === "POST" && path.length === 1) {
+          if(attachmentsV2ReadOnly())throw new ApiError(503,"ATTACHMENTS_READ_ONLY","Billing evidence intake is disabled during attachment rollback. Existing clean evidence remains readable.");
+          if(attachmentUploadsFrozen())throw new ApiError(503,"ATTACHMENT_UPLOAD_FREEZE","Billing evidence intake is briefly paused for final storage reconciliation.");
           if (
             request.headers.get("origin") &&
             request.headers.get("origin") !== requestPublicOrigin(request)
@@ -145,7 +153,7 @@ export function billingHandler(platform: boolean) {
             throw new ApiError(
               422,
               "INVALID_FILE",
-              "Use a PDF, PNG or JPEG up to 5 MB.",
+              "Use a PDF, PNG or JPEG up to 10 MiB.",
             );
           const chunks: Uint8Array[] = [];
           let size = 0;
@@ -155,14 +163,15 @@ export function billingHandler(platform: boolean) {
               const r = await reader.read();
               if (r.done) break;
               size += r.value.length;
-              if (size > 5 * 1024 * 1024) {
+              if (size > 10 * 1024 * 1024) {
                 await reader.cancel();
-                throw new ApiError(413, "FILE_TOO_LARGE", "Maximum 5 MB.");
+                throw new ApiError(413, "FILE_TOO_LARGE", "Maximum 10 MiB.");
               }
               chunks.push(r.value);
             }
           const bytes = Buffer.concat(chunks);
-          if (!matchesUploadSignature(mime, bytes))
+          const detected=detectedAttachmentMediaType(bytes,mime);
+          if (detected!==mime)
             throw new ApiError(
               422,
               "INVALID_FILE",
@@ -184,6 +193,10 @@ export function billingHandler(platform: boolean) {
               old.mime !== mime)
           )
             throw new ApiError(409, "KEY_CONFLICT", "Upload key already used.");
+          if(old){
+            const state=String(old.source_state),pending=["legacy_unscanned","quarantined","scanning","scan_error"].includes(state);
+            return Response.json({data:{id:old.id,state}},{status:pending?202:200});
+          }
           if (
             !(
               await db.pool.query(
@@ -197,33 +210,29 @@ export function billingHandler(platform: boolean) {
               "ACCOUNT_REQUIRED",
               "Enroll this Holding before adding evidence.",
             );
-          const saved = await store.put(`${holdingId}/${id}`, bytes, {
+          const readiness=await attachmentScannerReadiness({...process.env,ERPX_ATTACHMENTS_V2:"true"});
+          if(!readiness.ready||!readiness.enabled)throw new ApiError(503,"ATTACHMENT_SCANNER_UNAVAILABLE","Billing evidence intake requires a healthy malware scanner and current signatures.");
+          const objectKey=`${holdingId}/quarantine/${id}/original`;
+          const saved = await store.put(objectKey, bytes, {
             onlyIf: { etagDoesNotMatch: "*" },
-            httpMetadata: { contentType: mime },
+            httpMetadata: { contentType: mime,cacheControl:"private, no-store" },customMetadata:{sha256:sha,state:"quarantined"},
           });
           if (!saved) {
-            const existing = await store.head(`${holdingId}/${id}`);
-            if (existing?.etag !== sha)
+            const existing = await store.head(objectKey);
+            if (existing?.customMetadata.sha256 !== sha)
               throw new ApiError(
                 409,
                 "KEY_CONFLICT",
                 "Upload key already used.",
               );
           }
-          await db.pool.query(
-            "INSERT INTO billing_evidence VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING",
-            [
-              id,
-              holdingId,
-              filename,
-              mime,
-              size,
-              sha,
-              actor.userId,
-              Date.now(),
-            ],
-          );
-          return Response.json({ data: { id } });
+          const now=Date.now(),client=await db.pool.connect();try{await client.query("BEGIN");await client.query(
+            `INSERT INTO billing_evidence(id,holding_id,filename,mime,size,sha256,actor,created_at,object_key,detected_mime,source_state)
+             VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(id) DO NOTHING`,
+            [id,holdingId,filename,mime,size,sha,actor.userId,now,objectKey,detected,"quarantined"],
+          );await client.query(`INSERT INTO billing_evidence_storage_ledger(id,evidence_id,holding_id,object_key,bytes,state,created_at,updated_at)
+            SELECT $1,id,holding_id,object_key,size,'stored',$2,$2 FROM billing_evidence WHERE id=$3 ON CONFLICT(object_key) DO NOTHING`,[`billing-storage-${id}`,now,id]);await client.query("INSERT INTO billing_evidence_scan_attempts(id,evidence_id,attempt,state,created_at) VALUES($1,$2,1,'pending',$3) ON CONFLICT(evidence_id,attempt) DO NOTHING",[`billing-scan-${id}`,id,now]);await client.query("INSERT INTO billing_evidence_events(id,evidence_id,holding_id,actor,action,details_json,created_at) VALUES($1,$2,$3,$4,'file.quarantined',$5,$6) ON CONFLICT(id) DO NOTHING",[`billing-event-${id}`,id,holdingId,actor.userId,JSON.stringify({sha256:sha,bytes:size,detectedMime:detected}),now]);await client.query("COMMIT");}catch(error){await client.query("ROLLBACK");throw error;}finally{client.release();}
+          return Response.json({ data: { id,state:"quarantined" } },{status:202});
         }
       }
       if (path.length)

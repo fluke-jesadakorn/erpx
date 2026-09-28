@@ -1,13 +1,12 @@
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { PageHeader } from "@/components/ui/primitives";
-import { CountEditor,ExpenseEditor,LeaveControls,RequestEditor,TaskEditor,TransferEditor } from "@/components/workplace/work-editors";
+import { CountEditor,ExpenseEditor,LeaveControls,RequestEditor,TransferEditor } from "@/components/workplace/work-editors";
 import { getEmployeeRequest } from "@/server/employee-requests";
 import { expenseOptions } from "@/server/expenses";
 import { countOptions } from "@/server/inventory-counts";
 import { transferOptions } from "@/server/inventory-transfers";
 import { requestPageOptions } from "@/server/request-page";
 import { holdingResources } from "@/server/runtime";
-import { staffPage } from "@/server/staff-page";
 import { getWorkCapabilities } from "@/server/work-capabilities";
 import Link from "next/link";
 import { notFound,redirect } from "next/navigation";
@@ -23,7 +22,6 @@ export async function CreateWork({actor,base,newKind,current,query}:{actor:WorkC
     )
   )
     notFound();
-  const create = newKind === "task" ? await staffPage(actor.holdingSlug) : null;
   const requestKind =
     newKind === "service_request"
       ? "service"
@@ -54,14 +52,6 @@ export async function CreateWork({actor,base,newKind,current,query}:{actor:WorkC
         <Link href={`?${current}`} className="back-link">
           Close new work
         </Link>
-        {create && (
-          <TaskEditor
-            base={base}
-            options={create.options}
-            projects={create.projects}
-            userId={actor.userId}
-          />
-        )}
         {newKind === "leave" && <LeaveControls base={base} initialOpen />}
         {requestKind && requestOptions && (
           <RequestEditor

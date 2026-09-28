@@ -2,6 +2,7 @@ import type { AiProtocol } from "@/lib/ai/providers";
 import { pinnedNodeRequest } from "./runtime/https";
 import { ApiError } from "./http";
 import type { BetaEnvironment } from "./beta-config";
+import { finishAiGatewayRequest, reserveAiGatewayRequest, type AiGatewayScope } from "./ai-gateway";
 
 export type AiEndpoint = {
   timeoutMs?: number;
@@ -10,7 +11,13 @@ export type AiEndpoint = {
   baseUrl: string;
   apiKey: string | null;
   model: string;
+  gateway?: AiGatewayScope;
 };
+const gatewayWire = Symbol("erpx-ai-gateway-transport");
+/** Bind an immutable source attempt and Branch at the moment an internal feature calls AI. */
+export function withAiGatewayScope(endpoint: AiEndpoint, requestId: string, feature: string, branchId: string | null, usageId=requestId): AiEndpoint {
+  return endpoint.gateway ? { ...endpoint, gateway: { ...endpoint.gateway, requestId, usageId, feature, branchId } } : endpoint;
+}
 export type AiMessage = {
   role: "system" | "user";
   content:
@@ -181,6 +188,8 @@ export async function providerRequest(
   body?: unknown,
   timeoutMs = 25000,
 ) {
+  if (endpoint.gateway && !(endpoint as AiEndpoint & { [gatewayWire]?: boolean })[gatewayWire])
+    throw new ApiError(409,"AI_GATEWAY_REQUIRED","This AI request must pass through the ERPX gateway.");
   const base = aiBaseUrl(endpoint.baseUrl),
     addresses = await resolvePublicHost(new URL(base).hostname),
     headers: Record<string, string> = {
@@ -217,17 +226,18 @@ export async function providerRequest(
   }
   return boundedJson(response);
 }
-export async function generateProviderJson(
+async function generateProviderJsonCore(
   endpoint: AiEndpoint,
   messages: AiMessage[],
   maxTokens = 2000,
 ) {
+  const wireEndpoint: AiEndpoint = endpoint.gateway ? Object.assign({...endpoint},{[gatewayWire]:true}) : endpoint;
   const timeoutMs = endpoint.timeoutMs ? Math.max(5000,Math.min(120000,endpoint.timeoutMs)) : messages.some(m => Array.isArray(m.content) && m.content.some(p => p.type === "image_url")) ? 90000 : 25000;
   const protocol = endpoint.protocol ?? "chat-completions";
-  let rawText: string, inputTokens: unknown, outputTokens: unknown;
+  let rawText: string, inputTokens: unknown, outputTokens: unknown, providerUsage: unknown;
   const incomplete = () => new ApiError(503, "AI_INCOMPLETE", "The provider did not finish a usable response. Retry or continue manually.");
   if (protocol === "responses") {
-    const response = await providerRequest(endpoint, "responses", {
+    const response = await providerRequest(wireEndpoint, "responses", {
       model: endpoint.model,
       input: messages.map(m => ({ role: m.role, content: typeof m.content === "string"
         ? m.content : m.content.map(p => p.type === "text" ? { type: "input_text", text: p.text }
@@ -238,7 +248,7 @@ export async function generateProviderJson(
     const output = response.output.filter(o => o.type === "message");
     if (!output.length || output.some(o => o.status !== "completed" || !Array.isArray(o.content) || o.content.some(p => p.type !== "output_text" || typeof p.text !== "string"))) throw incomplete();
     rawText = output.flatMap(o => o.content!.map(p => p.text)).join("");
-    inputTokens = response.usage?.input_tokens; outputTokens = response.usage?.output_tokens;
+    inputTokens = response.usage?.input_tokens; outputTokens = response.usage?.output_tokens; providerUsage=response.usage;
   } else if (protocol === "messages") {
     const parts = (content: AiMessage["content"]): unknown[] => typeof content === "string" ? [{ type: "text", text: content }] : content.map(p => {
       if (p.type === "text") return p;
@@ -247,7 +257,7 @@ export async function generateProviderJson(
         throw new ApiError(422, "AI_IMAGE_INVALID", "Use a supported base64 image.");
       return { type: "image", source: data ? { type: "base64", media_type: data[1], data: data[2] } : { type: "url", url: p.image_url.url } };
     });
-    const response = await providerRequest(endpoint, "messages", {
+    const response = await providerRequest(wireEndpoint, "messages", {
       model: endpoint.model, max_tokens: maxTokens,
       system: [...messages.filter(m => m.role === "system").flatMap(m => parts(m.content)), { type: "text", text: "Return only a valid JSON object, without Markdown fences." }],
       messages: messages.filter(m => m.role !== "system").map(m => ({ role: m.role, content: parts(m.content) })),
@@ -255,15 +265,15 @@ export async function generateProviderJson(
     if (response.stop_reason !== "end_turn" || !Array.isArray(response.content) || !response.content.some(p => p.type === "text") || response.content.some(p => !["text", "thinking", "redacted_thinking"].includes(p.type ?? "") || (p.type === "text" && typeof p.text !== "string"))) throw incomplete();
     rawText = response.content.filter(p => p.type === "text").map(p => p.text).join("");
     inputTokens = tokens(response.usage?.input_tokens) + tokens(response.usage?.cache_creation_input_tokens) + tokens(response.usage?.cache_read_input_tokens);
-    outputTokens = response.usage?.output_tokens;
+    outputTokens = response.usage?.output_tokens; providerUsage=response.usage;
   } else {
-    const response = await providerRequest(endpoint, "chat/completions", {
+    const response = await providerRequest(wireEndpoint, "chat/completions", {
       model: endpoint.model, messages, response_format: { type: "json_object" }, max_tokens: maxTokens,
     }, timeoutMs) as { choices?: { finish_reason?: string; message?: { content?: string; refusal?: unknown } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number } };
     const choice = response.choices?.[0];
     if (choice?.finish_reason !== "stop" || choice.message?.refusal || typeof choice.message?.content !== "string") throw incomplete();
     rawText = choice.message.content;
-    inputTokens = response.usage?.prompt_tokens; outputTokens = response.usage?.completion_tokens;
+    inputTokens = response.usage?.prompt_tokens; outputTokens = response.usage?.completion_tokens; providerUsage=response.usage;
   }
   let result: unknown;
   try {
@@ -272,7 +282,38 @@ export async function generateProviderJson(
   } catch {
     throw new ApiError(503, "AI_INVALID_OUTPUT", "The model did not produce the required JSON object.");
   }
-  return { result, inputTokens: tokens(inputTokens), outputTokens: tokens(outputTokens) };
+  return { result, inputTokens: tokens(inputTokens), outputTokens: tokens(outputTokens), providerUsage };
+}
+function billableUnits(value: unknown): Record<string,number> {
+  const output: Record<string,number>={};
+  const visit=(node: unknown,prefix:string,depth:number) => {
+    if (Object.keys(output).length>=48 || depth>3 || !node || typeof node!=="object" || Array.isArray(node)) return;
+    for (const [key,item] of Object.entries(node)) {
+      if (!/^[a-z][a-z_0-9]{0,60}$/i.test(key)) continue;
+      const path=prefix?`${prefix}.${key}`:key;
+      if (typeof item==="number" && Number.isSafeInteger(item) && item>=0) output[path]=item;
+      else if (item && typeof item==="object") visit(item,path,depth+1);
+    }
+  };
+  visit(value,"",0);
+  return output;
+}
+export async function generateProviderJson(endpoint: AiEndpoint,messages: AiMessage[],maxTokens=2000) {
+  const scope=endpoint.gateway;
+  if (!scope) {
+    const {result,inputTokens,outputTokens}=await generateProviderJsonCore(endpoint,messages,maxTokens);
+    return {result,inputTokens,outputTokens};
+  }
+  const provider=new URL(aiBaseUrl(endpoint.baseUrl)).hostname;
+  await reserveAiGatewayRequest(scope,provider,endpoint.model);
+  try {
+    const {result,inputTokens,outputTokens,providerUsage}=await generateProviderJsonCore(endpoint,messages,maxTokens);
+    await finishAiGatewayRequest(scope,"succeeded",inputTokens,outputTokens,billableUnits(providerUsage));
+    return {result,inputTokens,outputTokens};
+  } catch (error) {
+    await finishAiGatewayRequest(scope,"failed",0,0,{}).catch(() => {});
+    throw error;
+  }
 }
 function tokens(value: unknown) {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : 0;

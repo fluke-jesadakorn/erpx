@@ -2,12 +2,16 @@
 
 import { workFetch } from "@/lib/work-fetch";
 import Link from "next/link";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { clearGuidedIntakeHandoff, readGuidedIntakeHandoff } from "@/lib/ai/guided-intake";
+import { preparedTaskFields } from "@/lib/ai/prepared-work";
+import { formatUiDateTime } from "@/lib/ui-format";
 import { useRouter } from "next/navigation";
 import type { StaffPerson } from "@/server/staff-policy";
 import type { TaskDetail, TaskRow, ProjectRow } from "@/server/staff-tasks";
 import type { ScheduleRow, TemplateRow } from "@/server/routines";
 import type { ApprovalView } from "@/server/approvals";
+import { AttachmentPanel, type AttachmentPanelChange } from "@/components/attachments/attachment-panel";
 
 export type StaffOptions = {
   people: StaffPerson[];
@@ -220,7 +224,8 @@ function Approvers({
     </fieldset>
   );
 }
-function localInput(timestamp: number) {
+function localInput(timestamp: number | null) {
+  if (timestamp === null) return "";
   const date = new Date(timestamp);
   return new Date(timestamp - date.getTimezoneOffset() * 60000)
     .toISOString()
@@ -231,31 +236,42 @@ export function TaskEditor({
   options,
   projects,
   userId,
+  companyId,
+  assignmentId,
   task,
   template,
   clone = false,
   canRevise = false,
   createAs = "task",
+  initialDueDate,
+  initialProjectId,
 }: {
   base: string;
   options: StaffOptions;
   projects: ProjectRow[];
   userId: string;
+  companyId?: string;
+  assignmentId?: string;
   task?: TaskRow;
   template?: TemplateRow;
   clone?: boolean;
   canRevise?: boolean;
   createAs?: "task" | "routine";
+  initialDueDate?: string;
+  initialProjectId?: string;
 }) {
-  const [defaultDue] = useState(() => localInput(Date.now() + 86400000));
+  const [defaultDue] = useState(() => initialDueDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDueDate) ? `${initialDueDate}T09:00` : "");
   const source = task ?? template,
     { send, busy, error } = useStaffCommand(base),
+    [title, setTitle] = useState(`${clone ? "Copy of " : ""}${source?.title ?? ""}`),
+    [description, setDescription] = useState(source?.description ?? ""),
+    [guided, setGuided] = useState<Record<string,string> | null>(null),
     [assignee, setAssignee] = useState(source?.assignee_user_id ?? userId),
     [before, setBefore] = useState<string[]>(
       source ? JSON.parse(source.start_approvers_json) : [],
     ),
     [after, setAfter] = useState<string[]>(
-      source ? JSON.parse(source.completion_approvers_json) : [""],
+      source ? JSON.parse(source.completion_approvers_json) : createAs === "routine" ? [""] : [],
     ),
     [phase, setPhase] = useState(
       source
@@ -263,9 +279,10 @@ export function TaskEditor({
           ? JSON.parse(source.completion_approvers_json).length
             ? "both"
             : "start"
-          : "completion"
-        : "completion",
-    );
+          : JSON.parse(source.completion_approvers_json).length ? "completion" : "none"
+        : createAs === "routine" ? "completion" : "none",
+    ),
+    [due, setDue] = useState(task ? localInput(task.due_at) : defaultDue);
   const creator = clone
     ? userId
     : source
@@ -275,6 +292,29 @@ export function TaskEditor({
       : userId;
   const [createKind, setCreateKind] = useState(createAs);
   const templateMode = !!template || createKind === "routine";
+  const maySkipReview = !templateMode && (!task ||
+    task.start_approvers_json === "[]" && task.completion_approvers_json === "[]");
+  const ordinaryTask = !templateMode && phase === "none";
+  useEffect(() => {
+    if (source || createAs !== "task" || !companyId || !assignmentId) return;
+    const restore = () => setGuided(readGuidedIntakeHandoff(companyId,userId,assignmentId,base,"task"));
+    restore();
+    window.addEventListener("erpx:guided-intake-handoff", restore);
+    return () => window.removeEventListener("erpx:guided-intake-handoff", restore);
+  }, [source,createAs,companyId,userId,assignmentId,base]);
+  function clearPrepared() {
+    if (companyId && assignmentId) clearGuidedIntakeHandoff(companyId,userId,assignmentId,base,"task");
+    setGuided(null);
+  }
+  function usePrepared() {
+    if (!guided || createKind !== "task") return;
+    const prepared = preparedTaskFields(guided,options.people);
+    if (prepared.title) setTitle(prepared.title);
+    if (prepared.description) setDescription(prepared.description);
+    if (prepared.dueLocal) setDue(prepared.dueLocal);
+    if (prepared.assigneeId) setAssignee(prepared.assigneeId);
+    clearPrepared();
+  }
   return (
     <details className="card" open={!source || clone}>
       <summary>
@@ -285,11 +325,17 @@ export function TaskEditor({
               ? "Edit routine template"
               : "New routine template"
           : canRevise
-            ? "Revise task and restart approvals"
+            ? ordinaryTask ? "Update task" : "Revise task and restart approvals"
             : task
               ? "Edit draft"
               : "New task"}
       </summary>
+      {guided && createKind === "task" && <div className="notice" role="status">
+        <p>AI prepared task details. Review the owner, date and text before saving; this will replace any text already entered.</p>
+        {guided.assignee && <p>Suggested owner: {guided.assignee}. Choose the accountable assignee if it is not selected automatically.</p>}
+        <button type="button" className="button secondary" onClick={usePrepared}>Use prepared details</button>{" "}
+        <button type="button" className="button ghost" onClick={clearPrepared}>Discard suggestion</button>
+      </div>}
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -300,13 +346,13 @@ export function TaskEditor({
             description: f.get("description"),
             assigneeUserId: assignee,
             projectId: f.get("projectId") || null,
-            startApprovers: phase === "completion" ? [] : before,
-            completionApprovers: phase === "start" ? [] : after,
+            startApprovers: phase === "start" || phase === "both" ? before : [],
+            completionApprovers: phase === "completion" || phase === "both" ? after : [],
             expectedVersion: source?.version ?? 1,
             ...(routine
               ? { published: f.get("published") === "on" }
               : {
-                  dueAt: new Date(String(f.get("dueAt"))).toISOString(),
+                  dueAt: due ? new Date(due).toISOString() : null,
                   reason: f.get("reason") ?? "",
                 }),
           };
@@ -327,9 +373,14 @@ export function TaskEditor({
               <select
                 name="recordKind"
                 value={createKind}
-                onChange={(e) =>
-                  setCreateKind(e.target.value as "task" | "routine")
-                }
+                onChange={(e) => {
+                  const kind = e.target.value as "task" | "routine";
+                  setCreateKind(kind);
+                  if (kind === "routine" && phase === "none") {
+                    setPhase("completion");
+                    setAfter([""]);
+                  }
+                }}
               >
                 <option value="task">Operational or project task</option>
                 <option value="routine">Reusable routine template</option>
@@ -343,12 +394,13 @@ export function TaskEditor({
               required
               minLength={2}
               maxLength={200}
-              defaultValue={`${clone ? "Copy of " : ""}${source?.title ?? ""}`}
+              value={title}
+              onChange={e=>setTitle(e.target.value)}
             />
           </label>
           <label>
             Project
-            <select name="projectId" defaultValue={source?.project_id ?? ""}>
+            <select name="projectId" defaultValue={source?.project_id ?? initialProjectId ?? ""}>
               <option value="">Standalone work</option>
               {projects.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -359,12 +411,13 @@ export function TaskEditor({
           </label>
           {!templateMode && (
             <label>
-              Due date and time
+              Due date and time {ordinaryTask ? "(optional)" : ""}
               <input
                 name="dueAt"
                 type="datetime-local"
-                required
-                defaultValue={task ? localInput(task.due_at) : defaultDue}
+                required={!ordinaryTask}
+                value={due}
+                onChange={(e) => setDue(e.target.value)}
               />
             </label>
           )}
@@ -374,7 +427,8 @@ export function TaskEditor({
           <textarea
             name="description"
             maxLength={10000}
-            defaultValue={source?.description ?? ""}
+            value={description}
+            onChange={e=>setDescription(e.target.value)}
           />
         </label>
         <StaffPicker
@@ -384,22 +438,24 @@ export function TaskEditor({
           options={options}
         />
         <label>
-          Approval timing
+          Review
           <select
             value={phase}
             onChange={(e) => {
               const next = e.target.value;
               setPhase(next);
-              if (next !== "completion" && !before.length) setBefore([""]);
-              if (next !== "start" && !after.length) setAfter([""]);
+              if ((next === "start" || next === "both") && !before.length) setBefore([""]);
+              if ((next === "completion" || next === "both") && !after.length) setAfter([""]);
+              if (next !== "none" && !due) setDue(localInput(Date.now() + 86400000));
             }}
           >
+            {maySkipReview && <option value="none">No review needed</option>}
             <option value="completion">After completion</option>
             <option value="start">Before work starts</option>
             <option value="both">Before work and after completion</option>
           </select>
         </label>
-        {phase !== "completion" && (
+        {(phase === "start" || phase === "both") && (
           <Approvers
             label="Start approval"
             values={before}
@@ -408,7 +464,7 @@ export function TaskEditor({
             exclude={[assignee, creator]}
           />
         )}
-        {phase !== "start" && (
+        {(phase === "completion" || phase === "both") && (
           <Approvers
             label="Completion approval"
             values={after}
@@ -430,10 +486,11 @@ export function TaskEditor({
         {canRevise && (
           <label>
             Revision reason
-            <textarea name="reason" required minLength={3} maxLength={2000} />
+            <textarea name="reason" required={!ordinaryTask} minLength={ordinaryTask ? undefined : 3} maxLength={2000} />
             <small>
-              This returns the task to draft. Submit it again to restart
-              approvals. Previous decisions remain in history.
+              {ordinaryTask
+                ? "The updated task remains ready to work."
+                : "This returns the task to draft. Submit it again to restart approvals. Previous decisions remain in history."}
             </small>
           </label>
         )}
@@ -452,7 +509,7 @@ export function TaskEditor({
                   ? "Create my copy"
                   : templateMode
                     ? "Save routine template"
-                    : "Save task draft"}
+                    : ordinaryTask ? "Create task" : "Save task draft"}
           </button>
         </div>
       </form>
@@ -468,15 +525,15 @@ export function TaskActions({
 }) {
   const { send, busy, error } = useStaffCommand(base),
     [note, setNote] = useState(detail.task.completion_note),
-    [uploading, setUploading] = useState(false),
-    [uploadError, setUploadError] = useState("");
-  const router = useRouter();
-  const [refreshing, startRefresh] = useTransition();
+    [evidence, setEvidence] = useState<AttachmentPanelChange>({setId:null,links:[],readyCount:0,requiredCount:0,bindable:true});
+  const ordinaryTask = detail.task.template_id === null && detail.task.schedule_id === null &&
+    detail.task.start_approvers_json === "[]" &&
+    detail.task.completion_approvers_json === "[]";
   const labels: Record<string, string> = {
     submit: "Submit task",
     start: "Start work",
     "save-progress": "Save progress",
-    complete: "Submit completion",
+    complete: ordinaryTask ? "Mark complete" : "Submit completion",
     approve: "Approve current step",
     reject: "Reject with reason",
     cancel: "Cancel task",
@@ -484,44 +541,11 @@ export function TaskActions({
   const actions = detail.permittedActions.filter((a) => labels[a]);
   const canUpload =
     detail.permittedActions.includes("edit") ||
-    detail.permittedActions.includes("save-progress");
-  async function upload(file: File) {
-    setUploading(true);
-    setUploadError("");
-    try {
-      const intent = await workFetch(`/api/v1${base}/uploads`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ownerType: "staff_task",
-          ownerId: detail.task.id,
-          purpose: "task_evidence",
-          filename: file.name,
-          mediaType: file.type || "text/csv",
-          bytes: file.size,
-        }),
-      });
-      const prepared = (await intent.json()) as {
-        data: { uploadUrl: string };
-        error?: { message: string };
-      };
-      if (!intent.ok)
-        throw new Error(prepared.error?.message ?? "Upload could not start.");
-      const response = await workFetch(prepared.data.uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type || "text/csv" },
-        body: file,
-      });
-      const result = (await response.json()) as { error?: { message: string } };
-      if (!response.ok)
-        throw new Error(result.error?.message ?? "Upload failed.");
-      startRefresh(() => router.refresh());
-    } catch (e) {
-      setUploadError(e instanceof Error ? e.message : "Upload failed.");
-    } finally {
-      setUploading(false);
-    }
-  }
+    detail.permittedActions.includes("save-progress") ||
+    (ordinaryTask && detail.task.state === "ready" && detail.permittedActions.includes("complete"));
+  const activeEvidence=evidence.links.filter((link)=>!["withdrawn","expired"].includes(link.linkState));
+  const hasEvidence=activeEvidence.length>0,evidencePending=hasEvidence&&!evidence.bindable;
+  const evidenceActions=new Set(["submit","save-progress","complete"]);
   return (
     <>
       {(actions.length > 0 || detail.blockedReason) && (
@@ -535,7 +559,7 @@ export function TaskActions({
           {actions.length > 0 && (
             <>
               <label>
-                Completion or decision note
+                {ordinaryTask ? "Completion note (optional; cancellation needs a reason)" : "Completion or decision note"}
                 <textarea
                   aria-label="Completion or decision note"
                   value={note}
@@ -548,12 +572,16 @@ export function TaskActions({
                   <button
                     key={action}
                     className={`button ${["reject", "cancel", "save-progress"].includes(action) ? "secondary" : ""}`}
-                    disabled={busy || uploading || refreshing}
+                    disabled={busy || evidencePending || (hasEvidence && !evidenceActions.has(action))}
                     onClick={() =>
                       void send(`staff-tasks/${detail.task.id}/transition`, {
                         action,
                         expectedVersion: detail.task.version,
                         note,
+                        attachmentSetIds:
+                          hasEvidence && evidence.bindable && evidence.setId && evidenceActions.has(action)
+                            ? [evidence.setId]
+                            : [],
                       })
                     }
                   >
@@ -571,39 +599,30 @@ export function TaskActions({
         </section>
       )}
       <section className="card">
-        <h2>Supporting attachments</h2>
-        {detail.attachments.map((file) => (
-          <a
-            className="row"
-            key={file.id}
-            href={`/api/v1${base}/attachments/${file.id}/content`}
-          >
+        <AttachmentPanel
+          key={`${detail.task.id}:${detail.task.version}`}
+          base={base}
+          targetType="staff_task"
+          targetId={detail.task.id}
+          expectedTargetVersion={detail.task.version}
+          componentKind="action"
+          componentRef={`task:${detail.task.state}`}
+          purposeKey="task_evidence"
+          title="Task evidence"
+          description="Attach clean photos or documents to the next submit, progress, or completion action. Bound evidence cannot be replaced in place."
+          visibility="Available only to people who may read this task. A revoked delegate loses access immediately."
+          readOnly={!canUpload}
+          frozen={!canUpload}
+          showHistory
+          onChange={setEvidence}
+        />
+        {evidencePending && <p className="notice" role="status">Wait for every selected file to pass security scanning before changing the task.</p>}
+        {hasEvidence && evidence.bindable && <p className="notice" role="status">Clean evidence will be locked to the next supported task action.</p>}
+        {detail.attachments.length > 0 && <details><summary>Legacy task attachments</summary>{detail.attachments.map((file) => (
+          <a className="row" key={file.id} href={`/api/v1${base}/attachments/${file.id}/content`}>
             {file.original_name} · {Math.ceil(file.bytes / 1024)} KB
           </a>
-        ))}
-        {!detail.attachments.length && (
-          <p className="muted">No supporting files attached.</p>
-        )}
-        {canUpload && (
-          <label>
-            Attach supporting file
-            <input
-              type="file"
-              disabled={uploading || busy || refreshing}
-              accept="image/jpeg,image/png,image/webp,application/pdf,text/csv"
-              onChange={(e) => {
-                const file = e.currentTarget.files?.[0];
-                e.currentTarget.value = "";
-                if (file) void upload(file);
-              }}
-            />
-          </label>
-        )}
-        {uploadError && (
-          <p role="alert" className="error">
-            {uploadError}
-          </p>
-        )}
+        ))}</details>}
       </section>
     </>
   );
@@ -989,9 +1008,7 @@ export function RoutineScheduleControls({
             <p>
               Next occurrence:{" "}
               {s.next_occurrence_at
-                ? new Date(s.next_occurrence_at).toLocaleString("en-GB", {
-                    timeZone: s.timezone,
-                  })
+                ? formatUiDateTime(s.next_occurrence_at, s.timezone)
                 : "None"}
             </p>
             {s.last_error && (

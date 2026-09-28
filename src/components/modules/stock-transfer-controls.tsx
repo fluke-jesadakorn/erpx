@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { TransferRow as Row } from "@/server/inventory-transfers";
 import { minorToDecimal } from "@/lib/finance-money";
+import { AttachmentPanel, type AttachmentPanelChange } from "@/components/attachments/attachment-panel";
 type Options = { warehouses: Row[]; sources: Row[]; stock: Row[]; lots: Row[] };
 function useTransferCommand(base: string) {
   const router = useRouter(),
@@ -292,7 +293,8 @@ export function TransferActions({
   stale: boolean;
 }) {
   const { send, error, pending } = useTransferCommand(base),
-    [reason, setReason] = useState("");
+    [reason, setReason] = useState(""),
+    [directEvidence, setDirectEvidence] = useState<AttachmentPanelChange | null>(null);
   return (
     <section className="card">
       <h2>Transfer workflow</h2>
@@ -318,6 +320,21 @@ export function TransferActions({
               placeholder="Confirm the receiving count or explain the correction"
             />
           </label>
+          {reviewable && transfer.delivery_mode === "direct" && (
+            <AttachmentPanel
+              base={base}
+              targetType="inventory_transfer"
+              targetId={String(transfer.id)}
+              expectedTargetVersion={Number(transfer.version)}
+              componentKind="action"
+              componentRef="direct-receipt"
+              purposeKey="direct_receipt_evidence"
+              title="Direct transfer receipt evidence"
+              description="Attach the receiving count sheet, signed handover, or arrival photos reviewed before stock posts at both warehouses."
+              visibility="Visible to authorized Inventory and Finance reviewers for the source or receiving Branch."
+              onChange={setDirectEvidence}
+            />
+          )}
           <div className="form-actions">
             {editable && (
               <>
@@ -355,6 +372,12 @@ export function TransferActions({
                     void send(`/${transfer.id}/post`, {
                       expectedVersion: transfer.version,
                       reason,
+                      attachmentSetIds:
+                        directEvidence?.setId &&
+                        directEvidence.readyCount > 0 &&
+                        directEvidence.bindable
+                          ? [directEvidence.setId]
+                          : [],
                     })
                   }
                 >

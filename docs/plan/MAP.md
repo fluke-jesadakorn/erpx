@@ -1,5 +1,7 @@
 # Plan — Map (single flat index for 31 contexts)
 
+> Historical domain map; see [the current production plan](../production-plan.md) for release scope. Counts describe this reference map, not the current module registry.
+
 > **Parallel file — new.** This flat table is the fastest way to find any context without remembering its group number (e.g., `sales = 03-finance-sales-pos`). It links light (`02`, 26L) ↔ deep (`03/@-and-ai`, 213L) ↔ archived proto (37 on `backup/rust-2026-09-02` `f97b74d6`) ↔ living Next route (TBD in `src/app/api` + `docs/contracts/next/route-table.md`). See also `docs/TOC.md` → `docs/plan/README.md` → `docs/plan/01-vision-and-scope.md` (spine).
 
 ## How to use
@@ -74,4 +76,4 @@ Revenue journey: `crm/opportunity-2026-011 → sales/quote-2026-042 → sales/or
 - Archive proto: `git checkout backup/rust-2026-09-02 -- docs/contracts/proto/erpx/<ctx>/service.proto`
 - Living route placeholder: `docs/contracts/next/route-table.md` + `src/app/api/<ctx>/` (TBD, see `CONTRACT_POLICY.md` + `docs/adr/ADR-020`)
 - Invariants: unique 12 contexts kept in `02` (see `docs/plan/02/.../*.md:12`), generic 3 (holding-isolation/time-bounded/append-only) live in `_shared-contract.md`
-- Edit rule `docs/plan/README.md:28 Q18=A`: every `docs/plan/` change updates `traceability.md` + code SHA
+- Edit affected references only; current delivery changes belong in `docs/production-plan.md`.

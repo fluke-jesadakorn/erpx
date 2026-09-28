@@ -787,13 +787,13 @@ export function FeatureWidget({
 export function FeaturePage({
   children,
   ...props
-}: HTMLAttributes<HTMLElement>) {
+}: HTMLAttributes<HTMLDivElement>) {
   const [open, setOpen] = useState(false);
   return (
     <PageDrawer value={{ open, setOpen }}>
-      <main {...props} data-feature-page>
+      <div {...props} data-feature-page>
         {children}
-      </main>
+      </div>
     </PageDrawer>
   );
 }

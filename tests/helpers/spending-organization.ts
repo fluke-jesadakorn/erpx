@@ -11,5 +11,7 @@ export async function mapSpendingOrganization(f:Awaited<ReturnType<typeof seedEx
   for(const [actor,n] of [[f.owner,1],[f.head,3],[f.tie,3],[f.it,4],[f.reviewer,5],[f.manager,4],[f.payer,5],[f.claimant,6]] as const){
     await f.db.prepare("UPDATE hr_engagements SET level_id=?,position_id=?,manager_person_id=? WHERE person_id=?").bind(level(n),positions.get(n),n===1?null:`person-${actor===f.claimant?f.head.userId:f.owner.userId}`,`person-${actor.userId}`).run();
   }
+  await f.db.prepare("INSERT INTO authority_seats(company_id,kind,scope_id,version,position_id,person_id,effective_at) VALUES(?,'ceo',?,1,?,?,1) ON CONFLICT(company_id,kind,scope_id) DO UPDATE SET version=1,position_id=excluded.position_id,person_id=excluded.person_id,effective_at=1").bind(f.company,f.company,ceo,`person-${f.owner.userId}`).run();
+  await f.db.prepare("INSERT INTO authority_seats(company_id,kind,scope_id,version,person_id,effective_at) VALUES(?,'head',?,1,?,1)").bind(f.company,f.department,`person-${f.head.userId}`).run();
   return {level,positions};
 }

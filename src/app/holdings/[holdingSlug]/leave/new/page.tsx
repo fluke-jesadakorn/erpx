@@ -21,7 +21,7 @@ export default async function NewLeave({
   const rawDate = (await searchParams).date;
   const date = typeof rawDate === "string" && z.iso.date().safeParse(rawDate).success ? rawDate : "";
   return (
-    <main className={"content " + styles.leavePage}>
+    <div className={"content " + styles.leavePage}>
       <Link className={styles.backLink} href={base + "/leave"}>← My leave</Link>
       <header className={styles.pageHeading}>
         <div><p className={styles.eyebrow}>People · Self-service</p><h1>Request leave</h1><p>Choose your dates and review the policy calculation before submitting.</p></div>
@@ -30,9 +30,12 @@ export default async function NewLeave({
       <LeaveEditor
         key={actor.companyId + ":" + actor.userId}
         base={base}
+        companyId={actor.companyId}
+        userId={actor.userId}
+        assignmentId={actor.assignmentId}
         types={summary.balances}
         initialDate={date}
       />
-    </main>
+    </div>
   );
 }

@@ -9,11 +9,12 @@ import {saveTransfer,transitionTransfer,transferDetail,transferSchema} from '../
 import {decideTransitLoss,dispatchTransit,getTransit,receiveTransit,requestTransitLoss,transitDetail} from '../src/server/inventory-transit';
 import {countDetail,saveCount,transitionCount} from '../src/server/inventory-counts';
 import {postInvoice,postJournal} from '../src/server/finance';
+import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from './helpers/attachment-v2';
 
 vi.mock('../src/server/runtime',()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 
 let f:Awaited<ReturnType<typeof expenseFixture>>,warehouse:string,supplier:string,customer:string;
-beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
+beforeAll(async()=>{enableAttachmentV2ForTest();await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{
   f=await expenseFixture();
   for(const [actor,role] of [[f.head,'holding_owner'],[f.reviewer,'quality_inspector'],[f.manager,'quality_manager']] as const){actor.role=role;actor.branchId=null;actor.departmentId=null;actor.assignmentId=await f.grant(actor,role);}
@@ -72,7 +73,12 @@ it('moves selected lot quantities and values between warehouses as one direct tr
   const transfer=await saveTransfer(f.owner,null,transferSchema.parse({sourceWarehouseId:warehouse,targetWarehouseId:target,transferDate:'2026-09-03',reason:'Replenish the destination with selected physical lots',lines:[{productId:product,quantity:'2',allocations:lots.map(lot=>({lotId:lot.id,quantity:'1'}))}]}),key()),transferId=String(transfer.id);
   const detail=await transferDetail(f.owner,transferId);expect(detail.allocations.map(a=>String(a.lot_code)).sort()).toEqual(['MOVE-A','MOVE-B']);
   await transitionTransfer(f.owner,transferId,'submit',{expectedVersion:1},key());const flow=await resolveFlow(db,f.owner,'transfer',transferId);await assignFlowPrimary(db,f.owner,'transfer',transferId,{stepKey:'submitted',userId:f.head.userId,reason:'Assign an independent receiving reviewer',saveDefault:false,expectedVersion:flow.version,recordVersion:2},key());
-  await transitionTransfer(f.head,transferId,'post',{expectedVersion:2,reason:'Both selected lots counted at the receiving warehouse'},key());
+  const wrongFiles=await seedAttachmentSet(db,f.head,{targetType:'inventory_transfer',targetId:transferId,purposeKey:'receipt_evidence',componentRef:'direct-receipt',expectedTargetVersion:2});
+  await expect(transitionTransfer(f.head,transferId,'post',{expectedVersion:2,reason:'Wrong receipt context must not post',attachmentSetIds:[wrongFiles.setId]},key())).rejects.toMatchObject({code:'TRANSFER_ATTACHMENT_PURPOSE'});
+  expect(await attachmentBindingState(db,wrongFiles.setId)).toMatchObject({set_state:'draft',link_state:'draft'});
+  const receiptFiles=await seedAttachmentSet(db,f.head,{targetType:'inventory_transfer',targetId:transferId,purposeKey:'direct_receipt_evidence',componentRef:'direct-receipt',expectedTargetVersion:2});
+  await transitionTransfer(f.head,transferId,'post',{expectedVersion:2,reason:'Both selected lots counted at the receiving warehouse',attachmentSetIds:[receiptFiles.setId]},key());
+  expect(await attachmentBindingState(db,receiptFiles.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'direct_transfer_receipt',binding_id:`${transferId}:3`});
   expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:1000,value_minor:1000});
   expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(target,product).first()).toEqual({quantity_milli:2000,value_minor:2000});
   expect((await db.prepare('SELECT l.lot_code,b.quantity_milli,b.value_minor FROM inventory_lot_balances b JOIN inventory_lots l ON l.id=b.lot_id WHERE b.warehouse_id=? AND l.product_id=? ORDER BY l.lot_code').bind(target,product).all()).results).toEqual([{lot_code:'MOVE-A',quantity_milli:1000,value_minor:1000},{lot_code:'MOVE-B',quantity_milli:1000,value_minor:1000}]);
@@ -111,7 +117,8 @@ it('posts a lot-level physical count with a missing lot and a newly found lot',a
   const lots=(await db.prepare("SELECT l.id,l.lot_code FROM inventory_lots l WHERE l.product_id=? ORDER BY l.lot_code").bind(product).all<{id:string;lot_code:string}>()).results;
   const created=await saveCount(f.owner,null,{warehouseId:warehouse,countDate:'2026-09-02',reason:'Reconcile labelled stock found during cycle count',lines:[{productId:product,countedQuantity:'3',allocations:[{lotId:lots[0].id,countedQuantity:'0',manufacturedDate:'',expiryDate:''},{lotId:lots[1].id,countedQuantity:'1',manufacturedDate:'',expiryDate:''},{lotCode:'COUNT-C',countedQuantity:'2',unitCost:'15',manufacturedDate:'2026-08-01',expiryDate:'2027-08-01'}]}]},key()),countId=String(created.id);
   let detail=await countDetail(f.owner,countId);expect(detail.lotLines).toHaveLength(3);expect(detail.count.net_value_minor).toBe(2000);
-  await transitionCount(f.owner,countId,'submit',{expectedVersion:1},key());const flow=await resolveFlow(db,f.owner,'stock_count',countId);await assignFlowPrimary(db,f.owner,'stock_count',countId,{stepKey:'submitted',userId:f.manager.userId,reason:'Assign independent count review',saveDefault:false,expectedVersion:flow.version,recordVersion:2},key());
+  const countFiles=await seedAttachmentSet(db,f.owner,{targetType:'stock_count',targetId:countId,purposeKey:'count_sheet',componentRef:'submit',expectedTargetVersion:1});
+  const submitKey=key();await transitionCount(f.owner,countId,'submit',{expectedVersion:1,attachmentSetIds:[countFiles.setId]},submitKey);expect(await attachmentBindingState(db,countFiles.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'stock_count_submission',binding_id:`count-submit-${submitKey}`});const flow=await resolveFlow(db,f.owner,'stock_count',countId);await assignFlowPrimary(db,f.owner,'stock_count',countId,{stepKey:'submitted',userId:f.manager.userId,reason:'Assign independent count review',saveDefault:false,expectedVersion:flow.version,recordVersion:2},key());
   await transitionCount(f.manager,countId,'approve',{expectedVersion:2,reason:'Labels and valuation evidence checked'},key());await transitionCount(f.manager,countId,'post',{expectedVersion:3,reason:'Approved count reconciles to the inventory control total'},key());
   expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse,product).first()).toEqual({quantity_milli:3000,value_minor:4000});
   expect((await db.prepare('SELECT l.lot_code,l.status,b.quantity_milli,b.value_minor FROM inventory_lots l JOIN inventory_lot_balances b ON b.lot_id=l.id WHERE l.product_id=? AND b.warehouse_id=? ORDER BY l.lot_code').bind(product,warehouse).all()).results).toEqual([{lot_code:'COUNT-A',status:'depleted',quantity_milli:0,value_minor:0},{lot_code:'COUNT-B',status:'active',quantity_milli:1000,value_minor:1000},{lot_code:'COUNT-C',status:'active',quantity_milli:2000,value_minor:3000}]);

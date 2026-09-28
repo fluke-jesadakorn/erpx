@@ -1,5 +1,7 @@
 # 01 — Vision and Scope
 
+> Historical product vision. Current release scope and priorities are in [the production plan](../production-plan.md).
+
 ## Vision
 
 One ERP codebase that an enterprise can run locally, self-host, or consume as hosted — without forking business logic. Open-source first, commercial overlay second.
@@ -14,18 +16,18 @@ No aspirational contexts added.
 
 ## What’s open vs commercial
 
-- **Open (this repo):** all 31 contexts as business plans + Next.js implementation in `src/app/` (route handlers, Prisma/Drizzle). Full Rust implementation (`crates/*`, `apps/*`) is archived on `backup/rust-2026-09-02` (`rust-archive-2026-09-02`, `f97b74d6`); this branch is docs-only + Next.js scaffold.
+- **Open (this repo):** the broader domain reference inventory plus Next.js route handlers and PostgreSQL domain services in `src/app/` and `src/server/`. Full Rust implementation (`crates/*`, `apps/*`) is archived on `backup/rust-2026-09-02` (`rust-archive-2026-09-02`, `f97b74d6`); this branch contains the active Next.js application; implementation is distinct from production acceptance.
 - **Commercial overlay (hosted only):** Stripe-billed billing/entitlement (`commercial` context) — authoritative in Stripe (ADR-007), mirrored locally when present. Not required for local dev or self-hosted.
 
 ## Licensing & deployment tiers
 
 - License: see repo `LICENSE` (open-source).
-- Tiers on this branch: **Local dev** (`bun run dev` on `http://localhost:3100`) → **Cloudflare dev** (OpenNext Workers + D1 + R2 + Queues) → **Hosted** (operator-managed providers). Rust tiers are archived on `backup/rust-2026-09-02`.
+- Tiers on this branch: **Local dev** (`bun run dev` on `http://localhost:3100`) → **isolated Node.js/PostgreSQL release** → **Hosted** through Cloudflare Tunnel (ADR-024). Rust tiers are archived on `backup/rust-2026-09-02`.
 
 ## Ownership & change control
 
 - Product Council owns baseline; Domain Owners approve business content; Architecture/Security/Privacy/Ops/UX approve controls (preserved from prior baseline).
-- Community PRs welcome (Q18=A). Every `docs/plan/` change must update `traceability.md` and cite code SHA.
+- Community PRs welcome. Update affected contracts/references only; the production plan owns delivery status.
 - Retired IDs never reused.
 
 ## Universal referenceability — `@`-mentions (Q13=A, Q14=B, Q15=B)

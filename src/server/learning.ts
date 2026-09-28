@@ -10,6 +10,7 @@ import { hasPermission } from "@/lib/permissions";
 import { hasModuleAccess } from "@/data/module-access";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
+import { prepareAttachmentBinding } from "./attachments/service";
 const reason = z.string().trim().min(3).max(3000),
   version = z.number().int().positive(),
   date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
@@ -41,6 +42,7 @@ const assignmentAction = z.discriminatedUnion("action", [
     scoreBps: z.number().int().min(0).max(10000),
     evidence: reason,
     reason,
+    attachmentSetIds: z.array(z.string().min(1)).max(20).default([]),
   }),
   z.object({
     action: z.enum(["waive", "cancel"]),
@@ -430,6 +432,21 @@ export async function changeLearningAssignment(
     op = `learning.assignment.${input.action}`,
     prior = await replayCommand(write, a, key, op, id, input);
   if (prior) return prior;
+  const attachmentBinding =
+    input.action === "complete" && input.attachmentSetIds.length
+      ? await prepareAttachmentBinding(write, a, {
+          attachmentSetIds: input.attachmentSetIds,
+          bindingContract: {
+            targetType: "learning_assignment",
+            bindingType: "learning_completion",
+            contexts: [{ purposeKey: "certificate", componentKind: "action", componentRef: "completion" }],
+          },
+          targetId: id,
+          expectedTargetVersion: input.expectedVersion,
+          commandId: key,
+          bindingId: id,
+        })
+      : null;
   const now = Date.now(),
     attendance =
       input.action === "complete" ? input.attendance : row.attendance,
@@ -440,6 +457,7 @@ export async function changeLearningAssignment(
       ? input.reason
       : null,
     steps = [
+      ...(attachmentBinding?.guards ?? []),
       assertion(
         write,
         key,
@@ -466,6 +484,7 @@ export async function changeLearningAssignment(
           status,
           now,
         ),
+      ...(attachmentBinding?.steps ?? []),
     ];
   if (["complete", "waive"].includes(input.action) && row.required_for)
     steps.push(

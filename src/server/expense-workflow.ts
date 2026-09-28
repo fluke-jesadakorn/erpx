@@ -22,6 +22,7 @@ import { holdingResources } from "./runtime";
 import { decimalToMinor } from "./finance";
 import { ApiError } from "./http";
 import { resolveFlow } from "./flow-routing";
+import { attachmentsV2Readable } from "./attachments/feature";
 
 export const expenseAccountingSchema = z.object({
   expectedVersion: z.number().int().positive(),
@@ -227,7 +228,7 @@ export async function transitionExpenseV2(
   actor: WorkContext,
   row: ExpenseRow,
   action: "submit" | "approve" | "reject" | "cancel",
-  input: { expectedVersion: number; reason?: string },
+  input: { expectedVersion: number; reason?: string; override?:boolean },
   key: string,
 ) {
   const { write } = await holdingResources(actor.holdingId),
@@ -306,7 +307,11 @@ export async function transitionExpenseV2(
           write,
           key,
           "receipt",
-          "EXISTS(SELECT 1 FROM attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL)",
+          attachmentsV2Readable()
+            ? `EXISTS(SELECT 1 FROM attachments a JOIN attachment_links l ON l.attachment_id=a.id JOIN attachment_sets s ON s.id=l.set_id
+                WHERE a.owner_type='expense_claim' AND a.owner_id=? AND a.revoked_at IS NULL AND a.source_state='available'
+                  AND l.state='bound' AND s.target_type='expense_claim' AND s.target_id=a.owner_id)`
+            : "EXISTS(SELECT 1 FROM attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL)",
           [id],
         ),
         assertion(
@@ -412,6 +417,7 @@ export async function transitionExpenseV2(
     action === "approve",
     input.reason!,
     input.expectedVersion,
+    input.override??false,
   );
   const accounting = JSON.parse(String(row.accounting_json ?? "{}")) as {
     periodId?: string;
@@ -448,9 +454,7 @@ export async function transitionExpenseV2(
   const stage =
     action === "reject"
       ? "draft"
-      : row.workflow_stage === "department_approval"
-        ? "accounts_review"
-        : "accounts_approval";
+      : decision.next?.stage ?? "accounts_approval";
   return executeCommand(
     write,
     actor,

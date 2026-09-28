@@ -1,5 +1,7 @@
 # Non-Legal core delivery checkpoint — 2026-09-19
 
+> Historical report and scoped evidence. Current priorities, payroll scope and launch criteria are governed by [the production plan](../production-plan.md); remaining work below is retained as history, not a competing delivery plan.
+
 This checkpoint records the first implementation slice of the seven-stage non-Legal delivery plan. It is not a claim that all stages are complete. Legal remains owned by its separate task and was not changed by this work.
 
 ## Delivered in this checkpoint

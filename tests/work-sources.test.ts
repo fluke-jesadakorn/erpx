@@ -1,4 +1,5 @@
 vi.mock("../src/server/overtime", () => ({ overtimeWork: async()=>[] }));
+vi.mock("../src/server/department-decisions", () => ({ departmentOverrideWork: async()=>[] }));
 vi.mock("../src/server/retirement-clearance", () => ({retirementWork:async()=>[]}));
 vi.mock("../src/server/flow-work", () => ({enrichFlowWork:async (_actor:unknown,items:WorkItem[])=>items,otherFlowWork:async()=>[]}));
 import { expect, it, vi } from "vitest";
@@ -10,6 +11,7 @@ import {
 import type { WorkContext } from "../src/server/authorization";
 import type { WorkItem } from "../src/lib/work-item";
 import { filterWork } from "../src/lib/work-item";
+import { operationFromWork } from "../src/lib/operation-presentation";
 const item = (id: string, extra: Partial<WorkItem> = {}): WorkItem => ({
   id,
   type: "staff_task",
@@ -46,6 +48,16 @@ it("deduplicates a record found through several responsibilities and keeps all v
   expect(rows[0].relationships).toEqual(["requested", "team", "assigned"]);
   expect(filterWork(rows, "todo", "all", "", "assigned")).toHaveLength(1);
   expect(filterWork(rows, "todo", "all", "", "approval")).toHaveLength(0);
+});
+it("keeps a department override separate from normal approval work for the same record", () => {
+  const rows=mergeWorkItems([
+    item("same",{type:"expense",href:"/expenses/same",relationships:["approval"]}),
+    item("same",{type:"expense",href:"/work/department-approvals/expense/same",actionKind:"override",relationships:["approval"]}),
+  ]);
+  expect(rows).toHaveLength(2);
+  expect(rows.map(row=>operationFromWork(row).actionKind).sort()).toEqual(["approval","override"]);
+  expect(rows.find(row=>row.actionKind==="override")?.href).toBe("/work/department-approvals/expense/same");
+  expect(rows.every(row=>operationFromWork(row).dueAt===null)).toBe(true);
 });
 it("limits Home priorities to three actionable items from any source, with overdue work first", () => {
   const rows = [

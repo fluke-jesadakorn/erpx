@@ -1,0 +1,19 @@
+{
+  "clamav": {
+    "formula": "clamav",
+    "version": "1.5.4",
+    "clamd": "/opt/homebrew/opt/clamav/sbin/clamd",
+    "clamdscan": "/opt/homebrew/opt/clamav/bin/clamdscan",
+    "freshclam": "/opt/homebrew/opt/clamav/bin/freshclam"
+  },
+  "libheif": {
+    "formula": "libheif",
+    "version": "1.23.5",
+    "heifConvert": "/opt/homebrew/opt/libheif/bin/heif-convert"
+  },
+  "poppler": {
+    "formula": "poppler",
+    "version": "26.09.0",
+    "pdftoppm": "/opt/homebrew/bin/pdftoppm"
+  }
+}

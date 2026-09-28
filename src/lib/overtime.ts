@@ -14,6 +14,8 @@ export const overtimeCommandSchema = z.object({
   expectedVersion: z.number().int().positive(),
   details: overtimeDetailsSchema.optional(),
   note: z.string().trim().max(2048).default(""),
+  override: z.boolean().default(false),
+  attachmentSetIds: z.array(z.string().min(1)).max(20).default([]),
 });
 export type OvertimeDetails = z.infer<typeof overtimeDetailsSchema>;
 export type OvertimeCommand = z.infer<typeof overtimeCommandSchema>;

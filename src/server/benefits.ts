@@ -11,6 +11,7 @@ import { assertion, executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
 import { decimalToMinor } from "@/lib/finance-money";
 import type { SqlDatabase, SqlStatement } from "./runtime/types";
+import { prepareAttachmentBinding } from "./attachments/service";
 
 const reason = z.string().trim().min(3).max(3000),
   version = z.number().int().positive(),
@@ -64,6 +65,7 @@ const transitionSchema = z.object({
   expectedVersion: version,
   reason,
   providerReference: z.string().trim().min(2).max(160).optional(),
+  attachmentSetIds: z.array(z.string().min(1)).max(20).default([]),
 });
 function access(a: WorkContext, write = false) {
   requirePermission(a, write ? "records.write" : "records.read");
@@ -111,7 +113,7 @@ export async function benefitsWorkspace(a: WorkContext) {
       .prepare(
         "SELECT e.*,p.name plan_name,(SELECT legal_name FROM hr_people WHERE id=e.person_id) employee_name FROM benefit_elections e JOIN benefit_plans p ON p.id=e.plan_id WHERE e.company_id=? AND (? OR e.person_id=?) ORDER BY e.updated_at DESC",
       )
-      .bind(a.companyId, hasPermission(a, "records.review"), p?.id ?? "")
+      .bind(a.companyId, hasPermission(a, "benefits.review"), p?.id ?? "")
       .all<Row>(),
   ]);
   return {
@@ -121,7 +123,8 @@ export async function benefitsWorkspace(a: WorkContext) {
     elections: elections.results,
     actorId: a.userId,
     canWrite: hasPermission(a, "records.write"),
-    canReview: hasPermission(a, "records.review"),
+    canReview: hasPermission(a, "benefits.review"),
+    canManageDocuments: hasPermission(a, "benefits.documents.manage"),
   };
 }
 export async function createBenefitPlan(
@@ -130,7 +133,7 @@ export async function createBenefitPlan(
   key: string,
 ) {
   access(a, true);
-  requirePermission(a, "records.review");
+  requirePermission(a, "benefits.review");
   const i = planSchema.parse(raw),
     { write } = await holdingResources(a.holdingId),
     id = `benefit-plan-${key}`,
@@ -178,7 +181,7 @@ export async function createBenefitWindow(
   key: string,
 ) {
   access(a, true);
-  requirePermission(a, "records.review");
+  requirePermission(a, "benefits.review");
   const i = windowSchema.parse(raw),
     { write } = await holdingResources(a.holdingId),
     id = `benefit-window-${key}`,
@@ -438,8 +441,17 @@ export async function changeBenefitRecord(
       "CONFLICT",
       "The record changed. Reload and retry.",
     );
+  if (kind === "election" && i.action === "submit") {
+    const person = await personForActor(a, write);
+    if (!person || String(person.id) !== String(row.person_id))
+      throw new ApiError(
+        403,
+        "BENEFIT_ELECTION_OWNER_REQUIRED",
+        "Only the employee who owns this election can submit it.",
+      );
+  }
   if (kind !== "election" || i.action !== "submit")
-    requirePermission(a, "records.review");
+    requirePermission(a, "benefits.review");
   if (
     ["publish", "reject", "open", "verify"].includes(i.action) &&
     row.created_by === a.userId
@@ -460,6 +472,39 @@ export async function changeBenefitRecord(
   const op = `benefits.${kind}.${i.action}`,
     prior = await replayCommand(write, a, key, op, id, i);
   if (prior) return prior;
+  const attachmentPurpose =
+      kind === "dependent" && i.action === "verify"
+        ? "dependent_proof"
+        : kind === "election" && i.action === "submit"
+          ? "election_document"
+          : kind === "election" && i.action === "acknowledge"
+            ? "provider_proof"
+            : null,
+    attachmentTargetType =
+      kind === "dependent"
+        ? "benefit_dependent"
+        : kind === "election"
+          ? "benefit_election"
+          : null,
+    attachmentBinding =
+      attachmentPurpose && attachmentTargetType && i.attachmentSetIds.length
+        ? await prepareAttachmentBinding(write, a, {
+            attachmentSetIds: i.attachmentSetIds,
+            bindingContract: {
+              targetType: attachmentTargetType,
+              bindingType: `benefits_${kind}_${i.action}`,
+              contexts: [{
+                purposeKey: attachmentPurpose,
+                componentKind: "action",
+                componentRef: kind === "dependent" ? "verification" : i.action === "submit" ? "employee-submit" : "provider-acknowledgement",
+              }],
+            },
+            targetId: id,
+            expectedTargetVersion: i.expectedVersion,
+            commandId: key,
+            bindingId: id,
+          })
+        : null;
   const now = Date.now(),
     next = i.expectedVersion + 1,
     sets = ["status=?", "version=version+1", "updated_at=?"],
@@ -492,6 +537,7 @@ export async function changeBenefitRecord(
   }
   bind.push(id);
   const statements: SqlStatement[] = [
+    ...(attachmentBinding?.guards ?? []),
     assertion(
       write,
       key,
@@ -514,6 +560,7 @@ export async function changeBenefitRecord(
         rule[1],
         now,
       ),
+    ...(attachmentBinding?.steps ?? []),
   ];
   if (kind === "election" && i.action === "release")
     statements.push(
@@ -541,9 +588,9 @@ export async function benefitDetail(a: WorkContext, id: string) {
     p = await personForActor(a, write),
     e = await write
       .prepare(
-        "SELECT e.*,p.name plan_name,(SELECT legal_name FROM hr_people WHERE id=e.person_id) employee_name FROM benefit_elections e JOIN benefit_plans p ON p.id=e.plan_id WHERE e.id=? AND e.company_id=? AND (? OR e.person_id=?)",
+        "SELECT e.*,p.name plan_name,p.version plan_current_version,p.status plan_status,(SELECT legal_name FROM hr_people WHERE id=e.person_id) employee_name FROM benefit_elections e JOIN benefit_plans p ON p.id=e.plan_id WHERE e.id=? AND e.company_id=? AND (? OR e.person_id=?)",
       )
-      .bind(id, a.companyId, hasPermission(a, "records.review"), p?.id ?? "")
+      .bind(id, a.companyId, hasPermission(a, "benefits.review"), p?.id ?? "")
       .first<Row>();
   if (!e)
     throw new ApiError(
@@ -567,7 +614,9 @@ export async function benefitDetail(a: WorkContext, id: string) {
     election: e,
     history,
     payroll,
-    canReview: hasPermission(a, "records.review"),
+    canReview: hasPermission(a, "benefits.review"),
+    canManageDocuments: hasPermission(a, "benefits.documents.manage"),
+    isOwner: Boolean(p && String(p.id) === String(e.person_id)),
     actorId: a.userId,
   };
 }
@@ -584,13 +633,13 @@ export async function benefitWork(a: WorkContext): Promise<WorkItem[]> {
         .prepare(
           "SELECT e.*,p.name plan_name,(SELECT legal_name FROM hr_people WHERE id=e.person_id) employee_name FROM benefit_elections e JOIN benefit_plans p ON p.id=e.plan_id WHERE e.company_id=? AND e.status NOT IN ('released','cancelled') AND (? OR e.person_id=?) ORDER BY e.updated_at DESC",
         )
-        .bind(a.companyId, hasPermission(a, "records.review"), p?.id ?? "")
+        .bind(a.companyId, hasPermission(a, "benefits.review"), p?.id ?? "")
         .all<Row>()
     ).results;
   return rows.map((x) => {
     const review = ["submitted", "acknowledged"].includes(String(x.status)),
       canAct = review
-        ? hasPermission(a, "records.review") && x.created_by !== a.userId
+        ? hasPermission(a, "benefits.review") && x.created_by !== a.userId
         : x.person_id === p?.id;
     return {
       id: String(x.id),

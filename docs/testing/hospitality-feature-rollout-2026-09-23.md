@@ -1,5 +1,7 @@
 # Hospitality pilot feature rollout — 2026-09-23
 
+> Historical report and scoped evidence. Current priorities, payroll scope and launch criteria are governed by [the production plan](../production-plan.md); remaining work below is retained as history, not a competing delivery plan.
+
 This is an implementation slice, not a production acceptance certificate. The company-scoped rollout catalogue now distinguishes five user-facing states: Available, Setup required, Pilot, Coming Soon, and Prototype. Its API reports implementation support, company rollout, basic setup checks, the current role's module access, and formal delivery/business acceptance separately. Formal gates remain pending; the operator command cannot promote a module to general availability without them. The compact [`hospitality-evidence.generated.json`](../../src/data/hospitality-evidence.generated.json) is derived from the formal acceptance manifest, and the isolated release build rejects a stale snapshot.
 
 Production starts with every module off. A Company organization administrator can change an approved P0 module to `pilot` or `off` through a versioned, idempotent, audited command at `POST /api/v1/holdings/{holdingSlug}/feature-catalogue`. `GET` returns the scoped catalogue without shared caching. The operator page is at `/holdings/{holdingSlug}/settings/pilot-features`. Development keeps existing workflows usable for engineering and demo work, while labeling its effective state separately from production rollout.

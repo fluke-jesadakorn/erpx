@@ -34,7 +34,15 @@ Calendar movement uses narrow commands which never require clients to resend unr
 
 Day-view appointment and shift bars move or resize in 15-minute increments with a 15-minute minimum. Week and Month move appointments and shifts to another date while preserving duration, move task due dates, and move announcement ranges while preserving inclusive length; announcement edge handles resize the range. Agenda and Day all-day rails remain click-only. Cross-row movement never changes participants or assignments. Escape and pointer cancellation abandon an active gesture. Successful ordinary changes save immediately; failures restore the original position. Published shifts hold their proposed position only while the user supplies the mandatory audit reason, and cancelling restores the source position. All existing scope, privacy, status, future-shift, same-week, absence, overlap, DST, history, audit, outbox and notification rules continue to apply.
 
-External invitations, public booking, recurring events, provider synchronization, resource booking and acknowledgements are outside this increment.
+External invitations, public booking, provider synchronization and resource booking remain outside this increment.
+
+## Personal scheduling and recurrence (2026-09-26)
+
+My Calendar Day and Week use a timed grid with an all-day area. Dragging an empty 15-minute slot opens the appointment form. Timed appointments can move or resize from either edge in 15-minute steps with a 15-minute minimum; the form remains the keyboard equivalent. Team and Coverage retain people rows. “New task” opens Work task creation with the selected date.
+
+`appointment.save` accepts an exclusive all-day end date, account attendees with required or optional attendance, and a daily, weekly, monthly, or yearly recurrence rule. Account attendees can exist without an HR Person. A series expands only in the requested date range; occurrence keys use the scheduled local start, and exceptions preserve stable identity after moving or cancelling one occurrence. `appointment.reschedule` and `appointment.status` accept `occurrenceId` and `scope=single|future|series`. Splitting a series leaves past responses and history on the original. Nonexistent local DST times are skipped; recurrence retains the local wall-clock time across offset changes.
+
+`appointment.respond` records Accept, Tentative or Decline for a series or one occurrence. Pending invitations are tentative for availability; declined invitations leave My Calendar. `appointment.reminder.set` stores each attendee’s preference (default 15 minutes, nullable for off). The durable scheduled worker publishes only due reminders for current, uncancelled, nondeclined occurrences. Creation, changes, removal, cancellation and responses publish staff Inbox events in the source transaction. `GET .../calendar/availability` takes selected same-Company `userId` values and a bounded `from`/`to` interval and returns busy intervals only. Conflict and approved-leave warnings do not prevent saving.
 
 ## Verification
 

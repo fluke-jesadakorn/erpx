@@ -9,6 +9,7 @@ import { samePerson } from "@/lib/iam";
 import { listProjectMilestones } from "@/server/project-milestones";
 import { listProjectCostAllocations, listProjectCostSources, listProjectWorkLogs } from "@/server/project-actuals";
 import { hasPermission } from "@/lib/permissions";
+import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import Link from "next/link";
 export default async function Project({
   params,
@@ -52,6 +53,19 @@ export default async function Project({
           members={members.map((m) => m.user_id)}
         />
       )}
+      {hasPermission(actor,"records.read") && <RecordDocumentPanel
+        base={base}
+        targetType="project"
+        targetId={id}
+        expectedTargetVersion={Number(project.version)}
+        editable={isProjectOwner && hasPermission(actor,"records.write")}
+        title="Project documents"
+        purposes={[
+          {key:"project_document",label:"Project document",description:"Attach the approved brief, WBS, specification, or project record."},
+          {key:"deliverable",label:"Deliverable",description:"Attach a reviewed project deliverable or acceptance artifact."},
+          {key:"handoff",label:"Handoff",description:"Attach the final handoff, acceptance, or transition record."},
+        ]}
+      />}
       <FeatureWidget id="projects-detail-milestones" title="Project milestones"><ProjectMilestoneConsole
         base={base}
         projectId={id}
@@ -74,7 +88,7 @@ export default async function Project({
       /></FeatureWidget>
       <FeatureWidget id="projects-detail-project-tasks" title="Project tasks"><section className="card">
         
-        <Link className="button" href={`${base}/work?new=task`}>
+        <Link className="button" href={`${base}/staff-tasks/new?projectId=${encodeURIComponent(id)}`}>
           Create a task
         </Link>
         {tasks.map((t) => (

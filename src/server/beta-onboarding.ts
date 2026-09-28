@@ -314,11 +314,6 @@ export async function onboard(
       ...memberStatements(write, company, branch, user, true, null),
       write
         .prepare(
-          "UPDATE hr_engagements SET level_id=?,position_id=?,job_title='Chief Executive Officer',updated_at=? WHERE id=? AND company_id=?",
-        )
-        .bind(`org-level-${company}-1`, `company-ceo-${company}`, now, `engagement-${user.id}`, company),
-      write
-        .prepare(
           "UPDATE company_provisioning SET status='active',version=2,completed_at=?,updated_at=?,last_error=NULL WHERE company_id=? AND holding_id=?",
         )
         .bind(now + 1, now + 1, company, slot.holding_id),

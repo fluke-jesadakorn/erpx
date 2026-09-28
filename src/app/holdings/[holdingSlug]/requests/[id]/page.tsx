@@ -50,6 +50,12 @@ export default async function RequestPage({
       back.delete(key);
   const latestMessage = [...detail.events].reverse().find((e) => e.note);
   const flow = await documentFlow(actor,"request",id);
+  const savedApproval = JSON.parse(row.approval_json) as {route?:{steps?:{userId:string}[]};decisions?:{userId?:string;originalApproverUserId?:string;actualApproverUserId?:string}[]};
+  const approverIds = [...new Set([...(savedApproval.route?.steps??[]).map(step=>step.userId),...(savedApproval.decisions??[]).flatMap(decision=>[decision.userId,decision.originalApproverUserId,decision.actualApproverUserId].filter((id):id is string=>!!id))])];
+  const approverNames = Object.fromEntries(await Promise.all(approverIds.map(async userId=>{
+    const person=await write.prepare("SELECT legal_name FROM hr_people WHERE company_id=? AND iam_same_person(user_id,?,company_id) AND merged_into_id IS NULL LIMIT 1").bind(actor.companyId,userId).first<{legal_name:string}>();
+    return [userId,person?.legal_name??userId] as const;
+  })));
   const quotation = row.kind === "purchase" && commercePermissions(actor).purchase ? await write.prepare("SELECT id FROM procurement_rfqs WHERE request_id=? AND company_id=? AND status<>'cancelled'").bind(id,actor.companyId).first<{id:string}>() : null;
   return (
     <FeaturePage className={`content ${styles.stack}`} data-source="live">
@@ -227,7 +233,7 @@ export default async function RequestPage({
           )}
         </section></FeatureWidget>
       )}
-      <RequestHistory detail={detail} />
+      <RequestHistory detail={detail} approverNames={approverNames} />
     </WidgetGrid></FeaturePage>
   );
 }

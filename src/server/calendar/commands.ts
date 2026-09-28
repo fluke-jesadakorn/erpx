@@ -24,6 +24,11 @@ import {
 import type { AnnouncementRow } from "./announcements";
 import { activeStaffSelect } from "../staff-policy";
 import { rescheduleRosterShift } from "../people-roster";
+import { publishInboxEvent } from "../inbox";
+import { addDays } from "@/lib/people-roster";
+import { expandCalendarSeries, type RecurrenceRule } from "@/lib/calendar-recurrence";
+import { localDateTimeToInstant, localMinuteAt } from "@/lib/calendar-timeline";
+import { prepareAttachmentBinding } from "../attachments/service";
 type Result = {
   id: string;
   version: number;
@@ -112,7 +117,7 @@ async function manageAppointment(
   r: AppointmentRow,
 ) {
   requirePlacement(a, r.branch_id, r.department_id);
-  if (r.organizer_person_id !== a.staff?.person_id)
+  if (r.created_by!==a.actor.userId && r.organizer_person_id !== a.staff?.person_id)
     await needPermission(db, a.actor, "calendar.appointments.manage");
   if (r.status !== "scheduled")
     fail(
@@ -121,11 +126,35 @@ async function manageAppointment(
       409,
     );
 }
+type SeriesRow={frequency:RecurrenceRule["frequency"];interval_count:number;weekdays:string;end_kind:RecurrenceRule["endKind"];occurrence_count:number|null;until_date:string|null};
+async function seriesFor(db:SqlDatabase,id:string){return db.prepare("SELECT frequency,interval_count,weekdays,end_kind,occurrence_count,until_date FROM calendar_series WHERE appointment_id=?")
+  .bind(id).first<SeriesRow>();}
+async function appointmentUsers(db:SqlDatabase,companyId:string,id:string){
+  return (await db.prepare("SELECT user_id FROM calendar_attendees WHERE appointment_id=? AND company_id=?")
+    .bind(id,companyId).all<{user_id:string}>()).results.map(row=>row.user_id);
+}
+async function calendarNotice(db:SqlDatabase,actor:WorkContext,id:string,version:number,kind:string,preview:string,users:string[],sourceType="calendar_appointment"){
+  if(!users.length)return;
+  await publishInboxEvent(db,{key:`calendar:${id}:${version}:${kind}`,companyId:actor.companyId,
+    sourceType,sourceId:id,sourceVersion:version,actorUserId:actor.userId,category:"calendar",
+    preview,recipientIds:users.filter(user=>user!==actor.userId)});
+}
+function ruleFrom(row:SeriesRow):RecurrenceRule{return {frequency:row.frequency,intervalCount:row.interval_count,
+  weekdays:row.weekdays?row.weekdays.split(",").map(Number):[],endKind:row.end_kind,
+  occurrenceCount:row.occurrence_count,untilDate:row.until_date};}
+async function assertOccurrence(old:AppointmentRow,row:SeriesRow,key:string){
+  const original=localMinuteAt(old.starts_at,old.timezone),finish=localMinuteAt(old.ends_at,old.timezone);
+  const from=localDateTimeToInstant(key,old.timezone);
+  const occurrences=expandCalendarSeries(`${original.date}T${original.time}`,`${finish.date}T${finish.time}`,
+    old.timezone,ruleFrom(row),from,from+60000,1);
+  if(occurrences[0]?.key!==key)fail("This occurrence is unavailable.","OCCURRENCE_NOT_FOUND",404);
+}
 async function taskCommand(
   db: SqlDatabase,
   a: CalendarAccess,
   input: Extract<CalendarCommand, { action: "task.plan" | "task.complete" }>,
   recordId: string,
+  commandId: string,
 ): Promise<Result> {
   const t = await one<PreparationTask & {
     id: string;
@@ -233,6 +262,22 @@ async function taskCommand(
         );
       await needPermission(db, a.actor, "iam.directory.manage");
     }
+    const attachmentBinding =
+      t.clearance_type && input.attachmentSetIds.length
+        ? await prepareAttachmentBinding(db, a.actor, {
+            attachmentSetIds: input.attachmentSetIds,
+            bindingContract: {
+              targetType: "people_clearance_task",
+              bindingType: "retirement_clearance_completion",
+              contexts: [{ purposeKey: "clearance_evidence", componentKind: "action", componentRef: String(t.clearance_type) }],
+            },
+            targetId: t.id,
+            expectedTargetVersion: input.expectedVersion,
+            commandId,
+            bindingId: t.id,
+          })
+        : null;
+    if (attachmentBinding) await db.batch(attachmentBinding.guards);
     await run(
       db,
       "UPDATE people_preparation_tasks SET status=?,completion_reason=?,document_references=?::jsonb,completed_by=?,completed_at=?,version=version+1,updated_at=? WHERE id=? AND company_id=?",
@@ -245,6 +290,7 @@ async function taskCommand(
       input.id,
       a.actor.companyId,
     );
+    if (attachmentBinding) await db.batch(attachmentBinding.steps);
   }
   return {
     id: recordId,
@@ -287,6 +333,8 @@ export async function calendarCommand(
       await manageAppointment(db, a, old);
       expected(old.version, input.expectedVersion);
       const times = await localInterval(db, input.startLocal, input.endLocal, input.timezone);
+      const series=await seriesFor(db,input.id);
+      if(input.occurrenceId&&series)await assertOccurrence(old,series,input.occurrenceId);
       const participants = await rows<{ person_id: string }>(
         db,
         "SELECT person_id FROM calendar_appointment_participants WHERE appointment_id=? AND company_id=?",
@@ -302,17 +350,46 @@ export async function calendarCommand(
         input.timezone,
         input.id,
       );
-      await run(
-        db,
-        "UPDATE calendar_appointments SET starts_at=?,ends_at=?,timezone=?,version=version+1,updated_at=? WHERE id=? AND company_id=?",
-        times.starts_at,
-        times.ends_at,
-        input.timezone,
-        Date.now(),
-        input.id,
-        actor.companyId,
-      );
+      let futureSplitId:string|null=null;
+      if(series&&input.occurrenceId&&input.scope==="single"){
+        await run(db,`INSERT INTO calendar_occurrence_exceptions(company_id,appointment_id,occurrence_key,start_local,end_local)
+          VALUES(?,?,?,?,?) ON CONFLICT(appointment_id,occurrence_key) DO UPDATE SET start_local=excluded.start_local,end_local=excluded.end_local,cancelled=false,version=calendar_occurrence_exceptions.version+1`,
+          actor.companyId,input.id,input.occurrenceId,input.startLocal,input.endLocal);
+        await run(db,"UPDATE calendar_appointments SET version=version+1,updated_at=? WHERE id=? AND company_id=?",Date.now(),input.id,actor.companyId);
+      }else if(series&&input.occurrenceId&&input.scope==="future"){
+        const newId=`calendar-${key}`,before=addDays(input.occurrenceId.slice(0,10),-1);
+        futureSplitId=newId;
+        const original=localMinuteAt(old.starts_at,old.timezone),finish=localMinuteAt(old.ends_at,old.timezone);
+        let remaining=series.occurrence_count;
+        if(series.end_kind==="count"&&remaining){
+          const ordinal=expandCalendarSeries(`${original.date}T${original.time}`,`${finish.date}T${finish.time}`,
+            old.timezone,ruleFrom(series),old.starts_at,localDateTimeToInstant(input.occurrenceId,old.timezone)+1,1000).length;
+          remaining=Math.max(1,remaining-ordinal+1);
+        }
+        await run(db,"UPDATE calendar_series SET end_kind='until',until_date=?,occurrence_count=NULL,version=version+1 WHERE appointment_id=?",before,input.id);
+        await run(db,"UPDATE calendar_appointments SET version=version+1,updated_at=? WHERE id=? AND company_id=?",Date.now(),input.id,actor.companyId);
+        await run(db,`INSERT INTO calendar_appointments(id,company_id,branch_id,department_id,organizer_person_id,title,description,starts_at,ends_at,timezone,location,meeting_url,private,guests,status,version,created_by,created_at,updated_at,all_day,start_date,end_date)
+          SELECT ?,company_id,branch_id,department_id,organizer_person_id,title,description,?,?,?,location,meeting_url,private,guests,status,1,created_by,?,?,?,?,?
+          FROM calendar_appointments WHERE id=? AND company_id=?`,newId,times.starts_at,times.ends_at,input.timezone,Date.now(),Date.now(),old.all_day,
+          old.all_day?input.startLocal.slice(0,10):null,old.all_day?input.endLocal.slice(0,10):null,input.id,actor.companyId);
+        await run(db,`INSERT INTO calendar_series(appointment_id,company_id,frequency,interval_count,weekdays,end_kind,occurrence_count,until_date)
+          VALUES(?,?,?,?,?,?,?,?)`,newId,actor.companyId,series.frequency,series.interval_count,series.weekdays,
+          series.end_kind,series.end_kind==="count"?remaining:null,series.until_date);
+        await run(db,`INSERT INTO calendar_attendees(company_id,appointment_id,user_id,person_id,attendance,response,reminder_minutes)
+          SELECT company_id,?,user_id,person_id,attendance,CASE WHEN attendance='organizer' THEN 'accepted' ELSE 'pending' END,reminder_minutes
+          FROM calendar_attendees WHERE appointment_id=? AND company_id=?`,newId,input.id,actor.companyId);
+        await run(db,`INSERT INTO calendar_appointment_participants(company_id,appointment_id,person_id)
+          SELECT company_id,?,person_id FROM calendar_appointment_participants WHERE appointment_id=? AND company_id=?`,newId,input.id,actor.companyId);
+      }else{
+        await run(db,"UPDATE calendar_appointments SET starts_at=?,ends_at=?,timezone=?,start_date=?,end_date=?,version=version+1,updated_at=? WHERE id=? AND company_id=?",
+          times.starts_at,times.ends_at,input.timezone,old.all_day?input.startLocal.slice(0,10):null,
+          old.all_day?input.endLocal.slice(0,10):null,Date.now(),input.id,actor.companyId);
+      }
       result = { id: input.id, version: old.version + 1, status: old.status, warnings };
+      await calendarNotice(db,actor,input.id,result.version,"moved",`Meeting time changed: ${old.title}`,
+        (await appointmentUsers(db,actor.companyId,input.id)).filter(user=>user!==actor.userId));
+      if(futureSplitId)await calendarNotice(db,actor,futureSplitId,1,"invited",`Meeting invitation: ${old.title}`,
+        (await appointmentUsers(db,actor.companyId,futureSplitId)).filter(user=>user!==actor.userId));
     } else if (input.action === "announcement.reschedule") {
       await needPermission(db, actor, "calendar.announcements.publish");
       const old = await one<AnnouncementRow>(
@@ -356,6 +433,7 @@ export async function calendarCommand(
           responsibility: task.responsibility,
         },
         recordId,
+        key,
       );
     } else if (input.action === "shift.reschedule") {
       result = await rescheduleRosterShift(db, actor, input);
@@ -373,33 +451,42 @@ export async function calendarCommand(
         await manageAppointment(db, a, old);
         expected(old.version, input.expectedVersion);
       }
-      const organizer = await eligiblePerson(
-        db,
-        a,
-        input.organizerPersonId,
-        true,
-      );
-      if (input.organizerPersonId !== a.staff?.person_id)
+      const organizer = input.organizerPersonId?await eligiblePerson(db,a,input.organizerPersonId,true):null;
+      if (input.organizerPersonId && input.organizerPersonId !== a.staff?.person_id)
         await needPermission(db, actor, "calendar.appointments.manage");
-      const ids = [
-        ...new Set([input.organizerPersonId, ...input.participantIds]),
-      ];
-      for (const id of ids) await eligiblePerson(db, a, id, false);
-      const times = await localInterval(
-          db,
-          input.startLocal,
-          input.endLocal,
-          input.timezone,
-        ),
-        now = Date.now();
+      const ids=[...new Set([...(input.organizerPersonId?[input.organizerPersonId]:[]),...input.participantIds])];
+      const chosen=new Map<string,{userId:string;personId:string|null;attendance:"organizer"|"required"|"optional"}>();
+      chosen.set(organizer?.user_id??actor.userId,{userId:organizer?.user_id??actor.userId,
+        personId:input.organizerPersonId??a.staff?.person_id??null,attendance:"organizer"});
+      for(const personId of ids){
+        const person=await eligiblePerson(db,a,personId,false);
+        chosen.set(person.user_id,{userId:person.user_id,personId,attendance:person.user_id===(organizer?.user_id??actor.userId)?"organizer":"required"});
+      }
+      for(const attendee of input.attendees??[]){
+        const person=await db.prepare("SELECT id FROM hr_people WHERE company_id=? AND user_id=? AND merged_into_id IS NULL LIMIT 1")
+          .bind(actor.companyId,attendee.userId).first<{id:string}>();
+        chosen.set(attendee.userId,{userId:attendee.userId,personId:person?.id??null,
+          attendance:attendee.userId===(organizer?.user_id??actor.userId)?"organizer":attendee.attendance});
+      }
+      if(chosen.size>100)fail("Choose up to 100 attendees.","TOO_MANY_ATTENDEES",422);
+      const userIds=[...chosen.keys()],now=Date.now();
+      const active=(await db.prepare(`SELECT DISTINCT user_id FROM assignments WHERE company_id=? AND user_id IN (${userIds.map(()=>"?").join(",")})
+        AND revoked_at IS NULL AND iam_assignment_active(id,?) AND iam_principal_active(user_id,company_id,?)`)
+        .bind(actor.companyId,...userIds,now,now).all<{user_id:string}>()).results;
+      if(active.length!==userIds.length)
+        fail("Choose active accounts in this Company.","CALENDAR_ATTENDEE_UNAVAILABLE",422);
+      const startLocal=input.allDay?`${input.startDate}T00:00`:input.startLocal!;
+      const endLocal=input.allDay?`${input.endDate}T00:00`:input.endLocal!;
+      const times=await localInterval(db,startLocal,endLocal,input.timezone);
       const warnings = await appointmentWarningMessages(
         db,
         actor.companyId,
-        ids,
+        [...chosen.values()].flatMap(value=>value.personId?[value.personId]:[]),
         times.starts_at,
         times.ends_at,
         input.timezone,
         recordId,
+        userIds,
       );
       result = {
         id: recordId,
@@ -409,12 +496,12 @@ export async function calendarCommand(
       };
       await run(
         db,
-        `INSERT INTO calendar_appointments(id,company_id,branch_id,department_id,organizer_person_id,title,description,starts_at,ends_at,timezone,location,meeting_url,private,guests,status,version,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,'scheduled',?,?,?,?) ON CONFLICT(id) DO UPDATE SET branch_id=excluded.branch_id,department_id=excluded.department_id,organizer_person_id=excluded.organizer_person_id,title=excluded.title,description=excluded.description,starts_at=excluded.starts_at,ends_at=excluded.ends_at,timezone=excluded.timezone,location=excluded.location,meeting_url=excluded.meeting_url,private=excluded.private,guests=excluded.guests,version=excluded.version,updated_at=excluded.updated_at`,
+        `INSERT INTO calendar_appointments(id,company_id,branch_id,department_id,organizer_person_id,title,description,starts_at,ends_at,timezone,location,meeting_url,private,guests,status,version,created_by,created_at,updated_at,all_day,start_date,end_date) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?::jsonb,'scheduled',?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET branch_id=excluded.branch_id,department_id=excluded.department_id,organizer_person_id=excluded.organizer_person_id,title=excluded.title,description=excluded.description,starts_at=excluded.starts_at,ends_at=excluded.ends_at,timezone=excluded.timezone,location=excluded.location,meeting_url=excluded.meeting_url,private=excluded.private,guests=excluded.guests,version=excluded.version,updated_at=excluded.updated_at,all_day=excluded.all_day,start_date=excluded.start_date,end_date=excluded.end_date`,
         recordId,
         actor.companyId,
-        organizer.branch_id,
-        organizer.department_id,
-        input.organizerPersonId,
+        organizer?.branch_id??actor.branchId,
+        organizer?.department_id??actor.departmentId,
+        input.organizerPersonId??null,
         input.title,
         input.description,
         times.starts_at,
@@ -428,14 +515,28 @@ export async function calendarCommand(
         old?.created_by ?? actor.userId,
         old?.created_at ?? now,
         now,
+        input.allDay,
+        input.allDay?input.startDate??null:null,
+        input.allDay?input.endDate??null:null,
       );
+      const oldAttendees=(await db.prepare("SELECT user_id,response,reminder_minutes,response_at FROM calendar_attendees WHERE appointment_id=? AND company_id=?")
+        .bind(recordId,actor.companyId).all<{user_id:string;response:string;reminder_minutes:number|null;response_at:number|null}>()).results;
+      const oldByUser=new Map(oldAttendees.map(row=>[row.user_id,row]));
+      await run(db,"DELETE FROM calendar_attendees WHERE appointment_id=? AND company_id=?",recordId,actor.companyId);
+      for(const entry of chosen.values()){
+        const previous=oldByUser.get(entry.userId);
+        await run(db,`INSERT INTO calendar_attendees(company_id,appointment_id,user_id,person_id,attendance,response,reminder_minutes,response_at)
+          VALUES(?,?,?,?,?,?,?,?)`,actor.companyId,recordId,entry.userId,entry.personId,entry.attendance,
+          entry.attendance==="organizer"?"accepted":previous?.response??"pending",previous?.reminder_minutes===undefined?15:previous.reminder_minutes,
+          previous?.response_at??null);
+      }
       await run(
         db,
         "DELETE FROM calendar_appointment_participants WHERE appointment_id=? AND company_id=?",
         recordId,
         actor.companyId,
       );
-      for (const person of ids)
+      for (const person of [...new Set([...chosen.values()].flatMap(value=>value.personId?[value.personId]:[]))])
         await run(
           db,
           "INSERT INTO calendar_appointment_participants(company_id,appointment_id,person_id) VALUES(?,?,?)",
@@ -443,6 +544,55 @@ export async function calendarCommand(
           recordId,
           person,
         );
+      if(input.recurrence===null){
+        await run(db,"DELETE FROM calendar_series WHERE appointment_id=? AND company_id=?",recordId,actor.companyId);
+      }else if(input.recurrence){
+        const rule=input.recurrence;
+        if(rule.endKind==="until"&&rule.untilDate!<startLocal.slice(0,10))
+          fail("Recurrence must end on or after the first event.","CALENDAR_RECURRENCE_END",422);
+        await run(db,`INSERT INTO calendar_series(appointment_id,company_id,frequency,interval_count,weekdays,end_kind,occurrence_count,until_date)
+          VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(appointment_id) DO UPDATE SET frequency=excluded.frequency,interval_count=excluded.interval_count,
+          weekdays=excluded.weekdays,end_kind=excluded.end_kind,occurrence_count=excluded.occurrence_count,until_date=excluded.until_date,version=calendar_series.version+1`,
+          recordId,actor.companyId,rule.frequency,rule.intervalCount,rule.weekdays.join(","),rule.endKind,
+          rule.endKind==="count"?rule.occurrenceCount??null:null,rule.endKind==="until"?rule.untilDate??null:null);
+      }
+      const added=userIds.filter(id=>!oldByUser.has(id)&&id!==actor.userId);
+      const retained=userIds.filter(id=>oldByUser.has(id)&&id!==actor.userId);
+      const removed=oldAttendees.map(row=>row.user_id).filter(id=>!chosen.has(id)&&id!==actor.userId);
+      await calendarNotice(db,actor,recordId,result.version,"invited",`Meeting invitation: ${input.title}`,added);
+      await calendarNotice(db,actor,recordId,result.version,"updated",`Meeting updated: ${input.title}`,retained);
+      await calendarNotice(db,actor,recordId,result.version,"removed","A meeting invitation was withdrawn.",removed,"calendar_removed");
+    } else if (input.action === "appointment.respond") {
+      const r=await one<AppointmentRow>(db,"SELECT * FROM calendar_appointments WHERE id=? AND company_id=?",input.id,actor.companyId);
+      if(!r||r.status!=="scheduled")fail("Meeting unavailable.","NOT_FOUND",404);
+      const attendee=await one<{attendance:string}>(db,"SELECT attendance FROM calendar_attendees WHERE company_id=? AND appointment_id=? AND user_id=?",
+        actor.companyId,input.id,actor.userId);
+      if(!attendee||attendee.attendance==="organizer")fail("This invitation is unavailable.","INVITATION_UNAVAILABLE",403);
+      const series=await seriesFor(db,input.id);
+      if(input.occurrenceId&&input.scope==="single"){
+        if(!series)fail("This meeting does not repeat.","OCCURRENCE_NOT_FOUND",404);
+        await assertOccurrence(r,series,input.occurrenceId);
+        await run(db,`INSERT INTO calendar_occurrence_responses(company_id,appointment_id,occurrence_key,user_id,response,responded_at)
+          VALUES(?,?,?,?,?,?) ON CONFLICT(appointment_id,occurrence_key,user_id) DO UPDATE SET response=excluded.response,responded_at=excluded.responded_at`,
+          actor.companyId,input.id,input.occurrenceId,actor.userId,input.response,Date.now());
+      }else await run(db,"UPDATE calendar_attendees SET response=?,response_at=? WHERE company_id=? AND appointment_id=? AND user_id=?",
+        input.response,Date.now(),actor.companyId,input.id,actor.userId);
+      await run(db,"UPDATE calendar_appointments SET version=version+1,updated_at=? WHERE id=? AND company_id=?",Date.now(),input.id,actor.companyId);
+      result={id:input.id,version:r.version+1,status:r.status,warnings:[]};
+      const organizer=await one<{user_id:string}>(db,"SELECT user_id FROM calendar_attendees WHERE appointment_id=? AND company_id=? AND attendance='organizer'",
+        input.id,actor.companyId);
+      await calendarNotice(db,actor,input.id,result.version,`response:${actor.userId}:${key}`,`Meeting response: ${input.response}`,
+        organizer?[organizer.user_id]:[]);
+    } else if (input.action === "appointment.reminder.set") {
+      const r=await one<AppointmentRow>(db,"SELECT * FROM calendar_appointments WHERE id=? AND company_id=?",input.id,actor.companyId);
+      if(!r||r.status!=="scheduled")fail("Meeting unavailable.","NOT_FOUND",404);
+      const changed=await db.prepare("UPDATE calendar_attendees SET reminder_minutes=? WHERE company_id=? AND appointment_id=? AND user_id=? RETURNING user_id")
+        .bind(input.minutes,actor.companyId,input.id,actor.userId).first();
+      if(!changed)fail("This invitation is unavailable.","INVITATION_UNAVAILABLE",403);
+      await run(db,"DELETE FROM calendar_reminder_deliveries WHERE company_id=? AND appointment_id=? AND user_id=? AND delivered_at IS NULL",
+        actor.companyId,input.id,actor.userId);
+      await run(db,"UPDATE calendar_appointments SET version=version+1,updated_at=? WHERE id=? AND company_id=?",Date.now(),input.id,actor.companyId);
+      result={id:input.id,version:r.version+1,status:r.status,warnings:[]};
     } else if (input.action === "appointment.status") {
       const r = await one<AppointmentRow>(
         db,
@@ -453,26 +603,33 @@ export async function calendarCommand(
       if (!r) fail("Appointment not found.", "NOT_FOUND", 404);
       await manageAppointment(db, a, r);
       expected(r.version, input.expectedVersion);
+      const series=await seriesFor(db,input.id);
+      if(input.occurrenceId&&series)await assertOccurrence(r,series,input.occurrenceId);
       if (input.status !== "cancelled" && r.starts_at > Date.now())
         fail(
           "Record completion or a no-show after the appointment starts.",
           "INVALID_TRANSITION",
           409,
         );
-      await run(
-        db,
-        "UPDATE calendar_appointments SET status=?,version=version+1,updated_at=? WHERE id=? AND company_id=?",
-        input.status,
-        Date.now(),
-        input.id,
-        actor.companyId,
-      );
+      if(input.status==="cancelled"&&series&&input.occurrenceId&&input.scope==="single"){
+        await run(db,`INSERT INTO calendar_occurrence_exceptions(company_id,appointment_id,occurrence_key,cancelled)
+          VALUES(?,?,?,true) ON CONFLICT(appointment_id,occurrence_key) DO UPDATE SET cancelled=true,version=calendar_occurrence_exceptions.version+1`,
+          actor.companyId,input.id,input.occurrenceId);
+        await run(db,"UPDATE calendar_appointments SET version=version+1,updated_at=? WHERE id=? AND company_id=?",Date.now(),input.id,actor.companyId);
+      }else if(input.status==="cancelled"&&series&&input.occurrenceId&&input.scope==="future"){
+        await run(db,"UPDATE calendar_series SET end_kind='until',until_date=?,occurrence_count=NULL,version=version+1 WHERE appointment_id=?",
+          addDays(input.occurrenceId.slice(0,10),-1),input.id);
+        await run(db,"UPDATE calendar_appointments SET version=version+1,updated_at=? WHERE id=? AND company_id=?",Date.now(),input.id,actor.companyId);
+      }else await run(db,"UPDATE calendar_appointments SET status=?,version=version+1,updated_at=? WHERE id=? AND company_id=?",
+        input.status,Date.now(),input.id,actor.companyId);
       result = {
         id: input.id,
         version: r.version + 1,
-        status: input.status,
+        status: input.scope==="single"||input.scope==="future"?r.status:input.status,
         warnings: [],
       };
+      await calendarNotice(db,actor,input.id,result.version,input.status,`Meeting ${input.status}: ${r.title}`,
+        (await appointmentUsers(db,actor.companyId,input.id)).filter(user=>user!==actor.userId));
     } else if (input.action === "announcement.save") {
       await needPermission(db, actor, "calendar.announcements.publish");
       const old = input.id
@@ -555,7 +712,7 @@ export async function calendarCommand(
         status: input.status,
         warnings: [],
       };
-    } else result = await taskCommand(db, a, input, recordId);
+    } else result = await taskCommand(db, a, input, recordId, key);
     await run(
       db,
       "INSERT INTO calendar_history(id,company_id,source,record_id,action,actor_id,version,created_at) VALUES(?,?,?,?,?,?,?,?)",

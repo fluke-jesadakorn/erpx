@@ -11,6 +11,8 @@ import {
   getExpense,
   transitionExpense,
   postExpense,
+  expenseDetail,
+  revokeExpenseAttachment,
   expenseUpdateSchema,
 } from "../src/server/expenses";
 import {
@@ -29,6 +31,8 @@ import {
   confirmExpensePayment,
 } from "../src/server/expense-payments";
 import { settleInvoice } from "../src/server/commerce";
+import { bindRecordAttachmentSet } from "../src/server/attachments/service";
+import { seedAttachmentSet } from "./helpers/attachment-v2";
 vi.mock("../src/server/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
@@ -39,6 +43,25 @@ beforeAll(async () => {
 });
 beforeEach(async () => {
   f = await expenseFixture();
+});
+it("keeps rollback reads and receipt guards on clean bound links only",async()=>{
+  const previousGate=process.env.ERPX_ATTACHMENTS_V2,previousReadOnly=process.env.ERPX_ATTACHMENTS_READ_ONLY;
+  process.env.ERPX_ATTACHMENTS_V2="true";delete process.env.ERPX_ATTACHMENTS_READ_ONLY;
+  try{
+    const id=await f.claim();
+    const bound=await seedAttachmentSet(db,f.claimant,{targetType:"expense_claim",targetId:id,componentKind:"record",componentRef:"legacy-upload-adapter",purposeKey:"receipt",expectedTargetVersion:1});
+    await bindRecordAttachmentSet(db,f.claimant,bound.setId,1,key());
+    const unbound=await seedAttachmentSet(db,f.claimant,{targetType:"expense_claim",targetId:id,componentKind:"record",componentRef:"legacy-upload-adapter",purposeKey:"receipt",expectedTargetVersion:2});
+    const raw=await f.attach(id,"expense_claim","raw-unlinked");
+    process.env.ERPX_ATTACHMENTS_V2="false";process.env.ERPX_ATTACHMENTS_READ_ONLY="true";
+    expect((await expenseDetail(f.claimant,id)).attachments.map(row=>row.id)).toEqual([bound.sourceId]);
+    await expect(revokeExpenseAttachment(f.claimant,id,unbound.sourceId,2,key())).rejects.toMatchObject({status:503,code:"ATTACHMENTS_READ_ONLY"});
+    await expect(revokeExpenseAttachment(f.claimant,id,raw,2,key())).rejects.toMatchObject({status:503,code:"ATTACHMENTS_READ_ONLY"});
+    await expect(transitionExpense(f.claimant,id,"submit",{expectedVersion:2},key())).resolves.toMatchObject({status:"in_review"});
+  }finally{
+    if(previousGate===undefined)delete process.env.ERPX_ATTACHMENTS_V2;else process.env.ERPX_ATTACHMENTS_V2=previousGate;
+    if(previousReadOnly===undefined)delete process.env.ERPX_ATTACHMENTS_READ_ONLY;else process.env.ERPX_ATTACHMENTS_READ_ONLY=previousReadOnly;
+  }
 });
 it("preserves incomplete owner and beta member drafts and reports missing setup", async () => {
   for (const role of ["employee", "holding_owner"]) {
@@ -90,7 +113,7 @@ it("only the configured primary can decide and concurrent decisions complete one
     ),
   ).toHaveLength(1);
 });
-it("uses the reporting superior and blocks missing supervisors and cycles", async () => {
+it("keeps the appointed department head while validating the reporting graph", async () => {
   await db
     .prepare(
       "UPDATE hr_engagements SET level_id=?,manager_person_id=? WHERE person_id=?",
@@ -103,7 +126,7 @@ it("uses the reporting superior and blocks missing supervisors and cycles", asyn
     .run();
   expect(
     (await expenseRoute(db, f.company, f.claimant.userId)).steps[0].userId,
-  ).toBe(f.owner.userId);
+  ).toBe(f.head.userId);
   await db
     .prepare(
       "UPDATE hr_engagements SET manager_person_id=NULL WHERE person_id=?",
@@ -435,7 +458,7 @@ it("does not offer a department decision that would leave no independent Account
   expect(route.steps).toEqual([]);
 });
 
-it("excludes reviewers whose current assignments do not cover the claim branch", async () => {
+it("keeps appointment authority when a separate work assignment changes scope", async () => {
   const otherBranch = `${f.company}-other`;
   await db
     .prepare(
@@ -452,7 +475,7 @@ it("excludes reviewers whose current assignments do not cover the claim branch",
   expect(
     (await expenseRoute(db, f.company, f.claimant.userId)).steps[0]
       .candidateUserIds,
-  ).toEqual([f.owner.userId]);
+  ).toEqual([f.head.userId]);
   await db
     .prepare("UPDATE organization_nodes SET status='suspended' WHERE id=?")
     .bind(f.branch)

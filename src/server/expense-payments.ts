@@ -10,6 +10,58 @@ import { assertion, executeCommand, replayCommand } from "./commands";
 import { prepareInvoiceSettlement } from "./commerce";
 import { notification, staffGuard } from "./staff-policy";
 import { decimalToMinor } from "./finance";
+import {
+  attachmentsV2Enabled,
+  attachmentsV2Readable,
+  attachmentsV2ReadOnly,
+} from "./attachments/feature";
+import { prepareAttachmentBinding } from "./attachments/service";
+
+function paymentSlipExistsSql() {
+  return attachmentsV2Readable()
+    ? `EXISTS(SELECT 1 FROM attachments a JOIN attachment_links l ON l.attachment_id=a.id JOIN attachment_sets s ON s.id=l.set_id
+        WHERE a.owner_type='expense_payment' AND a.owner_id=?
+          AND a.media_type IN ('image/jpeg','image/png','image/webp','application/pdf')
+          AND a.revoked_at IS NULL AND a.source_state='available' AND l.state='bound'
+          AND s.target_type='expense_payment' AND s.target_id=a.owner_id)`
+    : "EXISTS(SELECT 1 FROM attachments WHERE owner_type='expense_payment' AND owner_id=? AND media_type IN ('image/jpeg','image/png','image/webp','application/pdf') AND revoked_at IS NULL)";
+}
+
+async function preparePaymentEvidence(
+  db: SqlDatabase,
+  actor: WorkContext,
+  id: string,
+  expectedVersion: number,
+  commandId: string,
+  bindingType: string,
+) {
+  if (!attachmentsV2Enabled()) return null;
+  const setIds = (
+    await db
+      .prepare(
+        `SELECT id FROM attachment_sets
+         WHERE company_id=? AND target_type='expense_payment' AND target_id=?
+           AND component_kind='action' AND purpose_key='payment_slip'
+           AND expected_target_version=? AND state='draft'
+         ORDER BY created_at,id`,
+      )
+      .bind(actor.companyId, id, expectedVersion)
+      .all<{ id: string }>()
+  ).results.map((row) => row.id);
+  if (!setIds.length) return null;
+  return prepareAttachmentBinding(db, actor, {
+    attachmentSetIds: setIds,
+    bindingContract: {
+      targetType: "expense_payment",
+      bindingType,
+      contexts: [{ purposeKey: "payment_slip", componentKind: "action", componentRef: "legacy-upload-adapter" }],
+    },
+    targetId: id,
+    expectedTargetVersion: expectedVersion,
+    commandId,
+    bindingId: id,
+  });
+}
 
 export const expensePaymentSchema = z.object({
   expectedVersion: z.number().int().positive(),
@@ -157,7 +209,7 @@ export async function confirmExpensePayment(
     operation = "expense.payment.confirm";
   const prior = await replayCommand(write, actor, key, operation, id, input);
   if (prior) return prior;
-  const { expense } = await paymentDraft(actor, id, true);
+  const { expense, draft } = await paymentDraft(actor, id, true);
   if (expenseId && expense.id !== expenseId)
     throw new ApiError(
       404,
@@ -176,13 +228,17 @@ export async function confirmExpensePayment(
       "EXPENSE_PAYABLE_REQUIRED",
       "The approved expense payable is unavailable.",
     );
+  const evidence = await preparePaymentEvidence(
+    write,
+    actor,
+    id,
+    Number(draft.version),
+    key,
+    "expense_payment_confirmation",
+  );
   if (
-    !(await write
-      .prepare(
-        "SELECT 1 FROM attachments WHERE owner_type='expense_payment' AND owner_id=? AND media_type IN ('image/jpeg','image/png','image/webp','application/pdf') AND revoked_at IS NULL",
-      )
-      .bind(id)
-      .first())
+    !evidence &&
+    !(await write.prepare(`SELECT 1 WHERE ${paymentSlipExistsSql()}`).bind(id).first())
   )
     throw new ApiError(
       422,
@@ -194,7 +250,11 @@ export async function confirmExpensePayment(
       actor,
       invoice,
       expense,
-      { ...input, expectedVersion: Number(invoice.version) },
+      {
+        ...input,
+        expectedVersion: Number(invoice.version),
+        attachmentSetIds: [],
+      },
       key,
     ),
     now = Date.now();
@@ -214,6 +274,7 @@ export async function confirmExpensePayment(
     },
     [
       ...paymentGuards(write, actor, key, expense),
+      ...(evidence?.guards ?? []),
       assertion(
         write,
         key,
@@ -225,17 +286,25 @@ export async function confirmExpensePayment(
         write,
         key,
         "payment-slip",
-        "EXISTS(SELECT 1 FROM attachments WHERE owner_type='expense_payment' AND owner_id=? AND media_type IN ('image/jpeg','image/png','image/webp','application/pdf') AND revoked_at IS NULL)",
-        [id],
+        evidence ? "?=?" : paymentSlipExistsSql(),
+        evidence ? [id, id] : [id],
       ),
       assertion(
         write,
         key,
         "unique-payment-slip",
-        "NOT EXISTS(SELECT 1 FROM attachments current JOIN attachments used ON used.checksum_sha256=current.checksum_sha256 AND used.owner_type='expense_payment' AND used.revoked_at IS NULL JOIN expense_payment_drafts d ON d.id=used.owner_id AND d.company_id=? AND d.status='confirmed' WHERE current.owner_type='expense_payment' AND current.owner_id=? AND current.revoked_at IS NULL)",
+        attachmentsV2Readable()
+          ? `NOT EXISTS(SELECT 1 FROM attachments current
+              JOIN attachment_links current_link ON current_link.attachment_id=current.id AND current_link.state${attachmentsV2ReadOnly() ? "='bound'" : " IN ('draft','bound')"}
+              JOIN attachments used ON used.checksum_sha256=current.checksum_sha256 AND used.owner_type='expense_payment' AND used.revoked_at IS NULL AND used.source_state='available'
+              JOIN attachment_links used_link ON used_link.attachment_id=used.id AND used_link.state='bound'
+              JOIN expense_payment_drafts d ON d.id=used.owner_id AND d.company_id=? AND d.status='confirmed'
+              WHERE current.owner_type='expense_payment' AND current.owner_id=? AND current.revoked_at IS NULL AND current.source_state='available')`
+          : "NOT EXISTS(SELECT 1 FROM attachments current JOIN attachments used ON used.checksum_sha256=current.checksum_sha256 AND used.owner_type='expense_payment' AND used.revoked_at IS NULL JOIN expense_payment_drafts d ON d.id=used.owner_id AND d.company_id=? AND d.status='confirmed' WHERE current.owner_type='expense_payment' AND current.owner_id=? AND current.revoked_at IS NULL)",
         [actor.companyId, id],
       ),
       ...prepared.steps,
+      ...(evidence?.steps ?? []),
       write
         .prepare(
           "UPDATE expense_payment_drafts SET status='confirmed',payment_id=?,payment_date=?,amount_minor=?,reference=?,version=version+1,updated_at=? WHERE id=?",
@@ -286,7 +355,7 @@ export async function saveExpensePayment(
     operation = "expense.payment.save";
   const prior = await replayCommand(write, actor, key, operation, id, input);
   if (prior) return prior;
-  const { expense } = await paymentDraft(actor, id, true);
+  const { expense, draft } = await paymentDraft(actor, id, true);
   if (expense.id !== expenseId)
     throw new ApiError(
       404,
@@ -300,6 +369,14 @@ export async function saveExpensePayment(
       "PAYMENT_AMOUNT_INVALID",
       "Enter an amount within the outstanding claim balance.",
     );
+  const evidence = await preparePaymentEvidence(
+    write,
+    actor,
+    id,
+    Number(draft.version),
+    key,
+    "expense_payment_preparation",
+  );
   return executeCommand(
     write,
     actor,
@@ -311,6 +388,7 @@ export async function saveExpensePayment(
     { id, version: input.expectedVersion + 1 },
     [
       ...paymentGuards(write, actor, key, expense),
+      ...(evidence?.guards ?? []),
       assertion(
         write,
         key,
@@ -323,6 +401,7 @@ export async function saveExpensePayment(
           "UPDATE expense_payment_drafts SET payment_date=?,amount_minor=?,reference=?,version=version+1,updated_at=? WHERE id=?",
         )
         .bind(input.date, amount, input.reference, Date.now(), id),
+      ...(evidence?.steps ?? []),
     ],
   );
 }
@@ -339,6 +418,12 @@ export async function revokePaymentSlip(
     operation = "expense.payment.slip.remove";
   const prior = await replayCommand(write, actor, key, operation, id, input);
   if (prior) return prior;
+  if (attachmentsV2ReadOnly())
+    throw new ApiError(
+      503,
+      "ATTACHMENTS_READ_ONLY",
+      "Payment-slip changes are disabled during attachment rollback.",
+    );
   const { expense } = await paymentDraft(actor, id, true);
   if (expense.id !== expenseId)
     throw new ApiError(
@@ -346,6 +431,22 @@ export async function revokePaymentSlip(
       "PAYMENT_DRAFT_NOT_FOUND",
       "Payment evidence does not belong to this claim.",
     );
+  const canonical = attachmentsV2Readable()
+    ? await write
+        .prepare(
+          `SELECT l.id,l.state,l.set_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id
+           WHERE l.attachment_id=? AND s.company_id=? AND s.target_type='expense_payment' AND s.target_id=?`,
+        )
+        .bind(attachmentId, actor.companyId, id)
+        .first<{ id: string; state: string; set_id: string }>()
+    : null;
+  if (canonical?.state === "bound")
+    throw new ApiError(
+      409,
+      "BOUND_ATTACHMENT_IMMUTABLE",
+      "Bound payment evidence cannot be removed. Add a correction instead.",
+    );
+  const now = Date.now();
   return executeCommand(
     write,
     actor,
@@ -371,14 +472,49 @@ export async function revokePaymentSlip(
         "EXISTS(SELECT 1 FROM attachments WHERE id=? AND owner_type='expense_payment' AND owner_id=? AND revoked_at IS NULL)",
         [attachmentId, id],
       ),
+      ...(canonical
+        ? [
+            assertion(
+              write,
+              key,
+              "canonical-slip-draft",
+              "EXISTS(SELECT 1 FROM attachment_links WHERE id=? AND state='draft')",
+              [canonical.id],
+            ),
+            write
+              .prepare(
+                "UPDATE attachment_links SET state='withdrawn',withdrawn_at=?,withdrawn_by=?,withdrawal_reason=? WHERE id=? AND state='draft'",
+              )
+              .bind(
+                now,
+                actor.userId,
+                "Removed from payment preparation",
+                canonical.id,
+              ),
+            write
+              .prepare(
+                "INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?, 'link.withdrawn',?,?)",
+              )
+              .bind(
+                `attachment-event-${crypto.randomUUID()}`,
+                actor.companyId,
+                attachmentId,
+                canonical.id,
+                canonical.set_id,
+                actor.userId,
+                JSON.stringify({ reason: "Removed from payment preparation" }),
+                now,
+              ),
+          ]
+        : []),
       write
         .prepare("UPDATE attachments SET revoked_at=? WHERE id=?")
-        .bind(Date.now(), attachmentId),
+        .bind(now, attachmentId),
       write
         .prepare(
           "UPDATE expense_payment_drafts SET version=version+1,updated_at=? WHERE id=?",
         )
-        .bind(Date.now(), id),
+        .bind(now, id),
     ],
   );
 }

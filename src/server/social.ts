@@ -22,7 +22,7 @@ const mentionSchema = z.object({
 
 export const createPostSchema = z.object({
   body: z.string().trim().min(1).max(3000),
-  audience: audienceSchema.default("holding"),
+  audience: audienceSchema,
   tags: z.array(tagSchema).max(5).default([]),
   linkedRecord: z.object({
     module: z.literal("people_payroll"),
@@ -170,7 +170,10 @@ export async function createPost(holdingId: string, input: z.infer<typeof create
   const requestHash = await sha256(JSON.stringify({ operation: "social.post.publish", input }));
   const prior = await existingReceipt(write, commandId, requestHash);
   if (prior) return prior;
-  if (input.audience === "branch" && !context.branchId) throw new ApiError(422, "BRANCH_REQUIRED", "Select a branch assignment to publish to a branch.");
+  if (input.audience === "holding" && context.assignmentScope !== "holding")
+    throw new ApiError(403, "AUDIENCE_FORBIDDEN", "Your current role cannot share with the whole company.");
+  if (input.audience === "branch" && (context.assignmentScope !== "branch" || !context.branchId))
+    throw new ApiError(403, "AUDIENCE_FORBIDDEN", "Choose a branch assignment to share with that branch.");
   let linkedLabel: string | null = null;
   if (input.linkedRecord) {
     const {getLeave}=await import("./leave");
@@ -190,10 +193,11 @@ export async function createPost(holdingId: string, input: z.infer<typeof create
     write.prepare("INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at) VALUES(?,?,?,?,?,?,?)")
       .bind(commandId, "social.post.publish", context.userId, requestHash, id, JSON.stringify(result), now),
     write.prepare(`INSERT INTO social_posts(id,kind,author_id,author_name,company_id,branch_id,department_id,body,linked_module,
-      linked_record_id,linked_record_label,state,version,last_command_id,created_at,updated_at)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id, input.linkedRecord ? "record" : "team", context.userId,
-      context.name, context.companyId, branchId, context.departmentId, input.body, input.linkedRecord?.module ?? null,
-      input.linkedRecord?.id ?? null, linkedLabel, "published", 1, commandId, now, now),
+      linked_record_id,linked_record_label,state,version,last_command_id,created_at,updated_at,audience_kind)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(id, input.linkedRecord ? "record" : "team", context.userId,
+      context.name, context.companyId, branchId, null, input.body, input.linkedRecord?.module ?? null,
+      input.linkedRecord?.id ?? null, linkedLabel, "published", 1, commandId, now, now,
+      input.audience === "holding" ? "company" : "branch"),
     ...tags.flatMap((tag) => [
       write.prepare("INSERT INTO social_topics(tag,created_by,created_at) VALUES(?,?,?) ON CONFLICT DO NOTHING").bind(tag, context.userId, now),
       write.prepare("INSERT INTO social_post_topics(post_id,tag) VALUES(?,?)").bind(id, tag),

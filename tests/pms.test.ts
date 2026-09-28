@@ -13,6 +13,11 @@ import {
 } from "../src/lib/pms";
 import { availability, dailyRoomReport } from "../src/lib/pms-engine";
 import type { WorkContext } from "../src/server/authorization";
+import {
+  attachmentBindingState,
+  enableAttachmentV2ForTest,
+  seedAttachmentSet,
+} from "./helpers/attachment-v2";
 
 vi.mock("../src/server/runtime", async () => {
   const { env } = await import("./runtime-env");
@@ -31,6 +36,7 @@ let f: Awaited<ReturnType<typeof seedExpenseCompany>>,
   accounts: Config["accounts"];
 beforeAll(async () => {
   await applyMigrations(db, env.STAFF_TEST_MIGRATIONS);
+  enableAttachmentV2ForTest();
 });
 afterEach(() => vi.unstubAllEnvs());
 async function snapshot() {
@@ -153,6 +159,122 @@ async function balance(account: string) {
     .first<{ n: number }>();
   return Number(r!.n);
 }
+
+it("binds room-task photos in the PMS action transaction and leaves stale evidence draft", async () => {
+  const taskId = (
+    await cmd("task.create", {
+      roomId,
+      type: "arrival",
+      date: (await snapshot()).property.businessDate,
+    })
+  ).id;
+  const task = record(await snapshot(), "task", taskId);
+  const evidence = await seedAttachmentSet(db, owner, {
+    targetType: "pms_task",
+    targetId: taskId,
+    componentKind: "action",
+    componentRef: "task.complete",
+    purposeKey: "room_photo",
+    expectedTargetVersion: task.version,
+  });
+  const current = await snapshot();
+  await pmsCommand(
+    db,
+    owner,
+    {
+      propertyId,
+      expectedVersion: current.property.version,
+      operation: "task.complete",
+      input: { id: taskId, checked: task.data.checklist },
+      attachmentSetIds: [evidence.setId],
+    },
+    key(),
+  );
+  expect(await attachmentBindingState(db, evidence.setId)).toMatchObject({
+    set_state: "bound",
+    link_state: "bound",
+    binding_type: "pms_task_completion",
+  });
+
+  const staleTaskId = (
+    await cmd("task.create", {
+      roomId,
+      type: "stayover",
+      date: (await snapshot()).property.businessDate,
+    })
+  ).id;
+  const staleTask = record(await snapshot(), "task", staleTaskId);
+  const stale = await seedAttachmentSet(db, owner, {
+    targetType: "pms_task",
+    targetId: staleTaskId,
+    componentKind: "action",
+    componentRef: "task.complete",
+    purposeKey: "damage_photo",
+    expectedTargetVersion: staleTask.version,
+  });
+  await cmd("task.start", { id: staleTaskId });
+  const afterStart = await snapshot();
+  await expect(
+    pmsCommand(
+      db,
+      owner,
+      {
+        propertyId,
+        expectedVersion: afterStart.property.version,
+        operation: "task.complete",
+        input: { id: staleTaskId, checked: staleTask.data.checklist },
+        attachmentSetIds: [stale.setId],
+      },
+      key(),
+    ),
+  ).rejects.toMatchObject({ status: 409, code: "ATTACHMENT_SET_STALE" });
+  expect(await attachmentBindingState(db, stale.setId)).toMatchObject({
+    set_state: "draft",
+    link_state: "draft",
+  });
+  expect(record(await snapshot(), "task", staleTaskId).data.state).toBe("working");
+});
+
+it("binds lost-property handover evidence in the release transaction", async () => {
+  const lostId = (
+    await cmd("lost.save", {
+      description: "Guest umbrella",
+      roomId,
+      guestId,
+      location: "Front desk locker",
+      foundDate: (await snapshot()).property.businessDate,
+      notes: "Tagged by housekeeping",
+    })
+  ).id;
+  const lost = record(await snapshot(), "lost", lostId);
+  const handover = await seedAttachmentSet(db, owner, {
+    targetType: "pms_lost_property",
+    targetId: lostId,
+    componentKind: "action",
+    componentRef: "lost.release",
+    purposeKey: "handover_evidence",
+    expectedTargetVersion: lost.version,
+  });
+  const current = await snapshot();
+  await pmsCommand(
+    db,
+    owner,
+    {
+      propertyId,
+      expectedVersion: current.property.version,
+      operation: "lost.release",
+      input: { id: lostId, state: "returned", notes: "Released to the named guest" },
+      attachmentSetIds: [handover.setId],
+    },
+    key(),
+  );
+  expect(await attachmentBindingState(db, handover.setId)).toMatchObject({
+    set_state: "bound",
+    link_state: "bound",
+    binding_type: "pms_lost_property_release",
+  });
+  expect(record(await snapshot(), "lost", lostId).data.state).toBe("returned");
+});
 
 it("does not settle a production hotel transfer from a typed reference alone", async () => {
   const booking = await book();
@@ -726,13 +848,38 @@ it("settles a manually entered OTA reservation against approved credit and net b
   const invoice = await cmd("folio.close", { id: b.folioId });
   const sh = (await cmd("shift.open", { name: "Reconciliation", opening: 0 }))
     .id;
-  await cmd("ota.settle", {
-    folioId: b.folioId,
-    gross: 10700,
-    commission: 1200,
-    fees: 100,
-    reference: "Statement 001",
-    shiftId: sh,
+  const beforeSettlement = await snapshot();
+  const reconciliation = await seedAttachmentSet(db, owner, {
+    targetType: "pms_property",
+    targetId: propertyId,
+    componentKind: "action",
+    componentRef: "ota.settle",
+    purposeKey: "ota_reconciliation",
+    expectedTargetVersion: beforeSettlement.property.version,
+  });
+  await pmsCommand(
+    db,
+    owner,
+    {
+      propertyId,
+      expectedVersion: beforeSettlement.property.version,
+      operation: "ota.settle",
+      input: {
+        folioId: b.folioId,
+        gross: 10700,
+        commission: 1200,
+        fees: 100,
+        reference: "Statement 001",
+        shiftId: sh,
+      },
+      attachmentSetIds: [reconciliation.setId],
+    },
+    key(),
+  );
+  expect(await attachmentBindingState(db, reconciliation.setId)).toMatchObject({
+    set_state: "bound",
+    link_state: "bound",
+    binding_type: "pms_ota_settlement",
   });
   expect(await balance(accounts.bank)).toBe(9400);
   expect(await balance(accounts.commission)).toBe(1300);

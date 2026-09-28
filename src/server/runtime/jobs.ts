@@ -1,6 +1,7 @@
 import { drainProvisioning } from "../technology";
 import { drainPeopleLifecycle } from "../people-lifecycle-jobs";
 import { drainDirectoryOperations } from "../directory-operations";
+import { drainPositionGpo } from "../position-gpo";
 import { drainDirectoryJobs } from "../iam-directories";
 import type { PostgresDatabase } from "./postgres";
 import { drainSocialAgent } from "../social-agent";
@@ -56,7 +57,7 @@ export async function directoryWork(env: JobEnv) {
   for(const slot of await activeSlots(env)) {
     const db=registeredResources(env,slot.id).write as PostgresDatabase;
     await drainDirectoryJobs(db);
-    if (!slot.beta) { await drainDirectoryOperations(db); await drainProvisioning(db); }
+    if (!slot.beta) { await drainDirectoryOperations(db); await drainProvisioning(db); await drainPositionGpo(db); }
     await (await import("../user-management")).managementWork(db);
   }
 }
@@ -74,6 +75,17 @@ export async function scheduledWork(env: JobEnv) {
     }
     await (await import("../iam-access-review-alerts")).escalateAccessReviews(write);
     await (await import("../staff-task-alerts")).escalateStaffTasks(write);
+    await (await import("../inbox")).drainInboxNotices(write);
+    await (await import("../calendar/reminders")).drainCalendarReminders(write as PostgresDatabase);
+    if(env.CONTROL_DB)try{
+      await (await import("../web-push")).drainWebPush(write,env.CONTROL_DB);
+    }catch(error){
+      console.warn(JSON.stringify({event:"web_push_work_failed",holdingId:slot.id,
+        code:error instanceof Error?error.name:"PushError"}));
+    }
+    const inboxMetrics=await (await import("../inbox")).inboxOperationalMetrics(write);
+    if(inboxMetrics.oldestDeliveryLagMs>300000||inboxMetrics.unresolvedEventTypes>0||inboxMetrics.failedJobs>0)
+      console.warn(JSON.stringify({event:"inbox_delivery_health",holdingId:slot.id,...inboxMetrics}));
     await generateOccurrences(write);
     await drainRequestAi(write,env);
     if(process.env.NODE_ENV!=='production') {
@@ -95,10 +107,57 @@ export async function expenseAiWork(env: JobEnv) {
   }
 }
 
+let usageProjectionNextAt = 0;
+let usageHistoryBootstrapped = false;
 export async function billingWork(env: JobEnv) {
   if(!env.CONTROL_DB)return;
   await (await import("../billing-jobs")).drainBilling(env as import("../billing-jobs").BillingJobEnv);
+  await (await import("../billing-attachments")).drainBillingEvidenceScans(env as import("./env").RuntimeEnv);
+  if(Date.now()>=usageProjectionNextAt) {
+    try {
+      const bindings=(await env.CONTROL_DB.prepare(`SELECT holding_id id,slug,display_name "displayName"
+        FROM holding_bindings WHERE status='active' ORDER BY holding_id`)
+        .all<{id:string;slug:string;displayName:string}>()).results
+        .filter(binding=>resourceSlots(env).some(slot=>slot.id===binding.id));
+      const projection=await import("../usage-projection");
+      const recent=await projection.refreshRecentUsageProjections(env.CONTROL_DB,bindings);
+      const history=usageHistoryBootstrapped
+        ? {refreshed:0,unavailable:[] as string[]}
+        : await projection.bootstrapUsageProjectionHistory(env.CONTROL_DB,bindings);
+      const unavailable=[...recent.unavailable,...history.unavailable];
+      if(!history.unavailable.length)usageHistoryBootstrapped=true;
+      usageProjectionNextAt=Date.now()+(unavailable.length?5*60_000:60*60_000);
+      if(unavailable.length)console.warn(JSON.stringify({event:"usage_projection_partial",unavailable}));
+    } catch(error) {
+      usageProjectionNextAt=Date.now()+5*60_000;
+      console.warn(JSON.stringify({event:"usage_projection_failed",code:error instanceof Error?error.name:"ProjectionError"}));
+    }
+  }
   await env.CONTROL_DB.prepare("INSERT INTO runtime_health(service,heartbeat_at,details_json) VALUES('billing',?,'{}') ON CONFLICT(service) DO UPDATE SET heartbeat_at=excluded.heartbeat_at").bind(Date.now()).run();
+}
+
+let attachmentCleanupAt = 0;
+export async function attachmentWork(env: JobEnv) {
+  const attachments = await import("../attachments/service");
+  const cleanupDue = Date.now() - attachmentCleanupAt >= 60 * 60_000;
+  let cleaned = false;
+  for (const slot of await activeSlots(env)) {
+    const { write, files } = registeredResources(env, slot.id);
+    try {
+      for (let processed = 0; processed < 25 && await attachments.drainAttachmentScans(write, files); processed++);
+      if (cleanupDue) {
+        await attachments.cleanupAttachmentDrafts(write, files);
+        cleaned = true;
+      }
+    } catch (error) {
+      console.error(JSON.stringify({
+        event: "attachment_work_failed",
+        holdingId: slot.id,
+        code: error instanceof Error ? error.message.slice(0, 160) : "AttachmentWorkError",
+      }));
+    }
+  }
+  if (cleanupDue && cleaned) attachmentCleanupAt = Date.now();
 }
 
 export async function pmsWork(env: JobEnv) {

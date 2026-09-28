@@ -1,5 +1,7 @@
 # ERPX — Next.js (rebuilt 2026-09-02)
 
+Start with the [current production plan](docs/production-plan.md): one Thai hotel and restaurant, purchasing, HR, Thai payroll and AI. The ten-working-day checkpoint is a readiness review, not a launch date. [Documentation index](docs/TOC.md).
+
 Active deployment: [Node.js/PostgreSQL on this Mac through Cloudflare Tunnel](ops/macos/README.md), per [ADR-024](docs/adr/ADR-024-local-postgresql-runtime.md). Cloudflare Workers configuration is historical. Use `bun run deploy:build` for production.
 
 Rust/Dioxus/Tonic/SQLx 137 crates (`:3004/:50051`) hard-cut to **Next.js 16** on `development` (`d15909bb`). Docs preserved, code not migrated. Recovery:
@@ -8,7 +10,7 @@ Rust/Dioxus/Tonic/SQLx 137 crates (`:3004/:50051`) hard-cut to **Next.js 16** on
 git checkout backup/rust-2026-09-02        # full Rust monorepo
 git show rust-archive-2026-09-02 --stat    # f97b74d6
 git show cc0887d --stat                    # baseline
-# 37 proto + 28 SQL pruned at 99a66de7, see docs/plan/ARCHIVE.md; living REST/tRPC+Prisma in src/app/ + docs/contracts/next/
+# Historical protobuf/SQLx contracts are archived; active REST contracts and PostgreSQL migrations live on this branch.
 ```
 
 ## Stack
@@ -33,7 +35,7 @@ The rich local dataset and demo personas are documented in [docs/local-seed.md](
 
 ## Business context
 
-`docs/TOC.md` → `docs/plan/README.md` (31 contexts, `@` contract) + `CONTEXT.md` (glossary) + `docs/plan/traceability.md` + `docs/adr/` (ADR-020). Legacy on `backup/rust-2026-09-02`.
+[Production plan](docs/production-plan.md) → [current contracts](docs/contracts/next/README.md), [glossary](CONTEXT.md), and [architecture decisions](docs/adr/README.md). The capability inventory and historical domain maps are references, not additional launch scope.
 
 ## Verification
 

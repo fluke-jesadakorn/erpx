@@ -6,9 +6,10 @@ import { listStaffNotifications } from '../src/server/staff-notifications';
 import { createInvoice,invoiceSchema,postInvoice,importBankStatement,beginClose } from '../src/server/finance';
 import { assignFlowPrimary,resolveFlow } from '../src/server/flow-routing';
 import { createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recoverSupplierExport,recordSupplierResult,confirmSupplierInstruction,supplierBatchWorkspace,supplierBatchWork } from '../src/server/supplier-payments';
+import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from './helpers/attachment-v2';
 vi.mock('../src/server/runtime',()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
-beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
+beforeAll(async()=>{enableAttachmentV2ForTest();await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{
  f=await expenseFixture();
  for(const [actor,role] of [[f.reviewer,'finance_preparer'],[f.manager,'finance_approver'],[f.payer,'treasury']] as const){actor.role=role;actor.branchId=null;actor.departmentId=null;actor.assignmentId=await f.grant(actor,role);}
@@ -55,9 +56,11 @@ it('reserves, independently approves and confirms a partial multi-invoice batch 
  expect(await db.prepare("SELECT count(*) count FROM finance_payments WHERE company_id=?").bind(f.company).first('count')).toBe(0);
  await expect(beginClose(f.owner,f.period,key())).rejects.toMatchObject({code:'CLOSE_NOT_READY'});
  const workspace=await supplierBatchWorkspace(f.payer,id),item=workspace.items.find(i=>i.invoice_id===first)!,other=workspace.items.find(i=>i.invoice_id===second)!;
- const bankRow=await bank('60'),confirmation={expectedVersion:2,bankTransactionId:bankRow.id,bankVersion:bankRow.version,periodId:f.period,bankReference:'SIM-BANK-60',evidence:'Bank statement amount and approved beneficiary verified'},confirmKey=key();
+ const proof=await seedAttachmentSet(db,f.payer,{targetType:'finance_supplier_batch',targetId:id,componentKind:'action',componentRef:`supplier-instruction:${String(item.id)}`,purposeKey:'payment_proof',expectedTargetVersion:Number(workspace.batch!.version)});
+ const bankRow=await bank('60'),confirmation={expectedVersion:2,bankTransactionId:bankRow.id,bankVersion:bankRow.version,periodId:f.period,bankReference:'SIM-BANK-60',evidence:'Bank statement amount and approved beneficiary verified',attachmentSetIds:[proof.setId]},confirmKey=key();
  const confirmed=await confirmSupplierInstruction(f.payer,String(item.id),confirmation,confirmKey);
  expect(await confirmSupplierInstruction(f.payer,String(item.id),confirmation,confirmKey)).toEqual(confirmed);
+ expect(await attachmentBindingState(db,proof.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'finance_supplier_payment_confirmation'});
  expect(await db.prepare('SELECT outstanding_minor,status FROM finance_invoices WHERE id=?').bind(first).first()).toEqual({outstanding_minor:4000,status:'partially_paid'});
  expect(await db.prepare('SELECT outstanding_minor,status FROM finance_invoices WHERE id=?').bind(second).first()).toEqual({outstanding_minor:5000,status:'posted'});
  expect(await db.prepare('SELECT SUM(debit_minor) debit,SUM(credit_minor) credit FROM finance_journal_lines WHERE journal_id=?').bind(confirmed.journalId).first()).toEqual({debit:6000,credit:6000});

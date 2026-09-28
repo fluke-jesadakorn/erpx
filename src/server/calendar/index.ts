@@ -132,6 +132,7 @@ export async function calendarData(
           item.endsAt!,
           item.timezone,
           item.sourceId,
+          item.details?.attendees?.map(attendee=>attendee.userId)??[],
         )),
       );
     if (item.source === "roster") {
@@ -234,8 +235,7 @@ export async function calendarData(
     },
     selfPersonId: a.staff?.person_id ?? null,
     canManageRoster: hasPermission(actor, "roster.manage"),
-    canSchedule:
-      !!a.staff || hasPermission(actor, "calendar.appointments.manage"),
+    canSchedule: true,
     canAnnounce: hasPermission(actor, "calendar.announcements.publish"),
     teamDefault: a.teamDefault,
   };

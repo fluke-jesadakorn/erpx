@@ -1,5 +1,5 @@
-import betaStyles from "@/components/beta/beta.module.css";
 import { BetaAuthForm } from "@/components/beta/auth-form";
+import { AuthShell } from "@/components/workplace/auth-shell";
 export default async function Reset({
   searchParams,
 }: {
@@ -7,9 +7,8 @@ export default async function Reset({
 }) {
   const query = await searchParams;
   return (
-    <main className={`beta-entry ${betaStyles.surface}`}>
-      <h1>Choose a new password</h1>
+    <AuthShell eyebrow="ACCOUNT RECOVERY" title="Choose a new password." description="Use a strong password to protect your ERPX workspace.">
       <BetaAuthForm mode="reset" token={query.token} invalid={Boolean(query.error)} />
-    </main>
+    </AuthShell>
   );
 }

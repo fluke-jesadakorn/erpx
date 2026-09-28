@@ -3,6 +3,8 @@ import { StatusBadge, EmptyState } from "@/components/ui/primitives";
 import { workTypes, workItemHref, type WorkItem } from "@/lib/work-item";
 import { workBlocker } from "@/lib/work-attention";
 import { WorkFlow } from "./work-flow";
+import { operationFromWork } from "@/lib/operation-presentation";
+import { workTypeTone } from "@/lib/work-category-tone";
 import styles from "./work-list.module.css";
 export function WorkList({
   base,
@@ -33,12 +35,13 @@ export function WorkList({
         items.map((item) => (
           <Link
             className={styles.row}
-            key={`${item.type}:${item.id}`}
+            data-tone={workTypeTone[item.type]}
+            key={`${item.type}:${item.id}:${item.actionKind ?? "record"}`}
             href={workItemHref(base, item, returnTo)}
           >
             <div className={styles.body}>
               <small className={styles.type}>
-                {workTypes.find(([id]) => id === item.type)?.[1]}
+                {workTypes.find(([id]) => id === item.type)?.[1]} · {operationFromWork(item).actionKind === "override" ? "Decision on behalf of approver" : operationFromWork(item).actionKind === "approval" ? "Approval" : "Work"}
               </small>
               <strong className={styles.title}>{item.title}</strong>
               <p className={styles.action}>{item.nextAction ?? item.detail}</p>

@@ -46,6 +46,41 @@ async function api<T>(url: string, init?: RequestInit): Promise<T> {
     );
   return result.data as T;
 }
+type MessageFileUpload = {
+  id: string;
+  attachmentLinkId?: string;
+  state?: string;
+};
+
+function messageFileMediaType(file: File) {
+  if (file.type) return file.type;
+  const lower = file.name.toLowerCase();
+  if (lower.endsWith(".heic")) return "image/heic";
+  if (lower.endsWith(".heif")) return "image/heif";
+  return "text/csv";
+}
+
+async function waitForMessageFile(root: string, upload: MessageFileUpload) {
+  if (!upload.attachmentLinkId || upload.state === "available") return;
+  const attachmentRoot = root.replace(/\/messaging$/, "");
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const status = await api<{
+      sourceState: string | null;
+      scan?: { lastError?: string | null };
+    }>(
+      `${attachmentRoot}/attachment-links/${encodeURIComponent(upload.attachmentLinkId)}/status`,
+    );
+    if (status.sourceState === "available") return;
+    if (["malware_rejected", "scan_error", "destroyed"].includes(status.sourceState ?? ""))
+      throw new Error(
+        status.sourceState === "malware_rejected"
+          ? "The attachment was rejected by malware scanning."
+          : status.scan?.lastError ?? "The attachment could not be scanned.",
+      );
+    await new Promise((resolve) => setTimeout(resolve, 750));
+  }
+  throw new Error("The attachment scan is still pending. Try sending again shortly.");
+}
 function post<T>(url: string, input: unknown, key = crypto.randomUUID()) {
   return api<T>(url, {
     method: "POST",
@@ -67,6 +102,7 @@ export function MessagingInbox({
   initialTab,
   initialPerson,
   initialRoom,
+  notificationUnread=0,
 }: {
   base: string;
   userId: string;
@@ -74,6 +110,7 @@ export function MessagingInbox({
   initialTab: "updates" | "chats" | "teams";
   initialPerson?: string;
   initialRoom?: string;
+  notificationUnread?: number;
 }) {
   const router = useRouter();
   const root = `/api/v1${base}/messaging`;
@@ -183,6 +220,7 @@ export function MessagingInbox({
             }}
           >
             {{chats:"Messages",teams:"Teams",updates:"Notifications"}[value]}
+            {value==="updates"&&notificationUnread>0&&<span className={styles.badge}>{notificationUnread}</span>}
             {value !== "updates" &&
               overview.rooms
                 .filter((r) => (value === "teams") === (r.kind === "channel"))
@@ -491,15 +529,17 @@ function Conversation({
     setSending(true);
     setSendError("");
     try {
-      for (const attachment of attachments)
-        await api(`${root}/rooms/${room.id}/files/${attachment.id}`, {
+      for (const attachment of attachments) {
+        const upload = await api<MessageFileUpload>(`${root}/rooms/${room.id}/files/${attachment.id}`, {
           method: "PUT",
           headers: {
-            "Content-Type": attachment.file.type || "text/csv",
+            "Content-Type": messageFileMediaType(attachment.file),
             "X-File-Name": encodeURIComponent(attachment.file.name),
           },
           body: attachment.file,
         });
+        await waitForMessageFile(root, upload);
+      }
       await post(
         `${root}/rooms/${room.id}/messages`,
         JSON.parse(signature),
@@ -622,7 +662,7 @@ function Conversation({
                   {/* Authenticated private image URL; Next image optimization must not cache it. */}
                   {file.media_type.startsWith("image/") ? (
                     <Image
-                      src={`${root}/files/${file.id}`}
+                      src={`${root}/files/${file.id}?variant=preview`}
                       alt={file.original_name}
                       width={320}
                       height={220}
@@ -690,18 +730,18 @@ function Conversation({
               multiple
               disabled={sending}
               aria-label="Attach files"
-              accept=".jpg,.jpeg,.png,.webp,.pdf,.csv"
+              accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.pdf,.csv,image/heic,image/heif"
               onChange={(e) => {
                 const selected = Array.from(e.target.files ?? []);
                 e.target.value = "";
                 if (
-                  selected.length + attachments.length > 5 ||
+                  selected.length + attachments.length > 10 ||
                   selected.some(
                     (f) => f.size > 10 * 1024 * 1024 || f.size === 0,
                   )
                 ) {
                   setSendError(
-                    "Choose up to 5 files, each between 1 byte and 10 MB.",
+                    "Choose up to 10 files, each between 1 byte and 10 MB.",
                   );
                   return;
                 }
@@ -716,7 +756,7 @@ function Conversation({
               }}
             />
           </label>
-          <small>Up to 5 files · 10 MB each</small>
+          <small>Up to 10 files · 10 MB each</small>
           <button
             className={styles.primary}
             disabled={sending || (!body.trim() && !attachments.length)}

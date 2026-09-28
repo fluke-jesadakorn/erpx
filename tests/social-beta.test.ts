@@ -21,7 +21,9 @@ import {
   savePostDraft,
   publishPost,
   postAction,
+  postRevisionHistory,
   socialUploadOwner,
+  type PostContent,
 } from "../src/server/social-home";
 import { sourceSnapshot, readablePost } from "../src/server/social-source";
 import { createAiDraft, aiResultSchema, callAi } from "../src/server/social-ai";
@@ -170,6 +172,21 @@ async function post() {
   );
   return publishPost(db, owner, draft.id, draft.version, key());
 }
+async function readySocialImage(draftId: string, name: string) {
+  const uploadId = key(), attachmentId = key(), now = Date.now();
+  const objectKey = `test/social/${uploadId}`;
+  await db.batch([
+    db.prepare(`INSERT INTO upload_intents
+      (id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,revision,status,created_by,expires_at,created_at,updated_at)
+      VALUES(?,'social_draft',?,'post-image',?,'image/png',1,1,?,?,?,1,'ready',?,?,?,?)`)
+      .bind(uploadId,draftId,name,"test-checksum",`${objectKey}/staging`,objectKey,owner.userId,now+900_000,now,now),
+    db.prepare(`INSERT INTO attachments
+      (id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at)
+      VALUES(?,?,'social_draft',?,'post-image',?,1,?,'image/png',1,?,?,?)`)
+      .bind(attachmentId,uploadId,draftId,objectKey,name,"test-checksum",owner.userId,now),
+  ]);
+  return { uploadId, attachmentId };
+}
 async function source(id: string) {
   const snap = await sourceSnapshot(db, owner, id, []);
   return {
@@ -189,6 +206,295 @@ function task() {
     completionApprovers: [reviewer.userId],
   });
 }
+describe("social post image content", () => {
+  it("keeps image order across draft save and published post views", async () => {
+    const firstSlot = key(), secondSlot = key();
+    const pending: PostContent = [
+      { type: "text", text: "Before" },
+      { type: "image", slotId: firstSlot, attachmentId: null, name: "first.png" },
+      { type: "image", slotId: secondSlot, attachmentId: null, name: "second.png" },
+      { type: "text", text: "After" },
+    ];
+    const draft = await savePostDraft(db, owner, null, {
+      body: "Before\nAfter", content: pending, branchId: branch, expectedVersion: 1,
+    }, key());
+    const first = await readySocialImage(draft.id, "first.png");
+    const second = await readySocialImage(draft.id, "second.png");
+    const content: PostContent = [
+      { type: "text", text: "Before" },
+      { type: "image", slotId: firstSlot, attachmentId: first.attachmentId, name: "first.png" },
+      { type: "image", slotId: secondSlot, attachmentId: second.attachmentId, name: "second.png" },
+      { type: "text", text: "After" },
+    ];
+    const saved = await savePostDraft(db, owner, draft.id, {
+      body: "Before\nAfter", content, branchId: branch, expectedVersion: draft.version,
+    }, key());
+    const stored = await db.prepare("SELECT content_json,body FROM social_post_drafts WHERE id=?")
+      .bind(draft.id).first<{content_json:string;body:string}>();
+    expect(stored?.body).toBe("Before\nAfter");
+    expect(JSON.parse(stored!.content_json)).toEqual(content);
+    const published = await publishPost(db, owner, draft.id, saved.version, key());
+    const view = await postView(db, owner, published.id);
+    expect(view.body).toBe("Before\nAfter");
+    expect(view.content).toEqual(content);
+    expect(view.files.map((file) => file.id).sort()).toEqual([first.attachmentId, second.attachmentId].sort());
+  });
+
+  it("publishes an image-only post only after its own upload is ready", async () => {
+    const slotId = key();
+    const pending: PostContent = [{ type: "image", slotId, attachmentId: null, name: "only.png" }];
+    const draft = await savePostDraft(db, owner, null, {
+      body: "", content: pending, branchId: branch, expectedVersion: 1,
+    }, key());
+    await expect(publishPost(db, owner, draft.id, draft.version, key())).rejects.toMatchObject({
+      code: "POST_IMAGE_PENDING", status: 422,
+    });
+    const upload = await readySocialImage(draft.id, "only.png");
+    const content: PostContent = [{ type: "image", slotId, attachmentId: upload.attachmentId, name: "only.png" }];
+    const saved = await savePostDraft(db, owner, draft.id, {
+      body: "", content, branchId: branch, expectedVersion: draft.version,
+    }, key());
+    await db.prepare("UPDATE upload_intents SET status='pending' WHERE id=?").bind(upload.uploadId).run();
+    await expect(publishPost(db, owner, draft.id, saved.version, key())).rejects.toMatchObject({
+      code: "POST_IMAGE_UNAVAILABLE", status: 422,
+    });
+    await db.prepare("UPDATE upload_intents SET status='ready' WHERE id=?").bind(upload.uploadId).run();
+    const published = await publishPost(db, owner, draft.id, saved.version, key());
+    const view = await postView(db, owner, published.id);
+    expect(view.body).toBe("");
+    expect(view.content).toEqual(content);
+  });
+
+  it("rejects another draft's image and preserves legacy text-only posts", async () => {
+    const sourceDraft = await savePostDraft(db, owner, null, {
+      body: "Source", branchId: branch, expectedVersion: 1,
+    }, key());
+    const foreignImage = await readySocialImage(sourceDraft.id, "foreign.png");
+    const draft = await savePostDraft(db, owner, null, {
+      body: "", content: [{ type: "image", slotId: key(), attachmentId: foreignImage.attachmentId, name: "foreign.png" }],
+      branchId: branch, expectedVersion: 1,
+    }, key());
+    await expect(publishPost(db, owner, draft.id, draft.version, key())).rejects.toMatchObject({
+      code: "POST_IMAGE_UNAVAILABLE", status: 422,
+    });
+    expect(await db.prepare("SELECT count(*) FROM social_posts WHERE id=?")
+      .bind(`post-${draft.id}`).first<number>("count")).toBe(0);
+    const legacy = await publishPost(db, owner, sourceDraft.id, sourceDraft.version, key());
+    const view = await postView(db, owner, legacy.id);
+    expect(view.body).toBe("Source");
+    expect(view.content).toBeNull();
+  });
+
+  it("revokes an image removed from a draft before publication", async () => {
+    const slotId = key();
+    const draft = await savePostDraft(db, owner, null, {
+      body: "Keep this text", branchId: branch, expectedVersion: 1,
+    }, key());
+    const image = await readySocialImage(draft.id, "removed.png");
+    const withImage = await savePostDraft(db, owner, draft.id, {
+      body: "Keep this text",
+      content: [
+        { type: "text", text: "Keep this text" },
+        { type: "image", slotId, attachmentId: image.attachmentId, name: "removed.png" },
+      ],
+      branchId: branch, expectedVersion: draft.version,
+    }, key());
+    const withoutImage = await savePostDraft(db, owner, draft.id, {
+      body: "Keep this text", content: [{ type: "text", text: "Keep this text" }],
+      branchId: branch, expectedVersion: withImage.version,
+    }, key());
+    expect(await db.prepare("SELECT revoked_at IS NOT NULL AS revoked FROM attachments WHERE id=?")
+      .bind(image.attachmentId).first<boolean>("revoked")).toBe(true);
+    const published = await publishPost(db, owner, draft.id, withoutImage.version, key());
+    const view = await postView(db, owner, published.id);
+    expect(view.content).toEqual([{ type: "text", text: "Keep this text" }]);
+    expect(view.files).toHaveLength(0);
+  });
+});
+describe("social post audience and purpose", () => {
+  it("requires an audience before publication and preserves the selected purpose", async () => {
+    const saved = await savePostDraft(db, owner, null, {
+      body: "Tomorrow's delivery plan", purpose: "plan", expectedVersion: 1,
+    }, key());
+    await expect(publishPost(db, owner, saved.id, saved.version, key())).rejects.toMatchObject({
+      code: "AUDIENCE_REQUIRED", status: 422,
+    });
+    const selected = await savePostDraft(db, owner, saved.id, {
+      body: "Tomorrow's delivery plan", purpose: "plan",
+      audience: { kind: "branch", id: branch }, expectedVersion: saved.version,
+    }, key());
+    const published = await publishPost(db, owner, saved.id, selected.version, key());
+    const view = await postView(db, worker, published.id);
+    expect(view.purpose).toBe("plan");
+    expect(view.audience_kind).toBe("branch");
+    expect(view.audienceLabel).toBe("Branch · Branch");
+  });
+
+  it("prevents branch roles from widening a post to the company or another branch", async () => {
+    await expect(savePostDraft(db, worker, null, {
+      body: "Private branch work", audience: { kind: "company" }, expectedVersion: 1,
+    }, key())).rejects.toMatchObject({ code: "AUDIENCE_FORBIDDEN", status: 403 });
+    await expect(savePostDraft(db, worker, null, {
+      body: "Private branch work", audience: { kind: "branch", id: `other-${key()}` }, expectedVersion: 1,
+    }, key())).rejects.toMatchObject({ code: "AUDIENCE_FORBIDDEN", status: 403 });
+  });
+
+  it("keeps a department audience out of the branch feed", async () => {
+    const department = `dept-${key()}`, id = `post-${key()}`, now = Date.now();
+    await db.batch([
+      db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'department',?,'Sales',?,?,?)")
+        .bind(department,department,branch,company,branch),
+      db.prepare("INSERT INTO social_posts(id,kind,author_id,author_name,company_id,branch_id,department_id,audience_kind,purpose,body,created_at,updated_at) VALUES(?,'team',?,?,?,?,?,'department','update','Department only',?,?)")
+        .bind(id,owner.userId,owner.name,company,branch,department,now,now),
+    ]);
+    await expect(readablePost(db, worker, id)).rejects.toMatchObject({ code: "POST_NOT_FOUND", status: 404 });
+    await db.prepare("UPDATE assignments SET scope_kind='department',scope_node_id=? WHERE id=?")
+      .bind(department,worker.assignmentId).run();
+    await expect(readablePost(db, worker, id)).resolves.toMatchObject({ id });
+  });
+
+  it("limits selected-person posts to named recipients and keeps mentions from adding viewers", async () => {
+    for (const actor of [worker, reviewer]) await control.batch([
+      control.prepare('INSERT INTO "user"(id,name,email,"createdAt","updatedAt") VALUES(?,?,?,1,1) ON CONFLICT(id) DO NOTHING')
+        .bind(actor.userId, actor.name, actor.email),
+      control.prepare("INSERT INTO principals(id,user_id,display_name,created_at) VALUES(?,?,?,1) ON CONFLICT(id) DO NOTHING")
+        .bind(actor.userId, actor.userId, actor.name),
+    ]);
+    const body = "@Reviewer please read the update";
+    const draft = await savePostDraft(db, owner, null, {
+      body, mentions: [{ kind: "person", targetId: reviewer.userId, label: "Reviewer", start: 0, end: 9 }],
+      audience: { kind: "participants", userIds: [worker.userId] }, expectedVersion: 1,
+    }, key());
+    const published = await publishPost(db, owner, draft.id, draft.version, key());
+    expect((await postView(db, worker, published.id)).audienceLabel).toBe("Selected people (1)");
+    await expect(readablePost(db, reviewer, published.id)).rejects.toMatchObject({ code: "POST_NOT_FOUND" });
+    expect(await db.prepare("SELECT count(*) FROM staff_notifications WHERE record_id=? AND user_id=?")
+      .bind(published.id, reviewer.userId).first<number>("count")).toBe(0);
+    await db.prepare("UPDATE assignments SET revoked_at=? WHERE id=?").bind(Date.now(), worker.assignmentId).run();
+    await expect(readablePost(db, worker, published.id)).rejects.toMatchObject({ code: "POST_NOT_FOUND" });
+  });
+
+  it("checks current team and project membership within the original branch scope", async () => {
+    const team = `team-${key()}`, project = `project-${key()}`, now = Date.now();
+    await db.batch([
+      db.prepare("INSERT INTO messaging_teams(id,company_id,name,owner_id,created_at) VALUES(?,?,?,?,?)")
+        .bind(team, company, "Service team", worker.userId, now),
+      db.prepare("INSERT INTO messaging_team_members(team_id,user_id) VALUES(?,?)").bind(team, worker.userId),
+      db.prepare("INSERT INTO messaging_team_members(team_id,user_id) VALUES(?,?)").bind(team, reviewer.userId),
+      db.prepare("INSERT INTO staff_projects(id,company_id,branch_id,title,owner_user_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?)")
+        .bind(project, company, branch, "Opening project", worker.userId, now, now),
+      db.prepare("INSERT INTO staff_project_members(project_id,user_id,added_by,created_at) VALUES(?,?,?,?)")
+        .bind(project, reviewer.userId, worker.userId, now),
+    ]);
+    const otherBranch = `other-${key()}`;
+    await db.batch(branchStatements(db, company, otherBranch, "Other", otherBranch));
+    await db.prepare("UPDATE assignments SET scope_node_id=? WHERE id=?").bind(otherBranch, reviewer.assignmentId).run();
+    for (const audience of [{ kind: "team" as const, id: team }, { kind: "project" as const, id: project }]) {
+      const draft = await savePostDraft(db, worker, null, { body: "Branch handover", audience, expectedVersion: 1 }, key());
+      const published = await publishPost(db, worker, draft.id, draft.version, key());
+      expect((await postView(db, worker, published.id)).audience_kind).toBe(audience.kind);
+      await expect(readablePost(db, reviewer, published.id)).rejects.toMatchObject({ code: "POST_NOT_FOUND" });
+      await db.prepare("UPDATE assignments SET scope_node_id=? WHERE id=?").bind(branch, reviewer.assignmentId).run();
+      await expect(readablePost(db, reviewer, published.id)).resolves.toMatchObject({ id: published.id });
+      await db.prepare("UPDATE assignments SET scope_node_id=? WHERE id=?").bind(otherBranch, reviewer.assignmentId).run();
+    }
+    await db.prepare("UPDATE assignments SET scope_node_id=? WHERE id=?").bind(branch, reviewer.assignmentId).run();
+    const draft = await savePostDraft(db, worker, null, { body: "Team note", audience: { kind: "team", id: team }, expectedVersion: 1 }, key());
+    const published = await publishPost(db, worker, draft.id, draft.version, key());
+    await db.prepare("DELETE FROM messaging_team_members WHERE team_id=? AND user_id=?").bind(team, reviewer.userId).run();
+    await expect(readablePost(db, reviewer, published.id)).rejects.toMatchObject({ code: "POST_NOT_FOUND" });
+  });
+
+  it("shows each linked task or project only to readers authorized by its own source", async () => {
+    const task = `task-${key()}`, project = `project-${key()}`, now = Date.now();
+    await db.batch([
+      db.prepare("INSERT INTO staff_tasks(id,company_id,branch_id,title,creator_user_id,assignee_user_id,due_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)")
+        .bind(task, company, branch, "Restricted repair", owner.userId, worker.userId, now + 86400000, now, now),
+      db.prepare("INSERT INTO staff_projects(id,company_id,title,owner_user_id,created_at,updated_at) VALUES(?,?,?,?,?,?)")
+        .bind(project, company, "Private rollout", owner.userId, now, now),
+    ]);
+    const draft = await savePostDraft(db, owner, null, {
+      body: "Linked work", audience: { kind: "company" },
+      sources: [{ kind: "staff_task", id: task }, { kind: "staff_project", id: project }], expectedVersion: 1,
+    }, key());
+    const published = await publishPost(db, owner, draft.id, draft.version, key());
+    expect((await postView(db, owner, published.id)).linkedSources).toMatchObject([
+      { available: true, title: "Restricted repair" }, { available: true, title: "Private rollout" },
+    ]);
+    const limited = (await postView(db, reviewer, published.id)).linkedSources;
+    expect(limited).toEqual([
+      { kind: "staff_task", available: false }, { kind: "staff_project", available: false },
+    ]);
+    await expect(savePostDraft(db, reviewer, null, {
+      body: "Cannot link someone else's task", audience: { kind: "branch", id: branch },
+      sources: [{ kind: "staff_task", id: task }], expectedVersion: 1,
+    }, key())).rejects.toMatchObject({ code: "TASK_NOT_FOUND", status: 404 });
+  });
+});
+describe("social post corrections", () => {
+  it("lets only the author edit text while preserving audience and revision history", async () => {
+    const created = await post();
+    await expect(postAction(db, worker, created.id, {
+      action: "edit", expectedVersion: 1, body: "Incorrect correction",
+    }, key())).rejects.toMatchObject({ code: "POST_AUTHOR_REQUIRED", status: 403 });
+    const changed = await postAction(db, owner, created.id, {
+      action: "edit", expectedVersion: 1, body: "Corrected #handover",
+    }, key());
+    expect(changed.version).toBe(2);
+    const view = await postView(db, worker, created.id);
+    expect(view.body).toBe("Corrected #handover");
+    expect(view.branch_id).toBe(branch);
+    expect(view.audienceLabel).toBe("Branch · Branch");
+    expect(view.edited_at).toBeGreaterThan(0);
+    expect(await postRevisionHistory(db, owner, created.id)).toMatchObject([
+      { prior_version: 1, action: "edit", body: "เครื่องปรับอากาศเสีย กรุณาช่วยตรวจสอบ" },
+    ]);
+    await expect(postRevisionHistory(db, worker, created.id)).rejects.toMatchObject({ status: 404 });
+    await expect(postAction(db, owner, created.id, {
+      action: "edit", expectedVersion: 1, body: "Stale correction",
+    }, key())).rejects.toMatchObject({ code: "POST_CHANGED", status: 409 });
+  });
+
+  it("retracts a post without deleting its audit trail", async () => {
+    const created = await post();
+    await expect(postAction(db, worker, created.id, {
+      action: "retract", expectedVersion: 1,
+    }, key())).rejects.toMatchObject({ code: "POST_AUTHOR_REQUIRED", status: 403 });
+    const commandKey = key();
+    const deleted = await postAction(db, owner, created.id, { action: "retract", expectedVersion: 1 }, commandKey);
+    expect(await postAction(db, owner, created.id, { action: "retract", expectedVersion: 1 }, commandKey)).toEqual(deleted);
+    await expect(postView(db, owner, created.id)).rejects.toMatchObject({ code: "POST_NOT_FOUND", status: 404 });
+    expect((await homePosts(db, owner)).some(row => row.id === created.id)).toBe(false);
+    expect(await postRevisionHistory(db, owner, created.id)).toMatchObject([
+      { prior_version: 1, action: "retract", body: "เครื่องปรับอากาศเสีย กรุณาช่วยตรวจสอบ" },
+    ]);
+    const audit = await db.prepare("SELECT count(*) FROM audit_events WHERE record_id=? AND action='social.post.retract'")
+      .bind(created.id).first<number>("count");
+    expect(audit).toBe(1);
+  });
+});
+describe("social conversation replies", () => {
+  it("keeps replies attached to a visible top-level comment", async () => {
+    const created = await post();
+    const firstKey = key(), replyKey = key();
+    await postAction(db, owner, created.id, { action: "comment", body: "Can someone check the switch?" }, firstKey);
+    const parentId = `comment-${firstKey}`;
+    await postAction(db, worker, created.id, {
+      action: "comment", body: "I checked it this morning.", parentCommentId: parentId,
+    }, replyKey);
+    const view = await postView(db, owner, created.id);
+    const reply = view.comments.find(comment => comment.id === `comment-${replyKey}`);
+    expect(reply).toMatchObject({ parent_comment_id: parentId, parent_author_name: owner.name });
+    const page = await postComments(db, owner, created.id);
+    expect(page.items.find(comment => comment.id === `comment-${replyKey}`)?.parent_comment_id).toBe(parentId);
+    const notification = await db.prepare("SELECT count(*) FROM staff_notifications WHERE record_id=? AND user_id=? AND message='Someone replied to your comment'")
+      .bind(created.id, owner.userId).first<number>("count");
+    expect(notification).toBe(1);
+    await expect(postAction(db, worker, created.id, {
+      action: "comment", body: "Nested reply", parentCommentId: `comment-${replyKey}`,
+    }, key())).rejects.toMatchObject({ code: "REPLY_TARGET_UNAVAILABLE", status: 422 });
+  });
+});
 describe("social beta isolation and work", () => {
   it("keeps drafts private, then uses the normal independent review workflow", async () => {
     const draft = await savePostDraft(
@@ -637,9 +943,9 @@ describe("tenant admission and verified invitations", () => {
           .bind(companyId, `engagement-${activeSlot.owner_user_id}`)
           .first(),
       ).toMatchObject({
-        level_id: `org-level-${companyId}-1`,
-        position_id: `company-ceo-${companyId}`,
-        job_title: "Chief Executive Officer",
+        level_id: `level-${companyId}`,
+        position_id: null,
+        job_title: "Team member",
       });
       expect(
         (

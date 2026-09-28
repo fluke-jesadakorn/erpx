@@ -28,13 +28,13 @@ export default async function CalendarPage({
     calendarHierarchy(write, actor),
   ]);
   return (
-    <main className="content" data-source="live">
+    <div className="content" data-source="live">
       <CalendarWorkspace
         base={workspaceBase(publicScope(actor))}
         initial={calendar}
         initialHierarchy={hierarchy}
         initialEvent={typeof query.event === "string" ? query.event : undefined}
       />
-    </main>
+    </div>
   );
 }

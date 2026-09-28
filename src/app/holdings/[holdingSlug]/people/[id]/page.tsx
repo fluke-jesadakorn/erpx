@@ -1,6 +1,7 @@
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { AccessEditor } from "@/components/modules/access-editor";
 import { LevelAssignmentEditor } from "@/components/modules/level-assignment-editor";
+import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import {
 CompensationEditor,
 TimeEntryEditor,
@@ -9,6 +10,7 @@ import { PeopleEditor } from "@/components/modules/people-editor";
 import { LifecyclePanel } from "@/components/people/lifecycle-workspace";
 import { StatusBadge } from "@/components/ui/primitives";
 import { minorToDecimal } from "@/lib/finance-money";
+import { samePerson } from "@/lib/iam";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope,requireWorkContext } from "@/server/authorization";
@@ -63,6 +65,29 @@ export default async function PersonDetail({
     ).results;
   const groups = await payrollOptions(actor).catch(() => []);
   const query = await searchParams;
+  const lifecycleData = canManagePeople(actor) && !!person.engagement_id ? await peopleLifecycleData(write,actor) : null;
+  const employeeSelf =
+      samePerson(actor, person.user_id) || actor.iam?.personId === String(person.id),
+    canReadEmployeeDocuments = hasPermission(actor, "people.documents.read"),
+    canManageEmployeeDocuments = hasPermission(actor, "people.documents.manage"),
+    employeeDocumentPurposes = canReadEmployeeDocuments
+      ? [
+          { key: "identity_document", label: "Identity document", description: "Attach the controlled identity document used for employment administration." },
+          { key: "work_permit", label: "Work permit", description: "Attach the current work permit or authorization." },
+          { key: "tax_document", label: "Tax document", description: "Attach employee tax registration or declaration documents." },
+          { key: "bank_document", label: "Bank document", description: "Attach verified payroll bank-account evidence." },
+          { key: "employment_contract", label: "Employment contract", description: "Attach the signed employment contract.", editable: canManageEmployeeDocuments },
+          { key: "employment_amendment", label: "Contract amendment", description: "Attach a signed contract amendment or role change document.", editable: canManageEmployeeDocuments },
+          { key: "professional_certificate", label: "Professional certificate", description: "Attach a professional, trade, or eligibility certificate." },
+          { key: "compensation_authorization", label: "Compensation authorization", description: "Attach the restricted approval supporting a compensation decision." },
+        ]
+      : employeeSelf
+        ? [
+            { key: "employment_contract", label: "Employment contract", description: "Your self-visible signed employment contract.", editable: false },
+            { key: "employment_amendment", label: "Contract amendment", description: "Your self-visible signed contract amendments.", editable: false },
+            { key: "professional_certificate", label: "Professional certificate", description: "Attach or review your professional certificate.", editable: true },
+          ]
+        : [];
   const tabs = [
     ["profile", "Profile"],
     ["work", "Work history"],
@@ -92,7 +117,7 @@ export default async function PersonDetail({
       </div>
 
       <FeatureTabs/><WidgetGrid>
-      {canManagePeople(actor) && !!person.engagement_id && <FeatureWidget id="person-lifecycle" title="Lifecycle"><LifecyclePanel base={base} data={await peopleLifecycleData(write,actor)} person={{id,name:String(person.legal_name),status:String(person.engagement_status),engagementId:String(person.engagement_id),positionId:person.position_id?String(person.position_id):null,managerPersonId:person.manager_person_id?String(person.manager_person_id):null}}/></FeatureWidget>}
+      {lifecycleData && <FeatureWidget id="person-lifecycle" title="Lifecycle"><LifecyclePanel base={base} data={lifecycleData} person={{id,name:String(person.legal_name),status:String(person.engagement_status),engagementId:String(person.engagement_id),positionId:person.position_id?String(person.position_id):null,managerPersonId:person.manager_person_id?String(person.manager_person_id):null}}/></FeatureWidget>}
       {true && <FeatureWidget id="person-profile" title="Profile"><>
           <section className="card">
             <dl className="staff-facts">
@@ -108,7 +133,41 @@ export default async function PersonDetail({
                 </div>
               ))}
             </dl>
+            {data.recommendedLeave&&<p>Level leave recommendation: {data.recommendedLeave.annual_days} annual days and {data.recommendedLeave.sick_days} sick days / year · policy v{data.recommendedLeave.version}</p>}
+            {data.leaveAssignment&&<p>Assigned leave policy: {data.leaveAssignment.name} · v{data.leaveAssignment.version} · effective {data.leaveAssignment.effective_from}</p>}
           </section>
+          {employeeDocumentPurposes.length > 0 && (
+            <RecordDocumentPanel
+              base={base}
+              targetType="hr_person"
+              targetId={String(person.id)}
+              expectedTargetVersion={Number(person.version)}
+              editable={canManageEmployeeDocuments || employeeSelf}
+              title="Employee documents"
+              purposes={employeeDocumentPurposes}
+            />
+          )}
+          {canReadEmployeeDocuments && lifecycleData?.cases
+            .filter((item) => item.person_id === id)
+            .map((item) => {
+              const purpose = item.kind === "onboarding"
+                ? { key: "offer_document", label: "Offer and onboarding document", description: "Attach the reviewed offer or onboarding document for this lifecycle case." }
+                : item.kind === "transfer"
+                  ? { key: "transfer_document", label: "Transfer document", description: "Attach the approved transfer or placement document for this case." }
+                  : { key: "offboarding_document", label: "Offboarding document", description: "Attach the approved offboarding, suspension, or exit document for this case." };
+              return (
+                <RecordDocumentPanel
+                  key={item.id}
+                  base={base}
+                  targetType="people_lifecycle_case"
+                  targetId={item.id}
+                  expectedTargetVersion={Number(item.version)}
+                  editable={canManageEmployeeDocuments}
+                  title={`${item.kind} case documents`}
+                  purposes={[purpose]}
+                />
+              );
+            })}
           {canManagePeople(actor) && (
             <PeopleEditor
               lifecycleManaged={!actor.beta}
@@ -118,6 +177,7 @@ export default async function PersonDetail({
               levels={staffOptions.levels}
               people={staffOptions.people}
               organization={await organizationOverview(write,actor)}
+              gpoPositions={lifecycleData?.positions}
               levelManagedSeparately={staffOptions.canManage}
             />
           )}
@@ -180,11 +240,13 @@ export default async function PersonDetail({
           <section className="card">
             
             <p>
-              Base pay:{" "}
+              Approved current base pay:{" "}
               {person.base_amount_minor == null
                 ? "Not set"
                 : `${person.currency} ${minorToDecimal(Number(person.base_amount_minor))}`}
             </p>
+            {data.recommendedPay&&<p>Position recommendation: {data.recommendedPay.currency} {minorToDecimal(data.recommendedPay.monthly_amount_minor)} / month · v{data.recommendedPay.version}</p>}
+            {data.revisions.filter((revision:Record<string,unknown>)=>revision.status==="draft").map((revision:Record<string,unknown>)=><p key={String(revision.id)}>Pay draft awaiting another approver: {String(revision.currency)} {minorToDecimal(Number(revision.base_amount_minor))} · effective {String(revision.effective_from)}</p>)}
           </section>
           <CompensationEditor
             base={base}

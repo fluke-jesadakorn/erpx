@@ -21,7 +21,7 @@ async function selectRole(
   );
   expect(user, `${role} demo account`).toBeTruthy();
   const login = await context.request.post("/api/auth/sign-in/email", {
-    headers: { Origin: "http://127.0.0.1:3102" },
+    headers: { Origin: (process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102") },
     data: { email: user!.email, password: credentials.password },
   });
   expect(login.ok(), await login.text()).toBe(true);
@@ -32,7 +32,7 @@ async function selectRole(
   );
   expect(assignment, `${role} active assignment`).toBeTruthy();
   const selected = await context.request.post(endpoint, {
-    headers: { Origin: "http://127.0.0.1:3102" },
+    headers: { Origin: (process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102") },
     data: { assignmentId: assignment.id, revision: active.revision },
   });
   expect(selected.ok(), await selected.text()).toBe(true);
@@ -204,7 +204,7 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     const levelSix=sourceState.levels.find((level:{level_number:number})=>level.level_number===6);
     expect(ceo,"active reporting position").toBeTruthy();expect(levelSix,"level-six catalog entry").toBeTruthy();
     const positionResponse=await ownerContext.request.post("/api/v1/holdings/simulation/people/organization/positions",{
-      headers:{Origin:"http://127.0.0.1:3102","Idempotency-Key":`organization-position-${run}`},
+      headers:{Origin:(process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102"),"Idempotency-Key":`organization-position-${run}`},
       data:{title:`Movable service position ${suffix}`,branchId:applied.nodeId,departmentId:movableApplied.nodeId,levelId:levelSix.id,reportsToPositionId:ceo.id,isCeo:false,active:true,expectedVersion:0,requirements:"Service coverage in the source team.",reason:"Seed the reviewed relocation with an active position."},
     });
     expect(positionResponse.ok(),await positionResponse.text()).toBe(true);

@@ -10,6 +10,7 @@ import { assertion, executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
 import { decimalToMinor } from "@/lib/finance-money";
 import type { SqlDatabase, SqlStatement } from "./runtime/types";
+import { prepareAttachmentBinding } from "./attachments/service";
 const reason = z.string().trim().min(3).max(3000),
   version = z.number().int().positive(),
   date = z.string().date(),
@@ -56,8 +57,9 @@ const orderSchema = z.discriminatedUnion("action", [
     expectedVersion: version,
     expiresAt: z.number().int().positive(),
     reason,
+    attachmentSetIds: z.array(z.string().min(1)).max(10).default([]),
   }),
-  z.object({ action: z.literal("issue"), expectedVersion: version, reason }),
+  z.object({ action: z.literal("issue"), expectedVersion: version, reason, attachmentSetIds: z.array(z.string().min(1)).max(10).default([]) }),
   z.object({
     action: z.literal("report"),
     expectedVersion: version,
@@ -66,11 +68,13 @@ const orderSchema = z.discriminatedUnion("action", [
     laborCost: z.string().regex(/^\d+(\.\d{1,2})?$/),
     overheadCost: z.string().regex(/^\d+(\.\d{1,2})?$/),
     reason,
+    attachmentSetIds: z.array(z.string().min(1)).max(10).default([]),
   }),
   z.object({
     action: z.enum(["pass-qc", "fail-qc", "rework", "cancel"]),
     expectedVersion: version,
     reason,
+    attachmentSetIds: z.array(z.string().min(1)).max(10).default([]),
   }),
 ]);
 function access(
@@ -121,9 +125,9 @@ export async function productionWorkspace(
           .all<Row>(),
         write
           .prepare(
-            "SELECT r.*,s.company_id FROM planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id WHERE s.company_id=? ORDER BY r.updated_at DESC",
+            "SELECT r.*,s.company_id,s.branch_id FROM planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) ORDER BY r.updated_at DESC",
           )
-          .bind(a.companyId)
+          .bind(a.companyId, a.branchId, a.branchId)
           .all<Row>(),
         write
           .prepare(
@@ -152,6 +156,61 @@ export async function productionWorkspace(
     products: products.results,
     warehouses: warehouses.results,
   };
+}
+export type PlanningExecutiveEvidenceMetric =
+  | "planning-shortage-scenarios"
+  | "proposed-planning-recommendations"
+  | "capacity-feasible-recommendations";
+export async function planningExecutiveEvidenceRow(
+  db: SqlDatabase,
+  a: WorkContext,
+  metric: PlanningExecutiveEvidenceMetric,
+  recordId: string,
+  from: string,
+  to: string,
+) {
+  access(a, "planning");
+  const branchScope = "(?::text IS NULL OR s.branch_id=?)";
+  const sourceJoins = `
+    LEFT JOIN manufacturing_specifications spec ON spec.id=s.specification_id AND spec.company_id=s.company_id
+    LEFT JOIN commerce_products output ON output.id=spec.output_product_id AND output.company_id=s.company_id
+    LEFT JOIN commerce_warehouses w ON w.id=s.warehouse_id AND w.company_id=s.company_id
+    LEFT JOIN organization_nodes branch ON branch.id=s.branch_id AND branch.company_id=s.company_id
+    LEFT JOIN planning_recommendations r ON r.scenario_id=s.id`;
+  const shortageProjection = `
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+        'product_name',COALESCE(p.name,'Unknown product'),
+        'required_milli',(entry.value->>'requiredMilli')::numeric::text,
+        'available_milli',(entry.value->>'availableMilli')::numeric::text,
+        'shortage_milli',(entry.value->>'shortageMilli')::numeric::text
+      ) ORDER BY COALESCE(p.name,entry.value->>'productId')) FILTER (WHERE (entry.value->>'shortageMilli')::numeric>0),'[]'::jsonb)::text shortage_items_json,
+      count(*) FILTER (WHERE (entry.value->>'shortageMilli')::numeric>0)::text shortage_count
+      FROM jsonb_array_elements(COALESCE(s.shortages_json::jsonb,'[]'::jsonb)) AS entry(value)
+      LEFT JOIN commerce_products p ON p.id=entry.value->>'productId' AND p.company_id=s.company_id
+    ) shortage ON TRUE`;
+  const projection = `SELECT s.id scenario_id,s.company_id,s.branch_id,branch.display_name branch_name,
+      s.warehouse_id,w.name warehouse_name,s.specification_id,spec.name specification_name,
+      spec.output_product_id,output.name output_product_name,s.specification_version,
+      s.demand_quantity_milli::text demand_quantity_milli,s.due_date,s.capacity_minutes::text capacity_minutes,
+      s.status scenario_status,s.version scenario_version,s.created_at scenario_created_at,s.updated_at scenario_updated_at,
+      r.id recommendation_id,r.status recommendation_status,r.recommended_quantity_milli::text recommended_quantity_milli,
+      r.required_minutes::text required_minutes,r.feasible_date,r.version recommendation_version,
+      r.scenario_version,r.created_at recommendation_created_at,r.updated_at recommendation_updated_at,
+      COALESCE(shortage.shortage_count,'0') shortage_count,COALESCE(shortage.shortage_items_json,'[]') shortage_items_json
+    FROM planning_scenarios s ${sourceJoins} ${shortageProjection}`;
+  if (metric === "planning-shortage-scenarios") {
+    return db.prepare(`${projection}
+      WHERE s.id=? AND s.company_id=? AND ${branchScope} AND s.due_date BETWEEN ? AND ?
+        AND jsonb_path_exists(COALESCE(s.shortages_json::jsonb,'[]'::jsonb),'$[*] ? (@.shortageMilli > 0)') LIMIT 1`)
+      .bind(recordId,a.companyId,a.branchId,a.branchId,from,to).first<Row>();
+  }
+  const eligibility = metric === "proposed-planning-recommendations"
+    ? "r.status='proposed'"
+    : "r.status IN ('proposed','approved') AND r.required_minutes<=s.capacity_minutes";
+  return db.prepare(`${projection}
+    WHERE r.id=? AND s.company_id=? AND ${branchScope} AND r.feasible_date BETWEEN ? AND ? AND ${eligibility} LIMIT 1`)
+    .bind(recordId,a.companyId,a.branchId,a.branchId,from,to).first<Row>();
 }
 export async function createSpecification(
   a: WorkContext,
@@ -419,9 +478,9 @@ export async function reviewPlanningRecommendation(
     { write } = await holdingResources(a.holdingId),
     row = await write
       .prepare(
-        "SELECT r.*,s.company_id,s.branch_id,s.warehouse_id,s.specification_id,s.specification_version,s.created_by scenario_created_by FROM planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id WHERE r.id=? AND s.company_id=?",
+        "SELECT r.*,s.company_id,s.branch_id,s.warehouse_id,s.specification_id,s.specification_version,s.created_by scenario_created_by FROM planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id WHERE r.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?)",
       )
-      .bind(id, a.companyId)
+      .bind(id, a.companyId, a.branchId, a.branchId)
       .first<Row>();
   if (!row)
     throw new ApiError(
@@ -762,6 +821,47 @@ export async function changeManufacturingOrder(
         .bind(id),
     );
   }
+  const attachmentPurpose = i.action === "report"
+    ? "run_report_evidence"
+    : ["pass-qc", "fail-qc"].includes(i.action)
+      ? "qc_evidence"
+      : i.action === "rework"
+        ? "rework_action_evidence"
+        : null;
+  if (i.attachmentSetIds.length && !attachmentPurpose)
+    throw new ApiError(
+      422,
+      "MANUFACTURING_ATTACHMENT_ACTION",
+      "Files can be bound only to output reporting, QC review, or rework.",
+    );
+  let attachmentBinding: null | Awaited<ReturnType<typeof prepareAttachmentBinding>> = null;
+  if (attachmentPurpose && i.attachmentSetIds.length) {
+    const componentRef = i.action === "report" ? "output-report" : i.action === "rework" ? "rework" : "qc-review";
+    const placeholders = i.attachmentSetIds.map(() => "?").join(",");
+    const sets = (await write.prepare(`SELECT id,purpose_key,component_kind,component_ref FROM attachment_sets WHERE company_id=? AND id IN (${placeholders})`).bind(a.companyId, ...i.attachmentSetIds).all<{id:string;purpose_key:string;component_kind:string;component_ref:string|null}>()).results;
+    if (
+      sets.length !== new Set(i.attachmentSetIds).size ||
+      sets.some((set) => set.purpose_key !== attachmentPurpose || set.component_kind !== "action" || set.component_ref !== componentRef)
+    )
+      throw new ApiError(
+        422,
+        "MANUFACTURING_ATTACHMENT_PURPOSE",
+        "Choose only evidence prepared for this exact production action.",
+      );
+    attachmentBinding = await prepareAttachmentBinding(write, a, {
+        attachmentSetIds: i.attachmentSetIds,
+        bindingContract: {
+          targetType: "production_run",
+          bindingType: `manufacturing_${i.action}`,
+          contexts: [{ purposeKey: attachmentPurpose, componentKind: "action", componentRef }],
+        },
+        targetId: id,
+        expectedTargetVersion: i.expectedVersion,
+        commandId: key,
+        bindingId: `mfg-event-${key}`,
+      });
+  }
+  if (attachmentBinding) steps.unshift(...attachmentBinding.guards);
   steps.push(
     assertion(
       write,
@@ -791,6 +891,7 @@ export async function changeManufacturingOrder(
         now,
       ),
   );
+  if (attachmentBinding) steps.push(...attachmentBinding.steps);
   return executeCommand(
     write,
     a,

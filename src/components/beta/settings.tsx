@@ -3,6 +3,7 @@ import { BillingConsole } from "@/components/billing/billing-console";
 import betaStyles from "@/components/beta/beta.module.css";
 import { useEffect, useState, useRef } from "react";
 import { betaFetch } from "@/lib/beta-client";
+import { formatUiDateTime } from "@/lib/ui-format";
 import type { AdminSection } from "@/lib/administration";
 type Settings = {
   policy: {
@@ -85,8 +86,8 @@ export function BetaSettings({
     }
   }
   return (
-    <div className={`beta-settings ${betaStyles.surface}`} style={section === "usage" ? {display:"contents"} : undefined}>
-      {section === "usage" && (
+    <div className={`beta-settings ${betaStyles.surface}`} data-section={section}>
+      {section === "usage" && beta && (
         <section className="card">
           <h2>{beta ? "Free public beta" : "Workspace usage"}</h2>
           {beta && (
@@ -96,33 +97,39 @@ export function BetaSettings({
             </p>
           )}
           {settings && (
-            <dl>
-              <dt>AI requests this month</dt>
-              <dd>
-                {settings.usage.requests}
-                {settings.policy && ` / ${settings.policy.ai_monthly_limit}`}
-              </dd>
-              <dt>Attached files</dt>
-              <dd>
-                {(settings.files.bytes / 1024 ** 2).toFixed(1)} MB
-                {settings.policy &&
-                  ` / ${(settings.policy.storage_bytes / 1024 ** 2).toFixed(0)} MB allowance`}
-              </dd>
+            <dl className={betaStyles.usageMetrics}>
+              <div>
+                <dt>AI requests this month</dt>
+                <dd>
+                  {settings.usage.requests}
+                  {settings.policy && ` / ${settings.policy.ai_monthly_limit}`}
+                </dd>
+              </div>
+              <div>
+                <dt>Attached files</dt>
+                <dd>
+                  {(settings.files.bytes / 1024 ** 2).toFixed(1)} MB
+                  {settings.policy &&
+                    ` / ${(settings.policy.storage_bytes / 1024 ** 2).toFixed(0)} MB allowance`}
+                </dd>
+              </div>
               {settings.policy && (
-                <>
+                <div>
                   <dt>Workspace limits</dt>
                   <dd>
                     {settings.policy.member_limit} members ·{" "}
                     {settings.policy.branch_limit} branches
                   </dd>
-                </>
+                </div>
               )}
-              <dt>Legacy Sandbox history</dt>
-              <dd>
-                {settings.billing
-                  ? `Test subscription · ${settings.billing.status}`
-                  : "No subscription configured"}
-              </dd>
+              <div>
+                <dt>Legacy Sandbox history</dt>
+                <dd>
+                  {settings.billing
+                    ? `Test subscription · ${settings.billing.status}`
+                    : "No subscription configured"}
+                </dd>
+              </div>
             </dl>
           )}
         </section>
@@ -152,7 +159,7 @@ export function BetaSettings({
           </form>
         </section>
       )}
-      <p role="status">{message}</p>
+      {message && <p role="status">{message}</p>}
       {owner && (
         <>
           {section === "people" && beta && (
@@ -201,7 +208,7 @@ export function BetaSettings({
                 <p key={i.id}>
                   {i.email} ·{" "}
                   {i.invitation_state === "Invited"
-                    ? `Invited · expires ${new Date(i.expires_at).toLocaleDateString()}`
+                    ? `Invited · expires ${formatUiDateTime(i.expires_at, "Asia/Bangkok", { dateStyle: "medium" })}`
                     : i.invitation_state}
                 </p>
               ))}
@@ -236,9 +243,9 @@ export function BetaSettings({
               <h2>Reports and feedback</h2>
               {settings?.reports.map((r) => (
                 <p key={r.id}>
-                  <a href={`${base}/posts/${r.post_id}`}>
+                  {r.state === "published" ? <a href={`${base}/posts/${r.post_id}`}>
                     Reported conversation
-                  </a>{" "}
+                  </a> : <span>{r.state === "archived" ? "Deleted by author" : "Hidden by moderator"} · audit retained</span>}{" "}
                   · {r.reason} · {r.state}
                 </p>
               ))}

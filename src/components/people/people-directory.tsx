@@ -7,6 +7,7 @@ import { Dialog } from "@/components/ui/dialog";
 import dynamic from "next/dynamic";
 const LifecyclePanel=dynamic(()=>import("./lifecycle-workspace").then(module=>module.LifecyclePanel));
 import type { PeopleLifecycleData } from "@/lib/people-lifecycle";
+import { positionGpoStatus } from "@/components/people/gpo-status";
 import type { OrganizationOverview } from "@/lib/organization";
 import { PeopleEditor } from "@/components/modules/people-editor";
 import { useHydrated } from "@/components/ui/use-hydrated";
@@ -136,7 +137,7 @@ export function PeopleDirectory({
         )}
       </div>
       {
-        <section className="card">
+        <section>
           <div className={styles.listHead}>
             <strong>People</strong>
             <span>{filtered.length} people and linked accounts on this page</span>
@@ -181,11 +182,12 @@ export function PeopleDirectory({
         </section>
       }
       {mode === "explorer" && lifecycle?.canManage && (
-        <section className="card">
+        <section>
           <h2>Assign or transfer to a position</h2>
           <p className="muted">
             Drag a person here, or open their details and choose Start a change.
-            Both open the same preview.
+            Both open the same preview. HR can choose any active position;
+            GPO preparation continues separately in Technology.
           </p>
           <div className={styles.targets}>
             {lifecycle.positions
@@ -206,7 +208,7 @@ export function PeopleDirectory({
                   }}
                 >
                   <strong>{p.title}</strong>
-                  <span>{p.package_id ? "IT prepared" : "Waiting for IT"}</span>
+                  <span>{positionGpoStatus(p.gpo)}</span>
                 </div>
               ))}
           </div>
@@ -237,6 +239,7 @@ export function PeopleDirectory({
                 levels={editor.levels}
                 people={editor.people}
                 organization={editor.organization}
+                gpoPositions={lifecycle?.positions}
                 levelManagedSeparately={editor.levelManagedSeparately}
                 returnTo={returnToDirectory()}
               />

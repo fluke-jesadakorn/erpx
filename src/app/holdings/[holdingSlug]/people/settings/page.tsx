@@ -1,196 +1,84 @@
-import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { FeaturePage, FeatureWidget, WidgetGrid } from "@/components/features/feature-page";
 import { IamConsole } from "@/components/iam/iam-console";
 import { OrganizationWorkspace } from "@/components/modules/organization-workspace";
 import { AccountInvitations } from "@/components/modules/account-invitations";
 import { PeopleNavigation } from "@/components/modules/people-navigation";
+import { LevelLeaveDefaults } from "@/components/people/level-leave-defaults";
+import { defaultCatalog } from "@/server/staff-defaults";
 import { ServiceNavigation } from "@/components/modules/service-navigation";
 import { DirectoryWorkspace } from "@/components/people/directory-workspace";
 import { HoldingTemplates } from "@/components/people/holding-templates";
 import { LifecycleSettings } from "@/components/people/lifecycle-workspace";
-import { UserManagement } from "@/components/people/user-management";
 import { SelfServiceSettings } from "@/components/self-service/settings";
 import { PageHeader } from "@/components/ui/primitives";
-import { iamSections,type IamSection } from "@/lib/iam";
+import { iamSections, type IamSection } from "@/lib/iam";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
 import { administrationAccess } from "@/server/administration";
-import { publicScope,requireWorkContext } from "@/server/authorization";
+import { publicScope, requireWorkContext } from "@/server/authorization";
 import { directoryAutomationData } from "@/server/directory-operations";
 import { ApiError } from "@/server/http";
 import { iamContext } from "@/server/iam-context";
 import { iamOverview } from "@/server/iam-service";
 import { leaveAdministration } from "@/server/leave-self-service";
 import { organizationOverview } from "@/server/organization";
-import {
-accessEntries,
-accessMetadata,
-peopleAccessData,
-} from "@/server/people-access";
 import { peopleLifecycleData } from "@/server/people-lifecycle";
 import { peopleTemplatesData } from "@/server/people-templates";
 import { holdingResources } from "@/server/runtime";
 import { readManagement } from "@/server/user-management";
-import { notFound } from "next/navigation";
+import styles from "./settings.module.css";
 
-export default async function PeopleSettings({
-  params,
-  searchParams,
-}: {
+const sections = [
+  ["", "Overview"],
+  ["leave", "Leave & overtime"],
+  ["templates", "HR templates"],
+] as const;
+
+export default async function PeopleSettings({ params, searchParams }: {
   params: Promise<{ holdingSlug: string }>;
-  searchParams: Promise<{ section?: string }>;
+  searchParams: Promise<{ section?: string; view?: string }>;
 }) {
-  const slug = (await params).holdingSlug,
-    actor = await requireWorkContext(slug),
-    base = workspaceBase(publicScope(actor)),
-    section =
-      (await searchParams).section ??
-      (hasPermission(actor, "organization.manage")
-        ? "templates"
-        : actor.beta
-          ? "connections"
-          : "attributes");
-  
-  if (
-    !["leave", "templates", "attributes", ...iamSections.map(([id]) => id)].includes(
-      section,
-    )
-  )
-    notFound();
-  const technology =
-    !actor.beta &&
-    ["connections", "roles", "matrix", "reviews", "groups"].includes(section);
+  const slug = (await params).holdingSlug;
+  const actor = await requireWorkContext(slug);
+  const base = workspaceBase(publicScope(actor));
+  const query = await searchParams;
+  const section = query.section ?? "";
+  if (!["", "leave", "templates", "attributes", ...iamSections.map(([id]) => id)].includes(section)) notFound();
+  if (section === "attributes") redirect(`${base}/technology?view=attributes`);
+  const technology = !actor.beta && ["connections", "roles", "matrix", "reviews", "groups"].includes(section);
   const feature = section === "matrix" ? "roles" : section;
-  const featureTitle =
-    feature === "groups"
-      ? "Groups & policies"
-      : (iamSections.find(([id]) => id === feature)?.[1] ?? "People settings");
+  const featureTitle = feature === "groups" ? "Groups & policies" : (iamSections.find(([id]) => id === feature)?.[1] ?? "People settings");
   const admin = technology ? await administrationAccess(actor) : null;
   const { write } = await holdingResources(actor.holdingId);
-  const iam =
-    hasPermission(actor, "iam.read") || section === "my-access"
-      ? await iamContext(slug)
-      : null;
-  const data = iam
-    ? await iamOverview(iam.db, iam.actor, section === "my-access")
-    : null;
-  const management =
-    iam && section === "connections"
-      ? await readManagement(iam.db, iam.actor)
-      : null;
-  return (
-    <FeaturePage className="content-stack" data-source="live">
-      <PageHeader
-        eyebrow={technology ? "Technology" : "People"}
-        title={technology ? featureTitle : "People settings"}
-        description={
-          technology
-            ? "Manage directory connections, security, and access configuration."
-            : "HR templates, lifecycle handoffs, and custom attributes."
-        }
-      />
-      {technology ? (
-        <ServiceNavigation
-          context={{
-            workspaceBase: base,
-            scopeKind: actor.scope.kind,
-            role: actor.role,
-            permissions: actor.iam?.permissions,
-            adminSections: admin?.sections,
-          }}
-          groupId="technology"
-          activeId={`technology-${feature}`}
-        />
-      ) : (
-        <PeopleNavigation
-          base={base}
-          actor={actor}
-          scopeKind={actor.scope.kind}
-          active="settings"
-        />
-      )}
-      <WidgetGrid>
-{!technology && <>{await (async()=>{try{return <SelfServiceSettings base={base} data={await leaveAdministration(actor)}/>;}catch(error){if(error instanceof ApiError&&error.status===403)return <p>HR setup or permission is required to manage leave and overtime.</p>;throw error;}})()}</>}
-      {!technology && hasPermission(actor, "organization.manage") && <FeatureWidget id="templates" title="Templates & lifecycle handoff">
-          <>
-            <LifecycleSettings
-              base={base}
-              data={await peopleLifecycleData(write, actor)}
-              owners={
-                data?.users.filter((user) =>
-                  data.assignments.some(
-                    (a) =>
-                      a.user_id === user.id &&
-                      a.active &&
-                      a.scope_kind === "holding" &&
-                      data.roles.some(
-                        (role) =>
-                          role.id === a.role &&
-                          role.permissions.includes("iam.directory.manage"),
-                      ),
-                  ),
-                ) ?? []
-              }
-            />
-            {iam?.actor.scopeKind === "holding" && (
-              <HoldingTemplates
-                base={base}
-                data={await peopleTemplatesData(iam.db, iam.actor)}
-              />
-            )}
-            <details className="card">
-              <summary>
-                Organization templates and advanced HR configuration
-              </summary>
-              <OrganizationWorkspace
-                base={base}
-                data={await organizationOverview(write, actor)}
-                initialView="templates"
-              />
-            </details>
-          </>
-        </FeatureWidget>}
-      {!technology && iam && <FeatureWidget id="attributes" title="Custom attributes">{
-        (await (async () => {
-          const access = await peopleAccessData(iam.db, iam.actor);
-          return (
-            <UserManagement
-              initial={await readManagement(iam.db, iam.actor)}
-              roles={accessMetadata(access).roles}
-              base={base}
-              api={`/api/v1${base}/people/access`}
-              initialView="attributes"
-              views={["attributes"]}
-              accounts={{
-                meta: accessMetadata(access),
-                initialEntries: accessEntries(access, new URLSearchParams()),
-              }}
-            />
-          );
-        })())}</FeatureWidget>}
-      {iam && data && iamSections.some(([id]) => id === section) && (feature === "roles" ? (["roles","matrix"] as IamSection[]) : [section as IamSection]).map(panel=><FeatureWidget key={panel} id={panel} title={iamSections.find(([id])=>id===panel)?.[1]??panel}><IamConsole
-          embedded
-          data={data}
-          base={base}
-          api={`/api/v1${base}/iam`}
-          section={panel}
-        /></FeatureWidget>)}
-      {section === "reviews" && hasPermission(actor,"iam.roles.manage") && (
-        <FeatureWidget id="account-invitations" title="Activation invitations">
-          <AccountInvitations actor={actor} base={base} />
-        </FeatureWidget>
-      )}
-      {section === "connections" && iam?.actor.scopeKind === "holding" && (
-        <DirectoryWorkspace
-          base={base}
-          initial={await directoryAutomationData(iam.db, iam.actor)}
-          mode="settings"
-          attributes={management?.attributes ?? []}
-          people={management?.people ?? []}
-        />
-      )}
-      {!iam && !hasPermission(actor, "organization.manage") && (
-        <p>Your selected role does not manage these settings.</p>
-      )}
-    </WidgetGrid></FeaturePage>
-  );
+  const needsIam = hasPermission(actor, "iam.read") && (section === "templates" || iamSections.some(([id]) => id === section));
+  const iam = needsIam || section === "my-access" ? await iamContext(slug) : null;
+  const data = iam && (section === "templates" || iamSections.some(([id]) => id === section)) ? await iamOverview(iam.db, iam.actor, section === "my-access") : null;
+  const management = iam && section === "connections" ? await readManagement(iam.db, iam.actor) : null;
+  const canManageTemplates = hasPermission(actor, "organization.manage");
+  const lifecycle = canManageTemplates && (section === "templates" || section === "") ? await peopleLifecycleData(write, actor) : null;
+  const holdingTemplates = section === "templates" && iam?.actor.scopeKind === "holding" && query.view !== "advanced" ? await peopleTemplatesData(iam.db, iam.actor) : null;
+  let leave: Awaited<ReturnType<typeof leaveAdministration>> | null = null;
+  if (section === "leave" || section === "") {
+    try { leave = await leaveAdministration(actor); }
+    catch (error) { if (!(error instanceof ApiError && error.status === 403)) throw error; }
+  }
+  const templateOwners = data?.users.filter((user) => data.assignments.some((a) => a.user_id === user.id && a.active && a.scope_kind === "holding" && data.roles.some((role) => role.id === a.role && role.permissions.includes("iam.directory.manage")))) ?? [];
+
+  return <FeaturePage className="content-stack" data-source="live">
+    <PageHeader eyebrow={technology ? "Technology" : "People"} title={technology ? featureTitle : "People settings"} description={technology ? "Manage directory connections, security, and access configuration." : "Choose a settings area to review status and complete HR setup."} />
+    {technology ? <ServiceNavigation context={{ workspaceBase: base, scopeKind: actor.scope.kind, role: actor.role, permissions: actor.iam?.permissions, adminSections: admin?.sections }} groupId="technology" activeId={`technology-${feature}`} /> : <PeopleNavigation base={base} actor={actor} scopeKind={actor.scope.kind} active="settings" />}
+    {!technology && ["", "leave", "templates"].includes(section) && <nav className={styles.sections} aria-label="People settings sections">{sections.filter(([id]) => id !== "leave" || !!leave).filter(([id]) => id !== "templates" || canManageTemplates).map(([id, label]) => <Link key={id} href={id ? `${base}/people/settings?section=${id}` : `${base}/people/settings`} aria-current={section === id ? "page" : undefined}>{label}</Link>)}</nav>}
+    {section === "" && <div className={styles.overview}>
+      <p className={styles.intro}>Select an area to see its records and actions. Status is based on your current Company settings.</p>
+      {leave && <Link className={styles.summary} href={`${base}/people/settings?section=leave`}><span><strong>Leave & overtime</strong><small>{leave.types.length} leave types · {leave.policies.length} policy versions · {leave.assignments.filter(a => !a.effective_to).length} active assignments</small></span><span>Open settings →</span></Link>}
+      {canManageTemplates && lifecycle && <Link className={styles.summary} href={`${base}/people/settings?section=templates`}><span><strong>HR templates</strong><small>IT handoff owner: {lifecycle.settings.itAssigneeId ? "Assigned" : "Unassigned"} · {lifecycle.tasks.filter(t => t.kind === "position" && t.status === "pending").length} position preparation tasks pending</small></span><span>Open templates →</span></Link>}
+      {!leave && !canManageTemplates && <p>Your selected role does not manage these settings.</p>}
+    </div>}
+    {section === "leave" && (leave ? <><SelfServiceSettings base={base} data={leave} /><details className={styles.advancedSettings}><summary>Leave defaults by staff level</summary><LevelLeaveDefaults base={base} levels={(await write.prepare("SELECT id,name,level_number FROM staff_levels WHERE company_id=? AND active=1 AND level_number IS NOT NULL ORDER BY level_number").bind(actor.companyId).all<{id:string;name:string;level_number:number}>()).results} defaults={(await defaultCatalog(write,actor)).leave}/></details></> : <p>HR setup or permission is required to manage leave and overtime.</p>)}
+    {section === "templates" && canManageTemplates && (query.view === "advanced" ? <><Link className="button secondary" href={`${base}/people/settings?section=templates`}>← Back to HR templates</Link><OrganizationWorkspace base={base} data={await organizationOverview(write, actor)} initialView="templates" /></> : <WidgetGrid><FeatureWidget id="templates" title="Templates & lifecycle handoff"><div className={styles.templateStack}>{lifecycle && <LifecycleSettings base={base} data={lifecycle} owners={templateOwners} />}{holdingTemplates && <HoldingTemplates base={base} data={holdingTemplates} />}<Link href={`${base}/people/settings?section=templates&view=advanced`}>Advanced organization templates →</Link></div></FeatureWidget></WidgetGrid>)}
+    {iam && data && iamSections.some(([id]) => id === section) && <WidgetGrid>{(feature === "roles" ? (["roles", "matrix"] as IamSection[]) : [section as IamSection]).map(panel => <FeatureWidget key={panel} id={panel} title={iamSections.find(([id]) => id === panel)?.[1] ?? panel}><IamConsole embedded data={data} base={base} api={`/api/v1${base}/iam`} section={panel} /></FeatureWidget>)}{section === "reviews" && hasPermission(actor, "iam.roles.manage") && <FeatureWidget id="account-invitations" title="Activation invitations"><AccountInvitations actor={actor} base={base} /></FeatureWidget>}</WidgetGrid>}
+    {section === "connections" && iam?.actor.scopeKind === "holding" && <DirectoryWorkspace base={base} initial={await directoryAutomationData(iam.db, iam.actor)} mode="settings" attributes={management?.attributes ?? []} people={management?.people ?? []} />}
+  </FeaturePage>;
 }

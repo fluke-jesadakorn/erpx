@@ -5,6 +5,14 @@ import { messagingGuard, messagingRoom } from "./messaging";
 import { executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
 import { sha256 } from "./crypto";
+import { attachmentsV2ReadOnly } from "./attachments/feature";
+import { detectedAttachmentMediaType } from "./attachments/preview";
+import {
+  completeAttachmentUpload,
+  createAttachmentSet,
+  reserveAttachmentFile,
+  scanAttachmentNow,
+} from "./attachments/service";
 
 const metadata = z.object({
   id: z.string().uuid(),
@@ -13,20 +21,14 @@ const metadata = z.object({
     "image/jpeg",
     "image/png",
     "image/webp",
+    "image/heic",
+    "image/heif",
     "application/pdf",
     "text/csv",
   ]),
 });
 export function validMessagingSignature(type: string, data: Uint8Array) {
-  const start = new TextDecoder().decode(data.slice(0, 12));
-  if (type === "application/pdf") return start.startsWith("%PDF-");
-  if (type === "image/png")
-    return [137, 80, 78, 71, 13, 10, 26, 10].every((v, i) => data[i] === v);
-  if (type === "image/jpeg")
-    return data[0] === 255 && data[1] === 216 && data[2] === 255;
-  if (type === "image/webp")
-    return start.startsWith("RIFF") && start.slice(8, 12) === "WEBP";
-  return type === "text/csv" && !data.includes(0);
+  return detectedAttachmentMediaType(data, type) === type;
 }
 export async function uploadMessagingFile(
   db: SqlDatabase,
@@ -37,7 +39,8 @@ export async function uploadMessagingFile(
   request: Request,
 ) {
   input = metadata.parse(input);
-  await messagingRoom(db, actor, roomId);
+  const room = await messagingRoom(db, actor, roomId);
+  if(attachmentsV2ReadOnly())throw new ApiError(503,"ATTACHMENTS_READ_ONLY","Attachment intake is disabled during rollback. Existing clean bound evidence remains readable.");
   // Read with a hard bound, including chunked requests without Content-Length.
   if (Number(request.headers.get("content-length")) > 10 * 1024 * 1024)
     throw new ApiError(422, "FILE_SIZE", "Files must be at most 10 MB.");
@@ -83,21 +86,70 @@ export async function uploadMessagingFile(
     fingerprint,
   );
   if (prior) return prior;
-  const objectKey = `${actor.holdingId}/messaging/${actor.companyId}/${actor.userId}/${input.id}`;
-  const stored = await files.put(objectKey, bytes, {
-    onlyIf: { etagDoesNotMatch: "*" },
-    httpMetadata: { contentType: input.type },
-    customMetadata: { sha256: checksum },
-  });
-  if (
-    !stored &&
-    (await files.head(objectKey))?.customMetadata.sha256 !== checksum
-  )
+  const set = await createAttachmentSet(
+    db,
+    actor,
+    {
+      targetType: "messaging_room",
+      targetId: roomId,
+      componentKind: "message",
+      componentRef: input.id,
+      purposeKey: "message_attachment",
+      expectedTargetVersion: Number(room.version),
+    },
+    `${key}:set`,
+    { compatibilityAdapter: true },
+  );
+  const reserved = await reserveAttachmentFile(
+    db,
+    actor,
+    set.id,
+    {
+      filename: input.name,
+      mediaType: input.type,
+      bytes: length,
+    },
+    `${key}:file`,
+    { compatibilityAdapter: true },
+  );
+  const completed = await completeAttachmentUpload(
+    db,
+    files,
+    actor,
+    reserved.uploadIntentId,
+    bytes.buffer,
+    { compatibilityAdapter: true },
+  );
+  const sourceState = await scanAttachmentNow(db, files, completed.sourceId);
+  if (sourceState !== "available")
     throw new ApiError(
-      409,
-      "FILE_CONFLICT",
-      "Retry with the original file or select a new file.",
+      sourceState === "malware_rejected" ? 422 : 503,
+      sourceState === "malware_rejected"
+        ? "MESSAGE_FILE_REJECTED"
+        : "MESSAGE_FILE_SCAN_UNAVAILABLE",
+      sourceState === "malware_rejected"
+        ? "The message file was rejected by malware scanning."
+        : "The message file could not pass malware scanning.",
     );
+  const source = await db
+    .prepare(
+      "SELECT object_key,checksum_sha256 FROM attachments WHERE id=? AND company_id=?",
+    )
+    .bind(completed.sourceId, actor.companyId)
+    .first<{ object_key: string; checksum_sha256: string }>();
+  if (!source)
+    throw new ApiError(
+      503,
+      "ATTACHMENT_SOURCE_UNAVAILABLE",
+      "The quarantined message file could not be recorded.",
+    );
+  const result = {
+    id: input.id,
+    attachmentSetId: set.id,
+    attachmentLinkId: completed.attachmentLinkId,
+    sourceId: completed.sourceId,
+    state: sourceState,
+  };
   return executeCommand(
     db,
     actor,
@@ -105,13 +157,16 @@ export async function uploadMessagingFile(
     "messaging.upload",
     fingerprint,
     roomId,
-    1,
-    { id: input.id },
+    Number(room.version),
+    result,
     [
       messagingGuard(db, actor, key, roomId),
       db
         .prepare(
-          "INSERT INTO messaging_files(id,room_id,created_by,original_name,media_type,bytes,object_key,checksum,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+          `INSERT INTO messaging_files(
+              id,room_id,created_by,original_name,media_type,bytes,object_key,checksum,created_at,
+              attachment_set_id,attachment_link_id,attachment_source_id
+            ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
         )
         .bind(
           input.id,
@@ -120,9 +175,12 @@ export async function uploadMessagingFile(
           input.name,
           input.type,
           length,
-          objectKey,
-          checksum,
+          source.object_key,
+          source.checksum_sha256,
           Date.now(),
+          set.id,
+          completed.attachmentLinkId,
+          completed.sourceId,
         ),
     ],
   );

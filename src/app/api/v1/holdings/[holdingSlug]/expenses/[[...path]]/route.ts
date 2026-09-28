@@ -114,6 +114,7 @@ export async function POST(request: Request, context: Context) {
             expectedVersion: z.number().int().positive(),
             paymentId: z.string().nullable().default(null),
             retry: z.boolean().default(false),
+            contentAccessConsent: z.literal(true),
           })
           .parse(input),
         key,

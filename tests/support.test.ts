@@ -4,9 +4,12 @@ import {expenseDb as db,expenseFixture,key} from './helpers/expense-fixture';
 import {saveMaster,saveOrder,orderSchema} from '../src/server/commerce';
 import {createCustomerNote} from '../src/server/customer-notes';
 import {createSupportTicket,changeSupportTicket,getSupportTicket,supportWork,supportWorkspace,supportDetail} from '../src/server/support';
+import {changeSupportIncident,createSupportIncident,incidentWorkspace} from '../src/server/support-incidents';
+import {supportSessionWorkspace} from '../src/server/support-sessions';
+import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from './helpers/attachment-v2';
 vi.mock('../src/server/runtime',()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,order:string;
-beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
+beforeAll(async()=>{enableAttachmentV2ForTest();await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();for(const [a,role] of [[f.head,'support_agent'],[f.manager,'support_manager']] as const){a.role=role;a.branchId=null;a.departmentId=null;a.assignmentId=await f.grant(a,role);}const customer=await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Support customer'},key()),w=await saveMaster(f.owner,'warehouses',null,{branchId:f.branch,code:key(),name:'Support warehouse'},key()),p=await saveMaster(f.owner,'products',null,{sku:key(),name:'Support item',price:'10'},key());order=String((await saveOrder(f.owner,null,orderSchema.parse({kind:'quote',partyId:customer.id,warehouseId:w.id,orderDate:'2026-09-20',dueDate:'2026-09-23',lines:[{productId:p.id,quantity:'1',price:'10',taxBps:0}]}),key())).id);});
 const input=()=>({orderId:order,sourceVersion:1,title:'Installation assistance needed',issue:'Customer needs help confirming the setup procedure.',ownerId:f.head.userId,dueDate:'2026-09-24'});
 async function ticket(){return String((await createSupportTicket(f.owner,input(),key())).id);}
@@ -48,4 +51,43 @@ it('does not allow the resolving manager to approve their own resolution after r
  const note=await createCustomerNote(f.owner,{orderId:order,expectedVersion:1,channel:'phone',occurredAt:Date.now(),body:'Simulated customer confirmation'},key());
  await expect(changeSupportTicket(f.manager,id,{action:'confirm',expectedVersion:4,reason:'Cannot approve own resolution after changing the owner',noteId:note.id,noteVersion:1},key())).rejects.toMatchObject({code:'INDEPENDENT_CONFIRMATION_REQUIRED'});
  expect((await supportWork(f.manager)).find(x=>x.id===id)?.canAct).toBe(false);
+});
+it('reports a general issue without an order and hands triage to an independent closer',async()=>{
+ const body={kind:'general' as const,title:'Front desk cannot print',issue:'Printer at the front desk stopped responding during shift handover.'},k=key();
+ const created=await createSupportTicket(f.head,body,k),id=String(created.id);
+ expect(await createSupportTicket(f.head,body,k)).toEqual(created);
+ expect(await getSupportTicket(f.head,id)).toMatchObject({source_kind:'general',status:'triage',order_id:null,customer_id:null,owner_id:null,due_date:null});
+ expect((await supportWork(f.manager)).find(x=>x.id===id)).toMatchObject({canAct:true,queue:'todo',responsibleQueue:'Support triage',dueAt:null});
+ expect((await supportWork(f.head)).find(x=>x.id===id)).toMatchObject({canAct:false,queue:'waiting'});
+ await expect(changeSupportTicket(f.head,id,{action:'triage',expectedVersion:1,reason:'Assign to available Support agent',ownerId:f.head.userId,dueDate:'2026-09-27'},key())).rejects.toMatchObject({status:403});
+ await changeSupportTicket(f.manager,id,{action:'triage',expectedVersion:1,reason:'Assign to available Support agent',ownerId:f.head.userId,dueDate:'2026-09-27'},key());
+ expect(await getSupportTicket(f.head,id)).toMatchObject({status:'open',owner_id:f.head.userId,due_date:'2026-09-27',version:2});
+ await act(id,'start');await act(id,'resolve');
+ await expect(changeSupportTicket(f.manager,id,{action:'confirm',expectedVersion:4,reason:'Wrong confirmation kind',noteId:'none',noteVersion:1},key())).rejects.toMatchObject({code:'SUPPORT_CONFIRMATION_MISMATCH'});
+ await expect(changeSupportTicket(f.head,id,{action:'confirm-general',expectedVersion:4,reason:'Cannot approve own resolution'},key())).rejects.toMatchObject({status:403});
+ await changeSupportTicket(f.manager,id,{action:'confirm-general',expectedVersion:4,reason:'Manager verified that the front desk printer now works',},key());
+ expect(await getSupportTicket(f.head,id)).toMatchObject({status:'closed',confirmed_by:f.manager.userId,confirmation_note_id:null,version:5});
+ expect((await supportDetail(f.manager,id)).history.map(x=>x.action)).toEqual(['confirm-general','resolve','start','triage','report']);
+});
+it('keeps unassigned reports scoped and allows a manager to cancel before triage',async()=>{
+ const id=String((await createSupportTicket(f.head,{kind:'general',title:'A broken shared device',issue:'Shared device is unavailable after a restart.'},key())).id);
+ expect((await supportWorkspace({...f.manager,companyId:'other'})).items).toEqual([]);
+ await expect(getSupportTicket({...f.manager,companyId:'other'},id)).rejects.toMatchObject({status:404});
+ await changeSupportTicket(f.manager,id,{action:'cancel',expectedVersion:1,reason:'Duplicate report already assigned elsewhere'},key());
+ expect(await getSupportTicket(f.head,id)).toMatchObject({status:'cancelled',owner_id:null,due_date:null,version:2});
+ await expect(changeSupportTicket(f.manager,id,{action:'triage',expectedVersion:1,reason:'Too late to assign',ownerId:f.head.userId,dueDate:'2026-09-27'},key())).rejects.toMatchObject({code:'SUPPORT_STATE_CHANGED'});
+});
+it('does not offer an unlinked issue as an order-backed incident or customer support session',async()=>{
+ const id=String((await createSupportTicket(f.head,{kind:'general',title:'Lobby display offline',issue:'The shared lobby display does not show the daily schedule.'},key())).id);
+ await changeSupportTicket(f.manager,id,{action:'triage',expectedVersion:1,reason:'Assign display investigation',ownerId:f.head.userId,dueDate:'2026-09-27'},key());
+ expect((await incidentWorkspace(f.manager)).tickets.some(x=>x.id===id)).toBe(false);
+ expect((await supportSessionWorkspace(f.head)).tickets.some(x=>x.id===id)).toBe(false);
+ await expect(createSupportIncident(f.manager,{ticketId:id,ticketVersion:2,title:'Shared display issue',impact:'Schedule unavailable',severity:'normal',ownerId:f.head.userId,dueDate:'2026-09-27'},key())).rejects.toMatchObject({code:'SUPPORT_INCIDENT_SOURCE_REQUIRED'});
+});
+it('binds incident evidence atomically to an investigation action',async()=>{
+ const supportTicket=await ticket(),incident=await createSupportIncident(f.manager,{ticketId:supportTicket,ticketVersion:1,title:'Shared installation fault',impact:'Several customers may need the same correction',severity:'high',ownerId:f.head.userId,dueDate:'2026-09-27'},key()),id=String(incident.id);
+ const evidence=await seedAttachmentSet(db,f.head,{targetType:'support_incident',targetId:id,purposeKey:'incident_evidence',componentKind:'action',componentRef:'incident:open',expectedTargetVersion:1}),command=key();
+ await changeSupportIncident(f.head,id,{action:'start',expectedVersion:1,reason:'Started investigation with the captured fault evidence',attachmentSetIds:[evidence.setId]},command);
+ expect(await attachmentBindingState(db,evidence.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'support_incident_action',binding_id:`${id}:start:2`});
+ expect(await db.prepare('SELECT status,version FROM support_incidents WHERE id=?').bind(id).first()).toEqual({status:'investigating',version:2});
 });

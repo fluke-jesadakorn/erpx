@@ -140,12 +140,25 @@ export async function loadIamAuthority(
       );
     emergencyUntil = Number(elevation.expires_at);
   }
+  const hrAppointment = companyId === "platform" ? null : await db.prepare(`SELECT s.version FROM authority_seats s
+    JOIN hr_people p ON p.id=s.person_id AND p.company_id=s.company_id AND p.status='active' AND p.merged_into_id IS NULL
+    JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id AND e.status='active'
+    WHERE s.company_id=? AND s.kind='hr' AND s.scope_id=? AND s.effective_at<=? AND iam_same_person(p.user_id,?,s.company_id)
+    LIMIT 1`).bind(companyId,companyId,Date.now(),userId).first<{version:number}>();
+  const appointmentPermissions=["people.read","people.manage","leave.policy.manage","module.people_payroll.read"];
+  const basePermissions=roleId==="hr_admin" && !hrAppointment
+    ? role.permissions.filter(permission=>!appointmentPermissions.includes(permission))
+    : role.permissions;
+  const permissions = hrAppointment
+    ? [...new Set([...basePermissions,...appointmentPermissions])]
+    : basePermissions;
   return {
     personUserIds: [...new Set([userId, ...aliases])],
     emergencyUntil,
     roleRevision: role.revision,
     identityVersion: member?.version ?? 0,
-    permissions: role.permissions,
+    permissions,
+    hrAppointmentVersion: hrAppointment?.version,
     grantablePermissions: role.grantablePermissions,
     principalId: member?.principal_id ?? `local:${userId}`,
     personId,
@@ -205,5 +218,11 @@ export function iamMutationGuards(
         iam?.roleRevision ?? null,
         iam?.roleRevision ?? null,
       ),
+    ...(iam?.hrAppointmentVersion === undefined ? [] : [db.prepare(`INSERT INTO command_assertions(command_id,step,ok) VALUES(?,'hr-appointment-current',CASE WHEN EXISTS(
+      SELECT 1 FROM authority_seats s JOIN hr_people p ON p.id=s.person_id AND p.company_id=s.company_id AND p.status='active' AND p.merged_into_id IS NULL
+      JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id AND e.status='active'
+      WHERE s.company_id=? AND s.kind='hr' AND s.scope_id=? AND s.version=? AND s.effective_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint
+      AND iam_same_person(p.user_id,?,s.company_id)) THEN 1 ELSE 0 END)`)
+      .bind(key,actor.companyId,actor.companyId,iam.hrAppointmentVersion,actor.userId)]),
   ];
 }

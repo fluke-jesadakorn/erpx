@@ -1,11 +1,9 @@
-import betaStyles from "@/components/beta/beta.module.css";
 import { BetaAuthForm } from "@/components/beta/auth-form";
+import { AuthShell } from "@/components/workplace/auth-shell";
 export default function VerifyEmail() {
   return (
-    <main className={`beta-entry ${betaStyles.surface}`}>
-      <h1>Verify your email</h1>
-      <p>Request a new verification link for your account.</p>
+    <AuthShell eyebrow="ACCOUNT ACCESS" title="Verify your email." description="Request a fresh verification link for your account.">
       <BetaAuthForm mode="verify" />
-    </main>
+    </AuthShell>
   );
 }

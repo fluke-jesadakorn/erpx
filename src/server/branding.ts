@@ -8,6 +8,7 @@ import { sha256 } from "./crypto";
 import { ApiError } from "./http";
 import { companyAuthority } from "./staff-policy";
 import type { FileStore, SqlDatabase } from "./runtime/types";
+import { attachmentsV2Readable, attachmentsV2ReadOnly } from "./attachments/feature";
 
 export const documentBrandModes = ["holding", "branch", "both"] as const;
 export type DocumentBrandMode = (typeof documentBrandModes)[number];
@@ -19,6 +20,8 @@ type BrandProfileRow = {
   company_id: string | null;
   primary_attachment_id: string | null;
   inverse_attachment_id: string | null;
+  primary_publication_id: string | null;
+  inverse_publication_id: string | null;
   document_mode: DocumentBrandMode;
   updated_at: number;
 };
@@ -51,6 +54,15 @@ export type DocumentBrand = {
   branch: WorkspaceBrand | null;
 };
 
+function requireBrandAttachmentWrite() {
+  if (attachmentsV2ReadOnly())
+    throw new ApiError(
+      503,
+      "ATTACHMENTS_READ_ONLY",
+      "Brand media changes are disabled during attachment rollback. Existing approved media remains readable.",
+    );
+}
+
 function initials(label: string) {
   const words = label.trim().split(/\s+/u).filter(Boolean);
   const selected = words.length > 1 ? [words[0], words.at(-1)!] : words;
@@ -60,6 +72,12 @@ function initials(label: string) {
 function attachmentUrl(actor: WorkContext, id: string | null) {
   return id
     ? `/api/v1${workspaceBase(publicScope(actor))}/attachments/${encodeURIComponent(id)}/content`
+    : null;
+}
+
+function publicationUrl(actor: WorkContext, id: string | null) {
+  return id
+    ? `/api/public/holdings/${encodeURIComponent(actor.holdingSlug)}/media-publications/${encodeURIComponent(id)}/content`
     : null;
 }
 
@@ -74,8 +92,8 @@ function presentation(actor: WorkContext, kind: "holding" | "branch", id: string
     scopeId: id,
     label,
     initials: initials(label),
-    primaryUrl: attachmentUrl(actor, profile?.primary_attachment_id ?? null),
-    inverseUrl: attachmentUrl(actor, profile?.inverse_attachment_id ?? null),
+    primaryUrl: publicationUrl(actor, profile?.primary_publication_id ?? null) ?? (attachmentsV2Readable() ? null : attachmentUrl(actor, profile?.primary_attachment_id ?? null)),
+    inverseUrl: publicationUrl(actor, profile?.inverse_publication_id ?? null) ?? (attachmentsV2Readable() ? null : attachmentUrl(actor, profile?.inverse_attachment_id ?? null)),
     documentMode: kind === "holding" ? "holding" : profile?.document_mode ?? "branch",
   };
 }
@@ -163,10 +181,10 @@ export async function listBrandProfiles(db: SqlDatabase, actor: WorkContext) {
 
 export async function readStorefrontAppBrand(db: SqlDatabase, actor: WorkContext): Promise<StorefrontAppBrand> {
   const row = await db.prepare(
-    `SELECT c.slug,c.display_name,b.short_name,b.accent_color,b.logo_attachment_id
+    `SELECT c.slug,c.display_name,b.short_name,b.accent_color,b.logo_attachment_id,b.logo_publication_id
      FROM organization_nodes c LEFT JOIN storefront_app_brands b ON b.company_id=c.id
      WHERE c.id=? AND c.kind='company' AND c.status='active'`,
-  ).bind(actor.companyId).first<{ slug: string; display_name: string; short_name: string | null; accent_color: string | null; logo_attachment_id: string | null }>();
+  ).bind(actor.companyId).first<{ slug: string; display_name: string; short_name: string | null; accent_color: string | null; logo_attachment_id: string | null; logo_publication_id:string|null }>();
   if (!row) throw new ApiError(409, "COMPANY_REQUIRED", "The Company storefront is unavailable.");
   return {
     companyId: actor.companyId,
@@ -175,7 +193,7 @@ export async function readStorefrontAppBrand(db: SqlDatabase, actor: WorkContext
     companyName: row.display_name,
     shortName: row.short_name?.trim() || Array.from(row.display_name.trim()).slice(0, 40).join(""),
     accentColor: row.accent_color ?? "#3659c9",
-    logoUrl: row.logo_attachment_id ? `/api/v1${workspaceBase(publicScope(actor))}/attachments/${encodeURIComponent(row.logo_attachment_id)}/content` : null,
+    logoUrl: publicationUrl(actor,row.logo_publication_id) ?? (attachmentsV2Readable() ? null : attachmentUrl(actor,row.logo_attachment_id)),
   };
 }
 
@@ -214,6 +232,7 @@ export async function completeBrandUpload(args: {
 }) {
   const { db, files, actor, intent } = args;
   await requireBrandManagement(db, actor, intent.owner_type, intent.owner_id);
+  requireBrandAttachmentWrite();
   const normalized = await normalizeBrandImage(args.buffer);
   const checksum = await sha256(normalized.buffer.slice(normalized.byteOffset, normalized.byteOffset + normalized.byteLength) as ArrayBuffer);
   const commandId = `upload-${intent.id}`;
@@ -255,6 +274,7 @@ export async function completeStorefrontBrandUpload(args: {
 }) {
   const { db, files, actor, intent } = args;
   await requireBrandManagement(db, actor, "company_storefront_brand", intent.owner_id);
+  requireBrandAttachmentWrite();
   const normalized = await normalizeBrandImage(args.buffer);
   const checksum = await sha256(normalized.buffer.slice(normalized.byteOffset, normalized.byteOffset + normalized.byteLength) as ArrayBuffer);
   const commandId = `upload-${intent.id}`;
@@ -291,6 +311,7 @@ export async function updateStorefrontAppBrand(db: SqlDatabase, actor: WorkConte
   commandId: string;
 }) {
   await requireBrandManagement(db, actor, "company_storefront_brand", actor.companyId);
+  if (input.removeLogo) requireBrandAttachmentWrite();
   const shortName = input.shortName?.trim();
   if (shortName !== undefined && (Array.from(shortName).length < 1 || Array.from(shortName).length > 40))
     throw new ApiError(422, "STOREFRONT_NAME_INVALID", "Use a storefront name between 1 and 40 characters.");
@@ -299,12 +320,13 @@ export async function updateStorefrontAppBrand(db: SqlDatabase, actor: WorkConte
   if (shortName === undefined && input.accentColor === undefined && !input.removeLogo)
     throw new ApiError(422, "STOREFRONT_CHANGE_REQUIRED", "Choose a name, color, or logo change.");
   const current = await db.prepare(
-    `SELECT c.display_name,b.logo_attachment_id,b.short_name,b.accent_color
+    `SELECT c.display_name,b.logo_attachment_id,b.logo_publication_id,b.short_name,b.accent_color
      FROM organization_nodes c LEFT JOIN storefront_app_brands b ON b.company_id=c.id
      WHERE c.id=? AND c.kind='company' AND c.status='active'`,
-  ).bind(actor.companyId).first<{ display_name: string; logo_attachment_id: string | null; short_name: string | null; accent_color: string | null }>();
+  ).bind(actor.companyId).first<{ display_name: string; logo_attachment_id: string | null; logo_publication_id:string|null; short_name: string | null; accent_color: string | null }>();
   if (!current) throw new ApiError(409, "COMPANY_REQUIRED", "The Company storefront is unavailable.");
   const previousId = input.removeLogo ? current?.logo_attachment_id ?? null : null;
+  const previousPublicationId=input.removeLogo?current.logo_publication_id:null;
   const now = Date.now();
   const result = {
     companyId: actor.companyId,
@@ -315,18 +337,21 @@ export async function updateStorefrontAppBrand(db: SqlDatabase, actor: WorkConte
   await executeCommand(db, actor, input.commandId, "organization.storefront-brand.update", input, actor.companyId, 1, result, [
     assertion(db, input.commandId, "storefront-brand-owner", "EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND kind='company' AND status='active')", [actor.companyId]),
     assertion(db, input.commandId, "storefront-brand-admin", "EXISTS(SELECT 1 FROM assignments WHERE id=? AND company_id=? AND scope_kind='holding' AND revoked_at IS NULL AND valid_from<=? AND valid_until>? AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(role,company_id,'organization.manage'))", [actor.assignmentId, actor.companyId, now, now]),
-    db.prepare(`INSERT INTO storefront_app_brands(company_id,short_name,accent_color,logo_attachment_id,updated_by,updated_at)
-      VALUES(?,?,?,?,?,?)
-      ON CONFLICT(company_id) DO UPDATE SET short_name=COALESCE(?,storefront_app_brands.short_name),accent_color=COALESCE(?,storefront_app_brands.accent_color),logo_attachment_id=${input.removeLogo ? "NULL" : "COALESCE(excluded.logo_attachment_id,storefront_app_brands.logo_attachment_id)"},updated_by=excluded.updated_by,updated_at=excluded.updated_at`).bind(
+    db.prepare(`INSERT INTO storefront_app_brands(company_id,short_name,accent_color,logo_attachment_id,logo_publication_id,updated_by,updated_at)
+      VALUES(?,?,?,?,?,?,?)
+      ON CONFLICT(company_id) DO UPDATE SET short_name=COALESCE(?,storefront_app_brands.short_name),accent_color=COALESCE(?,storefront_app_brands.accent_color),logo_attachment_id=${input.removeLogo ? "NULL" : "COALESCE(excluded.logo_attachment_id,storefront_app_brands.logo_attachment_id)"},logo_publication_id=${input.removeLogo?"NULL":"COALESCE(excluded.logo_publication_id,storefront_app_brands.logo_publication_id)"},updated_by=excluded.updated_by,updated_at=excluded.updated_at`).bind(
         actor.companyId,
         shortName ?? current.short_name ?? Array.from(current.display_name.trim()).slice(0, 40).join(""),
         input.accentColor ?? current.accent_color ?? "#3659c9",
         input.removeLogo ? null : current.logo_attachment_id,
+        input.removeLogo ? null : current.logo_publication_id,
         actor.userId,
         now,
         shortName ?? null,
         input.accentColor ?? null,
       ),
+    ...(previousPublicationId?[db.prepare("UPDATE attachment_publications SET state='revoked',revoked_by=?,revoked_at=?,revocation_reason='Removed from the active storefront brand' WHERE id=? AND state='approved'").bind(actor.userId,now,previousPublicationId),db.prepare(`INSERT INTO attachment_events(id,company_id,link_id,actor_id,action,details_json,created_at)
+      SELECT ?,company_id,source_link_id,?,'publication.revoked',?,? FROM attachment_publications WHERE id=? AND state='revoked' ON CONFLICT(id) DO NOTHING`).bind(`${input.commandId}-publication-revoke`,actor.userId,JSON.stringify({publicationId:previousPublicationId,reason:"Removed from active storefront brand"}),now,previousPublicationId)]:[]),
     ...(previousId ? [db.prepare("UPDATE attachments SET revoked_at=? WHERE id=? AND revoked_at IS NULL").bind(now, previousId)] : []),
   ], { companyId: actor.companyId, branchId: null, departmentId: null });
   return { result, previousId };
@@ -340,15 +365,20 @@ export async function updateBrandProfile(db: SqlDatabase, actor: WorkContext, in
   commandId: string;
 }) {
   await requireBrandManagement(db, actor, input.scopeKind === "holding" ? "holding_brand" : "branch_brand", input.scopeId);
+  if (input.remove) requireBrandAttachmentWrite();
   if (input.scopeKind === "holding" && input.documentMode && input.documentMode !== "holding")
     throw new ApiError(422, "BRAND_MODE_INVALID", "Holding branding uses Holding mode.");
   const current = await row(db, input.scopeKind, input.scopeId);
   const removeColumn = input.remove === "primary" ? "primary_attachment_id" : input.remove === "inverse" ? "inverse_attachment_id" : null;
+  const removePublicationColumn=input.remove==="primary"?"primary_publication_id":input.remove==="inverse"?"inverse_publication_id":null;
   const previousId = removeColumn ? (removeColumn === "primary_attachment_id" ? current?.primary_attachment_id : current?.inverse_attachment_id) : null;
+  const previousPublicationId=removePublicationColumn?(removePublicationColumn==="primary_publication_id"?current?.primary_publication_id:current?.inverse_publication_id):null;
   const now = Date.now();
   const result = { scopeKind: input.scopeKind, scopeId: input.scopeId, documentMode: input.scopeKind === "holding" ? "holding" : input.documentMode ?? current?.document_mode ?? "branch" };
   await executeCommand(db, actor, input.commandId, "organization.brand.update", input, input.scopeId, 1, result, [
-    db.prepare(`INSERT INTO organization_brand_profiles(scope_kind,scope_id,company_id,document_mode,updated_by,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(scope_kind,scope_id) DO UPDATE SET document_mode=excluded.document_mode,${removeColumn ? `${removeColumn}=NULL,` : ""}updated_by=excluded.updated_by,updated_at=excluded.updated_at`).bind(input.scopeKind, input.scopeId, input.scopeKind === "branch" ? actor.companyId : null, result.documentMode, actor.userId, now),
+    db.prepare(`INSERT INTO organization_brand_profiles(scope_kind,scope_id,company_id,document_mode,updated_by,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(scope_kind,scope_id) DO UPDATE SET document_mode=excluded.document_mode,${removeColumn ? `${removeColumn}=NULL,` : ""}${removePublicationColumn?`${removePublicationColumn}=NULL,`:""}updated_by=excluded.updated_by,updated_at=excluded.updated_at`).bind(input.scopeKind, input.scopeId, input.scopeKind === "branch" ? actor.companyId : null, result.documentMode, actor.userId, now),
+    ...(previousPublicationId?[db.prepare("UPDATE attachment_publications SET state='revoked',revoked_by=?,revoked_at=?,revocation_reason='Removed from the active workspace brand' WHERE id=? AND state='approved'").bind(actor.userId,now,previousPublicationId),db.prepare(`INSERT INTO attachment_events(id,company_id,link_id,actor_id,action,details_json,created_at)
+      SELECT ?,company_id,source_link_id,?,'publication.revoked',?,? FROM attachment_publications WHERE id=? AND state='revoked' ON CONFLICT(id) DO NOTHING`).bind(`${input.commandId}-publication-revoke`,actor.userId,JSON.stringify({publicationId:previousPublicationId,reason:"Removed from active workspace brand"}),now,previousPublicationId)]:[]),
     ...(previousId ? [db.prepare("UPDATE attachments SET revoked_at=? WHERE id=? AND revoked_at IS NULL").bind(now, previousId)] : []),
   ], { companyId: actor.companyId, branchId: input.scopeKind === "branch" ? input.scopeId : null, departmentId: null });
   return { result, previousId };

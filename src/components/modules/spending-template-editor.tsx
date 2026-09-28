@@ -9,8 +9,8 @@ export function SpendingTemplateEditor({base,data}:{base:string;data:Organizatio
   const [exceptions,setExceptions]=useState(template.exceptions),{send,busy,error}=useStaffCommand(base);
   function update(index:number,patch:Partial<SpendingException>){setExceptions(rows=>rows.map((row,i)=>i===index?{...row,...patch}:row));}
   return <section className="card"><h2>Company spending approval template · version {template.version}</h2>
-    <p>Requester → nearest higher reporting supervisor → Accounting preparation → independent Accounting approval (Level 1–4) → general ledger posting → Finance payment with bank slip.</p>
-    <p className="muted">The designated CEO skips supervisor approval only. Every other exception requires a recorded reason. Changes apply to new submissions; existing routes require explicit repair.</p>
+    <p>Requester → published department flow → Accounting preparation → independent Accounting approval (Level 1–4) → general ledger posting → Finance payment with bank slip.</p>
+    <p className="muted">Supervisor exceptions remain available for requests using older saved routes. Department flow changes apply to new submissions; existing routes require explicit repair.</p>
     <form onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void send("people/organization/spending-template",{exceptions,expectedVersion:template.version,reason:f.get("reason")});}}>
       {exceptions.map((row,i)=><fieldset key={i} className="business-form"><legend>Exception {i+1}</legend>
         <label>Position<select value={row.positionId??""} onChange={e=>update(i,{positionId:e.target.value||null})}><option value="">All positions for selected request type</option>{data.positions.filter(p=>p.active).map(p=><option key={p.id} value={p.id}>{p.title}</option>)}</select></label>

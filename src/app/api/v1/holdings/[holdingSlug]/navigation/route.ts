@@ -2,6 +2,7 @@ import { isMyAction } from "@/lib/work-item";
 import { requireWorkContext } from "@/server/authorization";
 import { holdingResources } from "@/server/runtime";
 import { workSnapshot } from "@/server/work-items";
+import { getWorkCardProjection } from "@/server/work-summary";
 import { markHomeRead, unreadHomeCount } from "@/server/navigation-counts";
 import { betaBody } from "@/server/beta-http";
 import { errorResponse } from "@/server/http";
@@ -13,10 +14,14 @@ export async function GET(_request: Request, context: Context) {
   try {
     const actor = await requireWorkContext((await context.params).holdingSlug);
     const { write } = await holdingResources(actor.holdingId);
-    const [home, work] = await Promise.all([unreadHomeCount(write, actor), workSnapshot(actor)]);
+    const workPending = workSnapshot(actor);
+    const [home, work, { cards, preferences, preferencesUnavailable }] = await Promise.all([
+      unreadHomeCount(write, actor), workPending, getWorkCardProjection(actor, workPending),
+    ]);
     return Response.json({ data: {
       home,
       work: work.unavailableSources.length ? null : work.items.filter(isMyAction).length,
+      quickAccess: { cards, preferences, preferencesUnavailable },
     } }, { headers });
   } catch (error) { return errorResponse(error); }
 }

@@ -12,7 +12,7 @@ Directory & access at scoped /people/access owns the People, Groups, Access poli
 | `/api/v1/platform/assignments/active` | POST | platform identity/access | Select an active Platform-only assignment | Implemented |
 | `/api/v1/platform/operations` | GET | platform operations | Read-only live control-plane and per-Holding outbox health; requires Platform context and returns private no-store data | Implemented |
 | `/api/v1/platform/operations/recover` | POST | platform operations | Platform-admin reviewed dead-letter recovery with reason, expected attempt/error snapshot, idempotency and Holding audit | Implemented |
-| `/api/v1/holdings/{holdingSlug}/assignments/active` | POST | identity/access | Select an active assignment for the authenticated account; D1 eligibility is rechecked | Implemented |
+| `/api/v1/holdings/{holdingSlug}/assignments/active` | POST | identity/access | Select an active assignment for the authenticated account; PostgreSQL assignment eligibility is rechecked | Implemented |
 | `/api/v1/holdings/{holdingSlug}/companies/active` | POST | organization | Select a validated Company in a Holding workspace; Local workspaces reject overrides | Implemented |
 | `/api/v1/holdings/{holdingSlug}/leave-requests/{id}` | GET | people/payroll | Authorized owner read | Implemented |
 | `/api/v1/holdings/{holdingSlug}/leave-requests/{id}` | PATCH | people/payroll | Submit draft; expected version and `Idempotency-Key` | Implemented |
@@ -20,6 +20,19 @@ Directory & access at scoped /people/access owns the People, Groups, Access poli
 | `/api/v1/holdings/{holdingSlug}/uploads` | POST | files | Authorized private leave/expense upload intent | Implemented |
 | `/api/v1/holdings/{holdingSlug}/uploads/{id}/content` | PUT | files | Bounded upload, atomic finalization and replay | Implemented |
 | `/api/v1/holdings/{holdingSlug}/attachments/{id}/content` | GET | files | Owner-scoped private download/range | Implemented |
+| `/api/v1/holdings/{holdingSlug}/attachment-sets` | GET/POST | files | List authorized bound/current-draft manifests or create a server-policy-derived File Set | Implemented behind the global attachment gate |
+| `/api/v1/holdings/{holdingSlug}/attachment-sets/{setId}/files` | POST | files | Reserve Company quota and a 15-minute private quarantine upload intent | Implemented behind the global attachment gate |
+| `/api/v1/holdings/{holdingSlug}/attachment-sets/{setId}/links` | POST | files | Reuse one clean canonical source in the same Company after source-read and destination-write authorization | Implemented behind the global attachment gate |
+| `/api/v1/holdings/{holdingSlug}/attachment-sets/{setId}/bind` | POST | files | Bind clean record documents with optimistic target/policy checks; action workflows bind in their own domain transaction | Implemented behind the global attachment gate |
+| `/api/v1/holdings/{holdingSlug}/attachment-sets/{setId}/sanitization-attestation` | POST | files/security | Record the reviewed safe-manifest attestation required for IAM, release, migration, and provisioning evidence | Implemented behind the global attachment gate |
+| `/api/v1/holdings/{holdingSlug}/attachment-links/{linkId}/status` | GET | files | Reauthorize a link and return its safe upload/scan/binding state | Implemented behind the global attachment read gate |
+| `/api/v1/holdings/{holdingSlug}/attachment-links/{linkId}/content` | GET | files | Audited private original download or inline server-sanitized preview; never renders original bytes inline | Implemented behind the global attachment read gate |
+| `/api/v1/holdings/{holdingSlug}/attachment-links/{linkId}/withdraw` | POST | files | Reasoned withdrawal before binding; bound evidence is immutable | Implemented behind the global attachment gate |
+| `/api/v1/holdings/{holdingSlug}/media-publications` | GET/POST | public media | List or propose a revisioned sanitized derivative with alt text and order | Implemented behind the global attachment gate |
+| `/api/v1/holdings/{holdingSlug}/media-publications/{publicationId}/{approve,revoke}` | POST | public media | Independent approval or reasoned revocation of a sanitized derivative | Implemented behind the global attachment gate |
+| `/api/v1/holdings/{holdingSlug}/media-publications/order` | POST | public media | Optimistically reorder approved publication revisions | Implemented behind the global attachment gate |
+| `/api/public/holdings/{holdingSlug}/media-publications/{publicationId}/content` | GET | public media | Serve only an approved sanitized derivative; original source IDs and object keys are never public | Implemented |
+| `/api/customer-portal/{holdingSlug}/attachments/{...path}` | GET/POST/PUT | customer portal/files | Authenticated explicit-owner upload, scan status, and customer-shareable preview-only access; no anonymous generic upload | Implemented behind the global attachment gate |
 | `/api/v1/holdings/{holdingSlug}/feed` | GET | collaboration | Scoped feed with all, following, team and record filters | Implemented |
 | `/api/v1/holdings/{holdingSlug}/feed` | POST | collaboration | Publish scoped update with topics and optional authorized record link | Implemented |
 | `/api/v1/holdings/{holdingSlug}/posts/{id}/comments` | POST | collaboration | Publish comment on a visible update | Implemented |
@@ -53,6 +66,25 @@ Expense routes (also available through authorized branch/department bases):
 | `/api/v1/holdings/{holdingSlug}/commerce/invoices/{id}/settle` | POST | Record a reimbursement against the expense payable; update balance, status, allocation and cash journal together |
 
 All expense mutations require `Idempotency-Key`; decisions and corrections require `expectedVersion`. Legacy `/people/expenses` and `/finance/expenses` mutations return `410 EXPENSE_API_MOVED`.
+
+Department authority routes:
+
+| Route under `/api/v1/holdings/{holdingSlug}` | Method | Contract |
+| --- | --- | --- |
+| `/authority` | GET | Current CEO, HR and head seats, appointment history, published flows, and the caller's available actions |
+| `/authority/appointments` | POST | Owner, CEO, or HR appointment within their authority; reason, `expectedVersion`, and `Idempotency-Key` |
+| `/authority/flows` | POST | Appointed head publishes one to twenty ordered person or Position selectors; CEO can publish while the head seat is vacant |
+| `/authority/decisions` | POST | Higher reporting manager with higher Level decides the pending department step with a reason and both reviewer identities recorded |
+| `/technology/position-gpo` | GET | Position GPO revisions, Directory application state, and pending membership jobs |
+| `/technology/position-gpo/{preview,publish,retry,retry-config}` | POST | IT preview or versioned publish and retry; Directory readback is separate from endpoint receipt |
+| `/technology/organization` | GET | Scope-filtered organization explorer and separate HR action capabilities |
+| `/technology/gpo-rules` | GET | Direct and inherited Level/Department/Position rules, effective policy sources and delivery status |
+| `/technology/gpo-rules/{preview,publish,remove-preview,remove,retry-config}` | POST | Versioned, previewed IT rule changes with current Company authority and Directory evidence |
+| `/people/organization/position-moves[/:id]` | GET | Reviewed Position move and cohort status |
+| `/people/organization/position-moves/{preview,submit}` | POST | HR preview or submission of one atomic, effective-dated Position/cohort change |
+| `/people/organization/position-moves/:id/cancel` | POST | Cancel a versioned move before it takes effect |
+
+New employee requests save the department policy and selected reviewers at submission. Module decision endpoints enforce the department stage before their specialist stages. Existing submitted approvals retain their saved routes.
 
 Stock-count routes (holding and authorized branch bases; department assignments are not count operators):
 
@@ -115,7 +147,10 @@ historical data access.
 Authenticated business-workspace discovery uses one role- and scope-aware
 destination catalog. Home, Work, Inbox, and Calendar are primary destinations.
 The sidebar exposes app-level links under presentation-only People &
-organization, Operations, Finance, Management, and System categories. Deep
+organization, CRM, Sales, Procurement, Inventory, POS, Hotel PMS, Operations,
+Finance, Management, and System categories. CRM contains customer relationship
+pages, Customer directory, and Customer support; Inventory contains Quality;
+Operations contains Projects & workflows. Other deep
 pages remain in app-local tabs and become launcher or command-search results
 only when searched. Redirect aliases, creation states, and individual records
 inherit their app parent for active navigation and `App › Page` breadcrumbs but
@@ -151,7 +186,7 @@ Add rows as `src/app/api/<ctx>/*` handlers land. Keep this file in sync with `do
 ## Links
 
 - Archive RPC table: `docs/plan/traceability.md` (banner Archived — Rust era)
-- Spec hub: `docs/TOC.md` → `docs/plan/MAP.md` (31 contexts) → `docs/plan/01-vision-and-scope.md` (spine)
+- Spec hub: `docs/TOC.md` → `docs/production-plan.md` (current scope) → affected owner contract.
 - Policy: `CONTRACT_POLICY.md` + `docs/adr/ADR-020-nextjs-stack.md` + `docs/adr/ADR-022-cloudflare-runtime.md` + `docs/adr/ADR-023-three-level-workspace-routing.md`
 
 
@@ -207,3 +242,15 @@ Company Finance/Treasury scope only; mutation commands require `Idempotency-Key`
 ### Business readiness
 
 `GET /api/v1/holdings/{holdingSlug}/business-readiness` — active Company organization manager only, private/no-store. Bundled workspace simulation manifest and scoped evidence; no Company production sign-off and no write/approval endpoint. UI: `/holdings/{holdingSlug}/settings/business-readiness`.
+
+## Company release acceptance
+
+The existing Company setup API remains compatible. [Release acceptance contract](business-readiness.md) defines Company-scoped evidence, independent review, version/idempotency and configuration invalidation.
+
+| Route | Methods | Owner | Meaning |
+| --- | --- | --- | --- |
+| `/api/v1/holdings/{holdingSlug}/business-readiness` | GET | Readiness | Setup, reference observations and separate release status |
+| `/api/v1/holdings/{holdingSlug}/business-readiness/releases` | GET, POST | Release acceptance | Latest status / submit evidence for the current scope and build |
+| `/api/v1/holdings/{holdingSlug}/business-readiness/releases/{id}` | GET | Release acceptance | Company-scoped evidence and effective gates |
+| `/api/v1/holdings/{holdingSlug}/business-readiness/releases/{id}/review` | POST | Release acceptance | Independent criterion review |
+| `/api/v1/holdings/{holdingSlug}/business-readiness/releases/{id}/revoke` | POST | Release acceptance | Revoke while preserving history |

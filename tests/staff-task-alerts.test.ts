@@ -19,9 +19,10 @@ beforeEach(async () => {
   await db.prepare("DELETE FROM staff_tasks WHERE id LIKE 'task-%'").run();
 });
 
-async function createTask(dueAt: number, state = "ready") {
+async function createTask(dueAt: number | null, state = "ready") {
   const company = `task-alert-${key()}`;
   const id = `task-${key()}`;
+  const createdAt = dueAt ?? Date.now();
   await db
     .prepare(
       `INSERT INTO staff_tasks
@@ -29,10 +30,19 @@ async function createTask(dueAt: number, state = "ready") {
          start_approvers_json,completion_approvers_json,state,created_at,updated_at)
        VALUES(?,?,?,'',?,?,?,'[]','[]',?,?,?)`,
     )
-    .bind(id, company, "Review receiving exception", "user-creator", "user-assignee", dueAt, state, dueAt, dueAt)
+    .bind(id, company, "Review receiving exception", "user-creator", "user-assignee", dueAt, state, createdAt, createdAt)
     .run();
   return { company, id };
 }
+
+it("does not send deadline alerts for an ordinary task without a due date", async () => {
+  const now = Date.now();
+  const task = await createTask(null);
+  expect(await escalateStaffTasks(db, now + 7 * 86_400_000)).toEqual({ dueSoon: 0, overdue: 0 });
+  const notifications = await db.prepare("SELECT COUNT(*)::int count FROM staff_notifications WHERE record_id=?")
+    .bind(task.id).first<{ count: number }>();
+  expect(notifications?.count).toBe(0);
+});
 
 it("emits a deduplicated due-soon reminder to the assignee", async () => {
   const now = Date.now();

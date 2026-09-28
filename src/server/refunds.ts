@@ -13,6 +13,7 @@ import { assertion, executeCommand, replayCommand } from './commands';
 import { prepareJournal } from './finance';
 import { decimalToMinor, minorToDecimal } from '@/lib/finance-money';
 import type { WorkItem } from '@/lib/work-item';
+import { prepareAttachmentBinding } from './attachments/service';
 
 type Row = Record<string, string | number | null>;
 const version = z.number().int().positive();
@@ -20,7 +21,7 @@ const reason = z.string().trim().min(3).max(1000);
 export const refundApprovalSchema = z.object({expectedVersion:version,reason,beneficiaryName:z.string().trim().min(2).max(160),beneficiaryAccount:z.string().trim().min(3).max(160)});
 export const refundInstructionSchema = z.object({expectedVersion:version,amount:z.string().regex(/^\d+(\.\d{1,2})?$/),plannedDate:z.iso.date(),bankAccount:z.string().trim().min(1).max(160),cashAccountId:z.string().min(1)});
 export const refundExportSchema = z.object({instructions:z.array(z.object({id:z.string().min(1),expectedVersion:version})).min(1).max(100)});
-export const refundConfirmationSchema = z.object({expectedVersion:version,bankTransactionId:z.string().min(1),bankVersion:version,periodId:z.string().min(1),bankReference:z.string().trim().min(2).max(160),evidence:reason});
+export const refundConfirmationSchema = z.object({expectedVersion:version,bankTransactionId:z.string().min(1),bankVersion:version,periodId:z.string().min(1),bankReference:z.string().trim().min(2).max(160),evidence:reason,attachmentSetIds:z.array(z.string().min(1)).max(20).default([])});
 export const refundExceptionSchema = z.object({expectedVersion:version,outcome:z.enum(['unknown','failed','cancelled']),evidence:reason});
 function scope(actor:WorkContext,alias='o') {
  return {sql:`${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`,args:[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId]};
@@ -130,12 +131,18 @@ export async function confirmRefundInstruction(actor:WorkContext,id:string,input
  const bank=await write.prepare('SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=?').bind(input.bankTransactionId,actor.companyId).first<Row>();
  const outgoing=owner.direction==='outgoing',amount=Number(row.amount_minor);
  if(!bank||bank.currency!==owner.currency||bank.bank_account!==row.bank_account||Number(bank.amount_minor)!==(outgoing?-amount:amount)||String(bank.transaction_date)<String(row.planned_date))throw new ApiError(422,'BANK_EVIDENCE_MISMATCH','Bank account, currency, direction, amount and payment date must match the instruction.');
+ let attachmentBinding:null|Awaited<ReturnType<typeof prepareAttachmentBinding>>=null;
+ if(input.attachmentSetIds.length){const placeholders=input.attachmentSetIds.map(()=>'?').join(','),sets=(await write.prepare(`SELECT id,purpose_key,component_kind,component_ref FROM attachment_sets WHERE company_id=? AND id IN (${placeholders})`).bind(actor.companyId,...input.attachmentSetIds).all<{id:string;purpose_key:string;component_kind:string;component_ref:string|null}>()).results;
+  if(sets.length!==new Set(input.attachmentSetIds).size||sets.some(set=>set.purpose_key!=='refund_proof'||set.component_kind!=='action'||set.component_ref!==`refund-instruction:${id}`))throw new ApiError(422,'REFUND_ATTACHMENT_PURPOSE','Choose only refund proof prepared for this bank confirmation.');
+  attachmentBinding=await prepareAttachmentBinding(write,actor,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:'finance_refund_obligation',bindingType:'finance_refund_confirmation',contexts:[{purposeKey:'refund_proof',componentKind:'action',componentRef:`refund-instruction:${id}`}]},targetId:String(owner.id),expectedTargetVersion:Number(owner.version),commandId:key,bindingId:id});
+ }
  const journal=await prepareJournal(write,actor,{chartId:String(owner.chart_id),periodId:input.periodId,entryDate:String(bank.transaction_date),currency:String(owner.currency),memo:`Refund ${owner.return_number} · ${input.bankReference}`,sourceType:'return_refund',sourceId:id,isOpening:false,lines:[
   {accountId:String(owner.balance_account_id),debit:outgoing?minorToDecimal(amount):'0',credit:outgoing?'0':minorToDecimal(amount)},
   {accountId:String(row.cash_account_id),debit:outgoing?'0':minorToDecimal(amount),credit:outgoing?minorToDecimal(amount):'0'},
  ]},key,'posted');
  const paymentId=`refund-payment-${key}`,now=Date.now();
  return executeCommand(write,actor,key,'finance.refund.confirm',input,id,input.expectedVersion+1,{id,status:'confirmed',version:input.expectedVersion+1,paymentId,journalId:journal.result.id,bankTransactionId:input.bankTransactionId},[
+  ...(attachmentBinding?.guards??[]),
   assertion(write,key,'instruction',"EXISTS(SELECT 1 FROM finance_refund_instructions WHERE id=? AND company_id=? AND version=? AND status IN ('exported','unknown'))",[id,actor.companyId,input.expectedVersion]),
   assertion(write,key,'obligation',"EXISTS(SELECT 1 FROM finance_refund_obligations WHERE id=? AND company_id=? AND version=? AND status='approved' AND outstanding_minor>=?)",[owner.id,actor.companyId,owner.version,amount]),
   assertion(write,key,'bank',"EXISTS(SELECT 1 FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? AND t.version=? AND t.match_status IN ('unmatched','proposed') AND t.amount_minor=? AND t.currency=? AND s.bank_account=?)",[input.bankTransactionId,actor.companyId,input.bankVersion,outgoing?-amount:amount,owner.currency,row.bank_account]),
@@ -144,6 +151,7 @@ export async function confirmRefundInstruction(actor:WorkContext,id:string,input
   write.prepare("UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=?").bind(paymentId,input.bankTransactionId),
   write.prepare("UPDATE finance_refund_instructions SET status='confirmed',bank_reference=?,evidence=?,payment_id=?,bank_transaction_id=?,resolved_by=?,version=version+1,updated_at=? WHERE id=?").bind(input.bankReference,input.evidence,paymentId,input.bankTransactionId,actor.userId,now,id),
   write.prepare("UPDATE finance_refund_obligations SET outstanding_minor=outstanding_minor-?,status=CASE WHEN outstanding_minor=? THEN 'settled' ELSE 'approved' END,version=version+1,updated_at=? WHERE id=?").bind(amount,amount,now,owner.id),
+  ...(attachmentBinding?.steps??[]),
   refundNotifications(write,key,String(owner.id),'completed','Refund bank evidence matched: review the remaining obligation',actor.userId),
  ]);
 }

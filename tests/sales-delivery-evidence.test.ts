@@ -3,10 +3,11 @@ import {applyMigrations,env} from './runtime-env';
 import {expenseDb as db,expenseFixture,key} from './helpers/expense-fixture';
 import {deliveryEvidence} from './helpers/delivery-evidence';
 import {fulfillOrder,getOrder,orderSchema,saveMaster,saveOrder,transitionOrder} from '../src/server/commerce';
+import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from './helpers/attachment-v2';
 
 vi.mock('../src/server/runtime',()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
-beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
+beforeAll(async()=>{enableAttachmentV2ForTest();await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();f.head.role='sales_manager';f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,'sales_manager');});
 
 it('requires, preserves, exposes, and prevents reuse of delivery evidence',async()=>{
@@ -18,6 +19,10 @@ it('requires, preserves, exposes, and prevents reuse of delivery evidence',async
   await transitionOrder(f.owner,orderId,{action:'submit',expectedVersion:1},key());await transitionOrder(f.head,orderId,{action:'approve',expectedVersion:2},key());
   const lineId=String((await getOrder(f.owner,orderId)).lines[0].id);
   await expect(fulfillOrder(f.owner,orderId,{expectedVersion:3,date:'2026-09-22',lines:[{lineId,quantity:'1'}]},key())).rejects.toMatchObject({code:'DELIVERY_EVIDENCE_REQUIRED'});
+  const pending=await seedAttachmentSet(db,f.owner,{targetType:'commerce_order_delivery',targetId:orderId,purposeKey:'proof_of_delivery',componentRef:'delivery',expectedTargetVersion:3,requiredCount:1,sourceState:'quarantined'});
+  await expect(fulfillOrder(f.owner,orderId,{expectedVersion:3,date:'2026-09-22',evidenceNote:'Customer receipt is still being scanned',attachmentSetIds:[pending.setId],lines:[{lineId,quantity:'1'}]},key())).rejects.toMatchObject({code:'ATTACHMENT_SCAN_PENDING'});
+  expect(await attachmentBindingState(db,pending.setId)).toMatchObject({set_state:'draft',link_state:'draft',binding_type:null,binding_id:null});
+  expect((await getOrder(f.owner,orderId)).order).toMatchObject({version:3,state:'confirmed'});
   const proof=await deliveryEvidence(db,f.owner,orderId,'Customer signed carrier receipt CR-101');
   expect((await getOrder(f.owner,orderId)).pendingDeliveryEvidence).toHaveLength(1);
   const delivered=await fulfillOrder(f.owner,orderId,{expectedVersion:3,date:'2026-09-22',lines:[{lineId,quantity:'1'}],...proof},key());
@@ -26,5 +31,11 @@ it('requires, preserves, exposes, and prevents reuse of delivery evidence',async
   expect(detail.fulfillmentEvidence).toEqual([expect.objectContaining({fulfillment_id:delivered.fulfillmentId,attachment_id:proof.evidenceIds[0]})]);
   expect(detail.fulfillments[0]).toMatchObject({evidence_note:'Customer signed carrier receipt CR-101'});
   await expect(fulfillOrder(f.owner,orderId,{expectedVersion:4,date:'2026-09-22',lines:[{lineId,quantity:'1'}],...proof},key())).rejects.toMatchObject({code:'DELIVERY_EVIDENCE_INVALID'});
+  const clean=await seedAttachmentSet(db,f.owner,{targetType:'commerce_order_delivery',targetId:orderId,purposeKey:'proof_of_delivery',componentRef:'delivery',expectedTargetVersion:4,requiredCount:1,compatibilityAdapter:true}),previous=process.env.ERPX_ATTACHMENTS_V2;
+  process.env.ERPX_ATTACHMENTS_V2='false';
+  let final:Awaited<ReturnType<typeof fulfillOrder>>;
+  try{final=await fulfillOrder(f.owner,orderId,{expectedVersion:4,date:'2026-09-22',evidenceNote:'Second customer delivery receipt checked',attachmentSetIds:[clean.setId],lines:[{lineId,quantity:'1'}]},key());}
+  finally{if(previous===undefined)delete process.env.ERPX_ATTACHMENTS_V2;else process.env.ERPX_ATTACHMENTS_V2=previous;}
+  expect(await attachmentBindingState(db,clean.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'commerce_fulfillment',binding_id:String(final.fulfillmentId)});
   await expect(db.prepare('DELETE FROM commerce_fulfillment_evidence WHERE attachment_id=?').bind(proof.evidenceIds[0]).run()).rejects.toThrow('FULFILLMENT_EVIDENCE_IMMUTABLE');
 });

@@ -4,17 +4,23 @@ import type { WorkContext } from './authorization';
 import { holdingResources } from './runtime';
 import { requirePermission } from './iam-permissions';
 import { hasPermission } from '@/lib/permissions';
-import { all, one, scopeRow, str, posPermissions } from './pos-core';
+import { all, one, scopeRow, str, posPermissions, type PosRow } from './pos-core';
 import type { SqlDatabase } from './runtime/types';
 import { ApiError } from './http';
-export async function posWorkspace(actor:WorkContext,saleId?:string,historyQuery='',section?:string,cursor?:string){
+import { businessDate } from '@/lib/pos';
+export async function posWorkspace(actor:WorkContext,saleId?:string,historyQuery='',section?:string,cursor?:string,frontMode=false){
  requirePermission(actor,'pos.read');if(actor.departmentId)throw new Error('POS_BRANCH_REQUIRED');
  const {write:db}=await holdingResources(actor.holdingId),company=actor.companyId,branch=actor.branchId;
  const registers=await all(db,'SELECT r.*,w.name warehouse_name FROM pos_registers r JOIN commerce_warehouses w ON w.id=r.warehouse_id WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) ORDER BY r.name',company,branch,branch);
  const sale=saleId?scopeRow(actor,await one(db,'SELECT * FROM pos_sales WHERE id=?',saleId)):null;
  const wants=(...tabs:string[])=>!section||tabs.includes(section);
  const settings=await one(db,'SELECT * FROM pos_settings WHERE company_id=?',company);
- const report=hasPermission(actor,'pos.reports'),configure=hasPermission(actor,'pos.configure')&&(wants('settings')||!settings),connect=hasPermission(actor,'pos.payments.configure')&&wants('settings');
+ const frontProductCount=frontMode?await one(db,"SELECT COUNT(*)::int count FROM commerce_products WHERE company_id=? AND status='active'",company):null;
+ const frontOpenRegisterCount=frontMode?await one(db,`SELECT COUNT(*)::int count FROM pos_registers r
+   WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND r.active=true
+   AND NOT EXISTS (SELECT 1 FROM pms_properties p WHERE p.company_id=r.company_id AND p.branch_id=r.branch_id
+     AND (p.state<>'open' OR p.business_date<>?))`,company,branch,branch,businessDate()):null;
+ const report=!frontMode&&hasPermission(actor,'pos.reports'),configure=!frontMode&&hasPermission(actor,'pos.configure')&&(wants('settings')||!settings),connect=!frontMode&&hasPermission(actor,'pos.payments.configure')&&wants('settings');
  const salesPage=section==='history'?await readListPage<import('./pos-core').PosRow & {id:string;page_key:string}>(db,{
    sql:"SELECT s.*,r.name register_name,s.created_at::text page_key FROM pos_sales s JOIN pos_registers r ON r.id=s.register_id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND (?='' OR s.number ILIKE ?)",
    args:[company,branch,branch,historyQuery.slice(0,100),`%${historyQuery.slice(0,100)}%`],cursor,descending:true,scope:[company,branch,'pos-history',historyQuery],
@@ -78,16 +84,27 @@ export async function posWorkspace(actor:WorkContext,saleId?:string,historyQuery
  FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id WHERE p.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND p.state='succeeded'
  GROUP BY s.business_date,s.register_id,s.shift_id,s.currency,p.method ORDER BY s.business_date DESC LIMIT 300`,company,branch,branch):[];
 
- return {currency:settings?.currency ? String(settings.currency) : commerce?.currency ? String(commerce.currency) : commerceCurrency?.currency ? String(commerceCurrency.currency) : null,salesPage,permissions:posPermissions(actor),userId:actor.userId,settings,commerce:configure?commerce:null,availableTenderMethods,roomChargeEnabled,registers,products,warehouses,shifts,tables,sales,sale,lines,payments,transferEvidence,roomCharge,roomChargeStays,kitchen,refunds,cashMovements,stock,jobs,reports,paymentMix,
+ const frontPermissionNames=['pos.read','pos.sell','pos.kitchen','pos.approve'] as const;
+ const permissions=frontMode
+  ? Object.fromEntries(frontPermissionNames.map((name)=>[name,hasPermission(actor,name)]))
+  : posPermissions(actor);
+ const frontRow=(row:PosRow|null):PosRow|null=>row?Object.fromEntries(Object.entries(row).filter(([key])=>![
+  'accounts_json','chart_id','account_id','bank_account','journal_id','finance_payment_id','invoice_id','debit_account_id','credit_account_id','tax_account_id','provider_id','provider_customer_id','provider_payment_intent','provider_received_at','secret_json','payload_json','recipe_json','cost_minor','cost_price','unit_cost_minor','fulfillment_cost','margin_minor','gross_profit_minor','source_key','external_id','bank_transaction_id'
+ ].includes(key))) as PosRow:null;
+ const frontRows=(rows:PosRow[])=>frontMode?rows.map((row)=>frontRow(row) as PosRow):rows;
+ const frontSettings=settings?frontRow({enabled:settings.enabled,currency:settings.currency,timezone:settings.timezone}):null;
+ const frontData={currency:settings?.currency ? String(settings.currency) : commerce?.currency ? String(commerce.currency) : commerceCurrency?.currency ? String(commerceCurrency.currency) : null,salesPage:frontMode?null:salesPage,permissions,userId:actor.userId,settings:frontMode?frontSettings:settings,commerce:frontMode?null:configure?commerce:null,availableTenderMethods,roomChargeEnabled:frontMode?false:roomChargeEnabled,registers:frontRows(registers),products:frontRows(products),warehouses:frontRows(warehouses),shifts:frontRows(shifts),tables:frontRows(tables),sales:frontRows(sales),sale:frontRow(sale),lines:frontRows(lines),payments:frontRows(payments),transferEvidence:frontMode?[]:transferEvidence,roomCharge:frontMode?null:roomCharge,roomChargeStays:frontMode?[]:roomChargeStays,kitchen:frontRows(kitchen),refunds:frontRows(refunds),cashMovements:frontRows(cashMovements),stock:frontRows(stock),jobs:frontMode?[]:jobs,reports:frontMode?[]:reports,paymentMix:frontMode?[]:paymentMix,
   companyName: (await one(db,'SELECT display_name FROM organization_nodes WHERE id=?',company))?.display_name??company,
-  bankTransactions:report&&!branch&&wants('reports')?await all(db,"SELECT id,transaction_date,description,amount_minor,currency,version FROM finance_bank_transactions WHERE company_id=? AND match_status IN ('unmatched','proposed') ORDER BY transaction_date DESC LIMIT 200",company):[],
+  bankTransactions:frontMode?[]:report&&!branch&&wants('reports')?await all(db,"SELECT id,transaction_date,description,amount_minor,currency,version FROM finance_bank_transactions WHERE company_id=? AND match_status IN ('unmatched','proposed') ORDER BY transaction_date DESC LIMIT 200",company):[],
   customers:wants('sale')?await all(db,"SELECT id,name FROM finance_parties WHERE company_id=? AND kind='customer' AND status='active' ORDER BY name",company):[],
-  accounts:configure?await all(db,"SELECT id,code,name,chart_id,category,currency,control_kind FROM finance_accounts WHERE company_id=? AND status='active' ORDER BY code",company):[],
-  charts:configure?await all(db,'SELECT id,name,base_currency,status FROM finance_charts WHERE company_id=? ORDER BY name',company):[],
-  bankAccounts,
-  connection:connect?await one(db,'SELECT * FROM pos_connections WHERE company_id=?',company):null,
-  settlements:report&&!branch&&wants('reports')?await all(db,'SELECT * FROM pos_settlements WHERE company_id=? ORDER BY created_at DESC LIMIT 100',company):[]
+  accounts:frontMode?[]:configure?await all(db,"SELECT id,code,name,chart_id,category,currency,control_kind FROM finance_accounts WHERE company_id=? AND status='active' ORDER BY code",company):[],
+  charts:frontMode?[]:configure?await all(db,'SELECT id,name,base_currency,status FROM finance_charts WHERE company_id=? ORDER BY name',company):[],
+  bankAccounts:frontMode?[]:bankAccounts,
+  connection:frontMode?null:connect?await one(db,'SELECT * FROM pos_connections WHERE company_id=?',company):null,
+  settlements:frontMode?[]:report&&!branch&&wants('reports')?await all(db,'SELECT * FROM pos_settlements WHERE company_id=? ORDER BY created_at DESC LIMIT 100',company):[],
+  frontReady:frontMode?Boolean(settings?.enabled&&Number(frontOpenRegisterCount?.count??0)>0&&Number(frontProductCount?.count??0)>0):undefined,
  };
+ return frontData;
 }
 export type PosExecutiveEvidenceMetric="pos-sales"|"net-pos-sales"|"pos-payment-mix";
 export async function posExecutiveEvidenceRow(db:SqlDatabase,actor:WorkContext,metric:PosExecutiveEvidenceMetric,recordId:string,filters:{from:string;to:string;currency:string}){
@@ -135,5 +152,5 @@ export async function posWork(actor:WorkContext):Promise<import('@/lib/work-item
  const shifts=await all(db,"SELECT * FROM pos_shifts WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND state='closed' AND opened_by<>?",company,branch,branch,actor.userId);
  const cash=await all(db,'SELECT m.* FROM pos_cash_movements m JOIN pos_shifts s ON s.id=m.shift_id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND m.approved_by IS NULL AND m.created_by<>?',company,branch,branch,actor.userId);
  const jobs=branch?[]:await all(db,"SELECT * FROM pos_jobs WHERE company_id=? AND state='exception'",company);
- return [...cash.map(r=>({id:str(r,'id'),type:'pos' as const,title:'POS · Review cash drawer',detail:str(r,'reason'),href:'/pos?tab=shifts',status:'requested',updatedAt:Number(r.created_at),queue:'todo' as const,relationships:['approval' as const]})),...refunds.map(r=>({id:str(r,'id'),type:'pos' as const,title:'POS · Review refund request',detail:str(r,'reason'),href:`/pos?tab=history`,status:str(r,'state'),updatedAt:Number(r.created_at),queue:'todo' as const,relationships:['approval' as const]})),...shifts.map(r=>({id:str(r,'id'),type:'pos' as const,title:'POS · Review closed shift',detail:`Variance ${Number(r.variance_minor)/100}`,href:'/pos?tab=shifts',status:str(r,'state'),updatedAt:Number(r.closed_at),queue:'todo' as const,relationships:['approval' as const]})),...jobs.map(r=>({id:str(r,'id'),type:'pos' as const,title:'POS · Payment item requires review',detail:str(r,'last_error'),href:'/pos?tab=reports',status:'exception',updatedAt:Number(r.created_at),queue:'todo' as const,relationships:['team' as const]}))];
+ return [...cash.map(r=>({id:str(r,'id'),type:'pos' as const,title:'POS · Review cash drawer',detail:str(r,'reason'),href:'/pos?tab=shifts&queue=approval',status:'requested',updatedAt:Number(r.created_at),queue:'todo' as const,relationships:['approval' as const]})),...refunds.map(r=>({id:str(r,'id'),type:'pos' as const,title:'POS · Review refund request',detail:str(r,'reason'),href:`/pos?tab=history&queue=approval`,status:str(r,'state'),updatedAt:Number(r.created_at),queue:'todo' as const,relationships:['approval' as const]})),...shifts.map(r=>({id:str(r,'id'),type:'pos' as const,title:'POS · Review closed shift',detail:`Variance ${Number(r.variance_minor)/100}`,href:'/pos?tab=shifts&queue=approval',status:str(r,'state'),updatedAt:Number(r.closed_at),queue:'todo' as const,relationships:['approval' as const]})),...jobs.map(r=>({id:str(r,'id'),type:'pos' as const,title:'POS · Payment item requires review',detail:str(r,'last_error'),href:'/pos?tab=reports',status:'exception',updatedAt:Number(r.created_at),queue:'todo' as const,relationships:['team' as const]}))];
 }

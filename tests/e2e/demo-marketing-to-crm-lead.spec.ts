@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 type User = { email: string; role: string; roles?: string[]; userId: string };
 type Credentials = { password: string; users: User[] };
-const origin = "http://127.0.0.1:3102";
+const origin = (process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102");
 
 async function signIn(context: BrowserContext, page: Page, credentials: Credentials, role: string, path: string) {
   const user = credentials.users.find(item => item.role === role || item.roles?.includes(role));

@@ -10,6 +10,10 @@ import { fail, lock } from "./access";
 import { hash } from "./service";
 import { documentBytes } from "./documents";
 import type { DocumentVersion } from "@/lib/legal/model";
+import {
+  portalAttachmentBytes,
+  stagePortalAttachment,
+} from "./portal-attachments";
 export type PortalActor = { userId: string; email: string; sessionId: string };
 export async function portalContext(slug: string) {
   const { session } = await currentSession();
@@ -43,7 +47,7 @@ export async function portalList(db: SqlDatabase, a: PortalActor) {
 async function share(db: SqlDatabase, a: PortalActor, id: string) {
   const s = await db
     .prepare(
-      "SELECT s.*,i.company_id,i.kind FROM legal_shares s JOIN legal_items i ON i.id=s.item_id WHERE s.id=? AND lower(s.email)=? AND (s.user_id IS NULL OR s.user_id=?) AND s.revoked_at IS NULL AND s.expires_at>?",
+      "SELECT s.*,i.company_id,i.branch_id,i.department_id,i.version AS item_version,i.kind FROM legal_shares s JOIN legal_items i ON i.id=s.item_id WHERE s.id=? AND lower(s.email)=? AND (s.user_id IS NULL OR s.user_id=?) AND s.revoked_at IS NULL AND s.expires_at>?",
     )
     .bind(id, a.email, a.userId, Date.now())
     .first<{
@@ -51,6 +55,9 @@ async function share(db: SqlDatabase, a: PortalActor, id: string) {
       item_id: string;
       document_id: string;
       company_id: string;
+      branch_id: string | null;
+      department_id: string | null;
+      item_version: number;
       kind: string;
       version: number;
     }>();
@@ -138,7 +145,28 @@ export async function portalDownload(
       .bind(s.document_id)
       .first<DocumentVersion>();
   if (!d) fail("Document unavailable.", "LEGAL_NOT_FOUND", 404);
-  const bytes = await documentBytes(files, d);
+  if (d.object_key && !d.attachment_link_id)
+    fail(
+      "This document has not been migrated to the current attachment lifecycle.",
+      "LEGAL_ATTACHMENT_LINK_REQUIRED",
+      404,
+    );
+  const canonical = d.attachment_link_id
+      ? await portalAttachmentBytes(db, files, {
+          companyId: s.company_id,
+          itemId: s.item_id,
+          linkId: d.attachment_link_id,
+          actorId: a.userId,
+          purposeKey: "legal_document",
+        })
+      : null;
+  if (!canonical)
+    fail(
+      "This document has not been migrated to the current attachment lifecycle.",
+      "LEGAL_ATTACHMENT_LINK_REQUIRED",
+      404,
+    );
+  const bytes = canonical.bytes;
   await share(db, a, id);
   await db
     .prepare("INSERT INTO legal_access_events VALUES(?,?,?,?,?,?)")
@@ -153,7 +181,7 @@ export async function portalDownload(
     .run();
   return new Response(new Uint8Array(bytes), {
     headers: {
-      "Content-Type": d.media_type,
+      "Content-Type": canonical.mediaType,
       "Content-Disposition": `attachment; filename="document"; filename*=UTF-8''${encodeURIComponent(d.name)}`,
       "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
@@ -451,18 +479,39 @@ export async function portalUpload(
     fail("Upload a PDF or DOCX.");
   const s = await share(db, a, shareId),
     checksum = hash(bytes),
-    objectKey = `legal/${s.company_id}/${s.item_id}/external/${key}/${checksum}`,
     digest = hash(
       JSON.stringify({ userId: a.userId, shareId, name, mediaType, checksum }),
     );
-  await files.put(objectKey, bytes, {
-    onlyIf: { etagDoesNotMatch: "*" },
-    httpMetadata: { contentType: mediaType },
-    customMetadata: { legalItem: s.item_id },
-  });
+  const prior = await db
+    .prepare(
+      "SELECT request_hash,result_json FROM legal_portal_receipts WHERE id=? AND user_id=?",
+    )
+    .bind(key, a.userId)
+    .first<{ request_hash: string; result_json: string }>();
+  if (prior) {
+    if (prior.request_hash !== digest) fail("Upload key conflict.");
+    return JSON.parse(prior.result_json);
+  }
+  const canonical = await stagePortalAttachment(
+        db,
+        files,
+        a.userId,
+        {
+          companyId: s.company_id,
+          branchId: s.branch_id,
+          departmentId: s.department_id,
+          itemId: s.item_id,
+          itemVersion: Number(s.item_version),
+          shareId,
+        },
+        name,
+        mediaType,
+        bytes,
+        key,
+      );
   return db.transaction(async (tx) => {
     await lock(tx, s.company_id).run();
-    await share(tx, a, shareId);
+    const current = await share(tx, a, shareId);
     if (
       !(await tx
         .prepare("SELECT 1 FROM legal_settings WHERE company_id=? AND enabled")
@@ -470,30 +519,95 @@ export async function portalUpload(
         .first())
     )
       fail("Legal is read-only.");
-    const prior = await tx
+    const replay = await tx
       .prepare(
         "SELECT request_hash,result_json FROM legal_portal_receipts WHERE id=? AND user_id=?",
       )
       .bind(key, a.userId)
       .first<{ request_hash: string; result_json: string }>();
-    if (prior) {
-      if (prior.request_hash !== digest) fail("Upload key conflict.");
-      return JSON.parse(prior.result_json);
+    if (replay) {
+      if (replay.request_hash !== digest) fail("Upload key conflict.");
+      return JSON.parse(replay.result_json);
     }
+    if (
+      canonical &&
+      Number(current.item_version) !== canonical.expectedTargetVersion
+    )
+      fail(
+        "The legal record changed while the upload was being scanned. Upload it again.",
+        "LEGAL_VERSION_CONFLICT",
+        409,
+      );
     await tx
-      .prepare("INSERT INTO legal_external_uploads VALUES(?,?,?,?,?,?,?,?,?)")
+      .prepare(
+        `INSERT INTO legal_external_uploads(
+          id,share_id,object_key,checksum,name,media_type,bytes,created_by,created_at,attachment_link_id,attachment_source_id
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+      )
       .bind(
         key,
         shareId,
-        objectKey,
-        checksum,
+      canonical.objectKey,
+      canonical.checksum,
         name,
-        mediaType,
-        bytes.length,
+        canonical.mediaType,
+        canonical.bytes,
         a.userId,
         Date.now(),
+        canonical.linkId,
+        canonical.sourceId,
       )
       .run();
+    {
+      const now = Date.now();
+      await tx.batch([
+        tx
+          .prepare(
+            "UPDATE attachment_links SET state='bound',bound_at=?,binding_type='legal_portal_submission',binding_id=? WHERE id=? AND state='draft' AND attachment_id=?",
+          )
+          .bind(now, key, canonical.linkId, canonical.sourceId),
+        tx
+          .prepare(
+            "UPDATE attachment_sets SET state='bound',bound_at=?,bound_command_id=?,updated_at=? WHERE id=? AND state='draft' AND expected_target_version=?",
+          )
+          .bind(
+            now,
+            key,
+            now,
+            canonical.setId,
+            canonical.expectedTargetVersion,
+          ),
+        tx
+          .prepare(
+            "UPDATE legal_items SET version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?",
+          )
+          .bind(
+            now,
+            s.item_id,
+            s.company_id,
+            canonical.expectedTargetVersion,
+          ),
+        tx
+          .prepare(
+            "INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?,?,?,?)",
+          )
+          .bind(
+            `attachment-bind-${key}`,
+            s.company_id,
+            canonical.sourceId,
+            canonical.linkId,
+            canonical.setId,
+            a.userId,
+            "set.bound",
+            JSON.stringify({
+              bindingType: "legal_portal_submission",
+              bindingId: key,
+              portalShareId: shareId,
+            }),
+            now,
+          ),
+      ]);
+    }
     await tx
       .prepare(
         "INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) SELECT ?,id,'portal.upload',?,?,version,? FROM legal_items WHERE id=?",

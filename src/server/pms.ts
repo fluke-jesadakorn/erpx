@@ -34,8 +34,10 @@ import type { WorkContext } from "./authorization";
 import { executeCommand, replayCommand } from "./commands";
 import { requirePermission } from "./iam-permissions";
 import { prepareJournal } from "./finance";
+import { prepareAttachmentBinding } from "./attachments/service";
 import { ApiError } from "./http";
 import { holdingResources } from "./runtime";
+import { frontWorkspaceHref } from "./front-app";
 import {
   isTransactionalSqlDatabase,
   type SqlDatabase,
@@ -206,7 +208,7 @@ function visibleSnapshot(s: Snapshot, actor: WorkContext): Snapshot {
     };
   return result;
 }
-export async function pmsWorkspace(actor: WorkContext, propertyId?: string, includeDayControls=false) {
+export async function pmsWorkspace(actor: WorkContext, propertyId?: string, includeDayControls=false, frontMode=false) {
   requirePermission(actor, "pms.read");
   if (actor.departmentId || actor.beta)
     throw new ApiError(
@@ -229,10 +231,10 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
         ? write.transaction((tx) => loadPms(tx, actor, selected.id))
         : loadPms(write, actor, selected.id))
     : null;
-  const configuration =
+  const configuration = !frontMode && (
     hasPermission(actor, "pms.configure") ||
     hasPermission(actor, "pms.accounting.prepare") ||
-    hasPermission(actor, "pms.accounting.approve");
+    hasPermission(actor, "pms.accounting.approve"));
   const staff = await query<{ id: string; name: string }>(
     write,
     "SELECT DISTINCT a.user_id id,COALESCE(h.legal_name,a.user_id) name FROM assignments a LEFT JOIN hr_people h ON h.user_id=a.user_id AND h.company_id=a.company_id AND h.merged_into_id IS NULL WHERE a.company_id=? AND a.revoked_at IS NULL AND a.valid_from<=? AND a.valid_until>? AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=?)) ORDER BY name",
@@ -241,9 +243,9 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     Date.now(),
     selected?.branch_id ?? actor.branchId ?? "",
   );
-  const accounting =
+  const accounting = !frontMode && (
     hasPermission(actor, "pms.accounting.prepare") ||
-    hasPermission(actor, "pms.accounting.approve");
+    hasPermission(actor, "pms.accounting.approve"));
   const branches = configuration
     ? await query<{ id: string; name: string }>(
         write,
@@ -267,9 +269,9 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
       )
     : [];
   const parties =
-    hasPermission(actor, "pms.cashier") ||
+    !frontMode && (hasPermission(actor, "pms.cashier") ||
     hasPermission(actor, "pms.configure") ||
-    hasPermission(actor, "pms.reports")
+    hasPermission(actor, "pms.reports"))
       ? await query<{ id: string; name: string }>(
           write,
           "SELECT id,name FROM finance_parties WHERE company_id=? AND kind='customer' AND status='active' AND currency='THB' AND person_id IS NULL",
@@ -292,7 +294,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
       )
     : [];
   const docs =
-    s &&
+    !frontMode && s &&
     (hasPermission(actor, "pms.cashier") || hasPermission(actor, "pms.reports"))
       ? await query<{
           id: string;
@@ -312,7 +314,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     advance: number;
     deposit: number;
   } = null;
-  if (s && hasPermission(actor, "pms.reports")) {
+  if (!frontMode && s && hasPermission(actor, "pms.reports")) {
     const lines = await query<{
       account_id: string;
       debit: number;
@@ -334,9 +336,61 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
       deposit: -balance(s.property.config.accounts.deposit),
     };
   }
+  const snapshot = s ? visibleSnapshot(s, actor) : null;
+  if (frontMode && snapshot) {
+    const { currency, minorUnit, timezone } = snapshot.property.config;
+    snapshot.property.config = {
+      country: "",
+      currency,
+      minorUnit,
+      timezone,
+      checkIn: "",
+      checkOut: "",
+      cancellationPolicy: "",
+      chartId: "",
+      taxBps: 0,
+      serviceBps: 0,
+      taxInclusive: false,
+      advanceTax: false,
+      preparedBy: "",
+      approvedBy: null,
+      revision: 0,
+      accounts: Object.fromEntries(pmsAccountKeys.map((key) => [key, ""])) as Config["accounts"],
+    };
+    snapshot.records = snapshot.records
+      .filter((row) => {
+      const rowData = row.data as { requestedBy?: string; userId?: string };
+      return ["room_type", "room", "rate", "guest", "reservation", "stay", "folio", "entry", "task", "block", "shift", "refund", "night"].includes(row.kind) &&
+        row.kind !== "credit" &&
+        (row.kind !== "refund" || rowData.requestedBy === actor.userId) &&
+        (row.kind !== "shift" || rowData.userId === actor.userId);
+      })
+      .map((row) => row.kind === "entry"
+        ? { ...row, data: { ...row.data, sourceKey: "front" } }
+        : row);
+  }
+  const frontPermissions = [
+    "pms.read",
+    "pms.reservations",
+    "pms.frontdesk",
+    "pms.cashier",
+    "pms.housekeeping",
+    "pms.inspect",
+    "pms.maintenance",
+    "pms.audit",
+  ] as const;
+  const transferRequests = s && (hasPermission(actor, "pms.cashier") || hasPermission(actor, "finance.approve"))
+    ? await query<TransferRequestRow>(
+        write,
+        "SELECT * FROM pms_transfer_requests WHERE company_id=? AND property_id=? ORDER BY created_at DESC LIMIT 100",
+        actor.companyId,
+        s.property.id,
+      )
+      : [];
+  const readinessChecks = s ? readiness(s) : [];
   return {
     bookingDelivery:
-      s && hasPermission(actor, "pms.configure")
+      !frontMode && s && hasPermission(actor, "pms.configure")
         ? await query<{
             id: string;
             reservation_id: string;
@@ -349,15 +403,15 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
             s.property.id,
           )
         : [],
-    transferRequests: s && (hasPermission(actor,'pms.cashier') || hasPermission(actor,'finance.approve'))
-      ? await query<TransferRequestRow>(write,"SELECT * FROM pms_transfer_requests WHERE company_id=? AND property_id=? ORDER BY created_at DESC LIMIT 100",actor.companyId,s.property.id)
-      : [],
-    stripeConnectionReady: hasPermission(actor,'pms.cashier')&&Boolean(await write.prepare("SELECT 1 FROM pos_connections WHERE company_id=? AND state='ready' AND promptpay_enabled=true AND thb_bank_ready=true AND payout_interval='daily'").bind(actor.companyId).first()),
-    stripePayments: s&&hasPermission(actor,'pms.cashier')?await query<{id:string;folio_id:string;state:string;kind:string;amount_minor:number;refund_state:string|null;payer_email:string|null}>(write,"SELECT id,folio_id,state,kind,amount_minor,refund_state,payer_email FROM pms_stripe_payments WHERE property_id=? ORDER BY created_at DESC LIMIT 100",s.property.id):[],
-    bookingRefunds: hasPermission(actor,'finance.approve')&&!actor.branchId
+    transferRequests: frontMode
+      ? transferRequests.filter((row) => row.recorded_by === actor.userId)
+      : transferRequests,
+    stripeConnectionReady: !frontMode && hasPermission(actor,'pms.cashier')&&Boolean(await write.prepare("SELECT 1 FROM pos_connections WHERE company_id=? AND state='ready' AND promptpay_enabled=true AND thb_bank_ready=true AND payout_interval='daily'").bind(actor.companyId).first()),
+    stripePayments: !frontMode && s&&hasPermission(actor,'pms.cashier')?await query<{id:string;folio_id:string;state:string;kind:string;amount_minor:number;refund_state:string|null;payer_email:string|null}>(write,"SELECT id,folio_id,state,kind,amount_minor,refund_state,payer_email FROM pms_stripe_payments WHERE property_id=? ORDER BY created_at DESC LIMIT 100",s.property.id):[],
+    bookingRefunds: !frontMode && hasPermission(actor,'finance.approve')&&!actor.branchId
       ? await query<{id:string;property_id:string;amount_minor:number;status:string;refund_state:string;created_at:number;last_error:string|null}>(write,"SELECT id,property_id,amount_minor,status,refund_state,created_at,last_error FROM pms_booking_payments WHERE company_id=? AND refund_state IS NOT NULL ORDER BY created_at DESC LIMIT 100",actor.companyId)
       : [],
-    transferBankEvidence: s && hasPermission(actor,'finance.approve')
+    transferBankEvidence: !frontMode && s && hasPermission(actor,'finance.approve')
       ? await query<{id:string;transaction_date:string;external_id:string;amount_minor:number;currency:string;version:number}>(write,`SELECT t.id,t.transaction_date,t.external_id,t.amount_minor,t.currency,t.version
         FROM finance_bank_transactions t JOIN finance_bank_statements b ON b.id=t.statement_id
         WHERE t.company_id=? AND b.bank_account=? AND t.currency=? AND t.amount_minor>0 AND t.match_status IN ('unmatched','proposed')
@@ -376,21 +430,23 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
       state: r.state,
       businessDate: r.business_date,
     })),
-    snapshot: s ? visibleSnapshot(s, actor) : null,
-    readiness: s ? readiness(s) : [],
-    permissions: pmsPermissions.filter((k) => hasPermission(actor, k)),
+    snapshot,
+    readiness: readinessChecks,
+    frontReady: frontMode ? Boolean(s && s.property.state === "open" && readinessChecks.length === 0) : undefined,
+    canManageSetup: hasPermission(actor, "pms.configure") || hasPermission(actor, "pms.accounting.prepare") || hasPermission(actor, "pms.accounting.approve"),
+    permissions: (frontMode ? frontPermissions : pmsPermissions).filter((k) => hasPermission(actor, k)),
     availablePaymentMethods: ['cash'],
     userId: actor.userId,
     branches,
     staff,
-    accounts,
-    charts,
-    parties,
-    products,
-    warehouses,
-    documents: docs,
-    ledger,
-    dayControls:s && includeDayControls && (hasPermission(actor,'pms.audit')||hasPermission(actor,'pms.reports'))
+    accounts: frontMode ? [] : accounts,
+    charts: frontMode ? [] : charts,
+    parties: frontMode ? [] : parties,
+    products: frontMode ? [] : products,
+    warehouses: frontMode ? [] : warehouses,
+    documents: frontMode ? [] : docs,
+    ledger: frontMode ? null : ledger,
+    dayControls:s && includeDayControls && (hasPermission(actor,'pms.audit')||(!frontMode&&hasPermission(actor,'pms.reports')))
       ? await hospitalityDayControls(write,actor.companyId,s.property.branchId,s.property.id,s.property.businessDate)
       : null,
   };
@@ -994,6 +1050,89 @@ export async function pmsCommand(
             "Hotel data changed. Load the latest version and review again",
           );
       }
+      let attachmentBinding: Awaited<ReturnType<typeof prepareAttachmentBinding>> | null = null;
+      if (command.attachmentSetIds.length) {
+        if (!["task.complete", "lost.release", "ota.settle"].includes(op))
+          throw new ApiError(
+            422,
+            "PMS_ATTACHMENT_ACTION",
+            "Files can be bound only to room-task completion, lost-property release, or OTA settlement.",
+          );
+        const targetId = op === "ota.settle"
+          ? s.property.id
+          : z.object({ id: idField }).parse(command.input).id;
+        const targetRecord = op === "task.complete"
+          ? records(s, "task").find((row) => row.id === targetId)
+          : op === "lost.release"
+            ? records(s, "lost").find((row) => row.id === targetId)
+            : undefined;
+        const descriptor = op === "task.complete"
+          ? {
+              targetType: "pms_task",
+              purposes: new Set(["room_photo", "damage_photo"]),
+              bindingType: "pms_task_completion",
+              expectedTargetVersion: targetRecord?.version,
+            }
+          : op === "lost.release"
+            ? {
+                targetType: "pms_lost_property",
+                purposes: new Set(["handover_evidence"]),
+                bindingType: "pms_lost_property_release",
+                expectedTargetVersion: targetRecord?.version,
+              }
+            : op === "ota.settle"
+              ? {
+                  targetType: "pms_property",
+                  purposes: new Set(["ota_reconciliation"]),
+                  bindingType: "pms_ota_settlement",
+                  expectedTargetVersion: s.property.version,
+                }
+              : null;
+        if (!descriptor)
+          throw new ApiError(
+            422,
+            "PMS_ATTACHMENT_ACTION",
+            "Files can be bound only to room-task completion, lost-property release, or OTA settlement.",
+          );
+        if (descriptor.expectedTargetVersion === undefined)
+          throw new ApiError(404, "PMS_ATTACHMENT_TARGET", "Attachment target not found in this hotel");
+        const placeholders = command.attachmentSetIds.map(() => "?").join(",");
+        const sets = (
+          await tx
+            .prepare(
+              `SELECT id,purpose_key,component_kind,component_ref FROM attachment_sets WHERE company_id=? AND id IN (${placeholders})`,
+            )
+            .bind(actor.companyId, ...command.attachmentSetIds)
+            .all<{ id: string; purpose_key: string; component_kind: string; component_ref: string | null }>()
+        ).results;
+        if (
+          sets.length !== new Set(command.attachmentSetIds).size ||
+          sets.some(
+            (set) =>
+              set.component_kind !== "action" ||
+              set.component_ref !== op ||
+              !descriptor.purposes.has(set.purpose_key),
+          )
+        )
+          throw new ApiError(
+            422,
+            "PMS_ATTACHMENT_PURPOSE",
+            "Choose only evidence created for this PMS action.",
+          );
+        attachmentBinding = await prepareAttachmentBinding(tx, actor, {
+          attachmentSetIds: command.attachmentSetIds,
+          bindingContract: {
+            targetType: descriptor.targetType,
+            bindingType: descriptor.bindingType,
+            contexts: [...descriptor.purposes].map(purposeKey => ({ purposeKey, componentKind: "action" as const, componentRef: op })),
+          },
+          targetId,
+          expectedTargetVersion: descriptor.expectedTargetVersion,
+          commandId: key,
+          bindingId: `${targetId}:${op}:${descriptor.expectedTargetVersion + 1}`,
+        });
+        await tx.batch(attachmentBinding.guards);
+      }
       if (op === 'payment.request_transfer') {
         if (s.property.state !== 'open') throw new ApiError(409,'PMS_DAY_CLOSING','The hotel day is not open for a new transfer');
         const v=z.object({folioId:idField,shiftId:idField,amount:z.number().int().positive().max(99999999999),reference:z.string().trim().min(2).max(150),kind:z.enum(['receipt','deposit']).default('receipt')}).parse(command.input);
@@ -1023,6 +1162,13 @@ export async function pmsCommand(
       let verifiedTransfer:TransferRequestRow|null=null;
       let matchedBankId:string|null=null;
       let engineOp=op,engineInput=command.input;
+      if(op==='reservation.create' && command.input && typeof command.input==='object'){
+        const campaignCode=(command.input as Record<string,unknown>).campaignCode;
+        if(typeof campaignCode==='string' && campaignCode.trim()){
+          const campaign=await tx.prepare('SELECT 1 FROM marketing_campaigns WHERE company_id=? AND code=?').bind(actor.companyId,campaignCode.trim()).first();
+          if(!campaign)throw new ApiError(422,'PMS_CAMPAIGN_UNKNOWN','Select a campaign code registered for this company.');
+        }
+      }
       if (op === 'payment.verify_transfer') {
         if (s.property.state!=='open') throw new ApiError(409,'PMS_DAY_CLOSING','The hotel day must be open to verify a transfer');
         const v=z.object({id:idField,expectedTransferVersion:z.number().int().positive(),bankTransactionId:idField,bankVersion:z.number().int().positive()}).parse(command.input);
@@ -1159,7 +1305,7 @@ export async function pmsCommand(
         target,
         s.property.version,
         result,
-        [],
+        attachmentBinding?.steps ?? [],
         {
           companyId: s.property.companyId,
           branchId: s.property.branchId,
@@ -1244,6 +1390,7 @@ export async function pmsWork(actor: WorkContext): Promise<WorkItem[]> {
     actor.companyId,
     ...(actor.branchId ? [actor.branchId] : []),
   );
+  const frontBase = await frontWorkspaceHref(actor, "pms");
   const items: WorkItem[] = [];
   for (const row of properties) {
     const s = await loadPms(write, actor, row.id);
@@ -1261,7 +1408,7 @@ export async function pmsWork(actor: WorkContext): Promise<WorkItem[]> {
           type: "pms",
           title: `${row.name} · Verify hotel bank transfer`,
           detail: `${transfer.currency} ${(Number(transfer.amount_minor) / 100).toFixed(2)} · ${transfer.reference}`,
-          href: `/pms/folios?property=${row.id}`,
+          href: `/pms/folios?property=${encodeURIComponent(row.id)}&queue=approval`,
           status: "pending",
           updatedAt: Number(transfer.updated_at),
           queue: "todo",
@@ -1282,7 +1429,7 @@ export async function pmsWork(actor: WorkContext): Promise<WorkItem[]> {
           type: "pms",
           title: `${row.name} · ${record(s, "room", r.data.roomId).data.number} · ${r.data.type}`,
           detail: r.data.notes || "Room task",
-          href: `/pms/housekeeping?property=${row.id}`,
+          href: `${frontBase ?? "/pms/"}housekeeping?property=${encodeURIComponent(row.id)}&task=${encodeURIComponent(r.id)}`,
           status: r.data.state,
           updatedAt: r.updatedAt,
           queue: "todo",
@@ -1302,7 +1449,7 @@ export async function pmsWork(actor: WorkContext): Promise<WorkItem[]> {
           type: "pms",
           title: `${row.name} · Approve refund`,
           detail: r.data.reason,
-          href: `/pms/folios?property=${row.id}`,
+          href: `/pms/folios?property=${encodeURIComponent(row.id)}&queue=approval`,
           status: r.data.state,
           updatedAt: r.updatedAt,
           queue: "todo",
@@ -1315,7 +1462,7 @@ export async function pmsWork(actor: WorkContext): Promise<WorkItem[]> {
           type: "pms",
           title: `${row.name} · Close day pending`,
           detail: r.data.message,
-          href: `/pms/night-audit?property=${row.id}`,
+          href: `${frontBase ?? "/pms/"}night-audit?property=${encodeURIComponent(row.id)}&night=${encodeURIComponent(r.id)}`,
           status: r.data.state,
           updatedAt: r.updatedAt,
           queue: "todo",

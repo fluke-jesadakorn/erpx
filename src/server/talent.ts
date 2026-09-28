@@ -625,7 +625,7 @@ export async function talentDetail(a: WorkContext, id: string) {
   const { write } = await holdingResources(a.holdingId),
     application = await write
       .prepare(
-        `SELECT a.*,r.job_title,r.branch_id,r.department_id,c.legal_name candidate_name,c.email candidate_email,c.retention_until,CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id JOIN talent_candidates c ON c.id=a.candidate_id WHERE a.id=? AND a.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)`,
+        `SELECT a.*,r.job_title,r.branch_id,r.department_id,c.legal_name candidate_name,c.email candidate_email,c.retention_until,c.version candidate_version,CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id JOIN talent_candidates c ON c.id=a.candidate_id WHERE a.id=? AND a.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)`,
       )
       .bind(id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId)
       .first<Row>();
@@ -665,6 +665,7 @@ export async function talentDetail(a: WorkContext, id: string) {
     handoff,
     actorId: a.userId,
     canReview: true,
+    canManageDocuments: hasPermission(a, "talent.documents.manage"),
   };
 }
 export type TalentExecutiveEvidenceMetric = "open-requisitions" | "application-stage-counts";

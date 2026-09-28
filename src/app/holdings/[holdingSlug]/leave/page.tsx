@@ -24,13 +24,13 @@ export default async function LeavePage({
   const filterValue = typeof query.filter === "string" ? query.filter : "all";
   const parsedFilter = leaveListFilterSchema.safeParse(filterValue);
   return (
-    <main className="content" data-source="live">
+    <div className="content" data-source="live">
       <LeaveSelfService
         base={workspaceBase(publicScope(actor))}
         initial={summary}
         initialMonth={initialMonth}
         initialFilter={parsedFilter.success ? parsedFilter.data : "all"}
       />
-    </main>
+    </div>
   );
 }

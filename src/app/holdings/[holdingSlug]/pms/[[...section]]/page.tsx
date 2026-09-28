@@ -7,13 +7,15 @@ import { pageError } from "@/server/page-error";
 import { companyFeatureCatalogue } from "@/server/hospitality-rollout";
 import { pmsCrossLinks } from "@/lib/pms-cross-links";
 import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
+import { frontWorkspaceHref } from "@/server/front-app";
 export const dynamic = "force-dynamic";
 export default async function PmsPage({
   params,
   searchParams,
 }: {
   params: Promise<{ holdingSlug: string; section?: string[] }>;
-  searchParams: Promise<{ property?: string; folio?: string }>;
+  searchParams: Promise<{ property?: string; folio?: string; queue?: string; task?: string; night?: string }>;
 }) {
   const { holdingSlug, section } = await params;
   if (
@@ -23,6 +25,17 @@ export default async function PmsPage({
     notFound();
   const search = await searchParams,
     actor = await requireWorkContext(holdingSlug);
+  const frontHref = await frontWorkspaceHref(actor, "pms");
+  const dailySections = new Set(["dashboard", "reservations", "front-desk", "rooms", "housekeeping", "folios", "cashier", "night-audit"]);
+  const requestedSection = section?.[0] ?? "dashboard";
+  const approvalRoute = requestedSection === "folios" && search.queue === "approval";
+  if (frontHref && dailySections.has(requestedSection) && !approvalRoute) {
+    const target = requestedSection === "dashboard" ? frontHref : frontHref + requestedSection;
+    const query = new URLSearchParams();
+    for (const [key, value] of Object.entries({ property: search.property, folio: search.folio, task: search.task, night: search.night }))
+      if (value) query.set(key, value);
+    redirect(`${target}${query.size ? "?" + query : ""}`);
+  }
   let data;
   try {
     data = await pmsWorkspace(actor, search.property, section?.[0] === "night-audit");
@@ -34,6 +47,7 @@ export default async function PmsPage({
         .filter((entry) => ["Available", "Pilot", "Setup required"].includes(entry.state))
         .map((entry) => entry.id))
     : null;
+  const frontPosHref = await frontWorkspaceHref(actor, "pos");
   return (
     <PmsWorkspaceView
       initial={data}
@@ -41,6 +55,8 @@ export default async function PmsPage({
       section={section?.[0] ?? "dashboard"}
       selectedFolio={search.folio}
       crossLinks={pmsCrossLinks(actor, enabled ?? undefined)}
+      frontHref={frontHref ?? undefined}
+      frontPosHref={frontPosHref ?? undefined}
     />
   );
 }

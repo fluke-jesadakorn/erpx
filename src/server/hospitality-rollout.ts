@@ -8,7 +8,11 @@ import { holdingResources } from './runtime';
 import type { SqlDatabase } from './runtime/types';
 import { ApiError } from './http';
 import { requirePermission } from './iam-permissions';
-import { assertion, executeCommand } from './commands';
+import { assertion, executeCommand, replayCommand } from './commands';
+import { acceptedReleasePredicate, companyReleaseStatus } from './release-acceptance';
+import { productionScope } from '@/data/production-scope';
+import artifact from '@/data/release-artifact.json';
+import { authorityGuard } from './staff-policy';
 
 const changeSchema = z.object({
   moduleId: z.string().min(1).max(80),
@@ -47,18 +51,21 @@ export async function companyFeatureCatalogue(actor: WorkContext) {
     .bind(actor.companyId).all<RolloutRow>()).results;
   const rollout = new Map(rows.map((row) => [row.module_id,row]));
   const ready = await setupReadiness(write,actor.companyId);
+  const release = await companyReleaseStatus(write,actor.companyId);
   const production = process.env.NODE_ENV === 'production';
   return moduleRegistry.map((module) => {
     const row = rollout.get(module.id);
-    const accepted = productionAccepted(module.id);
+    const accepted = release.state === 'passed';
     const setupChecked = module.id in ready;
     const setupReady = ready[module.id] ?? false;
-    const state = resolveFeatureState({moduleId:module.id,production,rollout:row?.rollout_state,setupReady,productionAccepted:accepted,businessAccepted:false});
+    const state = resolveFeatureState({moduleId:module.id,production,rollout:row?.rollout_state,setupReady,productionAccepted:accepted,businessAccepted:accepted});
     return {
       id: module.id, name: module.name, state,
       delivery: moduleAvailability(module),
       rollout: row?.rollout_state ?? 'off', version: row?.version ?? 0,
-      setupReady, setupChecked, productionAccepted: accepted, businessAccepted: false,
+      setupReady, setupChecked, productionAccepted: accepted, businessAccepted: accepted,
+      inventoryAccepted: productionAccepted(module.id),
+      scopeVersion: productionScope.version,
       environment: production ? 'production' : 'development',
       permitted: hasModuleAccess(actor.modules,module.id),
       ...(row ? { reason: row.reason, changedAt: row.changed_at } : {}),
@@ -70,19 +77,29 @@ export async function changeCompanyFeatureRollout(actor: WorkContext, raw: unkno
   requirePermission(actor,'organization.manage');
   if (actor.branchId || actor.departmentId) throw new ApiError(403,'FEATURE_COMPANY_REQUIRED','Manage rollout from the company workspace');
   const input = changeSchema.parse(raw);
-  if (!moduleRegistry.some((module) => module.id === input.moduleId)) throw new ApiError(404,'FEATURE_NOT_FOUND','Feature not found');
-  if (input.state === 'pilot' && !isPilotModule(input.moduleId))
-    throw new ApiError(409,'FEATURE_FUTURE_GATE','This feature needs a separate approved release cut');
-  if (input.state === 'available' && !(await import('./hospitality-evidence')).productionAccepted(input.moduleId))
-    throw new ApiError(409,'FEATURE_ACCEPTANCE_REQUIRED','Automated, browser, and production evidence must be accepted before general availability');
-  if (input.state === 'available')
-    throw new ApiError(409,'FEATURE_BUSINESS_ACCEPTANCE_REQUIRED','Independent hotel operations and Finance acceptance is required before general availability');
   const { write } = await holdingResources(actor.holdingId);
+  const commandId = `feature:${actor.companyId}:${input.moduleId}`;
+  const prior = await replayCommand(write,actor,key,'feature.rollout.change',commandId,input); if(prior)return prior;
+  if (!moduleRegistry.some((module) => module.id === input.moduleId)) throw new ApiError(404,'FEATURE_NOT_FOUND','Feature not found');
+  if (input.state !== 'off' && !isPilotModule(input.moduleId))
+    throw new ApiError(409,'FEATURE_FUTURE_GATE','This feature needs a separate approved release cut');
+  const release = input.state === 'available' ? await companyReleaseStatus(write,actor.companyId) : null;
+  if (input.state === 'available' && release?.state !== 'passed')
+    throw new ApiError(409,'FEATURE_ACCEPTANCE_REQUIRED','All criteria for this Company, scope, build and configuration require independent release acceptance');
   const nextVersion = input.expectedVersion + 1;
   const now = Date.now();
-  const commandId = `feature:${actor.companyId}:${input.moduleId}`;
   return executeCommand(write,actor,key,'feature.rollout.change',input,commandId,nextVersion,
     {id:input.moduleId,state:input.state,version:nextVersion},[
+      authorityGuard(write,key,actor,'organization.manage'),
+      ...(release?.release ? [
+        write.prepare('SELECT revision FROM company_release_revisions WHERE company_id=? FOR SHARE').bind(actor.companyId),
+        write.prepare('SELECT id FROM company_release_acceptances WHERE id=? FOR SHARE').bind(release.release.id),
+        assertion(write,key,'feature-release',`EXISTS(SELECT 1 FROM company_release_acceptances r JOIN company_release_revisions c ON c.company_id=r.company_id
+          WHERE r.id=? AND r.company_id=? AND r.version=? AND r.revoked_at IS NULL AND r.configuration_revision=c.revision
+          AND r.scope_version=? AND r.software_version=?)`,
+          [release.release.id,actor.companyId,release.release.version,productionScope.version,artifact.softwareVersion]),
+        assertion(write,key,'feature-release-reviewers',acceptedReleasePredicate('?'),[actor.companyId]),
+      ] : []),
       assertion(write,key,'feature-rollout-version',
         'COALESCE((SELECT version FROM company_feature_rollouts WHERE company_id=? AND module_id=?),0)=?',
         [actor.companyId,input.moduleId,input.expectedVersion]),
@@ -138,8 +155,8 @@ export async function assertProductionFeatureRoute(db: SqlDatabase, companyId: s
     if (['ai-providers','assistant','business-readiness','companies','navigation','page-layouts'].includes(root)) return;
     throw new ApiError(403,'FEATURE_COMING_SOON','This command is outside the approved hotel pilot');
   }
-  const enabled=(await db.prepare(`SELECT module_id FROM company_feature_rollouts
-    WHERE company_id=? AND module_id IN (${modules.map(()=>'?').join(',')}) AND rollout_state IN ('pilot','available')`)
+  const enabled=(await db.prepare(`SELECT module_id FROM company_feature_rollouts f
+    WHERE company_id=? AND module_id IN (${modules.map(()=>'?').join(',')}) AND ${activeRolloutPredicate('f')}`)
     .bind(companyId,...modules).all<{module_id:string}>()).results;
   if (!enabled.length) throw new ApiError(403,'FEATURE_COMING_SOON','This company has not activated this workflow for the pilot');
 }
@@ -147,7 +164,7 @@ export async function assertProductionFeatureRoute(db: SqlDatabase, companyId: s
 export async function assertProductionModuleEnabled(db: SqlDatabase, companyId: string, moduleId: string) {
   if (process.env.NODE_ENV !== 'production') return;
   if (!isPilotModule(moduleId)) throw new ApiError(403,'FEATURE_COMING_SOON','This feature is outside the approved hotel pilot');
-  const row=await db.prepare("SELECT 1 FROM company_feature_rollouts WHERE company_id=? AND module_id=? AND rollout_state IN ('pilot','available')")
+  const row=await db.prepare(`SELECT 1 FROM company_feature_rollouts f WHERE company_id=? AND module_id=? AND ${activeRolloutPredicate('f')}`)
     .bind(companyId,moduleId).first();
   if (!row) throw new ApiError(403,'FEATURE_COMING_SOON','This company has not activated this workflow for the pilot');
 }
@@ -157,7 +174,7 @@ export function productionFeatureGuard(db: SqlDatabase, key: string, companyId: 
   if (process.env.NODE_ENV !== 'production') return [];
   if (!isPilotModule(moduleId)) throw new ApiError(403,'FEATURE_COMING_SOON','This feature is outside the approved hotel pilot');
   return [db.prepare('SELECT module_id FROM company_feature_rollouts WHERE company_id=? AND module_id=? FOR SHARE').bind(companyId,moduleId),assertion(db,key,'feature-rollout',
-    "EXISTS(SELECT 1 FROM company_feature_rollouts WHERE company_id=? AND module_id=? AND rollout_state IN ('pilot','available'))",
+    `EXISTS(SELECT 1 FROM company_feature_rollouts f WHERE company_id=? AND module_id=? AND ${activeRolloutPredicate('f')})`,
     [companyId,moduleId])];
 }
 
@@ -165,5 +182,15 @@ export function productionFeatureGuard(db: SqlDatabase, key: string, companyId: 
 export function scheduledFeaturePredicate(companyExpression: string, moduleId: string) {
   if (process.env.NODE_ENV !== 'production') return 'TRUE';
   if (!isPilotModule(moduleId)) return 'FALSE';
-  return `EXISTS(SELECT 1 FROM company_feature_rollouts f WHERE f.company_id=${companyExpression} AND f.module_id='${moduleId}' AND f.rollout_state IN ('pilot','available'))`;
+  return `EXISTS(SELECT 1 FROM company_feature_rollouts f WHERE f.company_id=${companyExpression} AND f.module_id='${moduleId}' AND ${activeRolloutPredicate('f')})`;
+}
+
+function activeRolloutPredicate(alias: string) {
+  return `(${alias}.rollout_state='pilot' OR (${alias}.rollout_state='available' AND ${acceptedReleasePredicate(`${alias}.company_id`)}))`;
+}
+
+export async function enabledProductionModules(db: SqlDatabase, companyId: string) {
+  const rows = (await db.prepare(`SELECT module_id FROM company_feature_rollouts f WHERE f.company_id=? AND ${activeRolloutPredicate('f')}`)
+    .bind(companyId).all<{ module_id: string }>()).results;
+  return new Set(rows.map(row=>row.module_id).filter(isPilotModule));
 }

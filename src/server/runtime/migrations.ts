@@ -55,7 +55,13 @@ export async function migrateDatabase(db: PostgresDatabase, track: string, root 
         const repairedLeavePredecessor = track === 'holding-write' && name === '0041_leave_self_service.sql'
           && previous.rows[0].checksum === 'fb926c55f087b296c11f0f3356a32c2473bd3c56ea13834f25f186564da9038a'
           && checksum === '0b964e468801e0d410cbcce5e1b8f5d3c4cc85d095d51ec38feaa0d6844e007e';
-        if (previous.rows[0].checksum !== checksum && !repairedLeavePredecessor) throw new Error(`MIGRATION_CHANGED:${track}:${name}`);
+        // A development-only 0293 receipt included one additional trailing
+        // newline. Pin both exact hashes so the canonical SQL can proceed
+        // without rewriting an applied migration receipt.
+        const canonicalizedExecutiveEvidence = track === 'holding-write' && name === '0293_executive_evidence.sql'
+          && previous.rows[0].checksum === '250b2bbc409499b500d4dfc3b667c3e9bd849a15d04749cf3047c804563790e9'
+          && checksum === 'd713f4a01ef10cee409bc5a6cc40471154691a4d98903539cc698bf0bfd3964b';
+        if (previous.rows[0].checksum !== checksum && !repairedLeavePredecessor && !canonicalizedExecutiveEvidence) throw new Error(`MIGRATION_CHANGED:${track}:${name}`);
         continue;
       }
       await client.query('BEGIN');

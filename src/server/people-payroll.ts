@@ -13,9 +13,15 @@ import { ApiError } from "@/server/http";
 import { sha256 } from "@/server/crypto";
 import { decimalToMinor, minorToDecimal } from "@/lib/finance-money";
 import { calculatePayrollAmounts } from "@/lib/payroll-math";
+import {
+  calculateThaiHotelPayrollFixture,
+  isThaiHotelPayrollMockEnabled,
+  thaiHotelPayrollMockId,
+} from "./simulation-only-adapters";
 import { assertion,executeCommand,replayCommand } from "./commands";
 import { directoryPerson, canReadCompensation,canManagePeople } from "./people-directory";
 import { prepareJournal } from "./finance";
+import { prepareAttachmentBinding } from "./attachments/service";
 
 const country = z.string().length(2).transform((value) => value.toUpperCase());
 const currency = z.string().length(3).transform((value) => value.toUpperCase());
@@ -138,6 +144,7 @@ export const payrollPostSchema = z.object({
 export const payrollCorrectionRequestSchema = z.object({
   expectedVersion: z.number().int().positive(),
   reason: z.string().trim().min(3).max(2000),
+  attachmentSetIds: z.array(z.string().min(1)).max(20).default([]),
 });
 export const payrollCorrectionDecisionSchema = z.object({
   expectedVersion: z.number().int().positive(),
@@ -212,7 +219,16 @@ export async function getPerson(actor: WorkContext, personId: string) {
   ]) : [{results:[]},{results:[]}];
   if (!privateAccess) { person.phone=null; }
   const revisions=privateAccess?(await write.prepare("SELECT * FROM hr_compensation_revisions WHERE engagement_id=? ORDER BY effective_from DESC,created_at DESC").bind(person.engagement_id).all()).results:[];
-  return {person:{...person,...compensation},leave:leave.results,time:time.results,privateAccess,revisions};
+  const recommendedPay=privateAccess&&person.position_id?(await write.prepare("SELECT currency,monthly_amount_minor,version FROM position_pay_defaults WHERE company_id=? AND position_id=? ORDER BY version DESC LIMIT 1").bind(actor.companyId,person.position_id).first<{currency:string;monthly_amount_minor:number;version:number}>()):null;
+  const recommendedLeave=person.level_id?(await write.prepare(`SELECT p.name,d.version,
+    max(CASE WHEN t.code='annual' THEN r.grant_units END) annual_days,
+    max(CASE WHEN t.code='sick' THEN r.grant_units END) sick_days
+    FROM level_leave_defaults d JOIN leave_policy_versions p ON p.id=d.policy_version_id
+    JOIN leave_policy_rules r ON r.policy_version_id=p.id JOIN leave_types t ON t.id=r.leave_type_id
+    WHERE d.company_id=? AND d.level_id=? AND d.version=(SELECT max(x.version) FROM level_leave_defaults x WHERE x.company_id=d.company_id AND x.level_id=d.level_id)
+    GROUP BY p.name,d.version`).bind(actor.companyId,person.level_id).first<{name:string;version:number;annual_days:number;sick_days:number}>()):null;
+  const leaveAssignment=person.engagement_id?(await write.prepare(`SELECT p.name,p.version,a.effective_from,a.effective_to FROM leave_policy_assignments a JOIN leave_policy_versions p ON p.id=a.policy_version_id WHERE a.company_id=? AND a.engagement_id=? AND a.effective_from<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (a.effective_to IS NULL OR a.effective_to>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')) ORDER BY a.effective_from DESC LIMIT 1`).bind(actor.companyId,person.engagement_id).first<{name:string;version:number;effective_from:string;effective_to:string|null}>()):null;
+  return {person:{...person,...compensation},leave:leave.results,time:time.results,privateAccess,revisions,recommendedPay,recommendedLeave,leaveAssignment};
 }
 
 export async function peopleSummary(actor: WorkContext) {
@@ -324,18 +340,25 @@ export async function createTimeEntry(actor:WorkContext,input:z.infer<typeof tim
     write.prepare("INSERT INTO hr_time_entries(id,engagement_id,company_id,work_date,regular_hours,overtime_hours,note,status,submitted_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'submitted',?,?,?)").bind(id,input.engagementId,actor.companyId,input.workDate,input.regularHours,input.overtimeHours,input.note,actor.userId,Date.now(),Date.now()),
   ]);
 }
-export const timeEntryUpdateSchema = timeEntrySchema.omit({engagementId:true}).extend({expectedVersion:z.number().int().positive()});
+export const timeEntryUpdateSchema = timeEntrySchema.omit({engagementId:true}).extend({
+  expectedVersion:z.number().int().positive(),
+  attachmentSetIds:z.array(z.string().min(1)).max(20).default([]),
+});
 export const timeEntryReviewSchema = z.object({expectedVersion:z.number().int().positive(),reason:z.string().trim().min(3).max(500)});
 export async function updateTimeEntry(actor:WorkContext,entryId:string,input:z.infer<typeof timeEntryUpdateSchema>,key:string){
   const {write}=await holdingResources(actor.holdingId);
   const previous=await replayCommand(write,actor,key,"people.time.update",entryId,input);if(previous)return previous;
   const entry=await write.prepare("SELECT t.*,e.start_date,e.end_date FROM hr_time_entries t JOIN hr_engagements e ON e.id=t.engagement_id WHERE t.id=? AND t.company_id=? AND t.submitted_by=? AND e.status='active' AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)").bind(entryId,actor.companyId,actor.userId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first<Record<string,string|number|null>>();
   if(!entry)throw new ApiError(404,"TIME_ENTRY_NOT_FOUND","Time entry not found in your editable records.");
+  if(input.attachmentSetIds.length&&entry.status!=="rejected")throw new ApiError(409,"TIME_CORRECTION_EVIDENCE_STATE","Correction proof can be bound only while resubmitting a returned time entry.");
   if(input.regularHours+input.overtimeHours>24||input.regularHours+input.overtimeHours<=0)throw new ApiError(422,"INVALID_HOURS","Enter a positive total of at most 24 hours per day.");
   if(input.workDate<String(entry.start_date)||(entry.end_date&&input.workDate>String(entry.end_date)))throw new ApiError(422,"DATE_OUTSIDE_ENGAGEMENT","Work date must fall within the engagement.");
+  const attachmentBinding=input.attachmentSetIds.length?await prepareAttachmentBinding(write,actor,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:"time_entry",bindingType:"time_entry_correction",contexts:[{purposeKey:"corrected_entry_proof",componentKind:"action",componentRef:"correction-resubmission"}]},targetId:entryId,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:entryId}):null;
   return executeCommand(write,actor,key,"people.time.update",input,entryId,input.expectedVersion+1,{id:entryId,status:"submitted",version:input.expectedVersion+1},[
+    ...(attachmentBinding?.guards??[]),
     assertion(write,key,"editable-time","EXISTS(SELECT 1 FROM hr_time_entries WHERE id=? AND version=? AND status IN ('draft','submitted','rejected') AND submitted_by=?)",[entryId,input.expectedVersion,actor.userId]),
     write.prepare("UPDATE hr_time_entries SET work_date=?,regular_hours=?,overtime_hours=?,note=?,status='submitted',approved_by=NULL,rejection_reason=NULL,version=version+1,updated_at=? WHERE id=?").bind(input.workDate,input.regularHours,input.overtimeHours,input.note,Date.now(),entryId),
+    ...(attachmentBinding?.steps??[]),
   ]);
 }
 export async function rejectTimeEntry(actor:WorkContext,entryId:string,input:z.infer<typeof timeEntryReviewSchema>,key:string){
@@ -371,7 +394,7 @@ export async function createCountryPack(actor: WorkContext, input: z.infer<typeo
 export async function listCountryPacks(actor: WorkContext){actor = requirePermission(actor,"payroll.configuration.read");const {write}=await holdingResources(actor.holdingId);return (await write.prepare("SELECT id,country_code,version,status,effective_from,export_formats_json,validated_by,updated_at FROM hr_country_packs ORDER BY country_code,version DESC").all()).results;}
 export async function transitionCountryPack(actor: WorkContext,packId:string,input:z.infer<typeof countryPackTransitionSchema>,commandId:string){actor = requirePermission(actor,"people.compensation.approve");const {write}=await holdingResources(actor.holdingId);const prior=await replayCommand(write,actor,commandId,`people.country-pack.${input.status}`,packId,input);if(prior)return prior;const pack=await write.prepare("SELECT status FROM hr_country_packs WHERE id=?").bind(packId).first<{status:string}>();if(!pack)throw new ApiError(404,"COUNTRY_PACK_NOT_FOUND","Country pack not found.");const allowed=(pack.status==="testing"&&input.status==="validated")||(pack.status==="validated"&&input.status==="active")||(pack.status==="active"&&input.status==="superseded");if(!allowed)throw new ApiError(409,"INVALID_COUNTRY_PACK_TRANSITION","Country pack status must progress testing → validated → active.");const now=Date.now();await executeCommand(write,actor,commandId,`people.country-pack.${input.status}`,input,packId,1,{id:packId,status:input.status},[assertion(write,commandId,"pack-status","EXISTS(SELECT 1 FROM hr_country_packs WHERE id=? AND status=?)",[packId,pack.status]),write.prepare("UPDATE hr_country_packs SET status=?,approval_evidence=?,validated_by=?,effective_from=CASE WHEN ?='active' THEN COALESCE(effective_from,?) ELSE effective_from END,updated_at=? WHERE id=? AND status=?").bind(input.status,input.proof,actor.userId,input.status,new Date().toISOString().slice(0,10),now,packId,pack.status)]);return {id:packId,status:input.status};}
 
-async function calculateItem(write: SqlDatabase, run: { id: string; company_id: string; period_start: string; period_end: string; currency: string }, engagement: { id: string; version:number; person_id: string; worker_type: string; employment_type: string; start_date: string; end_date: string | null; job_title: string },policy:{overtimeMultiplierBps:number;prorationMethod:"calendar_days"|"none"}) {
+async function calculateItem(write: SqlDatabase, run: { id: string; company_id: string; period_start: string; period_end: string; currency: string }, engagement: { id: string; version:number; person_id: string; worker_type: string; employment_type: string; start_date: string; end_date: string | null; job_title: string },policy:{overtimeMultiplierBps:number;prorationMethod:"calendar_days"|"none"},useSimulationAdapter:boolean) {
   const compensation = await write.prepare(`SELECT * FROM hr_compensation_revisions WHERE engagement_id=? AND status IN ('active','approved') AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC LIMIT 1`).bind(engagement.id,run.period_end,run.period_start).first<Record<string, string | number | null>>();
   const time = await write.prepare("SELECT id,version,regular_hours,overtime_hours FROM hr_time_entries WHERE engagement_id=? AND work_date BETWEEN ? AND ? AND status='approved' ORDER BY id").bind(engagement.id,run.period_start,run.period_end).all<{id:string;version:number;regular_hours:number;overtime_hours:number}>();
   const handoffs=(await write.prepare('SELECT id,request_id,request_version,minutes,work_date FROM overtime_payroll_handoffs WHERE engagement_id=? AND work_date BETWEEN ? AND ? ORDER BY id').bind(engagement.id,run.period_start,run.period_end).all<{id:string;request_id:string;request_version:number;minutes:number;work_date:string}>()).results;
@@ -393,8 +416,32 @@ async function calculateItem(write: SqlDatabase, run: { id: string; company_id: 
   }
   const day=86400000,periodDays=Math.floor((Date.parse(run.period_end)-Date.parse(run.period_start))/day)+1,activeStart=engagement.start_date>run.period_start?engagement.start_date:run.period_start,activeEnd=engagement.end_date&&engagement.end_date<run.period_end?engagement.end_date:run.period_end,activeDays=Math.floor((Date.parse(activeEnd)-Date.parse(activeStart))/day)+1,partial=activeDays!==periodDays;
   if(partial&&policy.prorationMethod==="none")throw new ApiError(422,"PRORATION_REQUIRED","This pay group does not permit automatic proration for partial-period employment.");
-  const calculated = calculatePayrollAmounts({ employmentType: engagement.employment_type as "salaried"|"hourly"|"shift"|"contractor", baseMinor: base, hourlyMinor: hourly, regularHours: regular, overtimeHours: overtime,overtimeMultiplierBps:policy.overtimeMultiplierBps,...(partial&&policy.prorationMethod==="calendar_days"?{prorationNumerator:activeDays,prorationDenominator:periodDays}:{}), components: components.filter((component): component is {code:string;label:string;kind:"earning"|"deduction"|"employer";amount:string} => ["earning","deduction","employer"].includes(component.kind)) });
-  const { gross, deductions, employer, net } = calculated; const inputSnapshot={engagement,compensation,hours,benefitInputs,advanceRepayments,period:{start:run.period_start,end:run.period_end},policy:{...policy,activeDays,periodDays}}; const result={grossMinor:gross,deductionsMinor:deductions,employerCostMinor:employer,netMinor:net,explanation:{baseMinor:base,hourlyRateMinor:hourly,regularHours:regular,overtimeHours:overtime,overtimeMultiplierBps:policy.overtimeMultiplierBps,activeDays,periodDays,components:calculated.applied}};
+  const normalizedComponents = components.filter((component): component is {code:string;label:string;kind:"earning"|"deduction"|"employer";amount:string} => ["earning","deduction","employer"].includes(component.kind));
+  const mockContext = useSimulationAdapter
+    ? components
+        .filter((component) => component.code.startsWith("MOCK_FIXTURE:") && component.kind === "ytd_context")
+        .map((component) => ({
+          ...component,
+          label: `MOCK ONLY · ${component.label}`,
+          amountMinor: decimalToMinor(component.amount),
+          includedInTotals: false,
+        }))
+    : [];
+  const payrollInput = { employmentType: engagement.employment_type as "salaried"|"hourly"|"shift"|"contractor", baseMinor: base, hourlyMinor: hourly, regularHours: regular, overtimeHours: overtime,overtimeMultiplierBps:policy.overtimeMultiplierBps,...(partial&&policy.prorationMethod==="calendar_days"?{prorationNumerator:activeDays,prorationDenominator:periodDays}:{}) };
+  const mockComponents = useSimulationAdapter
+    ? normalizedComponents
+        .filter((component) => component.code.startsWith("MOCK_FIXTURE:"))
+        .map((component) => ({ ...component, fixtureId: component.code }))
+    : [];
+  const ordinaryComponents = useSimulationAdapter
+    ? normalizedComponents.filter((component) => !component.code.startsWith("MOCK_FIXTURE:"))
+    : normalizedComponents;
+  const calculated = useSimulationAdapter
+    ? calculateThaiHotelPayrollFixture({ payroll: { ...payrollInput, components: ordinaryComponents }, fixtures: mockComponents })
+    : calculatePayrollAmounts({ ...payrollInput, components: ordinaryComponents });
+  const { gross, deductions, employer, net } = calculated;
+  const inputSnapshot={engagement,compensation,hours,benefitInputs,advanceRepayments,period:{start:run.period_start,end:run.period_end},policy:{...policy,activeDays,periodDays,...(useSimulationAdapter?{calculationAdapter:thaiHotelPayrollMockId,statutoryCalculation:false}:{})}};
+  const result={grossMinor:gross,deductionsMinor:deductions,employerCostMinor:employer,netMinor:net,...("adapter" in calculated?{adapter:calculated.adapter}:{}),explanation:{baseMinor:base,hourlyRateMinor:hourly,regularHours:regular,overtimeHours:overtime,overtimeMultiplierBps:policy.overtimeMultiplierBps,activeDays,periodDays,components:[...calculated.applied,...mockContext]}};
   return { itemId:`payitem-${crypto.randomUUID()}`, engagementId:engagement.id, personId:engagement.person_id, workerType:engagement.worker_type, inputSnapshot, result, gross, deductions, employer, net };
 }
 
@@ -509,7 +556,8 @@ export async function calculatePayrollRun(actor:WorkContext,runId:string,key=cry
   if(!engagements.results.length)throw new ApiError(422,"PAYROLL_EMPTY","Assign active employees to this pay group before calculating.");
   const group=await write.prepare("SELECT overtime_multiplier_bps,proration_method FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(run.pay_group_id,actor.companyId).first<{overtime_multiplier_bps:number;proration_method:"calendar_days"|"none"}>();if(!group)throw new ApiError(409,"PAY_GROUP_CHANGED","The pay group is no longer active.");
   const policy={overtimeMultiplierBps:Number(group.overtime_multiplier_bps),prorationMethod:group.proration_method};
-  const items=await Promise.all(engagements.results.map(e=>calculateItem(write,run,e,policy)));
+  const useSimulationAdapter=isThaiHotelPayrollMockEnabled(actor.holdingSlug);
+  const items=await Promise.all(engagements.results.map(e=>calculateItem(write,run,e,policy,useSimulationAdapter)));
   if(items.some(i=>!i.inputSnapshot.compensation||i.inputSnapshot.compensation.currency!==run.currency))throw new ApiError(422,"PAYROLL_INPUT_INCOMPLETE","Every employee needs approved compensation in the pay-group currency covering the full period.");
   if(items.some(i=>i.net<0))throw new ApiError(422,"NEGATIVE_NET_PAY","Review deductions exceeding gross pay.");
   const total=items.reduce((a,i)=>({gross:a.gross+i.gross,deductions:a.deductions+i.deductions,employer:a.employer+i.employer,net:a.net+i.net}),{gross:0,deductions:0,employer:0,net:0});if(Object.values(total).some(v=>!Number.isSafeInteger(v)))throw new ApiError(422,"MONEY_OVERFLOW","Payroll exceeds supported precision.");
@@ -618,8 +666,10 @@ export async function requestPayrollCorrection(actor:WorkContext,runId:string,in
   const {write}=await holdingResources(actor.holdingId),id=`payroll-correction-${key}`,previous=await replayCommand(write,actor,key,"people.payroll.correction.request",id,input);if(previous)return previous;
   const run=await write.prepare("SELECT id,status,version,revision,input_digest,totals_json FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,actor.companyId).first<{id:string;status:string;version:number;revision:number;input_digest:string|null;totals_json:string}>();
   if(!run)throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found.");if(run.status!=="approved"||run.version!==input.expectedVersion||!run.input_digest)throw new ApiError(409,"PAYROLL_CORRECTION_SOURCE_CHANGED","Only the current approved payroll revision can be returned for correction.");
+  const attachmentBinding=input.attachmentSetIds.length?await prepareAttachmentBinding(write,actor,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:"payroll_run",bindingType:"payroll_correction_request",contexts:[{purposeKey:"correction_support",componentKind:"action",componentRef:"correction-request"}]},targetId:runId,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:id}):null;
   const now=Date.now(),result={id,runId,status:"pending",version:1};
   return executeCommand(write,actor,key,"people.payroll.correction.request",input,id,1,result,[
+    ...(attachmentBinding?.guards??[]),
     assertion(write,key,"approved-run","EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='approved' AND version=? AND revision=? AND input_digest=?)",[runId,actor.companyId,input.expectedVersion,run.revision,run.input_digest]),
     write.prepare("INSERT INTO hr_payroll_corrections(id,run_id,company_id,run_version,run_revision,input_digest,totals_json,reason,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(id,runId,actor.companyId,run.version,run.revision,run.input_digest,run.totals_json,input.reason,actor.userId,now,now),
     write.prepare("INSERT INTO hr_payroll_correction_events(id,correction_id,run_id,company_id,action,actor_id,run_version,evidence_json,created_at) VALUES(?,?,?,?, 'requested',?,?,?,?)").bind(`payroll-correction-event-${key}`,id,runId,actor.companyId,actor.userId,run.version,JSON.stringify({reason:input.reason,runRevision:run.revision,inputDigest:run.input_digest,totals:JSON.parse(run.totals_json)}),now),
@@ -627,6 +677,7 @@ export async function requestPayrollCorrection(actor:WorkContext,runId:string,in
       SELECT 'payroll-correction-review-'||md5(?||':'||a.user_id),?,a.user_id,'payroll_correction',?,1,'Approved payroll needs an independent correction decision',?
       FROM assignments a WHERE a.company_id=? AND a.scope_kind='holding' AND a.revoked_at IS NULL AND iam_assignment_active(a.id,?) AND iam_role_allows(a.role,a.company_id,'payroll.approve') AND NOT iam_same_person(a.user_id,?,a.company_id)
       GROUP BY a.user_id ON CONFLICT DO NOTHING`).bind(id,actor.companyId,id,now,actor.companyId,now,actor.userId),
+    ...(attachmentBinding?.steps??[]),
   ]);
 }
 

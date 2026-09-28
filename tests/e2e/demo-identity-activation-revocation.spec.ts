@@ -13,7 +13,7 @@ type DemoUser = {
 type Credentials = { password: string; users: DemoUser[] };
 
 const base = "/holdings/simulation";
-const origin = "http://127.0.0.1:3102";
+const origin = (process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102");
 
 function authenticatorCode(secret: string, now = Date.now()) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";

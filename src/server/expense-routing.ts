@@ -357,7 +357,7 @@ async function readSpendingUsers(db:SqlDatabase, scope:RecordScope, role:string|
 }
 
 export async function expenseRoute(db:SqlDatabase, companyId:string, userId:string, excluded:string[]=[], departmentOnly=false, kind:SpendingKind="expense"):Promise<ApprovalRoute> {
-  if(departmentOnly)return legacyExpenseRoute(db,companyId,userId,excluded,true);
+  if(departmentOnly)return (await import("./department-authority")).departmentRoute(db,companyId,userId,excluded);
   let scope:RecordScope={company_id:companyId,branch_id:null,department_id:null};
   try {
     const guard=await expenseAuthoritySnapshot(db,companyId);
@@ -372,34 +372,18 @@ export async function expenseRoute(db:SqlDatabase, companyId:string, userId:stri
     const remaining=issues.filter(i=>!exception || i!=="Assign a reporting manager.");
     if(remaining.length)throw new ApiError(409,"REQUESTER_SETUP_REQUIRED",remaining.join(" "));
     const forbidden=new Set([userId,...excluded]);
-    const eligible=await spendingUsers(db,scope,"people_manager"), eligibleByPerson=new Map(eligible.map(p=>[p.person_id,p]));
+    const department=await (await import("./department-authority")).departmentRoute(db,companyId,userId,excluded);
+    if(department.blockedReason)throw new ApiError(409,"DEPARTMENT_FLOW_REQUIRED",department.blockedReason);
     // The exception may exempt a missing manager, but never requester account/scope access.
     if(!(await expenseRoleUsers(db,scope,null)).includes(userId))throw new ApiError(409,"REQUESTER_SCOPE_REQUIRED","The requester’s account must cover this branch and department.");
-    const ceo=roster.positions.some(p=>p.id===person.position_id&&p.active===1&&p.is_ceo===1);
-    let supervisor:string|null=null;
-    const skip=ceo||exception?.action==="skip_supervisor";
-    if(!skip){
-      let manager=person.manager_person_id;
-      const seen=new Set<string>([person.person_id]);
-      while(manager){
-        if(seen.has(manager))throw new ApiError(409,"REPORTING_CYCLE","Repair the reporting cycle in People.");seen.add(manager);
-        const candidate=eligibleByPerson.get(manager);
-        if(candidate?.user_id&&!forbidden.has(candidate.user_id)&&candidate.level_number!<person.level_number!){supervisor=candidate.user_id;break;}
-        manager=roster.people.find(p=>p.person_id===manager)?.manager_person_id??null;
-      }
-      if(exception?.action==="named_supervisor"){
-        const candidate=eligible.find(p=>p.user_id===exception.supervisorUserId&&p.level_number!<person.level_number!&&!forbidden.has(p.user_id!));
-        supervisor=candidate?.user_id??null;
-      }
-      if(!supervisor)throw new ApiError(409,"SUPERVISOR_REQUIRED","Assign an active People Manager role covering this request to an eligible, strictly more senior reporting supervisor, or configure an explicit company exception.");
-    }
-    const pools=await Promise.all(["finance_preparer","finance_approver","treasury"].map(async role=>(await spendingUsers(db,scope,role)).map(p=>p.user_id!).filter(id=>!forbidden.has(id)&&id!==supervisor)));
+    for(const step of department.steps)forbidden.add(step.userId);
+    const pools=await Promise.all(["finance_preparer","finance_approver","treasury"].map(async role=>(await spendingUsers(db,scope,role)).map(p=>p.user_id!).filter(id=>!forbidden.has(id))));
     const [preparers,reviewers,payers]=pools;
     const feasible=preparers.some(p=>reviewers.some(r=>r!==p&&payers.some(t=>t!==p&&t!==r)));
     if(!feasible)throw new ApiError(409,"SPENDING_TEAM_REQUIRED","Complete independent Accounting preparer, Accounting approver (Level 1–4), and Finance/Treasury payer profiles and scoped access.");
-    const snapshot={spendingPolicy:1,templateVersion:template.version,requestKind:kind,positionId:person.position_id,requesterLevel:person.level_number,exception:exception??(ceo?{reason:"Designated CEO skips organizational approval only."}:null),excluded};
-    return {scope,blockedReason:null,checks:[guard],steps:[
-      ...(supervisor?[{userId:supervisor,authority:"named" as const,candidateUserIds:[supervisor],requiredRole:"people_manager",stage:"department_approval",snapshot}]:[]),
+    const snapshot={spendingPolicy:1,templateVersion:template.version,requestKind:kind,positionId:person.position_id,requesterLevel:person.level_number,exception:exception??null,excluded};
+    return {scope,blockedReason:null,checks:[guard,...(department.checks??[])],steps:[
+      ...department.steps.map(s=>({...s,snapshot:{...snapshot,...s.snapshot}})),
       {userId:preparers[0],authority:"named",candidateUserIds:preparers,requiredRole:"finance_preparer",stage:"accounts_review",snapshot},
       {userId:reviewers[0],authority:"named",candidateUserIds:reviewers,requiredRole:"finance_approver",stage:"accounts_approval",snapshot},
     ]};
@@ -408,6 +392,10 @@ export async function expenseRoute(db:SqlDatabase, companyId:string, userId:stri
 
 /** Revalidate saved participants; never resolve a new reporting chain behind an existing decision. */
 export async function spendingStepCandidates(db:SqlDatabase, scope:RecordScope, requester:string, preparers:string[], step:{stage?:string;requiredRole?:string;candidateUserIds?:string[];snapshot?:Record<string,unknown>}, decisions:string[]) {
+  if(step.stage==="department_approval" && step.snapshot && "departmentPolicyVersion" in step.snapshot){
+    const id=step.candidateUserIds?.[0];
+    return id && ![requester,...preparers,...decisions].includes(id) && await (await import("./department-authority")).departmentStepEligible(db,scope.company_id,id,step.snapshot)?[id]:[];
+  }
   const forbidden=new Set(await personIdentityIds(db,scope.company_id,[requester,...preparers,...decisions]));
   const saved=await personIdentityIds(db,scope.company_id,step.candidateUserIds??[]);
   const members=await spendingUsers(db,scope,step.requiredRole??(step.stage==="department_approval"?"people_manager":null));

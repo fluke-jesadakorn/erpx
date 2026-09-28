@@ -21,6 +21,8 @@ import {
   type StaffActor,
 } from "./staff-policy";
 import { ApiError } from "./http";
+import type { WorkContext } from "./authorization";
+import { prepareAttachmentBinding } from "./attachments/service";
 
 const users = z.array(z.string().min(1).max(160)).max(20);
 export const taskFieldsSchema = z.object({
@@ -33,12 +35,13 @@ export const taskFieldsSchema = z.object({
 });
 export const taskSchema = taskFieldsSchema
   .extend({
-    dueAt: z.iso.datetime({ offset: true }),
+    dueAt: z.iso.datetime({ offset: true }).nullable().default(null),
     expectedVersion: z.number().int().positive().default(1),
     reason: z.string().trim().max(2000).default(""),
   })
-  .refine((v) => v.startApprovers.length + v.completionApprovers.length > 0, {
-    message: "Configure at least one start or completion approver.",
+  .refine((v) => !!v.dueAt || v.startApprovers.length + v.completionApprovers.length === 0, {
+    message: "Set a due date for work that requires approval.",
+    path: ["dueAt"],
   });
 export const projectSchema = z.object({
   title: z.string().trim().min(2).max(200),
@@ -58,6 +61,7 @@ export const taskActionSchema = z.object({
   ]),
   expectedVersion: z.number().int().positive(),
   note: z.string().trim().max(10000).default(""),
+  attachmentSetIds: z.array(z.string().min(1)).max(1).default([]),
 });
 export const taskDelegationSchema = z.object({
   delegateUserId: z.string().min(1),
@@ -82,7 +86,7 @@ export type TaskRow = RecordScope & {
   project_id: string | null;
   project_title: string | null;
   project_owner_id: string | null;
-  due_at: number;
+  due_at: number | null;
   completion_note: string;
   start_approvers_json: string;
   completion_approvers_json: string;
@@ -102,6 +106,11 @@ export type TaskRow = RecordScope & {
   active_delegate_reason?: string | null;
   active_delegate_version?: number | null;
 };
+function isOrdinaryTask(task: TaskRow) {
+  return task.template_id === null && task.schedule_id === null &&
+    (JSON.parse(task.start_approvers_json) as string[]).length === 0 &&
+    (JSON.parse(task.completion_approvers_json) as string[]).length === 0;
+}
 export type TaskDetail = {
   task: TaskRow;
   approval: ApprovalView;
@@ -415,6 +424,7 @@ export async function validateTaskConfiguration(
   actor: StaffActor,
   input: z.infer<typeof taskFieldsSchema>,
   creator = actor.userId,
+  serviceTask = false,
 ) {
   const staff = await activeStaff(db, actor.companyId, input.assigneeUserId);
   if (input.projectId) await getProject(db, actor, input.projectId);
@@ -434,6 +444,7 @@ export async function validateTaskConfiguration(
       input.assigneeUserId,
       phase,
       list,
+      serviceTask,
     );
     if (route.blockedReason)
       throw new ApiError(422, "TASK_ROUTE_INVALID", route.blockedReason);
@@ -491,7 +502,13 @@ export async function saveTask(
       "TASK_CREATOR_REQUIRED",
       "The creator or project owner manages task configuration.",
     );
-  if (revision && !input.reason.trim())
+  const ordinary = input.startApprovers.length + input.completionApprovers.length === 0;
+  const wasReviewed = current &&
+    (JSON.parse(current.start_approvers_json) as string[]).length +
+      (JSON.parse(current.completion_approvers_json) as string[]).length > 0;
+  if (wasReviewed && ordinary)
+    throw new ApiError(422, "TASK_REVIEW_REQUIRED", "A reviewed task must keep at least one approval step.");
+  if (revision && !ordinary && !input.reason.trim())
     throw new ApiError(
       422,
       "REVISION_REASON_REQUIRED",
@@ -502,7 +519,10 @@ export async function saveTask(
     actor,
     input,
     current?.creator_user_id ?? actor.userId,
+    !!(source || current?.source_post_id),
   );
+  const nextState = ordinary ? "ready" : "draft";
+  const dueAt = input.dueAt ? Date.parse(input.dueAt) : null;
   const now = Date.now(),
     version = current ? input.expectedVersion + 1 : 1;
   return executeCommand(
@@ -513,7 +533,7 @@ export async function saveTask(
     commandInput,
     recordId,
     version,
-    { id: recordId, state: "draft", version },
+    { id: recordId, state: nextState, version },
     [
       staffGuard(db, key, actor.companyId, actor.userId),
       ...configGuards(db, key, actor, input),
@@ -553,23 +573,24 @@ export async function saveTask(
       current
         ? db
             .prepare(
-              "UPDATE staff_tasks SET title=?,description=?,assignee_user_id=?,due_at=?,project_id=?,start_approvers_json=?,completion_approvers_json=?,state='draft',completion_note='',blocked_reason=NULL,revision=revision+?,version=version+1,updated_at=? WHERE id=?",
+              "UPDATE staff_tasks SET title=?,description=?,assignee_user_id=?,due_at=?,project_id=?,start_approvers_json=?,completion_approvers_json=?,state=?,completion_note='',blocked_reason=NULL,revision=revision+?,version=version+1,updated_at=? WHERE id=?",
             )
             .bind(
               input.title,
               input.description,
               input.assigneeUserId,
-              Date.parse(input.dueAt),
+              dueAt,
               input.projectId,
               JSON.stringify(input.startApprovers),
               JSON.stringify(input.completionApprovers),
+              nextState,
               revision ? 1 : 0,
               now,
               recordId,
             )
         : db
             .prepare(
-              "INSERT INTO staff_tasks(id,company_id,branch_id,department_id,title,description,creator_user_id,assignee_user_id,due_at,project_id,start_approvers_json,completion_approvers_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+              "INSERT INTO staff_tasks(id,company_id,branch_id,department_id,title,description,creator_user_id,assignee_user_id,due_at,project_id,start_approvers_json,completion_approvers_json,state,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             )
             .bind(
               recordId,
@@ -580,10 +601,11 @@ export async function saveTask(
               input.description,
               actor.userId,
               input.assigneeUserId,
-              Date.parse(input.dueAt),
+              dueAt,
               input.projectId,
               JSON.stringify(input.startApprovers),
               JSON.stringify(input.completionApprovers),
+              nextState,
               now,
               now,
             ),
@@ -632,11 +654,14 @@ export async function taskDetail(
             ? task.start_approvers_json
             : task.completion_approvers_json,
         ),
+        !!task.source_post_id,
       );
       blockedReason ??= route.blockedReason;
     }
   }
   const permittedActions = [
+    ...(assigned && task.state === "ready" && isOrdinaryTask(task) && !blockedReason
+      ? ["complete"] : []),
     ...(manage && task.state === "draft"
       ? ["edit", ...(!blockedReason ? ["submit"] : [])]
       : []),
@@ -688,7 +713,7 @@ export async function taskDetail(
 }
 export async function transitionTask(
   db: SqlDatabase,
-  actor: StaffActor,
+  actor: WorkContext,
   id: string,
   input: z.infer<typeof taskActionSchema>,
   key: string,
@@ -706,7 +731,29 @@ export async function transitionTask(
       detail.blockedReason ??
         "This action is unavailable for this participant and task state.",
     );
+  const attachmentSetIds=input.attachmentSetIds??[];
+  if (attachmentSetIds.length && !["submit", "save-progress", "complete"].includes(input.action))
+    throw new ApiError(
+      422,
+      "TASK_ATTACHMENT_ACTION",
+      "Bind task evidence only when submitting, saving progress, or completing the task.",
+    );
+  const prepared = attachmentSetIds.length
+    ? await prepareAttachmentBinding(db, actor, {
+        attachmentSetIds,
+        bindingContract: {
+          targetType: "staff_task",
+          bindingType: "task_action",
+          contexts: [{ purposeKey: "task_evidence", componentKind: "action", componentRef: `task:${task.state}` }],
+        },
+        targetId: id,
+        expectedTargetVersion: input.expectedVersion,
+        commandId: key,
+        bindingId: `${id}:${input.action}:${input.expectedVersion + 1}`,
+      })
+    : null;
   const steps: SqlStatement[] = [
+    ...(prepared?.guards ?? []),
     ...(input.action !== "cancel"
       ? [
           staffGuard(
@@ -731,7 +778,7 @@ export async function transitionTask(
       );
     if (input.action === "submit")
       steps.push(configurationGuard(db, key, actor, task));
-    else if (!input.note.trim())
+    else if (!input.note.trim() && !isOrdinaryTask(task))
       throw new ApiError(
         422,
         "COMPLETION_NOTE_REQUIRED",
@@ -744,6 +791,7 @@ export async function transitionTask(
       task.assignee_user_id,
       phase,
       users,
+      !!task.source_post_id,
     );
     if (users.length)
       steps.push(
@@ -819,6 +867,7 @@ export async function transitionTask(
         "UPDATE staff_tasks SET state=?,completion_note=CASE WHEN ? IN ('complete','save-progress') THEN ? ELSE completion_note END,blocked_reason=NULL,version=version+1,updated_at=? WHERE id=?",
       )
       .bind(state, input.action, input.note, Date.now(), id),
+    ...(prepared?.steps ?? []),
     notification(
       db,
       task,
@@ -845,7 +894,7 @@ export async function transitionTask(
     input,
     id,
     input.expectedVersion + 1,
-    { id, state, version: input.expectedVersion + 1 },
+    { id, state, version: input.expectedVersion + 1, ...(prepared ? { manifest: prepared.manifest } : {}) },
     steps,
     scope(task),
   );
@@ -853,7 +902,8 @@ export async function transitionTask(
 export function canAttachTask(actor: StaffActor, task: TaskRow) {
   return (
     (task.state === "draft" && canConfigureTask(actor, task)) ||
-    (["in_progress", "rework"].includes(task.state) &&
+    ((["in_progress", "rework"].includes(task.state) ||
+      task.state === "ready" && isOrdinaryTask(task)) &&
       (samePerson(actor,task.assignee_user_id) || isActiveDelegate(actor, task)))
   );
 }

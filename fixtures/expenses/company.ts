@@ -2,6 +2,7 @@ import type { SqlDatabase, FileStore } from "../../src/server/runtime/types";
 import type { WorkContext } from "../../src/server/authorization";
 const key = () => crypto.randomUUID();
 export async function seedExpenseCompany(db: SqlDatabase, files: FileStore) {
+  await db.prepare("INSERT INTO beta_bootstrap(singleton,holding_id,owner_user_id,created_at) VALUES(1,'h001','fixture',1) ON CONFLICT(singleton) DO NOTHING").run();
   const company = `expense-${key()}`,
     branch = `${company}-branch`,
     department = `${company}-team`,
@@ -207,12 +208,12 @@ export async function seedExpenseCompany(db: SqlDatabase, files: FileStore) {
     await db.batch([
       db
         .prepare(
-          "INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,staging_key,status,created_by,expires_at,created_at,updated_at) VALUES(?,?,?,'evidence','receipt.png',?,8,?,'ready',?,9999999999999,1,1)",
+          "INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,staging_key,status,created_by,expires_at,created_at,updated_at,company_id,detected_media_type) VALUES(?,?,?,'evidence','receipt.png',?,8,?,'ready',?,9999999999999,1,1,?,?)",
         )
-        .bind(upload, ownerType, id, type, object, claimant.userId),
+        .bind(upload, ownerType, id, type, object, claimant.userId, company, type),
       db
         .prepare(
-          "INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at) VALUES(?,?,?,?,'evidence',?,1,'receipt.png',?,8,?,?,1)",
+          "INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state,scanned_at,scanner_definition_at) VALUES(?,?,?,?,'evidence',?,1,'receipt.png',?,8,?,?,1,?,?,'available',1,1)",
         )
         .bind(
           attachment,
@@ -223,6 +224,8 @@ export async function seedExpenseCompany(db: SqlDatabase, files: FileStore) {
           type,
           checksum,
           claimant.userId,
+          company,
+          type,
         ),
     ]);
     return attachment;

@@ -2,6 +2,10 @@
 
 > **Accepted — 2026-09-08. Supersedes the runtime and deployment portions of ADR-022.**
 
+> **Topology update — 2026-09-24:** ADR-032 supersedes this decision's dedicated production PostgreSQL daemon and public hostname mapping. The Node/PostgreSQL runtime and transactional model remain in effect.
+
+> **Storage update — 2026-09-27:** ADR-035 supersedes the private-filesystem choice for durable uploaded and generated file content in environments configured with MinIO. PostgreSQL still owns business configuration and file metadata.
+
 ERPX runs a Next.js standalone release on Node.js 24.20.0, PostgreSQL 18.6 and a private filesystem on this Mac. Bun 1.2.17 manages and builds the project. Cloudflare Tunnel `erpx-local` publishes only `erpx.jesadakorn.com` to `127.0.0.1:3101`. This supports the agreed single-machine public beta and native database transactions while accepting dependence on the Mac's uptime and disk. Workers, D1, R2 and Queues configuration remains historical reference.
 
 The control plane and each Holding retain separate write/read databases, with separate scoped web/jobs logins. Business changes, authorization assertions, command receipts, audit and outbox commit on one leased PostgreSQL connection in a serializable transaction. Read projections remain rebuildable. Immutable filesystem revisions use atomic publication and remain behind existing authorization. A PostgreSQL outbox supplies leases, retry, replay and dead-letter state; a Node process handles work and two-minute schedules.

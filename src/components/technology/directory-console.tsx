@@ -9,12 +9,13 @@ import {
   FileCog,
   ArrowUp,
   ArrowDown,
+  ArrowLeft,
 } from "lucide-react";
 import type {
   DirectoryAction,
   DirectoryObject,
 } from "@/lib/directory-operations";
-import styles from "./technology.module.css";
+import styles from "./directory-console.module.css";
 const icons = {
   ou: Folder,
   group: Users,
@@ -36,18 +37,24 @@ export function DirectoryConsole({
   onEdit,
   onDrop,
   search,
+  onSearchChange,
+  initialObjectId,
 }: {
   objects: DirectoryObject[];
+  initialObjectId?: string;
   connectionId: string;
   canManage: boolean;
   onEdit: (e: Edit) => void;
   onDrop: (raw: string, target: string, kind: string) => void;
   search: string;
+  onSearchChange: (value: string) => void;
 }) {
   const [folder, setFolder] = useState("all"),
-    [selected, setSelected] = useState<string | null>(null);
+    [pickerOpen, setPickerOpen] = useState(false),
+    [selected, setSelected] = useState<string | null>(initialObjectId ?? null);
   const current = objects.find((o) => o.id === selected),
     ous = objects.filter((o) => o.kind === "ou");
+  const folderName = folder === "all" ? "All objects" : folder === "groups" ? "Groups" : folder === "gpos" ? "Group Policy Objects" : ous.find((o) => o.id === folder)?.name ?? "All objects";
   const listing = objects.filter(
     (o) =>
       (folder === "all" ||
@@ -107,96 +114,42 @@ export function DirectoryConsole({
       action: { kind: "gpo.order", objectId: current.id, gpoIds: ids },
     });
   }
+  function chooseFolder(id: string) {
+    setFolder(id);
+    setPickerOpen(false);
+    setSelected(null);
+  }
   return (
-    <div className={styles.console}>
-      <nav className={styles.tree} aria-label="Directory OU tree">
-        <h3>
-          <FolderTree size={17} /> Directory
-        </h3>
-        <button
-          aria-current={folder === "all"}
-          onClick={() => setFolder("all")}
-        >
-          All objects
-        </button>
-        {ous.map((o) => (
-          <button
-            key={o.id}
-            {...drag(o)}
-            style={{ paddingInlineStart: 12 + depth(o) * 15 }}
-            aria-current={folder === o.id}
-            onClick={() => {
-              setFolder(o.id);
-              setSelected(o.id);
-            }}
-          >
-            <Folder size={15} />
-            {o.name}
-          </button>
-        ))}
-        <hr />
-        <button
-          aria-current={folder === "groups"}
-          onClick={() => setFolder("groups")}
-        >
-          <Users size={15} /> Group membership
-        </button>
-        <button
-          aria-current={folder === "gpos"}
-          onClick={() => setFolder("gpos")}
-        >
-          <FileCog size={15} /> Group Policy Objects
-        </button>
-        <p>
-          OU placement and group membership are separate. Groups can belong to
-          several groups.
-        </p>
-      </nav>
-      <div className={styles.objectList}>
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Type</th>
-              <th>Location</th>
-            </tr>
-          </thead>
-          <tbody>
-            {listing.map((o) => {
-              const Icon = icons[o.kind];
-              return (
-                <tr key={o.id} {...drag(o)} data-selected={selected === o.id}>
-                  <td>
-                    <button
-                      onClick={() => setSelected(o.id)}
-                      onDoubleClick={() => o.kind === "ou" && setFolder(o.id)}
-                    >
-                      <Icon size={16} />
-                      {o.name}
-                    </button>
-                  </td>
-                  <td>{o.kind}</td>
-                  <td>
-                    {objects.find((p) => p.id === o.parentId)?.name ??
-                      "Directory root"}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {!listing.length && (
-          <p className={styles.empty}>
-            No objects in this view. Read the directory inventory to refresh.
-          </p>
-        )}
-        <div className={styles.status}>
-          {listing.length} objects · Select an object to inspect its properties
+    <div className={styles.console} data-detail-open={Boolean(current)}>
+      <section className={styles.objectList} aria-label="Directory objects">
+        <div className={styles.listToolbar}>
+          <div><strong>Objects</strong><span>{listing.length} shown</span></div>
+          <input type="search" className={styles.search} aria-label="Search directory objects" placeholder="Search objects" value={search} onChange={(event) => onSearchChange(event.target.value)} />
+          <button type="button" className={styles.locationButton} aria-expanded={pickerOpen} aria-controls="directory-location-picker" onClick={() => setPickerOpen(!pickerOpen)}><FolderTree size={16} /> {folderName}</button>
         </div>
-      </div>
+        {pickerOpen && <nav id="directory-location-picker" className={styles.tree} aria-label="Directory OU tree">
+          <p>Choose a location or drag an object onto an OU or group.</p>
+          <button type="button" aria-current={folder === "all"} onClick={() => chooseFolder("all")}>All objects</button>
+          {ous.map((o) => <button type="button" key={o.id} {...drag(o)} style={{ paddingInlineStart: 12 + depth(o) * 15 }} aria-current={folder === o.id} onClick={() => chooseFolder(o.id)}><Folder size={15} />{o.name}</button>)}
+          <button type="button" aria-current={folder === "groups"} onClick={() => chooseFolder("groups")}><Users size={15} />Groups</button>
+          <button type="button" aria-current={folder === "gpos"} onClick={() => chooseFolder("gpos")}><FileCog size={15} />Group Policy Objects</button>
+        </nav>}
+        <div className={styles.rows} role="list">
+          {listing.map((o) => {
+            const Icon = icons[o.kind];
+            return <div key={o.id} className={styles.row} role="listitem" {...drag(o)} data-selected={selected === o.id}>
+              <button type="button" aria-current={selected === o.id} onClick={() => setSelected(o.id)} onDoubleClick={() => o.kind === "ou" && chooseFolder(o.id)}>
+                <Icon size={18} aria-hidden="true" /><span><strong>{o.name}</strong><small>{o.kind} · {objects.find((p) => p.id === o.parentId)?.name ?? "Directory root"}</small></span>
+              </button>
+            </div>;
+          })}
+          {!listing.length && <p className={styles.empty}>{search.trim() ? "No objects match this search." : "No objects in this location. Choose another location or read the inventory."}</p>}
+        </div>
+      </section>
       <aside className={styles.properties} aria-label="Object properties">
         {current ? (
           <>
+            <button type="button" className={styles.backButton} onClick={() => setSelected(null)}><ArrowLeft size={16} /> Back to objects</button>
             <h3>{current.name}</h3>
             <span className={styles.tag}>{current.kind}</span>
             <dl>

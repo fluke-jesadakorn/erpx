@@ -17,6 +17,17 @@ export function canCompleteClearance(actor:WorkContext,task:Pick<PreparationTask
  if(!kind || task.assignee_id!==actor.userId)return false;
  return (!clearancePermissions[kind] || hasPermission(actor,clearancePermissions[kind]!)) && (!["payroll","finance","directory"].includes(kind) || !actor.branchId && !actor.departmentId);
 }
+export function canReadClearanceEvidence(actor:WorkContext,task:Pick<PreparationTask,"assignee_id"|"clearance_type"|"completed_by">) {
+ const kind=task.clearance_type;if(!kind)return false;
+ const permission=clearancePermissions[kind];
+ if(permission&&!hasPermission(actor,permission))return false;
+ if(["payroll","finance","directory"].includes(kind)&&(actor.branchId||actor.departmentId))return false;
+ // Clearance evidence belongs to one responsibility, not the whole People or
+ // department audience.  A current permission is necessary but never enough:
+ // only the assigned worker (or the worker whose completed decision is now
+ // part of the immutable history) may read that task's evidence.
+ return task.assignee_id===actor.userId || task.completed_by===actor.userId;
+}
 export async function requireClearanceCompletion(db:SqlDatabase,actor:WorkContext,task:PreparationTask,input:{status?:string;reason?:string;references?:ClearanceReference[]}) {
  if(!canCompleteClearance(actor,task) || !await eligibleClearanceOwner(db,actor.companyId,actor.userId,task.clearance_type!))denied("Only the assigned colleague with current department authority can close this clearance task.");
  if((input.reason??"").trim().length<3)throw new ApiError(422,"CLEARANCE_REASON","Record the review or explain why this task is not required.");
@@ -49,16 +60,17 @@ export async function clearanceCase(db:SqlDatabase,actor:WorkContext,id:string) 
    FROM people_preparation_tasks t JOIN people_lifecycle_cases c ON c.id=t.case_id AND c.company_id=t.company_id JOIN hr_engagements e ON e.id=c.engagement_id AND e.company_id=c.company_id
    WHERE t.company_id=? AND t.case_id=? AND t.clearance_type='payroll'`).bind(actor.companyId,id).all<{task_id:string;pay_group_id:string|null;currency:string;last_working_date:string|null}>()).results;
  const detailed=await Promise.all(tasks.map(async t=>{
+  const evidenceReadable=canReadClearanceEvidence(actor,t);
   const refs=typeof t.document_references === "string" ? JSON.parse(t.document_references) as ClearanceReference[] : t.document_references??[];
-  const evidence=await Promise.all(refs.map(async ref=>{
+  const evidence=evidenceReadable?await Promise.all(refs.map(async ref=>{
    try {
     await requireFlowAccess(actor,ref.kind,ref.id);
     const [table,status,label,path]=sources[ref.kind];
     const source=await db.prepare(`SELECT ${status} status,${label} label FROM ${table} WHERE id=? AND company_id=?`).bind(ref.id,actor.companyId).first<{status:string;label:string}>();
     return {label:source?.label??ref.kind,status:source?.status??"Unavailable",href:`${path}${ref.id}`};
    } catch(e){if(!(e instanceof ApiError)||![403,404].includes(e.status))throw e; return {label:"Restricted source document",status:"Read permission required",href:null};}
-  }));
-  return {...t,completion_reason:["finance","payroll"].includes(t.clearance_type ?? "") && (!hasPermission(actor,t.clearance_type === "payroll" ? "payroll.read" : "finance.read") || evidence.some(e=>!e.href)) ? null : t.completion_reason,document_references:undefined,evidence,finalPay:finalPays.find(fp=>fp.task_id===t.id)??null,finalPayOptions:finalPayOptions.find(fp=>fp.task_id===t.id)??null,canComplete:t.status==="pending" && canCompleteClearance(actor,t),canPlan:t.status==="pending" && (hasPermission(actor,"people.manage") || !!clearancePermissions[t.clearance_type!] && hasPermission(actor,clearancePermissions[t.clearance_type!]!))};
+  })):[];
+  return {...t,evidenceReadable,completion_reason:!evidenceReadable || ["finance","payroll"].includes(t.clearance_type ?? "") && (!hasPermission(actor,t.clearance_type === "payroll" ? "payroll.read" : "finance.read") || evidence.some(e=>!e.href)) ? null : t.completion_reason,document_references:undefined,evidence,finalPay:evidenceReadable?finalPays.find(fp=>fp.task_id===t.id)??null:null,finalPayOptions:evidenceReadable?finalPayOptions.find(fp=>fp.task_id===t.id)??null:null,canComplete:t.status==="pending" && canCompleteClearance(actor,t),canPlan:t.status==="pending" && (hasPermission(actor,"people.manage") || !!clearancePermissions[t.clearance_type!] && hasPermission(actor,clearancePermissions[t.clearance_type!]!))};
  }));
  const definition = typeof row.definition === "string" ? JSON.parse(row.definition) : row.definition;
  const accessEnded = !!await db.prepare("SELECT 1 FROM people_access_cutoffs WHERE company_id=? AND case_id=? AND cancelled_at IS NULL AND effective_at<=? AND restored_at IS NULL").bind(actor.companyId,id,Date.now()).first();

@@ -19,7 +19,7 @@ import {
   aiUsageStatement,
   type AiProviderSnapshot,
 } from "./ai-providers";
-import { generateProviderJson, type AiMessage } from "./ai-transport";
+import { generateProviderJson, withAiGatewayScope, type AiMessage } from "./ai-transport";
 import { expenseAiResultSchema, normalizeDraftReceiptAmounts, type ExpenseAiResult } from "@/lib/expense-ai";
 import { minorToDecimal } from "@/lib/finance-money";
 import { decimalToMinor } from "@/lib/finance-money";
@@ -475,6 +475,7 @@ export async function runExpenseAi(
           status,
           usage[kind].input,
           usage[kind].output,
+          actor?.branchId ?? null,
         ),
       );
   let renewing: Promise<void> | null = null;
@@ -586,7 +587,7 @@ export async function runExpenseAi(
       }
       usage.image.attempted = true;
       const output = await generate(
-        { ...configuration.image.endpoint, sessionId: await aiSessionHash(`expense:${row.company_id}:${id}`) },
+        { ...withAiGatewayScope(configuration.image.endpoint,`${id}:${lease}:image:${offset}`,"expense",actor?.branchId??null,`${id}:${lease}:image`), sessionId: await aiSessionHash(`expense:${row.company_id}:${id}`) },
         [
           { role: "system", content: instruction },
           { role: "user", content },
@@ -612,7 +613,7 @@ export async function runExpenseAi(
     if (partial.length > 1) {
       usage.text.attempted = true;
       const output = await generate(
-        { ...configuration.text.endpoint, sessionId: await aiSessionHash(`expense:${row.company_id}:${id}`) },
+        { ...withAiGatewayScope(configuration.text.endpoint,`${id}:${lease}:text`,"expense",actor?.branchId??null), sessionId: await aiSessionHash(`expense:${row.company_id}:${id}`) },
         [
           {
             role: "system",

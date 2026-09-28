@@ -1,4 +1,4 @@
-# ADR — Index (23 decisions, 2026-09-06 era)
+# ADR — Index
 
 > **Single index for `docs/adr/`.** `docs/TOC.md:25` + `AGENTS.md:61` + `README.md:41` all count here.
 
@@ -11,7 +11,7 @@
 
 All 20 have banners `> **Next.js era: Reconfirmed (2026-09-02)` / `> **Deprecated — Archived` / `> **Superseded by ADR-020` (added `fe6c286e`).
 
-## Files (23)
+## Earlier files (2026-09-06 index)
 
 ```
 ADR-001-holding-isolation.md (13L) — DB-per-Holding, opaque bindings
@@ -51,3 +51,8 @@ ADR-023-three-level-workspace-routing.md — accepted (2026-09-06)
 
 - [ADR-025: Multiple identity providers and scoped replacement](ADR-025-multiple-identity-providers-and-scoped-replacement.md) — supersedes ADR-013 single-provider and fallback assumptions.
 - [ADR-026: Reviewed local access policies](ADR-026-reviewed-local-access-policies.md) — Company-owned groups and attributes, independent review for every derived grant, and immediate source-specific invalidation.
+- [ADR-032: Shared local PostgreSQL cluster](ADR-032-shared-local-postgresql-cluster.md) — development, private production, and staging use scoped databases on `5432`.
+- [ADR-034: Inherited GPO rules and atomic Position moves](ADR-034-inherited-gpo-and-atomic-position-moves.md) — additive policy sources and reviewed, effective-dated moves of occupied Positions.
+- [ADR-035: MinIO object and configuration boundary](ADR-035-minio-object-and-configuration-boundary.md) — uploaded and generated file bytes in MinIO; business configuration and metadata in PostgreSQL.
+- [ADR-036: Canonical file sources and policy-bound links](ADR-036-canonical-file-sources-and-policy-bound-links.md) — private immutable originals, purpose-scoped links, quarantine, and separately approved public derivatives.
+- [ADR-037: Sandbox AI Gateway and rated Holding billing](ADR-037-sandbox-ai-gateway-and-rated-holding-billing.md) — effective-dated Holding pricing, evidence-based usage charges, and an isolated test ledger; existing invoices remain immutable.

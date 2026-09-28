@@ -5,6 +5,8 @@ import { legalCommand, legalData, detail } from "../src/server/legal/service";
 import { sendEnvelope, signingAction } from "../src/server/legal/signing";
 import { access } from "../src/server/legal/access";
 import { parseItem } from "../src/lib/legal/model";
+import { legalPortalQuickAccess } from "../src/server/portal-quick-access";
+import { legalWork } from "../src/server/legal/integrations";
 vi.mock("../src/server/runtime", () => ({
   runtimeEnv: async () => env,
   holdingBindingBySlug: async (slug: string) => {
@@ -65,6 +67,20 @@ it("keeps confidential records out of lists, details and counts until membership
   await expect(
     cmd(r.id, "update", { item: input() }, f.tie),
   ).rejects.toMatchObject({ code: "LEGAL_EDITOR_REQUIRED" });
+});
+it("keeps internal account keys out of legal work owner labels", async () => {
+  const mine = await create();
+  await create({ ownerId: f.tie.userId, title: "Counsel-owned agreement" });
+  const work = await legalWork(db, f.manager);
+  expect(work.find((item) => item.id === mine.id)?.responsibleQueue).toBe("Me");
+  expect(
+    work.find((item) => item.title === "Counsel-owned agreement")
+      ?.responsibleQueue,
+  ).toBe("Legal owner");
+  expect(work.map((item) => item.responsibleQueue)).not.toContain(
+    f.manager.userId,
+  );
+  expect(work.map((item) => item.responsibleQueue)).not.toContain(f.tie.userId);
 });
 it("replays create and rejects stale edits without adding extra evidence", async () => {
   const k = key(),
@@ -270,6 +286,9 @@ it("limits external readers to shared versions and hides internal comments", asy
     },
     list = await portalList(db, actor);
   expect(list).toHaveLength(1);
+  expect(legalPortalQuickAccess("h001", list)).toMatchObject([
+    { id: `share:${String(list[0].id)}`, tone: "brand" },
+  ]);
   const shared = await portalDetail(db, actor, String(list[0].id));
   expect(shared.doc?.body).toBe("Shared text");
   expect(shared.comments).toHaveLength(0);
@@ -283,6 +302,7 @@ it("limits external readers to shared versions and hides internal comments", asy
     key(),
   );
   await cmd(r.id, "share.revoke", { shareId: list[0].id });
+  expect(legalPortalQuickAccess("h001", await portalList(db, actor))).toEqual([]);
   await expect(
     portalDetail(db, actor, String(list[0].id)),
   ).rejects.toMatchObject({ code: "LEGAL_SHARE_UNAVAILABLE" });
@@ -962,6 +982,12 @@ it("blocks destruction under overlapping holds and completes an independently ap
       .bind(document.id)
       .first("body"),
   ).toBe("");
+  await expect(
+    db
+      .prepare("UPDATE legal_documents SET name='Mutated after disposal' WHERE id=?")
+      .bind(document.id)
+      .run(),
+  ).rejects.toThrow("LEGAL_DOCUMENT_IMMUTABLE");
   const { documentAccess } = await import("../src/server/legal/documents");
   await expect(
     documentAccess(db, f.manager, document.id),

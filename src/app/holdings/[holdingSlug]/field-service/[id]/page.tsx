@@ -4,6 +4,7 @@ import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/page-error";
 import { fieldServiceDetail } from "@/server/field-service";
 import { FieldServiceConsole } from "@/components/modules/field-service-console";
+import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -26,6 +27,20 @@ export default async function Page({
         technician {String(x.technician_name ?? x.technician_id)}
       </p>
       <FieldServiceConsole base={base} detail={data} />
+      <RecordDocumentPanel
+        base={base}
+        targetType="field_service_visit"
+        targetId={String(x.id)}
+        expectedTargetVersion={Number(x.version)}
+        editable={data.canWrite}
+        title="Field visit files"
+        purposes={[
+          {key:"site_photo",label:"Site photo",description:"Attach arrival, site-condition, or completed-work photos."},
+          {key:"technician_report",label:"Technician report",description:"Attach the technician's service report or checklist."},
+          {key:"signed_job_sheet",label:"Signed job sheet",description:"Attach the customer-confirmed or signed job sheet."},
+          {key:"exception_evidence",label:"Exception evidence",description:"Attach evidence supporting an access, safety, scope, or service exception."},
+        ]}
+      />
       <section className="card">
         <h2>Parts</h2>
         {data.parts.map((p) => (

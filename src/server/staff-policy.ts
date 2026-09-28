@@ -29,19 +29,21 @@ export type StaffPerson = RecordScope & {
   level_rank: number | null;
   level_number?: number | null;
   position_id?: string | null;
+  roster_required?: number | null;
   is_ceo?: number | null;
   self_service_top_level?: boolean;
 };
 // Account access and employment eligibility are separate from the currently selected business role.
-export const activeStaffSelect = `SELECT p.id person_id,p.user_id,p.legal_name,e.id engagement_id,e.version engagement_version,
-  e.company_id,e.branch_id,e.department_id,e.worker_type,e.start_date,e.end_date,e.manager_person_id,e.level_id,l.name level_name,l.rank level_rank,l.level_number,e.position_id,pos.is_ceo,e.self_service_top_level
+const staffSelect = (datePredicate: string) => `SELECT p.id person_id,p.user_id,p.legal_name,e.id engagement_id,e.version engagement_version,
+  e.company_id,e.branch_id,e.department_id,e.worker_type,e.start_date,e.end_date,e.manager_person_id,e.level_id,l.name level_name,l.rank level_rank,l.level_number,e.position_id,pos.is_ceo,pos.roster_required,e.self_service_top_level
   FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id
   LEFT JOIN staff_levels l ON l.id=e.level_id AND l.company_id=e.company_id
   LEFT JOIN organization_positions pos ON pos.id=e.position_id AND pos.company_id=e.company_id AND pos.active=1
   WHERE p.company_id=? AND p.status='active' AND p.merged_into_id IS NULL AND p.user_id IS NOT NULL
-  AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))
+  AND e.status='active' ${datePredicate}
   AND EXISTS(SELECT 1 FROM assignments a WHERE a.user_id=p.user_id AND a.company_id=p.company_id
     AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_from<=? AND a.valid_until>?)`;
+export const activeStaffSelect = staffSelect("AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))");
 
 export async function staffPeople(
   db: SqlDatabase,
@@ -64,6 +66,14 @@ export async function staffPeople(
       filters.levelId ?? null,
     )
     .all<StaffPerson>();
+  return results;
+}
+/** Roster planning includes staff whose engagement begins during the planned dates. */
+export async function rosterStaffPeople(db: SqlDatabase, companyId: string, departmentId: string, firstDate: string, lastDate: string) {
+  const plannedDates = "AND e.start_date::date<=?::date AND (e.end_date IS NULL OR e.end_date::date>=?::date)";
+  const now = Date.now();
+  const { results } = await db.prepare(`${staffSelect(plannedDates)} AND e.department_id=? ORDER BY p.legal_name,e.start_date DESC,e.id`)
+    .bind(companyId,lastDate,firstDate,now,now,departmentId).all<StaffPerson>();
   return results;
 }
 export async function activeStaff(

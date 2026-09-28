@@ -119,12 +119,12 @@ async function businessWorkspaceChoice(
     nodes,
   );
   if (!choice) return null;
-  const profiles = (await write.prepare("SELECT scope_kind,scope_id,primary_attachment_id FROM organization_brand_profiles WHERE scope_kind='holding' OR company_id IN (" + placeholders + ")")
-    .bind(...companyIds).all<{ scope_kind: "holding" | "branch"; scope_id: string; primary_attachment_id: string | null }>()).results;
+  const profiles = (await write.prepare("SELECT scope_kind,scope_id,primary_publication_id FROM organization_brand_profiles WHERE scope_kind='holding' OR company_id IN (" + placeholders + ")")
+    .bind(...companyIds).all<{ scope_kind: "holding" | "branch"; scope_id: string; primary_publication_id: string | null }>()).results;
   const short = (label: string) => label.trim().split(/\s+/u).filter(Boolean).slice(0, 2).map((word) => Array.from(word)[0] ?? "").join("").toLocaleUpperCase().slice(0, 3) || "—";
   const present = (label: string, kind: "holding" | "branch", id: string) => {
-    const attachment = profiles.find((profile) => profile.scope_kind === kind && profile.scope_id === id)?.primary_attachment_id;
-    return { label, initials: short(label), ...(attachment ? { primaryUrl: `/api/v1/holdings/${encodeURIComponent(holding.slug)}/attachments/${encodeURIComponent(attachment)}/content` } : {}) };
+    const publication = profiles.find((profile) => profile.scope_kind === kind && profile.scope_id === id)?.primary_publication_id;
+    return { label, initials: short(label), ...(publication ? { primaryUrl: `/api/public/holdings/${encodeURIComponent(holding.slug)}/media-publications/${encodeURIComponent(publication)}/content` } : {}) };
   };
   return {
     ...choice,

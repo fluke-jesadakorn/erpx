@@ -776,6 +776,12 @@
     "page": "pos-sale"
   },
   {
+    "id": "pos-void-evidence",
+    "title": "Cancel sale with evidence",
+    "page": "pos-sale",
+    "columns": 12
+  },
+  {
     "id": "operations-sales-approved-request",
     "title": "Approved request",
     "page": "operations-quotations",
@@ -806,6 +812,12 @@
     "columns": 12
   },
   {
+    "id": "operations-sales-lot-documents",
+    "title": "Lot and serial documents",
+    "page": "operations-stock",
+    "columns": 12
+  },
+  {
     "id": "operations-sales-movement-history",
     "title": "Movement history",
     "page": "operations-stock",
@@ -830,6 +842,12 @@
     "columns": 12
   },
   {
+    "id": "home-feed",
+    "title": "Feed",
+    "page": "home",
+    "columns": 12
+  },
+  {
     "id": "home-schedule",
     "title": "Your next shift",
     "page": "home",
@@ -846,12 +864,6 @@
     "title": "My requests",
     "page": "home",
     "columns": 4
-  },
-  {
-    "id": "home-feed",
-    "title": "Feed",
-    "page": "home",
-    "columns": 12
   },
   {
     "id": "person-pay",
@@ -1253,7 +1265,7 @@
   },
   {
     "id": "commerce-records",
-    "title": "Customers & suppliers",
+    "title": "Directory",
     "page": "operations-parties"
   },
   {
@@ -1337,5 +1349,101 @@
     "title": "Stock reservation history",
     "page": "commerce-orders-detail",
     "columns": 12
+  },
+  {
+    "id": "commerce-orders-detail-landed-costs",
+    "title": "Landed costs",
+    "page": "commerce-orders-detail",
+    "permission": "finance.read",
+    "columns": 12
+  },
+  {
+    "id": "finance-invoices-detail-external-tax-document",
+    "title": "External tax document",
+    "page": "finance-invoices-detail",
+    "columns": 12,
+    "permission": "finance.read"
+  },
+  {
+    "id": "finance-invoices-detail-controlled-payment",
+    "title": "Controlled bank settlement",
+    "page": "finance-invoices-detail",
+    "columns": 12,
+    "permission": "finance.write"
+  },
+  {
+    "id": "finance-payments-detail-accounting",
+    "title": "Accounting evidence",
+    "page": "finance-payments-detail",
+    "columns": 12
+  },
+  {
+    "id": "finance-payments-detail-fx-accounting",
+    "title": "Realized currency result",
+    "page": "finance-payments-detail",
+    "columns": 12
+  },
+  {
+    "id": "finance-payments-detail-lifecycle",
+    "title": "Controlled payment workflow",
+    "page": "finance-payments-detail",
+    "columns": 12
+  },
+  {
+    "id": "platform-operations-health",
+    "title": "Operational health",
+    "page": "platform-home",
+    "columns": 12
+  },
+  {
+    "id": "platform-holding-operations",
+    "title": "Holding operations",
+    "page": "platform-home",
+    "columns": 12
+  },
+  {
+    "id": "platform-provisioning",
+    "title": "Holding lifecycle",
+    "page": "platform-home",
+    "columns": 12
+  },
+  {
+    "id": "account-invitations",
+    "title": "Activation invitations",
+    "page": "people-settings",
+    "columns": 12,
+    "permission": "iam.roles.manage"
+  },
+  {
+    "id": "projects-detail-milestones",
+    "title": "Project milestones",
+    "page": "projects-detail",
+    "columns": 12
+  },
+  {
+    "id": "projects-detail-actuals",
+    "title": "Project actuals",
+    "page": "projects-detail",
+    "columns": 12
+  },
+  {
+    "id": "stock-counts-detail-lot-traceability",
+    "title": "Lot and serial count evidence",
+    "page": "stock-counts-detail",
+    "columns": 12
+  },
+  {
+    "id": "organization-units",
+    "title": "Branches & departments",
+    "page": "people-organization",
+    "columns": 12,
+    "permission": "organization.manage"
+  },
+  {
+    "id": "pos-sales-settings",
+    "title": "Sales settings",
+    "page": "pos-settings",
+    "columns": 12,
+    "permission": "pos.configure"
   }
 ]

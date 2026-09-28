@@ -14,10 +14,11 @@ import {assertion,executeCommand,replayCommand} from './commands';
 import type {Row,orderSchema} from './commerce';
 import {requestQuotationSource,requestVersionGuard} from './employee-requests';
 import {serviceAuthoritySnapshot} from './service-access';
+import {prepareAttachmentBinding} from './attachments/service';
 const text=z.string().trim().min(3).max(2000),amount=z.string().regex(/^\d{1,12}(\.\d{1,2})?$/),quantity=z.string().regex(/^\d{1,12}(\.\d{1,3})?$/);
 export const rfqCreateSchema=z.object({requestId:z.string().min(1).optional(),requestVersion:z.number().int().positive().optional(),title:text,warehouseId:z.string().min(1),neededDate:z.iso.date(),demandEvidence:text,lines:z.array(z.object({requestItemOrdinal:z.number().int().min(0).optional(),requestQuantity:quantity.optional(),requestUnit:z.string().trim().min(1).max(30).optional(),requestUnitsPerProductUnit:quantity.optional(),productId:z.string().min(1),quantity})).min(1).max(20)});
 export const rfqActionSchema=z.discriminatedUnion('action',[
- z.object({action:z.literal('offer'),expectedVersion:z.number().int().positive(),supplierId:z.string().min(1),reference:text,evidence:text,arrivalDate:z.iso.date(),validUntil:z.iso.date(),lines:z.array(z.object({lineId:z.string().min(1),price:amount,taxBps:z.number().int().min(0).max(10000)})).min(1).max(20)}),
+ z.object({action:z.literal('offer'),expectedVersion:z.number().int().positive(),attachmentSetIds:z.array(z.string().min(1)).max(10).default([]),supplierId:z.string().min(1),reference:text,evidence:text,arrivalDate:z.iso.date(),validUntil:z.iso.date(),lines:z.array(z.object({lineId:z.string().min(1),price:amount,taxBps:z.number().int().min(0).max(10000)})).min(1).max(20)}),
  z.object({action:z.enum(['submit','approve','return','cancel']),expectedVersion:z.number().int().positive(),offerId:z.string().min(1).optional(),reason:text})
 ]);
 const scope="r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)";
@@ -67,8 +68,11 @@ export async function actRfq(a:WorkContext,id:string,raw:unknown,key:string){con
   if(input.lines.length!==d.lines.length||new Set(input.lines.map(l=>l.lineId)).size!==d.lines.length)throw new ApiError(422,'RFQ_COMPLETE_OFFER_REQUIRED','Quote every demand line exactly once for a comparable offer.');
   const offer=`rfq-offer-${key}`,prepared=input.lines.map((l,i)=>{const demand=d.lines.find(x=>x.id===l.lineId);if(!demand)throw new ApiError(422,'RFQ_FOREIGN_LINE','Use this RFQ demand only.');const price=decimalToMinor(l.price),totals=lineAmounts(Number(demand.quantity_milli),price,l.taxBps);return {i,l,price,...totals};}),subtotal=prepared.reduce((n,l)=>n+l.subtotal,0),tax=prepared.reduce((n,l)=>n+l.tax,0);
   if(!Number.isSafeInteger(subtotal+tax))throw new ApiError(422,'RFQ_AMOUNT_RANGE','The combined amount exceeds supported precision.');
+  const attachmentBinding=input.attachmentSetIds.length?await prepareAttachmentBinding(write,a,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:'procurement_rfq',bindingType:'procurement_rfq_offer',contexts:[{purposeKey:'supplier_quotation',componentKind:'action',componentRef:'supplier-offer'}]},targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:offer}):null;
+  if(attachmentBinding)steps.push(...attachmentBinding.guards);
   steps.push(assertion(write,key,'supplier',"EXISTS(SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND version=? AND status='active' AND currency=?)",[supplier.id,a.companyId,supplier.version,r.currency]),write.prepare('INSERT INTO procurement_rfq_offers VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)').bind(offer,id,input.supplierId,input.expectedVersion,input.reference,input.evidence,input.arrivalDate,input.validUntil,r.currency,subtotal,tax,a.userId,Date.now()));
   for(const l of prepared)steps.push(write.prepare('INSERT INTO procurement_rfq_offer_lines VALUES(?,?,?,?,?,?,?)').bind(`${offer}-${l.i}`,offer,l.l.lineId,l.price,l.l.taxBps,l.subtotal,l.tax));
+  if(attachmentBinding)steps.push(...attachmentBinding.steps);
   evidence=input.evidence;
  }else{
   evidence=input.reason;

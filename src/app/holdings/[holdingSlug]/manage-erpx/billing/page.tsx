@@ -5,8 +5,8 @@ export default async function BillingPage() {
   if (!["platform_admin", "platform_auditor"].includes(a.role))
     throw new Error("FORBIDDEN");
   return (
-    <main className="content-stack">
+    <div className="content-stack">
       <BillingConsole platform writable={a.role === "platform_admin"} />
-    </main>
+    </div>
   );
 }

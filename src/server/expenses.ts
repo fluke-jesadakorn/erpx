@@ -11,7 +11,8 @@ import { canManagePeople } from "./people-directory";
 import { minorToDecimal, prepareJournal } from "./finance";
 import { sha256 } from "./crypto";
 import { ApiError } from "./http";
-import { requestRoute, staffGuard } from "./staff-policy";
+import { departmentRoute } from "./department-authority";
+import { staffGuard } from "./staff-policy";
 import {
   approvalView,
   openApproval,
@@ -21,6 +22,10 @@ import {
 } from "./approvals";
 import { expenseRequirements } from "./expense-drafts";
 import { expenseWorkflowFields, transitionExpenseV2 } from "./expense-workflow";
+import {
+  attachmentsV2Readable,
+  attachmentsV2ReadOnly,
+} from "./attachments/feature";
 export {
   expenseDraftSchema,
   expenseUpdateSchema,
@@ -31,6 +36,7 @@ export type ExpenseRow = Record<string, string | number | null>;
 export const expenseDecisionSchema = z.object({
   expectedVersion: z.number().int().positive(),
   reason: z.string().trim().min(3).max(2000),
+  override: z.boolean().default(false),
 });
 export const expensePostSchema = z.object({
   expectedVersion: z.number().int().positive(),
@@ -133,11 +139,10 @@ async function approvalFields(
   const blocked =
     ["draft", "rejected"].includes(String(row.status)) && !row.cancelled_at
       ? (
-          await requestRoute(
+          await departmentRoute(
             write,
             actor.companyId,
             String(row.claimant_user_id ?? row.created_by),
-            "expense",
             [String(row.prepared_by ?? row.created_by)],
           )
         ).blockedReason
@@ -234,7 +239,13 @@ export async function expenseDetail(actor: WorkContext, id: string) {
   const [attachments, history, payments, decisions] = await Promise.all([
     write
       .prepare(
-        "SELECT id,original_name,media_type,bytes FROM attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL ORDER BY created_at",
+        attachmentsV2Readable()
+          ? `SELECT DISTINCT a.id,a.original_name,a.media_type,a.bytes FROM attachments a
+             JOIN attachment_links l ON l.attachment_id=a.id JOIN attachment_sets s ON s.id=l.set_id
+             WHERE a.owner_type='expense_claim' AND a.owner_id=? AND a.revoked_at IS NULL
+               AND a.source_state='available' AND l.state='bound'
+               AND s.target_type='expense_claim' AND s.target_id=a.owner_id ORDER BY a.id`
+          : "SELECT id,original_name,media_type,bytes FROM attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL ORDER BY created_at",
       )
       .bind(id)
       .all<ExpenseRow>(),
@@ -266,7 +277,14 @@ export async function expenseDetail(actor: WorkContext, id: string) {
       .all<ExpenseRow>(),
     write
       .prepare(
-        "SELECT a.id,a.owner_id,a.original_name,a.media_type,a.bytes FROM attachments a JOIN expense_payment_drafts d ON d.id=a.owner_id WHERE a.owner_type='expense_payment' AND d.expense_id=? AND d.company_id=? AND a.revoked_at IS NULL ORDER BY a.created_at",
+        attachmentsV2Readable()
+          ? `SELECT DISTINCT a.id,a.owner_id,a.original_name,a.media_type,a.bytes FROM attachments a
+             JOIN expense_payment_drafts d ON d.id=a.owner_id
+             JOIN attachment_links l ON l.attachment_id=a.id JOIN attachment_sets s ON s.id=l.set_id
+             WHERE a.owner_type='expense_payment' AND d.expense_id=? AND d.company_id=? AND a.revoked_at IS NULL
+               AND a.source_state='available' AND l.state${attachmentsV2ReadOnly() ? "='bound'" : " IN ('draft','bound')"}
+               AND s.target_type='expense_payment' AND s.target_id=a.owner_id ORDER BY a.id`
+          : "SELECT a.id,a.owner_id,a.original_name,a.media_type,a.bytes FROM attachments a JOIN expense_payment_drafts d ON d.id=a.owner_id WHERE a.owner_type='expense_payment' AND d.expense_id=? AND d.company_id=? AND a.revoked_at IS NULL ORDER BY a.created_at",
       )
       .bind(id, actor.companyId)
       .all<ExpenseRow>(),
@@ -338,6 +356,8 @@ export async function expenseOptions(actor: WorkContext) {
     periods: periods.results,
     payees:payees.results,
     selfUserId: actor.userId,
+    companyId: actor.companyId,
+    assignmentId: actor.assignmentId,
   };
 }
 function independentClaimant(
@@ -374,15 +394,16 @@ export async function transitionExpense(
   actor: WorkContext,
   id: string,
   action: "submit" | "approve" | "reject" | "cancel",
-  input: { expectedVersion: number; reason?: string },
+  input: { expectedVersion: number; reason?: string; override?:boolean },
   key: string,
 ) {
   const { write } = await holdingResources(actor.holdingId),
     operation = `expense.${action}`;
   const prior = await replayCommand(write, actor, key, operation, id, input);
   if (prior) return prior;
-  const row = await getExpense(actor, id),
+  const row = input.override ? await write.prepare("SELECT * FROM finance_expenses WHERE id=? AND company_id=?").bind(id,actor.companyId).first<ExpenseRow>() : await getExpense(actor, id),
     review = action === "approve" || action === "reject";
+  if(!row)throw new ApiError(404,"NOT_FOUND","Expense not found.");
   if (row.workflow_version === 2 || ["submit"].includes(action))
     return transitionExpenseV2(actor, row, action, input, key);
   if (
@@ -403,7 +424,7 @@ export async function transitionExpense(
       "REVIEW_REASON_REQUIRED",
       "Record the reason for this decision.",
     );
-  if (review && !canReviewExpense(actor, row))
+  if (review && !(input.override ? (await approvalView(write,"expense",id,actor)).canOverride : canReviewExpense(actor, row)))
     throw new ApiError(
       403,
       "CURRENT_APPROVER_REQUIRED",
@@ -419,15 +440,15 @@ export async function transitionExpense(
         action === "approve",
         input.reason ?? "",
         input.expectedVersion,
+        input.override,
       )
     : null;
   const route =
     action === "submit"
-      ? await requestRoute(
+      ? await departmentRoute(
           write,
           actor.companyId,
           String(row.claimant_user_id),
-          "expense",
           [String(row.prepared_by ?? row.created_by)],
         )
       : null;
@@ -449,7 +470,7 @@ export async function transitionExpense(
       action === "submit"
         ? "in_review"
         : action === "approve"
-          ? "approved"
+          ? decision?.final ? "approved" : "in_review"
           : "rejected";
   const steps = [
     versionGuard(
@@ -485,7 +506,11 @@ export async function transitionExpense(
             write,
             key,
             "receipt",
-            "EXISTS(SELECT 1 FROM attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL)",
+            attachmentsV2Readable()
+              ? `EXISTS(SELECT 1 FROM attachments a JOIN attachment_links l ON l.attachment_id=a.id JOIN attachment_sets s ON s.id=l.set_id
+                  WHERE a.owner_type='expense_claim' AND a.owner_id=? AND a.revoked_at IS NULL AND a.source_state='available'
+                    AND l.state='bound' AND s.target_type='expense_claim' AND s.target_id=a.owner_id)`
+              : "EXISTS(SELECT 1 FROM attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL)",
             [id],
           ),
           assertion(
@@ -595,6 +620,12 @@ export async function revokeExpenseAttachment(
     input,
   );
   if (prior) return prior;
+  if (attachmentsV2ReadOnly())
+    throw new ApiError(
+      503,
+      "ATTACHMENTS_READ_ONLY",
+      "Receipt changes are disabled during attachment rollback.",
+    );
   const expense = await getExpense(actor, id);
   if (!canEditExpense(actor, expense))
     throw new ApiError(
@@ -602,6 +633,33 @@ export async function revokeExpenseAttachment(
       "EXPENSE_LOCKED",
       "Receipt changes require an editable claim.",
     );
+  if (attachmentsV2Readable()) {
+    const link = await write
+      .prepare(
+        "SELECT l.id,l.state,l.set_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.attachment_id=? AND s.company_id=? AND s.target_type='expense_claim' AND s.target_id=?",
+      )
+      .bind(attachmentId, actor.companyId, id)
+      .first<{ id: string; state: string; set_id: string }>();
+    if (!link)
+      throw new ApiError(404, "ATTACHMENT_NOT_FOUND", "Receipt not found.");
+    if (link.state === "bound")
+      throw new ApiError(
+        409,
+        "BOUND_ATTACHMENT_IMMUTABLE",
+        "Bound expense evidence cannot be removed. Add a correction instead.",
+      );
+    if (link.state !== "draft")
+      throw new ApiError(404, "ATTACHMENT_NOT_FOUND", "Receipt not found.");
+  }
+  const canonical = attachmentsV2Readable()
+    ? await write
+        .prepare(
+          "SELECT l.id,l.set_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.attachment_id=? AND s.company_id=? AND s.target_type='expense_claim' AND s.target_id=? AND l.state='draft'",
+        )
+        .bind(attachmentId, actor.companyId, id)
+        .first<{ id: string; set_id: string }>()
+    : null;
+  const now = Date.now();
   return executeCommand(
     write,
     actor,
@@ -623,14 +681,49 @@ export async function revokeExpenseAttachment(
         "EXISTS(SELECT 1 FROM attachments WHERE id=? AND owner_id=? AND owner_type='expense_claim' AND revoked_at IS NULL)",
         [attachmentId, id],
       ),
+      ...(canonical
+        ? [
+            assertion(
+              write,
+              key,
+              "canonical-receipt-draft",
+              "EXISTS(SELECT 1 FROM attachment_links WHERE id=? AND state='draft')",
+              [canonical.id],
+            ),
+            write
+              .prepare(
+                "UPDATE attachment_links SET state='withdrawn',withdrawn_at=?,withdrawn_by=?,withdrawal_reason=? WHERE id=? AND state='draft'",
+              )
+              .bind(
+                now,
+                actor.userId,
+                "Removed from expense preparation",
+                canonical.id,
+              ),
+            write
+              .prepare(
+                "INSERT INTO attachment_events(id,company_id,attachment_id,link_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,?, 'link.withdrawn',?,?)",
+              )
+              .bind(
+                `attachment-event-${crypto.randomUUID()}`,
+                actor.companyId,
+                attachmentId,
+                canonical.id,
+                canonical.set_id,
+                actor.userId,
+                JSON.stringify({ reason: "Removed from expense preparation" }),
+                now,
+              ),
+          ]
+        : []),
       write
         .prepare("UPDATE attachments SET revoked_at=? WHERE id=?")
-        .bind(Date.now(), attachmentId),
+        .bind(now, attachmentId),
       write
         .prepare(
           "UPDATE finance_expenses SET version=version+1,updated_at=? WHERE id=?",
         )
-        .bind(Date.now(), id),
+        .bind(now, id),
     ],
     expenseScope(expense),
   );
@@ -775,7 +868,11 @@ export async function prepareExpensePosting(
         write,
         key,
         "receipt",
-        "EXISTS(SELECT 1 FROM attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL)",
+            attachmentsV2Readable()
+              ? `EXISTS(SELECT 1 FROM attachments a JOIN attachment_links l ON l.attachment_id=a.id JOIN attachment_sets s ON s.id=l.set_id
+                  WHERE a.owner_type='expense_claim' AND a.owner_id=? AND a.revoked_at IS NULL AND a.source_state='available'
+                    AND l.state='bound' AND s.target_type='expense_claim' AND s.target_id=a.owner_id)`
+              : "EXISTS(SELECT 1 FROM attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL)",
         [id],
       ),
       ...(claim.request_kind==="payment"&&claim.payee_party_id ? [assertion(write,key,"payee","EXISTS(SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND kind='supplier' AND status='active' AND currency=?)",[payee,actor.companyId,claim.currency])] : [

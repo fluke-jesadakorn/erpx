@@ -4,16 +4,33 @@ import { scheduleWorkRefresh } from "@/lib/work-refresh";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
+import type { WorkActionCard, WorkCardPreferences } from "@/lib/work-cards";
 
 type Counts = { home: number | null; work: number | null };
+type QuickAccessProjection = {
+  cards: WorkActionCard[];
+  preferences: WorkCardPreferences;
+  preferencesUnavailable: boolean;
+};
+type NavigationContext = {
+  counts: Counts;
+  quickAccess: QuickAccessProjection | null;
+  quickAccessError: string;
+  refresh: () => Promise<void>;
+  saveQuickAccess: (preferences: WorkCardPreferences) => void;
+  readHome: () => void;
+  publishWork: (count: number | null) => void;
+};
 const empty: Counts = { home: null, work: null };
-const NavigationCounts = createContext<{ counts: Counts; readHome: () => void; publishWork: (count: number | null) => void }>({ counts: empty, readHome: () => {}, publishWork: () => {} });
+const NavigationCounts = createContext<NavigationContext>({ counts: empty, quickAccess: null, quickAccessError: "", refresh: async () => {}, saveQuickAccess: () => {}, readHome: () => {}, publishWork: () => {} });
 export const useNavigationCounts = () => useContext(NavigationCounts);
 
 export function NavigationCountsProvider({ base, children }: { base: string; children: React.ReactNode }) {
   const pathname = usePathname();
   const home = pathname === `${base}/home` || pathname === `${base}/feed`;
   const [counts, setCounts] = useState<Counts>(empty);
+  const [quickAccess, setQuickAccess] = useState<QuickAccessProjection | null>(null);
+  const [quickAccessError, setQuickAccessError] = useState("");
   const generation = useRef(0);
   const pendingRead = useRef<Promise<void> | null>(null);
   const request = useRef<AbortController | null>(null);
@@ -22,6 +39,9 @@ export function NavigationCountsProvider({ base, children }: { base: string; chi
   const publishWork = useCallback((work: number | null) => {
     ++summaryRevision.current;
     setCounts(value => ({ ...value, work }));
+  }, []);
+  const saveQuickAccess = useCallback((preferences: WorkCardPreferences) => {
+    setQuickAccess((current) => current ? { ...current, preferences, preferencesUnavailable: false } : current);
   }, []);
   const endpoint = `/api/v1${base}/navigation`;
   const refresh = useCallback(async () => {
@@ -32,10 +52,19 @@ export function NavigationCountsProvider({ base, children }: { base: string; chi
     try {
       const response = await workFetch(endpoint, { cache: "no-store", signal: controller.signal });
       if (!response.ok) throw new Error("Counts unavailable");
-      const { data } = await response.json();
-      if (!controller.signal.aborted && current === generation.current) setCounts(previous => ({ home: data.home, work: workRevision === summaryRevision.current ? data.work : previous.work }));
+      const { data } = await response.json() as { data: { home: number; work: number | null; quickAccess: QuickAccessProjection } };
+      if (!controller.signal.aborted && current === generation.current) {
+        setCounts(previous => ({ home: data.home, work: workRevision === summaryRevision.current ? data.work : previous.work }));
+        setQuickAccess((previous) => previous && previous.preferences.version > data.quickAccess.preferences.version
+          ? { ...data.quickAccess, preferences: previous.preferences, preferencesUnavailable: false }
+          : data.quickAccess);
+        setQuickAccessError("");
+      }
     } catch {
-      if (!controller.signal.aborted && current === generation.current) setCounts(empty);
+      if (!controller.signal.aborted && current === generation.current) {
+        setCounts(empty);
+        setQuickAccessError("Shortcuts could not refresh.");
+      }
     } finally {
       if (request.current === controller) request.current = null;
     }
@@ -65,8 +94,11 @@ export function NavigationCountsProvider({ base, children }: { base: string; chi
   useEffect(() => {
     // Read on entry, never on a background poll or when opening a post detail.
     const initial = setTimeout(() => {
-      if (home) void readHome().then(refresh);
-      else void refresh();
+      if (home) {
+        // Do not hold the shared shortcut shelf behind the Home read command.
+        void readHome();
+        void refresh();
+      } else void refresh();
     }, 0);
     const update = () => {
       if (document.visibilityState === "visible" && !pendingRead.current) void refresh();
@@ -90,5 +122,5 @@ export function NavigationCountsProvider({ base, children }: { base: string; chi
 
     };
   }, [home, base, refresh, readHome, invalidate, publishWork]);
-  return <NavigationCounts.Provider value={{ counts, readHome, publishWork }}>{children}</NavigationCounts.Provider>;
+  return <NavigationCounts.Provider value={{ counts, quickAccess, quickAccessError, refresh, saveQuickAccess, readHome, publishWork }}>{children}</NavigationCounts.Provider>;
 }

@@ -4,7 +4,7 @@ export type OrganizationPosition = {
   id: string; company_id: string; branch_id: string | null; department_id: string | null;
   title: string; level_id: string; level_number: number; reports_to_position_id: string | null;
   requirements?: string;
-  is_ceo: number; active: number; version: number;
+  is_ceo: number; roster_required: number; active: number; version: number;
 };
 export type OrganizationPerson = {
   person_id: string; user_id: string | null; legal_name: string; email: string | null; engagement_id: string;
@@ -25,9 +25,14 @@ export type OrganizationNodeChange = {
   canReview?: boolean;
 };
 export type OrganizationTemplatePosition = {
-  key: string; title: string; levelNumber: number; reportsToKey: string | null; isCeo: boolean;
+  key: string; title: string; levelNumber: number; reportsToKey: string | null; isCeo: boolean; rosterRequired?: boolean;
 };
 export type OrganizationOverview = {
+  defaults?: {
+    pay: {position_id:string;version:number;pay_group_id:string;currency:string;monthly_amount_minor:number;pay_group_name:string}[];
+    leave: {level_id:string;version:number;policy_version_id:string;name:string;effective_from:string;annual_days:number;sick_days:number}[];
+  };
+  monthlyPayGroups?: {id:string;name:string;currency:string}[];
   positions: OrganizationPosition[]; people: OrganizationPerson[]; nodes: OrganizationNode[];
   levels: {id: string; name: string; level_number: number}[];
   templates: {id: string; name: string; version: number; positions: OrganizationTemplatePosition[]}[];

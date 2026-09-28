@@ -11,6 +11,9 @@ import { leaveItems } from '@/server/calendar/leave';
 import { calendarAccess } from '@/server/calendar/access';
 import { calendarQuerySchema } from '@/lib/calendar';
 import { overtimeDetailsSchema } from '@/lib/overtime';
+import { assertLeaveAttachmentAccess,availableLeaveEvidence,leaveEvidenceManifest,pendingLeaveEvidenceCount } from '@/server/leave-evidence';
+import { withdrawAttachmentLink } from '@/server/attachments/service';
+import { getLeaveEvidence } from '@/server/work';
 vi.mock('@/server/runtime',()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES})}));
 const db=env.H001_DB,key=()=>crypto.randomUUID();
 let company:string,employee:WorkContext,manager:WorkContext,hr:WorkContext,other:WorkContext,type:string,policy:string;
@@ -26,8 +29,11 @@ async function person(name:string,role:string):Promise<WorkContext>{
 beforeAll(()=>applyMigrations(db,env.STAFF_TEST_MIGRATIONS));
 beforeEach(async()=>{
  company=`self-${key()}`;await db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES(?,'company',?,'Self service',?)").bind(company,company,company).run();
+ const department=`department-${company}`;
+ await db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id) VALUES(?,'department',?,'Self service department',?,?)").bind(department,department,company,company).run();
  employee=await person('Employee','employee');manager=await person('Manager','people_manager');hr=await person('HR','hr_admin');other=await person('Other','employee');
- await db.prepare('UPDATE hr_engagements SET manager_person_id=? WHERE id=?').bind(`p-${manager.userId}`,`e-${employee.userId}`).run();
+ await db.prepare('UPDATE hr_engagements SET manager_person_id=?,department_id=? WHERE id=?').bind(`p-${manager.userId}`,department,`e-${employee.userId}`).run();
+ await db.prepare("INSERT INTO department_heads(department_id,company_id,person_id,updated_by,updated_at) VALUES(?,?,?,?,?)").bind(department,company,`p-${manager.userId}`,'fixture',1).run();
  type=`type-${company}`;policy=`policy-${company}`;
  await db.batch([
   db.prepare("INSERT INTO leave_types(id,company_id,code,name,tracked,effective_from,created_by,created_at,updated_at) VALUES(?,?,'annual','Annual leave',true,'2026-01-01','fixture',1,1)").bind(type,company),
@@ -39,6 +45,32 @@ beforeEach(async()=>{
 });
 const leaveInput=()=>({leaveTypeId:type,startDate:'2026-10-05',endDate:'2026-10-05',startSegment:'full' as const,endSegment:'full' as const,handoverNote:'Private handover',saveOnly:false});
 async function sums(id:string){return (await db.prepare('SELECT kind,sum(units)::float units FROM leave_balance_entries WHERE request_id=? GROUP BY kind ORDER BY kind').bind(id).all<{kind:string;units:number}>()).results;}
+function parseJson(value:unknown){return typeof value==='string'?JSON.parse(value):value as Record<string,unknown>;}
+async function stageLeaveEvidence(
+ leaveRequestId:string,
+ expectedVersion:number,
+ purpose:'medical_certificate'|'leave_supporting_photo',
+ mediaType:'application/pdf'|'image/jpeg',
+ checksum:string,
+ compatibilityAdapter=false,
+){
+ const upload=key(),source=key(),setId=key(),linkId=key(),filename=mediaType==='application/pdf'?'certificate.pdf':'support.jpg';
+ await db.batch([
+  db.prepare("INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,status,created_by,expires_at,created_at,updated_at) VALUES(?,?,?,?,?,?,4,4,?,?,?,?,?,9999999999999,1,1)")
+   .bind(upload,'leave_request',leaveRequestId,purpose,filename,mediaType,checksum,`staging-${upload}`,`final-${upload}`,'ready',employee.userId),
+  db.prepare("INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state) VALUES(?,?,?,?,?,?,1,?,?,4,?,?,1,?,?, 'available')")
+   .bind(source,upload,'leave_request',leaveRequestId,purpose,`final-${upload}`,filename,mediaType,checksum,employee.userId,company,mediaType),
+  db.prepare(`INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,
+    policy_version,classification,audience_json,required_count,max_files,state,created_by,created_at,updated_at)
+    VALUES(?,?,'leave_request',?,'record',?,?,?,1,?,'{}',0,10,'draft',?,1,1)`)
+   .bind(setId,company,leaveRequestId,`leave-evidence:${purpose}`,purpose,expectedVersion,purpose==='medical_certificate'?'restricted':'confidential',employee.userId),
+  db.prepare("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES(?,?,?,'draft',?,1,9999999999999)")
+   .bind(linkId,setId,source,employee.userId),
+  ...(compatibilityAdapter?[db.prepare("INSERT INTO attachment_events(id,company_id,set_id,actor_id,action,details_json,created_at) VALUES(?,?,?,?,?,'{\"compatibilityAdapter\":true}',1)")
+   .bind(`event-${key()}`,company,setId,employee.userId,'set.created')]:[]),
+ ]);
+ return {upload,source,setId,linkId};
+}
 const actual=()=>overtimeDetailsSchema.parse({mode:'retrospective',startLocal:'2026-09-10T22:00',endLocal:'2026-09-11T02:00',timezone:'Asia/Bangkok',breakMinutes:30,reason:'Inventory work',lateExplanation:'Submitted after the overnight count.'});
 it('holds scheduled leave accrual until People is enabled for the company in production',async()=>{
  vi.stubEnv('NODE_ENV','production');
@@ -79,12 +111,175 @@ describe('Staff self-service transactional journeys',()=>{
   const finalKey=key(),input={expectedVersion:5,note:''};await decideLeaveCancellation(hr,id,input,finalKey,true);await decideLeaveCancellation(hr,id,input,finalKey,true);
   expect((await getLeave('h001',id,employee)).state).toBe('cancelled');expect((await sums(id)).find(e=>e.kind==='usage_reversal')?.units).toBe(1);
  });
- it('freezes policy snapshots and requires evidence before submission',async()=>{
-  await db.prepare('UPDATE leave_types SET evidence_after_units=.5 WHERE id=?').bind(type).run();
-  await expect(createSelfServiceLeave(employee,leaveInput(),key())).rejects.toMatchObject({code:'LEAVE_EVIDENCE_REQUIRED'});
-  const draft=await createSelfServiceLeave(employee,{...leaveInput(),saveOnly:true},key());
-  await expect(editSelfServiceLeave(employee,String(draft.id),{...leaveInput(),expectedVersion:9},key())).rejects.toMatchObject({code:'STALE_VERSION'});
+ it('freezes versioned medical policy, permits submission first, and gates final approval on a clean certificate',async()=>{
+  vi.stubEnv('ERPX_ATTACHMENTS_V2','true');
+  try {
+  await db.prepare(`UPDATE leave_policy_rules SET evidence_min_units=.5,evidence_purpose='medical_certificate',evidence_min_count=1,
+    evidence_due_stage='before_final_approval',evidence_grace_days=2,evidence_note='Attach the medical certificate.'
+    WHERE policy_version_id=? AND leave_type_id=?`).bind(policy,type).run();
+  const submitted=await createSelfServiceLeave(employee,leaveInput(),key()),id=String(submitted.id);
+  const frozen=parseJson((await getLeave('h001',id,employee)).evidence_policy_snapshot);
+  expect(frozen).toMatchObject({required:true,purposeKey:'medical_certificate',minimumCount:1,dueStage:'before_final_approval',graceDays:2});
+  await expect(assertLeaveAttachmentAccess(db,other,{leaveRequestId:id,purposeKey:'medical_certificate',operation:'read'})).rejects.toMatchObject({status:403});
+  await expect(assertLeaveAttachmentAccess(db,manager,{leaveRequestId:id,purposeKey:'medical_certificate',operation:'read'})).resolves.toMatchObject({version:1});
+  const supporting=await stageLeaveEvidence(id,1,'leave_supporting_photo','image/jpeg','support-checksum');
+  await approveLeave('h001',id,{expectedVersion:1,note:''},key(),manager);
+  expect(await db.prepare('SELECT state,binding_type FROM attachment_links WHERE id=?').bind(supporting.linkId).first()).toEqual({state:'bound',binding_type:'leave_approval'});
+  expect((await getLeave('h001',id,employee)).evidence_version).toBe(1);
+  await expect(withdrawAttachmentLink(db,employee,supporting.linkId,'Replace the supporting photo')).rejects.toMatchObject({code:'BOUND_ATTACHMENT_IMMUTABLE'});
+  await expect(approveLeave('h001',id,{expectedVersion:2,note:''},key(),hr)).rejects.toMatchObject({code:'LEAVE_EVIDENCE_REQUIRED'});
+  const certificate=await stageLeaveEvidence(id,2,'medical_certificate','application/pdf','certificate-checksum');
+  await approveLeave('h001',id,{expectedVersion:2,note:''},key(),hr);
+  const approved=await getLeave('h001',id,employee);
+  expect(approved).toMatchObject({state:'approved',evidence_version:2});
+  await expect(assertLeaveAttachmentAccess(db,manager,{leaveRequestId:id,purposeKey:'medical_certificate',operation:'read'}))
+    .resolves.toMatchObject({version:3});
+  expect(await db.prepare('SELECT state FROM attachment_links WHERE id=?').bind(certificate.linkId).first()).toEqual({state:'bound'});
+  const manifests=(await db.prepare('SELECT request_version,manifest_json FROM leave_evidence_manifests WHERE request_id=? ORDER BY request_version').bind(id).all<{request_version:number;manifest_json:string}>()).results;
+  expect(parseJson(manifests[0].manifest_json).files).toEqual([
+   expect.objectContaining({sourceId:supporting.source,purposeKey:'leave_supporting_photo',checksumSha256:'support-checksum'}),
+  ]);
+  expect(parseJson(manifests[1].manifest_json).files).toEqual(expect.arrayContaining([
+   expect.objectContaining({sourceId:supporting.source,purposeKey:'leave_supporting_photo',checksumSha256:'support-checksum'}),
+   expect.objectContaining({sourceId:certificate.source,purposeKey:'medical_certificate',checksumSha256:'certificate-checksum'}),
+  ]));
+
+  const draft=await createSelfServiceLeave(employee,{...leaveInput(),startDate:'2026-10-06',endDate:'2026-10-06',saveOnly:true},key());
+  await expect(editSelfServiceLeave(employee,String(draft.id),{...leaveInput(),startDate:'2026-10-06',endDate:'2026-10-06',expectedVersion:9},key())).rejects.toMatchObject({code:'STALE_VERSION'});
   await expect(getLeave('h001',String(draft.id),other)).rejects.toMatchObject({status:404});
+ } finally { vi.unstubAllEnvs(); }
+ });
+ it('binds compatibility Leave evidence and pins the exact manifest while the global gate is off',async()=>{
+  vi.stubEnv('ERPX_ATTACHMENTS_V2','false');
+  vi.stubEnv('ERPX_ATTACHMENTS_READ_ONLY','false');
+  try {
+   await db.prepare(`UPDATE leave_policy_rules SET evidence_min_units=.5,evidence_purpose='medical_certificate',evidence_min_count=1,
+     evidence_due_stage='before_final_approval',evidence_grace_days=0,evidence_note='Attach the medical certificate.'
+     WHERE policy_version_id=? AND leave_type_id=?`).bind(policy,type).run();
+   const request=await createSelfServiceLeave(employee,leaveInput(),key()),id=String(request.id);
+   const certificate=await stageLeaveEvidence(id,1,'medical_certificate','application/pdf','gate-off-certificate',true);
+
+   await approveLeave('h001',id,{expectedVersion:1,note:'Reviewed the compatibility attachment'},key(),manager);
+   expect(await db.prepare('SELECT state,binding_type FROM attachment_links WHERE id=?').bind(certificate.linkId).first())
+     .toEqual({state:'bound',binding_type:'leave_approval'});
+   expect(await db.prepare('SELECT state FROM attachment_sets WHERE id=?').bind(certificate.setId).first())
+     .toEqual({state:'bound'});
+
+   await approveLeave('h001',id,{expectedVersion:2,note:'Final medical evidence review'},key(),hr);
+   expect((await getLeave('h001',id,employee)).state).toBe('approved');
+   const manifests=(await db.prepare('SELECT manifest_json FROM leave_evidence_manifests WHERE request_id=? ORDER BY request_version').bind(id).all<{manifest_json:string}>()).results;
+   expect(manifests).toHaveLength(2);
+   for(const manifest of manifests)expect(parseJson(manifest.manifest_json).files).toEqual([
+    expect.objectContaining({linkId:certificate.linkId,sourceId:certificate.source,purposeKey:'medical_certificate',checksumSha256:'gate-off-certificate'}),
+   ]);
+  } finally { vi.unstubAllEnvs(); }
+ });
+ it('ignores foreign-Company canonical and legacy evidence even when it points at the Leave id',async()=>{
+  vi.stubEnv('ERPX_ATTACHMENTS_V2','false');
+  vi.stubEnv('ERPX_ATTACHMENTS_READ_ONLY','false');
+  try {
+   await db.prepare(`UPDATE leave_policy_rules SET evidence_min_units=.5,evidence_purpose='medical_certificate',evidence_min_count=1,
+     evidence_due_stage='before_final_approval',evidence_grace_days=0,evidence_note='Attach the medical certificate.'
+     WHERE policy_version_id=? AND leave_type_id=?`).bind(policy,type).run();
+   const request=await createSelfServiceLeave(employee,leaveInput(),key()),id=String(request.id),foreignCompany=`foreign-${key()}`;
+   await db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES(?,'company',?,'Foreign company',?)")
+     .bind(foreignCompany,foreignCompany,foreignCompany).run();
+   const availableUpload=key(),availableSource=key(),pendingUpload=key(),pendingSource=key(),setId=key(),availableLink=key(),pendingLink=key(),localSetId=key(),crossCompanyLink=key(),legacyUpload=key(),legacySource=key();
+   await db.batch([
+    db.prepare("INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,status,created_by,expires_at,created_at,updated_at,company_id) VALUES(?,'leave_request',?,'medical_certificate','foreign.pdf','application/pdf',4,4,'foreign-clean',?,?,'ready',?,9999999999999,1,1,?)")
+      .bind(availableUpload,id,`staging-${availableUpload}`,`final-${availableUpload}`,employee.userId,foreignCompany),
+    db.prepare("INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state) VALUES(?,?,'leave_request',?,'medical_certificate',?,1,'foreign.pdf','application/pdf',4,'foreign-clean',?,1,?,'application/pdf','available')")
+      .bind(availableSource,availableUpload,id,`final-${availableUpload}`,employee.userId,foreignCompany),
+    db.prepare("INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,status,created_by,expires_at,created_at,updated_at,company_id) VALUES(?,'leave_request',?,'medical_certificate','foreign-pending.pdf','application/pdf',4,4,'foreign-pending',?,?,'uploaded',?,9999999999999,1,1,?)")
+      .bind(pendingUpload,id,`staging-${pendingUpload}`,`final-${pendingUpload}`,employee.userId,foreignCompany),
+    db.prepare("INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state) VALUES(?,?,'leave_request',?,'medical_certificate',?,1,'foreign-pending.pdf','application/pdf',4,'foreign-pending',?,1,?,'application/pdf','quarantined')")
+      .bind(pendingSource,pendingUpload,id,`final-${pendingUpload}`,employee.userId,foreignCompany),
+    db.prepare(`INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,
+      policy_version,classification,audience_json,required_count,max_files,state,created_by,created_at,updated_at)
+      VALUES(?,?,'leave_request',?,'record','leave-evidence:medical_certificate','medical_certificate',1,1,'restricted','{}',0,10,'draft',?,1,1)`)
+      .bind(setId,foreignCompany,id,employee.userId),
+    db.prepare("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES(?,?,?,'draft',?,1,9999999999999)")
+      .bind(availableLink,setId,availableSource,employee.userId),
+    db.prepare("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES(?,?,?,'draft',?,1,9999999999999)")
+      .bind(pendingLink,setId,pendingSource,employee.userId),
+    db.prepare("INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,status,created_by,expires_at,created_at,updated_at,company_id) VALUES(?,'leave_request',?,'medical_certificate','foreign-legacy.pdf','application/pdf',4,4,'foreign-legacy',?,?,'ready',?,9999999999999,1,1,?)")
+      .bind(legacyUpload,id,`staging-${legacyUpload}`,`final-${legacyUpload}`,employee.userId,foreignCompany),
+    db.prepare("INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state) VALUES(?,?,'leave_request',?,'medical_certificate',?,1,'foreign-legacy.pdf','application/pdf',4,'foreign-legacy',?,1,?,'application/pdf','available')")
+      .bind(legacySource,legacyUpload,id,`final-${legacyUpload}`,employee.userId,foreignCompany),
+   ]);
+
+   vi.stubEnv('ERPX_ATTACHMENTS_V2','true');
+   await expect(getLeaveEvidence('h001',id,employee)).resolves.toEqual([]);
+   vi.stubEnv('ERPX_ATTACHMENTS_V2','false');
+   await expect(getLeaveEvidence('h001',id,employee)).resolves.toEqual([]);
+   await expect(availableLeaveEvidence(db,id,{purposeKey:'medical_certificate',minimumCount:1})).resolves.toEqual({count:0,setIds:[]});
+   await expect(leaveEvidenceManifest(db,id)).resolves.toMatchObject({manifest:[],canonicalManifest:[],legacyManifest:[],draftSetIds:[]});
+   await expect(pendingLeaveEvidenceCount(db,id)).resolves.toBe(0);
+   await approveLeave('h001',id,{expectedVersion:1,note:'No in-scope evidence was submitted'},key(),manager);
+   await expect(approveLeave('h001',id,{expectedVersion:2,note:'Final review'},key(),hr))
+     .rejects.toMatchObject({code:'LEAVE_EVIDENCE_REQUIRED'});
+   await db.batch([
+    db.prepare(`INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,
+      policy_version,classification,audience_json,required_count,max_files,state,created_by,created_at,updated_at)
+      VALUES(?,?,'leave_request',?,'record','leave-evidence:cross-company-source','medical_certificate',2,1,'restricted','{}',0,10,'draft',?,2,2)`)
+      .bind(localSetId,company,id,employee.userId),
+    db.prepare("INSERT INTO attachment_links(id,set_id,attachment_id,upload_intent_id,state,created_by,created_at,expires_at) VALUES(?,?,?,?,'draft',?,2,9999999999999)")
+      .bind(crossCompanyLink,localSetId,availableSource,availableUpload,employee.userId),
+   ]);
+   vi.stubEnv('ERPX_ATTACHMENTS_V2','true');
+   await expect(getLeaveEvidence('h001',id,employee)).resolves.toEqual([]);
+  } finally { vi.unstubAllEnvs(); }
+ });
+ it('revokes medical-evidence access immediately when the current approver assignment is removed',async()=>{
+  await db.prepare(`UPDATE leave_policy_rules SET evidence_min_units=.5,evidence_purpose='medical_certificate',evidence_min_count=1,
+    evidence_due_stage='before_final_approval',evidence_grace_days=2,evidence_note='Attach the medical certificate.'
+    WHERE policy_version_id=? AND leave_type_id=?`).bind(policy,type).run();
+  const request=await createSelfServiceLeave(employee,leaveInput(),key()),id=String(request.id);
+
+  await expect(assertLeaveAttachmentAccess(db,manager,{leaveRequestId:id,purposeKey:'medical_certificate',operation:'read'}))
+    .resolves.toMatchObject({version:1});
+  await db.prepare('UPDATE assignments SET revoked_at=? WHERE id=?').bind(Date.now(),manager.assignmentId).run();
+  await expect(assertLeaveAttachmentAccess(db,manager,{leaveRequestId:id,purposeKey:'medical_certificate',operation:'read'}))
+    .rejects.toMatchObject({status:403,code:'LEAVE_EVIDENCE_FORBIDDEN'});
+  await expect(assertLeaveAttachmentAccess(db,employee,{leaveRequestId:id,purposeKey:'medical_certificate',operation:'read'}))
+    .resolves.toMatchObject({version:1});
+  await expect(assertLeaveAttachmentAccess(db,hr,{leaveRequestId:id,purposeKey:'medical_certificate',operation:'read'}))
+    .resolves.toMatchObject({version:1});
+ });
+ it('counts distinct physical medical sources instead of duplicate links',async()=>{
+  vi.stubEnv('ERPX_ATTACHMENTS_V2','true');
+  try {
+   await db.prepare(`UPDATE leave_policy_rules SET evidence_min_units=.5,evidence_purpose='medical_certificate',evidence_min_count=2,
+     evidence_due_stage='before_final_approval',evidence_grace_days=0,evidence_note='Attach two independent medical documents.'
+     WHERE policy_version_id=? AND leave_type_id=?`).bind(policy,type).run();
+   const request=await createSelfServiceLeave(employee,leaveInput(),key()),id=String(request.id);
+   const first=await stageLeaveEvidence(id,1,'medical_certificate','application/pdf','first-certificate');
+   await approveLeave('h001',id,{expectedVersion:1,note:'Reviewed the submitted documents'},key(),manager);
+   const duplicateSet=key(),duplicateLink=key();
+   // A later canonical reuse of the same physical source must not satisfy a
+   // two-document policy twice.
+   await db.batch([
+    db.prepare(`INSERT INTO attachment_sets(id,company_id,target_type,target_id,component_kind,component_ref,purpose_key,expected_target_version,
+      policy_version,classification,audience_json,required_count,max_files,state,created_by,created_at,updated_at)
+      VALUES(?,?,'leave_request',?,'record','leave-evidence:medical_certificate','medical_certificate',2,1,'restricted','{}',0,10,'draft',?,2,2)`)
+      .bind(duplicateSet,company,id,employee.userId),
+    db.prepare("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES(?,?,?,'draft',?,2,9999999999999)")
+      .bind(duplicateLink,duplicateSet,first.source,employee.userId),
+   ]);
+   await expect(approveLeave('h001',id,{expectedVersion:2,note:'Final review'},key(),hr))
+     .rejects.toMatchObject({code:'LEAVE_EVIDENCE_REQUIRED'});
+   const upload=key(),source=key(),link=key();
+   await db.batch([
+    db.prepare("INSERT INTO upload_intents(id,owner_type,owner_id,purpose,original_name,media_type,declared_bytes,actual_bytes,checksum_sha256,staging_key,final_key,status,created_by,expires_at,created_at,updated_at) VALUES(?,'leave_request',?,'medical_certificate','certificate-2.pdf','application/pdf',4,4,'second-certificate',?,?,'ready',?,9999999999999,2,2)")
+      .bind(upload,id,`staging-${upload}`,`final-${upload}`,employee.userId),
+    db.prepare("INSERT INTO attachments(id,upload_id,owner_type,owner_id,purpose,object_key,revision,original_name,media_type,bytes,checksum_sha256,created_by,created_at,company_id,detected_media_type,source_state) VALUES(?,?,'leave_request',?,'medical_certificate',?,1,'certificate-2.pdf','application/pdf',4,'second-certificate',?,2,?,'application/pdf','available')")
+      .bind(source,upload,id,`final-${upload}`,employee.userId,company),
+    db.prepare("INSERT INTO attachment_links(id,set_id,attachment_id,state,created_by,created_at,expires_at) VALUES(?,?,?,'draft',?,3,9999999999999)")
+      .bind(link,duplicateSet,source,employee.userId),
+   ]);
+   await approveLeave('h001',id,{expectedVersion:2,note:'Final review'},key(),hr);
+   expect((await getLeave('h001',id,employee)).state).toBe('approved');
+  } finally { vi.unstubAllEnvs(); }
  });
  it('catches up missed accrual periods once and isolates balances by year',async()=>{
   await db.prepare("UPDATE leave_policy_rules SET grant_kind='accrual',accrual_units=1,accrual_period='monthly' WHERE policy_version_id=?").bind(policy).run();

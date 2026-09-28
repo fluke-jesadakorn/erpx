@@ -1,5 +1,7 @@
 import { rehireInput, createRehireEngagement, peopleLifecycleData, previewPackage, savePackage, bindPositionPackage, previewLifecycle, saveLifecycle, cancelLifecycle, requestLifecycleAccess, lifecycleSettingsInput, saveLifecycleSettings, completePreparationTask } from "@/server/people-lifecycle";
 import { packageInput, lifecycleInput } from "@/lib/people-lifecycle";
+import { positionMoveInput, positionMoveSubmitInput } from "@/lib/position-moves";
+import { previewPositionMove, submitPositionMove, positionMoves, cancelPositionMove } from "@/server/position-moves";
 import type { PostgresDatabase } from "@/server/runtime/postgres";
 import { directoryOperationsApi } from "@/server/directory-operations-api";
 import { peopleTemplatesData,saveHoldingTemplate,adoptHoldingTemplate,adoptTemplateInput } from "@/server/people-templates";
@@ -13,6 +15,7 @@ import { companyBusinessAcceptance, companyAcceptanceSubmitSchema, companyAccept
 import { grantSchema,grantPersonAccess,revokePersonAccess,invitePerson,retryInvitationDelivery,revokeInvitation } from "@/server/account-access";
 import { directorySchema, directoryUpdateSchema, directoryStatusSchema, saveDirectoryPerson, setDirectoryStatus } from "@/server/people-directory";
 import { z } from "zod";
+import { positionPayInput, levelLeaveInput, savePositionPayDefault, saveLevelLeaveDefault } from "@/server/staff-defaults";
 import { requireWorkContext } from "@/server/authorization";
 import { ApiError, errorResponse } from "@/server/http";
 import {
@@ -79,6 +82,7 @@ function parsed<T>(result: z.ZodSafeParseResult<T>): T {
   if (!result.success) throw new ApiError(422,"VALIDATION_FAILED",result.error.issues[0]?.message ?? "Invalid request.");
   return result.data;
 }
+const legacySupersedeInput = z.object({id:z.string().min(1),expectedVersion:z.number().int().positive()}).strict();
 
 export const dynamic = "force-dynamic";
 
@@ -89,6 +93,7 @@ export async function GET(request: Request, context: Context) {
     if(p[0]==="templates"){const {write}=await holdingResources(actor.holdingId);return Response.json({data:await peopleTemplatesData(write as PostgresDatabase,iamActorFromWork(actor))},{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="lifecycle" && p.length===1){const {write}=await holdingResources(actor.holdingId);return Response.json({data:await peopleLifecycleData(write,actor)},{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="organization" && p.length===1){const {write}=await holdingResources(actor.holdingId);return Response.json({data:await organizationOverview(write,actor,Object.fromEntries(new URL(request.url).searchParams))},{headers:{"Cache-Control":"private, no-store"}});}
+    if(p[0]==="organization" && p[1]==="position-moves" && p.length<=3){const {write}=await holdingResources(actor.holdingId);return Response.json({data:await positionMoves(write,actor,p[2])},{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="organization" && p[1]==="acceptance" && p.length===2){const {write}=await holdingResources(actor.holdingId);return Response.json({data:await companyBusinessAcceptance(write,actor)},{headers:{"Cache-Control":"private, no-store"}});}
     if(p[0]==="organization" && p[1]==="readiness") {const {write}=await holdingResources(actor.holdingId);const kind=new URL(request.url).searchParams.get("kind");const route=await expenseRoute(write,actor.companyId,actor.userId,[],false,kind==="purchase"||kind==="payment"?kind:"expense");return Response.json({data:{ready:!route.blockedReason,blockedReason:route.blockedReason,steps:route.steps}});}
     if (p.length === 0 || (p[0] === "people" && !p[1])) return Response.json({ data: await listPeople(actor) });
@@ -113,11 +118,12 @@ export async function POST(request: Request, context: Context) {
     if(p[0]==="templates"&&p.length===2&&["publish","preview","adopt"].includes(p[1])){const {write}=await holdingResources(actor.holdingId),iam=iamActorFromWork(actor);return Response.json({data:p[1]==="publish"?await saveHoldingTemplate(write as PostgresDatabase,iam,input,id):await adoptHoldingTemplate(write as PostgresDatabase,iam,parsed(adoptTemplateInput.safeParse(input)),id,p[1]==="preview")});}
     if(p[0]==="lifecycle") {
       const {write}=await holdingResources(actor.holdingId),db=write as PostgresDatabase;
+      if(input.supersedeLegacyCase!==undefined && !(p[1]==="placements" && p[2]==="submit"))throw new ApiError(422,"LEGACY_SUPERSEDE_INVALID","Confirm a legacy case only when submitting an HR placement.");
       if(p[1]==="packages" && p[2]==="preview")return Response.json({data:await previewPackage(db,actor,parsed(packageInput.safeParse(input)))});
       if(p[1]==="packages" && ["draft","publish"].includes(p[2]))return Response.json({data:await savePackage(db,actor,parsed(packageInput.safeParse(input)),id,p[2]==="publish",input.previewToken)});
       if(p[1]==="position" && ["preview","bind"].includes(p[2]))return Response.json({data:await bindPositionPackage(db,actor,parsed(z.object({positionId:z.string().min(1),packageId:z.string().min(1),revision:z.number().int().positive(),expectedVersion:z.number().int().positive(),previewToken:z.string().optional()}).safeParse(input)),id,p[2]==="preview")});
       if(p[1]==="placements" && p[2]==="preview")return Response.json({data:await previewLifecycle(db,actor,parsed(lifecycleInput.safeParse(input)),true)});
-      if(p[1]==="placements" && ["draft","submit"].includes(p[2]))return Response.json({data:await saveLifecycle(db,actor,parsed(lifecycleInput.safeParse(input)),id,p[2]==="submit",input.previewToken,true)});
+      if(p[1]==="placements" && ["draft","submit"].includes(p[2]))return Response.json({data:await saveLifecycle(db,actor,parsed(lifecycleInput.safeParse(input)),id,p[2]==="submit",input.previewToken,true,input.supersedeLegacyCase===undefined?undefined:parsed(legacySupersedeInput.safeParse(input.supersedeLegacyCase)))});
       if(p[1]==="placements" && p[3]==="cancel")return Response.json({data:await cancelLifecycle(db,actor,p[2],parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input)).expectedVersion,id)});
       if(p[1]==="cases" && p[2]==="preview")return Response.json({data:await previewLifecycle(db,actor,parsed(lifecycleInput.safeParse(input)))});
       if(p[1]==="cases" && ["draft","submit"].includes(p[2]))return Response.json({data:await saveLifecycle(db,actor,parsed(lifecycleInput.safeParse(input)),id,p[2]==="submit",input.previewToken)});
@@ -132,6 +138,11 @@ export async function POST(request: Request, context: Context) {
     }
     if(p[0]==="organization") {
       const {write}=await holdingResources(actor.holdingId);
+      if(p[1]==="position-moves" && p[2]==="preview" && p.length===3)return Response.json({data:await previewPositionMove(write as PostgresDatabase,actor,parsed(positionMoveInput.safeParse(input)))});
+      if(p[1]==="position-moves" && p[2]==="submit" && p.length===3){const data=parsed(positionMoveSubmitInput.safeParse(input));const {previewToken,expiresAt,...move}=data;return Response.json({data:await submitPositionMove(write as PostgresDatabase,actor,move,previewToken,expiresAt,id)});}
+      if(p[1]==="position-moves" && p[2] && p[3]==="cancel" && p.length===4)return Response.json({data:await cancelPositionMove(write as PostgresDatabase,actor,p[2],parsed(z.object({expectedVersion:z.number().int().positive()}).safeParse(input)).expectedVersion,id)});
+      if(p[1]==="positions" && p[2] && p[3]==="default-pay")return Response.json({data:await savePositionPayDefault(write,actor,p[2],parsed(positionPayInput.safeParse(input)),id)});
+      if(p[1]==="levels" && p[2] && p[3]==="default-leave")return Response.json({data:await saveLevelLeaveDefault(write,actor,p[2],parsed(levelLeaveInput.safeParse(input)),id)});
       if(p[1]==="spending-template")return Response.json({data:await saveSpendingTemplate(write,actor,parsed(spendingTemplateSchema.safeParse(input)),id)});
       if(p[1]==="acceptance" && p[2]==="submit") return Response.json({data:await submitCompanyBusinessAcceptance(write,actor,parsed(companyAcceptanceSubmitSchema.safeParse(input)),id)});
       if(p[1]==="acceptance" && p[2]==="review") return Response.json({data:await decideCompanyBusinessAcceptance(write,actor,parsed(companyAcceptanceDecisionSchema.safeParse(input)),id)});

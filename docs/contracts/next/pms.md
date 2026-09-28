@@ -12,6 +12,8 @@ Reservation, Front Desk, Cashier, Housekeeping, Supervisor, Maintenance, Night A
 
 ## Operating surfaces
 
+On the Front PMS host, a desktop right-side quick-access rail exposes only the local sections granted to the active role and location; on smaller screens it becomes a collapsible area before content. Its saved order is per user, Company and Front app; revoked sections disappear from the rail and remain permission checked when opened. The company picker offers separately saved, authorized Company tiles in the same responsive layout. Front shortcuts do not reuse employee Work pins.
+
 The twelve PMS pages cover dashboard, reservations, Front Office, rooms, housekeeping, folios, cashier shifts, minibar/linen, guests, reports, Night Audit and settings. Navigation, Work and Inbox use the same scoped work source for assigned room tasks, independent refund approvals and blocked Night Audits.
 
 - Reservations accept direct, telephone, walk-in and staff-entered OTA sources/reference numbers. The UI supports several room-type/date groups per reservation, each with a quantity. Every room produces a separate Stay and Folio; room assignment may follow later. Staff can identify guests per room, route future nights to another folio, change dates, handle individual no-shows, or cancel the entire unarrived reservation.

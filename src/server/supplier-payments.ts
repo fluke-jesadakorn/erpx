@@ -12,6 +12,7 @@ import { ApiError } from './http';
 import { assertion, executeCommand, replayCommand } from './commands';
 import { prepareJournal } from './finance';
 import { decimalToMinor, minorToDecimal } from '@/lib/finance-money';
+import { prepareAttachmentBinding } from './attachments/service';
 
 type Row = Record<string, string | number | null>;
 const version = z.number().int().positive();
@@ -23,7 +24,7 @@ export const supplierBatchSchema = z.object({
 export const supplierDecisionSchema = z.object({expectedVersion:version,reason});
 export const supplierExportSchema = z.object({expectedVersion:version});
 export const supplierResultSchema = z.object({expectedVersion:version,outcome:z.enum(['unknown','failed']),evidence:reason});
-export const supplierConfirmSchema = z.object({expectedVersion:version,bankTransactionId:z.string().min(1),bankVersion:version,periodId:z.string().min(1),bankReference:z.string().trim().min(2).max(160),evidence:reason});
+export const supplierConfirmSchema = z.object({expectedVersion:version,bankTransactionId:z.string().min(1),bankVersion:version,periodId:z.string().min(1),bankReference:z.string().trim().min(2).max(160),evidence:reason,attachmentSetIds:z.array(z.string().min(1)).max(20).default([])});
 function company(actor:WorkContext) {
  requirePermission(actor,'finance.read');
  if(actor.branchId||actor.departmentId)throw new ApiError(403,'COMPANY_TREASURY_REQUIRED','Use a Company finance assignment for supplier bank batches.');
@@ -142,9 +143,15 @@ export async function confirmSupplierInstruction(actor:WorkContext,id:string,inp
  if(!invoice)throw new ApiError(404,'INVOICE_NOT_FOUND','Source invoice is unavailable.');
  const bank=await write.prepare('SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=?').bind(input.bankTransactionId,actor.companyId).first<Row>(),amount=Number(item.amount_minor);
  if(!bank||bank.currency!==batch.currency||bank.bank_account!==batch.bank_account_id||Number(bank.amount_minor)!==-amount||String(bank.transaction_date)<String(batch.planned_date))throw new ApiError(422,'BANK_EVIDENCE_MISMATCH','Match the approved bank account, currency, date and exact outgoing amount.');
+ let attachmentBinding:null|Awaited<ReturnType<typeof prepareAttachmentBinding>>=null;
+ if(input.attachmentSetIds.length){const placeholders=input.attachmentSetIds.map(()=>'?').join(','),sets=(await write.prepare(`SELECT id,purpose_key,component_kind,component_ref FROM attachment_sets WHERE company_id=? AND id IN (${placeholders})`).bind(actor.companyId,...input.attachmentSetIds).all<{id:string;purpose_key:string;component_kind:string;component_ref:string|null}>()).results;
+  if(sets.length!==new Set(input.attachmentSetIds).size||sets.some(set=>set.purpose_key!=='payment_proof'||set.component_kind!=='action'||set.component_ref!==`supplier-instruction:${id}`))throw new ApiError(422,'SUPPLIER_ATTACHMENT_PURPOSE','Choose only payment proof prepared for this supplier instruction.');
+  attachmentBinding=await prepareAttachmentBinding(write,actor,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:'finance_supplier_batch',bindingType:'finance_supplier_payment_confirmation',contexts:[{purposeKey:'payment_proof',componentKind:'action',componentRef:`supplier-instruction:${id}`}]},targetId:String(batch.id),expectedTargetVersion:Number(batch.version),commandId:key,bindingId:id});
+ }
  const journal=await prepareJournal(write,actor,{chartId:String(invoice.chart_id),periodId:input.periodId,entryDate:String(bank.transaction_date),currency:String(batch.currency),memo:`Supplier payment ${invoice.invoice_number}: ${input.bankReference}`,sourceType:'supplier_batch',sourceId:id,isOpening:false,lines:[{accountId:String(invoice.credit_account_id),debit:minorToDecimal(amount),credit:'0'},{accountId:String(batch.bank_account_id),debit:'0',credit:minorToDecimal(amount)}]},key,'posted');
  const paymentId=`supplier-payment-${key}`,now=Date.now();
  return executeCommand(write,actor,key,'finance.supplier_batch.confirm',input,id,input.expectedVersion+1,{id,status:'confirmed',version:input.expectedVersion+1,paymentId,journalId:journal.result.id},[
+  ...(attachmentBinding?.guards??[]),
   assertion(write,key,'item',"EXISTS(SELECT 1 FROM finance_supplier_instructions WHERE id=? AND version=? AND status IN ('exported','unknown'))",[id,input.expectedVersion]),
   assertion(write,key,'invoice',"EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=? AND version=? AND status IN ('posted','partially_paid') AND outstanding_minor>=?)",[invoice.id,actor.companyId,invoice.version,amount]),
   assertion(write,key,'bank',"EXISTS(SELECT 1 FROM finance_bank_transactions WHERE id=? AND company_id=? AND version=? AND match_status IN ('unmatched','proposed'))",[input.bankTransactionId,actor.companyId,input.bankVersion]),
@@ -155,6 +162,7 @@ export async function confirmSupplierInstruction(actor:WorkContext,id:string,inp
   write.prepare("UPDATE finance_bank_transactions SET match_status='matched',matched_type='payment',matched_id=?,version=version+1 WHERE id=?").bind(paymentId,bank.id),
   write.prepare("UPDATE finance_supplier_instructions SET status='confirmed',bank_reference=?,evidence=?,payment_id=?,bank_transaction_id=?,resolved_by=?,version=version+1,updated_at=? WHERE id=?").bind(input.bankReference,input.evidence,paymentId,bank.id,actor.userId,now,id),
   write.prepare('UPDATE finance_supplier_batches SET version=version+1,updated_at=? WHERE id=?').bind(now,batch.id),
+  ...(attachmentBinding?.steps??[]),
   notifications(write,key,String(batch.id),'Supplier payment matched: source invoice and accounting updated',actor.userId),
  ]);
 }

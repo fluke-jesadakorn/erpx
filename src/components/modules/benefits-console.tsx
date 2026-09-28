@@ -3,6 +3,8 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import type { benefitDetail, benefitsWorkspace } from "@/server/benefits";
+import { AttachmentPanel, type AttachmentPanelChange } from "@/components/attachments/attachment-panel";
+import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 function useCommand(base: string) {
   const router = useRouter(),
     last = useRef<{ key: string; body: string } | null>(null),
@@ -51,7 +53,9 @@ export function BenefitsConsole({
   detail?: Awaited<ReturnType<typeof benefitDetail>>;
 }) {
   const { send, busy, error } = useCommand(base),
-    e = detail?.election;
+    e = detail?.election,
+    [transitionFiles, setTransitionFiles] = useState<AttachmentPanelChange | null>(null),
+    [dependentFiles, setDependentFiles] = useState<Record<string, AttachmentPanelChange>>({});
   return (
     <>
       {error && <p role="alert">{error}</p>}
@@ -203,6 +207,46 @@ export function BenefitsConsole({
           </button>
         </form>
       )}
+      {data?.plans
+        .filter((plan) => ["draft", "published", "retired"].includes(String(plan.status)))
+        .map((plan) => (
+          <RecordDocumentPanel
+            key={`booklet:${String(plan.id)}`}
+            base={base}
+            targetType="benefit_plan"
+            targetId={String(plan.id)}
+            expectedTargetVersion={Number(plan.version)}
+            editable={data.canManageDocuments}
+            title={`${String(plan.name)} · plan documents`}
+            purposes={[
+              {
+                key: "benefit_booklet",
+                label: "Benefit booklet",
+                description: "Attach the reviewed plan booklet or coverage guide for this plan revision.",
+                visibility: "Published booklets are self-visible to active employees; drafts remain restricted to Benefits document managers.",
+              },
+            ]}
+          />
+        ))}
+      {data?.dependents.map((dependent) => (
+        <RecordDocumentPanel
+          key={`dependent-proof:${String(dependent.id)}`}
+          base={base}
+          targetType="benefit_dependent"
+          targetId={String(dependent.id)}
+          expectedTargetVersion={Number(dependent.version)}
+          editable={String(dependent.status) === "pending"}
+          title={`${String(dependent.name)} · dependent proof`}
+          purposes={[
+            {
+              key: "dependent_proof",
+              label: "Dependent proof",
+              description: "Attach relationship, identity, or provider eligibility evidence.",
+              visibility: "Only the employee owner and dedicated Benefits document roles can access these files.",
+            },
+          ]}
+        />
+      ))}
       {data?.canReview &&
         data.dependents
           .filter((x) => x.status === "pending")
@@ -218,6 +262,12 @@ export function BenefitsConsole({
                   action: "verify",
                   expectedVersion: Number(x.version),
                   reason: String(new FormData(ev.currentTarget).get("reason")),
+                  attachmentSetIds:
+                    dependentFiles[String(x.id)]?.setId &&
+                    dependentFiles[String(x.id)]?.readyCount > 0 &&
+                    dependentFiles[String(x.id)]?.bindable
+                      ? [dependentFiles[String(x.id)].setId]
+                      : [],
                 });
               }}
             >
@@ -226,6 +276,26 @@ export function BenefitsConsole({
                 Reason
                 <textarea name="reason" required minLength={3} />
               </label>
+              {data.canManageDocuments && (
+                <AttachmentPanel
+                  base={base}
+                  targetType="benefit_dependent"
+                  targetId={String(x.id)}
+                  expectedTargetVersion={Number(x.version)}
+                  componentKind="action"
+                  componentRef="verification"
+                  purposeKey="dependent_proof"
+                  title="Dependent verification proof"
+                  description="Attach the relationship, identity, or provider evidence reviewed for this verification."
+                  visibility="Restricted to the employee owner and dedicated Benefits document roles."
+                  onChange={(change) =>
+                    setDependentFiles((current) => ({
+                      ...current,
+                      [String(x.id)]: change,
+                    }))
+                  }
+                />
+              )}
               <button className="button" disabled={busy}>
                 Verify
               </button>
@@ -315,6 +385,12 @@ export function BenefitsConsole({
               expectedVersion: Number(e.version),
               reason: f.reason,
               providerReference: f.providerReference || undefined,
+              attachmentSetIds:
+                transitionFiles?.setId &&
+                transitionFiles.readyCount > 0 &&
+                transitionFiles.bindable
+                  ? [transitionFiles.setId]
+                  : [],
             });
           }}
         >
@@ -335,6 +411,38 @@ export function BenefitsConsole({
             Reason
             <textarea name="reason" required minLength={3} />
           </label>
+          {e.status === "elected" && (
+            <AttachmentPanel
+              key={`${String(e.id)}:election:${String(e.version)}`}
+              base={base}
+              targetType="benefit_election"
+              targetId={String(e.id)}
+              expectedTargetVersion={Number(e.version)}
+              componentKind="action"
+              componentRef="employee-submit"
+              purposeKey="election_document"
+              title="Election documents"
+              description="Attach employee election or coverage-selection evidence. Clean files are locked with submission."
+              visibility="Only the employee owner and dedicated Benefits document roles can access these files."
+              onChange={setTransitionFiles}
+            />
+          )}
+          {e.status === "submitted" && detail?.canManageDocuments && (
+            <AttachmentPanel
+              key={`${String(e.id)}:provider:${String(e.version)}`}
+              base={base}
+              targetType="benefit_election"
+              targetId={String(e.id)}
+              expectedTargetVersion={Number(e.version)}
+              componentKind="action"
+              componentRef="provider-acknowledgement"
+              purposeKey="provider_proof"
+              title="Provider acknowledgement proof"
+              description="Attach the provider receipt, acknowledgement, or enrollment confirmation."
+              visibility="Restricted to dedicated Benefits document roles until acknowledgement is recorded."
+              onChange={setTransitionFiles}
+            />
+          )}
           <button className="button" disabled={busy}>
             Continue
           </button>

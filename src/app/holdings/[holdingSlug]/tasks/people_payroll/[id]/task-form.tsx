@@ -52,6 +52,11 @@ export function LeaveTaskForm({
   >(null);
   const formRef = useRef<HTMLFormElement>(null);
   const attempt = useRef<{ signature: string; key: string } | null>(null);
+  const evidenceUploadAttempt = useRef<{
+    signature: string;
+    key: string;
+    uploadUrl?: string;
+  } | null>(null);
   const base = `/api/v1${workspaceBase}`;
   async function confirm() {
     if (!review) return;
@@ -106,25 +111,37 @@ export function LeaveTaskForm({
     setError("");
     setUpload(`Uploading ${file.name}…`);
     try {
-      const intentResponse = await workFetch(`${base}/uploads`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ownerType: "leave_request",
-          ownerId: request.id,
-          purpose: "evidence",
-          filename: file.name,
-          mediaType: file.type,
-          bytes: file.size,
-        }),
-      });
-      const intent = (await intentResponse.json()) as {
-        data?: { uploadUrl: string };
-        error?: { message?: string };
-      };
-      if (!intentResponse.ok || !intent.data)
-        throw new Error(intent.error?.message ?? "The upload could not start.");
-      const response = await workFetch(intent.data.uploadUrl, {
+      const signature = `${request.id}:${request.version}:${file.name}:${file.size}:${file.lastModified}`;
+      if (evidenceUploadAttempt.current?.signature !== signature)
+        evidenceUploadAttempt.current = {
+          signature,
+          key: crypto.randomUUID(),
+        };
+      if (!evidenceUploadAttempt.current.uploadUrl) {
+        const intentResponse = await workFetch(`${base}/uploads`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Idempotency-Key": evidenceUploadAttempt.current.key,
+          },
+          body: JSON.stringify({
+            ownerType: "leave_request",
+            ownerId: request.id,
+            purpose: "leave_supporting_photo",
+            filename: file.name,
+            mediaType: file.type,
+            bytes: file.size,
+          }),
+        });
+        const intent = (await intentResponse.json()) as {
+          data?: { uploadUrl: string };
+          error?: { message?: string };
+        };
+        if (!intentResponse.ok || !intent.data)
+          throw new Error(intent.error?.message ?? "The upload could not start.");
+        evidenceUploadAttempt.current.uploadUrl = intent.data.uploadUrl;
+      }
+      const response = await workFetch(evidenceUploadAttempt.current.uploadUrl, {
         method: "PUT",
         headers: { "Content-Type": file.type },
         body: file,
@@ -132,8 +149,11 @@ export function LeaveTaskForm({
       const result = (await response.json()) as {
         error?: { message?: string };
       };
-      if (!response.ok)
+      if (!response.ok) {
+        if (response.status === 410) evidenceUploadAttempt.current = null;
         throw new Error(result.error?.message ?? "The upload failed.");
+      }
+      evidenceUploadAttempt.current = null;
       setUpload(`${file.name} · Uploaded and verified`);
       startRefresh(() => router.refresh());
     } catch (cause) {
@@ -247,13 +267,13 @@ export function LeaveTaskForm({
                   <FileUp size={14} /> Supporting evidence
                 </span>
                 <small>
-                  JPEG, PNG, WebP, PDF or CSV · Up to 10 MiB per file
+                  JPEG, PNG, WebP, HEIC, HEIF or PDF · Up to 10 MiB per file
                 </small>
                 <input
                   type="file"
                   aria-label="Supporting evidence"
                   disabled={working}
-                  accept="image/jpeg,image/png,image/webp,application/pdf,text/csv"
+                  accept="image/jpeg,image/png,image/webp,image/heic,image/heif,application/pdf"
                   onChange={(event) => {
                     const file = event.currentTarget.files?.[0];
                     event.currentTarget.value = "";

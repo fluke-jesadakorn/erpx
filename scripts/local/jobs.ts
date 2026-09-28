@@ -1,13 +1,15 @@
 import { getRuntime, closeRuntime } from '../../src/server/runtime/env';
-import { activeSlots, maintenance, runOne, scheduledWork, expenseAiWork, directoryWork, billingWork, pmsWork, posQueueWork, legalWork, supportWork,customerNotificationWork } from '../../src/server/runtime/jobs';
+import { activeSlots, maintenance, runOne, scheduledWork, expenseAiWork, directoryWork, billingWork, pmsWork, posQueueWork, legalWork, supportWork,customerNotificationWork,attachmentWork } from '../../src/server/runtime/jobs';
+import { attachmentRuntimeReadiness } from '../../src/server/attachments/readiness';
 
 let stopping=false;
 for(const signal of ['SIGINT','SIGTERM'] as const) process.on(signal,()=>{stopping=true;});
 const env=getRuntime();
 async function heartbeat() {
+  const attachments=await attachmentRuntimeReadiness();
   await env.CONTROL_DB.prepare(`INSERT INTO runtime_health(service,heartbeat_at,details_json) VALUES('jobs',?,?)
     ON CONFLICT(service) DO UPDATE SET heartbeat_at=excluded.heartbeat_at,details_json=excluded.details_json`)
-    .bind(Date.now(),JSON.stringify({maintenance:await maintenance(env.ERPX_DATA_DIR)})).run();
+    .bind(Date.now(),JSON.stringify({maintenance:await maintenance(env.ERPX_DATA_DIR),attachments})).run();
 }
 let supportRunning:Promise<void>|null=null;
 const supportPulse=setInterval(()=>{if(stopping||supportRunning)return;supportRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await supportWork(env)})().catch(()=>console.error('{"event":"support_sla_iteration_failed"}')).finally(()=>{supportRunning=null})},30000);
@@ -23,6 +25,14 @@ function posPulseWork() {
 }
 const posPulse=setInterval(posPulseWork,3000);
 posPulseWork();
+let attachmentRunning: Promise<void> | null = null;
+function attachmentPulseWork() {
+ if(stopping || attachmentRunning)return;
+ attachmentRunning=(async()=>{if(!await maintenance(env.ERPX_DATA_DIR))await attachmentWork(env);})()
+  .catch(()=>console.error('{"event":"attachment_iteration_failed"}')).finally(()=>{attachmentRunning=null;});
+}
+const attachmentPulse=setInterval(attachmentPulseWork,2000);
+attachmentPulseWork();
 // Billing must continue when another module's scheduled work fails.
 let billingRunning: Promise<void> | null = null;
 function billingPulseWork() {
@@ -62,4 +72,4 @@ try {
     } catch(error) {console.error(JSON.stringify({event:'jobs_iteration_failed',code:error instanceof Error?error.name:'UnknownError'}));}
     if(!stopping)await new Promise(resolve=>setTimeout(resolve,1000));
   }
-} finally {clearInterval(supportPulse);await supportRunning;clearInterval(customerNotificationPulse);await customerNotificationRunning;clearInterval(legalPulse);await legalRunning;clearInterval(pmsPulse);await pmsRunning;clearInterval(posPulse);await posRunning;clearInterval(billingPulse);await billingRunning;clearInterval(directoryPulse);clearInterval(aiPulse);clearInterval(pulse);await directoryRunning;await aiRunning;await closeRuntime();}
+} finally {clearInterval(supportPulse);await supportRunning;clearInterval(customerNotificationPulse);await customerNotificationRunning;clearInterval(legalPulse);await legalRunning;clearInterval(pmsPulse);await pmsRunning;clearInterval(posPulse);await posRunning;clearInterval(attachmentPulse);await attachmentRunning;clearInterval(billingPulse);await billingRunning;clearInterval(directoryPulse);clearInterval(aiPulse);clearInterval(pulse);await directoryRunning;await aiRunning;await closeRuntime();}

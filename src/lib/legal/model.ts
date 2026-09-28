@@ -352,6 +352,8 @@ export type DocumentVersion = {
   created_at: number;
   locked: boolean;
   object_key: string | null;
+  attachment_link_id?: string | null;
+  attachment_source_id?: string | null;
 };
 export type LegalEvent = {
   snapshot?: string | null;

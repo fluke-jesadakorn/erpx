@@ -20,7 +20,7 @@ async function signInRole(
 ) {
   const user = credentials.users.find((item) => item.roles?.includes(role) || item.role === role);
   expect(user, `${role} demo account`).toBeTruthy();
-  const headers = { Origin: "http://127.0.0.1:3102" };
+  const headers = { Origin: (process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102") };
   const login = await context.request.post("/api/auth/sign-in/email", {
     headers,
     data: { email: user!.email, password: credentials.password },

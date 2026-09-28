@@ -52,6 +52,36 @@
 .surface:global(.beta-settings) {
   max-width: 860px;
 }
+.surface:global(.beta-settings)[data-section="usage"] {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+}
+.surface:global(.beta-settings)[data-section="usage"] > :global(.card) {
+  margin: 0;
+}
+.usageMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 16px;
+  margin-bottom: 0;
+}
+.usageMetrics > div {
+  min-width: 0;
+}
+.usageMetrics dt {
+  color: var(--muted);
+  font-size: 13px;
+}
+.usageMetrics dd {
+  margin: 6px 0 0;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 650;
+}
 .surface:global(.beta-settings) > :global(.card) {
   padding: 24px;
   margin: 20px 0;

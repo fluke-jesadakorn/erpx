@@ -109,10 +109,12 @@ export function UserManagement({
   initialView = "people",
   views,
   lifecycle,
+  compactConsole = false,
 }: {
   lifecycle?: PeopleLifecycleData | null;
   initialView?: View;
   views?: View[];
+  compactConsole?: boolean;
   initial: ManagementSnapshot;
   roles: RoleRevision[];
   base: string;
@@ -131,7 +133,8 @@ export function UserManagement({
     [unit, setUnit] = useState<string | null>(null),
     [selected, setSelected] = useState<string[]>([]),
     [editor, setEditor] = useState<Editor | null>(null),
-    [screen, setScreen] = useState("tree"),
+    [screen, setScreen] = useState(compactConsole ? "results" : "tree"),
+    [targetFilter, setTargetFilter] = useState<"all" | "person" | "group" | "unit">("all"),
     [advanced, setAdvanced] = useState(false),
     [accountObjectId, setAccountObjectId] = useState<string>(),
     [busy, setBusy] = useState(false),
@@ -378,7 +381,9 @@ export function UserManagement({
     attribute?.label ??
     data.nodes.find((n) => selection?.kind === "unit" && n.id === selection.id)
       ?.label ??
-    "Select an item";
+    (compactConsole
+      ? view === "attributes" ? "Select a field" : view === "policies" ? "Select a policy" : view === "groups" ? "Select a group" : "Select a person"
+      : "Select an item");
   const ancestors = new Set<string>();
   if (selection && ["group", "unit"].includes(selection.kind)) {
     const hierarchy = selection.kind === "group" ? data.groups : data.nodes;
@@ -401,10 +406,29 @@ export function UserManagement({
     selection && ["person", "group", "unit"].includes(selection.kind)
       ? (selection.kind as "person" | "group" | "unit")
       : null;
+  const visibleGroups = data.groups
+    .filter((group) => showArchived || !group.archived)
+    .filter((group) => group.name.toLowerCase().includes(filter.toLowerCase()));
+  const visiblePolicies = data.policies
+    .filter((policy) => showArchived || !policy.archived)
+    .filter((policy) => policy.name.toLowerCase().includes(filter.toLowerCase()));
+  const visibleAttributes = data.attributes
+    .filter((attribute) => showArchived || !attribute.archived)
+    .filter((attribute) => !compactConsole || targetFilter === "all" || attribute.target === targetFilter)
+    .filter((attribute) => attribute.label.toLowerCase().includes(filter.toLowerCase()));
+  const visibleItems = view === "groups" ? visibleGroups : view === "policies" ? visiblePolicies : visibleAttributes;
+  const canCreateInView = view === "groups" ? canManageGroups : view === "policies" ? data.canManage : data.canDefine;
+  const emptyName = view === "groups" ? "groups" : view === "policies" ? "policies" : "custom attributes";
+  const explorerMenu = <details className={styles.advanced}>
+    <summary><Settings2 size={15} /> Directory explorer</summary>
+    <button onClick={() => { setAdvanced(true); setScreen("tree"); }}>Accounts & connected directories</button>
+    <Link href={base + "/people/settings"}>People settings</Link>
+    <Link href="/security">Verify MFA</Link>
+  </details>;
   return (
-    <div className={styles.workspace}>
+    <div className={styles.workspace} data-compact-console={compactConsole || undefined}>
       {lifecycle&&movePerson&&<Dialog open onClose={()=>setMovePerson(null)} title="Assign or transfer person" presentation="responsive-panel">{(()=>{const person=lifecycle.roster.find(p=>p.id===movePerson);return person?<LifecyclePanel base={base} data={lifecycle} person={person} initialKind="transfer"/>:<p>Complete an engagement in this workspace before moving this person.</p>;})()}</Dialog>}
-      <div className={styles.topbar}>
+      {(!compactConsole || !views || views.length > 1) && <div className={styles.topbar}>
         {(!views || views.length > 1) && <nav aria-label="User management views">
           {(
             [
@@ -429,22 +453,8 @@ export function UserManagement({
             </button>
           ))}
         </nav>}
-        <details className={styles.advanced}>
-          <summary>
-            <Settings2 size={15} /> Directory explorer
-          </summary>
-          <button
-            onClick={() => {
-              setAdvanced(true);
-              setScreen("tree");
-            }}
-          >
-            Accounts & connected directories
-          </button>
-          <Link href={base + "/people/settings"}>People settings</Link>
-          <Link href="/security">Verify MFA</Link>
-        </details>
-      </div>
+        {!compactConsole && explorerMenu}
+      </div>}
       {message && (
         <p role="status" className={styles.notice}>
           {message}
@@ -518,8 +528,11 @@ export function UserManagement({
                 </button>
               )
             )}
+            {compactConsole && explorerMenu}
           </div>
-          <nav aria-label="Directory steps" className={styles.mobileSteps}>
+          {compactConsole ? <nav aria-label="Management navigation" className={styles.mobileSteps}>
+            {screen === "detail" && <button type="button" onClick={() => setScreen("results")}><ArrowLeft size={14} aria-hidden="true" /> Back to list</button>}
+          </nav> : <nav aria-label="Directory steps" className={styles.mobileSteps}>
             {screen !== "tree" && (
               <button
                 onClick={() =>
@@ -539,9 +552,9 @@ export function UserManagement({
                 <button onClick={() => setScreen("detail")}>Details</button>
               </>
             )}
-          </nav>
+          </nav>}
           <div className={styles.panes} data-screen={screen}>
-            <aside className={styles.tree} aria-label="Management hierarchy">
+            {!compactConsole && <aside className={styles.tree} aria-label="Management hierarchy">
               <button
                 className={styles.all}
                 onClick={() => {
@@ -565,7 +578,7 @@ export function UserManagement({
                 Browse read-only directories
               </button>
               <p>Changes here affect ERPX only.</p>
-            </aside>
+            </aside>}
             <section className={styles.results} aria-label="Management results">
               <label className={styles.search}>
                 <Search size={16} aria-hidden="true" />
@@ -586,6 +599,15 @@ export function UserManagement({
                   Include archived
                 </label>
               )}
+              {compactConsole && view === "attributes" && <label className={styles.targetFilter}>
+                Target
+                <select value={targetFilter} onChange={(event) => setTargetFilter(event.target.value as typeof targetFilter)}>
+                  <option value="all">All targets</option>
+                  <option value="person">People</option>
+                  <option value="group">Groups</option>
+                  <option value="unit">Organizational units</option>
+                </select>
+              </label>}
               {unit && view === "people" && (
                 <button onClick={() => setUnit(null)}>
                   Clear unit filter:{" "}
@@ -664,12 +686,7 @@ export function UserManagement({
                 </>
               )}
               {view === "groups" &&
-                data.groups
-                  .filter((g) => showArchived || !g.archived)
-                  .filter((g) =>
-                    g.name.toLowerCase().includes(filter.toLowerCase()),
-                  )
-                  .map((g) => (
+                visibleGroups.map((g) => (
                     <button
                       className={styles.item}
                       key={g.id}
@@ -696,12 +713,7 @@ export function UserManagement({
                     </button>
                   ))}
               {view === "policies" &&
-                data.policies
-                  .filter((p) => showArchived || !p.archived)
-                  .filter((p) =>
-                    p.name.toLowerCase().includes(filter.toLowerCase()),
-                  )
-                  .map((p) => (
+                visiblePolicies.map((p) => (
                     <button
                       className={styles.item}
                       key={p.id}
@@ -726,12 +738,7 @@ export function UserManagement({
                     </button>
                   ))}
               {view === "attributes" &&
-                data.attributes
-                  .filter((a) => showArchived || !a.archived)
-                  .filter((a) =>
-                    a.label.toLowerCase().includes(filter.toLowerCase()),
-                  )
-                  .map((a) => (
+                visibleAttributes.map((a) => (
                     <button
                       className={styles.item}
                       key={a.id}
@@ -752,17 +759,14 @@ export function UserManagement({
                       </span>
                     </button>
                   ))}
-              {view !== "people" &&
-                !(
-                  view === "groups"
-                    ? data.groups
-                    : view === "policies"
-                      ? data.policies
-                      : data.attributes
-                ).filter((item) => showArchived || !item.archived).length && (
+              {view !== "people" && !visibleItems.length && (
                   <div className={styles.empty}>
                     <CircleHelp size={24} />
-                    <p>Nothing here yet. Use the New button to get started.</p>
+                    <p>{filter || (view === "attributes" && targetFilter !== "all")
+                      ? `No ${emptyName} match these filters.`
+                      : canCreateInView
+                        ? `No ${emptyName} yet. Use New to create one.`
+                        : `No ${emptyName} are available.`}</p>
                   </div>
                 )}
             </section>
@@ -773,10 +777,8 @@ export function UserManagement({
               {!selection && (
                 <div className={styles.empty}>
                   <Users size={32} />
-                  <p>Choose an item to see its details.</p>
-                  <p>
-                    Drag people into a manual group, or use the Groups button.
-                  </p>
+                  <p>Choose {view === "attributes" ? "a field" : view === "policies" ? "a policy" : view === "groups" ? "a group" : "a person"} to see its details.</p>
+                  {view === "people" && <p>Drag people into a manual group, or use the Groups button.</p>}
                 </div>
               )}
               {person && (
@@ -1033,7 +1035,7 @@ export function UserManagement({
               )}
             </section>
           </div>
-          <section className={styles.reviewPanel}>
+          {(!compactConsole || view === "policies") && <section className={styles.reviewPanel}>
             <div className={styles.intro}>
               <div>
                 <h2>Policy access & reviews</h2>
@@ -1107,7 +1109,7 @@ export function UserManagement({
                   </span>
                 </div>
               ))}
-          </section>
+          </section>}
         </>
       )}
       <Dialog

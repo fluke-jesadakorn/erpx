@@ -4,8 +4,8 @@ import { activeStaff } from "./staff-policy";
 import { ApiError } from "./http";
 import { inServiceWorkspace } from "./service-access";
 export async function requestPageOptions(db: SqlDatabase, actor: WorkContext) {
-  const nodes = (
-    await db
+  const [nodesResult, companySettings] = await Promise.all([
+    db
       .prepare(
         "SELECT id,kind,display_name,branch_id FROM organization_nodes WHERE company_id=? AND status='active' AND kind IN ('company','branch','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR kind='branch' OR id=?) ORDER BY display_name",
       )
@@ -22,8 +22,12 @@ export async function requestPageOptions(db: SqlDatabase, actor: WorkContext) {
         kind: string;
         display_name: string;
         branch_id: string | null;
-      }>()
-  ).results;
+      }>(),
+    db.prepare("SELECT currency FROM commerce_settings WHERE company_id=?")
+      .bind(actor.companyId)
+      .first<{ currency: string }>(),
+  ]);
+  const nodes = nodesResult.results;
   let branchId = actor.branchId,
     departmentId = actor.departmentId;
   try {
@@ -41,5 +45,7 @@ export async function requestPageOptions(db: SqlDatabase, actor: WorkContext) {
     departmentId,
     companyId: actor.companyId,
     userId: actor.userId,
+    assignmentId: actor.assignmentId,
+    currency: companySettings?.currency ?? "",
   };
 }

@@ -73,8 +73,9 @@ export default async function Task({
           <dd>{t.assignee_name}</dd>
           <dt>Due</dt>
           <dd>
-            {new Date(t.due_at).toISOString().replace("T", " ").slice(0, 16)}{" "}
-            UTC
+            {t.due_at === null
+              ? "No due date"
+              : `${new Date(t.due_at).toISOString().replace("T", " ").slice(0, 16)} UTC`}
           </dd>
         </dl>
         {t.completion_note && (

@@ -23,6 +23,8 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   const {pmsCommand,loadPms}=await import("../../src/server/pms");
   const {posCommand}=await import("../../src/server/pos-core");
   const {saveMaster}=await import("../../src/server/commerce");
+  const {saveServiceTeam,serviceTeamSchema}=await import("../../src/server/service-teams");
+  const {saveSupplierInvoicePolicy}=await import("../../src/server/supplier-bill-matching");
   const f=await seedExpenseCompany(input.db,input.files);
   await input.db.prepare("UPDATE organization_nodes SET display_name=? WHERE id=?").bind(fixture.legalEntity,f.company).run();
   await input.db.prepare("UPDATE organization_nodes SET display_name=? WHERE id=?").bind("Riverside Lantern Bangkok",f.branch).run();
@@ -42,7 +44,144 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
     ]);
     actors[entry.key]=actor;users.push({label:actor.name,email:entry.email,role:entry.role,userId:actor.userId,roles:[entry.role]});
   }
+  // Expense approval requires an explicit numbered organization, active
+  // positions, and reporting lines. Keep the synthetic H002 actors valid so
+  // the production route can exercise independent department and Finance
+  // review in this disposable database.
+  const orgLevels=Array.from({length:6},(_,index)=>`${f.company}-riverside-level-${index+1}`);
+  await db.batch(orgLevels.map((id,index)=>db.prepare("INSERT INTO staff_levels(id,company_id,code,name,rank,level_number,active,created_at,updated_at) VALUES(?,?,?,?,?,?,1,?,?) ON CONFLICT DO NOTHING")
+    .bind(id,f.company,`RIVERSIDE_L${index+1}`,`Riverside Level ${index+1}`,-(index+1),index+1,now,now)));
+  const orgPositions={ceo:`${f.company}-riverside-position-ceo`,manager:`${f.company}-riverside-position-manager`,financeApprover:`${f.company}-riverside-position-finance-approver`,staff:`${f.company}-riverside-position-staff`,employee:`${f.company}-riverside-position-employee`,frontDesk:`${f.company}-riverside-position-front-desk`};
+  const positionRows=[
+    {id:orgPositions.ceo,title:"Riverside holding lead",level:1,reportsTo:null,isCeo:1},
+    {id:orgPositions.manager,title:"Riverside department manager",level:3,reportsTo:orgPositions.ceo,isCeo:0},
+    {id:orgPositions.financeApprover,title:"Riverside Finance approver",level:4,reportsTo:orgPositions.manager,isCeo:0},
+    {id:orgPositions.staff,title:"Riverside hospitality specialist",level:5,reportsTo:orgPositions.manager,isCeo:0},
+    {id:orgPositions.employee,title:"Riverside hospitality employee",level:6,reportsTo:orgPositions.manager,isCeo:0},
+    {id:orgPositions.frontDesk,title:"Riverside front desk",level:5,reportsTo:orgPositions.manager,isCeo:0},
+  ];
+  await db.batch(positionRows.map(position=>db.prepare("INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,reports_to_position_id,is_ceo,roster_required,active,version,created_by,created_at,updated_at) VALUES(?,?,NULL,NULL,?,?,?,?,?,1,1,?,?,?) ON CONFLICT DO NOTHING")
+    .bind(position.id,f.company,position.title,orgLevels[position.level-1],position.reportsTo,position.isCeo,position.id===orgPositions.frontDesk?1:0,actors.administrator.userId,now,now)));
+  const managerPersonId=`person-${actors.peopleManager.userId}`;
+  const organizationAssignments=Object.entries(actors).map(([key,actor])=>{
+    const isOwner=key==="administrator",isManager=key==="peopleManager",isFinanceApprover=key==="financeApprover",isEmployee=key==="employee"||key==="foreignEmployee"||key==="dailyEmployee"||key==="hourlyEmployee";
+    const level=isOwner?1:isManager?3:isFinanceApprover?4:isEmployee?6:5;
+    const position=isOwner?orgPositions.ceo:isManager?orgPositions.manager:isFinanceApprover?orgPositions.financeApprover:key==='employee'?orgPositions.frontDesk:isEmployee?orgPositions.employee:orgPositions.staff;
+    const manager=isOwner?null:isManager?`person-${actors.administrator.userId}`:managerPersonId;
+    const branch=isOwner?null:f.branch,department=isOwner?null:f.department;
+    return db.prepare("UPDATE hr_engagements e SET branch_id=?,department_id=?,level_id=?,position_id=?,manager_person_id=?,version=e.version+1,updated_at=? FROM hr_people p WHERE e.person_id=p.id AND e.company_id=? AND p.user_id=? AND e.status='active'")
+      .bind(branch,department,orgLevels[level-1],position,manager,now,f.company,actor.userId);
+  });
+  await db.batch(organizationAssignments);
   const admin=actors.administrator,finance=actors.financeApprover;
+  await saveServiceTeam(db,admin,null,serviceTeamSchema.parse({
+    name:"Riverside purchasing team",
+    members:[
+      {userId:actors.purchasingOperator.userId,responsibility:"lead"},
+      {userId:actors.purchasingManager.userId,responsibility:"member"},
+      {userId:actors.purchasingReviewer.userId,responsibility:"member"},
+    ],
+    coverage:[{category:"purchasing",scopeKind:"holding",scopeNodeId:f.company}],
+  }),crypto.randomUUID());
+  await saveSupplierInvoicePolicy(admin,{matchingMode:"required",expectedVersion:0,reason:"Fictional Riverside scenario requires independent matching of supplier invoices to receipts."},crypto.randomUUID());
+  const supplierOne=await saveMaster(admin,"parties",null,{kind:"supplier",code:"RIVERSIDE-FOOD-01",name:"Fictional Riverside Food Supply",paymentTermsDays:30},crypto.randomUUID());
+  const supplierTwo=await saveMaster(admin,"parties",null,{kind:"supplier",code:"RIVERSIDE-FOOD-02",name:"Fictional Lantern Produce Co",paymentTermsDays:30},crypto.randomUUID());
+  const {saveEmployeeRequest,employeeRequestSchema}=await import("../../src/server/employee-requests");
+  const purchaseRequest=await saveEmployeeRequest(db,actors.employee,null,employeeRequestSchema.parse({
+    kind:"purchase",title:"Riverside kitchen rice restock",description:"Fictional dry stock for the restaurant kitchen.",
+    location:"Riverside Lantern kitchen",impact:"normal",branchId:f.branch,departmentId:f.department,
+    neededDate:"2026-10-15",currency:"THB",items:[{description:"Rice for restaurant service",quantity:"10",unit:"kg",estimatedCost:"12.50"}],
+  }),crypto.randomUUID());
+  const payrollGroupId=`${f.company}-riverside-mock-monthly`;
+  await db.prepare("INSERT INTO hr_pay_groups(id,company_id,name,country_code,currency,frequency,timezone,overtime_multiplier_bps,proration_method,created_by,created_at,updated_at) VALUES(?,?,?,'TH','THB','monthly','Asia/Bangkok',15000,'calendar_days',?,?,?)")
+    .bind(payrollGroupId,f.company,"Riverside mock monthly · THB",admin.userId,now,now).run();
+  const payrollManager=await db.prepare("SELECT id FROM hr_people WHERE company_id=? AND user_id=?").bind(f.company,actors.peopleManager.userId).first<{id:string}>();
+  const payrollFixtures=[
+    {key:"employee",employmentType:"salaried",startDate:"2020-01-01",country:"TH",payFrequency:"monthly",baseMinor:100000,hourlyMinor:0,expectedHours:160,components:[
+      {code:"MOCK_FIXTURE:bonus",label:"Fictional bonus fixture",kind:"earning",amount:"50.00"},
+      {code:"MOCK_FIXTURE:service-charge",label:"Fictional service-charge fixture",kind:"earning",amount:"12.50"},
+      {code:"MOCK_FIXTURE:withholding",label:"Fictional withholding fixture",kind:"deduction",amount:"15.00"},
+      {code:"MOCK_FIXTURE:employer-contribution",label:"Fictional employer-cost fixture",kind:"employer",amount:"5.00"},
+      {code:"MOCK_FIXTURE:YTD_CONTEXT",label:"Year-to-date context fixture only",kind:"ytd_context",amount:"250.00"},
+    ]},
+    {key:"foreignEmployee",employmentType:"salaried",startDate:"2026-09-16",country:"JP",payFrequency:"monthly",baseMinor:100000,hourlyMinor:0,expectedHours:160,components:[
+      {code:"MOCK_FIXTURE:foreign-proration-withholding",label:"Fictional foreign-worker withholding fixture",kind:"deduction",amount:"10.00"},
+    ]},
+    {key:"dailyEmployee",employmentType:"shift",startDate:"2020-01-01",country:"TH",payFrequency:"off_cycle",baseMinor:0,hourlyMinor:5000,expectedHours:8,components:[
+      {code:"MOCK_FIXTURE:daily-withholding",label:"Fictional daily-worker withholding fixture",kind:"deduction",amount:"1.00"},
+    ]},
+    {key:"hourlyEmployee",employmentType:"hourly",startDate:"2020-01-01",country:"TH",payFrequency:"monthly",baseMinor:0,hourlyMinor:2500,expectedHours:160,components:[
+      {code:"MOCK_FIXTURE:hourly-withholding",label:"Fictional hourly-worker withholding fixture",kind:"deduction",amount:"2.50"},
+    ]},
+  ] as const;
+  const payrollEngagementIds:Record<string,string>={};
+  const payrollPersonIds:Record<string,string>={};
+  for(const fixture of payrollFixtures) {
+    const actor=actors[fixture.key];
+    const person=await db.prepare("SELECT id FROM hr_people WHERE company_id=? AND user_id=?").bind(f.company,actor.userId).first<{id:string}>();
+    const engagement=await db.prepare("SELECT id FROM hr_engagements WHERE company_id=? AND person_id=? AND status='active' ORDER BY start_date LIMIT 1").bind(f.company,person!.id).first<{id:string}>();
+    if(!person||!engagement)throw new Error(`RIVERSIDE_PAYROLL_FIXTURE_MISSING:${fixture.key}`);
+    await db.prepare("UPDATE hr_people SET country_code=?,preferred_name=legal_name,updated_at=? WHERE id=?").bind(fixture.country,now,person.id).run();
+    await db.prepare("UPDATE hr_engagements SET employment_type=?,start_date=?,pay_group_id=?,manager_person_id=?,currency='THB',version=version+1,updated_at=? WHERE id=?")
+      .bind(fixture.employmentType,fixture.startDate,payrollGroupId,payrollManager?.id??null,now,engagement.id).run();
+    const compensationId=`${engagement.id}-riverside-mock-compensation`;
+    await db.prepare("INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,hourly_rate_minor,expected_hours,currency,components_json,status,created_by,created_at,updated_at) VALUES(?,?,'2026-09-01',?,?,?,?,'THB',?,'approved',?,?,?)")
+      .bind(compensationId,engagement.id,fixture.payFrequency,fixture.baseMinor,fixture.hourlyMinor,fixture.expectedHours,JSON.stringify(fixture.components),actors.payrollPreparer.userId,now,now).run();
+    payrollEngagementIds[fixture.key]=engagement.id;
+    payrollPersonIds[fixture.key]=person.id;
+  }
+  const timeEntries=[
+    {key:"dailyEmployee",date:"2026-09-10",regular:8,overtime:0},
+    {key:"hourlyEmployee",date:"2026-09-10",regular:8,overtime:2},
+    {key:"hourlyEmployee",date:"2026-09-11",regular:8,overtime:0},
+    {key:"hourlyEmployee",date:"2026-09-12",regular:8,overtime:0},
+    {key:"hourlyEmployee",date:"2026-09-13",regular:8,overtime:0},
+  ];
+  for(const [index,entry] of timeEntries.entries()) {
+    const engagementId=payrollEngagementIds[entry.key];
+    await db.prepare("INSERT INTO hr_time_entries(id,engagement_id,company_id,work_date,regular_hours,overtime_hours,status,note,version,submitted_by,approved_by,created_at,updated_at) VALUES(?,?,?,?,?,?,'approved',?,1,?,?,?,?)")
+      .bind(`${f.company}-riverside-mock-time-${index+1}`,engagementId,f.company,entry.date,entry.regular,entry.overtime,"Fictional approved time fixture",actors[entry.key].userId,actors.peopleManager.userId,now,now).run();
+  }
+  const leaveTypeId=`${f.company}-riverside-mock-annual-leave`;
+  const leavePolicyId=`${f.company}-riverside-mock-leave-policy-v1`;
+  const leaveAssignmentId=`${f.company}-riverside-mock-leave-assignment`;
+  const employeeEngagementId=payrollEngagementIds.employee;
+  await db.batch([
+    db.prepare("INSERT INTO leave_types(id,company_id,code,name,description,tracked,effective_from,created_by,created_at,updated_at) VALUES(?,?, 'MOCK-ANNUAL','Synthetic annual leave','Simulation-only balance and working-day fixture.',true,'2026-01-01',?,?,?)").bind(leaveTypeId,f.company,admin.userId,now,now),
+    db.prepare("INSERT INTO leave_policy_versions(id,company_id,policy_key,version,name,status,effective_from,timezone,workweek_json,allow_negative,created_by,created_at) VALUES(?,?, 'riverside-mock',1,'Riverside mock leave policy','active','2026-01-01','Asia/Bangkok','[1,2,3,4,5]'::jsonb,false,?,?)").bind(leavePolicyId,f.company,admin.userId,now),
+    db.prepare("INSERT INTO leave_policy_rules(policy_version_id,leave_type_id,grant_kind,grant_units,accrual_units,employee_eligible,contractor_eligible) VALUES(?,?,'annual',10,0,true,false)").bind(leavePolicyId,leaveTypeId),
+    db.prepare("INSERT INTO leave_policy_assignments(id,company_id,engagement_id,policy_version_id,effective_from,created_by,created_at) VALUES(?,?,?,?, '2026-01-01',?,?)").bind(leaveAssignmentId,f.company,employeeEngagementId,leavePolicyId,admin.userId,now),
+    db.prepare("INSERT INTO leave_balance_entries(id,company_id,engagement_id,leave_type_id,kind,units,effective_date,entitlement_year,command_key,note,created_by,created_at) VALUES(?,?,?,?,'opening',10,'2026-01-01',2026,?,'Synthetic opening allowance for mock E2E only',?,?)").bind(`${leaveAssignmentId}-opening`,f.company,employeeEngagementId,leaveTypeId,`${leaveAssignmentId}-opening`,admin.userId,now),
+  ]);
+  const rosterWeekId=`${f.company}-riverside-mock-roster-week`;
+  const rosterShiftId=`${f.company}-riverside-mock-roster-shift`;
+  const rosterDate="2026-09-29";
+  const nextRosterDate="2026-10-06";
+  const nextRosterWeekId=`${rosterWeekId}-next`;
+  const nextRosterShiftId=`${rosterShiftId}-next`;
+  await db.batch([
+    db.prepare("INSERT INTO people_roster_locks(company_id,version) VALUES(?,1)").bind(f.company),
+    db.prepare("INSERT INTO people_roster_weeks(id,company_id,branch_id,department_id,week_start,timezone,state,version,created_by,published_by,created_at,updated_at) VALUES(?,?,?,?, '2026-09-28','Asia/Bangkok','published',1,?,?,?,?)").bind(rosterWeekId,f.company,f.branch,f.department,actors.peopleManager.userId,actors.peopleManager.userId,now,now),
+    db.prepare("INSERT INTO people_roster_shifts(id,week_id,name,local_date,start_time,end_time,starts_at,ends_at,capacity,state,version) VALUES(?,?, 'Fictional front desk coverage',?,'09:00','17:00',?,?,1,'active',1)").bind(rosterShiftId,rosterWeekId,rosterDate,Date.parse(`${rosterDate}T09:00:00+07:00`),Date.parse(`${rosterDate}T17:00:00+07:00`)),
+    db.prepare("INSERT INTO people_roster_assignments(id,shift_id,person_id,engagement_id,state,version) VALUES(?,?,?,?,'assigned',1)").bind(`${rosterShiftId}-employee`,rosterShiftId,payrollPersonIds.employee,employeeEngagementId),
+    db.prepare("INSERT INTO people_roster_weeks(id,company_id,branch_id,department_id,week_start,timezone,state,version,created_by,published_by,created_at,updated_at) VALUES(?,?,?,?, '2026-10-05','Asia/Bangkok','published',1,?,?,?,?)").bind(nextRosterWeekId,f.company,f.branch,f.department,actors.peopleManager.userId,actors.peopleManager.userId,now,now),
+    db.prepare("INSERT INTO people_roster_shifts(id,week_id,name,local_date,start_time,end_time,starts_at,ends_at,capacity,state,version) VALUES(?,?, 'Fictional front desk coverage',?,'09:00','17:00',?,?,1,'active',1)").bind(nextRosterShiftId,nextRosterWeekId,nextRosterDate,Date.parse(`${nextRosterDate}T09:00:00+07:00`),Date.parse(`${nextRosterDate}T17:00:00+07:00`)),
+    db.prepare("INSERT INTO people_roster_assignments(id,shift_id,person_id,engagement_id,state,version) VALUES(?,?,?,?,'assigned',1)").bind(`${nextRosterShiftId}-employee`,nextRosterShiftId,payrollPersonIds.employee,employeeEngagementId),
+  ]);
+  for(const [stepKey,userId,reason] of [
+    ["calculate",actors.payrollPreparer.userId,"Synthetic hotel payroll preparation owner"],
+    ["preview",actors.payrollApprover.userId,"Independent synthetic hotel payroll reviewer"],
+    ["approved",finance.userId,"Synthetic hotel Finance posting owner"],
+    ["posted",actors.treasury.userId,"Synthetic hotel payment preparation owner"],
+    ["payment_draft",finance.userId,"Independent synthetic hotel payment approver"],
+    ["payment_approved",actors.treasury.userId,"Synthetic hotel payment export owner"],
+    ["payment_exported",actors.treasury.userId,"Synthetic hotel payment confirmation owner"],
+    ["payment_partially_settled",actors.treasury.userId,"Synthetic hotel payment retry owner"],
+    ["payment_settled",actors.treasury.userId,"Synthetic hotel payment settlement owner"],
+  ] as const) {
+    await db.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'payroll',?,?,?,?,?)")
+      .bind(f.company,stepKey,userId,admin.userId,reason,now).run();
+  }
   const pmsAccounts={} as Config["accounts"];
   const allKeys=[...new Set<string>([...pmsAccountKeys,...accountKeys])];
   for(const [index,name] of allKeys.entries()) {
@@ -138,5 +277,5 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
       {actor:"cashier",href:`${input.origin}/holdings/riverside-lantern/pos`,action:"Attempt to charge a nonexistent or checked-out stay.",expected:"The bill remains open with no folio entry, stock consumption or posting."},
       {actor:"cashier",href:`${input.origin}/holdings/riverside-lantern/pos`,action:"Choose the verified in-house stay and retry with a fresh version.",expected:"Exactly one charge is created; repeating the same command key returns it."}
     ],expected:"Failed attempts do not duplicate revenue or stock movements."}]};
-  return {companyId:f.company,propertyId,registerId,warehouseId,openingJournalId:opening.id,openingInventoryAccountId:pmsAccounts.inventory,roomIds:rooms,roomTypeIds:types,rateIds:rates,productIds:products,users,guide};
+  return {companyId:f.company,propertyId,registerId,warehouseId,openingJournalId:opening.id,openingInventoryAccountId:pmsAccounts.inventory,roomIds:rooms,roomTypeIds:types,rateIds:rates,productIds:products,supplierIds:[supplierOne.id,supplierTwo.id],purchaseRequestId:purchaseRequest.id,payrollGroupId,payrollEngagementIds,payrollPersonIds,leaveTypeId,leavePolicyId,leaveAssignmentId,rosterWeekId,rosterShiftId,users,guide};
 }

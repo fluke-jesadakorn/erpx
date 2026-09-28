@@ -4,6 +4,9 @@ import { workspaceBase } from "@/lib/workspace";
 import { pageError } from "@/server/page-error";
 import { productionWorkspace } from "@/server/production";
 import { ProductionConsole } from "@/components/modules/production-console";
+import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
+import { AttachmentFeatureSurface } from "@/components/attachments/attachment-feature-context";
+import { hasPermission } from "@/lib/permissions";
 export const dynamic = "force-dynamic";
 export default async function Page({
   params,
@@ -25,6 +28,27 @@ export default async function Page({
         output, QC, cost and genealogy.
       </p>
       <ProductionConsole base={base} module="manufacturing" data={data} />
+      {data.specifications.map((specification) => (
+        <AttachmentFeatureSurface key={`files-${String(specification.id)}`}><details className="card">
+          <summary>
+            Controlled files · {String(specification.name)} · version {String(specification.version)}
+          </summary>
+          <RecordDocumentPanel
+            base={base}
+            targetType="manufacturing_spec"
+            targetId={String(specification.id)}
+            expectedTargetVersion={Number(specification.version)}
+            editable={hasPermission(a, "records.write")}
+            title="BOM, formula, drawing and SOP files"
+            purposes={[
+              { key: "controlled_specification", label: "Controlled specification", description: "Attach the controlled manufacturing specification for this exact revision." },
+              { key: "drawing", label: "Drawing", description: "Attach the approved drawing or production diagram for this revision." },
+              { key: "sop", label: "SOP", description: "Attach the approved work instruction or standard operating procedure." },
+              { key: "formula", label: "Formula", description: "Attach the restricted formula or recipe document for this revision.", visibility: "Restricted to authorized Manufacturing colleagues in this Company." },
+            ]}
+          />
+        </details></AttachmentFeatureSurface>
+      ))}
       <section className="card">
         <h2>Orders</h2>
         {data.orders.map((x) => (

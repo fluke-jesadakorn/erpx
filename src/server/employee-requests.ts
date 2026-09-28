@@ -10,6 +10,8 @@ import { activeStaff, notification } from "./staff-policy";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
 import { resourceRequestRoute, expenseRoute, spendingStepCandidates, expenseAuthoritySnapshot } from "./expense-routing";
+import { departmentRoute, departmentStepEligible } from "./department-authority";
+import { canOverrideStaffStep,staffOverrideGuards } from "./approvals";
 import {
   serviceCategories,
   categoryLabel,
@@ -80,6 +82,7 @@ export const requestActionSchema = z.object({
     "comment",
   ]),
   expectedVersion: z.number().int().positive(),
+  override: z.boolean().default(false),
   note: z.string().trim().max(10000).default(""),
   assigneeUserId: z.string().max(160).nullable().default(null),
   teamId: z.string().max(180).nullable().default(null),
@@ -145,14 +148,31 @@ export function requestVersionGuard(
 export function requestOwn(actor: WorkContext, row: EmployeeRequest) {
   return [row.requester_user_id, row.created_by].some(id=>samePerson(actor,id));
 }
+export async function canOverrideEmployeeRequest(db:SqlDatabase,actor:Pick<WorkContext,"companyId"|"userId"|"role"|"assignmentId">,row:EmployeeRequest){
+  const saved=JSON.parse(row.approval_json) as SavedApproval,step=saved.route?.steps[saved.currentStep??0];
+  if(row.state!=="awaiting_approval" || step?.stage!=="department_approval")return false;
+  return canOverrideStaffStep(db,{companyId:row.company_id,branchId:row.branch_id,departmentId:row.department_id,
+    requesterUserId:row.requester_user_id,preparerUserId:row.created_by,assignedUserId:step.userId},actor);
+}
+export async function readRequestForOverride(db:SqlDatabase,companyId:string,id:string){
+  const row=await db.prepare("SELECT * FROM employee_requests WHERE id=? AND company_id=?").bind(id,companyId).first<EmployeeRequest>();
+  if(!row)throw new ApiError(404,"REQUEST_NOT_FOUND","Request not found.");
+  return row;
+}
 async function requestAccess(
   db: SqlDatabase,
   actor: WorkContext,
   row: EmployeeRequest,
+  override=false,
 ) {
+  const saved = JSON.parse(row.approval_json) as SavedApproval;
+  const current=saved.route?.steps[saved.currentStep??0];
+  const designated=!!current?.snapshot?.departmentPolicyVersion && samePerson(actor,current.userId)
+    && await departmentStepEligible(db,row.company_id,actor.userId,current.snapshot);
+  const superior=override && await canOverrideEmployeeRequest(db,actor,row);
   if (
-    !inServiceWorkspace(actor, row) ||
-    !(await serviceMember(db, row, actor.userId))
+    !designated && !superior && (!inServiceWorkspace(actor, row) ||
+    !(await serviceMember(db, row, actor.userId)))
   )
     throw new ApiError(
       404,
@@ -162,11 +182,10 @@ async function requestAccess(
   const owner = await serviceOwner(db, actor),
     handlers = await teamHandlers(db, row, row.team_id),
     member = handlers.find((h) => h.user_id === actor.userId);
-  const saved = JSON.parse(row.approval_json) as SavedApproval;
   let route: ApprovalRoute | null = null,
     pool: string[] = [];
   if (row.state === "awaiting_approval") {
-    if(saved.route?.steps.some(s=>s.snapshot?.spendingPolicy)) {
+    if(saved.route?.steps.some(s=>s.snapshot?.spendingPolicy || s.snapshot?.departmentPolicyVersion!==undefined)) {
       route=saved.route;
       const step=route.steps[saved.currentStep??0];
       pool=step?await spendingStepCandidates(db,row,row.requester_user_id,[row.created_by],{...step,candidateUserIds:saved.pool},(saved.decisions??[]).map(d=>d.userId)):[];
@@ -175,8 +194,9 @@ async function requestAccess(
       pool = (route.steps[0]?.candidateUserIds ?? []).filter(id=>saved.pool?.includes(id));
     }
   }
+  if(superior)pool=[actor.userId];
   const own = requestOwn(actor, row),
-    approver = pool.some(id=>samePerson(actor,id)) && hasWorkflowPermission(actor,route?.steps[saved.currentStep ?? 0]?.requiredRole ?? "people_manager");
+    approver = !!superior || pool.some(id=>samePerson(actor,id)) && (route?.steps[saved.currentStep ?? 0]?.snapshot?.departmentPolicyVersion!==undefined || hasWorkflowPermission(actor,route?.steps[saved.currentStep ?? 0]?.requiredRole ?? "people_manager"));
   if (
     !own &&
     !owner &&
@@ -207,9 +227,10 @@ export async function getEmployeeRequest(
   db: SqlDatabase,
   actor: WorkContext,
   id: string,
+  override=false,
 ) {
   const row = await readEmployeeRequest(db, actor, id);
-  await requestAccess(db, actor, row);
+  await requestAccess(db, actor, row, override);
   return row;
 }
 export async function requestAttachments(db: SqlDatabase, id: string) {
@@ -235,9 +256,10 @@ export async function employeeRequestDetail(
   actor: WorkContext,
   id: string,
   includeEvidence = true,
+  override=false,
 ) {
   const row = await readEmployeeRequest(db, actor, id),
-    access = await requestAccess(db, actor, row);
+    access = await requestAccess(db, actor, row, override);
   const blocked =
     row.state === "awaiting_approval" && !access.pool.length
       ? (access.route?.blockedReason ??
@@ -626,7 +648,7 @@ async function submittedRoute(db: SqlDatabase, row: EmployeeRequest) {
       "REQUESTER_LOCATION_REQUIRED",
       "Use the requester’s active branch and department. Review their People profile.",
     );
-  return row.kind === "purchase" ? expenseRoute(db,row.company_id,row.requester_user_id,[row.created_by],false,"purchase") : resourceRequestRoute(db,row.company_id,row.requester_user_id,row.created_by);
+  return row.kind === "purchase" ? expenseRoute(db,row.company_id,row.requester_user_id,[row.created_by],false,"purchase") : departmentRoute(db,row.company_id,row.requester_user_id,[row.created_by]);
 }
 export async function actOnEmployeeRequest(
   db: SqlDatabase,
@@ -635,17 +657,18 @@ export async function actOnEmployeeRequest(
   input: z.infer<typeof requestActionSchema>,
   key: string,
 ) {
-  const snapshot = await serviceAuthoritySnapshot(db, actor.companyId);
-  const spendingSnapshot = await expenseAuthoritySnapshot(db, actor.companyId);
-  const current = await getEmployeeRequest(db, actor, id),
-    detail = await employeeRequestDetail(db, actor, id),
-    operation = `employee.request.${input.action}`;
+  const operation = `employee.request.${input.action}`;
   const prior = await replayCommand<{
     id: string;
     version: number;
     state: string;
   }>(db, actor, key, operation, id, input);
   if (prior) return prior;
+  const snapshot = await serviceAuthoritySnapshot(db, actor.companyId);
+  const spendingSnapshot = await expenseAuthoritySnapshot(db, actor.companyId);
+  if(input.override && !["approve","return","reject"].includes(input.action))throw new ApiError(422,"OVERRIDE_ACTION_INVALID","Only a pending department decision can be overridden.");
+  const current = await getEmployeeRequest(db, actor, id, input.override),
+    detail = await employeeRequestDetail(db, actor, id, false, input.override);
   if (current.version !== input.expectedVersion)
     throw new ApiError(
       409,
@@ -658,7 +681,8 @@ export async function actOnEmployeeRequest(
       "REQUEST_ACTION_FORBIDDEN",
       "This action is not available to you at the current step.",
     );
-  await validateServiceScope(db, actor, current);
+  if(!["approve","return","reject"].includes(input.action) || !detail.actions.includes(input.action))
+    await validateServiceScope(db, actor, current);
   const row = {
       ...current,
       version: current.version + 1,
@@ -671,6 +695,12 @@ export async function actOnEmployeeRequest(
     requestVersionGuard(db, key, current),
     spendingSnapshot.guard(key,"purchase-approval-authority"),
   ];
+  if(input.override){
+    const saved=JSON.parse(current.approval_json) as SavedApproval,step=saved.route?.steps[saved.currentStep??0];
+    if(!step || step.stage!=="department_approval")throw new ApiError(409,"OVERRIDE_STEP_CHANGED","The department step changed. Reload before deciding.");
+    statements.push(...await staffOverrideGuards(db,key,{companyId:current.company_id,branchId:current.branch_id,departmentId:current.department_id,
+      requesterUserId:current.requester_user_id,preparerUserId:current.created_by,assignedUserId:step.userId},actor));
+  }
   const requiredNote = [
     "approve",
     "return",
@@ -733,45 +763,51 @@ export async function actOnEmployeeRequest(
       row.state = route.blockedReason ? "blocked" : "awaiting_approval";
       row.blocked_reason = route.blockedReason;
       row.approval_json = JSON.stringify({
-        pool: route.steps[0]?.candidateUserIds ?? [],
+        pool: route.steps[0]?.candidateUserIds ?? (route.steps[0]?[route.steps[0].userId]:[]),
         route: {...route,checks:undefined},
         currentStep:0, decisions:[],
         version: row.version,
         evidenceVersion: row.evidence_version,
       });
-      extra.push(...(route.steps[0]?.candidateUserIds ?? []));
+      extra.push(...(route.steps[0]?.candidateUserIds ?? (route.steps[0]?[route.steps[0].userId]:[])));
       for (const [i, c] of (route.checks ?? []).entries())
         statements.push(
           assertion(db, key, `request-route-${i}`, c.query, c.args),
         );
     } else await routeTeam();
   } else if (input.action === "approve") {
-    const access = await requestAccess(db, actor, current);
+    const access = await requestAccess(db, actor, current, input.override);
     if (!access.pool.some(id=>samePerson(actor,id)))
       throw new ApiError(
         403,
         "APPROVER_UNAVAILABLE",
         "Current independent department authority is required.",
       );
-    const strict=access.saved.route?.steps.some(s=>s.snapshot?.spendingPolicy);
+    const strict=access.saved.route?.steps.some(s=>s.snapshot?.spendingPolicy || s.snapshot?.departmentPolicyVersion!==undefined);
     const currentStep=access.saved.currentStep??0;
-    const decisions=[...(access.saved.decisions??[]),{stage:access.saved.route?.steps[currentStep]?.stage??"department_approval",userId:actor.userId,note:input.note,at:Date.now(),version:current.version}];
+    const original=access.saved.route?.steps[currentStep]?.userId;
+    const decisions=[...(access.saved.decisions??[]),{stage:access.saved.route?.steps[currentStep]?.stage??"department_approval",userId:actor.userId,note:input.note,at:Date.now(),version:current.version,
+      ...(input.override?{override:true,originalApproverUserId:original,actualApproverUserId:actor.userId}:{} )}];
     const next=strict?access.saved.route?.steps[currentStep+1]:null;
-    row.approval_json=JSON.stringify({...access.saved,decisions,currentStep:currentStep+1,pool:next?.candidateUserIds??[],decision:next?"pending":"approved",decidedBy:actor.userId,reviewedVersion:current.version,evidenceVersion:current.evidence_version,decisionAt:Date.now()});
+    row.approval_json=JSON.stringify({...access.saved,decisions,currentStep:currentStep+1,pool:next?.candidateUserIds??(next?[next.userId]:[]),decision:next?"pending":"approved",decidedBy:actor.userId,reviewedVersion:current.version,evidenceVersion:current.evidence_version,decisionAt:Date.now()});
     evidence.approval=JSON.parse(row.approval_json);
     evidence.attachments=await requestAttachments(db,id);
-    if(next){row.state="awaiting_approval";extra.push(...(next.candidateUserIds??[]));}else await routeTeam();
+    if(next){row.state="awaiting_approval";extra.push(...(next.candidateUserIds??[next.userId]));}else await routeTeam();
   } else if (input.action === "return" || input.action === "reject") {
     row.state = input.action === "return" ? "returned" : "rejected";
     row.team_id = null;
     row.assignee_user_id = null;
     row.blocked_reason = null;
+    const saved=JSON.parse(row.approval_json) as SavedApproval,original=saved.route?.steps[saved.currentStep??0]?.userId;
     row.approval_json = JSON.stringify({
-      ...JSON.parse(row.approval_json),
+      ...saved,
       decision: input.action,
       decidedBy: actor.userId,
       reviewedVersion: current.version,
+      decisions:[...(saved.decisions??[]),{stage:saved.route?.steps[saved.currentStep??0]?.stage??"department_approval",userId:actor.userId,note:input.note,at:Date.now(),version:current.version,
+        ...(input.override?{override:true,originalApproverUserId:original,actualApproverUserId:actor.userId}:{} )}],
     });
+    evidence.approval=JSON.parse(row.approval_json);
   } else if (input.action === "assign") {
     if (
       !input.assigneeUserId ||

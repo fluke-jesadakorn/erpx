@@ -14,15 +14,28 @@ import {
 import type { BetaEnvironment } from "./beta-config";
 import { applyLegacyStripeEvent } from "./beta-billing";
 import type { SqlDatabase } from "./runtime/types";
+import { registeredDatabases } from "@/lib/holding-registry";
+import { syncBillingTestFinance } from "./billing-test-finance";
 export type BillingJobEnv = BetaEnvironment & {
   CONTROL_DB: SqlDatabase;
   BETTER_AUTH_URL: string;
+  ERPX_BILLING_PROMPTPAY_SANDBOX?: string;
 };
+function invoicePaymentMethods(mode: "manual" | "auto", promptpay: boolean) {
+  if (!promptpay) return {};
+  return {
+    "payment_settings[payment_method_types][0]": "card",
+    ...(mode === "manual"
+      ? { "payment_settings[payment_method_types][1]": "promptpay" }
+      : {}),
+  };
+}
 export async function mirrorInvoice(
   c: PoolClient,
   invoiceId: string,
   stripe: BillingStripe,
   now: number,
+  env?: BillingJobEnv,
 ) {
   const local = (
     await c.query("SELECT * FROM billing_invoices WHERE id=$1", [invoiceId])
@@ -61,12 +74,33 @@ export async function mirrorInvoice(
       [local.period_id],
     );
   }
+  if (local.rating_model === "target" && env) {
+    const list = await stripe(`credit_notes?invoice=${encodeURIComponent(local.stripe_id)}&limit=100`);
+    if (list.has_more === true) throw new Error("CREDIT_NOTE_PAGINATION_REQUIRED");
+    const ledger = await syncBillingTestFinance(env, local, s,
+      stripeList(list).map(testObject), now);
+    await c.query(`INSERT INTO billing_test_finance_projection
+      (billing_invoice_id,stripe_invoice_id,customer_holding_id,company_id,invoice_satang,
+       receivable_satang,received_satang,reversed_satang,credited_satang,stripe_status,synced_at)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      ON CONFLICT(billing_invoice_id) DO UPDATE SET
+        receivable_satang=EXCLUDED.receivable_satang,
+        received_satang=EXCLUDED.received_satang,
+        reversed_satang=EXCLUDED.reversed_satang,
+        credited_satang=EXCLUDED.credited_satang,
+        stripe_status=EXCLUDED.stripe_status,synced_at=EXCLUDED.synced_at`,
+      [local.id,local.stripe_id,local.holding_id,ledger.companyId,
+        ledger.invoiceSatang,ledger.receivableSatang,ledger.receivedSatang,
+        ledger.reversedSatang,ledger.creditedSatang,ledger.stripeStatus,now]);
+  }
 }
 async function processJob(
   c: PoolClient,
   job: Record<string, unknown>,
   stripe: BillingStripe,
   now: number,
+  promptpay: boolean,
+  env?: BillingJobEnv,
 ) {
   const invoice = (
     await c.query("SELECT * FROM billing_invoices WHERE id=$1", [
@@ -92,6 +126,12 @@ async function processJob(
     ]);
   };
   if (job.kind === "issue") {
+    if (invoice.rating_model === "target" && env) {
+      const finance = registeredDatabases(env, "h003").write;
+      const ready = await finance.prepare("SELECT to_regclass('billing_test_finance_documents') IS NOT NULL ready")
+        .first<{ready:boolean}>();
+      if (!ready?.ready) throw new Error("TEST_FINANCE_LEDGER_UNAVAILABLE");
+    }
     const mode =
       a.payment_mode === "auto" && a.consent_at && a.card_json
         ? "auto"
@@ -117,9 +157,12 @@ async function processJob(
             ...(invoice.payment_mode === "manual"
               ? { days_until_due: "7" }
               : {}),
+            ...invoicePaymentMethods(invoice.payment_mode, promptpay),
             "metadata[erpx_invoice_id]": invoice.id,
             "metadata[holding_id]": a.holding_id,
-            description: "ERPX Sandbox — reviewed actual costs + Support",
+            description: invoice.rating_model === "target"
+              ? "ERPX Sandbox — verified monthly platform and usage charges"
+              : "ERPX Sandbox — reviewed actual costs + Support",
             pending_invoice_items_behavior: "exclude",
           },
           `erpx-invoice-${invoice.id}`,
@@ -165,6 +208,7 @@ async function processJob(
           collection_method:
             mode === "auto" ? "charge_automatically" : "send_invoice",
           ...(mode === "manual" ? { days_until_due: "7" } : {}),
+          ...invoicePaymentMethods(mode, promptpay),
           auto_advance: "false",
         },
         `erpx-configure-${invoice.id}-${mode}`,
@@ -216,7 +260,7 @@ async function processJob(
         `erpx-manual-${job.id}`,
       );
   }
-  await mirrorInvoice(c, invoice.id, stripe, now);
+  await mirrorInvoice(c, invoice.id, stripe, now, env);
   await c.query(
     "UPDATE billing_jobs SET state='done',last_error=NULL WHERE id=$1",
     [job.id],
@@ -228,6 +272,9 @@ export async function drainBilling(
   stripe: BillingStripe = billingStripe(env),
 ) {
   const db = env.CONTROL_DB as PostgresDatabase;
+  const promptpay =
+    (env.ERPX_BILLING_PROMPTPAY_SANDBOX ??
+      process.env.ERPX_BILLING_PROMPTPAY_SANDBOX) === "true";
   const ids = (await db.pool.query("SELECT holding_id FROM billing_accounts"))
     .rows;
   for (const { holding_id: id } of ids) {
@@ -298,7 +345,7 @@ export async function drainBilling(
       ).rows;
       for (const job of jobs) {
         try {
-          await processJob(c, job, stripe, now);
+          await processJob(c, job, stripe, now, promptpay, env);
         } catch (error) {
           const code =
             error instanceof Error ? error.message : "STRIPE_UNAVAILABLE";
@@ -343,7 +390,7 @@ export async function drainBilling(
               ],
             )
           ).rows;
-          for (const m of matches) await mirrorInvoice(c, m.id, stripe, now);
+          for (const m of matches) await mirrorInvoice(c, m.id, stripe, now, env);
           if (e.type.startsWith("setup_intent.")) {
             const setup = testObject(await stripe(`setup_intents/${obj.id}`));
             if (
@@ -413,9 +460,26 @@ export async function drainBilling(
       ).rows;
       for (const row of stale) {
         try {
-          await mirrorInvoice(c, row.id, stripe, now);
+          await mirrorInvoice(c, row.id, stripe, now, env);
         } catch {
           /* Next scheduled pass retries. */
+        }
+      }
+      // A missed credit-note webhook can arrive after an invoice is already
+      // paid. Re-read recent target invoices periodically to mirror reversals.
+      const paidTarget = (await c.query(
+        `SELECT i.id FROM billing_invoices i
+         LEFT JOIN billing_test_finance_projection f ON f.billing_invoice_id=i.id
+         WHERE i.holding_id=$1 AND i.rating_model='target' AND i.status='paid'
+           AND (f.synced_at IS NULL OR f.synced_at<$2)
+         ORDER BY i.updated_at DESC LIMIT 10`,
+        [id, now - 6 * 3600000],
+      )).rows;
+      for (const row of paidTarget) {
+        try {
+          await mirrorInvoice(c, row.id, stripe, now, env);
+        } catch {
+          /* Signed events and the next periodic pass retain recovery paths. */
         }
       }
     } catch (error) {

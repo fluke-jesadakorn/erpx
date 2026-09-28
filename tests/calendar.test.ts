@@ -9,6 +9,8 @@ import {
 import { publishedAnnouncements } from "../src/server/calendar/announcements";
 import { rosterCommand, rosterData } from "../src/server/people-roster";
 import { localInterval } from "../src/server/calendar/commands";
+import {drainCalendarReminders} from "../src/server/calendar/reminders";
+import {calendarAvailability} from "../src/server/calendar/availability";
 import { rosterMonday, addDays } from "../src/lib/people-roster";
 import { calendarQuerySchema, itemOnDate } from "../src/lib/calendar";
 import type { WorkContext } from "../src/server/authorization";
@@ -74,6 +76,93 @@ beforeEach(async () => {
   f = await seedExpenseCompany(db, env.H001_FILES);
   f.manager = await f.member("calendar-manager", "people_manager");
   f.tie = await f.member("calendar-participant", "employee");
+  const position=`${f.company}-calendar-shift-position`;
+  await db.prepare("INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,roster_required,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,1,'fixture',1,1)")
+    .bind(position,f.company,f.branch,f.department,"Calendar shift worker",`${f.company}-level-1`).run();
+  await db.prepare("UPDATE hr_engagements SET position_id=? WHERE person_id=?").bind(position,person(f.claimant)).run();
+});
+it("keeps occurrence responses separate from the series and hides a declined occurrence",async()=>{
+  const saved=await command(appointment({recurrence:{frequency:"daily",intervalCount:1,weekdays:[],endKind:"count",occurrenceCount:3}}),f.claimant);
+  const mine=(await read(f.tie,{mode:"mine",view:"week",date})).items.filter(item=>item.sourceId===saved.id);
+  expect(mine.length).toBeGreaterThan(0);
+  const occurrence=mine[0].occurrenceId!;
+  await command({action:"appointment.respond",id:saved.id,expectedVersion:saved.version,occurrenceId:occurrence,scope:"single",response:"declined"},f.tie);
+  const remaining=(await read(f.tie,{mode:"mine",view:"week",date})).items.filter(item=>item.sourceId===saved.id);
+  expect(remaining.some(item=>item.occurrenceId===occurrence)).toBe(false);
+  expect(remaining.some(item=>item.occurrenceId!==occurrence)).toBe(true);
+});
+it("shows a moved occurrence in its destination range with its original identity",async()=>{
+  const saved=await command(appointment({recurrence:{frequency:"daily",intervalCount:1,weekdays:[],endKind:"count",occurrenceCount:3}}),f.claimant);
+  const occurrenceId=`${date}T09:00`,target=addDays(date,8);
+  await command({action:"appointment.reschedule",id:saved.id,expectedVersion:saved.version,occurrenceId,scope:"single",
+    startLocal:`${target}T09:00`,endLocal:`${target}T10:00`,timezone:"Asia/Bangkok"},f.claimant);
+  const moved=(await read(f.claimant,{mode:"mine",view:"week",date:target})).items.find(item=>item.sourceId===saved.id);
+  expect(moved?.occurrenceId).toBe(occurrenceId);
+  expect(moved?.startDate).toBeNull();
+  expect(moved?.startsAt).toBeGreaterThan(Date.parse(`${target}T00:00Z`));
+});
+it("splits this and future occurrences while retaining earlier responses and inviting the new series",async()=>{
+  const saved=await command(appointment({recurrence:{frequency:"daily",intervalCount:1,weekdays:[],endKind:"count",occurrenceCount:4}}),f.claimant);
+  await command({action:"appointment.respond",id:saved.id,expectedVersion:saved.version,occurrenceId:`${date}T09:00`,scope:"single",response:"accepted"},f.tie);
+  const current=await db.prepare("SELECT version FROM calendar_appointments WHERE id=?").bind(saved.id).first<{version:number}>();
+  const keyValue=key(),future=addDays(date,1);
+  await command({action:"appointment.reschedule",id:saved.id,expectedVersion:current!.version,occurrenceId:`${future}T09:00`,scope:"future",
+    startLocal:`${future}T11:00`,endLocal:`${future}T12:00`,timezone:"Asia/Bangkok"},f.claimant,keyValue);
+  const nextId=`calendar-${keyValue}`;
+  const previous=await db.prepare("SELECT response FROM calendar_occurrence_responses WHERE appointment_id=? AND occurrence_key=? AND user_id=?")
+    .bind(saved.id,`${date}T09:00`,f.tie.userId).first<{response:string}>();
+  expect(previous?.response).toBe("accepted");
+  expect((await read(f.tie,{mode:"mine",view:"week",date:future})).items.some(item=>item.sourceId===nextId)).toBe(true);
+  const invitation=await db.prepare("SELECT 1 FROM inbox_events WHERE source_type='calendar_appointment' AND source_id=? AND company_id=?")
+    .bind(nextId,f.claimant.companyId).first();
+  expect(invitation).toBeTruthy();
+});
+it("stores an all-day appointment with an exclusive end date",async()=>{
+  const saved=await command(appointment({allDay:true,startDate:date,endDate:addDays(date,2),startLocal:undefined,endLocal:undefined}),f.claimant);
+  const item=(await read(f.claimant,{mode:"mine",view:"week",date})).items.find(item=>item.sourceId===saved.id)!;
+  expect(item.allDay).toBe(true);
+  expect(item.startDate).toBe(date);
+  expect(item.endDate).toBe(addDays(date,2));
+  await command({action:"appointment.reschedule",id:saved.id,expectedVersion:saved.version,
+    startLocal:`${addDays(date,1)}T00:00`,endLocal:`${addDays(date,3)}T00:00`,timezone:"Asia/Bangkok"},f.claimant);
+  const moved=(await read(f.claimant,{mode:"mine",view:"week",date})).items.find(row=>row.sourceId===saved.id)!;
+  expect(moved.startDate).toBe(addDays(date,1));
+  expect(moved.endDate).toBe(addDays(date,3));
+});
+it("lets an active account organize without an HR Person link",async()=>{
+  const saved=await command(appointment({organizerPersonId:undefined,participantIds:[]}),f.claimant);
+  const row=await db.prepare("SELECT organizer_person_id,created_by FROM calendar_appointments WHERE id=?").bind(saved.id)
+    .first<{organizer_person_id:string|null;created_by:string}>();
+  expect(row?.organizer_person_id).toBeNull();
+  expect(row?.created_by).toBe(f.claimant.userId);
+  expect((await read(f.claimant,{mode:"mine"})).items.some(item=>item.sourceId===saved.id)).toBe(true);
+});
+it("deduplicates reminders and suppresses them after cancellation",async()=>{
+  const saved=await command(appointment({participantIds:[]}),f.claimant);
+  const appointmentRow=await db.prepare("SELECT starts_at FROM calendar_appointments WHERE id=?").bind(saved.id).first<{starts_at:number}>();
+  const due=appointmentRow!.starts_at-15*60000;
+  expect(await drainCalendarReminders(db,due)).toBeGreaterThanOrEqual(1);
+  expect(await drainCalendarReminders(db,due)).toBe(0);
+  await command({action:"appointment.status",id:saved.id,expectedVersion:saved.version,status:"cancelled"},f.claimant);
+  expect(await drainCalendarReminders(db,due+60000)).toBe(0);
+});
+it("returns busy intervals without appointment details",async()=>{
+  const saved=await command(appointment(),f.claimant);
+  const row=await db.prepare("SELECT starts_at,ends_at FROM calendar_appointments WHERE id=?").bind(saved.id).first<{starts_at:number;ends_at:number}>();
+  const availability=await calendarAvailability(db,f.claimant,[f.tie.userId],row!.starts_at-3600000,row!.ends_at+3600000);
+  expect(availability.intervals.some(interval=>interval.startsAt===row!.starts_at&&interval.endsAt===row!.ends_at)).toBe(true);
+  expect(JSON.stringify(availability)).not.toContain("Private interview");
+  expect(JSON.stringify(availability)).not.toContain("Visitor");
+});
+it("accepts independent attendee responses with a stale appointment version",async()=>{
+  const saved=await command(appointment({participantIds:[person(f.tie),person(f.manager)]}),f.claimant);
+  await command({action:"appointment.respond",id:saved.id,expectedVersion:saved.version,response:"accepted"},f.tie);
+  await command({action:"appointment.respond",id:saved.id,expectedVersion:saved.version,response:"tentative"},f.manager);
+  const row=await db.prepare("SELECT version FROM calendar_appointments WHERE id=?").bind(saved.id).first<{version:number}>();
+  expect(row?.version).toBe(saved.version+2);
+  const attendees=(await read(f.claimant)).items.find(item=>item.sourceId===saved.id)?.details?.attendees;
+  expect(attendees?.find(person=>person.userId===f.tie.userId)?.response).toBe("accepted");
+  expect(attendees?.find(person=>person.userId===f.manager.userId)?.response).toBe("tentative");
 });
 it("reads all sources without causing workflow transitions and hides draft rosters from staff", async () => {
   await shift();
@@ -116,7 +205,7 @@ it("lets active staff organize, scopes delegates, redacts availability before se
     participant.items.find((i) => i.sourceId === saved.id)?.details?.guests?.[0]
       .email,
   ).toBe("visitor@example.test");
-  expect(participant.items[0].permittedActions).toEqual([]);
+  expect(participant.items[0].permittedActions).toEqual(["appointment.respond", "appointment.reminder.set"]);
   const outsider = await f.member("availability-only", "employee");
   const viewer = {
     ...outsider,

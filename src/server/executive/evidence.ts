@@ -25,7 +25,6 @@ import { runtimeEnv } from "../runtime";
 import { operationsMetrics, operationsTaskCohort, operationsTaskHref, operationsTaskVisibility, type OperationsMetricId } from "./operations-access";
 import { loadPms } from "../pms";
 import type { PmsRecord } from "@/lib/pms-model";
-import { getLeave } from "../leave";
 import { getOvertime } from "../overtime";
 import { participantSql } from "../approvals";
 import { projectDependencyBlockerCohort, projectMilestoneHref, projectMilestoneOverdueCohort } from "./project-milestone-access";
@@ -36,6 +35,7 @@ import { learningEvidenceMetrics, readLearningEvidence, searchLearningEvidence }
 import { readTalentEvidence, searchTalentEvidence, talentEvidenceMetrics } from "./talent-evidence";
 import { posEvidenceMetrics, readPosEvidence, searchPosEvidence } from "./pos-evidence";
 import { marketingEvidenceMetrics, readMarketingEvidence, searchMarketingEvidence } from "./marketing-evidence";
+import { planningEvidenceMetrics, readPlanningEvidence, searchPlanningEvidence } from "./planning-evidence";
 
 const providerId = "finance-invoices";
 const payrollSummaryMetric = "payroll-summary" as const;
@@ -670,14 +670,28 @@ async function readPeopleLeaveOvertimeEvidence(db: SqlDatabase, actor: WorkConte
   const fields = leave ? approvedLeaveFields : authorizedOvertimeFields;
   let record: Record<string, unknown>;
   if (leave) {
-    const row = await getLeave(actor.holdingId, recordId, actor);
-    if (row.state !== "approved" || row.start_date < filters.from || row.start_date > filters.to
-      || actor.branchId && row.branch_id !== actor.branchId
-      || actor.departmentId && row.department_id !== actor.departmentId)
+    // Keep evidence reads on the exact same personal cohort as search and the
+    // aggregate. `getLeave` also serves the separately-authorized medical
+    // evidence workflow, whose broader `leave.evidence.read` grant must not
+    // widen this executive metric.
+    const row = await approvedLeaveEvidenceRows(db, actor, filters, "", undefined, recordId, 1)
+      .first<{
+        id: string; number: string; start_date: string; end_date: string;
+        units: string; days: number; state: string; version: number;
+      }>();
+    if (!row) {
+      const visible = await db.prepare(`SELECT 1 FROM leave_requests l
+        WHERE l.id=? AND l.company_id=?
+          AND (l.created_by=? OR l.decided_by=? OR ${participantSql("leave", "l", "?", "?")}
+            OR ${participantSql("leave_cancellation", "l", "?", "?")})`)
+        .bind(recordId, actor.companyId, actor.userId, actor.userId, actor.userId, actor.assignmentId, actor.userId, actor.assignmentId)
+        .first();
+      if (!visible) throw new ApiError(404, "NOT_FOUND", "Leave request not found.");
       throw new ApiError(404, "EVIDENCE_NOT_FOUND", "This source record is unavailable in the selected role, scope or filters.");
+    }
     record = {
-      id: row.id, number: row.number, start_date: row.start_date, end_date: row.end_date ?? row.start_date,
-      units: String(row.calculated_units ?? row.days), state: row.state, version: row.version,
+      id: row.id, number: row.number, start_date: row.start_date, end_date: row.end_date,
+      units: row.units, state: row.state, version: row.version,
       href: `/tasks/people_payroll/${encodeURIComponent(row.id)}`,
     };
   } else {
@@ -4056,7 +4070,7 @@ type OperationsEvidenceRow = {
   id: string;
   title: string;
   state: string;
-  due_at: number;
+  due_at: number | null;
   created_at: number;
   updated_at: number;
   version: number;
@@ -4146,7 +4160,7 @@ async function searchOperationsEvidence(db: SqlDatabase, actor: WorkContext, raw
       label: row.title || "Operational task",
       summary: metric === "exception-resolution-time"
         ? `Completed ${new Date(row.updated_at).toISOString().slice(0, 10)} · ${row.exception_duration_ms} ms past due`
-        : `${row.state} · due ${new Date(row.due_at).toISOString().slice(0, 10)}`,
+        : `${row.state} · ${row.due_at === null ? "No due date" : `due ${new Date(row.due_at).toISOString().slice(0, 10)}`}`,
       status: row.state,
       href: operationsTaskHref(row.id),
     })),
@@ -4185,7 +4199,7 @@ async function readOperationsEvidence(db: SqlDatabase, actor: WorkContext, metri
 }
 
 export async function searchExecutiveEvidence(db: SqlDatabase, actor: WorkContext, raw: unknown) {
-  const common = z.object({ metric: z.enum([...financeMetrics, payrollSummaryMetric, approvedLeaveMetric, authorizedOvertimeMetric, hotelOccupancyMetric, ...hotelRoomRevenueMetrics, hotelFolioBalanceMetric, hotelNightAuditBlockersMetric, "invoice-match-exceptions", ...salesMetrics, salesFulfillmentMetric, fieldVisitMetric, manufacturingCostMetric, customerActivityMetric, socialActivityMetric, ...qualityMetrics, ...legalMetrics, closeBlockersMetric, identityChangeMetric, organizationNodeMetric, pendingStructureMetric, activeAssignmentsMetric, pendingAccessReviewsMetric, activeSubscriptionsMetric, overdueInvoicesMetric, maintenanceDowntimeMetric, duplicateReviewMetric, supportTicketMetrics[0], supportTicketMetrics[1], supportIncidentMetric, stockedLocationsMetric, availableStockMetric, inventoryShortagesMetric, inventoryMovementsMetric, projectMilestoneMetric, projectDependencyMetric, ...projectActualMetrics, ...operationsMetrics, ...agentEvidenceMetrics, ...crmEvidenceMetrics, ...brandEvidenceMetrics, ...learningEvidenceMetrics, ...talentEvidenceMetrics, ...posEvidenceMetrics, ...marketingEvidenceMetrics]), ...commonFilters }).strict().parse(raw);
+  const common = z.object({ metric: z.enum([...financeMetrics, payrollSummaryMetric, approvedLeaveMetric, authorizedOvertimeMetric, hotelOccupancyMetric, ...hotelRoomRevenueMetrics, hotelFolioBalanceMetric, hotelNightAuditBlockersMetric, "invoice-match-exceptions", ...salesMetrics, salesFulfillmentMetric, fieldVisitMetric, manufacturingCostMetric, customerActivityMetric, socialActivityMetric, ...qualityMetrics, ...legalMetrics, closeBlockersMetric, identityChangeMetric, organizationNodeMetric, pendingStructureMetric, activeAssignmentsMetric, pendingAccessReviewsMetric, activeSubscriptionsMetric, overdueInvoicesMetric, maintenanceDowntimeMetric, duplicateReviewMetric, supportTicketMetrics[0], supportTicketMetrics[1], supportIncidentMetric, stockedLocationsMetric, availableStockMetric, inventoryShortagesMetric, inventoryMovementsMetric, projectMilestoneMetric, projectDependencyMetric, ...projectActualMetrics, ...operationsMetrics, ...agentEvidenceMetrics, ...crmEvidenceMetrics, ...brandEvidenceMetrics, ...learningEvidenceMetrics, ...talentEvidenceMetrics, ...posEvidenceMetrics, ...marketingEvidenceMetrics, ...planningEvidenceMetrics]), ...commonFilters }).strict().parse(raw);
   if (crmEvidenceMetrics.includes(common.metric as typeof crmEvidenceMetrics[number])) return searchCrmEvidence(db, actor, common);
   if (agentEvidenceMetrics.includes(common.metric as typeof agentEvidenceMetrics[number])) return searchAgentEvidence(db, actor, common);
   if (brandEvidenceMetrics.includes(common.metric as typeof brandEvidenceMetrics[number])) return searchBrandEvidence(db, actor, common);
@@ -4193,6 +4207,7 @@ export async function searchExecutiveEvidence(db: SqlDatabase, actor: WorkContex
   if (talentEvidenceMetrics.includes(common.metric as typeof talentEvidenceMetrics[number])) return searchTalentEvidence(db, actor, common);
   if (posEvidenceMetrics.includes(common.metric as typeof posEvidenceMetrics[number])) return searchPosEvidence(db, actor, common);
   if (marketingEvidenceMetrics.includes(common.metric as typeof marketingEvidenceMetrics[number])) return searchMarketingEvidence(db, actor, common);
+  if (planningEvidenceMetrics.includes(common.metric as typeof planningEvidenceMetrics[number])) return searchPlanningEvidence(db, actor, common);
   if (common.metric === projectMilestoneMetric) return searchProjectMilestoneEvidence(db, actor, projectMilestoneQuerySchema.parse(common));
   if (common.metric === projectDependencyMetric) return searchProjectDependencyEvidence(db, actor, projectDependencyQuerySchema.parse(common));
   if (projectActualMetrics.includes(common.metric as ProjectActualMetric)) return searchProjectActualEvidence(db, actor, projectActualQuerySchema.parse(common));
@@ -4238,6 +4253,7 @@ export async function readExecutiveEvidence(db: SqlDatabase, actor: WorkContext,
   if (talentEvidenceMetrics.includes(metric as typeof talentEvidenceMetrics[number])) return readTalentEvidence(db, actor, metric, recordId, filters);
   if (posEvidenceMetrics.includes(metric as typeof posEvidenceMetrics[number])) return readPosEvidence(db, actor, metric, recordId, filters);
   if (marketingEvidenceMetrics.includes(metric as typeof marketingEvidenceMetrics[number])) return readMarketingEvidence(db, actor, metric, recordId, filters);
+  if (planningEvidenceMetrics.includes(metric as typeof planningEvidenceMetrics[number])) return readPlanningEvidence(db, actor, metric, recordId, filters);
   if (metric === projectMilestoneMetric) return readProjectMilestoneEvidence(db, actor, recordId, filters);
   if (metric === projectDependencyMetric) return readProjectDependencyEvidence(db, actor, recordId, filters);
   if (projectActualMetrics.includes(metric as ProjectActualMetric)) return readProjectActualEvidence(db, actor, metric as ProjectActualMetric, recordId, filters);

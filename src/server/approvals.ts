@@ -1,8 +1,10 @@
 import {personIdentityIds,currentPersonPrincipals} from "./iam-person";
 import { hasWorkflowPermission } from "@/lib/permissions";
-import type { SqlDatabase } from "./runtime/types";
+import type { SqlDatabase,SqlStatement } from "./runtime/types";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
+import { appointedHrEligible, departmentStepEligible } from "./department-authority";
+import { organizationGuard } from "./organization";
 import {
   expensePoolCandidates,
   expenseAuthoritySnapshot,
@@ -10,6 +12,8 @@ import {
 } from "./expense-routing";
 import {
   activeStaff,
+  staffPeople,
+  reportingChain,
   authorityGuard,
   requireCompanyAuthority,
   eligibleRoleUsers,
@@ -63,6 +67,8 @@ export type ApprovalDecision = {
   created_at: number;
   previous_approver_user_id: string | null;
   approver_user_id: string | null;
+  previous_approver_name?: string | null;
+  approver_name?: string | null;
   authority_json?: string | null;
 };
 export type ApprovalView = {
@@ -72,8 +78,41 @@ export type ApprovalView = {
   currentApprover: ApprovalStep | null;
   blockedReason: string | null;
   canDecide: boolean;
+  canOverride: boolean;
   eligibleApproverIds?: string[];
 };
+
+export async function canOverrideStaffStep(db:SqlDatabase,context:{companyId:string;branchId:string|null;departmentId:string|null;requesterUserId:string;preparerUserId:string|null;assignedUserId:string},actor:Pick<StaffActor,"companyId"|"userId"|"role"|"assignmentId">){
+  const [people,assigned,reviewer]=await Promise.all([staffPeople(db,context.companyId),activeStaff(db,context.companyId,context.assignedUserId).catch(()=>null),activeStaff(db,context.companyId,actor.userId).catch(()=>null)]);
+  if(!assigned || !reviewer || !assigned.level_number || !reviewer.level_number || reviewer.level_number>=assigned.level_number)return false;
+  if([context.requesterUserId,context.preparerUserId].some(id=>id && people.some(p=>p.user_id===id && p.person_id===reviewer.person_id)))return false;
+  if(!reportingChain(people,assigned.person_id).some(p=>p.person_id===reviewer.person_id))return false;
+  const appointed=await db.prepare("SELECT 1 FROM authority_seats WHERE company_id=? AND person_id=? AND kind IN ('ceo','hr') AND effective_at<=? LIMIT 1").bind(context.companyId,reviewer.person_id,Date.now()).first();
+  const role=await db.prepare("SELECT 1 FROM assignments WHERE id=? AND company_id=? AND user_id=? AND iam_role_allows(role,company_id,'workflow.people_manager') AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (scope_kind='holding' OR scope_kind='branch' AND scope_node_id=? OR scope_kind='department' AND scope_node_id=?)").bind(actor.assignmentId,context.companyId,actor.userId,context.branchId,context.departmentId).first();
+  return !!(appointed||role);
+}
+async function canOverrideDepartment(db:SqlDatabase,instance:ApprovalInstance,step:ApprovalStep,actor:Pick<StaffActor,"companyId"|"userId"|"role"|"assignmentId">){
+  if(instance.state!=="pending" || !(step.stage==="department_approval" || step.authority==="department"))return false;
+  return canOverrideStaffStep(db,{companyId:instance.company_id,branchId:instance.branch_id,departmentId:instance.department_id,requesterUserId:instance.requester_user_id,preparerUserId:instance.assignee_user_id,assignedUserId:step.approver_user_id},actor);
+}
+export async function staffOverrideGuards(db:SqlDatabase,key:string,context:{companyId:string;branchId:string|null;departmentId:string|null;requesterUserId:string;preparerUserId:string|null;assignedUserId:string},actor:Pick<StaffActor,"companyId"|"userId"|"role"|"assignmentId">):Promise<SqlStatement[]>{
+  return [await organizationGuard(db,context.companyId,key),
+    assertion(db,key,"override-current-right",`EXISTS(SELECT 1 FROM assignments a WHERE a.id=? AND a.company_id=? AND a.user_id=? AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (iam_role_allows(a.role,a.company_id,'workflow.people_manager') AND (a.scope_kind='holding' OR a.scope_kind='branch' AND a.scope_node_id=? OR a.scope_kind='department' AND a.scope_node_id=?) OR EXISTS(SELECT 1 FROM authority_seats s JOIN hr_people p ON p.id=s.person_id AND p.company_id=s.company_id JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id AND e.status='active' WHERE s.company_id=a.company_id AND s.kind IN ('ceo','hr') AND iam_same_person(p.user_id,a.user_id,a.company_id) AND s.effective_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint)))`,
+      [actor.assignmentId,context.companyId,actor.userId,context.branchId,context.departmentId]),
+    assertion(db,key,"override-current-chain",`EXISTS(WITH RECURSIVE chain AS (
+      SELECT e.manager_person_id,l.level_number selected_level,ARRAY[e.person_id] seen,0 depth
+      FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id AND p.company_id=e.company_id JOIN staff_levels l ON l.id=e.level_id AND l.company_id=e.company_id
+      WHERE e.company_id=? AND e.status='active' AND iam_same_person(p.user_id,?,e.company_id)
+      UNION ALL SELECT e.manager_person_id,c.selected_level,c.seen||e.person_id,c.depth+1
+      FROM chain c JOIN hr_engagements e ON e.person_id=c.manager_person_id AND e.company_id=? AND e.status='active'
+      WHERE NOT e.person_id=ANY(c.seen) AND c.depth<100)
+      SELECT 1 FROM chain c JOIN hr_people p ON p.id=c.manager_person_id AND p.company_id=? JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id AND e.status='active' JOIN staff_levels l ON l.id=e.level_id AND l.company_id=e.company_id
+      WHERE iam_same_person(p.user_id,?,p.company_id) AND l.level_number<c.selected_level)`,
+      [context.companyId,context.assignedUserId,context.companyId,context.companyId,actor.userId]),
+    assertion(db,key,"override-independent",`NOT iam_same_person(?,?,?) AND (?::text IS NULL OR NOT iam_same_person(?,?,?))`,
+      [actor.userId,context.requesterUserId,context.companyId,context.preparerUserId,actor.userId,context.preparerUserId,context.companyId]),
+    staffGuard(db,key,context.companyId,actor.userId,"override-staff")];
+}
 
 export function participantSql(
   kind: ApprovalKind,
@@ -81,7 +120,7 @@ export function participantSql(
   userParameter = "?",
   activeAssignment?: string,
 ) {
-  const roleCheck=activeAssignment ? ` AND (ast.state IN ('approved','rejected') OR EXISTS(SELECT 1 FROM assignments aa WHERE aa.id=${activeAssignment} AND iam_role_allows(aa.role,aa.company_id,'workflow.'||COALESCE(ast.required_role,CASE WHEN ast.authority IN ('named','department') THEN 'people_manager' ELSE ast.authority END)) AND aa.company_id=ai.company_id AND (aa.scope_kind='holding' OR aa.scope_kind='branch' AND aa.scope_node_id=ai.branch_id OR aa.scope_kind='department' AND aa.scope_node_id=ai.department_id)))` : "";
+  const roleCheck=activeAssignment ? ` AND (ast.state IN ('approved','rejected') OR ast.stage='department_approval' AND jsonb_exists(ast.route_snapshot_json::jsonb,'departmentPolicyVersion') OR ast.stage='hr_approval' AND ast.route_snapshot_json::jsonb->>'appointedPersonId' IS NOT NULL OR EXISTS(SELECT 1 FROM assignments aa WHERE aa.id=${activeAssignment} AND iam_role_allows(aa.role,aa.company_id,'workflow.'||COALESCE(ast.required_role,CASE WHEN ast.authority IN ('named','department') THEN 'people_manager' ELSE ast.authority END)) AND aa.company_id=ai.company_id AND (aa.scope_kind='holding' OR aa.scope_kind='branch' AND aa.scope_node_id=ai.branch_id OR aa.scope_kind='department' AND aa.scope_node_id=ai.department_id)))` : "";
   return `EXISTS(SELECT 1 FROM approval_instances ai JOIN approval_steps ast ON ast.instance_id=ai.id WHERE ai.record_type='${kind}' AND ai.record_id=${alias}.id AND ai.company_id=${alias}.company_id AND EXISTS(SELECT 1 FROM (SELECT ast.approver_user_id user_id UNION SELECT value FROM erpx_json_each(COALESCE(ast.approver_pool_json,'[]'))) participant WHERE iam_same_person(participant.user_id,${userParameter},ai.company_id))${roleCheck})`;
 }
 export async function currentApproval(
@@ -114,6 +153,7 @@ export async function taskRoute(
   assignee: string,
   phase: ApprovalPhase,
   users: string[],
+  serviceTask = false,
 ): Promise<ApprovalRoute> {
   try {
     await activeStaff(db, scope.company_id, assignee);
@@ -132,9 +172,14 @@ export async function taskRoute(
         );
       await activeStaff(db, scope.company_id, user);
     }
+    // A task assigned by someone else is work to perform, not the assignee's
+    // department request. A self-submitted task follows the department flow.
+    const department=users.length && creator===assignee && scope.department_id && !serviceTask?await (await import("./department-authority")).departmentRoute(db,scope.company_id,assignee):null;
+    if(department?.blockedReason)throw new ApiError(409,"DEPARTMENT_FLOW_REQUIRED",department.blockedReason);
     return {
       scope,
-      steps: users.map((userId) => ({ userId, authority: "named" })),
+      steps: [...(department?.steps??[]),...users.map((userId) => ({ userId, authority: "named" as const }))],
+      checks:department?.checks,
       blockedReason: null,
     };
   } catch (error) {
@@ -221,7 +266,9 @@ export async function openApproval(
           ordinal,
           s.userId,
           s.authority,
-          s.candidateUserIds ? JSON.stringify(s.candidateUserIds) : null,
+          s.candidateUserIds && !(s.snapshot && "departmentPolicyVersion" in s.snapshot)
+            ? JSON.stringify(s.candidateUserIds)
+            : null,
           s.requiredRole ?? null,
           s.stage ?? null,
           s.snapshot ? JSON.stringify(s.snapshot) : null,
@@ -449,7 +496,12 @@ export async function stepBlock(
   step: ApprovalStep,
   steps: ApprovalStep[],
 ) {
-  if (step.approver_pool_json)
+  const snapshot=JSON.parse(step.route_snapshot_json??"{}") as Record<string,unknown>;
+  if(step.stage==="department_approval" && "departmentPolicyVersion" in snapshot && !await departmentStepEligible(db,instance.company_id,step.approver_user_id,snapshot))
+    return "The selected department approver no longer occupies the saved position. Reroute with a reason.";
+  if(step.stage==="hr_approval" && snapshot.appointedPersonId && !await appointedHrEligible(db,instance.company_id,step.approver_user_id,snapshot.appointedPersonId))
+    return "The appointed HR reviewer is unavailable. Reroute with a reason.";
+  if (instance.record_type === "expense" && step.approver_pool_json)
     return (await expensePoolCandidates(db, instance, step, steps)).length
       ? null
       : "No eligible independent reviewer remains. Resolve this approval in Administration.";
@@ -465,7 +517,7 @@ export async function stepBlock(
         principal(instance.requester_user_id) === principal(step.approver_user_id))
     )
       return "This approval would be a self-approval.";
-    if (step.authority === "hr_admin" || step.authority === "holding_owner") {
+    if ((step.authority === "hr_admin" && !snapshot.appointedPersonId) || step.authority === "holding_owner") {
       if (
         !(await eligibleRoleUsers(db, instance, step.authority)).includes(
           principal(step.approver_user_id),
@@ -529,7 +581,7 @@ export async function approvalView(
       ? (steps.find((s) => s.ordinal === instance.current_step) ?? null)
       : null;
   const poolCandidates =
-    currentApprover?.approver_pool_json && instance
+    currentApprover?.approver_pool_json && instance?.record_type === "expense"
       ? await expensePoolCandidates(db, instance, currentApprover, steps)
       : null;
   const blockedReason =
@@ -541,16 +593,18 @@ export async function approvalView(
           : "No eligible independent reviewer remains. Resolve this approval in Administration."
         : await stepBlock(db, instance!, currentApprover, steps)
       : null);
-  const activeScope = instance ? !!await db.prepare("SELECT 1 FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=? AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR scope_kind='branch' AND scope_node_id=? OR scope_kind='department' AND scope_node_id=?)").bind(actor.assignmentId,actor.userId,actor.companyId,actor.role,Date.now(),Date.now(),instance.branch_id,instance.department_id).first() : false;
+  const policyStep=!!currentApprover && (currentApprover.stage==="department_approval" && "departmentPolicyVersion" in JSON.parse(currentApprover.route_snapshot_json??"{}") || currentApprover.stage==="hr_approval" && !!JSON.parse(currentApprover.route_snapshot_json??"{}").appointedPersonId);
+  const activeScope = instance ? !!await db.prepare("SELECT 1 FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=? AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>? AND (? OR scope_kind='holding' OR scope_kind='branch' AND scope_node_id=? OR scope_kind='department' AND scope_node_id=?)").bind(actor.assignmentId,actor.userId,actor.companyId,actor.role,Date.now(),Date.now(),policyStep,instance.branch_id,instance.department_id).first() : false;
   const history = (
     await db
       .prepare(
-        "SELECT d.*,COALESCE(p.legal_name,d.actor_user_id) actor_name FROM approval_decisions d JOIN approval_instances i ON i.id=d.instance_id LEFT JOIN hr_people p ON p.user_id=d.actor_user_id AND p.company_id=i.company_id AND p.merged_into_id IS NULL WHERE i.record_type=? AND i.record_id=? AND i.company_id=? ORDER BY d.created_at,d.insertion_order",
+        "SELECT d.*,COALESCE(p.legal_name,d.actor_user_id) actor_name,(SELECT legal_name FROM hr_people WHERE company_id=i.company_id AND iam_same_person(user_id,d.previous_approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) previous_approver_name,(SELECT legal_name FROM hr_people WHERE company_id=i.company_id AND iam_same_person(user_id,d.approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) approver_name FROM approval_decisions d JOIN approval_instances i ON i.id=d.instance_id LEFT JOIN hr_people p ON p.user_id=d.actor_user_id AND p.company_id=i.company_id AND p.merged_into_id IS NULL WHERE i.record_type=? AND i.record_id=? AND i.company_id=? ORDER BY d.created_at,d.insertion_order",
       )
       .bind(kind, id, actor.companyId)
       .all<ApprovalDecision>()
   ).results;
-  const eligibleApproverIds = await personIdentityIds(db,actor.companyId,poolCandidates??(currentApprover?[currentApprover.approver_user_id]:[]));
+  const eligibleApproverIds = blockedReason ? [] : await personIdentityIds(db,actor.companyId,poolCandidates??(currentApprover?[currentApprover.approver_user_id]:[]));
+  const canOverride=!!instance && !!currentApprover && await canOverrideDepartment(db,instance,currentApprover,actor);
   return {
     instance,
     steps,
@@ -558,10 +612,11 @@ export async function approvalView(
     currentApprover,
     blockedReason,
     eligibleApproverIds,
+    canOverride,
     canDecide:
       !!currentApprover && activeScope &&
       !blockedReason &&
-      eligibleApproverIds.includes(actor.userId) && (kind === "task" && currentApprover.authority === "named" && !currentApprover.required_role || hasWorkflowPermission(actor,currentApprover.required_role ?? (["named", "department"].includes(currentApprover.authority) ? "people_manager" : currentApprover.authority))),
+      eligibleApproverIds.includes(actor.userId) && (policyStep || kind === "task" && currentApprover.authority === "named" && !currentApprover.required_role || hasWorkflowPermission(actor,currentApprover.required_role ?? (["named", "department"].includes(currentApprover.authority) ? "people_manager" : currentApprover.authority))),
   };
 }
 async function expenseDecisionEvidence(
@@ -615,9 +670,10 @@ export async function prepareDecision(
   approve: boolean,
   reason: string,
   version: number,
+  override=false,
 ) {
   if(kind==='legal')throw new ApiError(409,'LEGAL_OWNER_REQUIRED','Use the Legal decision adapter with document and signer checks.');
-  if (!approve && !reason.trim())
+  if ((override && reason.trim().length<3) || (!approve && !reason.trim()))
     throw new ApiError(
       422,
       "REASON_REQUIRED",
@@ -630,7 +686,7 @@ export async function prepareDecision(
   const view = await approvalView(db, kind, id, actor),
     instance = view.instance,
     step = view.currentApprover;
-  if (!instance || !step || !view.canDecide)
+  if (!instance || !step || !(override?view.canOverride:view.canDecide))
     throw new ApiError(
       403,
       "CURRENT_APPROVER_REQUIRED",
@@ -638,7 +694,12 @@ export async function prepareDecision(
         "Only the named approver of the current step can decide.",
     );
   const next = view.steps.find((s) => s.ordinal === step.ordinal + 1);
-  const decisionEvidence = step.approver_pool_json
+  const stepSnapshot=JSON.parse(step.route_snapshot_json??"{}") as Record<string,unknown>;
+  const policyStep=step.stage==="department_approval" && "departmentPolicyVersion" in stepSnapshot;
+  const appointedHrStep=step.stage==="hr_approval" && typeof stepSnapshot.appointedPersonId==="string";
+  const decisionEvidence = override
+    ? JSON.stringify({override:true,outcome:approve?"approve":"reject",originalApproverUserId:step.approver_user_id,actualApproverUserId:actor.userId,activeAuthority:{role:actor.role,assignmentId:actor.assignmentId,...actor.authority}})
+    : kind === "expense" && step.approver_pool_json
     ? await expenseDecisionEvidence(
         db,
         actor,
@@ -650,18 +711,40 @@ export async function prepareDecision(
   const final = !approve || !next,
     now = Date.now();
   const statements = [
-    ...(step.approver_pool_json && authoritySnapshot
+    ...(override?[await organizationGuard(db,actor.companyId,key)]:[]),
+    ...(authoritySnapshot
       ? [authoritySnapshot.guard(key)]
       : []),
     assertion(
       db,
       key,
       "approval-version",
-      "EXISTS(SELECT 1 FROM approval_instances WHERE id=? AND version=? AND state='pending' AND current_step=?) AND EXISTS(SELECT 1 FROM approval_steps WHERE id=? AND ? IN (SELECT approver_user_id UNION SELECT value FROM erpx_json_each(COALESCE(approver_pool_json,'[]'))) AND state='pending')",
+      override
+        ? "EXISTS(SELECT 1 FROM approval_instances WHERE id=? AND version=? AND state='pending' AND current_step=?) AND EXISTS(SELECT 1 FROM approval_steps WHERE id=? AND state='pending' AND approver_user_id<>?)"
+        : "EXISTS(SELECT 1 FROM approval_instances WHERE id=? AND version=? AND state='pending' AND current_step=?) AND EXISTS(SELECT 1 FROM approval_steps WHERE id=? AND ? IN (SELECT approver_user_id UNION SELECT value FROM erpx_json_each(COALESCE(approver_pool_json,'[]'))) AND state='pending')",
       [instance.id, instance.version, step.ordinal, step.id, actor.userId],
     ),
-    assertion(db, key, "active-decision-role", "EXISTS(SELECT 1 FROM assignments WHERE id=? AND iam_role_allows(role,company_id,'workflow.'||?))", [actor.assignmentId, step.required_role ?? (kind === "task" && step.authority === "named" ? actor.role : ["named", "department"].includes(step.authority) ? "people_manager" : step.authority)]),
+    ...(override?[assertion(db,key,"override-authority",`EXISTS(SELECT 1 FROM assignments a WHERE a.id=? AND a.company_id=? AND a.user_id=? AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (iam_role_allows(a.role,a.company_id,'workflow.people_manager') AND (a.scope_kind='holding' OR a.scope_kind='branch' AND a.scope_node_id=? OR a.scope_kind='department' AND a.scope_node_id=?) OR EXISTS(SELECT 1 FROM authority_seats s JOIN hr_people p ON p.id=s.person_id AND p.company_id=s.company_id WHERE s.company_id=a.company_id AND s.kind IN ('ceo','hr') AND iam_same_person(p.user_id,a.user_id,a.company_id) AND s.effective_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint)))`,[actor.assignmentId,actor.companyId,actor.userId,instance.branch_id,instance.department_id])]:policyStep || appointedHrStep ? [assertion(db,key,"appointed-approval-current",policyStep
+      ? `EXISTS(SELECT 1 FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.id=? AND p.company_id=? AND iam_same_person(p.user_id,?,p.company_id) AND p.status='active' AND e.status='active' AND (?::text IS NULL OR e.position_id=?))`
+      : `EXISTS(SELECT 1 FROM authority_seats s JOIN hr_people p ON p.id=s.person_id AND p.company_id=s.company_id WHERE s.company_id=? AND s.kind='hr' AND s.scope_id=s.company_id AND s.person_id=? AND iam_same_person(p.user_id,?,p.company_id) AND s.effective_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint)`,
+      policyStep?[stepSnapshot.selectedPersonId as string,actor.companyId,actor.userId,(stepSnapshot.selector as {positionId?:string})?.positionId??null,(stepSnapshot.selector as {positionId?:string})?.positionId??null]:[actor.companyId,stepSnapshot.appointedPersonId as string,actor.userId])]:[
+      assertion(db, key, "active-decision-role", "EXISTS(SELECT 1 FROM assignments WHERE id=? AND iam_role_allows(role,company_id,'workflow.'||?))", [actor.assignmentId, step.required_role ?? (kind === "task" && step.authority === "named" ? actor.role : ["named", "department"].includes(step.authority) ? "people_manager" : step.authority)]),
+    ]),
+    ...(override?[assertion(db,key,"override-reporting-chain",`EXISTS(WITH RECURSIVE chain AS (
+      SELECT e.manager_person_id,l.level_number selected_level,ARRAY[e.person_id] seen,0 depth
+      FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id AND p.company_id=e.company_id JOIN staff_levels l ON l.id=e.level_id AND l.company_id=e.company_id
+      WHERE e.company_id=? AND e.status='active' AND iam_same_person(p.user_id,?,e.company_id)
+      UNION ALL
+      SELECT e.manager_person_id,c.selected_level,c.seen||e.person_id,c.depth+1
+      FROM chain c JOIN hr_engagements e ON e.person_id=c.manager_person_id AND e.company_id=? AND e.status='active'
+      WHERE NOT e.person_id=ANY(c.seen) AND c.depth<100)
+      SELECT 1 FROM chain c JOIN hr_people p ON p.id=c.manager_person_id AND p.company_id=? JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id AND e.status='active' JOIN staff_levels l ON l.id=e.level_id AND l.company_id=e.company_id
+      WHERE iam_same_person(p.user_id,?,p.company_id) AND l.level_number<c.selected_level)`,[actor.companyId,step.approver_user_id,actor.companyId,actor.companyId,actor.userId])]:[]),
     staffGuard(db, key, actor.companyId, actor.userId, "decision-staff"),
+    ...(override?[
+      assertion(db,key,"override-independent",`NOT iam_same_person(?, ?, ?) AND (?::text IS NULL OR NOT iam_same_person(?, ?, ?)) AND NOT EXISTS(SELECT 1 FROM approval_steps s WHERE s.instance_id=? AND s.ordinal<? AND s.state='approved' AND iam_same_person(s.approver_user_id,?,?))`,[actor.userId,instance.requester_user_id,instance.company_id,instance.assignee_user_id,actor.userId,instance.assignee_user_id,instance.company_id,instance.id,step.ordinal,actor.userId,instance.company_id]),
+      ...(kind==="expense"?[assertion(db,key,"override-expense-preparer","EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND (prepared_by IS NULL OR NOT iam_same_person(prepared_by,?,company_id)) AND NOT iam_same_person(created_by,?,company_id))",[id,instance.company_id,actor.userId,actor.userId])]:[]),
+    ]:[]),
     ...(instance.assignee_user_id
       ? [
           staffGuard(
@@ -674,7 +757,7 @@ export async function prepareDecision(
         ]
       : []),
     ...(!step.approver_pool_json &&
-    (step.authority === "hr_admin" || step.authority === "holding_owner")
+    ((step.authority === "hr_admin" && !appointedHrStep) || step.authority === "holding_owner")
       ? [
           roleGuard(db, key, instance, {
             ...step,
@@ -682,7 +765,7 @@ export async function prepareDecision(
           }),
         ]
       : []),
-    ...(step.approver_pool_json
+    ...(kind === "expense" && step.approver_pool_json && !override
       ? [
           assertion(
             db,
@@ -736,13 +819,15 @@ export async function prepareDecision(
       ),
     db
       .prepare(
-        "INSERT INTO approval_decisions(id,instance_id,step_id,action,actor_user_id,reason,reviewed_version,command_id,created_at,authority_json) VALUES(?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO approval_decisions(id,instance_id,step_id,action,actor_user_id,previous_approver_user_id,approver_user_id,reason,reviewed_version,command_id,created_at,authority_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
       )
       .bind(
         crypto.randomUUID(),
         instance.id,
         step.id,
-        approve ? "approve" : "reject",
+        override ? "override" : approve ? "approve" : "reject",
+        actor.userId,
+        override ? step.approver_user_id : null,
         actor.userId,
         reason,
         version,
@@ -765,7 +850,7 @@ export async function prepareDecision(
     ),
   ];
   if (approve && next)
-    for (const userId of next.approver_pool_json
+    for (const userId of kind === "expense" && next.approver_pool_json
       ? await expensePoolCandidates(
           db,
           instance,
@@ -788,7 +873,7 @@ export async function prepareDecision(
           "Approval needs your decision",
         ),
       );
-  return { statements, final, instance };
+  return { statements, final, instance, next };
 }
 export function closeApprovals(
   db: SqlDatabase,
@@ -896,6 +981,20 @@ export async function rerouteApproval(
       ? { approver_pool_json: JSON.stringify([input.approverUserId]) }
       : {}),
   };
+  if (current.stage === "department_approval") {
+    const snapshot = JSON.parse(current.route_snapshot_json ?? "{}") as Record<string, unknown>;
+    if ("departmentPolicyVersion" in snapshot) {
+      const selected = await activeStaff(db, instance.company_id, input.approverUserId);
+      replacement.route_snapshot_json = JSON.stringify({
+        ...snapshot,
+        selector: { kind: "person", personId: selected.person_id },
+        selectedPersonId: selected.person_id,
+        selectedPositionId: selected.position_id,
+        reroutedFromPersonId: snapshot.selectedPersonId,
+        rerouted: true,
+      });
+    }
+  }
   if (current.approver_pool_json && current.stage === "department_approval" && !JSON.parse(current.route_snapshot_json ?? "{}").spendingPolicy) {
     const claim = await db
       .prepare(

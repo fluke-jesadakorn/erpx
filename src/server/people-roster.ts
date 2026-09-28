@@ -5,7 +5,7 @@ import { addDays, rosterMonday, rosterPending, rosterCommandSchema, type RosterD
 import type { WorkContext } from "./authorization";
 import type { SqlDatabase } from "./runtime/types";
 import type { PostgresDatabase } from "./runtime/postgres";
-import { activeStaff, staffPeople, type StaffPerson } from "./staff-policy";
+import { activeStaff, rosterStaffPeople, type StaffPerson } from "./staff-policy";
 import { ApiError } from "./http";
 import { executeCommand, replayCommand } from "./commands";
 
@@ -62,15 +62,39 @@ async function times(db: SqlDatabase, date: string, start: string, end: string, 
   if (!v || v.local_start !== `${date} ${start}` || v.local_end !== `${finish} ${end}` || v.ends_at <= v.starts_at) fail("ROSTER_TIME", "This local time does not exist in the roster timezone.", 422);
   return { starts_at: v!.starts_at, ends_at: v!.ends_at };
 }
-async function eligible(db: SqlDatabase, w: Pick<RosterWeek, "company_id" | "branch_id" | "department_id">, personId: string) {
-  const matches = (await staffPeople(db, w.company_id, { departmentId: w.department_id })).filter(p => p.person_id === personId && p.branch_id === w.branch_id);
-  if (matches.length !== 1) fail("ROSTER_STAFF", "Choose staff with one active engagement and account in this department.");
+async function eligible(db: SqlDatabase, w: Pick<RosterWeek, "company_id" | "branch_id" | "department_id">, personId: string, date: string) {
+  const matches = (await rosterStaffPeople(db, w.company_id, w.department_id, date, date)).filter(p => p.person_id === personId && p.branch_id === w.branch_id && p.roster_required === 1);
+  if (matches.length !== 1) fail("ROSTER_STAFF", "Choose staff whose active Position requires a roster in this department.");
   return matches[0];
+}
+type RosterGap = { person_id: string; legal_name: string; engagement_id: string; week_start: string };
+async function rosterGaps(db: SqlDatabase, companyId: string, departmentId: string, start: string) {
+  return rows<RosterGap>(db, `SELECT p.id person_id,p.legal_name,e.id engagement_id,?::date::text week_start
+    FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id
+    JOIN organization_positions pos ON pos.id=e.position_id AND pos.company_id=e.company_id AND pos.active=1 AND pos.roster_required=1
+    WHERE p.company_id=? AND e.department_id=? AND p.status='active' AND p.merged_into_id IS NULL AND p.user_id IS NOT NULL
+      AND e.status='active' AND e.start_date::date<=(?::date+6) AND (e.end_date IS NULL OR e.end_date::date>=?::date)
+      AND EXISTS (SELECT 1 FROM assignments grant_row WHERE grant_row.company_id=p.company_id AND grant_row.user_id=p.user_id
+        AND iam_assignment_active(grant_row.id,?) AND iam_principal_active(grant_row.user_id,grant_row.company_id,?))
+      AND EXISTS (SELECT 1 FROM generate_series(?::date,?::date+6,interval '1 day') day WHERE extract(isodow FROM day)<=5
+        AND day::date>=e.start_date::date AND (e.end_date IS NULL OR day::date<=e.end_date::date)
+        AND NOT EXISTS (SELECT 1 FROM leave_requests l LEFT JOIN employees emp ON emp.id=l.employee_id AND emp.company_id=l.company_id
+          WHERE l.company_id=e.company_id AND l.state='approved' AND coalesce(l.person_id,emp.person_id)=p.id
+          AND (EXISTS (SELECT 1 FROM leave_day_segments ds WHERE ds.request_id=l.id AND ds.company_id=l.company_id AND ds.leave_date::date=day::date AND ds.segment='full')
+            OR NOT EXISTS (SELECT 1 FROM leave_day_segments ds WHERE ds.request_id=l.id) AND day::date BETWEEN l.start_date::date AND coalesce(l.end_date::date,l.start_date::date+l.days::int-1)
+              AND (day::date<>l.start_date::date OR l.start_segment='full') AND (l.end_date IS NULL OR day::date<>l.end_date::date OR l.end_segment='full'))))
+      AND NOT EXISTS (SELECT 1 FROM people_roster_assignments a JOIN people_roster_shifts s ON s.id=a.shift_id AND s.state='active'
+        JOIN people_roster_weeks w ON w.id=s.week_id WHERE w.company_id=e.company_id AND w.department_id=e.department_id AND w.week_start=?::date
+        AND a.engagement_id=e.id AND a.state='assigned') ORDER BY p.legal_name,p.id`, start, companyId, departmentId, start, start, Date.now(), Date.now(), start, start, start);
+}
+async function requireCoverage(db:SqlDatabase,w:RosterWeek|ShiftWithWeek) {
+  const gaps=await rosterGaps(db,w.company_id,w.department_id,w.week_start);
+  if(gaps.length) fail("ROSTER_COVERAGE",`Assign at least one shift to: ${gaps.map(g=>g.legal_name).join(", ")}.`);
 }
 async function assignmentIssues(db: SqlDatabase, w: Pick<RosterWeek, "company_id" | "branch_id" | "department_id" | "timezone">, s: RosterShift, personId: string, exclude: string[] = [], engagementId?: string) {
   const issues: string[] = [];
   let p: StaffPerson;
-  try { p = await eligible(db, w, personId); }
+  try { p = await eligible(db, w, personId, s.local_date); }
   catch (e) { if (e instanceof ApiError && e.code === "ROSTER_STAFF") return [e.message]; throw e; }
   if (engagementId && p.engagement_id !== engagementId) issues.push("The staff engagement changed; reassign this shift.");
   const dates = await one<{ first_day: string; last_day: string }>(db, "SELECT to_char(to_timestamp(?::bigint/1000.0) AT TIME ZONE ?,'YYYY-MM-DD') first_day,to_char(to_timestamp((?::bigint-1)/1000.0) AT TIME ZONE ?,'YYYY-MM-DD') last_day", s.starts_at, w.timezone, s.ends_at, w.timezone);
@@ -91,7 +115,7 @@ async function assignmentIssues(db: SqlDatabase, w: Pick<RosterWeek, "company_id
 async function validateAssignment(db: SqlDatabase, w: RosterWeek | ShiftWithWeek, s: RosterShift, personId: string, exclude: string[] = [], engagementId?: string) {
   const issues = await assignmentIssues(db, w, s, personId, exclude, engagementId);
   if (issues.length) fail("ROSTER_CONFLICT", issues.join(" "));
-  return eligible(db, w, personId);
+  return eligible(db, w, personId, s.local_date);
 }
 async function capacity(db: SqlDatabase, s: RosterShift, exclude: string[] = []) {
   const count = await one<{ n: number }>(db, "SELECT count(*)::int n FROM people_roster_assignments WHERE shift_id=? AND state='assigned' AND NOT(id=ANY(?::text[]))", s.id, `{${exclude.join(",")}}`);
@@ -285,10 +309,11 @@ export async function rosterCommand(database: PostgresDatabase, actor: WorkConte
         if (aa.length > s.capacity) fail("ROSTER_FULL", "A shift exceeds its required headcount.");
         for (const a of aa) { await validateAssignment(db, w, s, a.person_id, [a.id], a.engagement_id); assigned.push(a.person_id); }
       }
+      await requireCoverage(db,w);
       result = { id: w.id, version: w.version + 1, state: "published" };
       await run(db, "UPDATE people_roster_weeks SET state='published',published_by=?,version=version+1,updated_at=? WHERE id=?", actor.userId, Date.now(), w.id);
       // Include department members so open slots are discoverable even without an assignment.
-      await notice(db, actor, "roster_week", w.id, result.version, `The roster for ${w.week_start} is published.`, [...assigned, ...(await staffPeople(db, actor.companyId, { departmentId })).map(p => p.person_id)]);
+      await notice(db, actor, "roster_week", w.id, result.version, `The roster for ${w.week_start} is published.`, [...assigned, ...(await rosterStaffPeople(db, actor.companyId, departmentId, w.week_start, addDays(w.week_start, 6))).filter(p=>p.roster_required===1).map(p => p.person_id)]);
     } else if (input.action === "shift.save") {
       const w = await week(db, actor, input.weekId);
       await department(db, actor, w.department_id, staff, true); departmentId = w.department_id; weekId = w.id;
@@ -314,6 +339,7 @@ export async function rosterCommand(database: PostgresDatabase, actor: WorkConte
       for (const p of people) await assign(db, s, p);
       await invalidate(db, actor, [s.id], oldAssignments.map(a => a.id));
       await run(db, "UPDATE people_roster_weeks SET version=version+1,updated_at=? WHERE id=?", Date.now(), w.id);
+      if(w.state==="published") await requireCoverage(db,w);
       if (w.state === "published") await notice(db, actor, "roster_week", w.id, w.version + 1, `A published shift changed: ${s.name}, ${s.local_date}.`, [...input.personIds, ...oldAssignments.map(a => a.person_id)]);
       result = { id: s.id, version: s.version };
     } else if (input.action === "shift.cancel") {
@@ -326,10 +352,12 @@ export async function rosterCommand(database: PostgresDatabase, actor: WorkConte
       await run(db, "UPDATE people_roster_assignments SET state='released',version=version+1 WHERE shift_id=? AND state='assigned'", s.id);
       await invalidate(db, actor, [s.id], aa.map(a => a.id));
       const w = await one<RosterWeek>(db, "UPDATE people_roster_weeks SET version=version+1,updated_at=? WHERE id=? RETURNING *", Date.now(), s.week_id);
+      if(s.week_state==="published") await requireCoverage(db,w!);
       if (s.week_state === "published") await notice(db, actor, "roster_week", s.week_id, w!.version, `${s.name} on ${s.local_date} was cancelled.`, aa.map(a => a.person_id));
       result = { id: s.id, version: s.version + 1, state: "cancelled" };
     } else if (input.action === "request.create") {
       if (!staff || !hasPermission(actor, "self.roster")) fail("STAFF_LINK_REQUIRED", "An active staff profile is required.", 403);
+      if (staff!.roster_required !== 1) fail("ROSTER_STAFF", "Your Position does not require roster shifts.", 403);
       const target = await shift(db, actor, input.targetShiftId);
       await department(db, actor, target.department_id, staff, false); departmentId = target.department_id;
       const source = input.sourceAssignmentId ? await one<RosterAssignment>(db, "SELECT * FROM people_roster_assignments WHERE id=?", input.sourceAssignmentId) : null;
@@ -375,6 +403,7 @@ export async function rosterCommand(database: PostgresDatabase, actor: WorkConte
           if (c.coworker && c.source) await assign(db, c.source, c.coworker);
           await invalidate(db, actor, [], aa.map(a => a.id), r.id);
           await run(db, "UPDATE people_roster_weeks SET version=version+1,updated_at=? WHERE id=ANY(?::text[])", Date.now(), `{${[c.target.week_id, c.source?.week_id].filter(Boolean).join(",")}}`);
+          for(const weekId of new Set([c.target.week_id,c.source?.week_id].filter((id):id is string=>!!id))) await requireCoverage(db,await week(db,actor,weekId));
           next = "approved";
         }
       }
@@ -398,7 +427,7 @@ export async function rosterData(db: SqlDatabase, actor: WorkContext, query: { d
   if (query.department && !selected) fail("ROSTER_SCOPE", "This department is outside your roster access.", 403);
   const start = query.week ?? rosterMonday();
   if (!z.iso.date().safeParse(start).success || rosterMonday(start) !== start) fail("ROSTER_WEEK", "Choose a valid Monday.", 422);
-  const data: RosterData = { asOf: Date.now(), departments: dd, departmentId: selected?.id ?? null, weekStart: start, week: null, weeks: [], templates: [], shifts: [], assignments: [], requests: [], people: [], history: [], conflicts: [], selfPersonId: staff?.person_id ?? null, canManage, canApprove };
+  const data: RosterData = { asOf: Date.now(), departments: dd, departmentId: selected?.id ?? null, weekStart: start, week: null, weeks: [], templates: [], shifts: [], assignments: [], requests: [], people: [], history: [], conflicts: [], coverageGaps: [], selfPersonId: staff?.roster_required===1?staff.person_id:null, selfRosterRequired:staff?.roster_required===1, canManage, canApprove };
   if (!selected) return data;
   data.weeks = await rows<RosterWeek>(db, "SELECT * FROM people_roster_weeks WHERE company_id=? AND department_id=? AND (? OR state='published') AND week_start BETWEEN ?::date AND ?::date ORDER BY week_start", actor.companyId, selected.id, manager, addDays(start, -35), addDays(start, 35));
   data.week = data.weeks.find(w => w.week_start === start) ?? null;
@@ -407,7 +436,15 @@ export async function rosterData(db: SqlDatabase, actor: WorkContext, query: { d
   data.assignments = await rows<RosterAssignment>(db, `SELECT a.*,p.legal_name person_name FROM people_roster_assignments a JOIN hr_people p ON p.id=a.person_id JOIN people_roster_shifts s ON s.id=a.shift_id WHERE s.week_id=ANY(?::text[]) AND a.state='assigned' ORDER BY p.legal_name`, ids);
   if (canManage) {
     data.templates = await rows<ShiftTemplate>(db, "SELECT * FROM people_roster_templates WHERE company_id=? AND department_id=? ORDER BY start_time,name", actor.companyId, selected.id);
-    data.people = (await staffPeople(db, actor.companyId, { departmentId: selected.id })).map(p => ({ person_id: p.person_id, legal_name: p.legal_name, engagement_id: p.engagement_id }));
+    data.people = (await rosterStaffPeople(db, actor.companyId, selected.id, start, addDays(start,6))).filter(p=>p.roster_required===1).map(p => ({ person_id: p.person_id, legal_name: p.legal_name, engagement_id: p.engagement_id }));
+    const current=rosterMonday();
+    data.coverageGaps = [...await rosterGaps(db,actor.companyId,selected.id,current),...await rosterGaps(db,actor.companyId,selected.id,addDays(current,7))];
+    for(const gap of data.coverageGaps) await run(db,`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)
+      SELECT gen_random_uuid()::text,?,a.user_id,'roster_coverage',?,1,?,? FROM assignments a
+      WHERE a.company_id=? AND iam_assignment_active(a.id,?) AND iam_principal_active(a.user_id,a.company_id,?)
+        AND iam_role_allows(a.role,a.company_id,'roster.manage')
+        AND (a.scope_kind='holding' OR a.scope_kind='branch' AND a.scope_node_id=? OR a.scope_kind='department' AND a.scope_node_id=?)
+      ON CONFLICT DO NOTHING`,actor.companyId,`${selected.id}:${gap.week_start}:${gap.person_id}`,`${gap.legal_name} needs a roster shift for the week of ${gap.week_start}.`,Date.now(),actor.companyId,Date.now(),Date.now(),selected.branch_id,selected.id);
   }
   data.requests = await rows<RosterRequest>(db, `SELECT r.*,p.legal_name requester_name,c.legal_name coworker_name FROM people_roster_requests r JOIN hr_people p ON p.id=r.requester_person_id LEFT JOIN hr_people c ON c.id=r.coworker_person_id
     WHERE r.company_id=? AND r.department_id=? AND (? OR r.requester_person_id=? OR r.coworker_person_id=?) ORDER BY r.created_at DESC LIMIT 200`, actor.companyId, selected.id, manager, staff?.person_id ?? null, staff?.person_id ?? null);

@@ -114,6 +114,23 @@
 .evidenceList { display: grid; gap: 0; }
 .evidenceList > a { display: flex; justify-content: space-between; gap: 15px; padding: 12px 14px; border-top: 1px solid var(--line); color: var(--brand); font-size: 12px; text-decoration: none; }
 .evidenceList > p { margin: 0; padding: 0 14px 14px; color: var(--muted); font-size: 12px; }
+.attachmentPanel { display: grid; gap: 14px; padding: 17px; border: 1px solid var(--line); border-radius: 11px; background: var(--card); }
+.attachmentHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.attachmentHeading h2 { margin: 0 0 5px; color: var(--ink-strong); font-size: 15px; }
+.attachmentHeading p:last-child { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.attachmentRequirement { flex: 0 0 auto; padding: 6px 9px; border-radius: 20px; background: color-mix(in srgb, var(--amber-soft) 38%, var(--card)); color: var(--amber); font-size: 10px; font-weight: 700; }
+.attachmentComposer { display: grid; grid-template-columns: minmax(160px, .7fr) minmax(200px, 1fr); gap: 12px; padding: 13px; border: 1px solid var(--line); border-radius: 9px; background: color-mix(in srgb, var(--paper) 42%, var(--card)); }
+.attachmentComposer .fileField, .attachmentComposer .fieldHint { grid-column: 1 / -1; }
+.attachmentFiles { display: grid; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.attachmentFiles > article { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 13px; border-bottom: 1px solid var(--line); }
+.attachmentFiles > article:last-child { border-bottom: 0; }
+.attachmentFiles > article > div:first-child { display: grid; min-width: 0; gap: 4px; }
+.attachmentFiles strong { color: var(--ink); font-size: 11px; overflow-wrap: anywhere; }
+.attachmentFiles span, .attachmentFiles > p { color: var(--muted); font-size: 10px; line-height: 1.45; }
+.attachmentFiles > p { margin: 0; padding: 13px; }
+.attachmentActions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+.attachmentActions a, .attachmentActions button { padding: 0; border: 0; background: none; color: var(--brand); font: inherit; font-size: 10px; font-weight: 650; text-decoration: none; cursor: pointer; }
+.attachmentActions button:disabled { cursor: progress; opacity: .55; }
 .detailMessage { margin: 0; padding: 11px 13px; border-radius: 8px; background: color-mix(in srgb, var(--amber-soft) 22%, var(--card)); color: var(--muted); font-size: 12px; line-height: 1.55; }
 .detailMessage strong { color: var(--ink); }
 .cancelNote { color: var(--muted); font-size: 11px; line-height: 1.5; }
@@ -130,6 +147,10 @@
   .reviewHeading { align-items: flex-start; flex-direction: column; gap: 6px; }
   .detailHeader { flex-direction: column; gap: 12px; }
   .factsGrid { grid-template-columns: 1fr; gap: 11px; }
+  .attachmentHeading, .attachmentFiles > article { align-items: flex-start; flex-direction: column; }
+  .attachmentComposer { grid-template-columns: 1fr; }
+  .attachmentComposer .fileField, .attachmentComposer .fieldHint { grid-column: auto; }
+  .attachmentActions { justify-content: flex-start; }
 }
 @media (max-width: 430px) {
   .stepHeader { gap: 6px; }

@@ -1,4 +1,5 @@
 import { eligibleClearanceOwner } from "./retirement-clearance";
+import { effectiveGpoRules } from "./gpo-rules";
 import { clearanceKinds, clearanceLabels, clearancePermissions, type ClearanceKind } from "@/lib/retirement";
 import "server-only";
 import { calendarCommand } from "./calendar/commands";
@@ -69,6 +70,33 @@ const visible = (
   (!actor.branchId || row.branch_id === actor.branchId) &&
   (!actor.departmentId || row.department_id === actor.departmentId);
 
+type LegacyCaseToSupersede = {
+  id: string;
+  version: number;
+  status: string;
+  kind: "onboarding" | "transfer";
+  effectiveAt: number;
+};
+
+async function legacyCaseForPlacement(
+  db: SqlDatabase,
+  actor: WorkContext,
+  personId: string,
+): Promise<LegacyCaseToSupersede | null> {
+  const row = await db.prepare(`SELECT c.id,c.version,c.status,c.kind,c.effective_at,e.branch_id,e.department_id
+    FROM people_lifecycle_cases c JOIN hr_engagements e ON e.id=c.engagement_id AND e.company_id=c.company_id
+    WHERE c.company_id=? AND c.person_id=? AND c.workflow='legacy' AND c.status IN ('waiting_it','pending_review','scheduled')`)
+    .bind(actor.companyId, personId)
+    .first<{id:string;version:number;status:string;kind:LifecycleCase["kind"];effective_at:number;branch_id:string|null;department_id:string|null}>();
+  if (!row) return null;
+  if (!visible(actor, row)) fail("This person's existing case is outside your workspace.", "LEGACY_CASE_SCOPE", 403);
+  if (row.kind !== "onboarding" && row.kind !== "transfer")
+    fail("Cancel the existing departure or suspension through its own case before placing this person.", "LEGACY_DEPARTURE_ACTIVE");
+  if (row.status === "scheduled" && row.effective_at <= Date.now())
+    fail("This existing access case has reached its effective time. Refresh after it completes.", "LEGACY_CASE_EFFECTIVE");
+  return {id:row.id,version:row.version,status:row.status,kind:row.kind,effectiveAt:row.effective_at};
+}
+
 export async function peopleLifecycleData(
   raw: SqlDatabase,
   actor: WorkContext,
@@ -83,6 +111,14 @@ export async function peopleLifecycleData(
       .bind(actor.companyId)
       .all<PeopleLifecycleData["positions"][number]>()
   ).results.filter((p) => visible(actor, p));
+  const gpoPolicies = await effectiveGpoRules(db, actor.companyId);
+  const gpoByPosition = new Map(positions.map(position => [position.id, gpoPolicies.filter(policy => policy.position_id === position.id)]));
+  for (const position of positions) {
+    const policies = gpoByPosition.get(position.id) ?? [];
+    position.gpo = { mapped: policies.length > 0, directoryStatus: !policies.length ? null
+      : policies.some(policy => policy.directory_config_status === "blocked") ? "blocked"
+      : policies.every(policy => policy.directory_config_status === "directory_applied") ? "directory_applied" : "pending" };
+  }
   const allPackages = (
     await db
       .prepare(
@@ -152,6 +188,31 @@ export async function peopleLifecycleData(
   for(const employee of roster) {
     const applied=preparation.filter(a=>a.engagement_id===employee.engagementId),position=positions.find(p=>p.id===employee.positionId);
     employee.itStatus=applied.some(a=>a.status==="blocked")?"problem":applied.some(a=>["queued","running","retry"].includes(a.status??"") || a.pending)?"working":applied.some(a=>a.active && a.position_id===employee.positionId && a.package_id===position?.package_id && a.package_revision===position?.package_revision)?"ready":"waiting";
+  }
+  const gpoAccounts = (await db.prepare(`SELECT DISTINCT m.person_id,i.connection_id,i.external_id
+    FROM iam_members m JOIN iam_identities i ON i.id=m.identity_id AND i.company_id=m.company_id AND i.user_id=m.user_id
+    WHERE m.company_id=? AND m.status='active' AND m.person_id IS NOT NULL AND i.enabled=true`)
+    .bind(actor.companyId)
+    .all<{person_id:string;connection_id:string;external_id:string}>()).results;
+  const gpoJobs = (await db.prepare(`SELECT j.position_id,j.person_id,j.engagement_id,j.account_id,j.status,j.connection_id,
+      COALESCE(j.rule_id,'legacy-position:'||j.position_id) rule_id
+    FROM position_gpo_jobs j JOIN organization_gpo_rules r ON r.company_id=j.company_id
+      AND r.id=COALESCE(j.rule_id,'legacy-position:'||j.position_id) AND r.revision=j.revision AND r.active
+    WHERE j.company_id=? AND j.desired_action='add' AND j.status<>'superseded'`)
+    .bind(actor.companyId)
+    .all<{position_id:string;person_id:string;engagement_id:string|null;account_id:string|null;status:string;connection_id:string;rule_id:string}>()).results;
+  for (const employee of roster) {
+    const policies = employee.positionId ? gpoByPosition.get(employee.positionId) ?? [] : [];
+    if (employee.status !== "active" || !policies.length) { employee.gpoDelivery = "none"; continue; }
+    const deliveries = policies.map(policy => {
+      if (policy.directory_config_status === "blocked") return "blocked";
+      const accounts = gpoAccounts.filter(account => account.person_id === employee.id && account.connection_id === policy.connection_id);
+      const jobs = gpoJobs.filter(job => job.rule_id === policy.id && job.connection_id === policy.connection_id && job.position_id === employee.positionId && job.person_id === employee.id && job.engagement_id === employee.engagementId);
+      if (jobs.some(job => job.status === "blocked")) return "blocked";
+      if (!accounts.length) return "awaiting_identity";
+      return policy.directory_config_status === "directory_applied" && accounts.every(account => jobs.some(job => job.account_id === account.external_id && job.status === "directory_applied")) ? "directory_applied" : "queued";
+    });
+    employee.gpoDelivery = deliveries.includes("blocked") ? "blocked" : deliveries.includes("awaiting_identity") ? "awaiting_identity" : deliveries.includes("queued") ? "queued" : "directory_applied";
   }
   const managers = (
     await db
@@ -566,11 +627,15 @@ async function engagement(
       branch_id: string | null;
       department_id: string | null;
       position_id: string | null;
+      level_id: string | null;
+      manager_person_id: string | null;
+      job_title: string;
       status: string;
       legal_name: string;
       user_id: string | null;
       person_status: string;
       start_date: string;
+      end_date: string | null;
     }>();
   if (!row || !visible(actor, row))
     fail(
@@ -633,6 +698,14 @@ export async function previewLifecycle(
         }>()
     : null;
   const incoming = ["onboarding", "transfer"].includes(input.kind);
+  if(input.acceptRecommendedPay&&!hasPermission(actor,"people.compensation.read"))throw new ApiError(403,"PAY_ACCESS_REQUIRED","Compensation access is required.");
+  const recommendedPay=incoming&&position&&hasPermission(actor,"people.compensation.read")?await db.prepare("SELECT d.currency,d.monthly_amount_minor FROM position_pay_defaults d JOIN organization_positions p ON p.id=d.position_id WHERE d.company_id=? AND d.position_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?) ORDER BY d.version DESC LIMIT 1").bind(actor.companyId,position.id,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first<{currency:string;monthly_amount_minor:number}>():null;
+  const recommendedLeave=incoming&&position?await db.prepare(`SELECT l.name level_name,max(CASE WHEN t.code='annual' THEN r.grant_units END) annual_days,max(CASE WHEN t.code='sick' THEN r.grant_units END) sick_days
+    FROM level_leave_defaults d JOIN staff_levels l ON l.id=d.level_id JOIN leave_policy_rules r ON r.policy_version_id=d.policy_version_id JOIN leave_types t ON t.id=r.leave_type_id
+    WHERE d.company_id=? AND d.level_id=? AND d.version=(SELECT max(x.version) FROM level_leave_defaults x WHERE x.company_id=d.company_id AND x.level_id=d.level_id) GROUP BY l.name`)
+    .bind(actor.companyId,position.level_id).first<{level_name:string;annual_days:number;sick_days:number}>():null;
+  if(input.acceptRecommendedPay&&!recommendedPay)blockers.push("This Position has no default pay. Review the position before submitting.");
+  if(input.acceptRecommendedLeave&&!recommendedLeave)blockers.push("This Level has no default leave policy. Review People settings before submitting.");
   if (
     incoming &&
     (!position ||
@@ -709,10 +782,15 @@ export async function previewLifecycle(
     .filter((g) => !incoming || (!placementOnly && g.source === "lifecycle"))
     .map((g) => g.role);
   const definition = incoming && !placementOnly ? (revision?.definition ?? null) : null;
+  const legacyCaseToSupersede = placementOnly && incoming
+    ? await legacyCaseForPlacement(db, actor, input.personId)
+    : null;
   return {
-    token: digest(placementOnly && incoming ? {input, e, position: position && {id:position.id,branch_id:position.branch_id,department_id:position.department_id,level_id:position.level_id}, placementOnly} : { input, e, position, revision, accounts, old }),
+    recommendation:incoming?{levelName:recommendedLeave?.level_name??null,currency:recommendedPay?.currency??null,monthlyAmountMinor:recommendedPay?.monthly_amount_minor??null,annualDays:recommendedLeave?.annual_days??null,sickDays:recommendedLeave?.sick_days??null}:undefined,
+    token: digest(placementOnly && incoming ? {input, e, position: position && {id:position.id,branch_id:position.branch_id,department_id:position.department_id,level_id:position.level_id}, placementOnly, legacyCaseToSupersede} : { input, e, position, revision, accounts, old }),
     ready: !blockers.length,
     blockers,
+    legacyCaseToSupersede,
     definition,
     removed,
     added: definition?.grants.map((g) => g.roleId) ?? [],
@@ -733,11 +811,12 @@ export async function saveLifecycle(
   submit: boolean,
   token?: string,
   placementOnly = false,
+  supersedeLegacyCase?: {id:string;expectedVersion:number},
 ) {
   actor = requirePermission(actor, "people.manage");
   const id = input.id ?? `lifecycle-${key}`,
     operation = submit ? "people.lifecycle.submit" : "people.lifecycle.draft",
-    payload = { input, submit, token, placementOnly };
+    payload = { input, submit, token, placementOnly, supersedeLegacyCase };
   const prior = await replayCommand(db, actor, key, operation, id, payload);
   if (prior) return prior;
   const graphGuard = await organizationGuard(db, actor.companyId, key);
@@ -751,13 +830,24 @@ export async function saveLifecycle(
         .bind(id, actor.companyId)
         .first<LifecycleCase>()
     : null;
+  if (placementOnly && current?.workflow === "legacy")
+    fail("Start a new HR placement and explicitly supersede the legacy access case.", "LEGACY_CASE_REQUIRES_NEW_PLACEMENT");
+  if (supersedeLegacyCase && (!placementOnly || !submit || !["onboarding","transfer"].includes(input.kind)))
+    fail("Legacy access cases can be superseded only when submitting an HR placement.", "LEGACY_SUPERSEDE_INVALID", 422);
+  const legacy = placementOnly && submit && ["onboarding","transfer"].includes(input.kind)
+    ? preview.legacyCaseToSupersede
+    : null;
+  if (legacy && !supersedeLegacyCase)
+    fail("Confirm that the existing access case will be cancelled before submitting this HR placement.", "LEGACY_SUPERSEDE_REQUIRED", 422);
+  if (supersedeLegacyCase && (!legacy || supersedeLegacyCase.id !== legacy.id || supersedeLegacyCase.expectedVersion !== legacy.version || id === legacy.id))
+    fail("The existing access case changed. Preview the HR placement again.", "LEGACY_CASE_CHANGED");
   if (
     input.kind === "onboarding" &&
     (await db
       .prepare(
-        "SELECT 1 FROM people_lifecycle_cases WHERE company_id=? AND engagement_id=? AND kind IN ('onboarding','transfer') AND status IN ('scheduled','completed')",
+        "SELECT 1 FROM people_lifecycle_cases WHERE company_id=? AND engagement_id=? AND kind IN ('onboarding','transfer') AND status IN ('scheduled','completed') AND id<>?",
       )
-      .bind(actor.companyId, input.engagementId)
+      .bind(actor.companyId, input.engagementId, legacy?.id ?? "")
       .first())
   )
     fail(
@@ -844,6 +934,17 @@ export async function saveLifecycle(
     : null;
   const snapshot = {
     engagementVersion: e.version,
+    engagementPlacement: {
+      position_id: e.position_id,
+      branch_id: e.branch_id,
+      department_id: e.department_id,
+      level_id: e.level_id,
+      manager_person_id: e.manager_person_id,
+      job_title: e.job_title,
+      status: e.status,
+      start_date: e.start_date,
+      end_date: e.end_date,
+    },
     levelId: position?.level_id ?? null,
     positionBranch: position?.branch_id ?? null,
     positionDepartment: position?.department_id ?? null,
@@ -851,6 +952,21 @@ export async function saveLifecycle(
   const version = input.expectedVersion + 1,
     now = Date.now(),
     steps = [graphGuard];
+  if (legacy) steps.push(
+    assertion(db,key,"legacy-case-version",
+      "EXISTS(SELECT 1 FROM people_lifecycle_cases WHERE id=? AND company_id=? AND person_id=? AND workflow='legacy' AND kind IN ('onboarding','transfer') AND version=? AND status IN ('waiting_it','pending_review','scheduled') AND (status!='scheduled' OR effective_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint))",
+      [legacy.id,actor.companyId,input.personId,legacy.version]),
+    db.prepare("UPDATE people_lifecycle_cases SET status='cancelled',version=version+1,updated_at=? WHERE id=? AND company_id=?")
+      .bind(now,legacy.id,actor.companyId),
+    db.prepare("UPDATE assignments SET revoked_at=?,version=version+1 WHERE id IN (SELECT assignment_id FROM people_lifecycle_grants WHERE case_id=?) AND revoked_at IS NULL")
+      .bind(now,legacy.id),
+    db.prepare("UPDATE iam_reviews SET status='failed',version=version+1 WHERE company_id=? AND payload->>'caseId'=? AND kind IN ('people.lifecycle.grant','people.lifecycle.activate') AND status='pending'")
+      .bind(actor.companyId,legacy.id),
+    db.prepare("UPDATE people_preparation_tasks SET status='cancelled',version=version+1,updated_at=? WHERE company_id=? AND case_id=? AND status='pending'")
+      .bind(now,actor.companyId,legacy.id),
+    db.prepare("INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at,authority_json) VALUES(?,?,?,?,?,'people_lifecycle',?,?,?,?,(SELECT authority_json FROM command_receipts WHERE command_id=?))")
+      .bind(crypto.randomUUID(),key,actor.userId,actor.assignmentId,"people.lifecycle.supersede",legacy.id,legacy.version+1,`Superseded by HR placement ${id}`,now,key),
+  );
   steps.push(
     assertion(
       db,

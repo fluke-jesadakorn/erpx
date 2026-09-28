@@ -1,17 +1,28 @@
 import type { ApprovalView } from "@/server/approvals";
+function source(snapshotText: string | null | undefined) {
+  if (!snapshotText) return null;
+  try {
+    const snapshot = JSON.parse(snapshotText) as {departmentPolicyVersion?:number;departmentPolicyId?:string|null;selector?:{kind?:string};rerouted?:boolean;appointmentKind?:string;appointedPersonId?:string|null};
+    if (snapshot.departmentPolicyVersion !== undefined) return `${snapshot.departmentPolicyId ? `Department flow v${snapshot.departmentPolicyVersion}` : "Appointed department head"} · ${snapshot.selector?.kind === "position" ? "position" : "person"}${snapshot.rerouted ? " · approver changed" : ""}`;
+    if (snapshot.appointmentKind === "hr") return snapshot.appointedPersonId ? "Appointed HR reviewer" : "HR role";
+  } catch { return null; }
+  return null;
+}
 export function ApprovalHistory({
   approval,
   blockedReason,
+  title = "Approval",
 }: {
   approval: ApprovalView;
   blockedReason?: string | null;
+  title?: string;
 }) {
   return (
     <section className="card">
-      <h2>Approval</h2>
+      <h2>{title}</h2>
       {(blockedReason || approval.blockedReason) && (
         <p role="status" className="notice">
-          Submission or decision blocked:{" "}
+          Blocked:{" "}
           {blockedReason || approval.blockedReason}
         </p>
       )}
@@ -23,14 +34,16 @@ export function ApprovalHistory({
           ·{" "}
           {approval.currentApprover.authority === "hr_admin"
             ? "HR review"
-            : "Named review"}
+            : approval.currentApprover.stage === "department_approval"
+              ? "Department review"
+              : "Named review"}
         </p>
       )}
       <details>
         <summary>Approval route and history</summary>
         {approval.instance && (
           <p>
-            Cycle {approval.instance.cycle} · {approval.instance.phase} ·{" "}
+            Saved route at submission · cycle {approval.instance.cycle} · {approval.instance.phase} ·{" "}
             {approval.instance.state}
           </p>
         )}
@@ -39,11 +52,12 @@ export function ApprovalHistory({
             {approval.steps.map((step) => (
               <li key={step.id}>
                 {step.approver_name} ·{" "}
-                {step.authority === "hr_admin" ? "HR" : "Named approver"} ·{" "}
+                {step.authority === "hr_admin" ? "HR" : step.stage === "department_approval" ? "Department approver" : "Named approver"} ·{" "}
                 {step.state}
                 {approval.currentApprover?.id === step.id
                   ? " · current step"
                   : ""}
+                {source(step.route_snapshot_json) && <small className="muted"> · {source(step.route_snapshot_json)}</small>}
               </li>
             ))}
           </ol>
@@ -55,7 +69,7 @@ export function ApprovalHistory({
           <article className="row" key={d.id}>
             <div className="row-main">
               <strong>
-                {d.action} · {d.actor_name}
+                {d.action === "override" ? "Decision on behalf of assigned approver" : d.action === "reroute" ? "Approver changed" : d.action} · {d.actor_name}
               </strong>
               <p>{d.reason || "No additional note"}</p>
               <small>
@@ -66,9 +80,9 @@ export function ApprovalHistory({
                   .slice(0, 19)}{" "}
                 UTC
               </small>
-              {d.action === "reroute" && (
+              {(d.action === "reroute" || d.action === "override") && (
                 <p>
-                  Previous: {d.previous_approver_user_id} → {d.approver_user_id}
+                  {d.previous_approver_name ?? d.previous_approver_user_id ?? "Previous approver"} → {d.action === "override" ? d.actor_name : d.approver_name ?? d.approver_user_id ?? "New approver"}
                 </p>
               )}
             </div>

@@ -28,8 +28,9 @@ export type RosterData = {
   week: RosterWeek | null; weeks: RosterWeek[]; templates: ShiftTemplate[];
   shifts: RosterShift[]; assignments: RosterAssignment[]; requests: RosterRequest[];
   people: { person_id: string; legal_name: string; engagement_id: string }[];
+  coverageGaps: { person_id: string; legal_name: string; engagement_id: string; week_start: string }[];
   history: RosterHistory[]; conflicts: RosterConflict[];
-  selfPersonId: string | null; canManage: boolean; canApprove: boolean;
+  selfPersonId: string | null; selfRosterRequired: boolean; canManage: boolean; canApprove: boolean;
 };
 export function addDays(date: string, days: number) {
   return new Date(Date.parse(`${date}T12:00:00Z`) + days * 86400000).toISOString().slice(0, 10);

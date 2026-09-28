@@ -1,5 +1,9 @@
 # ERPX Cutover Record
 
+## 2026-09-27 Canonical attachment lifecycle
+
+[ADR-036](docs/adr/ADR-036-canonical-file-sources-and-policy-bound-links.md) replaces owner-bound upload reads with immutable private File Sources, purpose-scoped File Sets and Links, quarantine scanning, audited access, and separately approved sanitized Media Publications. Holding-write migrations `0331`–`0335` and control migration `0020` are additive. Historical bytes are never presumed clean: the global attachment gate stays closed until backfill, malware scanning, ownership classification, checksum/storage/quota reconciliation, and the final upload-freeze delta all report zero blocking backlog. Rollback disables new reserve and bind operations while retaining clean bound evidence, links, and append-only audit history; it never downgrades or deletes evidence. The legacy upload and source-ID routes remain compatibility adapters for one release and must resolve an authorized canonical link.
+
 ## 2026-09-15 IAM policy and identity expansion
 
 [ADR-025](docs/adr/ADR-025-multiple-identity-providers-and-scoped-replacement.md) adds simultaneous optional AD, Entra ID and UCS connections, reviewed Company-scoped identity replacement and immutable custom role revisions. Control 0006/0007 and Holding-write 0020/0021 are additive; existing business data, audit attribution and assignment expiry dates are preserved. Built-in permission revisions invalidate existing selected contexts, requiring users to reselect a work role. Legacy invitations and access writes now require independent review and fresh MFA. Unversioned queued human-authorized jobs must be explicitly retried. Directory configuration does not activate migration; pilot batches require separate review and emergency readiness. See the [IAM operations contract](docs/contracts/next/identity-access.md).

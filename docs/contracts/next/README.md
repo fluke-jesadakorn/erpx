@@ -1,20 +1,14 @@
-# docs/contracts/next — Living contracts (Next.js era)
+# Current Next.js contracts
 
-> Skeleton — living contracts for Next.js (archived Rust 37 proto on `backup/rust-2026-09-02`, see `docs/plan/ARCHIVE.md`).
+[Production plan](../../production-plan.md) owns scope and priorities. Contracts describe current Next.js/Node.js/PostgreSQL behavior and explicit limitations; they do not certify production readiness.
 
-## Intended contents
+- [Business readiness and release acceptance](business-readiness.md)
+- [PMS](pms.md), [POS](pos.md), [Finance](finance.md)
+- [People lifecycle](people-lifecycle.md), [Roster](people-roster.md), [Payroll](payroll-core.md), [Staff self-service](staff-self-service.md)
+- [Identity/access](identity-access.md), [User management](user-management.md), [Active work context](active-work-context.md)
+- [Staff work](staff-work.md), [Workplace UX](workplace-ux.md), [Messaging](messaging.md), [Calendar](calendar.md)
+- [HR/IT](hr-it-technology.md), [Billing](billing.md), [Legal](legal.md)
+- [Attachments and record documents](attachments.md)
+- [Route table](route-table.md) is the route reference; handlers live under `src/app/api/`.
 
-- `openapi.yaml` — REST route handlers under `src/app/api/**` (versioned)
-- `trpc/` — tRPC router definitions (if tRPC is adopted)
-- `route-table.md` — human-readable route → context → spec matrix (living counterpart to `docs/plan/traceability.md` archived table)
-
-## Rules (from CONTRACT_POLICY.md + ADR-020)
-
-- Every change here updates `CONTRACT_POLICY.md`, `docs/plan/traceability.md` (living columns), and the Prisma/Drizzle schema.
-- Field/procedure names are never reused with a different meaning; removed fields remain reserved.
-- Commands carry idempotency key + tenant/holding scope.
-- Breaking changes require a new ADR and `CUTOVER.md` entry.
-
-## Recovery
-
-Archived Rust contracts: `git checkout backup/rust-2026-09-02 -- docs/contracts/proto/`
+Follow [CONTRACT_POLICY.md](../../../CONTRACT_POLICY.md): update the affected contract and compatibility checks. Add migrations only when storage changes; no unrelated policy/schema/traceability edits. Preserve command idempotency and authoritative Company scope. Do not reuse fields or routes with different meanings. Breaking changes require an ADR and cutover entry.

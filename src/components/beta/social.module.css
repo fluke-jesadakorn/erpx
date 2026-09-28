@@ -313,6 +313,16 @@
   max-width: 1230px;
   margin: auto;
 }
+.home :global(.beta-heading) { margin-bottom:18px; }
+.home :global(.beta-heading) h1 { margin:3px 0; }
+.home :global(.beta-hero-art) { display:none; }
+.todayTabs { display:flex; gap:6px; flex-wrap:wrap; margin:22px 0 17px; padding-bottom:10px; border-bottom:1px solid var(--line); }
+.todayTabs button { min-height:44px; padding:8px 14px; border:0; border-radius:10px; background:transparent; color:var(--muted); font:inherit; font-size:13px; font-weight:650; cursor:pointer; }
+.todayTabs button[aria-pressed="true"] { background:var(--brand-soft); color:var(--brand); }
+.todayTabs button:focus-visible,.newUpdates:focus-visible { outline:2px solid var(--brand); outline-offset:2px; }
+.todayWork { width:100%; max-width:1120px; margin-inline:auto; }
+.todayWork>a { display:inline-flex; min-height:44px; align-items:center; color:var(--brand); font-size:13px; font-weight:650; }
+.newUpdates { width:100%; min-height:44px; padding:10px; border:1px solid var(--brand); border-radius:10px; background:var(--brand-soft); color:var(--brand); font:inherit; font-size:13px; font-weight:700; cursor:pointer; }
 .home :global(.beta-composer) > summary {
   min-height: 44px;
   display: flex;
@@ -340,6 +350,9 @@
   margin-left: auto;
   position: relative;
 }
+.home :global(.beta-post:has(.post-more[open])) {
+  z-index: 10;
+}
 .home :global(.post-more) > summary {
   display: grid;
   place-items: center;
@@ -352,23 +365,45 @@
   right: 0;
   top: 44px;
   z-index: 5;
-  min-width: 190px;
+  display: grid;
+  gap: 4px;
+  min-width: min(220px, calc(100vw - 44px));
+  max-width: min(260px, calc(100vw - 44px));
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 8px;
+  padding: 6px;
   box-shadow: var(--shadow-md);
 }
 .home :global(.post-more-menu) button {
   display: flex;
   align-items: center;
+  gap: 10px;
   width: 100%;
-  min-height: 44px;
+  min-height: 42px;
   border: 0;
   background: transparent;
   color: var(--ink);
   text-align: left;
-  padding: 10px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  font-size: 14px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.home :global(.post-more-menu) button:hover,
+.home :global(.post-more-menu) button:focus-visible {
+  background: var(--card-2);
+}
+.home :global(.post-more-menu .post-delete-action) {
+  color: var(--red);
+}
+.home :global(.post-more-menu .post-delete-action:hover),
+.home :global(.post-more-menu .post-delete-action:focus-visible) {
+  background: var(--red-soft);
+}
+.home :global(.post-more-menu) button svg {
+  flex: 0 0 auto;
 }
 .home :global(.source-comments) label {
   display: flex;
@@ -437,6 +472,7 @@
 .home :global(.beta-post-body) {
   overflow-wrap: anywhere;
 }
+.home :global(.beta-media-caption) { margin: 12px 0 0; color: var(--ink); font-size: 14px; font-weight: 650; }
 .home :global(.beta-status):empty,
 .home p[role="status"]:empty {
   display: none;
@@ -507,3 +543,154 @@
   .home :global(.beta-post) { padding: 16px !important; }
   .home :global(.beta-filters) select { max-width: none; flex-basis: 100%; }
 }
+
+/* Shared stream rhythm for the standard, beta and single-conversation views. */
+.home { min-width: 0; }
+.homeLayout { gap: 24px; }
+.stream { min-width: 0; }
+.home :global(.beta-composer) { margin-bottom: 12px; padding: 18px 20px !important; }
+.home :global(.beta-composer) > summary { min-width: 0; }
+.home :global(.beta-composer-actions) { gap: 9px; }
+.home :global(.beta-composer-actions) > label:first-child,
+.home :global(.beta-composer-actions) > label:nth-child(2) {
+  display: grid;
+  gap: 5px;
+  min-width: min(100%, 180px);
+  font-size: 11px;
+  margin-right: 0;
+}
+.home :global(.beta-composer-actions) > label:first-child select,
+.home :global(.beta-composer-actions) > label:nth-child(2) select { width: 100%; }
+.home :global(.beta-composer-actions > label.beta-photo-input) {
+  position: relative;
+  overflow: hidden;
+  min-height: 44px;
+  cursor: pointer;
+}
+.home :global(.beta-composer-actions > label.beta-photo-input) input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  max-width: none;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.home :global(.beta-composer-actions > label.beta-photo-input):focus-within { outline: 3px solid var(--brand); outline-offset: 3px; }
+.home :global(.beta-post) { padding: 20px !important; }
+.home :global(.beta-person) { min-width: 0; }
+.home :global(.beta-person) > div { min-width: 0; overflow-wrap: anywhere; }
+.home :global(.beta-person) p { overflow-wrap: anywhere; }
+.home :global(.post-more-menu) { max-width: min(260px, calc(100vw - 44px)); }
+.home :global(.beta-task-link) { gap: 12px; align-items: center; min-width: 0; overflow-wrap: anywhere; }
+.home :global(.beta-comments) form > input { min-width: 0; }
+.home :global(.beta-feed) { min-width: 0; }
+.home :global(.beta-post-actions) { gap: 4px; }
+.home :global(.beta-post-actions) button { min-height: 44px; }
+.home :global(.beta-photo-previews) { grid-template-columns: repeat(auto-fill, minmax(min(100%, 112px), 1fr)); }
+.home :global(.beta-post-editor) { display:grid; gap:12px; min-width:0; margin-bottom:16px; }
+.home :global(.beta-post-editor > div) { min-width:0; }
+.home :global(.beta-post-editor > div:not(:first-child) textarea) { min-height:68px; }
+.home :global(.beta-inline-image) { position:relative; min-width:0; margin:0; padding:10px; border:1px solid var(--line); border-radius:12px; background:var(--card-2); }
+.home :global(.beta-inline-image > img) { display:block; width:100%; max-height:380px; object-fit:contain; border-radius:8px; }
+.home :global(.beta-image-missing) { display:grid; min-height:120px; place-items:center; padding:16px; color:var(--muted); text-align:center; }
+.home :global(.beta-inline-image-controls) { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:9px; }
+.home :global(.beta-inline-image-controls > input) { flex:1 1 180px; min-width:0; font-size:12px; }
+.home :global(.beta-inline-image-controls > button) { position:absolute; top:16px; right:16px; z-index:1; display:grid; min-width:38px; min-height:38px; place-items:center; border:1px solid #ffffff80; border-radius:999px; color:#fff; background:#121926c7; box-shadow:0 4px 12px #0004; }
+.home :global(.beta-inline-image-controls > label) { position:relative; overflow:hidden; cursor:pointer; }
+.home :global(.beta-inline-image-controls > label input[type="file"]) { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; }
+.home :global(.beta-post-inline-image) { min-width:0; margin:12px 0; }
+.home :global(.beta-post-inline-image a) { display:block; width:100%; max-width:100%; overflow:hidden; border-radius:var(--radius-md); background:var(--card-2); }
+.home :global(.beta-post-inline-image img) { display:block; width:100%; max-width:100%; height:auto; min-height:180px; max-height:520px; object-fit:contain; }
+.home :global(.beta-comment-reply) { margin-left: clamp(16px, 5vw, 40px); padding-left: 10px; border-left: 2px solid var(--line); }
+.home :global(.beta-comment small) { display: block; color: var(--muted); }
+.home :global(.beta-comment button) { min-height: 44px; margin-top: 6px; }
+.home :global(.beta-post-history),
+.home :global(.beta-post-confirm) { margin: 12px 0; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-2); }
+.home :global(.beta-post-history > div) { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.home :global(.beta-post-history p) { white-space: pre-wrap; overflow-wrap: anywhere; }
+.home :global(.beta-delete-actions) { justify-content:flex-end; margin-top:20px; }
+@media (min-width: 701px) {
+  .home :global(.beta-inline-image-controls) { padding-right: 128px; }
+}
+@media (max-width: 1099px) {
+  .homeLayout { gap: 18px; }
+  .stream { grid-row: 1; }
+  .attentionColumn { grid-row: 2; }
+}
+@media (max-width: 650px) {
+  .home :global(.beta-composer),
+  .home :global(.beta-post) { padding: 16px !important; }
+  .home :global(.beta-composer-actions) > label:first-child,
+  .home :global(.beta-composer-actions) > label:nth-child(2) { flex: 1 1 100%; }
+  .home :global(.beta-composer-actions > label.beta-photo-input) { flex: 1 1 auto; }
+  .home :global(.beta-composer-actions) > button { flex: 1 1 auto; }
+  .home :global(.beta-filters) button { flex: 1 1 auto; }
+  .home :global(.beta-filters) select { width: 100%; flex-basis: 100%; }
+  .home :global(.beta-report) form { flex-wrap: wrap; }
+  .home :global(.beta-report) input { flex-basis: 100%; }
+}
+
+/* The beta work panel has the same layered surface as personal Home cards. */
+.attentionColumn > section {
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--line) 76%, var(--brand) 24%);
+  border-radius: 20px;
+  background: linear-gradient(155deg, color-mix(in srgb, var(--card) 88%, var(--brand-soft)), var(--card) 46%);
+  box-shadow: 0 4px 10px #10295510, 0 23px 38px -28px #1b438275;
+}
+.attentionColumn > section::before {
+  display: block;
+  width: calc(100% + 40px);
+  height: 3px;
+  margin: -20px -20px 18px;
+  content: "";
+  background: linear-gradient(90deg, #dfab55, #f5d8a2 44%, transparent 90%);
+}
+/* Today keeps the conversation in the primary column at every width. */
+.home { container-type:inline-size; }
+.homeLayout {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 320px;
+  grid-template-areas:"controls rail" "stream rail";
+  grid-template-rows:max-content minmax(0,1fr);
+  align-items:start;
+  column-gap:24px;
+  row-gap:0;
+}
+.priorityBand { margin: 0 0 20px; scroll-margin-top: 84px; }
+.feedControls { grid-area:controls; min-width:0; }
+.feedControls .todayTabs { margin:0 0 12px; }
+.feedControls :global(#compose),
+.feedControls :global(#handover),
+.todayRail :global(#plan) { scroll-margin-top:84px; }
+.feedControls :global(#handover) { margin-bottom:10px; }
+.homeLayout .stream,
+.homeLayout .todayWork { grid-area:stream; width:100%; max-width:none; margin:0; min-width:0; }
+.todayRail { grid-area:rail; display:grid; align-content:start; gap:16px; min-width:0; }
+.closeTools { display:none; }
+.railStart { min-width:0; }
+.mobileSummary { display:none; }
+@container (max-width:1019px) {
+  .homeLayout { grid-template-columns:minmax(0,1fr); grid-template-areas:"controls" "rail" "stream"; grid-template-rows:none; column-gap:0; }
+  .mobileSummary { display:flex; align-items:center; gap:8px; min-width:0; margin-bottom:10px; }
+  .mobileSummary button { display:inline-flex; align-items:center; justify-content:center; gap:7px; min-height:44px; min-width:0; padding:8px 12px; border:1px solid var(--line); border-radius:11px; background:var(--card); color:var(--ink-strong); font:inherit; font-size:12px; font-weight:650; cursor:pointer; }
+  .mobileSummary button:first-child { flex:1; justify-content:space-between; }
+  .mobileSummary button:last-child { flex:1; }
+  .mobileSummary strong { display:grid; min-width:22px; min-height:22px; place-items:center; padding:1px 5px; border-radius:7px; background:var(--brand-soft); color:var(--brand); font-variant-numeric:tabular-nums; }
+  .mobileSummary button:focus-visible { outline:2px solid var(--brand); outline-offset:2px; }
+  .todayRail { display:none; }
+  .todayRail[data-open="true"] { display:grid; margin:8px 0 16px; scroll-margin-top:84px; }
+  .closeTools { display:block; justify-self:end; min-height:44px; padding:8px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--brand); font:inherit; font-size:12px; font-weight:650; cursor:pointer; }
+  .railStart { display:none; }
+}
+@media (max-width: 650px) {
+  .priorityBand { margin-bottom: 14px; }
+}
+.beta-audience-people{min-width:min(100%,20rem);border:1px solid var(--border, #d9e1e8);border-radius:.75rem;padding:.65rem .8rem}
+.beta-audience-people-list{max-height:12rem;overflow:auto;display:grid;gap:.35rem;margin-top:.4rem}
+.beta-audience-people-list label{display:flex;align-items:center;gap:.5rem}
+.beta-post-sources{display:flex;flex-wrap:wrap;align-items:end;gap:.45rem;margin:.6rem 0}
+.beta-post-sources label{min-width:min(100%,15rem)}
+.beta-source-chip{display:inline-flex;align-items:center;gap:.4rem;padding:.35rem .55rem;border-radius:999px;background:var(--surface-subtle,#edf3f6)}
+.beta-source-chip button{border:0;background:transparent;cursor:pointer;font:inherit}

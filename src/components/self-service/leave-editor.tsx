@@ -1,12 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import type { LeaveRequest } from "@/server/leave";
 import type { leaveSummary, previewLeave } from "@/server/leave-self-service";
 import type { LeaveSegment } from "@/lib/leave-self-service";
 import styles from "@/components/leave/leave-flow.module.css";
+import { clearGuidedIntakeHandoff, readGuidedIntakeHandoff } from "@/lib/ai/guided-intake";
+import { formatUiNumber } from "@/lib/ui-format";
 
 type Summary = Awaited<ReturnType<typeof leaveSummary>>;
 type Preview = Awaited<ReturnType<typeof previewLeave>>;
@@ -19,18 +21,36 @@ type Draft = {
   handoverNote: string;
 };
 
+function snapshotEvidencePurpose(record?: LeaveRequest) {
+  let snapshot = record?.evidence_policy_snapshot;
+  if (typeof snapshot === "string") {
+    try { snapshot = JSON.parse(snapshot); } catch { return null; }
+  }
+  if (!snapshot || typeof snapshot !== "object") return null;
+  const purpose = (snapshot as { purposeKey?: unknown }).purposeKey;
+  return purpose === "medical_certificate" || purpose === "leave_supporting_photo" ? purpose : null;
+}
+
 export function LeaveEditor({
   base,
+  companyId,
+  userId,
+  assignmentId,
   record,
   types,
   initialDate = "",
   evidencePresent = false,
+  externalEvidence = false,
 }: {
   base: string;
+  companyId?: string;
+  userId?: string;
+  assignmentId?: string;
   record?: LeaveRequest;
   types: Summary["balances"];
   initialDate?: string;
   evidencePresent?: boolean;
+  externalEvidence?: boolean;
 }) {
   const router = useRouter();
   const [draft, setDraft] = useState<Draft>({
@@ -41,6 +61,26 @@ export function LeaveEditor({
     endSegment: record?.end_segment ?? "full",
     handoverNote: record?.handover_note ?? "",
   });
+  const [guided,setGuided] = useState<Record<string,string>|null>(null);
+  useEffect(()=>{
+    if (record || !companyId || !userId || !assignmentId) return;
+    const restore=()=>setGuided(readGuidedIntakeHandoff(companyId,userId,assignmentId,base,"leave"));
+    restore();
+    window.addEventListener("erpx:guided-intake-handoff",restore);
+    return()=>window.removeEventListener("erpx:guided-intake-handoff",restore);
+  },[record,companyId,userId,assignmentId,base]);
+  function applyGuided() {
+    if (!guided || !companyId || !userId || !assignmentId) return;
+    const namedType = types.find(item=>item.type.name.toLocaleLowerCase()===guided.leaveType?.toLocaleLowerCase());
+    setDraft(current=>({...current,
+      leaveTypeId:namedType?.type.id??current.leaveTypeId,
+      startDate:/^\d{4}-\d{2}-\d{2}$/.test(guided.startDate??"")?guided.startDate:current.startDate,
+      endDate:/^\d{4}-\d{2}-\d{2}$/.test(guided.endDate??"")?guided.endDate:current.endDate,
+    }));
+    setPreview(null);
+    clearGuidedIntakeHandoff(companyId,userId,assignmentId,base,"leave");
+    setGuided(null);
+  }
   const [preview, setPreview] = useState<Preview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -52,6 +92,9 @@ export function LeaveEditor({
   const uploadAttempt = useRef<{ signature: string; key: string; url?: string } | null>(null);
   const selectedType = types.find((item) => item.type.id === draft.leaveTypeId);
   const maySubmit = !record || record.permittedActions.includes("submit");
+  const evidenceRequiredBeforeSubmit = Boolean(
+    preview?.evidenceRequired && preview.evidence.dueStage === "before_submit",
+  );
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((current) => ({ ...current, [key]: value }));
@@ -125,7 +168,7 @@ export function LeaveEditor({
           body: JSON.stringify({
             ownerType: "leave_request",
             ownerId: record.id,
-            purpose: "evidence",
+            purpose: preview?.evidence.purposeKey ?? snapshotEvidencePurpose(record) ?? "leave_supporting_photo",
             filename: file.name,
             mediaType: file.type,
             bytes: file.size,
@@ -175,6 +218,7 @@ export function LeaveEditor({
           <h2>Leave details</h2>
           <p>Working days and balance use your assigned Company policy.</p>
         </div>
+        {guided && <div className="notice" role="status"><p>AI prepared dates from your message. Review the leave type, balance, and dates before continuing.</p><button type="button" className="button secondary" onClick={applyGuided}>Use prepared details</button> <button type="button" className="button ghost" onClick={()=>{if(companyId&&userId&&assignmentId)clearGuidedIntakeHandoff(companyId,userId,assignmentId,base,"leave");setGuided(null);}}>Discard suggestion</button></div>}
         <label className={styles.field}>
           Leave type
           <select required value={draft.leaveTypeId} onChange={(event) => set("leaveTypeId", event.target.value)}>
@@ -185,7 +229,7 @@ export function LeaveEditor({
         {selectedType && (
           <div className={styles.selectedBalance} role="status">
             <span>{selectedType.type.name}</span>
-            <strong>{selectedType.type.tracked ? Number(selectedType.available).toLocaleString(undefined, { maximumFractionDigits: 1 }) + " days available" : "Untracked entitlement"}</strong>
+            <strong>{selectedType.type.tracked ? formatUiNumber(Number(selectedType.available), { maximumFractionDigits: 1 }) + " days available" : "Untracked entitlement"}</strong>
           </div>
         )}
         <div className={styles.dateGroup}>
@@ -230,17 +274,17 @@ export function LeaveEditor({
         </div>
       </form>
 
-      {record ? (
+      {!externalEvidence && (record ? (
         <section className={styles.evidenceSection}>
           <div><h3>Supporting evidence</h3><p>Files stay private with this request. Attach evidence before submitting when policy requires it.</p></div>
-          <label className={styles.fileField}>Choose a private file<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf,text/csv" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label>
+          <label className={styles.fileField}>Choose a private file<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label>
           {file && <button type="button" className="button secondary" disabled={busy} onClick={() => void upload()}>{busy ? "Uploading…" : "Upload / retry " + file.name}</button>}
           {uploaded && <p role="status" className={styles.savedMessage}>{uploaded}</p>}
           {!hasEvidence && <p className={styles.fieldHint}>No evidence is attached yet. Save this request as a draft, attach a file, then review it again.</p>}
         </section>
       ) : (
         <p className={styles.formHint}>If policy requires evidence, save a draft first. You can upload a private file from the draft before submission.</p>
-      )}
+      ))}
 
       {preview && (
         <section className={styles.reviewSection} aria-labelledby="leave-review-title">
@@ -251,7 +295,7 @@ export function LeaveEditor({
           <p className={styles.reviewPolicy}>{preview.leaveType.name} · {preview.policy.name} version {preview.policy.version} · {preview.policy.timezone}</p>
           <div className={styles.reviewFacts}>
             {preview.accounts.map((account) => (
-              <div key={account.year}><span>{account.year}</span><strong>{account.units} requested</strong><small>{preview.leaveType.tracked ? Number(account.available).toLocaleString(undefined, { maximumFractionDigits: 1 }) + " available → " + Number(account.available - account.units).toLocaleString(undefined, { maximumFractionDigits: 1 }) + " remaining" : "Untracked entitlement"}</small></div>
+              <div key={account.year}><span>{account.year}</span><strong>{account.units} requested</strong><small>{preview.leaveType.tracked ? formatUiNumber(Number(account.available), { maximumFractionDigits: 1 }) + " available → " + formatUiNumber(Number(account.available - account.units), { maximumFractionDigits: 1 }) + " remaining" : "Untracked entitlement"}</small></div>
             ))}
           </div>
           <details className={styles.calculationDetails}>
@@ -259,13 +303,13 @@ export function LeaveEditor({
             <ul>{preview.days.map((day) => <li key={day.date}>{day.date} · {day.segment.replaceAll("_", " ")} · {day.source.replaceAll("_", " ")}</li>)}</ul>
           </details>
           {!!preview.approverRoute.length && <div className={styles.approvalRoute}><h3>Review route</h3><ol>{preview.approverRoute.map((step) => <li key={step.userId}><span>{step.stage}</span><strong>{step.name}</strong></li>)}</ol></div>}
-          {preview.evidenceRequired && <div className={styles.evidenceNotice}><strong>Evidence required</strong><span>{preview.evidenceNote || "Save a draft and attach supporting evidence before submitting."}</span></div>}
+          {preview.evidenceRequired && <div className={styles.evidenceNotice}><strong>Evidence required</strong><span>{preview.evidenceNote || (preview.evidence.dueStage === "before_final_approval" ? "You may submit now. Final approval waits for the required clean evidence." : "Save a draft and attach supporting evidence before submitting.")}</span></div>}
           {!!preview.blockers.length && <div className={styles.blockers} role="alert"><strong>This request needs attention</strong>{preview.blockers.map((blocker) => <p key={blocker}>{blocker}</p>)}</div>}
           <div className={styles.reviewActions}>
-            {(preview.canSubmit && maySubmit && (!preview.evidenceRequired || hasEvidence)) && (
+            {(preview.canSubmit && maySubmit && (!evidenceRequiredBeforeSubmit || hasEvidence)) && (
               <button type="button" className="button" disabled={busy} onClick={() => void save(false)}>{busy ? "Submitting…" : "Submit leave request"}</button>
             )}
-            {preview.evidenceRequired && !hasEvidence && (
+            {evidenceRequiredBeforeSubmit && !hasEvidence && (
               <button type="button" className="button secondary" disabled={busy} onClick={() => void save(true)}>Save draft to attach evidence</button>
             )}
             {!preview.canSubmit && <span className={styles.reviewHelp}>Resolve the blockers above, then review the request again.</span>}

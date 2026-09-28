@@ -1,5 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { QuickAccessShelf } from "@/components/quick-access/shelf";
+import type { QuickAccessItem, QuickAccessPreference } from "@/lib/quick-access";
+import rail from "@/components/quick-access/area-rail.module.css";
 import s from "./legal.module.css";
 type Shared = {
   shareId: string;
@@ -23,16 +26,22 @@ type Shared = {
 export function LegalPortal({
   slug,
   initial,
+  initialShareId,
+  quickAccessItems,
+  quickAccessPreferences,
 }: {
   slug: string;
   initial: Record<string, unknown>[];
+  initialShareId?: string;
+  quickAccessItems: QuickAccessItem[];
+  quickAccessPreferences: QuickAccessPreference;
 }) {
   const [selected, setSelected] = useState<Shared | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [body, setBody] = useState("");
-  const api = `/api/legal-portal/${slug}`;
-  async function call(path: string, input?: unknown) {
+  const api = `/api/legal-portal/${encodeURIComponent(slug)}`;
+  const call = useCallback(async (path: string, input?: unknown) => {
     const r = await fetch(
       api + path,
       input
@@ -49,15 +58,31 @@ export function LegalPortal({
     const j = await r.json();
     if (!r.ok) throw new Error(j.error?.message ?? "Request failed.");
     return j.data;
-  }
-  async function open(id: string) {
+  }, [api]);
+  const open = useCallback(async (id: string) => {
     setError("");
     try {
-      setSelected(await call(`/${id}`));
+      setSelected(await call(`/${encodeURIComponent(id)}`));
     } catch (e) {
       setError((e as Error).message);
+      setSelected(null);
     }
-  }
+  }, [call]);
+  useEffect(() => {
+    if (!initialShareId) return;
+    let active = true;
+    void call(`/${encodeURIComponent(initialShareId)}`)
+      .then((data) => {
+        if (active) {
+          setSelected(data);
+          setError("");
+        }
+      })
+      .catch((error) => {
+        if (active) setError(error instanceof Error ? error.message : "Request failed.");
+      });
+    return () => { active = false; };
+  }, [initialShareId, call]);
   async function act(action: string, extra = {}) {
     if (!selected) return;
     setBusy(true);
@@ -73,7 +98,9 @@ export function LegalPortal({
     }
   }
   return (
-    <main className={s.workspace} style={{ padding: 32, maxWidth: 1000 }}>
+    <>
+    <a href="#legal-portal-content" className="skip-link">Skip to shared documents</a>
+    <main className={s.workspace} style={{ padding: 32, maxWidth: 1360 }}>
       <header className={s.header}>
         <div>
           <span className={s.eyebrow}>ERPX · Secure collaboration</span>
@@ -84,6 +111,21 @@ export function LegalPortal({
           </p>
         </div>
       </header>
+      <div className={rail.layout}>
+      <aside className={rail.rail} aria-label="Quick access">
+        <QuickAccessShelf
+          title="Quick access"
+          items={quickAccessItems}
+          initialPreferences={quickAccessPreferences}
+          defaultIds={quickAccessItems.slice(0, 6).map((item) => item.id)}
+          endpoint={`${api}/quick-access`}
+          requestMode="plain"
+          embedded
+          placement="rail"
+          showAllMode={false}
+        />
+      </aside>
+      <div id="legal-portal-content" tabIndex={-1} className={rail.content}>
       {error && (
         <div className={s.error} role="alert">
           {error}
@@ -91,9 +133,9 @@ export function LegalPortal({
       )}
       {selected ? (
         <section className={s.panel}>
-          <button className={s.button} onClick={() => setSelected(null)}>
+          <a className={s.button} href={`/legal-portal/${encodeURIComponent(slug)}`}>
             ← Shared documents
-          </button>
+          </a>
           <h2>
             {selected.doc.name} · v{selected.doc.version}
           </h2>
@@ -251,14 +293,16 @@ export function LegalPortal({
             </div>
           ))}
         </section>
+      ) : initialShareId && !error ? (
+        <section className={s.panel} role="status" aria-busy="true">Opening shared document…</section>
       ) : (
         <section className={s.panel}>
           {initial.length ? (
             initial.map((x) => (
               <div className={s.event} key={String(x.id)}>
-                <button className={s.link} onClick={() => open(String(x.id))}>
+                <a className={s.link} href={`/legal-portal/${encodeURIComponent(slug)}?share=${encodeURIComponent(String(x.id))}`}>
                   {String(x.name)} · v{String(x.version)}
-                </button>
+                </a>
                 <p className={s.small}>
                   Access expires{" "}
                   {new Date(Number(x.expires_at)).toLocaleString()}
@@ -272,6 +316,9 @@ export function LegalPortal({
           )}
         </section>
       )}
+      </div>
+      </div>
     </main>
+    </>
   );
 }

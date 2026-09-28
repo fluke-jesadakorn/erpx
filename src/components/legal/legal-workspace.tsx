@@ -10,6 +10,7 @@ import { LegalDeadlines } from "./legal-deadlines";
 import { LegalFeatures } from "./legal-features";
 import { LegalRetention } from "./legal-retention";
 import { useState, useCallback, type FormEvent } from "react";
+import { OperationSummary } from "@/components/workplace/operation-summary";
 import {
   kinds,
   labels,
@@ -288,6 +289,7 @@ export function LegalWorkspace({
               </div>
               <h2>{selected.item.title}</h2>
               <div className={s.small}>Record ID: {selected.item.id}</div>
+              <OperationSummary operation={{status:selected.item.state,responsible:data.people.find(person=>person.id===selected.item.owner_id)?.name??"Assigned Legal owner",currentStep:selected.item.state.replaceAll("_"," "),nextAction:allowedTransitions(selected.item.kind,selected.item.state).length?`Review ${selected.item.kind} and continue the current workflow`:"Review the recorded history",blockedReason:null,dueAt:null,recordHref:null,actionKind:selected.item.state==="approval"?"approval":"work"}}>{selected.item.due_date&&<p className="muted">Due {selected.item.due_date}</p>}</OperationSummary>
               <div className={s.tabs}>
                 {[
                   "Overview",

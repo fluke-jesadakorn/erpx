@@ -17,7 +17,7 @@ export async function BetaPeople({
   const selected = member ? people.find((p) => p.id === member) : null;
   if (member && !selected) notFound();
   return (
-    <main className="content">
+    <div className="content">
       <p className="eyebrow">Better together</p>
       <h1>Your people</h1>
       <p>The teammates you can work with in this company.</p>
@@ -36,6 +36,6 @@ export async function BetaPeople({
       {selected && (
         <MemberProfile base={base} actor={actor} member={selected} />
       )}
-    </main>
+    </div>
   );
 }

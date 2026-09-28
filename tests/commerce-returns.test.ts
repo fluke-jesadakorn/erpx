@@ -4,12 +4,13 @@ import { expenseDb as db,expenseFixture,key } from "./helpers/expense-fixture";
 import { deliveryEvidence } from "./helpers/delivery-evidence";
 import { assignFlowPrimary,resolveFlow } from "../src/server/flow-routing";
 import { postInvoice,postJournal } from "../src/server/finance";
-import { completeCommerceReturn,decideCommerceReturn,fulfillOrder,getOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,saveMaster,saveOrder,transitionOrder } from "../src/server/commerce";
+import { completeCommerceReturn,decideCommerceReturn,fulfillOrder,getOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,saveMaster,saveOrder,settleInvoice,transitionOrder } from "../src/server/commerce";
+import { attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet } from "./helpers/attachment-v2";
 
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 
 let f:Awaited<ReturnType<typeof expenseFixture>>;
-beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
+beforeAll(async()=>{enableAttachmentV2ForTest();await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();f.manager.role="finance_approver";f.manager.branchId=null;f.manager.departmentId=null;f.manager.assignmentId=await f.grant(f.manager,"finance_approver");f.head.role="purchasing_manager";f.head.branchId=null;f.head.departmentId=null;f.head.assignmentId=await f.grant(f.head,"purchasing_manager");});
 
 async function assign(kind:"order"|"invoice"|"journal",id:string,stepKey:string,userId:string){const flow=await resolveFlow(db,f.owner,kind,id);await assignFlowPrimary(db,f.owner,kind,id,{stepKey,userId,reason:"Assign return fixture responsibility",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());}
@@ -18,12 +19,20 @@ it("returns a supplier receipt through independent review, stock reversal and de
   const warehouse=await saveMaster(f.owner,"warehouses",null,{branchId:f.branch,code:key(),name:"Return warehouse"},key()),product=await saveMaster(f.owner,"products",null,{sku:key(),name:"Return product",price:"10"},key()),party=await saveMaster(f.owner,"parties",null,{kind:"supplier",code:key(),name:"Return supplier"},key());
   const order=await saveOrder(f.owner,null,orderSchema.parse({kind:"purchase",partyId:party.id,warehouseId:warehouse.id,orderDate:"2026-09-02",dueDate:"2026-09-03",lines:[{productId:product.id,quantity:"2",price:"10",taxBps:0}]}),key()),orderId=String(order.id);
   await transitionOrder(f.owner,orderId,{action:"submit",expectedVersion:1},key());await transitionOrder(f.head,orderId,{action:"approve",expectedVersion:2},key());await assign("order",orderId,"stock_gl",f.manager.userId);
-  let details=await getOrder(f.owner,orderId);const receipt=await fulfillOrder(f.owner,orderId,{expectedVersion:3,date:"2026-09-02",lines:[{lineId:String(details.lines[0].id),quantity:"2"}]},key());
+  let details=await getOrder(f.owner,orderId);const receiptFiles=await seedAttachmentSet(db,f.owner,{targetType:"purchase_order",targetId:orderId,purposeKey:"delivery_note",componentRef:"goods-receipt",expectedTargetVersion:3});const receipt=await fulfillOrder(f.owner,orderId,{expectedVersion:3,date:"2026-09-02",lines:[{lineId:String(details.lines[0].id),quantity:"2"}],attachmentSetIds:[receiptFiles.setId]},key());
+  expect(await attachmentBindingState(db,receiptFiles.setId)).toMatchObject({set_state:"bound",link_state:"bound",binding_type:"purchase_receipt",binding_id:String(receipt.fulfillmentId)});
   const goodsJournal=String((await db.prepare("SELECT journal_id FROM commerce_fulfillments WHERE id=?").bind(receipt.fulfillmentId).first("journal_id")));await assign("journal",goodsJournal,"draft",f.manager.userId);await postJournal(f.manager,goodsJournal,key(),{expectedVersion:1});
   await assign("order",orderId,"invoicing",f.owner.userId);const invoice=await invoiceFulfillment(f.owner,String(receipt.fulfillmentId),{expectedVersion:1,date:"2026-09-02",dueDate:"2026-09-03"},key());await assign("invoice",String(invoice.invoiceId),"draft",f.manager.userId);await postInvoice(f.manager,String(invoice.invoiceId),{expectedVersion:1,periodId:f.period,entryDate:"2026-09-02"},key());
+  await assign("invoice",String(invoice.invoiceId),"posted",f.payer.userId);
+  const pendingSlip=await seedAttachmentSet(db,f.payer,{targetType:"invoice_payment",targetId:String(invoice.invoiceId),purposeKey:"payment_slip",componentKind:"action",componentRef:"legacy-upload-adapter",expectedTargetVersion:2,sourceState:"quarantined"});
+  await expect(settleInvoice(f.payer,String(invoice.invoiceId),{expectedVersion:2,date:"2026-09-03",amount:"1",reference:"Pending scan proof",attachmentSetIds:[pendingSlip.setId]},key())).rejects.toMatchObject({code:"ATTACHMENT_SCAN_PENDING"});
+  expect(await attachmentBindingState(db,pendingSlip.setId)).toMatchObject({set_state:"draft",link_state:"draft"});
+  const rawSlip=await f.attach(String(invoice.invoiceId),"invoice_payment");
+  await expect(settleInvoice(f.payer,String(invoice.invoiceId),{expectedVersion:2,date:"2026-09-03",amount:"1",reference:"Unlinked raw proof",paymentSlipId:rawSlip,attachmentSetIds:[]},key())).rejects.toMatchObject({code:"PAYMENT_SLIP_REQUIRED"});
   const {createSupplierBatch,decideSupplierBatch}=await import('../src/server/supplier-payments');
   const reserved=await createSupplierBatch(f.owner,{bankAccountId:f.accounts.cash,plannedDate:'2026-09-03',items:[{invoiceId:String(invoice.invoiceId),expectedVersion:2,amount:'20',beneficiaryName:'Simulated supplier',beneficiaryAccount:'SIMULATED-001'}]},key());
-  details=await getOrder(f.owner,orderId);const line=details.fulfillmentLines[0],requested=await requestCommerceReturn(f.owner,String(receipt.fulfillmentId),{expectedVersion:2,date:"2026-09-03",reason:"Supplier accepted damaged unit",lines:[{lineId:String(line.id),quantity:"1"}]},key());
+  details=await getOrder(f.owner,orderId);const line=details.fulfillmentLines[0],returnFiles=await seedAttachmentSet(db,f.owner,{targetType:"commerce_fulfillment",targetId:String(receipt.fulfillmentId),purposeKey:"return_condition",componentRef:"return-request",expectedTargetVersion:2}),requested=await requestCommerceReturn(f.owner,String(receipt.fulfillmentId),{expectedVersion:2,date:"2026-09-03",reason:"Supplier accepted damaged unit",lines:[{lineId:String(line.id),quantity:"1"}],attachmentSetIds:[returnFiles.setId]},key());
+  expect(await attachmentBindingState(db,returnFiles.setId)).toMatchObject({set_state:"bound",link_state:"bound",binding_type:"commerce_return",binding_id:String(requested.id)});
   await expect(decideCommerceReturn(f.owner,String(requested.id),"approve",{expectedVersion:1,reason:"Self approval"},key())).rejects.toMatchObject({code:"INDEPENDENT_APPROVER_REQUIRED"});
   await expect(decideCommerceReturn(f.head,String(requested.id),'approve',{expectedVersion:1,reason:'Cannot return a reserved invoice'},key())).rejects.toMatchObject({code:'CONFLICT'});
   await decideSupplierBatch(f.owner,String(reserved.id),{expectedVersion:1,reason:'Cancel unexported supplier payment before returning goods'},key(),'cancel');
@@ -58,7 +67,9 @@ async function paidReturn(kind:'sales'|'purchase',paid='15',taxBps=0) {
   await postInvoice(f.manager,invoiceId,{expectedVersion:1,periodId:f.period,entryDate:'2026-09-02'},key());
   f.payer.branchId=null;f.payer.departmentId=null;
   await assign('invoice',invoiceId,'posted',f.payer.userId);
-  const settlement=await settleInvoice(f.payer,invoiceId,{expectedVersion:2,date:'2026-09-03',amount:paid,reference:'Simulated original bank payment',...(kind==='purchase'?{paymentSlipId:await f.attach(invoiceId,'invoice_payment')}:{})},key());
+  const paymentEvidence=kind==='purchase'?await seedAttachmentSet(db,f.payer,{targetType:'invoice_payment',targetId:invoiceId,purposeKey:'payment_slip',componentKind:'action',componentRef:'legacy-upload-adapter',expectedTargetVersion:2}):null;
+  const settlement=await settleInvoice(f.payer,invoiceId,{expectedVersion:2,date:'2026-09-03',amount:paid,reference:'Simulated original bank payment',attachmentSetIds:paymentEvidence?[paymentEvidence.setId]:[]},key());
+  if(paymentEvidence)expect(await attachmentBindingState(db,paymentEvidence.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'invoice_payment_settlement'});
   details=await getOrder(f.owner,orderId);
   const requestKey=key(),input={expectedVersion:2,date:'2026-09-04',reason:'Customer or supplier accepted the whole return',lines:[{lineId:String(details.fulfillmentLines[0].id),quantity:'2',...(kind==='sales'?{condition:'unknown' as const,conditionNote:'Returned units require independent Quality inspection',qualityDueDate:'2026-09-05'}:{})}]};
   const requested=await requestCommerceReturn(f.owner,String(fulfillment.fulfillmentId),input,requestKey);
@@ -145,7 +156,8 @@ it.each(['sales','purchase'] as const)('separates invoice credit from %s cash re
  expect(await recoverRefundExport(f.payer,instructionId)).toMatchObject({content:exported.content,sha256:exported.sha256});
  const {createHash}=await import('node:crypto');expect(exported.sha256).toBe(createHash('sha256').update(String(exported.content)).digest('hex'));
  expect((await refundWorkspace(f.payer,id)).owner.outstanding_minor).toBe(1500);
- const bank=await bankEvidence(kind==='sales'?'-6':'6'),confirmation={expectedVersion:2,bankTransactionId:bank.id,bankVersion:bank.version,periodId:f.period,bankReference:'SIMULATED-BANK-REF-1',evidence:'Imported statement amount and beneficiary checked'};
+ const refundBeforeConfirm=await refundWorkspace(f.payer,id),proof=await seedAttachmentSet(db,f.payer,{targetType:'finance_refund_obligation',targetId:id,componentKind:'action',componentRef:`refund-instruction:${instructionId}`,purposeKey:'refund_proof',expectedTargetVersion:Number(refundBeforeConfirm.owner.version)});
+ const bank=await bankEvidence(kind==='sales'?'-6':'6'),confirmation={expectedVersion:2,bankTransactionId:bank.id,bankVersion:bank.version,periodId:f.period,bankReference:'SIMULATED-BANK-REF-1',evidence:'Imported statement amount and beneficiary checked',attachmentSetIds:[proof.setId]};
  await expect(confirmRefundInstruction(f.head,instructionId,confirmation,key())).rejects.toMatchObject({code:'INDEPENDENT_PAYER_REQUIRED'});
  await db.prepare("UPDATE finance_periods SET state='closed' WHERE id=?").bind(f.period).run();
  await expect(confirmRefundInstruction(f.payer,instructionId,confirmation,key())).rejects.toMatchObject({code:'PERIOD_CLOSED'});
@@ -153,12 +165,13 @@ it.each(['sales','purchase'] as const)('separates invoice credit from %s cash re
  await db.prepare("UPDATE finance_periods SET state='open' WHERE id=?").bind(f.period).run();
  const confirmKey=key(),confirmed=await confirmRefundInstruction(f.payer,instructionId,confirmation,confirmKey);
  expect(await confirmRefundInstruction(f.payer,instructionId,confirmation,confirmKey)).toEqual(confirmed);
+ expect(await attachmentBindingState(db,proof.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'finance_refund_confirmation'});
  expect((await refundWorkspace(f.payer,id)).owner.outstanding_minor).toBe(900);
  await expect(confirmRefundInstruction(f.payer,instructionId,{...confirmation,expectedVersion:3},key())).rejects.toMatchObject({code:'REFUND_NOT_EXPORTED'});
  const second=await prepare(id,'9');await expect(prepare(id,'0.01')).rejects.toMatchObject({status:409});
  await exportRefundInstructions(f.payer,{instructions:[{id:String(second.id),expectedVersion:1}]},key());
  await expect(confirmRefundInstruction(f.payer,String(second.id),{...confirmation,expectedVersion:2},key())).rejects.toMatchObject({code:'BANK_EVIDENCE_MISMATCH'});
- const finalBank=await bankEvidence(kind==='sales'?'-9':'9');await confirmRefundInstruction(f.payer,String(second.id),{...confirmation,bankTransactionId:finalBank.id,bankVersion:finalBank.version,bankReference:'SIMULATED-BANK-REF-2'},key());
+ const finalBank=await bankEvidence(kind==='sales'?'-9':'9');await confirmRefundInstruction(f.payer,String(second.id),{...confirmation,bankTransactionId:finalBank.id,bankVersion:finalBank.version,bankReference:'SIMULATED-BANK-REF-2',attachmentSetIds:[]},key());
  const done=await refundWorkspace(f.payer,id);expect(done.owner).toMatchObject({status:'settled',outstanding_minor:0});expect(done.instructions.every(row=>row.status==='confirmed')).toBe(true);
  expect((await refundWork(f.payer)).find(row=>row.id===id)?.queue).toBe('completed');
  const sums=await db.prepare('SELECT SUM(l.debit_minor-l.credit_minor) balance FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.status=\'posted\' AND l.account_id=?').bind(f.company,done.owner.balance_account_id).first('balance');expect(sums).toBe(0);

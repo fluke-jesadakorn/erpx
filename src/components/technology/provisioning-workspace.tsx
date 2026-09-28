@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Dialog } from "@/components/ui/dialog";
+import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
 import { workFetch } from "@/lib/work-fetch";
 import {
   provisioningInput,
@@ -12,19 +13,25 @@ import {
 } from "@/lib/technology";
 import type { PeopleLifecycleData } from "@/lib/people-lifecycle";
 import styles from "./technology.module.css";
+import consoleStyles from "./provisioning-console.module.css";
 export function ProvisioningWorkspace({
   base,
   lifecycle,
   data,
   canApply,
+  section = "people",
 }: {
   base: string;
   lifecycle: PeopleLifecycleData;
   data: TechnologyData;
   canApply: boolean;
+  section?: "people" | "operations";
 }) {
   const router = useRouter(),
-    receipt = useRef<{ body: string; key: string } | null>(null);
+    receipt = useRef<{ body: string; key: string } | null>(null),
+    activeRowRef = useRef<HTMLButtonElement>(null),
+    backRef = useRef<HTMLButtonElement>(null),
+    wasMobileDetail = useRef(false);
   const [selected, setSelected] = useState<string[]>([]),
     [open, setOpen] = useState(false),
     [busy, setBusy] = useState(false),
@@ -32,7 +39,15 @@ export function ProvisioningWorkspace({
     [notice, setNotice] = useState(""),
     [preview, setPreview] = useState<ProvisioningPreview | null>(null),
     [input, setInput] = useState<ProvisioningInput | null>(null),
-    [detail, setDetail] = useState<string | null>(null),
+    [detail, setDetail] = useState<string | null>(
+      lifecycle.roster[0]?.engagementId ?? null,
+    ),
+    [operationDetail, setOperationDetail] = useState<string | null>(
+      data.operations[0]?.id ?? null,
+    ),
+    [mobileDetail, setMobileDetail] = useState(false),
+    [search, setSearch] = useState(""),
+    [statusFilter, setStatusFilter] = useState("all"),
     [source, setSource] = useState<"position" | "supplemental">("position"),
     [withdraw, setWithdraw] = useState<
       import("@/lib/technology").AppliedPackage | null
@@ -45,6 +60,12 @@ export function ProvisioningWorkspace({
     const timer = setInterval(() => router.refresh(), 5000);
     return () => clearInterval(timer);
   }, [pending, router]);
+  useEffect(() => {
+    if (!window.matchMedia("(max-width: 720px)").matches) return;
+    if (mobileDetail) backRef.current?.focus();
+    else if (wasMobileDetail.current) activeRowRef.current?.focus();
+    wasMobileDetail.current = mobileDetail;
+  }, [mobileDetail]);
   async function send(path: string, body: unknown) {
     setBusy(true);
     setError("");
@@ -111,167 +132,399 @@ export function ProvisioningWorkspace({
       ? "Ready"
       : "Waiting for IT";
   }
-  const person = lifecycle.roster.find((p) => p.engagementId === detail);
+  const statusById = new Map(
+    lifecycle.roster.map((p) => [
+      p.engagementId,
+      status(p.engagementId, p.positionId),
+    ]),
+  );
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const filteredPeople = lifecycle.roster.filter((p) => {
+    const position =
+      lifecycle.positions.find((item) => item.id === p.positionId)?.title ??
+      "No position";
+    return (
+      (statusFilter === "all" ||
+        statusById.get(p.engagementId) === statusFilter) &&
+      (!normalizedSearch ||
+        [p.name, p.engagementId, position].some((value) =>
+          value.toLocaleLowerCase().includes(normalizedSearch),
+        ))
+    );
+  });
+  const selectableVisible = filteredPeople.filter((p) => p.status === "active");
+  const person = filteredPeople.find((p) => p.engagementId === detail) ??
+    filteredPeople[0];
+  const operation =
+    data.operations.find((op) => op.id === operationDetail) ??
+    data.operations[0];
+  const personApplications = person
+    ? data.applications.filter((a) => a.engagement_id === person.engagementId)
+    : [];
   return (
-    <div className={styles.stack}>
-      <div className={styles.toolbar}>
-        <div>
-          <h2>Employee provisioning</h2>
-          <p className="muted">
-            Compare applied access with the current position, then select up to
-            100 employees to update.
-          </p>
+    <div className={consoleStyles.workspace}>
+      <div className={consoleStyles.toolbar}>
+        <div className={consoleStyles.heading}>
+          <h2>{section === "operations" ? "Provisioning operations" : "Employee access"}</h2>
+          <span className={consoleStyles.count}>
+            {section === "operations"
+              ? data.operations.length + " operations"
+              : filteredPeople.length + " of " + lifecycle.roster.length + " employees"}
+          </span>
         </div>
-        {canApply && (
-          <button
-            className="button"
-            disabled={!selected.length}
-            onClick={() => {
-              setPreview(null);
-              setWithdraw(null);
-              setOpen(true);
-            }}
-          >
-            Prepare {selected.length || ""} selected
-          </button>
+        {section === "people" && canApply && (
+          <div className={consoleStyles.actions}>
+            {selected.length > 0 && (
+              <button
+                className={consoleStyles.textAction}
+                onClick={() => setSelected([])}
+              >
+                Clear selection
+              </button>
+            )}
+            <button
+              className="button"
+              disabled={!selected.length}
+              onClick={() => {
+                setPreview(null);
+                setInput(null);
+                setWithdraw(null);
+                setOpen(true);
+              }}
+            >
+              Prepare {selected.length || ""} selected
+            </button>
+          </div>
         )}
       </div>
-      {notice && <p role="status">{notice}</p>}
-      <div style={{ overflowX: "auto" }}>
-        <table className={styles.employeeTable}>
-          <thead>
-            <tr>
-              <th>
+      {notice && <p className={consoleStyles.notice} role="status">{notice}</p>}
+      {error && !open && <p className={consoleStyles.error} role="alert">{error}</p>}
+      {section === "people" ? (
+        <div className={consoleStyles.console} data-mobile-detail={mobileDetail}>
+          <div className={consoleStyles.listPane}>
+            <div className={consoleStyles.listControls}>
+              <label className={consoleStyles.searchLabel}>
+                <span className="sr-only">Search employees</span>
                 <input
-                  aria-label="Select the first 100 active employees"
-                  type="checkbox"
-                  disabled={!canApply}
-                  checked={
-                    !!lifecycle.roster.length &&
-                    lifecycle.roster
-                      .filter((p) => p.status === "active")
-                      .slice(0, 100)
-                      .every((p) => selected.includes(p.engagementId))
-                  }
-                  onChange={(e) =>
-                    setSelected(
-                      e.target.checked
-                        ? lifecycle.roster
-                            .filter((p) => p.status === "active")
-                            .slice(0, 100)
-                            .map((p) => p.engagementId)
-                        : [],
-                    )
-                  }
+                  type="search"
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setMobileDetail(false);
+                  }}
+                  placeholder="Search name or position"
                 />
-              </th>
-              <th>Employee</th>
-              <th>HR position</th>
-              <th>IT status</th>
-              <th>Applied revision</th>
-            </tr>
-          </thead>
-          <tbody>
-            {lifecycle.roster.map((p) => (
-              <tr key={p.engagementId}>
-                <td>
-                  <input
-                    type="checkbox"
-                    aria-label={`Select ${p.name}`}
-                    disabled={
-                      !canApply ||
-                      p.status !== "active" ||
-                      (selected.length >= 100 &&
-                        !selected.includes(p.engagementId))
-                    }
-                    checked={selected.includes(p.engagementId)}
-                    onChange={(e) =>
-                      setSelected(
-                        e.target.checked
-                          ? [...selected, p.engagementId]
-                          : selected.filter((id) => id !== p.engagementId),
-                      )
-                    }
-                  />
-                </td>
-                <td>
-                  <button
-                    className="button secondary"
-                    onClick={() => setDetail(p.engagementId)}
-                  >
-                    {p.name}
-                  </button>
-                </td>
-                <td>
-                  {lifecycle.positions.find((x) => x.id === p.positionId)
-                    ?.title ?? "No position"}
-                </td>
-                <td>
-                  <span className={styles.state}>
-                    {status(p.engagementId, p.positionId)}
-                  </span>
-                </td>
-                <td>
-                  {data.applications
-                    .filter(
-                      (a) => a.engagement_id === p.engagementId && a.active,
-                    )
-                    .map((a) => (
-                      <div key={a.id}>
-                        {a.definition.name} · r{a.package_revision} ·{" "}
-                        {a.source_kind}
-                      </div>
-                    ))}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <details>
-        <summary>Provisioning operations</summary>
-        {data.operations.map((op) => (
-          <article className={styles.preview} key={op.id}>
-            <strong>{op.status.replaceAll("_", " ")}</strong> ·{" "}
-            {new Date(op.created_at).toLocaleString()}
-            <p>{op.reviewsPending} ERPX role reviews pending</p>
-            {op.steps.map((s) => (
-              <p key={s.id}>
-                {s.label} · {s.status}
-              </p>
-            ))}
-            {op.last_error && <p role="status">{op.last_error}</p>}
-            {canApply &&
-              ["FRESH_MFA_REQUIRED", "PROVISIONING_RETRY_REQUIRED"].includes(
-                op.last_error ?? "",
-              ) && (
-                <button
-                  className="button secondary"
-                  disabled={busy}
-                  onClick={async () => {
-                    if (
-                      await send("retry", {
-                        id: op.id,
-                        expectedVersion: op.version,
-                      })
-                    )
-                      router.refresh();
+              </label>
+              <label className={consoleStyles.filterLabel}>
+                <span className="sr-only">Filter by IT status</span>
+                <select
+                  value={statusFilter}
+                  onChange={(event) => {
+                    setStatusFilter(event.target.value);
+                    setMobileDetail(false);
                   }}
                 >
-                  Retry unfinished operation
-                </button>
+                  <option value="all">All IT statuses</option>
+                  <option value="Ready">Ready</option>
+                  <option value="In progress">In progress</option>
+                  <option value="Needs attention">Needs attention</option>
+                  <option value="Waiting for IT">Waiting for IT</option>
+                </select>
+              </label>
+            </div>
+            <div className={consoleStyles.listHeader}>
+              <label>
+                <input
+                  aria-label="Select visible active employees, up to 100 total"
+                  type="checkbox"
+                  disabled={!canApply || selectableVisible.length === 0}
+                  checked={
+                    selectableVisible.length > 0 &&
+                    selectableVisible.every((p) => selected.includes(p.engagementId))
+                  }
+                  onChange={(event) => {
+                    const checked = event.currentTarget.checked;
+                    setSelected((current) => {
+                      const visibleIds = new Set(
+                        selectableVisible.map((p) => p.engagementId),
+                      );
+                      if (!checked)
+                        return current.filter((id) => !visibleIds.has(id));
+                      const next = [...current];
+                      for (const p of selectableVisible) {
+                        if (next.length >= 100) break;
+                        if (!next.includes(p.engagementId))
+                          next.push(p.engagementId);
+                      }
+                      return next;
+                    });
+                  }}
+                />
+                <span>Select visible</span>
+              </label>
+              <span>{selected.length}/100 selected</span>
+            </div>
+            <div className={consoleStyles.listScroll} role="list" aria-label="Employees">
+              {filteredPeople.map((p) => {
+                const position =
+                  lifecycle.positions.find((item) => item.id === p.positionId)
+                    ?.title ?? "No position";
+                const state = statusById.get(p.engagementId) ?? "Waiting for IT";
+                return (
+                  <div
+                    className={consoleStyles.listRow}
+                    data-selected={person?.engagementId === p.engagementId}
+                    key={p.engagementId}
+                    role="listitem"
+                  >
+                    <input
+                      type="checkbox"
+                      aria-label={"Select " + p.name}
+                      disabled={
+                        !canApply ||
+                        p.status !== "active" ||
+                        (selected.length >= 100 &&
+                          !selected.includes(p.engagementId))
+                      }
+                      checked={selected.includes(p.engagementId)}
+                      onChange={(event) => {
+                        const checked = event.currentTarget.checked;
+                        setSelected((current) =>
+                          checked
+                            ? [...current, p.engagementId]
+                            : current.filter((id) => id !== p.engagementId),
+                        );
+                      }}
+                    />
+                    <button
+                      ref={person?.engagementId === p.engagementId ? activeRowRef : undefined}
+                      className={consoleStyles.rowButton}
+                      aria-current={person?.engagementId === p.engagementId ? "true" : undefined}
+                      onClick={() => {
+                        setDetail(p.engagementId);
+                        setMobileDetail(true);
+                      }}
+                    >
+                      <span className={consoleStyles.rowMain}>
+                        <strong>{p.name}</strong>
+                        <span>{position}</span>
+                      </span>
+                      <span className={consoleStyles.badge} data-status={state}>{state}</span>
+                    </button>
+                  </div>
+                );
+              })}
+              {filteredPeople.length === 0 && (
+                <div className={consoleStyles.empty}>
+                  <strong>No employees found</strong>
+                  <p>Try another name, position, or IT status.</p>
+                  <button
+                    className={consoleStyles.textAction}
+                    onClick={() => {
+                      setSearch("");
+                      setStatusFilter("all");
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                </div>
               )}
-            {op.steps.length > 0 && (
-              <Link href={base + "/technology?view=directory"}>
-                Inspect directory steps and retry
-              </Link>
+            </div>
+          </div>
+          <section className={consoleStyles.detailPane} aria-label="Employee access details">
+            <button
+              ref={backRef}
+              className={consoleStyles.back}
+              onClick={() => setMobileDetail(false)}
+            >
+              ← Back to employees
+            </button>
+            {person ? (
+              <>
+                <div className={consoleStyles.detailHead}>
+                  <div>
+                    <span className={consoleStyles.eyebrow}>Employee</span>
+                    <h3>{person.name}</h3>
+                    <p>
+                      {lifecycle.positions.find((p) => p.id === person.positionId)
+                        ?.title ?? "No position assigned"}
+                    </p>
+                  </div>
+                  <span
+                    className={consoleStyles.badge}
+                    data-status={statusById.get(person.engagementId)}
+                  >
+                    {statusById.get(person.engagementId)}
+                  </span>
+                </div>
+                <div className={consoleStyles.detailScroll}>
+                  <div className={consoleStyles.detailSectionHead}>
+                    <h4>Applied access</h4>
+                    <span>{personApplications.filter((a) => a.active).length} effective</span>
+                  </div>
+                  {personApplications.length === 0 && (
+                    <div className={consoleStyles.emptyDetail}>
+                      No access package has been applied to this employee.
+                    </div>
+                  )}
+                  {personApplications.map((a) => (
+                    <section className={consoleStyles.accessCard} key={a.id}>
+                      <div className={consoleStyles.accessHead}>
+                        <div>
+                          <strong>{a.definition.name}</strong>
+                          <span>Revision {a.package_revision} · {a.source_kind} source</span>
+                        </div>
+                        <span className={consoleStyles.badge} data-status={a.active ? "Ready" : "Inactive"}>
+                          {a.active ? "Effective" : "Inactive / pending"}
+                        </span>
+                      </div>
+                      <dl className={consoleStyles.factGrid}>
+                        <div><dt>Expires</dt><dd>{new Date(a.valid_until).toLocaleString()}</dd></div>
+                        <div><dt>ERPX roles</dt><dd>{a.definition.grants.map((g) => g.roleId).join(", ") || "None"} <small>(reviewed separately)</small></dd></div>
+                        <div><dt>Groups</dt><dd>{[...a.definition.groupIds, ...a.definition.directoryGroupIds].join(", ") || "None"}</dd></div>
+                        <div><dt>Exceptions</dt><dd>{a.scope.exclude?.join(", ") || "None"}</dd></div>
+                      </dl>
+                      {canApply && !a.ended_at && (
+                        <button
+                          className="button secondary"
+                          onClick={() => {
+                            setSelected([a.engagement_id]);
+                            setWithdraw(a);
+                            setPreview(null);
+                            setInput(null);
+                            setOpen(true);
+                          }}
+                        >
+                          Withdraw this source
+                        </button>
+                      )}
+                    </section>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className={consoleStyles.emptyDetail}>Select an employee to inspect access.</div>
             )}
-            <Link href={base + "/people/settings?section=reviews"}>
-              Review ERPX role requests
-            </Link>
-          </article>
-        ))}
-      </details>
+          </section>
+        </div>
+      ) : (
+        <div className={consoleStyles.console} data-mobile-detail={mobileDetail}>
+          <div className={consoleStyles.listPane}>
+            <div className={consoleStyles.listHeader}>
+              <strong>Recent operations</strong>
+              <span>{data.operations.length} total</span>
+            </div>
+            <div className={consoleStyles.listScroll} role="list" aria-label="Provisioning operations">
+              {data.operations.map((op) => (
+                <div className={consoleStyles.listRow} data-selected={operation?.id === op.id} key={op.id} role="listitem">
+                  <button
+                    ref={operation?.id === op.id ? activeRowRef : undefined}
+                    className={consoleStyles.rowButton}
+                    aria-current={operation?.id === op.id ? "true" : undefined}
+                    onClick={() => {
+                      setOperationDetail(op.id);
+                      setMobileDetail(true);
+                    }}
+                  >
+                    <span className={consoleStyles.rowMain}>
+                      <strong>{op.status.replaceAll("_", " ")}</strong>
+                      <span>{new Date(op.created_at).toLocaleString()}</span>
+                    </span>
+                    {op.reviewsPending > 0 && <span className={consoleStyles.reviewCount}>{op.reviewsPending} reviews</span>}
+                  </button>
+                </div>
+              ))}
+              {data.operations.length === 0 && (
+                <div className={consoleStyles.empty}>No provisioning operations yet.</div>
+              )}
+            </div>
+          </div>
+          <section className={consoleStyles.detailPane} aria-label="Operation details">
+            <button ref={backRef} className={consoleStyles.back} onClick={() => setMobileDetail(false)}>
+              ← Back to operations
+            </button>
+            {operation ? (
+              <>
+                <div className={consoleStyles.detailHead}>
+                  <div>
+                    <span className={consoleStyles.eyebrow}>Provisioning operation</span>
+                    <h3>{operation.status.replaceAll("_", " ")}</h3>
+                    <p>{new Date(operation.created_at).toLocaleString()}</p>
+                  </div>
+                </div>
+                <div className={consoleStyles.detailScroll}>
+                  <div className={consoleStyles.detailSectionHead}>
+                    <h4>Progress</h4>
+                    <span>{operation.reviewsPending} ERPX role reviews pending</span>
+                  </div>
+                  {operation.steps.length > 0 ? (
+                    <ol className={consoleStyles.steps}>
+                      {operation.steps.map((step) => (
+                        <li key={step.id}>
+                          <strong>{step.label}</strong>
+                          <span>{step.status.replaceAll("_", " ")}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <div className={consoleStyles.emptyDetail}>No directory steps recorded.</div>
+                  )}
+                  {operation.last_error && (
+                    <p className={consoleStyles.error} role="status">{operation.last_error}</p>
+                  )}
+                  <RecordDocumentPanel
+                    key={`${operation.id}:${operation.version}`}
+                    base={base}
+                    targetType="people_provision_operation"
+                    targetId={operation.id}
+                    expectedTargetVersion={operation.version}
+                    title="Sanitized provisioning evidence"
+                    purposes={[{
+                      key: "sanitized_provisioning_evidence",
+                      label: "Sanitized provisioning evidence",
+                      description: "Attach only a redacted review artifact. Never upload passwords, private keys, secrets, configuration exports, or database dumps.",
+                      visibility: "Restricted to Company IT provisioning administrators. Sanitization attestation is required before binding.",
+                    }]}
+                    editable={canApply}
+                  />
+                  <div className={consoleStyles.detailActions}>
+                    {canApply &&
+                      ["FRESH_MFA_REQUIRED", "PROVISIONING_RETRY_REQUIRED"].includes(
+                        operation.last_error ?? "",
+                      ) && (
+                        <button
+                          className="button secondary"
+                          disabled={busy}
+                          onClick={async () => {
+                            if (
+                              await send("retry", {
+                                id: operation.id,
+                                expectedVersion: operation.version,
+                              })
+                            )
+                              router.refresh();
+                          }}
+                        >
+                          Retry unfinished operation
+                        </button>
+                      )}
+                    {operation.steps.length > 0 && (
+                      <Link href={base + "/technology?view=organization"}>
+                        Inspect directory steps and retry
+                      </Link>
+                    )}
+                    <Link href={base + "/people/settings?section=reviews"}>
+                      Review ERPX role requests
+                    </Link>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className={consoleStyles.emptyDetail}>Select an operation to inspect progress.</div>
+            )}
+          </section>
+        </div>
+      )}
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
@@ -428,65 +681,6 @@ export function ProvisioningWorkspace({
           )}
           {error && <p role="alert">{error}</p>}
         </form>
-      </Dialog>
-      <Dialog
-        open={!!person}
-        onClose={() => setDetail(null)}
-        title={person?.name ?? "Applied access"}
-        presentation="responsive-panel"
-      >
-        {person && (
-          <div className={styles.stack}>
-            <p>
-              HR position:{" "}
-              {lifecycle.positions.find((p) => p.id === person.positionId)
-                ?.title ?? "Unassigned"}
-            </p>
-            {data.applications
-              .filter((a) => a.engagement_id === person.engagementId)
-              .map((a) => (
-                <section className={styles.preview} key={a.id}>
-                  <h3>
-                    {a.definition.name} · r{a.package_revision}
-                  </h3>
-                  <p>
-                    Source: {a.source_kind} ·{" "}
-                    {a.active ? "Effective" : "Inactive / pending"}
-                  </p>
-                  <p>Expires: {new Date(a.valid_until).toLocaleString()}</p>
-                  <p>
-                    ERPX roles:{" "}
-                    {a.definition.grants.map((g) => g.roleId).join(", ") ||
-                      "None"}{" "}
-                    (reviewed separately)
-                  </p>
-                  <p>
-                    Groups:{" "}
-                    {[
-                      ...a.definition.groupIds,
-                      ...a.definition.directoryGroupIds,
-                    ].join(", ") || "None"}
-                  </p>
-                  <p>Exceptions: {a.scope.exclude?.join(", ") || "None"}</p>
-                  {canApply && !a.ended_at && (
-                    <button
-                      className="button secondary"
-                      onClick={() => {
-                        setSelected([a.engagement_id]);
-                        setDetail(null);
-                        setWithdraw(a);
-                        setPreview(null);
-                        setInput(null);
-                        setOpen(true);
-                      }}
-                    >
-                      Withdraw this source
-                    </button>
-                  )}
-                </section>
-              ))}
-          </div>
-        )}
       </Dialog>
     </div>
   );

@@ -9,7 +9,7 @@ export function FutureFeatures({pilotSetupHref}:{pilotSetupHref?:string}) {
   const shown = hospitalityFutureFeatures.filter((feature) =>
     `${feature.name} ${feature.value} ${feature.prerequisite}`.toLowerCase().includes(query.trim().toLowerCase()),
   );
-  return <main style={{maxWidth:960,margin:"0 auto",padding:"24px 20px 80px"}}>
+  return <div style={{maxWidth:960,margin:"0 auto",padding:"24px 20px 80px"}}>
     <p style={{color:"var(--text-muted, #667085)"}}>ERPX · Product roadmap</p>
     <h1>Future features</h1>
     <p>These ideas are separate from daily hotel and restaurant work. “Coming Soon” and “Prototype” do not enable business commands or promise a launch date.</p>
@@ -27,5 +27,5 @@ export function FutureFeatures({pilotSetupHref}:{pilotSetupHref?:string}) {
       </article>)}
     </div>
     {!shown.length&&<p>No future feature matches this search.</p>}
-  </main>;
+  </div>;
 }

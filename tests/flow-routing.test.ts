@@ -20,7 +20,8 @@ it("does not let an Operations flow assignment activate deferred payroll or Peop
 });
 async function assign(id:string,userId:string,saveDefault=false,stepKey="department_approval") {
   const view=await resolveFlow(db,f.owner,"expense",id);
-  return assignFlowPrimary(db,f.owner,"expense",id,{stepKey,userId,saveDefault,reason:"Assign the responsible staff member",expectedVersion:view.version,recordVersion:view.recordVersion},key());
+  const currentKey=stepKey==="department_approval" && view.current?.key.startsWith("department_approval_")?view.current.key:stepKey;
+  return assignFlowPrimary(db,f.owner,"expense",id,{stepKey:currentKey,userId,saveDefault,reason:"Assign the responsible staff member",expectedVersion:view.version,recordVersion:view.recordVersion},key());
 }
 it("requires a primary for an ambiguous team; administrators cannot select the claimant or an unrelated user",async()=>{
   await f.grant(f.tie,"finance_preparer");

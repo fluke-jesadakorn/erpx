@@ -300,7 +300,7 @@ export function AiProviders({
           if (!pending) setEdit(null);
         }}
       >
-        {edit && <AiConnectionForm key={edit === "new" ? "new" : edit.id} edit={edit} base={base} pending={pending} error={error} save={async input => {
+        {edit && <AiConnectionForm key={edit === "new" ? "new" : edit.id} edit={edit} base={base} pending={pending} error={error} keyStorageReady={data.keyStorageReady} onCancel={() => setEdit(null)} save={async input => {
           if (await command(edit === "new" ? "" : `/${edit.id}`, input)) setEdit(null);
         }} />}
       </Dialog>

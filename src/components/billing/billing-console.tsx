@@ -1,5 +1,7 @@
 "use client";
 import { FeatureTabBar,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { TargetBillingPanel } from "./target-billing-panel";
+import { NextMonthForecast } from "./next-month-forecast";
 
 import { betaFetch } from "@/lib/beta-client";
 import {
@@ -13,6 +15,7 @@ import { APP_LOCALE,APP_TIMEZONE } from "@/lib/localization";
 import { workFetch } from "@/lib/work-fetch";
 import { useRouter,useSearchParams } from "next/navigation";
 import { useCallback,useEffect,useRef,useState } from "react";
+import Link from "next/link";
 import styles from "./billing-console.module.css";
 const date = (n: number | null) =>
   n
@@ -40,7 +43,8 @@ export function BillingConsole({
   writable?: boolean;
 }) {
   const searchParams = useSearchParams(), router = useRouter();
-  const tab = searchParams.get("tab") ?? "overview";
+  const tab = searchParams.get("tab") ?? "target";
+  const holdingTarget = platform ? searchParams.get("holdingId") : null;
   const invoiceTarget = platform ? null : searchParams.get("invoice"),
     subscriptionTarget = platform ? null : searchParams.get("subscription");
   function setTab(value: string) { const query = new URLSearchParams(searchParams); query.set("tab", value); router.push(`?${query}`, {scroll:false}); }
@@ -75,10 +79,10 @@ export function BillingConsole({
       betaFetch<{ accounts: AccountChoice[] }>("/api/v1/platform/billing")
         .then((d) => {
           setAccounts(d.accounts);
-          setHolding(d.accounts[0]?.holding_id ?? "");
+          setHolding(d.accounts.find((account) => account.holding_id === holdingTarget)?.holding_id ?? d.accounts[0]?.holding_id ?? "");
         })
         .catch((e) => setMessage(e.message));
-  }, [platform]);
+  }, [platform, holdingTarget]);
   useEffect(() => {
     let active = true;
     const run = async () => {
@@ -131,10 +135,10 @@ export function BillingConsole({
     return () => window.cancelAnimationFrame(frame);
   }, [data, invoiceTarget, periodId, platform, subscriptionTarget]);
   async function command(action: string, fields: Record<string, unknown> = {}) {
-    if (!data || !writable) return;
+    if (!data || !writable) return false;
     if (reason.trim().length < 3) {
       setMessage("Enter a reason with at least 3 characters before saving.");
-      return;
+      return false;
     }
     setBusy(true);
     setMessage("");
@@ -173,13 +177,15 @@ export function BillingConsole({
       pending.current.delete(digest);
       if (r.url) {
         window.location.assign(r.url);
-        return;
+        return true;
       }
       await reload();
       setMessage("Saved · Sandbox only");
+      return true;
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Please retry");
       await reload().catch(() => {});
+      return false;
     } finally {
       setBusy(false);
     }
@@ -209,7 +215,6 @@ export function BillingConsole({
   return (
     <section
       className={styles.root}
-      style={{display:"contents"}}
       aria-label={platform ? "Customer billing" : "Holding billing"}
     >
       <header className={styles.header}>
@@ -222,9 +227,11 @@ export function BillingConsole({
         <span className={styles.tag}>SANDBOX</span>
       </header>
       <div className={styles.sandbox}>
-        Test only. No real charges or workspace limits · Billing = reviewed
-        costs + Support · Excludes customer-paid AI through BYOK
+        Sandbox only. Existing Support billing and the proposed seat-and-usage model are reviewed separately. No live collection or new storage entitlement. Customer-paid AI through BYOK is excluded.
       </div>
+      <Link className={`button secondary ${styles.usageLink}`} href={platform ? "/holdings/erpx/manage-erpx/billing/usage" : `${base}/usage`}>
+        View measured AI and file usage
+      </Link>
       {platform && (
         <label>
           Customer account
@@ -244,7 +251,22 @@ export function BillingConsole({
           </select>
         </label>
       )}
-      {platform && <FeatureTabBar aria-label="Billing sections">{[["overview","Overview"],["plans","Plans"],["invoices","Costs & billing periods"],["payment","Payment"],["history","History & changes"]].map(([id,label])=><button key={id} aria-current={tab===id?"page":undefined} onClick={()=>setTab(id)}>{label}</button>)}</FeatureTabBar>}<WidgetGrid pageKey={platform?"platform-billing":"administration-usage"}>
+      {platform && <FeatureTabBar aria-label="Billing sections">{[["target","Measured usage & target"],["overview","Legacy Support"],["plans","Legacy plans"],["invoices","Costs & billing periods"],["payment","Payment"],["history","History & changes"]].map(([id,label])=><button key={id} aria-current={tab===id?"page":undefined} onClick={()=>setTab(id)}>{label}</button>)}</FeatureTabBar>}
+      {!platform && data && <section id="billing-target" className={styles.targetPinned} aria-label="Measured usage and target billing">
+        <NextMonthForecast base={base ?? "/holdings/erpx"} platform={false} holdingId={data.account?.holding_id ?? ""} />
+        <TargetBillingPanel
+          key={data.account?.holding_id ?? "holding"}
+          base={base ?? "/holdings/erpx"}
+          platform={false}
+          holdingId={data.account?.holding_id ?? ""}
+          now={data.now}
+          writable={false}
+          reason={reason}
+          reasonValid={false}
+          invoices={data.invoices}
+        />
+      </section>}
+      <WidgetGrid pageKey={platform?"platform-billing":"administration-usage"}>
       {message && (
         <p role="status" className={styles.status}>
           {message}
@@ -265,10 +287,24 @@ export function BillingConsole({
               />
             </label>
           )}
-          {(!platform || tab === "overview") && <FeatureWidget id="billing-overview" title="Overview"><>
+          {platform && tab === "target" && <FeatureWidget id="billing-target" title="Measured usage & target billing"><div className={styles.forecastStack}>
+            <NextMonthForecast key={`forecast:${holding}`} base={base ?? "/holdings/erpx"} platform holdingId={holding} />
+            <TargetBillingPanel
+            key={platform ? holding : data.account?.holding_id ?? "holding"}
+            base={base ?? "/holdings/erpx"}
+            platform={platform}
+            holdingId={platform ? holding : data.account?.holding_id ?? ""}
+            now={data.now}
+            writable={platform && writable}
+            reason={reason}
+            reasonValid={reason.trim().length >= 3}
+            invoices={data.invoices}
+            onCommand={platform && writable ? command : undefined}
+          /></div></FeatureWidget>}
+          {(!platform || tab === "overview") && <FeatureWidget id="billing-overview" title="Legacy Support overview"><>
               <div className={styles.grid}>
                 <article className={styles.card} id="billing-subscription">
-                  <h3>Current plan</h3>
+                  <h3>Legacy Support plan</h3>
                   <div className={styles.metric}>
                     {active
                       ? plans.find((p) => p.id === e.plan_id)?.name
@@ -278,12 +314,12 @@ export function BillingConsole({
                     {e?.ended_at
                       ? `Hosted ends (simulated) ${date(e.ended_at)} · Data and workspace remain available`
                       : active
-                        ? "All modules · No per-user charges"
+                        ? "Legacy Support terms · No per-user charges"
                         : "Choose a plan to start the trial period"}
                   </p>
                 </article>
                 <article className={styles.card}>
-                  <h3>Current-period Support</h3>
+                  <h3>Legacy Support fee</h3>
                   <div className={styles.metric}>
                     {baht(current?.support_satang ?? 0)}
                   </div>
@@ -309,7 +345,7 @@ export function BillingConsole({
                 </article>
               </div>
               <article className={styles.card}>
-                <h3>Estimate & pending items</h3>
+                <h3>Legacy estimate & pending items</h3>
                 <p>
                   This period&apos;s estimate{" "}
                   {baht(
@@ -341,17 +377,6 @@ export function BillingConsole({
                     Withdraw pending change
                   </button>
                 )}
-              </article>
-              <article className={styles.card}>
-                <h3>Simulation example · Full month</h3>
-                <p>
-                  Hosting THB 300 + Storage THB 50 + ERPX-paid AI THB 75 +
-                  Standard Support THB 500 = <strong>THB 925</strong>
-                </p>
-                <p className={styles.muted}>
-                  This example creates no accounting cost or liability.
-                  Invoices require administrator review and approval.
-                </p>
               </article>
             </></FeatureWidget>}
           {(!platform || tab === "plans") && <FeatureWidget id="billing-plans" title="Plans"><>

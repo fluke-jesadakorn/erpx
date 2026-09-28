@@ -16,6 +16,7 @@ import {
 import type { AttributeDefinition } from "@/lib/user-management";
 import styles from "./lifecycle.module.css";
 import { DirectoryConsole } from "@/components/technology/directory-console";
+import compactStyles from "@/components/technology/directory-workspace.module.css";
 
 const labels: Record<DirectoryAction["kind"], string> = {
   "account.create": "Create account",
@@ -39,8 +40,12 @@ export function DirectoryWorkspace({
   mode = "inventory",
   attributes = [],
   people = [],
+  initialConnectionId,
+  initialObjectId,
 }: {
   base: string;
+  initialConnectionId?: string;
+  initialObjectId?: string;
   initial: DirectoryAutomationData;
   mode?: "inventory" | "gpo" | "settings" | "groups";
   attributes?: AttributeDefinition[];
@@ -48,8 +53,9 @@ export function DirectoryWorkspace({
 }) {
   const router = useRouter(),
     receipt = useRef<{ body: string; key: string } | null>(null);
+  const actionMenu = useRef<HTMLDetailsElement>(null);
   const [connectionId, setConnectionId] = useState(
-      initial.connections[0]?.id ?? "",
+      initialConnectionId ?? initial.connections[0]?.id ?? "",
     ),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -82,8 +88,7 @@ export function DirectoryWorkspace({
     enforced: boolean;
   }[];
   const existingLink = existingLinks.find((l) => l.gpoId === edit?.objectId);
-  const [search, setSearch] = useState(""),
-    [, setVisibleCount] = useState(24);
+  const [search, setSearch] = useState("");
   const [fieldPreview, setFieldPreview] = useState<{
     input: {
       connectionId: string;
@@ -289,9 +294,17 @@ export function DirectoryWorkspace({
         {o.name} · {o.kind}
       </option>
     ));
+  const actionKinds: DirectoryAction["kind"][] =
+    mode === "gpo"
+      ? ["gpo.publish"]
+      : mode === "groups"
+        ? ["group.create"]
+        : ["account.create", "group.create", "ou.create", "gpo.publish", "object.move", "group.members"];
+  const primaryActions = mode === "inventory" ? actionKinds.slice(0, 2) : actionKinds;
+  const moreActions = mode === "inventory" ? actionKinds.slice(2) : [];
   return (
-    <section className={"card " + styles.stack}>
-      <h2>
+    <section className={"card " + styles.stack + (mode === "settings" ? "" : " " + compactStyles.workspace)}>
+      {mode !== "inventory" && <h2>
         {mode === "gpo"
           ? "Windows policies"
           : mode === "settings"
@@ -299,7 +312,7 @@ export function DirectoryWorkspace({
             : mode === "groups"
               ? "Directory groups"
               : "Directory accounts, computers & OUs"}
-      </h2>
+      </h2>}
       {!connection ? (
         <p>
           No active UCS or AD connection.{" "}
@@ -310,8 +323,9 @@ export function DirectoryWorkspace({
         </p>
       ) : (
         <>
+          <div className={mode === "settings" ? styles.stack : compactStyles.workspaceHeader}>
           <label>
-            Directory connection
+            {mode === "settings" ? "Directory connection" : "Connection"}
             <select
               value={connectionId}
               onChange={(e) => {
@@ -350,9 +364,30 @@ export function DirectoryWorkspace({
                 })
               }
             >
-              Read inventory & test schema
+              Read inventory
             </button>
           )}
+          {mode !== "settings" && initial.canManage && (
+            <div className={compactStyles.quickActions} aria-label="Directory actions">
+              {primaryActions.map((kind) => (
+                <button key={kind} type="button" className="button secondary" onClick={() => open({ kind })}>
+                  {labels[kind]}
+                </button>
+              ))}
+              {moreActions.length > 0 && <details ref={actionMenu} className={compactStyles.moreActions} onKeyDown={(event) => {
+                if (event.key === "Escape") actionMenu.current?.removeAttribute("open");
+              }}>
+                <summary>More actions</summary>
+                <div className={compactStyles.moreMenu}>
+                  {moreActions.map((kind) => <button key={kind} type="button" onClick={() => {
+                    actionMenu.current?.removeAttribute("open");
+                    open({ kind });
+                  }}>{labels[kind]}</button>)}
+                </div>
+              </details>}
+            </div>
+          )}
+          </div>
           {mode === "settings" ? (
             <>
               <p>
@@ -559,54 +594,16 @@ export function DirectoryWorkspace({
             </>
           ) : (
             <>
-              {initial.canManage && (
-                <div className={styles.actions}>
-                  {(mode === "gpo"
-                    ? ["gpo.publish"]
-                    : mode === "groups"
-                      ? ["group.create"]
-                      : [
-                          "account.create",
-                          "group.create",
-                          "ou.create",
-                          "gpo.publish",
-                          "object.move",
-                          "group.members",
-                        ]
-                  ).map((kind) => (
-                    <button
-                      key={kind}
-                      className="button secondary"
-                      onClick={() =>
-                        open({ kind: kind as DirectoryAction["kind"] })
-                      }
-                    >
-                      {labels[kind as DirectoryAction["kind"]]}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <label>
-                Search directory objects
-                <input
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value);
-                    setVisibleCount(24);
-                  }}
-                />
-              </label>
-              <p className="muted">
-                Drag an account or computer to an OU, a GPO to an OU, or a
-                member to a group. The buttons open the same preview.
-              </p>
               <DirectoryConsole
+                key={connectionId}
                 objects={objects}
+                initialObjectId={initialObjectId}
                 connectionId={connectionId}
                 canManage={initial.canManage}
                 onEdit={open}
                 onDrop={drop}
                 search={search}
+                onSearchChange={setSearch}
               />
             </>
           )}

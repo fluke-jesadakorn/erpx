@@ -11,7 +11,7 @@ import { ApiError } from "./http";
 export async function selfServiceSummary(actor:WorkContext, onWorkCount?: (count: number | null) => void) {
  const {write}=await holdingResources(actor.holdingId);
  const sources=await Promise.allSettled([
-  (async()=>{const staff=await activeStaff(write,actor.companyId,actor.userId);return write.prepare(`SELECT s.id,s.name,s.local_date,s.start_time,s.end_time,s.starts_at,s.ends_at,w.timezone FROM people_roster_assignments a JOIN people_roster_shifts s ON s.id=a.shift_id JOIN people_roster_weeks w ON w.id=s.week_id WHERE w.company_id=? AND a.engagement_id=? AND w.state='published' AND a.state='assigned' AND s.state='active' AND s.ends_at>? ORDER BY s.starts_at LIMIT 1`).bind(actor.companyId,staff.engagement_id,Date.now()).first<{id:string;name:string;local_date:string;start_time:string;end_time:string;starts_at:number;ends_at:number;timezone:string}>();})(),
+  (async()=>{const staff=await activeStaff(write,actor.companyId,actor.userId);return {rosterRequired:staff.roster_required===1,nextShift:staff.roster_required===1?await write.prepare(`SELECT s.id,s.name,s.local_date,s.start_time,s.end_time,s.starts_at,s.ends_at,w.timezone FROM people_roster_assignments a JOIN people_roster_shifts s ON s.id=a.shift_id JOIN people_roster_weeks w ON w.id=s.week_id WHERE w.company_id=? AND a.engagement_id=? AND w.state='published' AND a.state='assigned' AND s.state='active' AND s.ends_at>? ORDER BY s.starts_at LIMIT 1`).bind(actor.companyId,staff.engagement_id,Date.now()).first<{id:string;name:string;local_date:string;start_time:string;end_time:string;starts_at:number;ends_at:number;timezone:string}>():null};})(),
   leaveSummary(actor),overtimeSetup(write,actor),workSnapshot(actor),
  ]);
  const [shift,leave,overtime,work]=sources;
@@ -22,8 +22,8 @@ export async function selfServiceSummary(actor:WorkContext, onWorkCount?: (count
  if(staffSetupRequired)setup.push('Connect this account to one active employee or contractor profile to unlock personal schedule, leave, and overtime.');
  if(leave.status==='fulfilled'&&leave.value.setupMessage&&!staffSetupRequired)setup.push(leave.value.setupMessage);
  if(overtime.status==='fulfilled')setup.push(...overtime.value.blockers);
- return {asOf:Date.now(),companyId:actor.companyId,actions:selfServiceActions,staffSetupRequired,setupBlockers:[...new Set(setup)],unavailableSources:[...new Set([...unavailable,...(work.status==='fulfilled'?work.value.unavailableSources:[])])],
-  nextShift:shift.status==='fulfilled'?shift.value:null,
+ return {asOf:Date.now(),companyId:actor.companyId,actions:selfServiceActions.filter(action=>action.id!=='shifts'||shift.status==='fulfilled'&&shift.value.rosterRequired),rosterRequired:shift.status==='fulfilled'?shift.value.rosterRequired:true,staffSetupRequired,setupBlockers:[...new Set(setup)],unavailableSources:[...new Set([...unavailable,...(work.status==='fulfilled'?work.value.unavailableSources:[])])],
+  nextShift:shift.status==='fulfilled'?shift.value.nextShift:null,
   attention:work.status==='fulfilled'?work.value.items.filter(isMyAction).slice(0,3):null,
   recentRequests:work.status==='fulfilled'?work.value.items.filter(i=>i.relationships?.includes('requested')&&i.queue!=='completed').sort((a,b)=>b.updatedAt-a.updatedAt).slice(0,3):null,
   leave:leave.status==='fulfilled'?{setupRequired:leave.value.setupRequired,policy:leave.value.policy}:null,

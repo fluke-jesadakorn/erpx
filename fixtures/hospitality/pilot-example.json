@@ -64,7 +64,20 @@
     { "key": "financePreparer", "role": "finance_preparer", "email": "finance-preparer@riverside-lantern.example" },
     { "key": "financeApprover", "role": "finance_approver", "email": "finance-approver@riverside-lantern.example" },
     { "key": "nightAuditor", "role": "pms_night_auditor", "email": "night-auditor@riverside-lantern.example" },
-    { "key": "administrator", "role": "holding_owner", "email": "admin@riverside-lantern.example" }
+    { "key": "administrator", "role": "holding_owner", "email": "admin@riverside-lantern.example" },
+    { "key": "employee", "role": "employee", "email": "employee@riverside-lantern.example" },
+    { "key": "foreignEmployee", "role": "employee", "email": "foreign-employee@riverside-lantern.example" },
+    { "key": "dailyEmployee", "role": "employee", "email": "daily-employee@riverside-lantern.example" },
+    { "key": "hourlyEmployee", "role": "employee", "email": "hourly-employee@riverside-lantern.example" },
+    { "key": "peopleManager", "role": "people_manager", "email": "people-manager@riverside-lantern.example" },
+    { "key": "hrAdmin", "role": "hr_admin", "email": "hr-admin@riverside-lantern.example" },
+    { "key": "payrollPreparer", "role": "payroll_preparer", "email": "payroll-preparer@riverside-lantern.example" },
+    { "key": "payrollApprover", "role": "payroll_approver", "email": "payroll-approver@riverside-lantern.example" },
+    { "key": "purchasingOperator", "role": "purchasing_operator", "email": "purchasing-operator@riverside-lantern.example" },
+    { "key": "purchasingManager", "role": "purchasing_manager", "email": "purchasing-manager@riverside-lantern.example" },
+    { "key": "purchasingReviewer", "role": "purchasing_manager", "email": "purchasing-reviewer@riverside-lantern.example" },
+    { "key": "warehouseManager", "role": "warehouse_manager", "email": "warehouse-manager@riverside-lantern.example" },
+    { "key": "treasury", "role": "treasury", "email": "treasury@riverside-lantern.example" }
   ],
   "exampleBankEvidence": {
     "statementNumber": "SANDBOX-STMT-001",

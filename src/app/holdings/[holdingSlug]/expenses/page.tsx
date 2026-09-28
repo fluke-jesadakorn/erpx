@@ -39,7 +39,7 @@ export default async function Expenses({
         title="Employee expenses"
         description="Claim business costs, review receipts, post the obligation, and track reimbursement."
       /><FeatureTabs/><WidgetGrid pageKey="finance-expenses">
-      <Link className="button" href={`${base}/work?type=expense&new=expense`}>
+      <Link className="button" href={`${base}/expenses/new`}>
         New expense claim
       </Link>
       <form className="business-form" action={`${base}/expenses`}>

@@ -97,7 +97,9 @@ test("desktop and mobile navigation place live business destinations correctly",
     await nav.getByRole("button", { name: "Expand Operations" }).click();
     await expect(nav.getByRole("button", { name: "Collapse Operations" })).toHaveAttribute("aria-expanded", "true");
     await expect(nav.getByRole("button", { name: "Expand People & organization" })).toHaveAttribute("aria-expanded", "false");
-    await expect(nav.getByRole("link", { name: "Sales & purchasing", exact: true })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "All projects", exact: true })).toBeVisible();
+    await nav.getByRole("button", { name: "Expand Procurement" }).click();
+    await expect(nav.getByRole("link", { name: "Suppliers", exact: true })).toBeVisible();
     await page.reload();
     await expect(nav.getByRole("button", { name: "Collapse People & organization" })).toHaveAttribute("aria-expanded", "true");
     await nav.getByRole("button", { name: "Collapse sidebar" }).click();
@@ -114,7 +116,7 @@ test("desktop and mobile navigation place live business destinations correctly",
   await moreButton.click();
   const more = page.getByRole("dialog", { name: "App launcher", exact: true });
   await expect(more).toBeVisible();
-  for (const heading of ["People & organization", "Operations", "Finance", "Management", "System"])
+  for (const heading of ["People & organization", "CRM", "Sales", "Procurement", "Inventory", "Operations", "Finance", "Management", "System"])
     await expect(more.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   await expect(more.getByRole("link", { name: "People", exact: true })).toBeVisible();
   await expect(more.getByRole("link", { name: "People directory", exact: true })).toHaveCount(0);
@@ -122,10 +124,10 @@ test("desktop and mobile navigation place live business destinations correctly",
   const launcherSearch = more.getByRole("searchbox", { name: "Search apps and pages" });
   for (const [query, name, href] of [
     ["roster", /Roster.*People/, /\/people\/roster$/],
-    ["suppliers", /Customers & suppliers.*Sales & purchasing/, /\/commerce\?view=parties$/],
+    ["suppliers", /Suppliers.*Procurement/, /\/commerce\?view=parties&kind=supplier$/],
     ["bank reconciliation", /Bank reconciliation.*Finance/, /\/finance\/bank$/],
     ["contracts", /Legal.*Management/, /\/legal$/],
-    ["gpo", /Directory & GPO.*Technology/, /\/technology\?view=directory$/],
+    ["gpo", /Organization & Access.*Technology/, /\/technology\?view=organization$/],
   ] as const) {
     await launcherSearch.fill(query);
     await expect(more.getByRole("link", { name })).toHaveAttribute("href", href);

@@ -1,5 +1,5 @@
 import registry from "../src/data/module-registry.json";
-import { businessAcceptanceManifest } from "../src/data/business-acceptance";
+import { reviewedCapabilityManifest } from "../src/data/capability-gate-reviews";
 import { validateAcceptanceEvidence } from "../src/data/acceptance-evidence";
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
@@ -10,6 +10,7 @@ import {
 } from "../src/data/capability-delivery";
 
 const evidenceLedger = validateAcceptanceEvidence(JSON.parse(readFileSync("docs/status/business-acceptance-evidence.json", "utf8")));
+const capabilitiesWithReviews = reviewedCapabilityManifest(JSON.parse(readFileSync("docs/status/capability-gate-reviews.json", "utf8")));
 const evidenceRoot = resolve("docs/testing/evidence") + sep;
 for (const record of evidenceLedger.records) {
   for (const evidence of record.evidence) {
@@ -55,7 +56,7 @@ const lines = [
   "# ERPX capability delivery matrix",
   "",
   "Generated from `src/data/module-registry.json` and `src/data/capability-delivery.ts`. Includes Legal. See business-acceptance-manifest.json for independent acceptance gates.",
-  "Generic record CRUD and preview pages do not qualify as domain implementation. Registry status alone does not constitute production sign-off.",
+  "Generic record CRUD and preview pages do not qualify as domain implementation. Registry status alone does not constitute production sign-off. This is an inventory, not the launch scope; see [the current production plan](../production-plan.md).",
   "",
   "## Status rules",
   "",
@@ -94,9 +95,9 @@ const lines = [
 
 await writeOrCheck("docs/status/capability-delivery-matrix.md", lines.join("\n"));
 await writeOrCheck("docs/status/business-acceptance-manifest.json", JSON.stringify({
-  scope: "S01-S21; simulation first; live rollout awaits Company inputs and independent sign-off",
-  note: "Gate defaults are pending. Historical status, test paths and scoped observations do not attest an entire capability. Evidence is preserved separately in business-acceptance-evidence.json and checksum-validated before generation; generation never promotes a gate.",
-  capabilities: businessAcceptanceManifest().map(capability => ({ ...capability,
+  scope: "Reference inventory S01-S21; current release scope is docs/production-plan.md",
+  note: "Gate defaults are pending; explicit reviews come from capability-gate-reviews.json. Observations never promote gates. Company release acceptance is stored separately in PostgreSQL and cannot be granted by this generator.",
+  capabilities: capabilitiesWithReviews.map(capability => ({ ...capability,
     evidenceRecordIds: evidenceLedger.records.filter(record => record.capabilityIds.includes(capability.id)).map(record => record.id),
   })),
 }, null, 2) + "\n");
@@ -106,6 +107,6 @@ console.log(`${checkOnly?"Verified":"Wrote"} ${capabilities.length} capabilities
 // This is workspace simulation evidence, never a Company production sign-off.
 await writeOrCheck("src/data/business-readiness.generated.json", JSON.stringify({
   evidenceLedgerSha256:createHash("sha256").update(readFileSync("docs/status/business-acceptance-evidence.json")).digest("hex"),
-  capabilities:businessAcceptanceManifest(),
+  capabilities:capabilitiesWithReviews,
   observations:evidenceLedger.records,
 },null,2)+"\n");

@@ -120,6 +120,7 @@ export type PermissionActor = {
     principalId: string;
     personId: string | null;
     personUserIds?: string[];
+    hrAppointmentVersion?: number;
     emergencyUntil?: number | null;
     freshUntil: number | null;
   };

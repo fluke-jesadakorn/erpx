@@ -26,6 +26,8 @@ it('shows the effective production state on disabled module entry points',()=>{
   expect(cut('commerce')).toMatchObject({id:'sales',state:'Coming Soon'});
   expect(cut('commerce','view=unknown')).toMatchObject({id:'sales',state:'Coming Soon'});
   expect(cut('commerce','view=stock')).toMatchObject({id:'inventory',state:'Coming Soon'});
+  expect(cut('commerce','view=parties&kind=customer')).toMatchObject({id:'crm',state:'Coming Soon'});
+  expect(cut('commerce','view=parties&kind=supplier')).toBeNull();
   expect(cut('stock-counts')).toMatchObject({id:'inventory',state:'Coming Soon'});
   expect(cut('finance/bank')).toMatchObject({id:'finance',state:'Coming Soon'});
   expect(cut('staff-tasks')).toMatchObject({id:'operations',state:'Coming Soon'});

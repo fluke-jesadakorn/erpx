@@ -5,12 +5,13 @@ import type { PermissionActor } from "@/lib/iam";
 import type { SqlDatabase, SqlStatement } from "./runtime/types";
 import type { FlowKind, FlowPerson, FlowStep, FlowView } from "@/lib/flow";
 import { assertion, executeCommand, replayCommand } from "./commands";
-import { activeStaffSelect, companyAuthority, authorityGuard, notification, requestRoute, type StaffActor, type RecordScope } from "./staff-policy";
+import { activeStaffSelect, companyAuthority, authorityGuard, notification, type StaffActor, type RecordScope } from "./staff-policy";
 import { expenseRoleUsers, expenseRoute, expensePoolCandidates, expenseAuthoritySnapshot, spendingStepCandidates, spendingUsers } from "./expense-routing";
 import type { ApprovalInstance, ApprovalStep } from "./approvals";
 import { resolveServiceTeam, teamHandlers } from "./service-teams";
 import type { SavedApproval } from "./employee-requests";
 import { ApiError } from "./http";
+import { peopleRequestRoute } from "./department-authority";
 
 type Row = Record<string, string | number | null>;
 const tables: Record<FlowKind, string> = { expense: "finance_expenses", leave: "leave_requests", staff_task: "staff_tasks", request: "employee_requests", stock_count: "inventory_counts", transfer: "inventory_transfers", order: "commerce_orders", invoice: "finance_invoices", journal: "finance_journals", payroll: "hr_payroll_runs", record: "workspace_records" };
@@ -69,7 +70,18 @@ async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:Staf
     if (row.workflow_version !== 2) current = ({ draft: "draft", rejected: "draft", in_review: "department_approval", approved: "gl_posting", posted: "payment", reimbursed: "completed" } as Record<string,string>)[str(row.status)] ?? current;
     add("draft", "Prepare and submit claim", "requester", [draftOwner], draftOwner);
     const fresh = approvalSteps.length ? null : await expenseRoute(db, scope.company_id, owner, [str(row.prepared_by || row.created_by)],false,row.request_kind === "payment" ? "payment" : "expense");
+    const policyDepartments=approvalSteps.filter(s=>s.stage==="department_approval" && json<{departmentPolicyVersion?:number}>(s.route_snapshot_json??null,{}).departmentPolicyVersion!==undefined);
+    const proposedDepartments=fresh?.steps.filter(s=>s.stage==="department_approval" && s.snapshot?.departmentPolicyVersion!==undefined)??[];
+    if(policyDepartments.length || proposedDepartments.length){
+      for(const [index,s] of (policyDepartments.length?policyDepartments:proposedDepartments).entries()){
+        const saved="ordinal" in s?s as ApprovalStep:null;
+        const user=saved?.approver_user_id??("userId" in s?s.userId:"");
+        add(`department_approval_${index}`,`Department approval · step ${index+1}`,"personal_approver",user?[user]:[],user||undefined);
+      }
+      if(current==="department_approval")current=`department_approval_${instance?.current_step??0}`;
+    }
     for (const [index, key, label, role] of [[0,"department_approval","Approve business purpose","people_manager"],[1,"accounts_review","Prepare and check Debit / Credit","finance_preparer"],[2,"accounts_approval","Approve accounting preparation","finance_approver"]] as const) {
+      if(key==="department_approval" && (policyDepartments.length||proposedDepartments.length))continue;
       const saved = approvalSteps.find(s => s.stage === key) ?? (approvalSteps.some(s=>s.stage) ? undefined : approvalSteps[index]);
       const proposed = fresh?.steps.find(s=>s.stage===key);
       if (key === "department_approval" && !saved && ((approvalSteps.length>0) || (fresh && !fresh.blockedReason && !proposed))) continue;
@@ -90,18 +102,24 @@ async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:Staf
   } else if (kind === "leave" || kind === "staff_task") {
     add("draft", "Prepare and submit", "requester", [draftOwner], draftOwner);
     if (kind === "leave") {
-      const route = approvalSteps.length ? null : await requestRoute(db, scope.company_id, owner, "leave");
+      const route = approvalSteps.length ? null : await peopleRequestRoute(db, scope.company_id, owner);
       const list = approvalSteps.length ? approvalSteps : (route?.steps ?? []).map((s, ordinal) => ({ ordinal, authority: s.authority, approver_user_id: s.userId }));
-      for (const s of list) add(`approval_${s.ordinal}`, s.authority === "hr_admin" ? "HR approval" : "Department approval", s.authority, [s.approver_user_id], s.approver_user_id);
+      for (const s of list){
+        const snapshot="route_snapshot_json" in s?json<{departmentPolicyVersion?:number;appointedPersonId?:string}>((s as ApprovalStep).route_snapshot_json??null,{}):route?.steps[s.ordinal]?.snapshot;
+        add(`approval_${s.ordinal}`,s.authority==="hr_admin"?"HR approval":"Department approval",snapshot && (snapshot.departmentPolicyVersion!==undefined || snapshot.appointedPersonId)?"personal_approver":s.authority,[s.approver_user_id],s.approver_user_id);
+      }
       current = current === "pending_approval" ? `approval_${instance?.current_step ?? 0}` : current === "rejected" ? "draft" : current;
       terminal ||= current === "approved";
     } else {
       const start = json<string[]>(row.start_approvers_json, []), complete = json<string[]>(row.completion_approvers_json, []);
-      start.forEach((id,i) => add(`start_${i}`, "Approve task start", "personal_approver", [id], id));
+      const assigned=approvalSteps.some(s=>json<{departmentPolicyVersion?:number}>(s.route_snapshot_json??null,{}).departmentPolicyVersion!==undefined);
+      const startSteps=assigned&&instance?.phase==="start"?approvalSteps.map(s=>s.approver_user_id):start;
+      startSteps.forEach((id,i) => add(`start_${i}`,assigned&&instance?.phase==="start"&&approvalSteps[i]?.stage==="department_approval"?"Department approval":"Approve task start", "personal_approver", [id], id));
       const delegation = await db.prepare("SELECT delegate_user_id FROM staff_task_delegations WHERE company_id=? AND task_id=? AND status='active' AND starts_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint ORDER BY created_at DESC,id DESC LIMIT 1").bind(scope.company_id,row.id).first<{delegate_user_id:string}>();
       const workOwner = delegation?.delegate_user_id ?? str(row.assignee_user_id);
       add("work", "Start / complete assigned work", "assignee", [workOwner], workOwner);
-      complete.forEach((id,i) => add(`completion_${i}`, "Approve task completion", "personal_approver", [id], id));
+      const completionSteps=assigned&&instance?.phase==="completion"?approvalSteps.map(s=>s.approver_user_id):complete;
+      completionSteps.forEach((id,i) => add(`completion_${i}`,assigned&&instance?.phase==="completion"&&approvalSteps[i]?.stage==="department_approval"?"Department approval":"Approve task completion", "personal_approver", [id], id));
       current = current === "start_approval" ? `start_${instance?.current_step ?? 0}` : current === "completion_approval" ? `completion_${instance?.current_step ?? 0}` : ["ready","in_progress","rework"].includes(current) ? "work" : current;
       // Rerouted named approvals remain authoritative.
       for (const s of approvalSteps) { const d = steps.find(d => d.key === `${instance?.phase}_${s.ordinal}`); if (d) { d.ids = [s.approver_user_id]; d.preferred = s.approver_user_id; } }
@@ -110,7 +128,8 @@ async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:Staf
     add("draft", "Prepare and submit request", "requester", [draftOwner], draftOwner);
     if (row.kind !== "service") {
       const approval = json<SavedApproval>(row.approval_json, {});
-      const strict = approval.route?.steps.some(s=>s.snapshot?.spendingPolicy);
+      const strict = approval.route?.steps.some(s=>s.snapshot?.spendingPolicy || s.snapshot?.departmentPolicyVersion!==undefined);
+      const policy = approval.route?.steps.some(s=>s.snapshot?.departmentPolicyVersion!==undefined);
       const fresh = !approval.route && row.kind==="purchase" ? await expenseRoute(db,scope.company_id,owner,[str(row.created_by)],false,"purchase") : null;
       if(strict || fresh) {
         const route=approval.route??fresh!;
@@ -118,9 +137,9 @@ async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:Staf
         for(const [index,step] of route.steps.entries()){
           const decision=approval.decisions?.find(d=>d.stage===step.stage);
           const pool=decision?[decision.userId]:await spendingStepCandidates(db,scope,owner,[str(row.created_by)],step,(approval.decisions??[]).filter(d=>route.steps.findIndex(s=>s.stage===d.stage)<index).map(d=>d.userId));
-          add(`purchase_${step.stage}`,labels[step.stage!]??"Approve spending",step.requiredRole??"people_manager",pool,decision?.userId);
+          add(policy?`purchase_${index}`:`purchase_${step.stage}`,labels[step.stage!]??"Approve spending",step.snapshot?.departmentPolicyVersion!==undefined?"personal_approver":step.requiredRole??"people_manager",pool,decision?.userId??step.userId);
         }
-        if(current==="awaiting_approval")current=`purchase_${route.steps[approval.currentStep??0]?.stage}`;
+        if(current==="awaiting_approval")current=policy?`purchase_${approval.currentStep??0}`:`purchase_${route.steps[approval.currentStep??0]?.stage}`;
       }else{
         const route=await expenseRoute(db,scope.company_id,owner,[str(row.created_by)],true);
         add("awaiting_approval","Approve department request","people_manager",(route.steps[0]?.candidateUserIds??[]).filter(id=>!approval.pool||approval.pool.includes(id)));
@@ -192,7 +211,9 @@ async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:Staf
     add("calculate", "Calculate payroll preview", "payroll_preparer", await roles(["payroll_preparer","hr_admin"]));
     add("preview", "Review payroll preview", "payroll_approver", await roles(["payroll_approver","people_manager"], true));
     add("approved", "Post payroll GL and prepare payment", "finance_approver", await roles(["finance_approver","holding_owner"], true));
-    add("posted", "Prepare payroll payment batch", "finance_approver", await roles(["finance_approver"], true));
+    // Treasury is an eligible preparer too; company routing defaults may place
+    // this step with Treasury before the independent Finance/Treasury review.
+    add("posted", "Prepare payroll payment batch", "finance_approver", await roles(["finance_approver", "treasury"], true));
     const paymentApprovers = await roles(["finance_approver","treasury"], true);
     // Keep the candidate array identity returned by roles(). The allowed-role
     // metadata is keyed by that array, so filtering in place preserves both
@@ -275,7 +296,7 @@ async function readFlow(db: SqlDatabase, actor: StaffActor, kind: FlowKind, id: 
   const steps: FlowStep[] = d.steps.map(s => {
     const candidates = [...new Set(s.ids.map(id=>identities.get(id)??id))].flatMap(userId => known.has(userId) ? [known.get(userId)!] : []);
     const configured = defaults.find(v => v.step_key === s.key);
-    const authoritative = (kind === "leave" || kind === "staff_task" || kind === "journal" || kind === "request" && s.key === "in_progress") ? s.preferred : undefined;
+    const authoritative = (kind === "leave" || kind === "staff_task" || kind === "journal" || s.role==="personal_approver" || kind === "request" && s.key === "in_progress") ? s.preferred : undefined;
     const selected = authoritative ?? saved[s.key]?.primaryUserId ?? s.preferred ?? configured?.primary_user_id ?? (candidates.length === 1 ? candidates[0].userId : null);
     const primary = candidates.find(p => p.userId === (selected?identities.get(selected)??selected:null)) ?? null;
     const status = !d.terminal && s.key === d.current ? "current" : history.some(e => e.step === s.key && !["assign","configure"].includes(e.action)) || d.approvalSteps.some(a => (a.stage === s.key || `approval_${a.ordinal}` === s.key) && a.state === "approved") ? "recorded" : "upcoming";
@@ -309,7 +330,10 @@ export async function prepareFlowCommand(db: SqlDatabase, actor: StaffActor, key
   }
   // Cancellation, rerouting and comments retain their stricter domain-specific policy.
   const administrative = ["cancel","reverse","reopen","comment","repair","reroute"].includes(action.split(".").at(-1)!);
-  if (!administrative && !view.canAct) throw new ApiError(view.blocker ? 409 : 403,"FLOW_PRIMARY_REQUIRED",view.blocker ?? `This action belongs to ${view.current?.primary?.name ?? "the responsible staff member"}.`);
+  const override=typeof input==="object" && input!==null && (input as {override?:boolean}).override===true;
+  const overrideAllowed=override && (["expense","leave"].includes(kind) && (await (await import("./approvals")).approvalView(db,kind as "expense"|"leave",id,actor)).canOverride
+    || kind==="request" && await (await import("./employee-requests")).canOverrideEmployeeRequest(db,actor,await (await import("./employee-requests")).readRequestForOverride(db,actor.companyId,id)));
+  if (!administrative && !view.canAct && !overrideAllowed) throw new ApiError(view.blocker ? 409 : 403,"FLOW_PRIMARY_REQUIRED",view.blocker ?? `This action belongs to ${view.current?.primary?.name ?? "the responsible staff member"}.`);
   const reason = typeof input === "object" && input !== null ? String((input as Record<string,unknown>).reason ?? (input as Record<string,unknown>).note ?? "") : "";
   const person = await db.prepare("SELECT legal_name FROM hr_people WHERE company_id=? AND user_id=? AND merged_into_id IS NULL").bind(actor.companyId,actor.userId).first<{legal_name:string}>();
   const steps: SqlStatement[] = [snap.guard(key,"flow-authority"),...await routeStatements(db,actor,key,view),db.prepare("INSERT INTO flow_events(id,command_id,company_id,kind,record_id,step_key,action,actor_user_id,actor_name,reason,record_version,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(),key,actor.companyId,kind,id,view.current?.key ?? view.state,action,actor.userId,person?.legal_name ?? actor.userId,reason,version,Date.now())];
@@ -320,7 +344,7 @@ export async function prepareFlowCommand(db: SqlDatabase, actor: StaffActor, key
   // The owner update is committed between the guards and this durable notification.
   const stateColumn = ["leave","staff_task","request","order"].includes(kind) ? "state" : "status";
   const approvalIndex = `(SELECT current_step FROM approval_instances WHERE company_id=d.company_id AND record_id=d.id ORDER BY insertion_order DESC LIMIT 1)`;
-  const state = kind === "expense" ? "CASE WHEN d.workflow_version=2 THEN d.workflow_stage ELSE CASE d.status WHEN 'in_review' THEN 'department_approval' WHEN 'approved' THEN 'gl_posting' WHEN 'posted' THEN 'payment' WHEN 'rejected' THEN 'draft' ELSE d.status END END" : kind === "leave" ? `CASE WHEN d.state='pending_approval' THEN 'approval_' || (${approvalIndex})::text ELSE d.state END` : kind === "staff_task" ? `CASE WHEN d.state IN ('ready','in_progress','rework') THEN 'work' WHEN d.state='start_approval' THEN 'start_' || (${approvalIndex})::text WHEN d.state='completion_approval' THEN 'completion_' || (${approvalIndex})::text ELSE d.state END` : kind === "request" ? "CASE WHEN d.state IN ('resolved','fulfilled') THEN 'confirm' WHEN d.state='returned' THEN 'draft' WHEN d.state='awaiting_approval' AND d.approval_json::jsonb #>> '{route,steps,0,snapshot,spendingPolicy}' IS NOT NULL THEN 'purchase_' || (d.approval_json::jsonb #> '{route,steps}' -> COALESCE((d.approval_json::jsonb ->> 'currentStep')::int,0) ->> 'stage') ELSE d.state END" : kind === "invoice" ? "CASE WHEN d.status='partially_paid' THEN 'posted' ELSE d.status END" : kind === "order" ? "CASE WHEN d.state='partially_fulfilled' THEN 'confirmed' WHEN d.state='fulfilled' AND EXISTS(SELECT 1 FROM commerce_fulfillments f JOIN finance_journals j ON j.id=f.journal_id WHERE f.order_id=d.id AND j.status IN ('draft','in_review')) THEN 'stock_gl' WHEN d.state='fulfilled' AND EXISTS(SELECT 1 FROM commerce_fulfillments f WHERE f.order_id=d.id AND f.invoice_id IS NULL) THEN 'invoicing' ELSE d.state END" : kind === "payroll" ? "CASE WHEN d.status='posted' THEN COALESCE((SELECT CASE status WHEN 'draft' THEN 'payment_draft' WHEN 'approved' THEN 'payment_approved' WHEN 'exported' THEN 'payment_exported' WHEN 'partially_settled' THEN 'payment_partially_settled' WHEN 'settled' THEN 'payment_settled' ELSE 'posted' END FROM hr_payment_batches WHERE company_id=d.company_id AND source_type='payroll' AND source_id=d.id AND status<>'cancelled' ORDER BY created_at DESC,id DESC LIMIT 1),'posted') ELSE d.status END" : `d.${stateColumn}`;
+  const state = kind === "expense" ? `CASE WHEN d.workflow_stage='department_approval' AND EXISTS(SELECT 1 FROM approval_steps s JOIN approval_instances i ON i.id=s.instance_id WHERE i.record_type='expense' AND i.record_id=d.id AND i.company_id=d.company_id AND s.ordinal=${approvalIndex} AND jsonb_exists(s.route_snapshot_json::jsonb,'departmentPolicyVersion')) THEN 'department_approval_' || (${approvalIndex})::text WHEN d.workflow_version=2 THEN d.workflow_stage ELSE CASE d.status WHEN 'in_review' THEN 'department_approval' WHEN 'approved' THEN 'gl_posting' WHEN 'posted' THEN 'payment' WHEN 'rejected' THEN 'draft' ELSE d.status END END` : kind === "leave" ? `CASE WHEN d.state='pending_approval' THEN 'approval_' || (${approvalIndex})::text ELSE d.state END` : kind === "staff_task" ? `CASE WHEN d.state IN ('ready','in_progress','rework') THEN 'work' WHEN d.state='start_approval' THEN 'start_' || (${approvalIndex})::text WHEN d.state='completion_approval' THEN 'completion_' || (${approvalIndex})::text ELSE d.state END` : kind === "request" ? "CASE WHEN d.state IN ('resolved','fulfilled') THEN 'confirm' WHEN d.state='returned' THEN 'draft' WHEN d.state='awaiting_approval' AND d.approval_json::jsonb #>> '{route,steps,0,snapshot,departmentPolicyVersion}' IS NOT NULL THEN 'purchase_' || COALESCE((d.approval_json::jsonb ->> 'currentStep')::int,0)::text WHEN d.state='awaiting_approval' AND d.approval_json::jsonb #>> '{route,steps,0,snapshot,spendingPolicy}' IS NOT NULL THEN 'purchase_' || (d.approval_json::jsonb #> '{route,steps}' -> COALESCE((d.approval_json::jsonb ->> 'currentStep')::int,0) ->> 'stage') ELSE d.state END" : kind === "invoice" ? "CASE WHEN d.status='partially_paid' THEN 'posted' ELSE d.status END" : kind === "order" ? "CASE WHEN d.state='partially_fulfilled' THEN 'confirmed' WHEN d.state='fulfilled' AND EXISTS(SELECT 1 FROM commerce_fulfillments f JOIN finance_journals j ON j.id=f.journal_id WHERE f.order_id=d.id AND j.status IN ('draft','in_review')) THEN 'stock_gl' WHEN d.state='fulfilled' AND EXISTS(SELECT 1 FROM commerce_fulfillments f WHERE f.order_id=d.id AND f.invoice_id IS NULL) THEN 'invoicing' ELSE d.state END" : kind === "payroll" ? "CASE WHEN d.status='posted' THEN COALESCE((SELECT CASE status WHEN 'draft' THEN 'payment_draft' WHEN 'approved' THEN 'payment_approved' WHEN 'exported' THEN 'payment_exported' WHEN 'partially_settled' THEN 'payment_partially_settled' WHEN 'settled' THEN 'payment_settled' ELSE 'posted' END FROM hr_payment_batches WHERE company_id=d.company_id AND source_type='payroll' AND source_id=d.id AND status<>'cancelled' ORDER BY created_at DESC,id DESC LIMIT 1),'posted') ELSE d.status END" : `d.${stateColumn}`;
   const recipient = kind === "request" ? `CASE WHEN d.state='in_progress' THEN d.assignee_user_id ELSE r.steps_json::jsonb -> (${state}) ->> 'primaryUserId' END` : `r.steps_json::jsonb -> (${state}) ->> 'primaryUserId'`;
   const after = [db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)
     SELECT ?,d.company_id,${recipient},?,d.id,d.version,?,? FROM ${tables[kind]} d JOIN flow_routes r ON r.company_id=d.company_id AND r.kind=? AND r.record_id=d.id

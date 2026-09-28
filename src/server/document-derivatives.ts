@@ -5,6 +5,10 @@ import { assertion, executeCommand, replayCommand } from "./commands";
 import { expenseAiSource, expenseAiAllowed } from "./expense-ai-source";
 import { expenseAuthoritySnapshot } from "./expense-routing";
 import { sha256 } from "./crypto";
+import {
+  attachmentUploadsFrozen,
+  attachmentsV2ReadOnly,
+} from "./attachments/feature";
 export async function saveDocumentPage(
   db: SqlDatabase,
   files: FileStore,
@@ -18,6 +22,18 @@ export async function saveDocumentPage(
   },
   key: string,
 ) {
+  if (attachmentsV2ReadOnly())
+    throw new ApiError(
+      503,
+      "ATTACHMENTS_READ_ONLY",
+      "Attachment intake is disabled during rollback. Existing clean bound evidence remains readable.",
+    );
+  if (attachmentUploadsFrozen())
+    throw new ApiError(
+      503,
+      "ATTACHMENT_UPLOAD_FREEZE",
+      "File intake is briefly paused for storage reconciliation.",
+    );
   if (
     input.page < 1 ||
     input.page > input.pageCount ||
@@ -36,9 +52,12 @@ export async function saveDocumentPage(
     throw new ApiError(422, "PAGE_TYPE", "Rendered pages must be JPEG images.");
   const attachment = await db
     .prepare(
-      "SELECT * FROM attachments WHERE id=? AND revoked_at IS NULL AND owner_type IN ('expense_claim','expense_payment')",
+      `SELECT * FROM attachments
+       WHERE id=? AND company_id=? AND revoked_at IS NULL
+         AND source_state='available'
+         AND owner_type IN ('expense_claim','expense_payment')`,
     )
-    .bind(attachmentId)
+    .bind(attachmentId, actor.companyId)
     .first<{
       owner_type: string;
       owner_id: string;
@@ -143,8 +162,17 @@ export async function saveDocumentPage(
           db,
           key,
           "page-storage",
-          "COALESCE((SELECT SUM(declared_bytes) FROM upload_intents WHERE status NOT IN ('failed','expired')),0)+COALESCE((SELECT SUM(bytes) FROM attachment_derivatives WHERE company_id=?),0)+?<=COALESCE((SELECT storage_bytes FROM beta_policy WHERE company_id=?),9007199254740991)",
-          [actor.companyId, input.bytes.byteLength, actor.companyId],
+          `COALESCE((SELECT SUM(bytes) FROM attachment_storage_ledger
+             WHERE company_id=? AND state IN ('reserved','stored')),0)
+           +COALESCE((SELECT SUM(declared_bytes) FROM upload_intents
+             WHERE company_id=? AND status='pending' AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint),0)
+           +?<=COALESCE((SELECT storage_bytes FROM beta_policy WHERE company_id=?),9007199254740991)`,
+          [
+            actor.companyId,
+            actor.companyId,
+            input.bytes.byteLength,
+            actor.companyId,
+          ],
         ),
         db
           .prepare(
@@ -171,6 +199,18 @@ export async function saveDocumentPage(
             input.originalChecksum,
             input.bytes.byteLength,
             actor.userId,
+            now,
+          ),
+        db
+          .prepare(
+            "INSERT INTO attachment_storage_ledger(id,company_id,attachment_id,variant,object_key,bytes,state,created_at) VALUES(?,?,?,'derivative',?,?,'stored',?)",
+          )
+          .bind(
+            `attachment-storage-derivative-${id}`,
+            actor.companyId,
+            attachmentId,
+            objectKey,
+            input.bytes.byteLength,
             now,
           ),
       ],

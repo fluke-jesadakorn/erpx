@@ -68,5 +68,22 @@ try {
     await db.prepare("INSERT INTO people_roster_history(id,company_id,department_id,week_id,record_id,action,actor_id,reason,evidence_json,created_at) VALUES(?,'acme-co',?,?,?,'demo.seeded','local-demo-seed','Fictional roster examples','{}',?) ON CONFLICT DO NOTHING").bind(`${prefix}-complete`, manager.departmentId, w.id, w.id, Date.now()).run();
     summary.push({ department: dept, week: start, shifts: data.shifts.filter(s => s.week_id === w.id).length, requests: data.requests.map(r => r.state), url: `/holdings/acme/branches/bangkok/departments/${dept}/people/roster?week=${start}` });
   }
+  for (const dept of ["operations","warehouse"]) {
+    const manager=await actor(dept,"manager",true),departmentId=manager.departmentId!;
+    const nextStart=addDays(thisWeek,7);
+    const nextExisting=await db.prepare("SELECT id FROM people_roster_weeks WHERE company_id='acme-co' AND department_id=? AND week_start=?::date").bind(departmentId,nextStart).first();
+    if(!nextExisting) {
+      const source=await db.prepare("SELECT id FROM people_roster_weeks WHERE company_id='acme-co' AND department_id=? AND week_start=?::date AND state='published'").bind(departmentId,thisWeek).first<{id:string}>();
+      if(source) try { await rosterCommand(db,manager,{action:'week.create',departmentId,weekStart:nextStart,timezone:'Asia/Bangkok',copyWeekId:source.id},`demo-roster-v2-${dept}-${nextStart}-copy`); }
+      catch(error) { summary.push({department:dept,week:nextStart,state:'coverage gap; copy failed',reason:error instanceof Error?error.message:String(error)}); }
+    }
+    for(const weekStart of [thisWeek,addDays(thisWeek,7)]) {
+      const week=await db.prepare("SELECT id,state,version FROM people_roster_weeks WHERE company_id='acme-co' AND department_id=? AND week_start=?::date").bind(departmentId,weekStart).first<{id:string;state:string;version:number}>();
+      if(week?.state==='draft'&&(week.id.startsWith('roster-demo-roster-v1-')||week.id.startsWith('roster-demo-roster-v2-'))) {
+        try { await rosterCommand(db,manager,{action:'week.publish',id:week.id,expectedVersion:week.version},`${week.id}-seed-publish`); }
+        catch(error) { summary.push({department:dept,week:weekStart,state:'coverage gap',reason:error instanceof Error?error.message:String(error)}); }
+      } else if(!week) summary.push({department:dept,week:weekStart,state:'coverage gap; no future shift was fabricated'});
+    }
+  }
   console.log(JSON.stringify(summary, null, 2));
 } finally { await platform.dispose(); }

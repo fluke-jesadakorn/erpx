@@ -18,10 +18,11 @@
 }
 .header h1 {
   margin: 6px 0;
-  font-size: 32px;
+  font-size: var(--type-page);
 }
 .header p {
   color: var(--muted);
+  font-size: var(--type-body);
   margin: 0;
 }
 .metrics {
@@ -33,12 +34,14 @@
 .panel {
   border: 1px solid var(--line);
   background: var(--card);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   padding: 20px;
 }
 .metric strong {
   display: block;
   font-size: 28px;
+  color: var(--ink-strong);
+  font-weight: 700;
   margin-top: 8px;
 }
 .layout {
@@ -63,7 +66,7 @@
 .nav button[aria-current="true"] {
   background: var(--brand-soft);
   color: var(--brand-strong);
-  font-weight: 600;
+  font-weight: 700;
 }
 .toolbar,
 .actions {

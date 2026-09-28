@@ -1,0 +1,8 @@
+DatabaseDirectory /Library/Application Support/ERPX-Attachments/db
+DatabaseMirror database.clamav.net
+MaxAttempts 3
+Checks 24
+Foreground yes
+UpdateLogFile /Library/Application Support/ERPX-Attachments/log/freshclam.log
+LogTime yes
+LogRotate yes

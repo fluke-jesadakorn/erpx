@@ -6,7 +6,8 @@ import {
   type WorkCapabilities,
 } from "../src/lib/work-cards";
 import { workCardPreferenceSchema } from "../src/server/work-card-preferences";
-import { filterWork, type WorkItem } from "../src/lib/work-item";
+import { filterWork, workTypes, type WorkItem } from "../src/lib/work-item";
+import { workCardTone, workTypeTone } from "../src/lib/work-category-tone";
 import { betaDestinationAllowed } from "../src/server/beta-access";
 
 const base = "/holdings/acme/branches/bangkok";
@@ -52,6 +53,38 @@ it("shows draft-capable cards with zero work and omits actions that cannot be us
     incomplete: false,
     create: { kind: "expense" },
   });
+});
+it("offers My shifts only with roster access and includes it among default pins", () => {
+  const hidden = buildWorkCards(base, { items: [], unavailableSources: [] }, capabilities);
+  expect(hidden.some((card) => card.id === "shifts")).toBe(false);
+  const visible = buildWorkCards(base, { items: [], unavailableSources: [] }, { ...capabilities, rosterAccess: true });
+  expect(visible.find((card) => card.id === "shifts")).toMatchObject({
+    href: `${base}/people/roster?view=mine`,
+    create: null,
+  });
+  expect(defaultWorkCardIds(visible)).toContain("shifts");
+  expect(workCardTone.shifts).toBe("violet");
+});
+it("puts the four personal Home actions into authorized default pins", () => {
+  const cards = buildWorkCards(base, { items: [], unavailableSources: [] }, {
+    ...capabilities,
+    rosterAccess: true,
+    creation: [...capabilities.creation,
+      { kind: "leave", label: "Leave request", href: `${base}/leave` },
+      { kind: "overtime", label: "Overtime", href: `${base}/overtime` },
+      { kind: "purchase_request", label: "Purchase request", href: `${base}/work?new=purchase_request` },
+    ],
+  });
+  expect(defaultWorkCardIds(cards).slice(0, 4)).toEqual(["shifts", "leave", "overtime", "purchases"]);
+});
+it("assigns every Work type a stable family tone", () => {
+  const ids = workTypes.map(([id]) => id).filter((id) => id !== "all");
+  expect(Object.keys(workTypeTone).sort()).toEqual([...ids].sort());
+  expect(workTypeTone.expense).toBe("amber");
+  expect(workTypeTone.service_request).toBe("teal");
+  expect(workTypeTone.leave).toBe("violet");
+  expect(workTypeTone.purchase_request).toBe("green");
+  expect(workTypeTone.crm_lead).toBe("blue");
 });
 it("counts deduplicated records and matches each card's canonical destination filters", () => {
   const items = [

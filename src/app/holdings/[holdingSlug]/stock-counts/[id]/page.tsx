@@ -8,12 +8,12 @@ import { WorkReturn } from "@/components/workplace/work-return";
 import { minorToDecimal } from "@/lib/finance-money";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope,requireWorkContext } from "@/server/authorization";
-import { canEditCount,canReviewCount,countDetail,countOptions } from "@/server/inventory-counts";
+import { canEditCount,canPrepareCounts,canReviewCount,countDetail,countOptions } from "@/server/inventory-counts";
 import { pageError } from "@/server/page-error";
 import Link from "next/link";
 export const dynamic="force-dynamic";
 export default async function Count({params}:{params:Promise<{holdingSlug:string;id:string}>}){
- const {holdingSlug,id}=await params,actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor));const [{count,lines,lotLines,history,decisions},options]=await Promise.all([countDetail(actor,id).catch(e=>{return pageError(e, holdingSlug);}),countOptions(actor)]);
+ const {holdingSlug,id}=await params,actor=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(actor));const [detail,options]=await Promise.all([countDetail(actor,id).catch(e=>pageError(e,holdingSlug)),canPrepareCounts(actor)?countOptions(actor).catch(e=>pageError(e,holdingSlug)):Promise.resolve({warehouses:[],products:[],stock:[],lots:[],currency:""})]);const {count,lines,lotLines,history,decisions}=detail;
  const editable=canEditCount(actor,count),stale=lines.some(l=>Number(l.current_version)!==Number(l.snapshot_version))||lotLines.some(l=>Number(l.current_version)!==Number(l.snapshot_version));
  const flow = await documentFlow(actor,"stock_count",id);
   return <FeaturePage className="content-stack" data-source="live"><WorkReturn base={base}/><Link className="back-link" href={`${base}/stock-counts`}>← Physical stock counts</Link><div className="section-head"><div><p className="eyebrow">{String(count.number)}</p><h1>{String(count.warehouse_name)}</h1><p className="muted">{String(count.count_date)} · {String(count.reason)}</p></div><StatusBadge status={String(count.status)}/></div><FeatureTabs/><WidgetGrid pageKey="stock-counts-detail">

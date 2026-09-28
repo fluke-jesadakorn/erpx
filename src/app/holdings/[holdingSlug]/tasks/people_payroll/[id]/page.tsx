@@ -4,10 +4,19 @@ import styles from "@/components/leave/leave-flow.module.css";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import type { ApprovalView } from "@/server/approvals";
+import { ApprovalHistory } from "@/components/modules/approval-history";
+import { OperationSummary } from "@/components/workplace/operation-summary";
 import { getLeave } from "@/server/leave";
 import { leaveSummary } from "@/server/leave-self-service";
 import { pageError } from "@/server/page-error";
 import { getLeaveEvidence } from "@/server/work";
+import {
+  attachmentsV2Readable,
+  attachmentsV2ReadOnly,
+} from "@/server/attachments/feature";
+import { parseLeaveEvidencePolicy } from "@/server/leave-evidence";
+import { LeaveEvidencePanel } from "@/components/self-service/leave-evidence-panel";
+import { ApiError } from "@/server/http";
 
 function dateLabel(value: string | null | undefined) {
   if (!value) return "—";
@@ -24,24 +33,7 @@ function statusLabel(state: string, cancellationState?: string | null) {
   return state.replaceAll("_", " ");
 }
 function ApprovalHistoryDisclosure({ approval, title }: { approval: ApprovalView; title: string }) {
-  return (
-    <details className={styles.approvalHistory}>
-      <summary>{title} · {approval.history.length} {approval.history.length === 1 ? "action" : "actions"}</summary>
-      <div className={styles.approvalContents}>
-        {approval.currentApprover && <p className={styles.cancelNote}><strong>Current reviewer:</strong> {approval.currentApprover.approver_name}</p>}
-        {approval.instance && <p className={styles.cancelNote}>Cycle {approval.instance.cycle} · {approval.instance.phase} · {approval.instance.state}</p>}
-        {approval.steps.length > 0 && <ol>{approval.steps.map((step) => <li key={step.id}>{step.approver_name} · {step.authority === "hr_admin" ? "HR review" : "Named review"} · {step.state}{approval.currentApprover?.id === step.id ? " · current step" : ""}</li>)}</ol>}
-        {!approval.instance && <p className={styles.cancelNote}>The approval route is captured when the request is submitted.</p>}
-        {approval.history.map((entry) => (
-          <article key={entry.id}>
-            <strong>{entry.action} · {entry.actor_name}</strong>
-            <p>{entry.reason || "No additional note"}</p>
-            <small>Reviewed version {entry.reviewed_version} · {new Date(entry.created_at).toISOString().replace("T", " ").slice(0, 19)} UTC</small>
-          </article>
-        ))}
-      </div>
-    </details>
-  );
+  return <ApprovalHistory approval={approval} title={title}/>;
 }
 function nextAction(request: Awaited<ReturnType<typeof getLeave>>) {
   if (request.permittedActions.includes("save"))
@@ -70,12 +62,18 @@ export default async function LeaveTaskPage({
   const actor = await requireWorkContext(holdingSlug);
   const base = workspaceBase(publicScope(actor));
   const request = await getLeave(actor.holdingId, id, actor).catch((error) => pageError(error, holdingSlug));
-  const evidence = await getLeaveEvidence(actor.holdingId, id, actor);
+  const evidence = await getLeaveEvidence(actor.holdingId, id, actor).catch((error) => {
+    if (error instanceof ApiError && error.status === 403) return null;
+    throw error;
+  });
   const editable = request.permittedActions.includes("save");
   const summary = editable ? await leaveSummary(actor) : null;
   const approval = request.cancellationApproval ?? request.approval;
+  const evidencePolicy = parseLeaveEvidencePolicy(request.evidence_policy_snapshot);
+  const attachmentPlatform = attachmentsV2Readable();
+  const attachmentReadOnly = attachmentsV2ReadOnly();
   return (
-    <main className={"content " + styles.leavePage}>
+    <div className={"content " + styles.leavePage}>
       <div className={styles.detailFooter}><Link href={base + "/leave"}>← My leave</Link></div>
       <header className={styles.detailHeader}>
         <div>
@@ -86,10 +84,7 @@ export default async function LeaveTaskPage({
         <span className={styles.detailStatus}>{statusLabel(request.state, request.cancellation_state)}</span>
       </header>
 
-      <section className={styles.focusBox} aria-labelledby="leave-next-action">
-        <h2 id="leave-next-action">{editable ? "Continue your request" : request.permittedActions.some((action) => ["approve", "reject", "approve_cancellation", "reject_cancellation"].includes(action)) ? "Your next action" : "Request status"}</h2>
-        <p>{nextAction(request)}</p>
-      </section>
+      <OperationSummary operation={{status:request.state,responsible:approval.currentApprover?.approver_name??"Requester",currentStep:approval.currentApprover?`${approval.currentApprover.stage?.replaceAll("_"," ")??"Approval"} · step ${approval.currentApprover.ordinal+1}`:null,nextAction:nextAction(request),blockedReason:approval.blockedReason,dueAt:null,recordHref:null,actionKind:request.permittedActions.some(action=>["approve","reject","approve_cancellation","reject_cancellation"].includes(action))?"approval":"work"}}/>
 
       {request.cancellation_state === "pending_review" && (
         <p className={styles.detailMessage}><strong>Approved leave remains in effect.</strong> The cancellation takes effect only after the required manager and independent HR reviews.</p>
@@ -120,9 +115,21 @@ export default async function LeaveTaskPage({
           base={base}
           record={request}
           types={summary.balances}
-          evidencePresent={evidence.length > 0}
+          evidencePresent={Boolean(evidence?.some((file) => file.source_state === "available"))}
+          externalEvidence={attachmentPlatform}
         />
       )}
+
+      {evidence && <LeaveEvidencePanel
+        base={base}
+        requestId={request.id}
+        requestVersion={request.version}
+        evidencePolicy={evidencePolicy}
+        initialFiles={evidence}
+        canWrite={!attachmentReadOnly && request.created_by === actor.userId && ["draft", "rejected", "pending_approval"].includes(request.state)}
+        enabled={attachmentPlatform}
+      />}
+      {!evidence && <p className={styles.detailMessage}>Private leave evidence is hidden because you are not the current reviewer, a recorded decision maker, the requester, or authorized HR.</p>}
 
       <LeaveDecisions key={"decisions:" + id + ":" + request.version} base={base} record={request} />
 
@@ -131,12 +138,6 @@ export default async function LeaveTaskPage({
         <ApprovalHistoryDisclosure approval={request.approval} title="Original approval history" />
       )}
 
-      <details className={styles.approvalHistory + " " + styles.evidenceList}>
-        <summary>Private supporting evidence · {evidence.length}</summary>
-        {evidence.length
-          ? evidence.map((file) => <a key={file.id} href={"/api/v1" + base + "/attachments/" + file.id + "/content"}><span>{file.original_name}</span><strong>Download</strong></a>)
-          : <p>No evidence is attached.</p>}
-      </details>
-    </main>
+    </div>
   );
 }

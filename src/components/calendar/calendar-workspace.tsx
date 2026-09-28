@@ -16,8 +16,10 @@ type CalendarQuery,
 import { addDays,rosterMonday,type RosterData } from "@/lib/people-roster";
 import { localDateTimeToInstant, localMinuteAt, moveInclusiveRange } from "@/lib/calendar-timeline";
 import { workFetch } from "@/lib/work-fetch";
+import { formatUiDateTime, uiLocale } from "@/lib/ui-format";
 import {
 CalendarDays,
+AlertCircle,
 ChevronLeft,
 ChevronDown,
 ChevronRight,
@@ -44,6 +46,7 @@ layerNames,
 } from "./calendar-event";
 import { CalendarForm,type CalendarEditor } from "./calendar-forms";
 import { CalendarDayTimeline } from "./calendar-day-timeline";
+import { PersonalTimeGrid } from "./personal-time-grid";
 import { MonthGrid } from "./month-grid";
 import { MonthNavigation } from "./month-navigation";
 import styles from "./calendar.module.css";
@@ -51,7 +54,7 @@ const label = (
   date: string,
   options: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" },
 ) =>
-  new Intl.DateTimeFormat("en", { ...options, timeZone: "UTC" }).format(
+  new Intl.DateTimeFormat(uiLocale, { ...options, timeZone: "UTC" }).format(
     new Date(`${date}T12:00:00Z`),
   );
 function queryString(q: CalendarQuery) {
@@ -80,6 +83,7 @@ function CalendarView({
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
+  const [accounts,setAccounts]=useState<{id:string;name:string;email:string}[]>([]);
   const [selected, setSelected] = useState<CalendarItem | null>(
       initial.items.find(
         (i) => i.id === initialEvent || i.sourceId === initialEvent,
@@ -91,6 +95,7 @@ function CalendarView({
     [dateDrop, setDateDrop] = useState<string | null>(null),
     [dateDragging, setDateDragging] = useState<string | null>(null),
     [pendingShift, setPendingShift] = useState<{ item: CalendarItem; change: { startsAt: number; endsAt: number } } | null>(null);
+  const [editScope,setEditScope]=useState<"single"|"future"|"series">("single");
   const qRef = useRef(initial.query),
     receipt = useRef<{ body: string; key: string } | null>(null),
     requestSeq = useRef(0),
@@ -156,6 +161,9 @@ function CalendarView({
     [api, base],
   );
   useEffect(() => {
+    void workFetch(`/api/v1${base}/inbox/people`).then(r=>r.json()).then(j=>setAccounts(Array.isArray(j.data)?j.data:[])).catch(()=>{});
+  },[base]);
+  useEffect(() => {
     const refresh = () => {
       if (document.visibilityState === "visible")
         void load({ ...qRef.current, cursor: 0 });
@@ -213,6 +221,7 @@ function CalendarView({
   }
   function open(item: CalendarItem) {
     setSelected(item);
+    setEditScope(item.occurrenceId?"single":"series");
     setError("");
     setMessage("");
     const url = new URL(window.location.href);
@@ -299,14 +308,16 @@ function CalendarView({
       return;
     }
     if (item.kind === "appointment") {
-      const start = localMinuteAt(change.startsAt, q.timezone), end = localMinuteAt(change.endsAt, q.timezone);
+      const zone=item.allDay?item.timezone:q.timezone;
+      const start = localMinuteAt(change.startsAt, zone), end = localMinuteAt(change.endsAt, zone);
       void sendReschedule(item, optimistic, {
         action: "appointment.reschedule",
         id: item.sourceId,
         expectedVersion: item.version,
         startLocal: `${start.date}T${start.time}`,
         endLocal: `${end.date}T${end.time}`,
-        timezone: q.timezone,
+        timezone: zone,
+        ...(item.occurrenceId?{occurrenceId:item.occurrenceId,scope:editScope}:{}),
       });
     } else if (item.kind === "shift") {
       const start = localMinuteAt(change.startsAt, item.timezone), end = localMinuteAt(change.endsAt, item.timezone);
@@ -576,7 +587,12 @@ function CalendarView({
       );
   const byDate = new Map(days.map((day) => [day, itemsForDate(day)]));
   const daily = (date: string) => byDate.get(date) ?? [];
-  const attention = data.items.filter((i) => i.warnings.length),
+  const attentionDateKey = (item: CalendarItem) => item.startDate ?? (item.startsAt === null ? "\uffff" : localMinuteAt(item.startsAt, q.timezone).date);
+  const attention = data.items.filter((i) => i.warnings.length).sort((a, b) => {
+    const aDate = attentionDateKey(a), bDate = attentionDateKey(b);
+    if (aDate !== bDate) return aDate.localeCompare(bDate);
+    return (a.startsAt ?? 0) - (b.startsAt ?? 0) || a.title.localeCompare(b.title) || a.id.localeCompare(b.id);
+  }),
     unscheduled = data.items.filter((i) => !i.startDate && i.startsAt === null);
   const move = (direction: number) => {
     if (q.view === "month") {
@@ -588,6 +604,7 @@ function CalendarView({
   };
   const failedSources = data.sources.filter((source) => source.status === "error"),
     hasMoreResults = data.nextCursor !== null,
+    attentionIsPartial = hasMoreResults || failedSources.length > 0,
     filterSummary = [
       `${q.layers.split(",").length} ${q.layers.split(",").length === 1 ? "layer" : "layers"}`,
       q.timezone,
@@ -602,7 +619,7 @@ function CalendarView({
         description="See your schedule, team plans and coverage in one place."
         action={
           <div className={styles.headerActions}>
-            <div className={styles.presetSwitch} role="group" aria-label="Calendar scope">
+            <div className={styles.presetSwitch} role="group" aria-label="Calendar view">
               {([
                 ["mine", "My"],
                 ["team", "Team"],
@@ -626,7 +643,7 @@ function CalendarView({
                 <div className={styles.createMenuItems}>
                   {data.canSchedule && <>
                     <button type="button" onClick={() => setEditor({kind:"appointment"})}>New appointment</button>
-                    <button type="button" onClick={() => setEditor({kind:"task"})}>New task</button>
+                    {data.selfPersonId&&<Link href={`${base}/staff-tasks/new?dueDate=${encodeURIComponent(q.date)}`}>New task</Link>}
                   </>}
                   {data.canAnnounce && <button type="button" onClick={() => setEditor({kind:"announcement"})}>New announcement</button>}
                   {data.canManageRoster && <button type="button" onClick={() => void openRoster()}>Plan roster</button>}
@@ -844,16 +861,41 @@ function CalendarView({
             )}
           </div>
           {attention.length > 0 && (
-            <details className={styles.attention}>
-              <summary>{attention.length} items need attention</summary>
-              {attention.map((i) => (
-                <button key={i.id} onClick={() => open(i)}>
-                  {i.title} · {i.warnings.join(" ")}
-                </button>
-              ))}
+            <details className={styles.attentionPanel} data-calendar-attention>
+              <summary>
+                <span className={styles.attentionIcon}><AlertCircle size={18} aria-hidden="true" /></span>
+                <span className={styles.attentionHeading}>
+                  <span className={styles.attentionTitle}>Needs attention <span className={styles.attentionCount}>{attention.length}{attentionIsPartial ? " loaded" : ""}</span></span>
+                  <span className={styles.attentionPreview}>{attention[0].title}{attention.length > 1 ? ` · +${attention.length - 1} more` : ""}</span>
+                </span>
+                <span className={styles.attentionToggle}><span className={styles.attentionViewAll}>View all</span><span className={styles.attentionHide}>Hide list</span><ChevronDown size={16} aria-hidden="true" /></span>
+              </summary>
+              <ul className={styles.attentionList}>
+                {attention.map((item) => {
+                  const date = item.startDate ?? (item.startsAt === null ? null : localMinuteAt(item.startsAt, q.timezone).date);
+                  const people = item.participants.map((person) => person.name).filter(Boolean);
+                  const context = [...people, ...(item.owner && !people.includes(item.owner) ? [item.owner] : [])].join(" · ");
+                  return <li key={item.id}>
+                    <button type="button" onClick={() => open(item)}>
+                      <span className={styles.attentionRowMain}>
+                        <strong>{item.title}</strong>
+                        <span className={styles.attentionReason}>{item.warnings.join(" · ")}</span>
+                        {context && <span className={styles.attentionContext}>{context}</span>}
+                      </span>
+                      <span className={styles.attentionDate}>{date ? label(date, { month: "short", day: "numeric", year: "numeric" }) : "Unscheduled"}</span>
+                    </button>
+                  </li>;
+                })}
+              </ul>
+              {attentionIsPartial && <p className={styles.attentionPartial}>Only loaded events are counted; more items may be available.</p>}
             </details>
           )}
-          {q.view === "week" && (
+          {q.view === "week" && activePreset === "mine" && (
+            <PersonalTimeGrid days={days} zone={q.timezone} items={data.items} onOpen={open}
+              onCreate={(date,startLocal,endLocal)=>setEditor({kind:"appointment",startLocal,endLocal})}
+              onReschedule={rescheduleTimed}/>
+          )}
+          {q.view === "week" && activePreset !== "mine" && (
             <div
               className={`${styles.scroll} ${styles.weekScroll}`}
               data-calendar-view="week"
@@ -926,7 +968,12 @@ function CalendarView({
               </table>
             </div>
           )}
-          {q.view === "day" && (
+          {q.view === "day" && activePreset === "mine" && (
+            <PersonalTimeGrid days={[q.date]} zone={q.timezone} items={data.items} onOpen={open}
+              onCreate={(date,startLocal,endLocal)=>setEditor({kind:"appointment",startLocal,endLocal})}
+              onReschedule={rescheduleTimed}/>
+          )}
+          {q.view === "day" && activePreset !== "mine" && (
             <CalendarDayTimeline
               date={q.date}
               zone={q.timezone}
@@ -1058,7 +1105,7 @@ function CalendarView({
                       day: "numeric",
                     })
                   : selected.startsAt
-                    ? new Intl.DateTimeFormat("en", {
+                    ? new Intl.DateTimeFormat(uiLocale, {
                         timeZone: selected.timezone,
                         dateStyle: "medium",
                       }).format(new Date(selected.startsAt))
@@ -1078,6 +1125,9 @@ function CalendarView({
                   <dd>{selected.participants.map((p) => p.name).join(", ")}</dd>
                 </>
               )}
+              {!!selected.details?.attendees?.length&&<><dt>Invitations</dt><dd>{selected.details.attendees.map(attendee=><p key={attendee.userId}>
+                {attendee.name} · {attendee.attendance} · {attendee.response==="pending"?"Tentative (awaiting response)":attendee.response}
+              </p>)}</dd></>}
               {selected.details?.location && (
                 <>
                   <dt>Location</dt>
@@ -1123,6 +1173,16 @@ function CalendarView({
               </p>
             ))}
             <div className={styles.actions}>
+              {selected.kind==="appointment"&&selected.occurrenceId&&selected.permittedActions.includes("appointment.reschedule")&&<label>Edit scope<select value={editScope} onChange={e=>setEditScope(e.target.value as "single"|"future"|"series")}><option value="single">This occurrence</option><option value="future">This and future occurrences</option><option value="series">The series</option></select></label>}
+              {selected.kind==="appointment"&&selected.permittedActions.includes("appointment.reschedule")&&selected.startsAt!==null&&selected.endsAt!==null&&<form onSubmit={e=>{e.preventDefault();const form=new FormData(e.currentTarget);void send({action:"appointment.reschedule",id:selected.sourceId,expectedVersion:selected.version,startLocal:String(form.get("start")),endLocal:String(form.get("end")),timezone:selected.timezone,...(selected.occurrenceId?{occurrenceId:selected.occurrenceId,scope:editScope}:{})})}}>
+                <label>Starts<input type="datetime-local" name="start" step="900" defaultValue={`${localMinuteAt(selected.startsAt,selected.timezone).date}T${localMinuteAt(selected.startsAt,selected.timezone).time}`}/></label>
+                <label>Ends<input type="datetime-local" name="end" step="900" defaultValue={`${localMinuteAt(selected.endsAt,selected.timezone).date}T${localMinuteAt(selected.endsAt,selected.timezone).time}`}/></label>
+                <button className={styles.button} disabled={busy}>Save time</button>
+              </form>}
+              {selected.permittedActions.includes("appointment.respond")&&<div role="group" aria-label="Respond to invitation">
+                {(["accepted","tentative","declined"] as const).map(response=><button key={response} className={styles.button} disabled={busy} onClick={()=>void send({action:"appointment.respond",id:selected.sourceId,expectedVersion:selected.version,occurrenceId:selected.occurrenceId,scope:selected.occurrenceId?"single":"series",response})}>{response==="accepted"?"Accept":response==="tentative"?"Tentative":"Decline"}</button>)}
+              </div>}
+              {selected.permittedActions.includes("appointment.reminder.set")&&<label>My reminder<select defaultValue="15" onChange={e=>void send({action:"appointment.reminder.set",id:selected.sourceId,expectedVersion:selected.version,minutes:e.target.value==="off"?null:Number(e.target.value)})}><option value="off">Off</option><option value="0">At start</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option></select></label>}
               {selected.permittedActions.includes("roster.open") && (
                 <button
                   className={styles.primary}
@@ -1163,7 +1223,7 @@ function CalendarView({
                   >
                     {action === "task.plan" ? "Assign & schedule" : "Edit"}
                   </button>
-                ) : action.startsWith("appointment.") ||
+                ) : action==="appointment.respond" || action==="appointment.reminder.set" ? null : action.startsWith("appointment.") ||
                   action.startsWith("announcement.") ||
                   action === "task.complete" ? (
                   <button
@@ -1178,6 +1238,7 @@ function CalendarView({
                             : `${action.split(".")[0]}.status`,
                         id: selected.sourceId,
                         expectedVersion: selected.version,
+                        ...(selected.occurrenceId&&action==="appointment.cancelled"?{occurrenceId:selected.occurrenceId,scope:editScope}:{}),
                         ...(action !== "task.complete"
                           ? { status: action.split(".")[1] }
                           : {}),
@@ -1205,7 +1266,7 @@ function CalendarView({
                   {selected.history.map((h, i) => (
                     <li key={i}>
                       {h.action.replaceAll(".", " ")} · {h.actor}
-                      <time>{new Date(h.at).toLocaleString()}</time>
+                      <time dateTime={new Date(h.at).toISOString()}>{formatUiDateTime(h.at,q.timezone)}</time>
                     </li>
                   ))}
                 </ul>
@@ -1243,6 +1304,8 @@ function CalendarView({
               busy={busy}
               send={(value) => void send(value)}
               close={() => setEditor(null)}
+              accounts={accounts}
+              api={api}
             />
           </>
         )}

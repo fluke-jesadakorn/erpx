@@ -21,7 +21,15 @@ All endpoints are relative to `/api/v1/holdings/[holdingSlug]/messaging`, requir
 | PUT `/rooms/:id/files/:uuid`                     | Binary body, Content-Type, percent-encoded `X-File-Name`; retry same UUID with identical bytes and metadata       |
 | GET `/files/:uuid`                               | Authorized file content; images inline, documents downloaded                                                      |
 
-Text is plain text, at most 5,000 characters. Messages must contain text or a file. Accept JPEG, PNG, WebP, PDF, CSV; at most five files per message and 10 MiB per file. File reads use current room access, and unsent uploads are visible only to their author. Attachment binding occurs in the message transaction; files cannot be reused in another message or taken from another sender.
+Text is plain text, at most 5,000 characters. Messages must contain text or a file. Accept JPEG, PNG, WebP, PDF, CSV; at most ten files per message and 10 MiB per file. File reads use current room access, and unsent uploads are visible only to their author. Attachment binding occurs in the message transaction; files cannot be reused in another message or taken from another sender. Messaging remains the specialized CSV exception to the generic image/PDF policy, and every new file must pass the central private quarantine and malware-scan lifecycle before it can bind to a message.
+
+## Staff Inbox events and notices (2026-09-26)
+
+The Updates tab lists visible staff Inbox deliveries separately from Messages and Teams conversations. Each logical event has a stable key, source reference, category and safe preview; each recipient has independent read and archive state. Source access is checked for every page and unread count. A notification cannot grant source access or acknowledge a business action. The legacy `staff_notifications` API remains writable during cutover and its rows are backfilled and bridged into the new delivery model with read state preserved.
+
+`GET .../inbox/notifications` supports unread/all, category, search and cursor paging. `GET .../inbox/summary` returns visible unread counts. `POST .../inbox/notifications/:id/state` accepts read and archive changes. `POST .../inbox/notices` sends immutable plain-text notices with an idempotency key to named active same-Company accounts or an authorized Company, Branch or Department audience. The sender sees accepted delivery count, never recipients’ read state. Broadcast fanout is bounded and retried by the scheduled worker. `GET .../inbox/notices/:id` shows a sender only its accepted and completed delivery counts. Existing manager and owner roles receive `inbox.notice.broadcast` within their current assignment scope.
+
+All staff-facing producers should publish only meaningful assignments, decisions, returns, deadlines, escalations, mentions, meeting activity, access effects and participant-facing status changes. Ordinary field edits do not produce notifications. External email and push delivery are outside this contract.
 
 ## Access and consistency
 

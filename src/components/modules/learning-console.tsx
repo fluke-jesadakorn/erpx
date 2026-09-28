@@ -6,6 +6,10 @@ import type {
   learningAssignmentDetail,
   learningWorkspace,
 } from "@/server/learning";
+import {
+  AttachmentPanel,
+  type AttachmentPanelChange,
+} from "@/components/attachments/attachment-panel";
 function useCommand(base: string) {
   const router = useRouter(),
     last = useRef<{ key: string; body: string } | null>(null),
@@ -55,7 +59,8 @@ export function LearningConsole({
 }) {
   const source = data ?? detail!,
     { send, busy, error } = useCommand(base),
-    a = detail?.assignment;
+    a = detail?.assignment,
+    [completionFiles, setCompletionFiles] = useState<AttachmentPanelChange | null>(null);
   return (
     <>
       {error && <p role="alert">{error}</p>}
@@ -215,6 +220,12 @@ export function LearningConsole({
               action: "complete",
               expectedVersion: Number(a.version),
               scoreBps: Number(f.scoreBps),
+              attachmentSetIds:
+                completionFiles?.setId &&
+                completionFiles.readyCount > 0 &&
+                completionFiles.bindable
+                  ? [completionFiles.setId]
+                  : [],
             });
           }}
         >
@@ -238,6 +249,19 @@ export function LearningConsole({
             Reason
             <textarea name="reason" required minLength={3} />
           </label>
+          <AttachmentPanel
+            base={base}
+            targetType="learning_assignment"
+            targetId={String(a.id)}
+            expectedTargetVersion={Number(a.version)}
+            componentKind="action"
+            componentRef="completion"
+            purposeKey="certificate"
+            title="Certificate or completion evidence"
+            description="Attach the provider certificate or other completion document. Clean files are locked with this result."
+            visibility="Only the learner and authorized Learning document managers can access these files."
+            onChange={setCompletionFiles}
+          />
           <button className="button" disabled={busy}>
             Complete course
           </button>

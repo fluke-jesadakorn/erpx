@@ -7,6 +7,11 @@ import type { CalendarItem, CalendarQuery } from "@/lib/calendar";
 import { hasPermission } from "@/lib/permissions";
 import { visibility } from "./access";
 import type { LegalItem } from "@/lib/legal/model";
+
+function legalOwnerLabel(ownerId: string, actor: WorkContext) {
+  return ownerId === actor.userId ? "Me" : "Legal owner";
+}
+
 export async function legalWork(
   db: SqlDatabase,
   a: WorkContext,
@@ -30,7 +35,7 @@ export async function legalWork(
     updatedAt: i.updated_at,
     queue: i.owner_id === a.userId ? "todo" : "waiting",
     canAct: i.owner_id === a.userId && hasPermission(a, "legal.edit"),
-    responsibleQueue: i.owner_id,
+    responsibleQueue: legalOwnerLabel(i.owner_id, a),
     relationships: [i.owner_id === a.userId ? "assigned" : "requested"],
   })) as WorkItem[];
   const tasks: WorkItem[] = [];
@@ -61,7 +66,7 @@ export async function legalWork(
         updatedAt: r.updated_at,
         queue: "todo" as const,
         canAct: hasPermission(a, "legal.edit"),
-        responsibleQueue: a.userId,
+        responsibleQueue: "Me",
         relationships: ["assigned" as const],
       })),
     );
@@ -85,7 +90,7 @@ export async function legalWork(
       updatedAt: i.updated_at,
       queue: "todo",
       canAct: hasPermission(a, "legal.approve"),
-      responsibleQueue: a.userId,
+      responsibleQueue: "Me",
       relationships: ["assigned"],
     });
   return [...records, ...tasks];
@@ -141,7 +146,7 @@ export async function legalCalendar(
     departmentId: i.department_id,
     branchId: i.branch_id,
     participants: [],
-    owner: i.owner_id,
+    owner: legalOwnerLabel(i.owner_id, a),
     status: i.state,
     version: i.version,
     permittedActions: [],

@@ -22,6 +22,7 @@ import {
   teamSchema,
 } from "@/server/messaging";
 import { uploadMessagingFile } from "@/server/messaging-files";
+import { attachmentContent } from "@/server/attachments/service";
 
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
@@ -78,18 +79,32 @@ async function handle(request: Request, context: Context) {
       )
         data = await messagingMembers(db, actor, p[1], p[0] === "teams");
       else if (p[0] === "files" && p.length === 2) {
-        const file = await messagingFile(db, actor, p[1]),
-          stored = await files.get(file.object_key);
-        if (!stored)
-          throw new ApiError(404, "FILE_NOT_FOUND", "File unavailable.");
-        return new Response(stored.body, {
+        const file = await messagingFile(db, actor, p[1]);
+        if (!file.attachment_link_id)
+          throw new ApiError(
+            404,
+            "FILE_NOT_FOUND",
+            "This message file has not been migrated to the current attachment lifecycle.",
+          );
+        const variant =
+          url.searchParams.get("variant") === "preview"
+            ? "preview"
+            : "original";
+        const content = await attachmentContent(
+          db,
+          files,
+          actor,
+          file.attachment_link_id,
+          variant,
+          {compatibilityAdapter:true},
+        );
+        return new Response(content.object.body, {
           headers: {
-            "Content-Type": file.media_type,
-            "Content-Length": String(file.bytes),
+            "Content-Type": content.mediaType,
             "Cache-Control": "private, no-store",
             "X-Content-Type-Options": "nosniff",
             "Content-Security-Policy": "default-src 'none'; sandbox",
-            "Content-Disposition": `${file.media_type.startsWith("image/") ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.original_name)}`,
+            "Content-Disposition": `${variant === "preview" ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(content.filename)}`,
           },
         });
       } else

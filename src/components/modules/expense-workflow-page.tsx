@@ -60,9 +60,9 @@ export async function ExpenseWorkflowPage({
     note?: string;
   };
   return (
-    <main className="content-stack" data-source="live">
-      <Link className="back-link" href={`${base}/work?type=expense`}>
-        ← Work · Expense claims
+    <div className="content-stack" data-source="live">
+      <Link className="back-link" href={`${base}/expenses`}>
+        ← Expense claims
       </Link>
       <header className="section-head">
         <div>
@@ -157,7 +157,7 @@ export async function ExpenseWorkflowPage({
       )}
       </div>
       {editable ? (
-        <ExpenseEditor base={base} options={options} expense={expense} receiptAi={{ canManageAi: aiAdmin, evidenceKey: attachments.map(a => String(a.id)).sort().join(":") }} />
+        <ExpenseEditor base={base} options={options} expense={expense} hasReceipt={attachments.length > 0} receiptAi={{ canManageAi: aiAdmin, evidenceKey: attachments.map(a => String(a.id)).sort().join(":") }} />
       ) : (
         <section className="card">
           <h2>Claim details</h2>
@@ -194,10 +194,10 @@ export async function ExpenseWorkflowPage({
         viewerId={actor.userId}
         base={base}
         expense={expense}
-        actions={permittedActions}
+        actions={editable ? permittedActions.filter(action => action !== "submit") : permittedActions}
         missing={missing}
         profileHref={profile}
-        isEditable={canEditExpense(actor, expense)}
+        isEditable={false}
       />
       {["payment", "completed"].includes(stage) && (
         <ExpensePayments
@@ -222,6 +222,6 @@ export async function ExpenseWorkflowPage({
           </p>
         ))}
       </details>
-    </main>
+    </div>
   );
 }

@@ -1,0 +1,5 @@
+# Inherited GPO rules and atomic Position moves
+
+Organization & Access combines the HR structure and IT policy workspace while retaining their separate authority. GPO rules apply additively through a Position's Company-wide default Level, Department and direct rules, including future matching Positions. A stable rule identity and membership provenance preserve independent sources; the organization tree never changes native Directory link order or enforcement. Existing direct mappings and ownership history remain compatible without Directory writes during migration.
+
+An occupied Position moves with its reviewed non-ended Engagements as one effective-dated change. Department moves preserve individual levels; Position Level changes update every occupant's actual level and history under existing leave-default rules. The due transaction revalidates authority, the cohort, destination and reporting graph and either changes the entire cohort or blocks it for another review. Directory reconciliation follows the committed HR change asynchronously; Directory availability cannot prevent HR placement, and HR moves do not implicitly replace applied access-package snapshots.

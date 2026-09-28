@@ -3,7 +3,8 @@ import type { WorkContext } from "./authorization";
 import type { SqlDatabase, SqlStatement } from "./runtime/types";
 import { runtimeEnv } from "./runtime";
 import { ApiError } from "./http";
-import { assertion, executeCommand } from "./commands";
+import { assertion, executeCommand, replayCommand } from "./commands";
+import { prepareAttachmentBinding } from "./attachments/service";
 import { ensureOrganizationChannels, organizationMemberSql } from "./organization-channels";
 import type {
   MessagingPerson,
@@ -34,7 +35,7 @@ export const manageSchema = teamSchema.extend({
 export const messageSchema = z
   .object({
     body: z.string().trim().max(5000),
-    files: z.array(z.string().uuid()).max(5).default([]),
+    files: z.array(z.string().uuid()).max(10).default([]),
   })
   .refine(
     (v) => v.body.length > 0 || v.files.length > 0,
@@ -527,9 +528,56 @@ export async function sendMessagingMessage(
   input: z.infer<typeof messageSchema>,
   key: string,
 ) {
-  await messagingRoom(db, actor, roomId);
+  const room = await messagingRoom(db, actor, roomId);
   const id = `message-${key}`;
-  const steps = [messagingGuard(db, actor, key, roomId)];
+  const operation = "messaging.send";
+  const prior = await replayCommand<{ id: string }>(
+    db,
+    actor,
+    key,
+    operation,
+    roomId,
+    input,
+  );
+  if (prior) return prior;
+  let prepared: Awaited<ReturnType<typeof prepareAttachmentBinding>> | null = null;
+  if (input.files.length) {
+    const mapped = (
+      await db
+        .prepare(
+          `SELECT id,attachment_set_id FROM messaging_files
+           WHERE room_id=? AND created_by=? AND message_id IS NULL
+             AND id IN (${input.files.map(() => "?").join(",")})`,
+        )
+        .bind(roomId, actor.userId, ...input.files)
+        .all<{ id: string; attachment_set_id: string | null }>()
+    ).results;
+    if (
+      mapped.length !== input.files.length ||
+      mapped.some((file) => !file.attachment_set_id)
+    )
+      throw new ApiError(
+        409,
+        "ATTACHMENT_SCAN_REQUIRED",
+        "Every message file must use the current quarantine and malware scan lifecycle.",
+      );
+    prepared = await prepareAttachmentBinding(db, actor, {
+      attachmentSetIds: mapped.map((file) => String(file.attachment_set_id)),
+      bindingContract: {
+        targetType: "messaging_room",
+        bindingType: "message_attachment",
+        contexts: mapped.map((file) => ({ purposeKey: "message_attachment", componentKind: "message" as const, componentRef: file.id })),
+      },
+      targetId: roomId,
+      expectedTargetVersion: Number(room.version),
+      commandId: key,
+      bindingId: id,
+    },{compatibilityAdapter:true});
+  }
+  const steps = [
+    messagingGuard(db, actor, key, roomId),
+    ...(prepared?.guards ?? []),
+  ];
   input.files.forEach((file, i) =>
     steps.push(
       assertion(
@@ -543,7 +591,11 @@ export async function sendMessagingMessage(
   );
   steps.push(
     db
-      .prepare("UPDATE messaging_rooms SET last_seq=last_seq+1 WHERE id=?")
+      .prepare(
+        prepared
+          ? "UPDATE messaging_rooms SET last_seq=last_seq+1,version=version+1 WHERE id=?"
+          : "UPDATE messaging_rooms SET last_seq=last_seq+1 WHERE id=?",
+      )
       .bind(roomId),
     db
       .prepare(
@@ -557,14 +609,15 @@ export async function sendMessagingMessage(
         .prepare("UPDATE messaging_files SET message_id=? WHERE id=?")
         .bind(id, file),
     );
+  steps.push(...(prepared?.steps ?? []));
   return executeCommand(
     db,
     actor,
     key,
-    "messaging.send",
+    operation,
     input,
     roomId,
-    1,
+    Number(room.version) + (prepared ? 1 : 0),
     { id },
     steps,
   );
@@ -594,6 +647,14 @@ export async function messagingFile(
       `SELECT f.* FROM messaging_files f JOIN messaging_rooms r ON r.id=f.room_id WHERE f.id=? AND r.company_id=? AND ${access} AND (f.message_id IS NOT NULL OR f.created_by=?)`,
     )
     .bind(id, actor.companyId, ...accessArgs(actor), actor.userId)
-    .first<MessagingFile & { object_key: string; room_id: string }>();
+    .first<
+      MessagingFile & {
+        object_key: string;
+        room_id: string;
+        attachment_set_id: string | null;
+        attachment_link_id: string | null;
+        attachment_source_id: string | null;
+      }
+    >();
   return file ?? missing();
 }

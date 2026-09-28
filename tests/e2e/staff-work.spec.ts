@@ -3,6 +3,10 @@ import { randomUUID } from "node:crypto";
 test.use({ actionTimeout: 10000 });
 const base = "/holdings/acme",
   local = `${base}/branches/bangkok`;
+const evidencePng = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=",
+  "base64",
+);
 async function login(context: BrowserContext, who: string) {
   const response = await context.request.post("/api/auth/sign-in/email", {
     data: {
@@ -147,15 +151,15 @@ test("staff project and task approvals work across roles, departments and viewpo
     await execute
       .getByLabel("Attach supporting file", { exact: true })
       .setInputFiles({
-        name: "delivery-checks.csv",
-        mimeType: "text/csv",
-        buffer: Buffer.from("delivery,status\nD1,verified\n"),
+        name: "delivery-checks.png",
+        mimeType: "image/png",
+        buffer: evidencePng,
       });
     await expect(
-      execute.getByRole("link", { name: /delivery-checks.csv/ }),
+      execute.getByRole("link", { name: /delivery-checks.png/ }),
     ).toBeVisible();
     const attachment = await execute
-      .getByRole("link", { name: /delivery-checks.csv/ })
+      .getByRole("link", { name: /delivery-checks.png/ })
       .getAttribute("href");
     expect((await assignee.request.get(attachment!)).status()).toBe(200);
     expect([403, 404]).toContain(
@@ -181,7 +185,7 @@ test("staff project and task approvals work across roles, departments and viewpo
     ).toBeVisible();
     await page.reload();
     await expect(
-      page.getByRole("link", { name: /delivery-checks.csv/ }),
+      page.getByRole("link", { name: /delivery-checks.png/ }),
     ).toBeVisible();
     await page
       .getByRole("textbox", {

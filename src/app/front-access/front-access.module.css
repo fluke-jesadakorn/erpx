@@ -1,0 +1,21 @@
+.page{min-height:100dvh;background:#f6f8fc;color:#17212e;padding:clamp(20px,5vw,72px);font-family:var(--font-geist-sans),sans-serif}.wrap{max-width:840px;margin:0 auto}.eyebrow{font-size:13px;font-weight:750;letter-spacing:.1em;text-transform:uppercase;color:#3659c9}.title{font-size:clamp(30px,5vw,54px);line-height:1.1;margin:12px 0}.lead{font-size:17px;color:#536174;line-height:1.6}.card{background:white;border:1px solid #dce3ec;border-radius:22px;padding:clamp(20px,4vw,38px);box-shadow:0 12px 42px #1b2f5210;margin-top:28px}.list{display:grid;gap:12px;margin-top:24px}.choice{display:flex;justify-content:space-between;gap:16px;align-items:center;min-height:64px;padding:16px 18px;border:1px solid #dce3ec;border-radius:14px;color:#17212e;text-decoration:none;font-weight:700}.choice:hover,.choice:focus-visible{border-color:#3659c9;background:#f3f6ff}.back{display:inline-block;margin-top:22px;color:#3659c9}.form :global(.form){max-width:440px}.badge{display:inline-flex;align-items:center;justify-content:center;width:60px;height:60px;background:#3659c9;color:white;border-radius:18px;font-size:23px;font-weight:800}.skipLink{position:absolute;left:12px;top:-100px;z-index:60;background:white;color:#17212e;border:2px solid #3659c9;border-radius:9px;padding:10px 14px}.skipLink:focus{top:12px}@media print{.skipLink{display:none}}
+.page{background:var(--paper);color:var(--ink)}
+.eyebrow,.back{color:var(--brand)}
+.lead{color:var(--muted)}
+.card,.choice,.skipLink{background:var(--card);border-color:var(--line);color:var(--ink)}
+.card{border-radius:var(--radius-lg);box-shadow:none}
+.choice{border-radius:var(--radius-md);font-size:var(--type-body)}
+.title{font-size:var(--type-page)}
+.lead{font-size:var(--type-body)}
+.choice:hover,.choice:focus-visible{border-color:var(--brand);background:var(--brand-soft)}
+.badge{background:var(--brand);color:var(--on-brand)}
+.wrap{max-width:1240px}
+.pickerLayout{display:grid;gap:22px;margin-top:28px}
+.pickerLayout .card{margin-top:0;min-width:0}
+.quickAccessRail{min-width:0}
+@media(min-width:1200px){
+  .pickerLayout{grid-template-columns:minmax(0,1fr) 300px;align-items:start;gap:28px}
+  .pickerLayout .card{grid-column:1;grid-row:1}
+  .quickAccessRail{grid-column:2;grid-row:1}
+}
+@media print{.quickAccessRail{display:none}.pickerLayout{display:block}}

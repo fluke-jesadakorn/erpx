@@ -1,5 +1,7 @@
 # ERPX — ความคืบหน้าการพัฒนา flow ข้ามแผนก
 
+> Historical report and scoped evidence. Current priorities, payroll scope and launch criteria are governed by [the production plan](../production-plan.md); remaining work below is retained as history, not a competing delivery plan.
+
 วันที่ 2026-09-24 · สถานะ: กำลังพัฒนา ยังไม่ครบแผน Release 1–4
 
 ## สรุปสถานะ capability ล่าสุด — 2026-09-24

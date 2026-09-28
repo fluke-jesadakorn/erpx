@@ -64,7 +64,7 @@ export type LayoutSnapshot = {
 };
 export const widgetDefinitions = catalog as FeatureWidgetDefinition[];
 export function pageNavigationId(page: string) {
-  const aliases: Record<string, string> = {"work-create":"work",
+  const aliases: Record<string, string> = {"work":"home","work-create":"home",
     executive: "executive-canvas",
     overtime: "people-roster",
     "overtime-detail": "people-roster",
@@ -78,8 +78,8 @@ export function pageNavigationId(page: string) {
     "stock-transfers-detail": "operations-transfers",
     "people-payroll-detail": "people-payroll",
     "people-clearance-detail": "people-directory",
-    "staff-tasks-detail": "work",
-    "requests-detail": "work",
+    "staff-tasks-detail": "home",
+    "requests-detail": "home",
     "finance-invoices-detail": "finance-receivables",
     "finance-journals-detail": "finance-ledger",
     "finance-payments-detail": "finance-payables",
@@ -105,7 +105,11 @@ export function allowedWidgets(page: string, context: NavigationContext) {
     context.workspaceBase !== "/account" &&
     context.scopeKind !== "platform" &&
     !workplaceNavigation(context).search.some(
-      (item) => item.id === pageNavigationId(page),
+      (item) => page === "operations-parties"
+        ? ["crm-customers", "procurement-suppliers"].includes(item.id)
+        : page === "commerce-orders-detail"
+          ? ["operations-sales", "operations-purchasing"].includes(item.id)
+          : item.id === pageNavigationId(page),
     )
   )
     return [];
@@ -219,6 +223,7 @@ export function featureLocation(
     app?.items.filter((item) => !["projects-tasks"].includes(item.id)) ?? [];
   let secondaryTabs: NavigationItem[] = [];
   let pageKey = resolved.activeId || relative.split("/")[0] || "home";
+  if (relative === "commerce" && query.get("view") === "parties") pageKey = "operations-parties";
   if (
     relative.startsWith("people/") &&
     /^people\/[^/]+$/.test(relative) &&
@@ -245,12 +250,13 @@ export function featureLocation(
     relative === "people/access" &&
     ["groups", "policies"].includes(query.get("view") ?? "")
   )
-    pageKey = "technology-groups";
+    pageKey = "technology-organization";
   if (
     relative === "people/settings" &&
     ["roles", "matrix"].includes(query.get("section") ?? "")
   )
     pageKey = "technology-roles";
+  if (resolved.activeId === "technology-organization") tabs = [];
   if(resolved.activeId === "work") tabs=workViews.map(([id,label])=>({id:`work-${id}`,label,href:`${context.workspaceBase}/work?view=${id}`,group:"Work",icon:"work"}));
   if (app?.id === "people" && !context.beta) {
     const primaryIds = new Set([

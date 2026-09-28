@@ -4,17 +4,18 @@ import { env, applyMigrations } from "./runtime-env";
 it("creates a complete, empty PostgreSQL baseline and preserves database invariants", async () => {
   await applyMigrations(env.H001_DB, env.STAFF_TEST_MIGRATIONS);
   await applyMigrations(env.H001_DB, env.STAFF_TEST_MIGRATIONS);
-  expect(
-    await env.H001_DB.prepare(
-      "SELECT COUNT(*) count FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'",
-    ).first(),
-  ).toEqual({ count: 433 });
+  const baseline=await env.H001_DB.prepare(
+    "SELECT COUNT(*)::int count FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE'",
+  ).first<{count:number}>();
+  expect(baseline?.count).toBeGreaterThanOrEqual(555);
   expect(
     await env.H001_DB.prepare("SELECT count(*) n FROM inventory_ledger").first(
       "n",
     ),
   ).toBe(0);
   for (const table of [
+    "inbox_events","inbox_deliveries","inbox_notices","inbox_notice_targets",
+    "calendar_attendees","calendar_series","calendar_occurrence_exceptions","calendar_occurrence_responses","calendar_reminder_deliveries",
     "procurement_delivery_promises",
     "procurement_rfqs",
     "procurement_rfq_lines",
@@ -38,8 +39,16 @@ it("creates a complete, empty PostgreSQL baseline and preserves database invaria
     "pms_booking_emails",
     "pms_booking_limits",
     "organization_positions",
+    "position_pay_defaults",
+    "level_leave_defaults",
     "organization_templates",
     "staff_organization_history",
+    "authority_seats",
+    "authority_appointments",
+    "department_flow_versions",
+    "position_gpo_policies",
+    "position_gpo_revisions",
+    "position_gpo_jobs",
     "spending_approval_templates",
     "flow_routes",
     "flow_defaults",

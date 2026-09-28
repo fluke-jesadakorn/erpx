@@ -18,6 +18,7 @@ import type { WorkContext } from "../src/server/authorization";
 import { escalateInventoryReservations } from "../src/server/inventory-reservation-alerts";
 import { queryMetric } from "../src/server/executive/metrics";
 import { readExecutiveEvidence, searchExecutiveEvidence } from "../src/server/executive/evidence";
+import { attachmentBindingState, enableAttachmentV2ForTest, seedAttachmentSet } from "./helpers/attachment-v2";
 vi.mock("../src/server/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
@@ -29,6 +30,7 @@ let f: Awaited<ReturnType<typeof expenseFixture>>,
   material: string,
   output: string;
 beforeAll(async () => {
+  enableAttachmentV2ForTest();
   await applyMigrations(db, env.STAFF_TEST_MIGRATIONS);
 });
 beforeEach(async () => {
@@ -190,6 +192,14 @@ it("reconciles posted production cost by month and opens only authorized movemen
 });
 it("runs BOM planning through reservation, actual issue, output, independent QC, cost and genealogy", async () => {
   const { id } = await order();
+  const reportFiles = await seedAttachmentSet(db, owner, {
+    targetType: "production_run",
+    targetId: id,
+    purposeKey: "run_report_evidence",
+    componentRef: "output-report",
+    expectedTargetVersion: 3,
+  });
+  const reportCommand = key();
   await changeManufacturingOrder(
     owner,
     id,
@@ -219,6 +229,35 @@ it("runs BOM planning through reservation, actual issue, output, independent QC,
       .bind(warehouse, material)
       .first(),
   ).toEqual({ quantity_milli: 6000, value_minor: 3000 });
+  const wrongReportFiles = await seedAttachmentSet(db, owner, {
+    targetType: "production_run",
+    targetId: id,
+    purposeKey: "run_sheet",
+    componentKind: "record",
+    componentRef: "output-report",
+    expectedTargetVersion: 3,
+  });
+  await expect(
+    changeManufacturingOrder(
+      owner,
+      id,
+      {
+        action: "report",
+        expectedVersion: 3,
+        outputQuantity: "1.8",
+        scrapQuantity: "0.2",
+        laborCost: "10.00",
+        overheadCost: "2.00",
+        reason: "Reject a record document submitted as output evidence",
+        attachmentSetIds: [wrongReportFiles.setId],
+      },
+      key(),
+    ),
+  ).rejects.toMatchObject({ code: "MANUFACTURING_ATTACHMENT_PURPOSE" });
+  expect(await attachmentBindingState(db, wrongReportFiles.setId)).toMatchObject({
+    set_state: "draft",
+    link_state: "draft",
+  });
   await changeManufacturingOrder(
     owner,
     id,
@@ -230,9 +269,16 @@ it("runs BOM planning through reservation, actual issue, output, independent QC,
       laborCost: "10.00",
       overheadCost: "2.00",
       reason: "Actual output and scrap recorded",
+      attachmentSetIds: [reportFiles.setId],
     },
-    key(),
+    reportCommand,
   );
+  expect(await attachmentBindingState(db, reportFiles.setId)).toMatchObject({
+    set_state: "bound",
+    link_state: "bound",
+    binding_type: "manufacturing_report",
+    binding_id: `mfg-event-${reportCommand}`,
+  });
   await expect(
     changeManufacturingOrder(
       owner,
@@ -245,6 +291,14 @@ it("runs BOM planning through reservation, actual issue, output, independent QC,
       key(),
     ),
   ).rejects.toMatchObject({ code: "CONFLICT" });
+  const qcFiles = await seedAttachmentSet(db, reviewer, {
+    targetType: "production_run",
+    targetId: id,
+    purposeKey: "qc_evidence",
+    componentRef: "qc-review",
+    expectedTargetVersion: 4,
+  });
+  const qcCommand = key();
   await changeManufacturingOrder(
     reviewer,
     id,
@@ -252,9 +306,16 @@ it("runs BOM planning through reservation, actual issue, output, independent QC,
       action: "pass-qc",
       expectedVersion: 4,
       reason: "Independent inspection passed",
+      attachmentSetIds: [qcFiles.setId],
     },
-    key(),
+    qcCommand,
   );
+  expect(await attachmentBindingState(db, qcFiles.setId)).toMatchObject({
+    set_state: "bound",
+    link_state: "bound",
+    binding_type: "manufacturing_pass-qc",
+    binding_id: `mfg-event-${qcCommand}`,
+  });
   const d = await productionDetail(owner, id);
   expect(d.order).toMatchObject({
     status: "completed",
@@ -276,6 +337,21 @@ it("runs BOM planning through reservation, actual issue, output, independent QC,
       .bind(warehouse, output)
       .first(),
   ).toEqual({ quantity_milli: 1800, value_minor: 3200 });
+});
+it("binds failed-QC and rework evidence to their immutable production events", async () => {
+  const { id } = await order();
+  await changeManufacturingOrder(owner, id, { action: "reserve", expectedVersion: 1, expiresAt: Date.now() + 3600000, reason: "Reserve materials for a controlled rework test" }, key());
+  await changeManufacturingOrder(owner, id, { action: "issue", expectedVersion: 2, reason: "Issue the reserved materials" }, key());
+  await changeManufacturingOrder(owner, id, { action: "report", expectedVersion: 3, outputQuantity: "1.8", scrapQuantity: "0.2", laborCost: "10.00", overheadCost: "2.00", reason: "Report output for independent failed-QC review" }, key());
+  const qcFiles = await seedAttachmentSet(db, reviewer, { targetType: "production_run", targetId: id, purposeKey: "qc_evidence", componentRef: "qc-review", expectedTargetVersion: 4 });
+  const qcCommand = key();
+  await changeManufacturingOrder(reviewer, id, { action: "fail-qc", expectedVersion: 4, reason: "Measured output is outside the approved tolerance", attachmentSetIds: [qcFiles.setId] }, qcCommand);
+  expect(await attachmentBindingState(db, qcFiles.setId)).toMatchObject({ set_state: "bound", link_state: "bound", binding_type: "manufacturing_fail-qc", binding_id: `mfg-event-${qcCommand}` });
+  const reworkFiles = await seedAttachmentSet(db, owner, { targetType: "production_run", targetId: id, purposeKey: "rework_action_evidence", componentRef: "rework", expectedTargetVersion: 5 });
+  const reworkCommand = key();
+  await changeManufacturingOrder(owner, id, { action: "rework", expectedVersion: 5, reason: "Approved rework instruction returns this run to production", attachmentSetIds: [reworkFiles.setId] }, reworkCommand);
+  expect(await attachmentBindingState(db, reworkFiles.setId)).toMatchObject({ set_state: "bound", link_state: "bound", binding_type: "manufacturing_rework", binding_id: `mfg-event-${reworkCommand}` });
+  expect((await productionDetail(owner, id)).order.status).toBe("in_progress");
 });
 it("calculates shortages and a capacity-delayed feasible date without changing stock", async () => {
   const { plan } = await order("formula", "4");

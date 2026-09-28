@@ -1,0 +1,15 @@
+.wizard{max-width:900px;display:grid;gap:20px;min-width:0}
+.progress{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;list-style:none;margin:0;padding:0}
+.progress li{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;min-width:0}
+.progress li span{display:grid;place-items:center;width:25px;height:25px;flex:0 0 auto;border-radius:50%;background:var(--paper);border:1px solid var(--line);font-size:12px}
+.progress li[aria-current="step"]{color:var(--brand);font-weight:700}
+.progress li[aria-current="step"] span{background:var(--brand);border-color:var(--brand);color:white}
+.panel{border:1px solid var(--line);border-radius:16px;background:var(--card);padding:26px;min-width:0}
+.heading p{color:var(--muted);font-size:12px;margin:0 0 4px}.heading h2{margin:0 0 20px;font-size:22px}
+.form{display:grid;gap:18px}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:15px}
+.form label{display:grid;gap:7px;font-size:13px;font-weight:600;min-width:0}
+.form input:not([type="checkbox"]),.form select{width:100%;min-height:42px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);font:inherit}
+.form fieldset{display:grid;gap:16px;border:1px solid var(--line);border-radius:10px;padding:17px;min-width:0}.form legend{font-weight:650;font-size:14px;padding:0 6px}
+.weekdays{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.form label.check,.weekdays label{display:flex;align-items:center;gap:9px;font-weight:500}.form input[type="checkbox"]{width:18px;height:18px;flex:0 0 auto}
+.actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:10px}.review dl{display:grid;gap:0;margin:0 0 20px}.review dl>div{display:grid;grid-template-columns:150px 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}.review dt{color:var(--muted)}.review dd{margin:0;overflow-wrap:anywhere}.review li{line-height:1.6;padding:4px 0}.error{color:var(--red);margin:18px 0 0;line-height:1.5}
+@media(max-width:650px){.progress{grid-template-columns:repeat(2,minmax(0,1fr))}.panel{padding:18px}.fields,.weekdays{grid-template-columns:1fr}.review dl>div{grid-template-columns:1fr;gap:3px}.actions>*{flex:1}}

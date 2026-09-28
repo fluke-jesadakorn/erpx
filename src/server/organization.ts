@@ -10,14 +10,18 @@ import type { SqlDatabase } from "./runtime/types";
 import { ApiError } from "./http";
 import { assertion, executeCommand, replayCommand } from "./commands";
 import { reportingIssues, staffLevelTitles, type OrganizationOverview, type OrganizationPerson, type OrganizationPosition, type OrganizationTemplatePosition, type OrganizationNode, type OrganizationNodeChange } from "@/lib/organization";
+import { canSeeDefaultPay, defaultCatalog } from "./staff-defaults";
+import { prepareAttachmentBinding } from "./attachments/service";
+import { rosterPositionExitStatements } from "./roster-position-exit";
 
 export const positionSchema = z.object({
   requirements: z.string().trim().max(3000).default(""),
   title: z.string().trim().min(2).max(160), branchId: z.string().nullable(), departmentId: z.string().nullable(),
   levelId: z.string().min(1), reportsToPositionId: z.string().nullable(), isCeo: z.boolean().default(false),
+  rosterRequired: z.boolean().optional(),
   active: z.boolean().default(true), expectedVersion: z.number().int().min(0), reason: z.string().trim().min(3).max(1000),
 });
-const templatePositionSchema = z.object({key:z.string().min(1).max(100),title:z.string().trim().min(2).max(160),levelNumber:z.number().int().min(1).max(6),reportsToKey:z.string().nullable(),isCeo:z.boolean()});
+const templatePositionSchema = z.object({key:z.string().min(1).max(100),title:z.string().trim().min(2).max(160),levelNumber:z.number().int().min(1).max(6),reportsToKey:z.string().nullable(),isCeo:z.boolean(),rosterRequired:z.boolean().default(false)});
 export const organizationTemplateSchema = z.object({name:z.string().trim().min(2).max(120),positions:z.array(templatePositionSchema).min(1).max(100),expectedVersion:z.number().int().min(0)});
 export const applyOrganizationTemplateSchema = z.object({expectedVersion:z.number().int().positive(),branchId:z.string().nullable(),departmentId:z.string().nullable(),reason:z.string().trim().min(3).max(1000)});
 export const organizationNodeChangeSchema=z.object({
@@ -26,7 +30,7 @@ export const organizationNodeChangeSchema=z.object({
   displayName:z.string().trim().min(2).max(120),branchId:z.string().min(1).nullable().default(null),
   expectedNodeVersion:z.number().int().positive().nullable().default(null),expectedVersion:z.number().int().min(0),reason:z.string().trim().min(3).max(1000),
 });
-export const organizationNodeDecisionSchema=z.object({expectedVersion:z.number().int().positive(),decision:z.enum(["approve","reject"]),reason:z.string().trim().min(3).max(1000)});
+export const organizationNodeDecisionSchema=z.object({expectedVersion:z.number().int().positive(),decision:z.enum(["approve","reject"]),reason:z.string().trim().min(3).max(1000),attachmentSetIds:z.array(z.string().min(1)).max(20).optional()});
 const organizationChangeFiltersSchema=z.object({
   changeId:z.string().trim().min(1).max(200).nullable().catch(null),
   changeState:z.enum(["open","all","draft","submitted","rejected","applied","cancelled"]).catch("open"),
@@ -88,7 +92,10 @@ export async function organizationOverview(db: SqlDatabase, actor: WorkContext, 
       return {action:e.action,actor_name:e.actor_name,version:e.version,created_at:e.created_at,reason:snapshot.reason??null};
     });}
   }
-  return {authorizedChannelNodes,spendingTemplate:canManage?await spendingTemplate(db,actor.companyId):undefined,canManageSpending:canManage&&actor.assignmentScope==="holding",positions:positions.filter(p=>(!actor.branchId||!p.branch_id||p.branch_id===actor.branchId)&&(!actor.departmentId||!p.department_id||p.department_id===actor.departmentId)),people:people.filter(visible).map(p=>({...p,issues:[...reportingIssues(p,people,positions),...managerIssues(p)]})),nodes,levels,templates,nodeChanges,changeQueue:{recordId:filters.changeId,state:filters.changeState,query:filters.changeQuery,page,pageSize,total,pages},actorId:actor.userId,canManage,canManageUnits};
+  return {authorizedChannelNodes,spendingTemplate:canManage?await spendingTemplate(db,actor.companyId):undefined,canManageSpending:canManage&&actor.assignmentScope==="holding",positions:positions.filter(p=>(!actor.branchId||!p.branch_id||p.branch_id===actor.branchId)&&(!actor.departmentId||!p.department_id||p.department_id===actor.departmentId)),people:people.filter(visible).map(p=>({...p,issues:[...reportingIssues(p,people,positions),...managerIssues(p)]})),nodes,levels,templates,nodeChanges,changeQueue:{recordId:filters.changeId,state:filters.changeState,query:filters.changeQuery,page,pageSize,total,pages},actorId:actor.userId,canManage,canManageUnits,
+    defaults:await defaultCatalog(db,actor),
+    monthlyPayGroups:canSeeDefaultPay(actor)?(await db.prepare("SELECT id,name,currency FROM hr_pay_groups WHERE company_id=? AND status='active' AND frequency='monthly' ORDER BY name").bind(actor.companyId).all<{id:string;name:string;currency:string}>()).results:[],
+  };
 }
 
 function requireCompanyOrganizationAuthority(actor:WorkContext){
@@ -158,7 +165,14 @@ export async function decideOrganizationNodeChange(db:SqlDatabase,actor:WorkCont
   if(samePerson(actor,change.requested_by)||(await db.prepare("SELECT iam_same_person(?,?,?) same_person").bind(actor.userId,change.requested_by,actor.companyId).first<{same_person:boolean}>())?.same_person)throw new ApiError(403,"INDEPENDENT_REVIEW_REQUIRED","Another company HR administrator must review this change.");
   if(change.version!==input.expectedVersion)throw new ApiError(409,"STALE_VERSION","The organization change was updated. Reload and review it again.");
   const now=Date.now(),version=change.version+1,state=input.decision==="approve"?"applied":"rejected";
-  const statements=[assertion(db,key,"change-version","EXISTS(SELECT 1 FROM organization_node_changes WHERE id=? AND company_id=? AND version=? AND state='submitted')",[id,actor.companyId,input.expectedVersion]),assertion(db,key,"independent-review","NOT iam_same_person(?,?,?)",[actor.userId,change.requested_by,actor.companyId])];
+  const attachmentSetIds=input.attachmentSetIds??[];
+  let attachmentBinding:Awaited<ReturnType<typeof prepareAttachmentBinding>>|null=null;
+  if(attachmentSetIds.length){
+    const placeholders=attachmentSetIds.map(()=>"?").join(","),sets=(await db.prepare(`SELECT id,purpose_key,component_kind,component_ref FROM attachment_sets WHERE company_id=? AND id IN (${placeholders})`).bind(actor.companyId,...attachmentSetIds).all<{id:string;purpose_key:string;component_kind:string;component_ref:string|null}>()).results;
+    if(sets.length!==new Set(attachmentSetIds).size||sets.some(set=>set.purpose_key!=="org_change_proof"||set.component_kind!=="action"||set.component_ref!=="organization-change-review"))throw new ApiError(422,"ORGANIZATION_ATTACHMENT_PURPOSE","Choose only organization-change proof prepared for this review.");
+    attachmentBinding=await prepareAttachmentBinding(db,actor,{attachmentSetIds,bindingContract:{targetType:"organization_change",bindingType:"organization_change_review",contexts:[{purposeKey:"org_change_proof",componentKind:"action",componentRef:"organization-change-review"}]},targetId:id,expectedTargetVersion:change.version,commandId:key,bindingId:`${id}:${input.decision}:${version}`});
+  }
+  const statements=[...(attachmentBinding?.guards??[]),assertion(db,key,"change-version","EXISTS(SELECT 1 FROM organization_node_changes WHERE id=? AND company_id=? AND version=? AND state='submitted')",[id,actor.companyId,input.expectedVersion]),assertion(db,key,"independent-review","NOT iam_same_person(?,?,?)",[actor.userId,change.requested_by,actor.companyId])];
   let appliedNodeId=change.target_node_id;
   if(input.decision==="approve"){
     const candidate=organizationNodeChangeSchema.parse({action:change.action,targetNodeId:change.target_node_id,kind:change.node_kind,slug:change.slug,displayName:change.display_name,branchId:change.branch_id,expectedNodeVersion:change.expected_node_version,expectedVersion:change.version,reason:change.reason});
@@ -181,6 +195,7 @@ export async function decideOrganizationNodeChange(db:SqlDatabase,actor:WorkCont
           db.prepare("UPDATE hr_engagements SET branch_id=?,department_id=?,updated_at=? WHERE company_id=? AND department_id=? AND status IN ('draft','onboarding','active','suspended')").bind(change.branch_id,appliedNodeId,now,actor.companyId,change.target_node_id),
           db.prepare("UPDATE employees SET branch_id=?,department_id=? WHERE company_id=? AND department_id=? AND status='active'").bind(change.branch_id,appliedNodeId,actor.companyId,change.target_node_id),
           db.prepare("UPDATE organization_positions SET branch_id=?,department_id=?,updated_at=? WHERE company_id=? AND department_id=? AND active=1").bind(change.branch_id,appliedNodeId,now,actor.companyId,change.target_node_id),
+          db.prepare("UPDATE organization_gpo_rules SET target_id=?,version=version+1,revision=revision+1,updated_at=?,last_reason='Department relocated',last_actor_id=? WHERE company_id=? AND target_kind='department' AND target_id=?").bind(appliedNodeId,now,actor.userId,actor.companyId,change.target_node_id),
           db.prepare("UPDATE assignments SET branch_id=?,scope_node_id=?,version=version+1 WHERE company_id=? AND scope_kind='department' AND scope_node_id=? AND revoked_at IS NULL").bind(change.branch_id,appliedNodeId,actor.companyId,change.target_node_id),
         );
       }else{
@@ -197,6 +212,7 @@ export async function decideOrganizationNodeChange(db:SqlDatabase,actor:WorkCont
   statements.push(
     db.prepare("UPDATE organization_node_changes SET state=?,version=?,reviewed_by=?,review_reason=?,reviewed_at=?,applied_at=?,updated_at=? WHERE id=? AND company_id=?").bind(state,version,actor.userId,input.reason,now,input.decision==="approve"?now:null,now,id,actor.companyId),
     db.prepare("INSERT INTO organization_node_change_events(id,change_id,company_id,action,actor_id,version,snapshot_json,created_at) VALUES(?,?,?,?,?,?,?,?)").bind(`org-change-event-${key}`,id,actor.companyId,input.decision==="approve"?"applied":"rejected",actor.userId,version,JSON.stringify({decision:input.decision,reason:input.reason,appliedNodeId}),now),
+    ...(attachmentBinding?.steps??[]),
     organizationChangeNotice(db,actor.companyId,id,key,state),
   );
   return executeCommand(db,actor,key,operation,input,id,version,{id,version,state,nodeId:appliedNodeId},statements);
@@ -255,11 +271,14 @@ export async function savePosition(db:SqlDatabase,actor:WorkContext,id:string|nu
     }
   }
   const now=Date.now(),version=input.expectedVersion+1;
+  const rosterRequired=input.rosterRequired===undefined?(current?.roster_required===1):input.rosterRequired;
+  const exiting=current?.roster_required===1&&!rosterRequired?(await db.prepare("SELECT id FROM hr_engagements WHERE company_id=? AND position_id=? AND status='active'").bind(actor.companyId,recordId).all<{id:string}>()).results.map(row=>row.id):[];
   return executeCommand(db,actor,key,operation,input,recordId,version,{id:recordId,version},[guard,
     ...(id?[assertion(db,key,"position-version","EXISTS(SELECT 1 FROM organization_positions WHERE id=? AND company_id=? AND version=?)",[id,actor.companyId,input.expectedVersion])]:[]),
-    db.prepare(`INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,reports_to_position_id,is_ceo,active,version,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
-      ON CONFLICT(id) DO UPDATE SET branch_id=excluded.branch_id,department_id=excluded.department_id,title=excluded.title,level_id=excluded.level_id,reports_to_position_id=excluded.reports_to_position_id,is_ceo=excluded.is_ceo,active=excluded.active,version=excluded.version,updated_at=excluded.updated_at`).bind(recordId,actor.companyId,input.branchId,input.departmentId,input.title,input.levelId,input.reportsToPositionId,input.isCeo?1:0,input.active?1:0,version,actor.userId,now,now),
+    db.prepare(`INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,reports_to_position_id,is_ceo,roster_required,active,version,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(id) DO UPDATE SET branch_id=excluded.branch_id,department_id=excluded.department_id,title=excluded.title,level_id=excluded.level_id,reports_to_position_id=excluded.reports_to_position_id,is_ceo=excluded.is_ceo,roster_required=excluded.roster_required,active=excluded.active,version=excluded.version,updated_at=excluded.updated_at`).bind(recordId,actor.companyId,input.branchId,input.departmentId,input.title,input.levelId,input.reportsToPositionId,input.isCeo?1:0,rosterRequired?1:0,input.active?1:0,version,actor.userId,now,now),
     db.prepare("UPDATE organization_positions SET requirements=? WHERE id=? AND company_id=?").bind(input.requirements,recordId,actor.companyId),
+    ...rosterPositionExitStatements(db,actor,exiting,key,input.reason),
   ]);
 }
 function validateTemplate(positions:OrganizationTemplatePosition[]) {
@@ -287,7 +306,7 @@ export async function applyOrganizationTemplate(db:SqlDatabase,actor:WorkContext
   const levels=(await db.prepare("SELECT id,level_number FROM staff_levels WHERE company_id=? AND active=1 AND level_number IS NOT NULL").bind(actor.companyId).all<{id:string;level_number:number}>()).results;
   const ids=new Map(positions.map((p,i)=>[p.key,p.isCeo&&existingCeo?existingCeo.id:`position-${key}-${i}`]));
   const statements=[guard,assertion(db,key,"template-version","EXISTS(SELECT 1 FROM organization_templates WHERE id=? AND company_id=? AND version=?)",[id,actor.companyId,input.expectedVersion])];
-  for(const p of positions){if(p.isCeo&&existingCeo)continue;const level=levels.find(l=>l.level_number===p.levelNumber);if(!level)throw new ApiError(422,"LEVEL_REQUIRED","Install the six staff levels before applying this template.");statements.push(db.prepare("INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,reports_to_position_id,is_ceo,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(ids.get(p.key),actor.companyId,input.branchId,input.departmentId,p.title,level.id,p.reportsToKey?ids.get(p.reportsToKey):null,p.isCeo?1:0,actor.userId,Date.now(),Date.now()));}
+  for(const p of positions){if(p.isCeo&&existingCeo)continue;const level=levels.find(l=>l.level_number===p.levelNumber);if(!level)throw new ApiError(422,"LEVEL_REQUIRED","Install the six staff levels before applying this template.");statements.push(db.prepare("INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,reports_to_position_id,is_ceo,roster_required,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(ids.get(p.key),actor.companyId,input.branchId,input.departmentId,p.title,level.id,p.reportsToKey?ids.get(p.reportsToKey):null,p.isCeo?1:0,p.rosterRequired?1:0,actor.userId,Date.now(),Date.now()));}
   return executeCommand(db,actor,key,"organization.template.apply",input,id,input.expectedVersion,{id,positionIds:[...ids.values()]},statements);
 }
 

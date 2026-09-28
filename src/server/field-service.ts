@@ -175,7 +175,7 @@ export async function fieldServiceWorkspace(a: WorkContext) {
     tickets = (
       await write
         .prepare(
-          "SELECT id,title,version,customer_id,branch_id,department_id FROM support_tickets WHERE company_id=? AND status IN ('open','in_progress','waiting_customer') ORDER BY updated_at DESC",
+          "SELECT id,title,version,customer_id,branch_id,department_id FROM support_tickets WHERE company_id=? AND source_kind='sales_order' AND status IN ('open','in_progress','waiting_customer') ORDER BY updated_at DESC",
         )
         .bind(a.companyId)
         .all<Row>()

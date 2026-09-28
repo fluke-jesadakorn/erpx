@@ -29,7 +29,7 @@ export function PilotFeatureRollout({base,initial}:{base:string;initial:Entry[]}
     } catch(cause) {setError(cause instanceof Error?cause.message:'Rollout change failed');}
     finally {setBusy('');}
   }
-  return <main style={{maxWidth:1000,margin:'0 auto',padding:'24px 20px 80px'}}>
+  return <div style={{maxWidth:1000,margin:'0 auto',padding:'24px 20px 80px'}}>
     <p style={{color:'var(--text-muted, #667085)'}}>ERPX · Company administration</p>
     <h1>Pilot feature rollout</h1>
     <p>Production starts with every module off. Activate only the hotel and restaurant modules approved for this company. The basic setup checks do not replace the accountant’s configuration review or business acceptance. Switching off a module stops new work; historical records stay readable where authorized. In development, preview workflows remain visible even when production rollout is off.</p>
@@ -39,5 +39,5 @@ export function PilotFeatureRollout({base,initial}:{base:string;initial:Entry[]}
       <label style={{display:'grid',gap:6,marginTop:16,maxWidth:560}}>Reason for the change<input value={reasons[entry.id]??''} onChange={(event)=>setReasons((previous)=>({...previous,[entry.id]:event.target.value}))} minLength={3} maxLength={1000} style={{padding:10,border:'1px solid #98a2b3',borderRadius:8}}/></label>
       <div style={{display:'flex',gap:8,marginTop:12}}><button type="button" disabled={Boolean(busy)||entry.rollout==='pilot'} onClick={()=>void change(entry,'pilot')}>Activate pilot</button><button type="button" disabled={Boolean(busy)||entry.rollout==='off'} onClick={()=>void change(entry,'off')}>Switch off</button></div>
     </article>)}</div>
-  </main>;
+  </div>;
 }

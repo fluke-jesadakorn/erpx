@@ -1,6 +1,15 @@
 import sharp from "sharp";
 import { beforeAll, beforeEach, expect, it } from "vitest";
-import { normalizeBrandImage, recordBranchId, requireBrandManagement, resolveDocumentBrand } from "../src/server/branding";
+import {
+  completeBrandUpload,
+  completeStorefrontBrandUpload,
+  normalizeBrandImage,
+  recordBranchId,
+  requireBrandManagement,
+  resolveDocumentBrand,
+  updateBrandProfile,
+  updateStorefrontAppBrand,
+} from "../src/server/branding";
 import { matchesUploadSignature } from "../src/server/upload-validation";
 import { applyMigrations, env } from "./runtime-env";
 import { expenseDb as db, expenseFixture } from "./helpers/expense-fixture";
@@ -66,6 +75,84 @@ it("derives an expense Branch from the record and applies document-mode defaults
 it("allows the Holding owner to manage brands and rejects ordinary staff", async () => {
   await expect(requireBrandManagement(db, fixture.owner, "holding_brand", fixture.owner.holdingId)).resolves.toBeUndefined();
   await expect(requireBrandManagement(db, fixture.owner, "branch_brand", fixture.branch)).resolves.toBeUndefined();
+  await expect(requireBrandManagement(db, fixture.owner, "company_storefront_brand", fixture.company)).resolves.toBeUndefined();
   await expect(requireBrandManagement(db, fixture.claimant, "holding_brand", fixture.owner.holdingId)).rejects.toMatchObject({ code: "BRAND_MANAGEMENT_FORBIDDEN" });
   await expect(requireBrandManagement(db, fixture.claimant, "branch_brand", fixture.branch)).rejects.toMatchObject({ code: "BRAND_MANAGEMENT_FORBIDDEN" });
+});
+
+it("blocks legacy brand file writes only during explicit attachment rollback", async () => {
+  const previousGate = process.env.ERPX_ATTACHMENTS_V2;
+  const previousReadOnly = process.env.ERPX_ATTACHMENTS_READ_ONLY;
+  process.env.ERPX_ATTACHMENTS_V2 = "false";
+  delete process.env.ERPX_ATTACHMENTS_READ_ONLY;
+  try {
+    const invalidImage = new Uint8Array([1, 2, 3]).buffer;
+    await expect(completeBrandUpload({
+      db,
+      files: env.H001_FILES,
+      actor: fixture.owner,
+      intent: { id: `brand-upload-${crypto.randomUUID()}`, owner_type: "branch_brand", owner_id: fixture.branch, purpose: "primary", revision: 1, original_name: "invalid.png" },
+      buffer: invalidImage,
+    })).rejects.toMatchObject({ code: "LOGO_INVALID" });
+    await expect(completeStorefrontBrandUpload({
+      db,
+      files: env.H001_FILES,
+      actor: fixture.owner,
+      intent: { id: `storefront-upload-${crypto.randomUUID()}`, owner_id: fixture.company, revision: 1, original_name: "invalid.png" },
+      buffer: invalidImage,
+    })).rejects.toMatchObject({ code: "LOGO_INVALID" });
+    await expect(updateBrandProfile(db, fixture.owner, {
+      scopeKind: "branch",
+      scopeId: fixture.branch,
+      remove: "primary",
+      commandId: crypto.randomUUID(),
+    })).resolves.toMatchObject({ result: { scopeId: fixture.branch } });
+    await expect(updateStorefrontAppBrand(db, fixture.owner, {
+      removeLogo: true,
+      commandId: crypto.randomUUID(),
+    })).resolves.toMatchObject({ result: { companyId: fixture.company, logoRemoved: true } });
+
+    process.env.ERPX_ATTACHMENTS_READ_ONLY = "true";
+    await expect(completeBrandUpload({
+      db,
+      files: env.H001_FILES,
+      actor: fixture.owner,
+      intent: { id: `brand-upload-${crypto.randomUUID()}`, owner_type: "branch_brand", owner_id: fixture.branch, purpose: "primary", revision: 1, original_name: "invalid.png" },
+      buffer: invalidImage,
+    })).rejects.toMatchObject({ status: 503, code: "ATTACHMENTS_READ_ONLY" });
+    await expect(completeStorefrontBrandUpload({
+      db,
+      files: env.H001_FILES,
+      actor: fixture.owner,
+      intent: { id: `storefront-upload-${crypto.randomUUID()}`, owner_id: fixture.company, revision: 1, original_name: "invalid.png" },
+      buffer: invalidImage,
+    })).rejects.toMatchObject({ status: 503, code: "ATTACHMENTS_READ_ONLY" });
+    await expect(updateBrandProfile(db, fixture.owner, {
+      scopeKind: "branch",
+      scopeId: fixture.branch,
+      remove: "inverse",
+      commandId: crypto.randomUUID(),
+    })).rejects.toMatchObject({ status: 503, code: "ATTACHMENTS_READ_ONLY" });
+    await expect(updateStorefrontAppBrand(db, fixture.owner, {
+      removeLogo: true,
+      commandId: crypto.randomUUID(),
+    })).rejects.toMatchObject({ status: 503, code: "ATTACHMENTS_READ_ONLY" });
+
+    await expect(updateBrandProfile(db, fixture.owner, {
+      scopeKind: "branch",
+      scopeId: fixture.branch,
+      documentMode: "both",
+      commandId: crypto.randomUUID(),
+    })).resolves.toMatchObject({ result: { documentMode: "both" } });
+    await expect(updateStorefrontAppBrand(db, fixture.owner, {
+      shortName: "Rollback-safe storefront",
+      accentColor: "#123456",
+      commandId: crypto.randomUUID(),
+    })).resolves.toMatchObject({ result: { shortName: "Rollback-safe storefront", accentColor: "#123456", logoRemoved: false } });
+  } finally {
+    if (previousGate === undefined) delete process.env.ERPX_ATTACHMENTS_V2;
+    else process.env.ERPX_ATTACHMENTS_V2 = previousGate;
+    if (previousReadOnly === undefined) delete process.env.ERPX_ATTACHMENTS_READ_ONLY;
+    else process.env.ERPX_ATTACHMENTS_READ_ONLY = previousReadOnly;
+  }
 });

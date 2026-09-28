@@ -1,4 +1,4 @@
-import { assignmentApplies, requireManageErpxContext } from "@/server/authorization";
+import { assignmentApplies, canEnterManageErpx } from "@/server/authorization";
 import { WorkspaceMenu } from "@/components/workplace/workspace-menu";
 import { workspaceChoices } from "@/server/workspace-choices";
 import { redirect } from 'next/navigation';
@@ -7,6 +7,10 @@ import { parseHoldingWorkspace,workspaceBase } from '@/lib/workspace';
 import { workRoleOptions } from '@/server/work-role-options';
 import { WorkRolePicker } from '@/components/workplace/work-role-picker';
 import { pageError } from '@/server/page-error';
+import { accountQuickAccessItems } from '@/server/account-quick-access';
+import { readQuickAccessPreferences } from '@/server/quick-access-preferences';
+import { QuickAccessShelf } from '@/components/quick-access/shelf';
+import rail from '@/components/quick-access/area-rail.module.css';
 export const dynamic='force-dynamic';
 export default async function WorkRolePage({searchParams}:PageProps<'/work-role'>){
  const from=safeReturnPath((await searchParams).from);if(!from)redirect('/');
@@ -14,10 +18,12 @@ export default async function WorkRolePage({searchParams}:PageProps<'/work-role'
  const parsed=parseHoldingWorkspace(parts[1],parts.slice(2));if(!parsed)redirect('/');
  const {access,options,selection,selected}=await workRoleOptions(parsed.scope).catch(error=>pageError(error,parts[1]));
  if(selected && assignmentApplies(selected,access.scope))redirect(from);
- const [canManageErpx,choices] = await Promise.all([
-  requireManageErpxContext().then(()=>true).catch(()=>false),
+ const [canManageErpx,choices,preferences] = await Promise.all([
+  canEnterManageErpx().catch(()=>false),
   workspaceChoices(),
+  readQuickAccessPreferences(access.userId,'account-work-role',workspaceBase(parsed.scope)),
  ]);
+ const items=accountQuickAccessItems('work-role',{hasWorkspace:choices.length>0,hasRoles:options.length>0});
  const current =
   access.scope.kind === "holding"
    ? {
@@ -40,14 +46,26 @@ export default async function WorkRolePage({searchParams}:PageProps<'/work-role'
        departmentId: access.scope.departmentId,
       };
  return (
-  <main className="content">
-   <section style={{maxWidth:520,margin:"48px auto"}}>
+  <>
+  <a href="#work-role-content" className="skip-link">Skip to work role</a>
+  <main className="content" style={{maxWidth:1360}}>
+   <header style={{maxWidth:700,marginBottom:24}}>
     <h1>Choose your work role</h1>
     <p>Each role uses only its own permissions. Select the company and team scope you need.</p>
     <p>{access.email}</p>
-    <WorkRolePicker base={workspaceBase(parsed.scope)} options={options} revision={selection?.revision??0} />
-    <WorkspaceMenu label={access.scope.holdingSlug} choices={choices} current={current} canManageErpx={canManageErpx} />
+   </header>
+   <div className={rail.layout}>
+   <aside className={rail.rail} aria-label="Quick access">
+    <QuickAccessShelf items={items} initialPreferences={preferences} defaultIds={items.map(item=>item.id)} endpoint={`/api/v1/account/quick-access/work-role?from=${encodeURIComponent(from)}`} requestMode="plain" embedded placement="rail" />
+   </aside>
+   <div id="work-role-content" tabIndex={-1} className={rail.content}>
+   <section style={{display:"grid",gap:16,maxWidth:520}}>
+    <div id="role-picker"><WorkRolePicker base={workspaceBase(parsed.scope)} options={options} revision={selection?.revision??0} /></div>
+    <div id="available-workspaces"><WorkspaceMenu label={access.scope.holdingSlug} choices={choices} current={current} canManageErpx={canManageErpx} /></div>
    </section>
+   </div>
+   </div>
   </main>
+  </>
  );
 }

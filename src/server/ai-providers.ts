@@ -15,6 +15,10 @@ import {
   sealAiKey,
   type AiEndpoint,
 } from "./ai-transport";
+import {
+  isThaiHotelAiMockEnabled,
+  thaiHotelAiMockId,
+} from "./simulation-only-adapters";
 
 export const aiConnectionSchema = z.object({
   expectedVersion: z.number().int().nonnegative().default(0),
@@ -99,6 +103,15 @@ export type AiProviderSnapshot = {
   kind: "text" | "image";
   deploymentDigest?: string;
 };
+async function gatewayEndpoint(db: SqlDatabase, companyId: string, target: AiEndpoint, connectionId: string | null): Promise<AiEndpoint> {
+  const holding = await db.prepare("SELECT holding_id FROM beta_bootstrap WHERE singleton=1").first<{holding_id:string}>();
+  if (!holding) throw new ApiError(503,"AI_GATEWAY_SCOPE","The Holding's AI billing scope is unavailable.");
+  return { ...target, gateway: {
+    db, holdingId: holding.holding_id, companyId, branchId: null, connectionId,
+    fundingSource: connectionId ? "byok" : "erpx",
+    feature: "", requestId: "",
+  } };
+}
 const roles = ["holding_owner", "it_admin"];
 export async function requireAiAdmin(db: SqlDatabase, actor: StaffActor) {
   if (!(await companyAuthority(db, actor, roles)))
@@ -696,11 +709,39 @@ export async function resolveAiProvider(
   companyId: string,
   env: BetaEnvironment,
   kind: "text" | "image",
+  holdingSlug?: string,
 ) {
   const settings = await db
     .prepare("SELECT * FROM ai_company_settings WHERE company_id=?")
     .bind(companyId)
     .first<Selection>();
+  if (isThaiHotelAiMockEnabled(holdingSlug)) {
+    if (
+      settings?.mode === "disabled" ||
+      (kind === "image" && settings?.image_mode === "disabled")
+    )
+      throw new ApiError(
+        503,
+        "AI_DISABLED",
+        "AI is disabled for this capability. Continue manually.",
+      );
+    return {
+      endpoint: {
+        baseUrl: "simulation://thai-hotel-v1",
+        model: thaiHotelAiMockId,
+        apiKey: null,
+      },
+      snapshot: {
+        companyId,
+        connectionId: null,
+        revision: 1,
+        settingsVersion: settings?.version ?? 0,
+        model: thaiHotelAiMockId,
+        kind,
+        deploymentDigest: `simulation:${thaiHotelAiMockId}`,
+      } satisfies AiProviderSnapshot,
+    };
+  }
   if (process.env.NODE_ENV === "production" && (!settings || settings.mode === "disabled"))
     throw new ApiError(
       503,
@@ -731,11 +772,11 @@ export async function resolveAiProvider(
       );
     const { sha256 } = await import("./crypto");
     return {
-      endpoint: {
+      endpoint: await gatewayEndpoint(db,companyId,{
         baseUrl: env.AI_BASE_URL,
         model: env.AI_MODEL,
         apiKey: env.AI_API_KEY,
-      },
+      },null),
       snapshot: {
         companyId,
         connectionId: null,
@@ -773,7 +814,7 @@ export async function resolveAiProvider(
     );
   const target = await endpoint(env, companyId, row, rev, kind);
   return {
-    endpoint: target,
+    endpoint: await gatewayEndpoint(db,companyId,target,id),
     snapshot: {
       companyId,
       connectionId: id,
@@ -790,13 +831,15 @@ export function aiSnapshotGuard(
   snapshot: AiProviderSnapshot,
   label = "ai-provider-revision",
 ) {
+  const simulationSnapshot =
+    snapshot.deploymentDigest?.startsWith("simulation:") ?? false;
   const settings =
     "COALESCE((SELECT version FROM ai_company_settings WHERE company_id=?),0)=?";
   return assertion(
     db,
     key,
     label,
-    `${settings}${snapshot.connectionId ? " AND EXISTS(SELECT 1 FROM ai_connections c JOIN ai_connection_revisions r ON r.connection_id=c.id AND r.revision=c.active_revision WHERE c.id=? AND c.company_id=? AND c.active_revision=? AND c.disabled=0 AND c.deleted_at IS NULL AND r.text_verified=1 AND (?='text' OR r.image_verified=1))" : " AND COALESCE((SELECT mode FROM ai_company_settings WHERE company_id=?),'deployment')='deployment'"}`,
+    `${settings}${snapshot.connectionId ? " AND EXISTS(SELECT 1 FROM ai_connections c JOIN ai_connection_revisions r ON r.connection_id=c.id AND r.revision=c.active_revision WHERE c.id=? AND c.company_id=? AND c.active_revision=? AND c.disabled=0 AND c.deleted_at IS NULL AND r.text_verified=1 AND (?='text' OR r.image_verified=1))" : simulationSnapshot ? "" : " AND COALESCE((SELECT mode FROM ai_company_settings WHERE company_id=?),'deployment')='deployment'"}`,
     [
       snapshot.companyId,
       snapshot.settingsVersion,
@@ -807,7 +850,9 @@ export function aiSnapshotGuard(
             snapshot.revision,
             snapshot.kind,
           ]
-        : [snapshot.companyId]),
+        : simulationSnapshot
+          ? []
+          : [snapshot.companyId]),
     ],
   );
 }
@@ -819,10 +864,18 @@ export function aiUsageStatement(
   status: "succeeded" | "failed",
   inputTokens = 0,
   outputTokens = 0,
+  branchId: string | null = null,
 ) {
+  const fundingSource = snapshot.deploymentDigest?.startsWith("simulation:")
+    ? "simulation"
+    : snapshot.connectionId
+      ? "byok"
+      : snapshot.deploymentDigest
+        ? "erpx"
+        : "unknown";
   return db
     .prepare(
-      "INSERT INTO ai_provider_usage(id,company_id,connection_id,revision,model,feature,status,input_tokens,output_tokens,created_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET status=excluded.status,input_tokens=excluded.input_tokens,output_tokens=excluded.output_tokens",
+      "INSERT INTO ai_provider_usage(id,company_id,connection_id,revision,model,feature,status,input_tokens,output_tokens,created_at,branch_id,funding_source) VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
     )
     .bind(
       id,
@@ -835,5 +888,7 @@ export function aiUsageStatement(
       inputTokens,
       outputTokens,
       Date.now(),
+      branchId,
+      fundingSource,
     );
 }

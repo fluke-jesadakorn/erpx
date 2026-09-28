@@ -4,6 +4,7 @@ import type { WorkItem } from "./work-item";
 export const workCardIds = [
   "tasks",
   "expenses",
+  "shifts",
   "leave",
   "overtime",
   "services",
@@ -33,6 +34,7 @@ export type WorkCreation = {
 export type WorkCapabilities = {
   creation: WorkCreation[];
   teamQueue: boolean;
+  rosterAccess?: boolean;
   unavailable: string[];
 };
 export type WorkActionCard = {
@@ -70,6 +72,11 @@ export const workCardCatalog: {
     type: "expense",
     newKind: "expense",
     sources: ["Expense claims"],
+  },
+  {
+    id: "shifts",
+    title: "My shifts",
+    sources: ["Schedule"],
   },
   {id:"overtime",title:"Overtime",type:"overtime",newKind:"overtime",sources:["Overtime"]},
   {
@@ -138,12 +145,14 @@ export function defaultWorkCardIds(cards: WorkActionCard[]): WorkCardId[] {
   );
   const order = [
     ...pending,
+    "shifts",
+    "leave",
+    "overtime",
+    "purchases",
     "expenses",
     "services",
     "tasks",
-    "leave",
     "equipment",
-    "purchases",
     "counts",
     "transfers",
     "team",
@@ -158,9 +167,11 @@ export function newWorkHref(
   current: string,
 ) {
   const personal=selfServiceHref(base,creation.kind);
-  if(personal&&creation.kind!=="purchase_request")return personal;
+  if(personal)return personal;
   if (creation.kind === "conversation") return creation.href;
   const query = new URLSearchParams(current);
   query.set("new", creation.kind);
-  return `${base}/work?${query}`;
+  return creation.kind === "expense"
+    ? `${base}/expenses/new?${query}`
+    : `${base}/work?${query}`;
 }

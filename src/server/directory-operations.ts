@@ -1006,22 +1006,66 @@ export async function drainDirectoryOperations(
       for (const [index, action] of actions.entries()) {
         if (steps.some((s) => s.index === index && s.status === "completed"))
           continue;
-        const result = await applyDirectoryAction(
-          conn,
-          actions.length === 1 ? job.id : `${job.id}:${index}`,
-          action,
-          job.evidence.inventory,
-        );
+        let executable = action;
+        let retainedMemberIds: string[] = [];
+        let replacedSourceIds: string[] = [];
+        if (action.kind === "group.members" && action.action === "remove") {
+          // Source ownership can change after a reviewed preview. The connection
+          // session lock is also held by the GPO reconciler through its provider
+          // write and source commit, so this is the last safe ownership check.
+          const sources = (await c.query(
+            `SELECT s.member_id,s.application_id,
+              (s.application_id IS NOT NULL AND ap.ended_at IS NULL) package_owned,
+              EXISTS(SELECT 1 FROM organization_gpo_membership_claims g WHERE
+                g.connection_id=s.connection_id AND g.group_id=s.group_id
+                AND g.member_id=s.member_id AND g.source_id=s.source_id) gpo_owned
+             FROM people_directory_membership_sources s LEFT JOIN people_applied_packages ap ON ap.id=s.application_id
+             WHERE s.connection_id=$1 AND s.group_id=$2 AND s.member_id=ANY($3::text[])`,
+            [conn.id, action.objectId, action.memberIds],
+          )).rows;
+          if (job.provision_id) {
+            const provision = (await c.query("SELECT evidence FROM people_provision_operations WHERE id=$1", [job.provision_id])).rows[0];
+            replacedSourceIds = provision.evidence.plans.flatMap((plan: {oldIds: string[]}) => plan.oldIds);
+            const replaced = new Set(replacedSourceIds);
+            retainedMemberIds = action.memberIds.filter(member => {
+              const claims = sources.filter(source => source.member_id === member);
+              return !claims.length || claims.some(source => !source.application_id || !replaced.has(source.application_id));
+            });
+            executable = {...action, memberIds: action.memberIds.filter(member => !retainedMemberIds.includes(member))};
+          } else if (sources.some(source => source.package_owned || source.gpo_owned)) {
+            fail("DIRECTORY_MEMBERSHIP_SOURCE_RETAINED", "Remove the supplying organization policy or access package before removing this membership.");
+          }
+        }
+        const result = executable.kind === "group.members" && executable.action === "remove" && !executable.memberIds.length
+          ? {verified: true, objectId: executable.objectId, retainedMemberIds}
+          : {...await applyDirectoryAction(
+            conn,
+            (actions.length === 1 ? job.id : `${job.id}:${index}`) + (retainedMemberIds.length ? `:${hash(executable)}` : ""),
+            executable,
+            job.evidence.inventory,
+          ), ...(retainedMemberIds.length ? {retainedMemberIds} : {})};
         if (result.verified !== true)
           fail(
             "DIRECTORY_READBACK_FAILED",
             "The provider has not verified this operation.",
           );
         steps.push({ index, status: "completed", result });
+        const withdrawsSources = job.provision_id && action.kind === "group.members" && action.action === "remove";
+        if (withdrawsSources) {
+          // Persist the completed step and its source retirement together. A
+          // crash must not leave a completed skipped removal holding an old
+          // package claim that another source will mistakenly retain.
+          await c.query("BEGIN");
+          await c.query(
+            "DELETE FROM people_directory_membership_sources WHERE connection_id=$1 AND group_id=$2 AND member_id=ANY($3::text[]) AND application_id=ANY($4::text[])",
+            [conn.id, action.objectId, action.memberIds, replacedSourceIds],
+          );
+        }
         await c.query(
           "UPDATE people_directory_operations SET steps=$2 WHERE id=$1",
           [job.id, JSON.stringify(steps)],
         );
+        if (withdrawsSources) await c.query("COMMIT");
       }
       const result = {
         ...steps.at(-1)?.result,
@@ -1041,7 +1085,7 @@ export async function drainDirectoryOperations(
             [job.provision_id],
           )
         ).rows[0];
-        for (const action of actions)
+        for (const action of actions) {
           if (action.kind === "group.members" && action.action === "add") {
             for (const plan of provision.evidence.plans)
               if (
@@ -1065,6 +1109,7 @@ export async function drainDirectoryOperations(
                 }
               }
           }
+        }
       }
       if (!job.provision_id)
         for (const action of actions)

@@ -4,12 +4,14 @@ import type { WorkContext } from "./authorization";
 import type { SqlDatabase } from "./runtime/types";
 import type { PostgresDatabase } from "./runtime/postgres";
 import { holdingResources } from "./runtime";
-import { activeStaff, requestRoute, notification, requireCompanyAuthority } from "./staff-policy";
+import { activeStaff, notification, requireCompanyAuthority } from "./staff-policy";
+import { peopleRequestRoute } from "./department-authority";
 import { approvalView, openApproval, prepareDecision, closeApprovals, participantSql } from "./approvals";
 import { executeCommand, replayCommand } from "./commands";
 import { ApiError } from "./http";
 import { overtimeDetailsSchema, overtimeCommandSchema, overtimeMinutes, overtimeLabels, type OvertimeDetails } from "@/lib/overtime";
 import type { WorkItem } from "@/lib/work-item";
+import { prepareAttachmentBinding } from "./attachments/service";
 
 const fail = (code: string, message: string, status=409): never => { throw new ApiError(status,code,message); };
 export type OvertimeRow = {
@@ -22,7 +24,7 @@ export type OvertimeRow = {
 export async function overtimeSetup(db:SqlDatabase, actor:WorkContext) {
  const staff=await activeStaff(db,actor.companyId,actor.userId);
  const eligibility=await db.prepare("SELECT eligible FROM overtime_eligibility WHERE company_id=? AND engagement_id=?").bind(actor.companyId,staff.engagement_id).first<{eligible:boolean}>();
- const route=await requestRoute(db,actor.companyId,actor.userId,"leave");
+ const route=await peopleRequestRoute(db,actor.companyId,actor.userId);
  const blockers=[...(eligibility?.eligible===false || staff.worker_type==='contractor' && !eligibility?.eligible ? ["Ask HR to configure explicit overtime eligibility for your engagement in People settings."] : []),...(route.blockedReason?[route.blockedReason]:[])];
  return {staff,route,blockers};
 }
@@ -77,10 +79,26 @@ export async function commandOvertime(actor:WorkContext,id:string,raw:z.infer<ty
  return db.transaction(async tx=>{
   const prior=await replayCommand(tx,actor,key,operation,id,input);if(prior)return prior;
   await tx.prepare('SELECT id FROM overtime_requests WHERE id=? AND company_id=? FOR UPDATE').bind(id,actor.companyId).first();
-  const row=await getOvertime(actor,id,tx);
+  const row=input.override ? await (async()=>{
+    const record=await tx.prepare("SELECT * FROM overtime_requests WHERE id=? AND company_id=?").bind(id,actor.companyId).first<OvertimeRow>();
+    if(!record)throw new ApiError(404,"NOT_FOUND","Overtime request not found.");
+    const approval=await approvalView(tx,"overtime",id,actor);
+    return {...record,approval,permittedActions:approval.canOverride?(record.state==="pending_authorization"?["authorize","reject"]:record.state==="pending_verification"?["verify","return"]:record.state==="pending_hr"?["approve","return"]:[]):[],handoff:null,details:detailsOf(record)};
+  })() : await getOvertime(actor,id,tx);
   if(row.version!==input.expectedVersion) fail('STALE_VERSION','This request changed. Reload to review the current version; your entered values are retained.');
   if(!row.permittedActions.includes(input.action)) fail('OVERTIME_ACTION','This action is not available to you at the current stage.',403);
-  const version=row.version+1,now=Date.now(),statements=[];let state=row.state;
+  const allowedAttachmentPurposes = input.action === "submit"
+    ? (row.mode === "advance" ? ["planned_evidence"] : ["actual_evidence", "exception_evidence"])
+    : input.action === "actuals" ? ["actual_evidence", "exception_evidence"] : [];
+  if(input.attachmentSetIds.length&&!allowedAttachmentPurposes.length)
+    fail("OVERTIME_ATTACHMENT_ACTION","Evidence can be bound only when planned or actual hours are submitted.",422);
+  if(input.attachmentSetIds.length){
+   const placeholders=input.attachmentSetIds.map(()=>"?").join(","),sets=(await tx.prepare(`SELECT id,purpose_key,component_kind FROM attachment_sets WHERE company_id=? AND id IN (${placeholders})`).bind(actor.companyId,...input.attachmentSetIds).all<{id:string;purpose_key:string;component_kind:string}>()).results;
+   if(sets.length!==new Set(input.attachmentSetIds).size||sets.some(set=>set.component_kind!=="action"||!allowedAttachmentPurposes.includes(set.purpose_key)))
+    fail("OVERTIME_ATTACHMENT_PURPOSE","Choose only the evidence purpose allowed for this overtime submission.",422);
+  }
+  const attachmentBinding=input.attachmentSetIds.length?await prepareAttachmentBinding(tx,actor,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:"overtime_request",bindingType:input.action==="submit"?"overtime_submission":"overtime_actuals",contexts:allowedAttachmentPurposes.map(purposeKey=>({purposeKey,componentKind:"action" as const,componentRef:input.action==="actuals"?"actual-hours":"request-submission"}))},targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:`${id}:${input.action}:${input.expectedVersion+1}`}):null;
+  const version=row.version+1,now=Date.now(),statements=[...(attachmentBinding?.guards??[])];let state=row.state;
   if(['save','submit','actuals'].includes(input.action)) {
    const details=input.details??row.details;
    if(details.mode!==row.mode) fail('OVERTIME_MODE','Start a new request to change between advance and retrospective.');
@@ -92,16 +110,18 @@ export async function commandOvertime(actor:WorkContext,id:string,raw:z.infer<ty
    if(input.action!=='save') {
     const authorization=row.mode==='advance'&&!actual;
     state=authorization?'pending_authorization':'pending_verification';
-    const route={...setup.route,steps:authorization?setup.route.steps.slice(0,1):setup.route.steps};
+    const route={...setup.route,steps:authorization?setup.route.steps.filter(s=>s.stage==="department_approval"):setup.route.steps};
     statements.push(...(await openApproval(tx,key,'overtime',id,authorization?'start':'request',row.created_by,null,route,version)).statements);
     statements.push(tx.prepare(`UPDATE overtime_requests SET ${authorization?'planned_snapshot':'actuals_snapshot'}=?::jsonb,decision_note='' WHERE id=?`).bind(JSON.stringify(p),id));
    }
   } else if(input.action==='withdraw') {
    state='withdrawn';statements.push(...closeApprovals(tx,key,'overtime',id,actor.userId,'cancel',input.note,row.version));
   } else {
-   const approve=!['return','reject'].includes(input.action), decision=await prepareDecision(tx,actor,key,'overtime',id,approve,input.note,row.version);
+   const approve=!['return','reject'].includes(input.action), decision=await prepareDecision(tx,actor,key,'overtime',id,approve,input.note,row.version,input.override);
    statements.push(...decision.statements);
-   state=!approve?(row.state==='pending_authorization'?'rejected':'returned'):row.state==='pending_authorization'?'authorized':row.state==='pending_verification'?'pending_hr':'approved';
+   state=!approve?(row.state==='pending_authorization'?'rejected':'returned')
+    : row.state==='pending_authorization'?(decision.final?'authorized':'pending_authorization')
+    : decision.final?'approved':decision.next?.stage==='hr_approval'?'pending_hr':'pending_verification';
    if(state==='approved') {
     if(!decision.final||!row.actuals_snapshot||row.ends_at>now) fail('OVERTIME_REVIEW','Complete independent actual-hours reviews before handoff.');
     const conflict=await tx.prepare("SELECT id FROM hr_time_entries WHERE company_id=? AND engagement_id=? AND work_date BETWEEN ? AND ? AND overtime_hours>0 AND status IN ('draft','submitted','approved') LIMIT 1").bind(actor.companyId,row.engagement_id,row.start_local.slice(0,10),row.end_local.slice(0,10)).first();
@@ -110,7 +130,7 @@ export async function commandOvertime(actor:WorkContext,id:string,raw:z.infer<ty
    }
    statements.push(tx.prepare('UPDATE overtime_requests SET decision_note=? WHERE id=?').bind(input.note,id));
   }
-  statements.push(tx.prepare('UPDATE overtime_requests SET state=?,version=?,updated_at=? WHERE id=?').bind(state,version,now,id),notification(tx,row,row.created_by,'overtime',id,version,overtimeLabels[state]));
+  statements.push(tx.prepare('UPDATE overtime_requests SET state=?,version=?,updated_at=? WHERE id=?').bind(state,version,now,id),...(attachmentBinding?.steps??[]),notification(tx,row,row.created_by,'overtime',id,version,overtimeLabels[state]));
   return executeCommand(tx,actor,key,operation,input,id,version,{id,state,version},statements,{companyId:row.company_id,branchId:row.branch_id,departmentId:row.department_id});
  });
 }

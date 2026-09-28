@@ -1,6 +1,9 @@
 .root {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 20px;
+  width: 100%;
+  min-width: 0;
   color: var(--ink);
 }
 .header {
@@ -25,6 +28,16 @@
   color: var(--blue);
   font-size: 14px;
 }
+.targetPinned {
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  padding: 20px;
+  min-width: 0;
+}
+.forecastStack { display: grid; gap: 16px; }
 .tabs,
 .actions {
   display: flex;
@@ -112,6 +125,14 @@
 .root a {
   color: var(--blue);
   text-decoration: underline;
+}
+.root .usageLink {
+  align-self: flex-start;
+  max-width: 100%;
+  color: var(--ink);
+  text-align: center;
+  text-decoration: none;
+  white-space: normal;
 }
 .status {
   padding: 10px 14px;

@@ -81,6 +81,13 @@ export class PostgresDatabase implements SqlDatabase {
     this.pool.on('error', () => console.error(JSON.stringify({ event: 'database_connection_error' })));
   }
   prepare(sql: string) { return new Statement(this, sql); }
+  /** Pin a connection for a session advisory lock without holding a transaction
+   * across external work. Each batch still commits independently on this client. */
+  async withSession<T>(action: (session: SqlDatabase) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try { return await action(new SessionDatabase(client)); }
+    finally { client.release(); }
+  }
   /** Reads and derived writes share the same snapshot; retry the entire calculation. */
   async transaction<T>(action: (tx: SqlDatabase) => Promise<T>): Promise<T> {
     for (let attempt = 0; ; attempt++) {
@@ -145,5 +152,21 @@ class TransactionDatabase implements SqlDatabase {
     const start = performance.now();
     const queries = await this.pool.query(sql);
     return { count: Array.isArray(queries) ? queries.length : 1, duration: performance.now() - start };
+  }
+}
+
+class SessionDatabase extends TransactionDatabase {
+  override async batch<T = Record<string, unknown>>(statements: SqlStatement[]): Promise<SqlResult<T>[]> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await this.pool.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
+        const results = await super.batch<T>(statements);
+        await this.pool.query('COMMIT');
+        return results;
+      } catch (error) {
+        await this.pool.query('ROLLBACK').catch(() => {});
+        if (attempt >= 3 || !['40001', '40P01'].includes((error as { code?: string }).code ?? '')) throw error;
+      }
+    }
   }
 }

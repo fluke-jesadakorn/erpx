@@ -34,7 +34,14 @@ for (const size of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, 
       for (const route of ["home", "work", "inbox"]) {
         await page.goto(`${base}/${route}`);
         await expect(page.getByRole("button", { name: "Search workspace", exact: true })).toBeEnabled({ timeout: 40_000 });
-        await expect(page.locator("main")).toBeVisible();
+        await expect(page.locator("#workspace-content")).toBeVisible();
+        const sharedShelf = page.getByRole("region", { name: "Your shortcuts", exact: true });
+        await expect(sharedShelf).toBeVisible();
+        expect(await sharedShelf.evaluate((node) => node.compareDocumentPosition(document.querySelector("#workspace-content")) & Node.DOCUMENT_POSITION_FOLLOWING)).toBeTruthy();
+        const shelfBox = await sharedShelf.boundingBox();
+        const contentBox = await page.locator("#workspace-content").boundingBox();
+        if (size.width >= 1200) expect(shelfBox!.x).toBeGreaterThanOrEqual(contentBox!.x + contentBox!.width - 1);
+        else expect(shelfBox!.y).toBeLessThan(contentBox!.y);
         await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
         expect(await page.locator("body").evaluate(el => getComputedStyle(el).backgroundColor)).toBe(theme === "light" ? "rgb(245, 244, 240)" : "rgb(25, 27, 31)");
@@ -45,22 +52,18 @@ for (const size of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, 
           expect(contrast(tokens[foreground], tokens[background]), `${foreground} on ${background}`).toBeGreaterThanOrEqual(4.5);
         }
         if (route === "home") {
-          await expect(page.getByRole("region", { name: "Needs attention", exact: true })).toBeVisible();
+          await expect(page.getByRole("navigation", { name: "Staff self-service" })).toHaveCount(0);
+          await expect(page.locator("#home-attention").getByRole("heading", { name: "Needs your attention" })).toBeVisible();
           await expect(page.getByText("Share an update", { exact: true })).toBeVisible();
           if (size.width === 1440) {
             const feed = await page.getByRole("region", { name: "Team updates", exact: true }).boundingBox();
-            const attention = await page.getByRole("region", { name: "Needs attention", exact: true }).boundingBox();
-            expect(attention!.x).toBeGreaterThan(feed!.x + feed!.width);
             expect(feed!.y).toBeLessThan(size.height - 100);
           }
         }
         if (route === "work") {
           const shortcuts = page.getByRole("region", { name: "Your shortcuts", exact: true });
+          if (size.width < 1200) await shortcuts.getByRole("button", { name: "Show shortcuts" }).click();
           await expect(shortcuts.getByRole("button", { name: "Customize", exact: true })).toBeEnabled();
-          if (size.width === 1440) {
-            const results = await page.getByRole("region", { name: "Work results", exact: true }).boundingBox();
-            expect(results!.y).toBeLessThan(size.height - 100);
-          }
           expect(await shortcuts.locator("a:visible,button:visible").evaluateAll(nodes => nodes.filter(n => n.getBoundingClientRect().height < 43.5).map(n => n.textContent))).toEqual([]);
           const customize = shortcuts.getByRole("button", { name: "Customize", exact: true });
           await customize.click();
@@ -71,9 +74,7 @@ for (const size of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }, 
         if (route === "inbox") {
           await expect(page.getByRole("button", { name: "New chat", exact: true })).toBeEnabled();
           if (size.width > 760) await expect(page.getByRole("button", { name: "Start a chat", exact: true })).toBeHidden();
-          await page.getByRole("button", { name: "Updates", exact: true }).click();
-          await expect(page.getByRole("region", { name: "Work updates", exact: true })).toBeVisible();
-          await page.getByRole("button", { name: "Chats", exact: true }).click();
+          await expect(page.getByRole("heading", { name: "Chats", exact: true })).toBeVisible();
         }
         await page.evaluate(() => window.scrollTo(0, 0));
         await page.screenshot({ path: `.scratch/workplace-design/${route}-${size.width}-${theme}.png` });

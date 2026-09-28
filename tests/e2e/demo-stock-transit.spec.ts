@@ -8,7 +8,7 @@ type DemoState = { fixture: { sourceWarehouseId: string; targetWarehouseId: stri
 
 async function signInRole(context: BrowserContext, page: Page, credentials: Credentials, role: string, user: DemoUser, path: string) {
   const login = await context.request.post("/api/auth/sign-in/email", {
-    headers: { Origin: "http://127.0.0.1:3102" },
+    headers: { Origin: (process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102") },
     data: { email: user.email, password: credentials.password },
   });
   expect(login.ok(), await login.text()).toBe(true);
@@ -17,11 +17,11 @@ async function signInRole(context: BrowserContext, page: Page, credentials: Cred
   const assignment = active.options.find((item: { role: string }) => item.role === role);
   expect(assignment, `${user.label} ${role} assignment`).toBeTruthy();
   const selected = await context.request.post(endpoint, {
-    headers: { Origin: "http://127.0.0.1:3102" },
+    headers: { Origin: (process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102") },
     data: { assignmentId: assignment.id, revision: active.revision },
   });
   expect(selected.ok(), await selected.text()).toBe(true);
-  await page.goto(`${path}${path.includes("?") ? "&" : "?"}refresh=${Date.now()}`, { waitUntil: "commit" });
+  await page.goto(`${path}${path.includes("?") ? "&" : "?"}refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
   await expect(page.locator("[data-work-stale]")).toHaveAttribute("data-work-stale", "false");
 }
 
@@ -86,7 +86,7 @@ test("isolated demo carries an approved warehouse transfer through dispatch and 
     await receiverPage.waitForURL(/\/holdings\/simulation\/stock-transit\/transit-/);
     const transitPath = new URL(receiverPage.url()).pathname;
 
-    await sourcePage.goto(transitPath, { waitUntil: "commit" });
+    await sourcePage.goto(transitPath, { waitUntil: "domcontentloaded" });
     await expect(sourcePage.getByRole("heading", { name: "Record source dispatch", exact: true })).toBeVisible();
     await sourcePage.locator('input[name="date"]').first().fill("2026-09-24");
     await sourcePage.locator('input[name="tracking"]').fill("DEMO-TRANSIT-001");
@@ -94,7 +94,7 @@ test("isolated demo carries an approved warehouse transfer through dispatch and 
     await command(sourcePage, `/stock-transit/${transitPath.split("/").at(-1)}/dispatch`, "Confirm physical dispatch");
     console.log("stock-transit: dispatched");
 
-    await receiverPage.goto(transitPath, { waitUntil: "commit" });
+    await receiverPage.goto(transitPath, { waitUntil: "domcontentloaded" });
     await expect(receiverPage.getByRole("heading", { name: "Record actual receiving outcome", exact: true })).toBeVisible();
     await receiverPage.locator('input[name="quantity"]').fill("1");
     await receiverPage.locator('input[name="date"]').fill("2026-09-25");
@@ -109,7 +109,7 @@ test("isolated demo carries an approved warehouse transfer through dispatch and 
     await receiverPage.locator("textarea").first().fill("Remaining two cartons counted and signed into the destination warehouse.");
     await command(receiverPage, `/stock-transit/${transitPath.split("/").at(-1)}/receive`, "Record receiving outcome");
     console.log("stock-transit: final receipt");
-    await receiverPage.reload({ waitUntil: "commit" });
+    await receiverPage.reload({ waitUntil: "domcontentloaded" });
     await expect(receiverPage.getByText("completed", { exact: true }).first()).toBeVisible();
     const finished = await receiverContext.request.get(`/api/v1/holdings/simulation/stock-transit/${transitPath.split("/").at(-1)}`);
     expect(finished.ok(), await finished.text()).toBe(true);

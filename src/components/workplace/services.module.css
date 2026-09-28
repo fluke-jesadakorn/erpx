@@ -114,6 +114,8 @@
   align-items: center;
   font-weight: 600;
 }
+.details summary::after { content: "⌄"; margin-left: auto; }
+.details[open] summary::after { transform: rotate(180deg); }
 .details[open] summary {
   margin-bottom: 16px;
 }

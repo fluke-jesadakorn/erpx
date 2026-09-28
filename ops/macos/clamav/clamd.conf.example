@@ -1,0 +1,19 @@
+LogFile /Library/Application Support/ERPX-Attachments/log/clamd.log
+LogTime yes
+LogRotate yes
+PidFile /Library/Application Support/ERPX-Attachments/run/clamd.pid
+DatabaseDirectory /Library/Application Support/ERPX-Attachments/db
+OfficialDatabaseOnly yes
+FailIfCvdOlderThan 1
+LocalSocket /Library/Application Support/ERPX-Attachments/run/clamd.sock
+LocalSocketGroup _erpx_scanner
+LocalSocketMode 660
+FixStaleSocket yes
+StreamMaxLength 11M
+MaxScanSize 20M
+MaxFileSize 11M
+MaxThreads 4
+ReadTimeout 30
+CommandReadTimeout 5
+SendBufTimeout 30
+Foreground yes

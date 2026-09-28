@@ -13,6 +13,11 @@ import {
   learningAssignmentDetail,
   learningWork,
 } from "../src/server/learning";
+import {
+  attachmentBindingState,
+  enableAttachmentV2ForTest,
+  seedAttachmentSet,
+} from "./helpers/attachment-v2";
 vi.mock("../src/server/runtime", () => ({
   holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }),
   runtimeEnv: async () => env,
@@ -20,6 +25,7 @@ vi.mock("../src/server/runtime", () => ({
 let f: Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async () => {
   await applyMigrations(db, env.STAFF_TEST_MIGRATIONS);
+  enableAttachmentV2ForTest();
 });
 beforeEach(async () => {
   f = await expenseFixture();
@@ -95,6 +101,15 @@ it("publishes a reviewed course and completes attendance/results into an eligibi
     },
     key(),
   );
+  const certificate = await seedAttachmentSet(db, f.claimant, {
+    targetType: "learning_assignment",
+    targetId: id,
+    componentKind: "action",
+    componentRef: "completion",
+    purposeKey: "certificate",
+    expectedTargetVersion: 2,
+  });
+  const completeKey = key();
   await changeLearningAssignment(
     f.claimant,
     id,
@@ -105,9 +120,16 @@ it("publishes a reviewed course and completes attendance/results into an eligibi
       scoreBps: 9200,
       evidence: "Provider result SIM-9200 and observed practical check.",
       reason: "Course and assessment completed",
+      attachmentSetIds: [certificate.setId],
     },
-    key(),
+    completeKey,
   );
+  expect(await attachmentBindingState(db, certificate.setId)).toMatchObject({
+    set_state: "bound",
+    link_state: "bound",
+    binding_type: "learning_completion",
+    binding_id: id,
+  });
   const d = await learningAssignmentDetail(f.claimant, id);
   expect(d.assignment).toMatchObject({
     status: "completed",

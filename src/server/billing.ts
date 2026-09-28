@@ -17,6 +17,10 @@ import {
   testObject,
   type BillingStripe,
 } from "./billing-stripe";
+import { calculateTargetBillingPeriod, type TargetBillingPeriodView } from "./billing-target";
+import { monthBounds as targetMonthBounds } from "@/lib/billing";
+import { roundSatang } from "@/lib/billing-target-pricing";
+import { calculateTargetRolloutReadiness } from "./billing-target-rollout";
 export type BillingActor = {
   userId: string;
   platform: boolean;
@@ -45,6 +49,15 @@ export const billingInput = z
       "revise-plan",
       "retry",
       "resolve-legacy",
+      "assign-target",
+      "verify-provider-cost",
+      "verify-statement",
+      "approve-target",
+      "rate-target",
+      "record-operating-cost",
+      "review-target-capacity",
+      "approve-target-rollout",
+      "approve-target-extra",
     ]),
     version: z.number().int().nonnegative(),
     reason: z.string().trim().min(3).max(1000),
@@ -68,6 +81,27 @@ export const billingInput = z
     evidenceId: z.string().max(100).nullable().optional(),
     originalInvoiceId: z.string().max(100).optional(),
     complete: z.boolean().optional(),
+    targetMonth: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
+    targetMode: z.enum(["shadow", "sandbox_invoice"]).optional(),
+    priceId: z.string().max(100).optional(),
+    sourceKey: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    provider: z.string().trim().min(1).max(100).optional(),
+    statementId: z.string().trim().min(1).max(200).optional(),
+    originalCurrency: z.string().regex(/^[A-Z]{3}$/).optional(),
+    originalMinor: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+    providerTotalMinor: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+    fxNumerator: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
+    fxDenominator: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(),
+    providerCostSatang: z.number().int().min(0).max(100000000).optional(),
+    operatingCategory: z.enum(["infrastructure", "backup", "stripe", "support"]).optional(),
+    operatingCostSatang: amount.optional(),
+    projectedOriginalBytes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+    primaryAvailableBytes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+    backupAvailableBytes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+    reservedBytes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+    companyLimitBytes: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER).optional(),
+    minimumMarginBps: z.number().int().min(0).max(10000).optional(),
+    extraKind: z.enum(["setup", "support"]).optional(),
   })
   .strict();
 export type BillingInput = z.infer<typeof billingInput>;
@@ -79,7 +113,57 @@ const adminActions = new Set([
   "void",
   "revise-plan",
   "retry",
+  "assign-target",
+  "verify-provider-cost",
+  "verify-statement",
+  "approve-target",
+  "rate-target",
+  "record-operating-cost",
+  "review-target-capacity",
+  "approve-target-rollout",
+  "approve-target-extra",
 ]);
+async function storeTargetRating(
+  c: PoolClient,
+  target: TargetBillingPeriodView,
+  actor: BillingActor,
+  reason: string,
+  now: number,
+) {
+  if (!target.assignment || !target.price)
+    fail("TARGET_ASSIGNMENT_REQUIRED", "Assign a target price before rating this month.");
+  const bounds = monthBounds(target.month);
+  const state = target.completeness.ready ? "ready" : "held";
+  const snapshotId = target.completeness.meterSnapshotId ?? "missing";
+  await c.query(
+    `INSERT INTO billing_target_rating_runs
+     (id,holding_id,month,price_id,meter_snapshot_id,state,missing_json,
+      lines_json,total_satang,actor,reason,created_at)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+    [randomUUID(), target.holdingId, target.month, target.price.id, snapshotId,
+      state, JSON.stringify(target.completeness.missing), JSON.stringify(target.lines),
+      target.totalSatang, actor.userId, reason, now],
+  );
+  await c.query(
+    `INSERT INTO billing_target_rated_periods
+     (holding_id,month,price_id,assignment_month,mode,meter_snapshot_id,
+      service_start,service_end,state,missing_json,lines_json,total_satang,rated_at)
+     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+     ON CONFLICT(holding_id,month) DO UPDATE SET
+       price_id=excluded.price_id, assignment_month=excluded.assignment_month,
+       mode=excluded.mode, meter_snapshot_id=excluded.meter_snapshot_id,
+       service_start=excluded.service_start, service_end=excluded.service_end,
+       state=excluded.state, missing_json=excluded.missing_json,
+       lines_json=excluded.lines_json, total_satang=excluded.total_satang,
+       rated_at=excluded.rated_at
+     WHERE billing_target_rated_periods.state<>'approved'`,
+    [target.holdingId, target.month, target.price.id, target.assignment.effectiveMonth,
+      target.assignment.mode, snapshotId,
+      Math.max(bounds.start, target.assignment.serviceStartedAt), bounds.end,
+      state, JSON.stringify(target.completeness.missing), JSON.stringify(target.lines),
+      target.totalSatang, now],
+  );
+}
 export async function advanceBilling(
   c: PoolClient,
   holdingId: string,
@@ -183,7 +267,7 @@ export async function billingView(
       )[0] ?? null,
     plans: (
       await db.pool.query(
-        "SELECT * FROM billing_plans ORDER BY CASE id WHEN 'infrastructure' THEN 0 WHEN 'standard' THEN 1 ELSE 2 END,revision DESC",
+        "SELECT * FROM billing_plans WHERE id IN ('infrastructure','standard','priority') ORDER BY CASE id WHEN 'infrastructure' THEN 0 WHEN 'standard' THEN 1 ELSE 2 END,revision DESC",
       )
     ).rows,
     periods: await query("billing_periods", "ORDER BY month DESC"),
@@ -489,7 +573,7 @@ export async function billingCommand(
           input.evidenceId &&
           !(
             await c.query(
-              "SELECT 1 FROM billing_evidence WHERE id=$1 AND holding_id=$2",
+              "SELECT 1 FROM billing_evidence WHERE id=$1 AND holding_id=$2 AND source_state='available'",
               [input.evidenceId, holdingId],
             )
           ).rowCount
@@ -695,6 +779,339 @@ export async function billingCommand(
           billingMonth(monthBounds(billingMonth(now)).end),
           now,
         ]);
+        break;
+      }
+      case "assign-target": {
+        if (!input.targetMonth || !input.targetMode)
+          fail("TARGET_ASSIGNMENT_REQUIRED", "Choose a target month and mode.");
+        const targetBounds = targetMonthBounds(input.targetMonth);
+        const price = input.priceId
+          ? (await c.query("SELECT * FROM billing_target_prices WHERE id=$1 AND effective_month<=$2",
+              [input.priceId, input.targetMonth])).rows[0]
+          : (await c.query("SELECT * FROM billing_target_prices WHERE effective_month<=$1 ORDER BY effective_month DESC,id DESC LIMIT 1",
+              [input.targetMonth])).rows[0];
+        if (!price) fail("TARGET_PRICE_MISSING", "No approved Sandbox price version applies to this month.");
+        if (input.targetMode === "sandbox_invoice") {
+          if (input.targetMonth < billingMonth(now))
+            fail("TARGET_BACKDATE_FORBIDDEN", "Sandbox invoice assignments cannot be backdated.");
+          const designated = (await c.query(
+            "SELECT 1 FROM billing_target_sandbox_holdings WHERE holding_id=$1", [holdingId],
+          )).rowCount;
+          const rollout = input.targetMonth > billingMonth(now) && (await c.query(
+            "SELECT 1 FROM billing_target_rollout_approvals WHERE holding_id=$1 AND effective_month<=$2",
+            [holdingId, input.targetMonth],
+          )).rowCount;
+          if (!designated && !rollout)
+            fail("TARGET_ROLLOUT_NOT_READY", "This Holding needs explicit Sandbox test designation or approved future-month rollout evidence.");
+        }
+        const serviceStartedAt = input.targetMonth < billingMonth(now)
+          ? targetBounds.start : Math.max(now, targetBounds.start);
+        const inserted = await c.query(
+          `INSERT INTO billing_target_assignments
+             (holding_id,effective_month,price_id,mode,service_started_at,assigned_by,reason,created_at)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING RETURNING holding_id`,
+          [holdingId, input.targetMonth, price.id, input.targetMode,
+            serviceStartedAt, actor.userId, input.reason, now],
+        );
+        if (!inserted.rowCount) fail("TARGET_ASSIGNMENT_EXISTS", "This month's assignment is immutable. Choose a later month.");
+        break;
+      }
+      case "verify-provider-cost": {
+        if (!input.targetMonth || !input.sourceKey || !input.provider || !input.statementId ||
+            !input.originalCurrency || input.originalMinor === undefined ||
+            input.fxNumerator === undefined || input.fxDenominator === undefined ||
+            input.providerCostSatang === undefined || !input.evidenceId)
+          fail("PROVIDER_COST_REQUIRED", "Source, provider, statement, currency, FX, amount and evidence are required.");
+        const meter = (await c.query(
+          `SELECT * FROM billing_usage_meters WHERE holding_id=$1 AND month=$2 AND source_key=$3
+           AND meter_kind='ai' AND funding_source='erpx' AND request_status='succeeded'`,
+          [holdingId, input.targetMonth, input.sourceKey],
+        )).rows[0];
+        if (!meter || meter.provider !== input.provider ||
+            meter.cost_status !== "reconciled" || meter.cost_reconciled_at === null ||
+            meter.verified_cost_satang === null ||
+            Number(meter.verified_cost_satang) !== input.providerCostSatang)
+          fail("PROVIDER_COST_UNVERIFIED", "Match a successful Platform-key meter to verified provider cost first.");
+        const expectedSatang = roundSatang(
+          BigInt(input.originalMinor) * BigInt(input.fxNumerator),
+          BigInt(input.fxDenominator),
+        );
+        if (expectedSatang !== input.providerCostSatang)
+          fail("FX_MISMATCH", "The reviewed THB amount does not match original units and the FX ratio.");
+        const evidence = (await c.query(
+          "SELECT 1 FROM billing_evidence WHERE id=$1 AND holding_id=$2 AND source_state='available'",
+          [input.evidenceId, holdingId],
+        )).rowCount;
+        if (!evidence) fail("EVIDENCE_REQUIRED", "Attach available private cost evidence.");
+        const prior = (await c.query(
+          "SELECT 1 FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'",
+          [holdingId, input.targetMonth],
+        )).rowCount;
+        if (prior) fail("TARGET_PERIOD_FROZEN", "Approved target charges cannot be changed.");
+        const existing = (await c.query(
+          "SELECT * FROM billing_target_provider_costs WHERE holding_id=$1 AND month=$2 AND source_key=$3",
+          [holdingId, input.targetMonth, input.sourceKey],
+        )).rows[0];
+        if (existing) fail("PROVIDER_COST_ALREADY_VERIFIED", "The source already has verified cost; preserve its audit trail.");
+        await c.query(
+          `INSERT INTO billing_target_provider_costs
+           (holding_id,month,source_key,provider,statement_id,original_currency,original_minor,
+            fx_numerator,fx_denominator,provider_cost_satang,evidence_id,verified_by,verified_at)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+          [holdingId, input.targetMonth, input.sourceKey, input.provider,
+            input.statementId, input.originalCurrency, input.originalMinor,
+            input.fxNumerator, input.fxDenominator, input.providerCostSatang,
+            input.evidenceId, actor.userId, now],
+        );
+        break;
+      }
+      case "verify-statement": {
+        if (!input.targetMonth || !input.provider || !input.statementId ||
+            !input.originalCurrency || input.providerTotalMinor === undefined || !input.evidenceId)
+          fail("STATEMENT_REQUIRED", "Month, provider, statement, currency, total and evidence are required.");
+        const evidence = (await c.query(
+          "SELECT 1 FROM billing_evidence WHERE id=$1 AND holding_id=$2 AND source_state='available'",
+          [input.evidenceId, holdingId],
+        )).rowCount;
+        if (!evidence) fail("EVIDENCE_REQUIRED", "Attach an available provider statement.");
+        const prior = (await c.query(
+          "SELECT 1 FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'",
+          [holdingId, input.targetMonth],
+        )).rowCount;
+        if (prior) fail("TARGET_PERIOD_FROZEN", "Approved target charges cannot be changed.");
+        const count = (await c.query(
+          `SELECT COUNT(*)::int AS count, COALESCE(SUM(original_minor),0)::text AS total
+           FROM billing_target_provider_costs WHERE holding_id=$1 AND month=$2 AND provider=$3
+             AND statement_id=$4 AND original_currency=$5`,
+          [holdingId, input.targetMonth, input.provider, input.statementId,
+            input.originalCurrency],
+        )).rows[0];
+        if (!count.count || BigInt(count.total) !== BigInt(input.providerTotalMinor))
+          fail("STATEMENT_MISMATCH", "Statement total must equal the matched provider source costs.");
+        const inserted = await c.query(
+          `INSERT INTO billing_target_statements
+           (holding_id,month,provider,statement_id,evidence_id,provider_total_minor,
+            original_currency,reconciled_total_minor,verified_by,verified_at)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$7,$8,$9) ON CONFLICT DO NOTHING RETURNING holding_id`,
+          [holdingId, input.targetMonth, input.provider, input.statementId,
+            input.evidenceId, input.providerTotalMinor, input.originalCurrency,
+            actor.userId, now],
+        );
+        if (!inserted.rowCount) fail("STATEMENT_ALREADY_VERIFIED", "The provider statement was already verified.");
+        break;
+      }
+      case "record-operating-cost": {
+        if (!input.targetMonth || !input.operatingCategory ||
+            input.operatingCostSatang === undefined || !input.evidenceId)
+          fail("OPERATING_COST_REQUIRED", "Month, category, actual cost and evidence are required.");
+        if (now < monthBounds(input.targetMonth).end)
+          fail("MONTH_NOT_CLOSED", "Record actual operating costs only after the month ends.");
+        if (!(await c.query(
+          "SELECT 1 FROM billing_evidence WHERE id=$1 AND holding_id=$2 AND source_state='available'",
+          [input.evidenceId, holdingId],
+        )).rowCount) fail("EVIDENCE_REQUIRED", "Attach available operating cost evidence.");
+        const inserted = await c.query(
+          `INSERT INTO billing_target_operating_costs
+           (holding_id,month,category,amount_satang,evidence_id,verified_by,verified_at)
+           VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING RETURNING holding_id`,
+          [holdingId, input.targetMonth, input.operatingCategory,
+            input.operatingCostSatang, input.evidenceId, actor.userId, now],
+        );
+        if (!inserted.rowCount) fail("OPERATING_COST_ALREADY_VERIFIED", "The actual cost is immutable; add a future adjustment with new evidence.");
+        break;
+      }
+      case "review-target-capacity": {
+        if (!input.targetMonth || input.projectedOriginalBytes === undefined ||
+            input.primaryAvailableBytes === undefined || input.backupAvailableBytes === undefined ||
+            input.reservedBytes === undefined || input.companyLimitBytes === undefined ||
+            !input.evidenceId)
+          fail("CAPACITY_REVIEW_REQUIRED", "Month, primary and backup capacity, Company cap and evidence are required.");
+        if (input.targetMonth <= billingMonth(now))
+          fail("FUTURE_MONTH_REQUIRED", "Capacity approval must precede a future effective month.");
+        if (!(await c.query(
+          "SELECT 1 FROM billing_evidence WHERE id=$1 AND holding_id=$2 AND source_state='available'",
+          [input.evidenceId, holdingId],
+        )).rowCount) fail("EVIDENCE_REQUIRED", "Attach available capacity evidence.");
+        const inserted = await c.query(
+          `INSERT INTO billing_target_capacity_reviews
+           (holding_id,effective_month,projected_original_bytes,primary_available_bytes,
+            backup_available_bytes,reserved_bytes,company_limit_bytes,evidence_id,
+            approved_by,reason,approved_at)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+           ON CONFLICT DO NOTHING RETURNING holding_id`,
+          [holdingId, input.targetMonth, input.projectedOriginalBytes,
+            input.primaryAvailableBytes, input.backupAvailableBytes, input.reservedBytes,
+            input.companyLimitBytes, input.evidenceId, actor.userId, input.reason, now],
+        );
+        if (!inserted.rowCount) fail("CAPACITY_ALREADY_REVIEWED", "Capacity evidence for this effective month is immutable.");
+        break;
+      }
+      case "approve-target-rollout": {
+        if (!input.targetMonth || input.minimumMarginBps === undefined)
+          fail("ROLLOUT_REVIEW_REQUIRED", "Future month and required gross-margin threshold are required.");
+        if (input.targetMonth <= billingMonth(now))
+          fail("FUTURE_MONTH_REQUIRED", "An existing customer may migrate only in a future month.");
+        const review = await calculateTargetRolloutReadiness(
+          c, holdingId, input.targetMonth, input.minimumMarginBps, now,
+        );
+        if (!review.ready)
+          fail("ROLLOUT_EVIDENCE_INCOMPLETE", `Migration remains held: ${review.blockers.join(", ")}.`);
+        const inserted = await c.query(
+          `INSERT INTO billing_target_rollout_approvals
+           (holding_id,effective_month,shadow_month_1,shadow_month_2,
+            minimum_margin_bps,approved_by,reason,approved_at)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT DO NOTHING RETURNING holding_id`,
+          [holdingId, input.targetMonth, review.shadowMonths[0], review.shadowMonths[1],
+            input.minimumMarginBps, actor.userId, input.reason, now],
+        );
+        if (!inserted.rowCount) fail("ROLLOUT_ALREADY_APPROVED", "This rollout decision is already recorded.");
+        break;
+      }
+      case "approve-target-extra": {
+        if (!input.targetMonth || !input.extraKind || input.amountSatang === undefined ||
+            input.serviceStart === undefined || input.serviceEnd === undefined ||
+            !input.note || !input.evidenceId)
+          fail("EXTRA_APPROVAL_REQUIRED", "Service kind, amount, dates, description and approved quote evidence are required.");
+        const bounds = monthBounds(input.targetMonth);
+        if (input.serviceStart < bounds.start || input.serviceEnd > bounds.end ||
+            input.serviceEnd <= input.serviceStart)
+          fail("EXTRA_SERVICE_DATES", "Extra service dates must fall inside the chosen month.");
+        if (!(await c.query(
+          "SELECT 1 FROM billing_target_assignments WHERE holding_id=$1 AND effective_month<=$2",
+          [holdingId, input.targetMonth],
+        )).rowCount) fail("TARGET_ASSIGNMENT_REQUIRED", "Assign the target offering before approving extra services.");
+        if ((await c.query(
+          "SELECT 1 FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'",
+          [holdingId, input.targetMonth],
+        )).rowCount) fail("TARGET_PERIOD_FROZEN", "Approved target charges cannot be changed.");
+        if (!(await c.query(
+          "SELECT 1 FROM billing_evidence WHERE id=$1 AND holding_id=$2 AND source_state='available'",
+          [input.evidenceId, holdingId],
+        )).rowCount) fail("EVIDENCE_REQUIRED", "Attach the separately approved quote as available private evidence.");
+        await c.query(
+          `INSERT INTO billing_target_extras
+           (id,holding_id,month,kind,description,amount_satang,service_start,service_end,
+            evidence_id,approved_by,approval_reason,approved_at)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+          [randomUUID(), holdingId, input.targetMonth, input.extraKind, input.note,
+            input.amountSatang, input.serviceStart, input.serviceEnd,
+            input.evidenceId, actor.userId, input.reason, now],
+        );
+        break;
+      }
+      case "rate-target": {
+        if (!input.targetMonth) fail("TARGET_MONTH_REQUIRED", "Choose a target billing month.");
+        const target = await calculateTargetBillingPeriod(c, holdingId, input.targetMonth, now);
+        if (target.state === "approved")
+          fail("TARGET_PERIOD_FROZEN", "Approved target charges cannot be recalculated.");
+        await storeTargetRating(c, target, actor, input.reason, now);
+        break;
+      }
+      case "approve-target": {
+        if (!input.targetMonth) fail("TARGET_MONTH_REQUIRED", "Choose a target billing month.");
+        // Projection refresh locks this snapshot row before replacing source
+        // meters and seats. Hold the same row through invoice freeze so a
+        // concurrent refresh cannot change the reviewed billing inputs.
+        await c.query(
+          "SELECT snapshot_id FROM billing_usage_snapshots WHERE holding_id=$1 AND month=$2 FOR UPDATE",
+          [holdingId, input.targetMonth],
+        );
+        const target = await calculateTargetBillingPeriod(c, holdingId, input.targetMonth, now);
+        if (target.assignment?.mode !== "sandbox_invoice")
+          fail("TARGET_SHADOW_ONLY", "This Holding is configured for shadow rating only.");
+        if (!(await c.query(
+          `SELECT 1 FROM billing_target_sandbox_holdings WHERE holding_id=$1
+           UNION ALL SELECT 1 FROM billing_target_rollout_approvals
+           WHERE holding_id=$1 AND effective_month<=$2 LIMIT 1`,
+          [holdingId, input.targetMonth],
+        )).rowCount)
+          fail("TARGET_ROLLOUT_NOT_READY", "This Holding needs Sandbox test designation or approved rollout evidence.");
+        if (!target.completeness.ready || target.totalSatang === null)
+          fail("TARGET_PERIOD_INCOMPLETE", `Hold the entire invoice: ${target.completeness.missing.join(", ")}.`);
+        if (target.invoice || (await c.query(
+          "SELECT 1 FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'",
+          [holdingId, input.targetMonth],
+        )).rowCount) fail("ALREADY_ISSUED", "The target period is already approved.");
+        await storeTargetRating(c, target, actor, input.reason, now);
+        const bounds = targetMonthBounds(input.targetMonth);
+        await advanceBilling(c, holdingId, now);
+        const legacy = (await c.query(
+          `SELECT 1 FROM billing_enrollments WHERE holding_id=$1 AND plan_id<>'platform_usage'
+           AND started_at<$3 AND COALESCE(ended_at,effective_at,9223372036854775807)>$2`,
+          [holdingId, bounds.start, bounds.end],
+        )).rowCount;
+        if (legacy) fail("LEGACY_ENROLLMENT_ACTIVE", "Close the grandfathered Support enrollment before switching a month to target billing.");
+        const oldInvoices = (await c.query(
+          `SELECT 1 FROM billing_invoices i JOIN billing_periods p ON p.id=i.period_id
+           WHERE i.holding_id=$1 AND p.month=$2 AND i.status<>'void'`,
+          [holdingId, input.targetMonth],
+        )).rowCount;
+        if (oldInvoices) fail("MONTH_ALREADY_INVOICED", "This Holding already has an invoice for the month.");
+        let enrollment = (await c.query(
+          "SELECT * FROM billing_enrollments WHERE holding_id=$1 AND plan_id='platform_usage' AND ended_at IS NULL",
+          [holdingId],
+        )).rows[0];
+        if (!enrollment) {
+          await c.query(
+            "INSERT INTO billing_enrollments(id,holding_id,plan_id,started_at) VALUES($1,$2,'platform_usage',$3)",
+            [randomUUID(), holdingId, Math.max(bounds.start, target.assignment.serviceStartedAt)],
+          );
+          await advanceBilling(c, holdingId, now);
+          enrollment = (await c.query(
+            "SELECT * FROM billing_enrollments WHERE holding_id=$1 AND plan_id='platform_usage' AND ended_at IS NULL",
+            [holdingId],
+          )).rows[0];
+        }
+        const p = (await c.query(
+          "SELECT * FROM billing_periods WHERE enrollment_id=$1 AND month=$2",
+          [enrollment.id, input.targetMonth],
+        )).rows[0];
+        if (!p || !p.closed_at) fail("TARGET_PERIOD_MISSING", "The target service period is not closed.");
+        if (a.payment_mode === "auto" && (!a.consent_at || !a.card_json))
+          fail("CONSENT_REQUIRED", "Auto-pay needs a saved card and consent.");
+        await customer();
+        const lines = target.lines;
+        const aiAmount = lines.filter(line => line.kind === "ai")
+          .reduce((sum, line) => sum + (line.amountSatang ?? 0), 0);
+        const extraAmount = lines.filter(line => line.kind === "extra")
+          .reduce((sum, line) => sum + (line.amountSatang ?? 0), 0);
+        const serviceStart = Math.max(bounds.start, target.assignment.serviceStartedAt);
+        const invoiceLines: InvoiceLine[] = [
+          { description: `Sandbox Holding platform fee · ${input.targetMonth}`,
+            amount: lines.find(line => line.kind === "base")?.amountSatang ?? 0,
+            start: serviceStart, end: bounds.end },
+          { description: "Active named seats · prorated seat-months",
+            amount: lines.find(line => line.kind === "seat" && line.sourceKey === null)?.amountSatang ?? 0,
+            start: serviceStart, end: bounds.end },
+          { description: "Original file storage over included allowance",
+            amount: lines.find(line => line.kind === "storage" && line.sourceKey === null)?.amountSatang ?? 0,
+            start: serviceStart, end: bounds.end },
+          { description: "Verified Platform-key AI usage plus 10%",
+            amount: aiAmount, start: serviceStart, end: bounds.end },
+          { description: "Separately approved setup and Support services",
+            amount: extraAmount, start: serviceStart, end: bounds.end },
+        ].filter(line => line.amount !== 0);
+        if (!invoiceLines.length) invoiceLines.push({ description: "Sandbox Holding service", amount: 0,
+          start: serviceStart, end: bounds.end });
+        const invoiceId = randomUUID();
+        await c.query(
+          `INSERT INTO billing_invoices
+           (id,holding_id,period_id,kind,total_satang,lines_json,payment_mode,created_at,
+            approved_by,original_invoice_id,updated_at,rating_model)
+           VALUES($1,$2,$3,'main',$4,$5,$6,$7,$8,NULL,$7,'target')`,
+          [invoiceId, holdingId, p.id, target.totalSatang, JSON.stringify(invoiceLines),
+            a.payment_mode, now, actor.userId],
+        );
+        await c.query(
+          `UPDATE billing_target_rated_periods SET state='approved', approved_by=$3,
+           approved_at=$4,approval_reason=$5,invoice_id=$6
+           WHERE holding_id=$1 AND month=$2 AND state='ready'`,
+          [holdingId, input.targetMonth, actor.userId, now, input.reason, invoiceId],
+        );
+        await c.query(
+          "INSERT INTO billing_jobs(id,holding_id,invoice_id,kind,next_at,created_at) VALUES($1,$2,$3,'issue',$4,$4)",
+          [`issue-${invoiceId}`, holdingId, invoiceId, now],
+        );
         break;
       }
       case "retry": {

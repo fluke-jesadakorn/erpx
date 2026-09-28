@@ -1,2 +1,117 @@
-import Link from "next/link";import {requireWorkContext,publicScope} from "@/server/authorization";import {workspaceBase} from "@/lib/workspace";import {pageError} from "@/server/page-error";import {benefitDetail} from "@/server/benefits";import {BenefitsConsole} from "@/components/modules/benefits-console";export const dynamic="force-dynamic";
-export default async function Page({params}:{params:Promise<{holdingSlug:string;id:string}>}){const{holdingSlug,id}=await params,a=await requireWorkContext(holdingSlug),base=workspaceBase(publicScope(a)),data=await benefitDetail(a,id).catch(e=>pageError(e,holdingSlug)),x=data.election;return <div className="content-stack"><Link href={`${base}/benefits`}>Benefits</Link><h1>{String(x.plan_name)}</h1><p>{String(x.employee_name)} · {String(x.status)} · version {String(x.version)}</p><BenefitsConsole base={base} detail={data}/><section className="card"><h2>History</h2>{data.history.map(h=><p key={String(h.id)}>Version {String(h.version)} · {String(h.action)} · {String(h.reason)}</p>)}</section>{data.payroll&&<section className="card"><h2>Payroll input</h2><p>Released from election version {String(data.payroll.source_election_version)} · {String(data.payroll.currency)} {String(data.payroll.employee_deduction_minor)} minor units employee deduction</p></section>}</div>}
+import Link from "next/link";
+import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
+import { BenefitsConsole } from "@/components/modules/benefits-console";
+import { workspaceBase } from "@/lib/workspace";
+import { publicScope, requireWorkContext } from "@/server/authorization";
+import { benefitDetail } from "@/server/benefits";
+import { pageError } from "@/server/page-error";
+
+export const dynamic = "force-dynamic";
+
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ holdingSlug: string; id: string }>;
+}) {
+  const { holdingSlug, id } = await params;
+  const actor = await requireWorkContext(holdingSlug);
+  const base = workspaceBase(publicScope(actor));
+  const data = await benefitDetail(actor, id).catch((error) =>
+    pageError(error, holdingSlug),
+  );
+  const election = data.election;
+  const selfCanEditElection =
+    data.isOwner && ["elected", "submitted"].includes(String(election.status));
+  const providerVisible =
+    data.canManageDocuments ||
+    (data.isOwner && ["acknowledged", "released"].includes(String(election.status)));
+
+  return (
+    <div className="content-stack">
+      <Link href={`${base}/benefits`}>Benefits</Link>
+      <h1>{String(election.plan_name)}</h1>
+      <p>
+        {String(election.employee_name)} · {String(election.status)} · version{" "}
+        {String(election.version)}
+      </p>
+      <BenefitsConsole base={base} detail={data} />
+      <RecordDocumentPanel
+        base={base}
+        targetType="benefit_plan"
+        targetId={String(election.plan_id)}
+        expectedTargetVersion={Number(election.plan_current_version)}
+        editable={data.canManageDocuments}
+        title="Plan booklet"
+        purposes={[
+          {
+            key: "benefit_booklet",
+            label: "Benefit booklet",
+            description:
+              "Review the controlled plan booklet or coverage guide for the current plan revision.",
+            visibility:
+              "Published plan documents are self-visible to active employees.",
+          },
+        ]}
+      />
+      <RecordDocumentPanel
+        base={base}
+        targetType="benefit_election"
+        targetId={String(election.id)}
+        expectedTargetVersion={Number(election.version)}
+        editable={data.canManageDocuments || selfCanEditElection}
+        title="Election documents"
+        purposes={[
+          {
+            key: "election_document",
+            label: "Election document",
+            description:
+              "Review employee coverage-selection documents and later controlled revisions.",
+            visibility:
+              "Only the employee owner and dedicated Benefits document roles can access these files.",
+          },
+        ]}
+      />
+      {providerVisible && (
+        <RecordDocumentPanel
+          base={base}
+          targetType="benefit_election"
+          targetId={String(election.id)}
+          expectedTargetVersion={Number(election.version)}
+          editable={data.canManageDocuments}
+          title="Provider documents"
+          purposes={[
+            {
+              key: "provider_proof",
+              label: "Provider proof",
+              description:
+                "Review the provider acknowledgement, receipt, or coverage confirmation.",
+              visibility:
+                "Provider proof becomes self-visible only after acknowledgement is recorded.",
+            },
+          ]}
+        />
+      )}
+      <section className="card">
+        <h2>History</h2>
+        {data.history.map((event) => (
+          <p key={String(event.id)}>
+            Version {String(event.version)} · {String(event.action)} ·{" "}
+            {String(event.reason)}
+          </p>
+        ))}
+      </section>
+      {data.payroll && (
+        <section className="card">
+          <h2>Payroll input</h2>
+          <p>
+            Released from election version{" "}
+            {String(data.payroll.source_election_version)} ·{" "}
+            {String(data.payroll.currency)}{" "}
+            {String(data.payroll.employee_deduction_minor)} minor units employee
+            deduction
+          </p>
+        </section>
+      )}
+    </div>
+  );
+}

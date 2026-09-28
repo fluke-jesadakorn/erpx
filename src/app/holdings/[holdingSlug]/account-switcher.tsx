@@ -17,6 +17,7 @@ import {
 import styles from "@/components/workplace/account.module.css";
 import Link from "next/link";
 import { Appearance } from "@/components/workplace/workplace-controls";
+import { leavePushSession } from "@/lib/push-client";
 
 type DeviceSession = {
   session: { token: string; userId: string };
@@ -102,6 +103,8 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
     if (session.user.id === activeUser.id) return;
     setPending(`account:${session.user.id}`);
     setError("");
+    try { if(workspaceBase!=="/platform")await leavePushSession(workspaceBase); }
+    catch(error){setError(error instanceof Error?error.message:"Could not leave push session.");setPending("");return;}
     const { authClient } = await import("@/lib/auth-client");
     const result = await authClient.multiSession.setActive({
       sessionToken: session.session.token,
@@ -121,6 +124,8 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
     event.preventDefault();
     setPending("add");
     setError("");
+    try { if(workspaceBase!=="/platform")await leavePushSession(workspaceBase); }
+    catch(error){setError(error instanceof Error?error.message:"Could not leave push session.");setPending("");return;}
     const form = new FormData(event.currentTarget);
     const { authClient } = await import("@/lib/auth-client");
     const result = await authClient.signIn.email({
@@ -142,6 +147,8 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
     if(document.querySelector<HTMLElement>("[data-work-dirty=true]") && !window.confirm("Change role and discard unsaved changes?"))return;
     setPending("role"); setError("");
     try {
+      if(workspaceBase!=="/platform"&&assignments.find(option=>option.id===assignmentId)?.companyId!==assignments.find(option=>option.id===preferredAssignmentId)?.companyId)
+        await leavePushSession(workspaceBase);
       const response = await workFetch(`/api/v1${workspaceBase}/assignments/active`, {
         method: "POST", headers: { "content-type": "application/json", "x-erpx-context-company": assignments.find(option=>option.id===assignmentId)?.companyId??"" },
         body: JSON.stringify({ assignmentId, revision: contextRevision }),
@@ -155,6 +162,7 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
 
   async function signOut() {
     setPending("logout");
+    try { if(workspaceBase!=="/platform")await leavePushSession(workspaceBase); } catch { /* Revoking the auth session also blocks future sends. */ }
     const { authClient } = await import("@/lib/auth-client");
     await authClient.signOut();
     window.location.replace(new URL("/login", window.location.origin));
@@ -235,6 +243,7 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
                 })}
               </div>
               <Link className="button ghost" href={`${workspaceBase}/iam/my-access`} onClick={() => setOpen(false)}>My access & security</Link>
+              {workspaceBase!=="/platform"&&<Link className="button ghost" href={`${workspaceBase}/settings/notifications`} onClick={() => setOpen(false)}>Notification settings</Link>}
               {workspaceBase !== "/platform" && <Link className="button ghost" href={`${workspaceBase}/people?member=${activeUser.id}`} onClick={() => setOpen(false)}>My profile</Link>}
               {assignments.length > 0 && <section className="role-section">
                 <RoleSelect assignments={assignments} value={preferredAssignmentId ?? ""} disabled={Boolean(pending)} onChange={value => void chooseRole(value)} />

@@ -22,9 +22,9 @@ Read alongside these implementation sources:
   [request service](../../src/server/employee-requests.ts),
   [browser draft recovery](../../src/components/ui/use-recoverable-draft.tsx), and
   [command retry](../../src/components/modules/staff-work-controls.tsx).
-- [Named workflow handoffs](../plan/2026-09-10-flow-handoffs.md),
+- [Named workflow handoffs](../archive/planning-2026-09/2026-09-10-flow-handoffs.md),
   [local personas and connected examples](../local-seed.md), and
-  [module inventory](../plan/2026-09-07-global-core-status.md).
+  [module inventory](../archive/planning-2026-09/2026-09-07-global-core-status.md).
 
 The older module inventory contains historical Cloudflare runtime evidence.
 Current acceptance uses Node/PostgreSQL. In particular, accounting approval and

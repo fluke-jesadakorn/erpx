@@ -5,6 +5,7 @@ import { queues } from "@/lib/work-queue";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope,requireWorkContext } from "@/server/authorization";
 import { getWorkPage } from "@/server/work-summary";
+import { redirect } from "next/navigation";
 
 export default async function WorkPage({
   params,
@@ -26,6 +27,15 @@ export default async function WorkPage({
     : "all";
   const q = typeof query.q === "string" ? query.q : "",
     newKind = typeof query.new === "string" ? query.new : "";
+  if (newKind === "expense") redirect(`${base}/expenses/new`);
+  if (newKind === "purchase_request") redirect(`${base}/requests/new?kind=purchase`);
+  if (newKind === "task") {
+    const taskQuery = new URLSearchParams({
+      ...(typeof query.projectId === "string" ? { projectId: query.projectId } : {}),
+      ...(typeof query.dueDate === "string" ? { dueDate: query.dueDate } : {}),
+    });
+    redirect(`${base}/staff-tasks/new${taskQuery.size ? `?${taskQuery}` : ""}`);
+  }
   const view = workViews.some(([id]) => id === query.view) ? String(query.view)
     : query.queue || query.responsibility ? "legacy" : "actions";
   const current = new URLSearchParams({

@@ -17,12 +17,15 @@ async function visit(page:Page,path:string){
 }
 async function fits(page:Page){expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);}
 
-test('Home keeps its feed, shortcuts, keyboard access and independent failure recovery',async({page},info)=>{
+test('Home keeps its feed, one shared shelf, keyboard access and independent failure recovery',async({page},info)=>{
  await page.route('**/self-service/summary',route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({error:{message:'My day is temporarily unavailable.'}})}));
  await visit(page,'/home');
- const shortcuts=page.getByRole('navigation',{name:'Staff self-service'});
- await expect(shortcuts.getByRole('link')).toHaveCount(4);
- await expect(shortcuts.getByRole('link',{name:/My shifts/})).toHaveAttribute('href',`${base}/people/roster?view=mine`);
+ const shortcuts=page.getByRole('region',{name:'Your shortcuts'});
+ await expect(shortcuts).toBeVisible();
+ if(info.project.name==='mobile')await shortcuts.getByRole('button',{name:'Show shortcuts'}).click();
+ await expect(page.getByRole('navigation',{name:'Staff self-service'})).toHaveCount(0);
+ await expect(shortcuts.getByRole('article',{name:'My shifts'})).toHaveCount(0);
+ for(const title of ['My leave','Overtime','Purchase requests'])await expect(shortcuts.getByRole('article',{name:title})).toHaveCount(1);
  await expect(page.getByRole('region',{name:'Team updates'})).toBeVisible();
  const day=page.locator('aside').filter({has:page.locator('summary').filter({hasText:'My day'})});
  if(info.project.name==='mobile'){
@@ -45,14 +48,18 @@ test('Home keeps its feed, shortcuts, keyboard access and independent failure re
  await page.getByText('Share an update',{exact:true}).click();
  await page.unroute('**/self-service/summary');
  await day.getByRole('button',{name:'Try again'}).click();
- await expect(day.getByRole('heading',{name:'Your next shift'})).toBeVisible({timeout:45_000});
+ await expect(day.getByText('No upcoming published shift.')).toHaveCount(0);
  await fits(page);
  for(const theme of ['light','dark']){
   await page.evaluate(t=>document.documentElement.setAttribute('data-theme',t),theme);
   await page.screenshot({path:`.scratch/self-service/home-${info.project.name}-${theme}.png`,fullPage:true});
   await fits(page);
  }
- const overtime=shortcuts.getByRole('link',{name:/Overtime/});
+ if(info.project.name==='mobile'){
+  const more=shortcuts.getByRole('button',{name:/Show all/});
+  if(await more.isVisible())await more.click();
+ }
+ const overtime=shortcuts.getByRole('article',{name:'Overtime'}).getByRole('link',{name:/Overtime/});
  await overtime.focus();await expect(overtime).toBeFocused();await overtime.press('Enter');
  await expect(page.getByRole('heading',{name:'Overtime',exact:true})).toBeVisible();
 });
@@ -123,9 +130,9 @@ test('leave draft, half-day preview and interrupted private upload can be recove
  await expect(page.getByRole('heading',{name:'cancelled',exact:true})).toBeVisible();
 });
 
-test('My shifts and Purchase request retain their canonical destinations',async({page})=>{
+test('Backoffice roster and Purchase request retain their canonical destinations',async({page})=>{
  await visit(page,'/people/roster?view=mine');
- await expect(page.getByRole('main')).toContainText(/My shifts|My roster/);
+ await expect(page.getByRole('main')).not.toContainText('My shifts');
  await fits(page);
  await visit(page,'/work?new=purchase_request');
  await expect(page.getByRole('heading',{name:/Purchase request/i})).toBeVisible();

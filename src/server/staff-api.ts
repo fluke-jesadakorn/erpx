@@ -11,7 +11,6 @@ import {
   levelAssignmentSchema,
   levelSchema,
   saveLevel,
-  setDepartmentHead,
   staffSettings,
 } from "./staff-settings";
 import {
@@ -57,6 +56,7 @@ import {
   type ScheduleRow,
 } from "./routines";
 import { rerouteApproval } from "./approvals";
+import { changeAppointment } from "./department-authority";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 export function staffHandler(
   resource:
@@ -197,13 +197,11 @@ export function staffHandler(
           p[0] === "departments" &&
           p[2] === "head"
         )
-          data = await setDepartmentHead(
-            db,
-            actor,
-            p[1],
-            headSchema.parse(input),
-            key,
-          );
+          {
+            const head=headSchema.parse(input);
+            const holder=await db.prepare("SELECT e.position_id FROM hr_engagements e WHERE e.company_id=? AND e.department_id=? AND e.person_id=? AND e.status='active' ORDER BY e.updated_at DESC LIMIT 1").bind(actor.companyId,p[1],head.personId).first<{position_id:string|null}>();
+            data=await changeAppointment(db,actor,{kind:"head",departmentId:p[1],positionId:holder?.position_id??null,personId:head.personId,expectedVersion:head.expectedVersion,reason:head.reason},key);
+          }
         else if (resource === "staff-tasks" && p[1] === "transition")
           data = await transitionTask(
             db,

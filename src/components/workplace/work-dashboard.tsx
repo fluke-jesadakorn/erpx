@@ -12,7 +12,6 @@ import { useCallback,useEffect,useRef,useState } from "react";
 import { useNavigationCounts } from "./navigation-counts";
 import { NewWork } from "./new-work";
 import { WorkList } from "./work-list";
-import { WorkShortcuts } from "./work-shortcuts";
 import styles from "./work-dashboard.module.css";
 
 export function WorkDashboard({
@@ -237,20 +236,6 @@ export function WorkDashboard({
           {summary.list.hasMore&&<Link className="button secondary" href={pageHref(summary.list.offset+30)} prefetch={false}>Next</Link>}
         </nav></FeatureWidget></WidgetGrid>
       </div>
-      <WorkShortcuts
-        base={base}
-        current={current}
-        summary={summary}
-        refresh={refresh}
-        onSaved={(preferences) => {
-          controller.current?.abort();
-          setSummary((s) => ({
-            ...s,
-            preferences,
-            preferencesUnavailable: false,
-          }));
-        }}
-      />
     </>
   );
 }

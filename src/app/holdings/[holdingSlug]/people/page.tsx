@@ -26,6 +26,7 @@ payrollAdvancePage,
 getPerson,
 } from "@/server/people-payroll";
 import { holdingResources } from "@/server/runtime";
+import { isThaiHotelPayrollMockEnabled } from "@/server/simulation-only-adapters";
 import { staffSettings } from "@/server/staff-settings";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
@@ -58,6 +59,7 @@ export default async function PeoplePage({
 }) {
   const { holdingSlug } = await params;
   const actor = await requireWorkContext(holdingSlug);
+  const simulationPayroll = isThaiHotelPayrollMockEnabled(actor.holdingSlug);
   const search = await searchParams;
   if (actor.beta) return <BetaPeople actor={actor} member={search.member} />;
   const base = workspaceBase(publicScope(actor));
@@ -84,7 +86,7 @@ export default async function PeoplePage({
     editing || editingSelectedPerson ? staffSettings(write,actor) : null,
     editing || editingSelectedPerson ? directoryOptions(actor) : [],
     editing || editingSelectedPerson ? organizationOverview(write,actor) : undefined,
-    !payroll && (exploring || search.person || search.member || search.case) && ["people.manage","people.read","iam.read","organization.manage"].some(p=>hasPermission(actor,p)) ? peopleLifecycleData(write,actor) : null,
+    !payroll && (editing || exploring || search.person || search.member || search.case) && ["people.manage","people.read","iam.read","organization.manage"].some(p=>hasPermission(actor,p)) ? peopleLifecycleData(write,actor) : null,
     editingSelectedPerson ? getPerson(actor, search.person!).catch(() => null) : null,
   ]);
   const runs=runsPage?.items??[];
@@ -112,9 +114,10 @@ export default async function PeoplePage({
               levels={staffOptions.levels}
               people={staffOptions.people}
               organization={organization}
+              gpoPositions={lifecycle?.positions}
             />
           )}
-          <nav className={directory.viewTabs} aria-label="People directory status">
+          <nav className={directory.viewTabs} data-feature-tabs aria-label="People directory status">
             <Link href={`${base}/people`} aria-current={!archived ? "page" : undefined}>Current</Link>
             <Link href={`${base}/people?status=archived`} aria-current={archived ? "page" : undefined}>Archived</Link>
           </nav>
@@ -153,16 +156,23 @@ export default async function PeoplePage({
       )}
       {payroll && (
         <WidgetGrid pageKey="people-payroll">
-          <p className="notice">
-            Global payroll-core preview and controlled Finance GL posting are
-            available. Country-specific statutory calculations and bank/provider
-            execution remain separately gated.
-          </p>
+          {simulationPayroll ? (
+            <p className="notice" role="note" data-payroll-adapter="mock">
+              Simulation only: deterministic fixture values test the payroll workflow. They are not Thai statutory calculations, and no real payment is made.
+            </p>
+          ) : (
+            <p className="notice">
+              Global payroll-core preview and controlled Finance GL posting are
+              available. Country-specific statutory calculations and bank/provider
+              execution remain separately gated.
+            </p>
+          )}
           {hasPermission(actor,"payroll.prepare") &&
             !actor.branchId && (
               <><FeatureWidget id="payroll-pay-group-policy" title="Pay group policy"><PayGroupEditor base={base}/></FeatureWidget><FeatureWidget id="payroll-new-run" title="Create payroll run"><PayrollRunEditor
                 base={base}
                 groups={await payrollOptions(actor)}
+                simulationMode={simulationPayroll}
               /></FeatureWidget></>
           )}
           {canPayroll && <FeatureWidget id="payroll-runs" title="Recent payroll runs"><section className="card" id="payroll-runs-content" style={{ marginTop: 24 }}>

@@ -1,7 +1,6 @@
 import { adminSections, type AdminSection } from "./administration";
 import { iamSections } from "./iam";
 import { hasPermission } from "./permissions";
-import { visiblePmsSections } from "./pms-model";
 import { peopleIamDestination } from "./people-lifecycle";
 
 export type NavigationScopeKind =
@@ -12,6 +11,9 @@ export type NavigationScopeKind =
 
 export type NavigationContext = {
   workspaceBase: string;
+  /** Daily POS/PMS links are rendered in the separate staff Front surface. */
+  frontPosHref?: string;
+  frontPmsHref?: string;
   /** Effective company rollout, supplied by the server for production navigation. */
   availableAppIds?: readonly string[];
   scopeKind?: NavigationScopeKind;
@@ -89,7 +91,7 @@ export type NavigationApp = {
 
 /** Sidebar-only grouping. Categories never become route or breadcrumb parents. */
 export type NavigationCategory = {
-  id: "people-organization" | "operations" | "erpx-management" | "pos" | "pms" | "finance" | "management" | "system";
+  id: "people-organization" | "crm" | "sales" | "procurement" | "inventory" | "operations" | "erpx-management" | "pos" | "pms" | "finance" | "management" | "system";
   label: string;
   icon: NavigationIconId;
   apps: NavigationItem[];
@@ -134,7 +136,7 @@ export const commerceNavigationViews = [
   ["purchase", "Purchase orders"],
   ["stock", "Stock & movements"],
   ["products", "Products"],
-  ["parties", "Customers & suppliers"],
+  ["parties", "Directory"],
   ["warehouses", "Warehouses"],
 ] as const;
 
@@ -204,12 +206,31 @@ export function workplaceNavigation(
     ...(keywords?.length ? { keywords } : {}),
   });
 
-  const primary = [
-    item("home", "Home", "home", "Workspace", "home"),
-    item("work", "Work", "work", "Workspace", "work"),
-    item("inbox", "Inbox", "inbox", "Workspace", "inbox"),
-    ...(!platform && !beta ? [item("calendar", "Calendar", "calendar", "Workspace", "calendar", ["shifts", "leave", "appointments", "onboarding"])] : []),
-  ];
+  const primary = platform
+    ? [
+        item("home", "Home", "home", "Workspace", "home"),
+        item("work", "Work", "work", "Workspace", "work"),
+        item("inbox", "Inbox", "inbox", "Workspace", "inbox"),
+      ]
+    : [
+        item("home", "Today", "home", "Workspace", "home", ["work", "my day", "feed", "tasks"]),
+        item("calendar", "Calendar", "calendar", "Workspace", "calendar", ["shifts", "leave", "appointments", "onboarding"]),
+        item("inbox", "Messages", "inbox", "Workspace", "inbox", ["chat", "notifications", "teams"]),
+      ];
+  if (!platform) {
+    const inbox = primary.find((entry) => entry.id === "inbox")!;
+    inbox.submodules = [
+      item("inbox-chats", "Messages", "inbox?tab=chats", "Inbox", "inbox"),
+      item("inbox-teams", "Teams", "inbox?tab=teams", "Inbox", "inbox"),
+      item("inbox-updates", "Notifications", "inbox?tab=updates", "Inbox", "inbox"),
+    ];
+    const calendar = primary.find((entry) => entry.id === "calendar");
+    if (calendar) calendar.submodules = [
+      item("calendar-mine", "My calendar", "calendar?mode=mine", "Calendar", "calendar"),
+      item("calendar-team", "Team calendar", "calendar?mode=team", "Calendar", "calendar"),
+      item("calendar-coverage", "Coverage", "calendar?mode=team&preset=coverage", "Calendar", "calendar"),
+    ];
+  }
 
   if (platform) {
     const standalone = [
@@ -312,7 +333,7 @@ export function workplaceNavigation(
       item("learn", "Learn", "learn", "People", "education"),
     ] : []),
     ...(!beta && (hasPermission(actor, "iam.read") || hasPermission(actor, "organization.manage"))
-      ? [item("people-settings", "People settings", "people/settings", "People", "settings", ["HR templates", "lifecycle handoff", "custom attributes"])]
+      ? [item("people-settings", "People settings", "people/settings", "People", "settings", ["HR templates", "lifecycle handoff", "leave policy"])]
       : []),
   ];
   group(
@@ -329,8 +350,8 @@ export function workplaceNavigation(
     const inventoryReadable =
       scopeKind !== "department" && hasPermission(actor, "inventory.read");
     group(
-      "operations",
-      "Sales & purchasing",
+      "sales",
+      "Sales",
       "commerce",
       "business",
       [
@@ -338,7 +359,7 @@ export function workplaceNavigation(
           "operations-sales",
           commerceViewLabel("sales"),
           "commerce",
-          "Sales & purchasing",
+          "Sales",
           "invoice",
           ["orders", "sales"],
         ),
@@ -346,7 +367,7 @@ export function workplaceNavigation(
           "operations-quotations",
           commerceViewLabel("quote"),
           "commerce?view=quote",
-          "Sales & purchasing",
+          "Sales",
           "quotation",
           ["quotes", "sales"],
         ),
@@ -354,29 +375,47 @@ export function workplaceNavigation(
           "operations-pricing",
           commerceViewLabel("pricing"),
           "commerce?view=pricing",
-          "Sales & purchasing",
+          "Sales",
           "invoice",
           ["price lists", "discount approvals"],
         )] : []),
+      ],
+      `${base}/commerce`,
+      ["sales orders", "quotations", "pricing"],
+    );
+    group(
+      "procurement",
+      "Procurement",
+      "purchasing",
+      "business",
+      [
         item(
           "operations-purchasing",
           commerceViewLabel("purchase"),
           "commerce?view=purchase",
-          "Sales & purchasing",
+          "Procurement",
           "purchasing",
           ["procurement", "purchasing"],
         ),
         item(
-          "operations-parties",
-          commerceViewLabel("parties"),
-          "commerce?view=parties",
-          "Sales & purchasing",
+          "procurement-rfqs",
+          "Supplier quotation requests",
+          "procurement-rfqs",
+          "Procurement",
+          "quotation",
+          ["RFQ", "supplier offers"],
+        ),
+        item(
+          "procurement-suppliers",
+          "Suppliers",
+          "commerce?view=parties&kind=supplier",
+          "Procurement",
           "parties",
-          ["partners", "customers", "suppliers"],
+          ["vendors", "supplier directory"],
         ),
       ],
-      `${base}/commerce`,
-      ["operations", "sales orders", "procurement"],
+      `${base}/commerce?view=purchase`,
+      ["purchasing", "suppliers", "RFQ"],
     );
     group(
       "inventory",
@@ -448,7 +487,7 @@ export function workplaceNavigation(
   }
 
   if (!beta && hasPermission(actor, "commerce.read")) {
-    group("crm", "Customers & CRM", "parties", "business", [item("crm-pipeline","Leads & opportunities","crm","Customers & CRM","quotation"),item("customer-timeline","Customer 360","customers","Customers & CRM","parties"),item("customer-followups","Customer follow-ups","customer-followups","Customers & CRM","calendar")], `${base}/crm`);
+    group("crm", "CRM", "parties", "business", [item("crm-pipeline","Leads & opportunities","crm","CRM","quotation"),item("customer-timeline","Customer 360","customers","CRM","parties"),item("customer-followups","Customer follow-ups","customer-followups","CRM","calendar"),item("crm-customers","Customer directory","commerce?view=parties&kind=customer","CRM","parties",["customers","contacts"])], `${base}/crm`);
   }
   if (!beta && hasPermission(actor, "support.read")) {
     group("support", "Customer support", "feedback", "business", [item("support-cases","Support cases","support","Customer support","feedback")], `${base}/support`);
@@ -460,23 +499,20 @@ export function workplaceNavigation(
 
   if (!beta && hasPermission(actor, "pos.read")) {
     group("pos", "POS", "commerce", "business", [
-      item("pos-sale", "Point of sale", "pos", "POS", "product", ["cashier", "sales floor"]),
-      item("pos-kitchen", "Kitchen", "pos?tab=kitchen", "POS", "routine"),
-      item("pos-shifts", "Cash sessions", "pos?tab=shifts", "POS", "bank"),
-      item("pos-history", "Receipts & refunds", "pos?tab=history", "POS", "invoice"),
+      item("pos-front", "Open POS Front", context.frontPosHref ?? `${base}/pos`, "POS", "product", ["cashier", "sales floor"]),
+      ...(hasPermission(actor, "pos.approve") ? [item("pos-approvals", "POS approvals", "pos?tab=history&queue=approval", "POS", "admin-approvals")] : []),
       ...(hasPermission(actor, "pos.reports") ? [item("pos-reports", "POS reports", "pos?tab=reports", "POS", "ledger")] : []),
       ...(hasPermission(actor, "pos.configure") || hasPermission(actor, "pos.payments.configure") ? [item("pos-settings", "POS settings", "pos?tab=settings", "POS", "settings")] : []),
-    ], `${base}/pos`);
+    ], context.frontPosHref ?? `${base}/pos`);
   }
 
   if (!beta && scopeKind !== "department" && hasPermission(actor,"pms.read")) {
-    const pmsIcons: Record<string, NavigationIconId> = {
-      dashboard: "home", reservations: "quotation", "front-desk": "people",
-      rooms: "warehouse", housekeeping: "staff-task", folios: "invoice",
-      cashier: "bank", inventory: "stock", guests: "parties", reports: "ledger",
-      "night-audit": "routine", settings: "settings",
-    };
-    group("pms", "Hotel PMS", "pms", "business", visiblePmsSections((permission) => hasPermission(actor, permission)).map(([key, label]) => item(`pms-${key}`, label, `pms/${key}`, "Hotel PMS", pmsIcons[key])), `${base}/pms/dashboard`, ["hotel", "reservation", "housekeeping", "rooms", "book room"]);
+    group("pms", "Hotel PMS", "pms", "business", [
+      item("pms-front", "Open PMS Front", context.frontPmsHref ?? `${base}/pms/dashboard`, "Hotel PMS", "pms", ["hotel", "reservation", "housekeeping", "rooms", "book room"]),
+      ...(hasPermission(actor, "pms.approve") || hasPermission(actor, "finance.approve") ? [item("pms-approvals", "PMS approvals", "pms/folios?queue=approval", "Hotel PMS", "admin-approvals")] : []),
+      ...(hasPermission(actor, "pms.reports") ? [item("pms-reports", "PMS reports", "pms/reports", "Hotel PMS", "ledger")] : []),
+      ...(hasPermission(actor, "pms.configure") || hasPermission(actor, "pms.accounting.prepare") || hasPermission(actor, "pms.accounting.approve") ? [item("pms-settings", "PMS settings", "pms/settings", "Hotel PMS", "settings")] : []),
+    ], context.frontPmsHref ?? `${base}/pms/dashboard`, ["hotel", "reservation", "housekeeping", "rooms", "book room"]);
   }
   if (!beta) {
     const financeItems = hasPermission(actor, "finance.read") ? [
@@ -506,25 +542,22 @@ export function workplaceNavigation(
           ["expense claims", "reimbursements"],
         ),
     ] : [];
-    if (visibleAdminSections.includes("usage")) financeItems.push(
-      item("administration-usage", "Usage & billing", "settings?section=usage", "Finance", "admin-usage", ["subscription", "costs"]),
-    );
     group("finance", "Finance", "finance", "business", financeItems, financeItems[0]?.href, ["accounting"]);
   }
 
   if (!beta) {
     group(
       "projects",
-      "Projects & workflows",
+      "Projects & Routines",
       "projects",
       "business",
       [
-        item("projects-list", "All projects", "projects", "Projects & workflows", "projects", ["project list"]),
+        item("projects-list", "All projects", "projects", "Projects & Routines", "projects", ["project list"]),
         item(
           "projects-tasks",
           "Staff tasks",
           "staff-tasks",
-          "Projects & workflows",
+          "Projects & Routines",
           "staff-task",
           ["tasks", "handoffs"],
         ),
@@ -532,12 +565,12 @@ export function workplaceNavigation(
           "projects-routines",
           "Routine templates",
           "routine-templates",
-          "Projects & workflows",
+          "Projects & Routines",
           "routine",
           ["routines", "schedules"],
         ),
         ...(context.canManageApprovals && visibleAdminSections.includes("approvals") ? [
-          item("administration-approvals", "Approvals", "settings?section=approvals", "Projects & workflows", "admin-approvals", ["approval queue", "requests"]),
+          item("administration-approvals", "Approvals", "settings?section=approvals", "Projects & Routines", "admin-approvals", ["approval queue", "requests"]),
         ] : []),
       ],
       `${base}/projects`,
@@ -545,16 +578,24 @@ export function workplaceNavigation(
     );
 
     const technologyItems = hasPermission(actor, "iam.read") ? [
-      item("technology-positions", "Positions", "technology?view=positions", "Technology", "access", ["employee access", "position access"]),
-      item("technology-employees", "Employees", "technology?view=employees", "Technology", "people", ["provisioning"]),
-      item("technology-groups", "Directory & GPO", "technology?view=directory", "Technology", "people", ["Windows policies", "directory groups", "mappings"]),
+      item("technology-organization", "Organization & Access", "technology?view=organization", "Technology", "access", ["positions", "employees", "levels", "departments", "Directory", "GPO", "provisioning", "Windows policies", "mappings"]),
       item("technology-devices", "Resources", "technology?view=resources", "Technology", "technology", ["equipment", "IT preparation"]),
+      item("technology-attributes", "Custom attributes", "technology?view=attributes", "Technology", "admin-iam", ["custom fields", "people fields"]),
       item("technology-connections", "Directory connections", "people/settings?section=connections", "Technology", "admin-iam", ["Active Directory", "Entra", "UCS"]),
       item("technology-roles", "Roles & permissions", "people/settings?section=roles", "Technology", "access", ["access matrix", "security"]),
       item("technology-reviews", "Reviews & audit", "people/settings?section=reviews", "Technology", "stock-count", ["access reviews", "history"]),
     ] : [];
+    if (!hasPermission(actor, "iam.read") && ["people.read", "people.manage", "organization.manage"].some(permission => hasPermission(actor, permission))) technologyItems.unshift(
+      item("technology-organization", "Organization & Access", "technology?view=organization", "Technology", "access", ["positions", "employees", "levels", "departments", "GPO"]),
+    );
     if (visibleAdminSections.includes("ai")) technologyItems.push(
       item("administration-ai", "AI providers", "settings?section=ai", "Technology", "admin-ai"),
+    );
+    if (visibleAdminSections.includes("usage")) technologyItems.push(
+      item("administration-usage", "Usage & billing", "settings?section=usage", "Technology", "admin-usage", ["subscription", "costs"]),
+    );
+    if (scopeKind === "branch" && role === "operations_manager") technologyItems.push(
+      item("branch-usage", "Usage", "usage", "Technology", "admin-usage", ["AI", "files", "storage"]),
     );
     if(scopeKind==='holding'&&hasPermission(actor,'organization.manage'))technologyItems.push(
       item('technology-business-readiness','Business readiness','settings/business-readiness','Technology','stock-count',['acceptance','A–J','release gates']),
@@ -623,16 +664,23 @@ export function workplaceNavigation(
       if (!allowed.has(apps[index].id)) apps.splice(index, 1);
     const finance = apps.find((app) => app.id === 'finance');
     if (finance) finance.items = finance.items.filter((entry) => !['finance-engines','finance-group'].includes(entry.id));
-    const operations = apps.find((app) => app.id === 'operations');
-    if (operations) operations.items = operations.items.filter((entry) => ['operations-purchasing','operations-parties'].includes(entry.id));
     const people = apps.find((app) => app.id === 'people');
     if (people) people.items = people.items.filter((entry) => entry.id !== 'people-payroll');
+  }
+
+  // Branch usage remains available under Technology even when the optional
+  // app rollout hides the rest of Technology for this branch.
+  if (!beta && scopeKind === "branch" && role === "operations_manager" && !apps.some(app => app.id === "technology")) {
+    group("technology", "Technology", "technology", "business", [
+      item("branch-usage", "Usage", "usage", "Technology", "admin-usage", ["AI", "files", "storage"]),
+    ]);
   }
 
   if (scopeKind === "holding" && base === "/holdings/erpx" && context.manageErpxVisible) {
     group("erpx-management", "ERPX Management", "technology", "business", [
       item("erpx-management", "Overview", "manage-erpx", "ERPX Management", "technology", ["customers", "provisioning", "recovery"]),
       item("manage-erpx-billing", "Customer billing", "manage-erpx/billing", "ERPX Management", "finance"),
+      item("manage-erpx-usage", "Customer usage", "manage-erpx/billing/usage", "ERPX Management", "admin-usage"),
       item("manage-erpx-iam", "Platform IAM", "manage-erpx/iam", "ERPX Management", "access"),
       item("manage-erpx-executive", "Platform Executive", "manage-erpx/executive", "ERPX Management", "projects"),
     ], `${base}/manage-erpx`, ["platform", "customers", "system"]);
@@ -660,9 +708,13 @@ export function workplaceNavigation(
     href: app.href ?? app.items[0].href,
     group: "Apps",
     keywords: app.keywords,
-    ...(app.id === "people"
-      ? { submodules: app.items.filter((entry) => entry.id !== "people-directory") }
-      : {}),
+    submodules: [
+      ...(app.id === "people" ? [
+        { ...app.items[0], id: "people-current", label: "Current profiles" },
+        { ...app.items[0], id: "people-archived", label: "Archived profiles", href: `${app.items[0].href}?status=archived` },
+      ] : []),
+      ...app.items.filter((entry) => entry.href !== (app.href ?? app.items[0].href)),
+    ],
   } satisfies NavigationItem]));
   const destinationItems = new Map(
     [...primary, ...standalone].map((entry) => [entry.id, entry]),
@@ -698,12 +750,16 @@ export function workplaceNavigation(
       ]
     : [
         category("people-organization", "People & organization", "people", ["people"]),
-        category("operations", "Operations", "commerce", ["operations", "crm", "support", "inventory", "quality"]),
+        category("crm", "CRM", "parties", ["crm", "support"]),
+        category("sales", "Sales", "commerce", ["sales"]),
+        category("procurement", "Procurement", "purchasing", ["procurement"]),
+        category("inventory", "Inventory", "warehouse", ["inventory", "quality"]),
         erpxManagementCategory,
         ...(pos ? [{ id: "pos", label: "POS", icon: "commerce", apps: pos.items } satisfies NavigationCategory] : []),
         ...(pms ? [{ id: "pms", label: "Hotel PMS", icon: "pms", apps: pms.items } satisfies NavigationCategory] : []),
+        category("operations", "Projects & Routines", "projects", ["projects"]),
         category("finance", "Finance", "finance", ["finance"]),
-        category("management", "Management", "projects", ["executive", "projects", "legal"]),
+        category("management", "Management", "projects", ["executive", "legal"]),
         category("system", "System", "technology", ["technology", "feedback", "pilot-features", "future-features"]),
       ]).filter((entry): entry is NavigationCategory => entry !== null);
   return {
@@ -761,7 +817,7 @@ export function resolveNavigation(
   if (route === "manage-erpx" && base === "/holdings/erpx") {
     const activeId =
       second === "billing"
-        ? "manage-erpx-billing"
+        ? third === "usage" ? "manage-erpx-usage" : "manage-erpx-billing"
         : second === "iam"
           ? "manage-erpx-iam"
           : second === "executive"
@@ -770,18 +826,19 @@ export function resolveNavigation(
     return { activeId, groupId: "erpx-management" };
   }
   if (route === "billing" && base === "/platform") return { activeId: "platform-billing" };
+  if (route === "usage") return { activeId: model.search.some((item) => item.id === "branch-usage") ? "branch-usage" : "administration-usage", groupId: "technology" };
   if (route === "my-access") return { activeId: "my-access" };
-  if (route === "work") return { activeId: "work" };
+  if (route === "work") return { activeId: hasApp(model, "resources") || base === "/platform" ? "work" : "home" };
   if (route === "future-features") return { activeId: "future-features" };
   if (route === "requests")
-    return { activeId: "work", detailLabel: second ? "Request" : undefined };
+    return { activeId: "home", detailLabel: second ? "Request" : undefined };
   if (route === "tasks")
     return {
-      activeId: "work",
+      activeId: "home",
       detailLabel:
         second === "people_payroll" ? "Annual leave request" : "Task",
     };
-  if (route === "technology") return {activeId: ({positions:"technology-positions",employees:"technology-employees",directory:"technology-groups",resources:"technology-devices"} as Record<string,string>)[searchParams?.get("view")??"positions"]??"technology-positions",groupId:"technology"};
+  if (route === "technology") return {activeId: ({organization:"technology-organization",positions:"technology-organization",employees:"technology-organization",directory:"technology-organization",resources:"technology-devices",attributes:"technology-attributes"} as Record<string,string>)[searchParams?.get("view")??"organization"]??"technology-organization",groupId:"technology"};
   if (route === "people") {
     if (second === "roster") return { activeId: "people-roster", groupId: "people" };
     if (second === "settings") {
@@ -789,7 +846,7 @@ export function resolveNavigation(
       const technologyId: Record<string, string> = {
         connections: "technology-connections", roles: "technology-roles",
         matrix: "technology-roles", reviews: "technology-reviews",
-        groups: "technology-groups",
+        groups: "technology-organization",
       };
       if (standard && technologyId[section]) return { activeId: technologyId[section], groupId: "technology" };
       return { activeId: "people-settings", groupId: "people" };
@@ -799,7 +856,7 @@ export function resolveNavigation(
     if (second === "access") {
       const view = queryValue(searchParams, "view");
       return standard
-        ? { activeId: `technology-${view === "devices" ? "devices" : ["groups", "policies"].includes(view) ? "groups" : "devices"}`, groupId: "technology" }
+        ? { activeId: `technology-${view === "devices" ? "devices" : ["groups", "policies"].includes(view) ? "organization" : "devices"}`, groupId: "technology" }
         : { activeId: "people-access", groupId: "people" };
     }
     if (second === "payroll")
@@ -819,11 +876,14 @@ export function resolveNavigation(
   if (route === "commerce") {
     if (second === "orders")
       return {
-        activeId: "operations",
-        groupId: "operations",
+        activeId: queryValue(searchParams, "view") === "purchase" ? "operations-purchasing" : queryValue(searchParams, "view") === "quote" ? "operations-quotations" : "operations-sales",
+        groupId: queryValue(searchParams, "view") === "purchase" ? "procurement" : "sales",
         detailLabel: "Order",
       };
     const view = queryValue(searchParams, "view");
+    if (view === "parties") return queryValue(searchParams, "kind") === "supplier"
+      ? { activeId: "procurement-suppliers", groupId: "procurement" }
+      : { activeId: "crm-customers", groupId: "crm" };
     const byView: Record<string, string> = {
       sales: "operations-sales",
       quote: "operations-quotations",
@@ -832,13 +892,13 @@ export function resolveNavigation(
       stock: "operations-stock",
       products: "operations-products",
       warehouses: "operations-warehouses",
-      parties: "operations-parties",
     };
     return {
       activeId: byView[view] ?? "operations-sales",
-      groupId: ["stock", "products", "warehouses"].includes(view) ? "inventory" : "operations",
+      groupId: ["stock", "products", "warehouses"].includes(view) ? "inventory" : view === "purchase" ? "procurement" : "sales",
     };
   }
+  if (route === "procurement-rfqs") return { activeId: "procurement-rfqs", groupId: "procurement", detailLabel: second ? "Supplier quotation request" : undefined };
   if (route === "support") return {activeId:"support-cases",groupId:"support",detailLabel:second==="sla"?"Resolution-time watch":second==="incidents"?"Shared incidents":second?"Support case":undefined};
   if (route === "crm") return {activeId:"crm-pipeline",groupId:"crm",detailLabel:second?"CRM case":undefined};
   if (route === "customers") return {activeId:"customer-timeline",groupId:"crm",detailLabel:second?"Customer timeline":undefined};
@@ -851,16 +911,27 @@ export function resolveNavigation(
       groupId: "inventory",
       detailLabel: second ? "Stock count" : undefined,
     };
-  if (route === "pos") return {activeId:`pos-${queryValue(searchParams, "tab") || "sale"}`,groupId:"pos"};
+  if (route === "pos") {
+    const tab = queryValue(searchParams, "tab");
+    if (tab === "reports") return { activeId: "pos-reports", groupId: "pos" };
+    if (tab === "settings") return { activeId: "pos-settings", groupId: "pos" };
+    if (tab === "history" && queryValue(searchParams, "queue") === "approval")
+      return { activeId: "pos-approvals", groupId: "pos" };
+    return { activeId: "pos-front", groupId: "pos" };
+  }
   if (route === "stock-transfers")
     return {
       activeId: "operations-transfers",
       groupId: "inventory",
       detailLabel: second ? "Warehouse transfer" : undefined,
     };
-  if (route === "pms") return second === "documents"
-    ? { activeId: "pms-folios", groupId: "pms", detailLabel: "Document" }
-    : { activeId: `pms-${second ?? "dashboard"}`, groupId: "pms" };
+  if (route === "pms") {
+    if (second === "reports") return { activeId: "pms-reports", groupId: "pms" };
+    if (second === "settings") return { activeId: "pms-settings", groupId: "pms" };
+    if (second === "folios" && queryValue(searchParams, "queue") === "approval")
+      return { activeId: "pms-approvals", groupId: "pms" };
+    return { activeId: "pms-front", groupId: "pms" };
+  }
   if (route === "finance") {
     const bySection: Record<string, string> = {
       ledger: "finance-ledger",
@@ -938,7 +1009,7 @@ export function resolveNavigation(
     const section = queryValue(searchParams, "section") || (standard ? model.settingsDefault : "");
     if (standard) {
       if (section === "feedback") return { activeId: "feedback" };
-      if (section === "usage") return { activeId: "administration-usage", groupId: "finance" };
+      if (section === "usage") return { activeId: "administration-usage", groupId: "technology" };
       if (section === "ai") return { activeId: "administration-ai", groupId: "technology" };
       if (section === "approvals") return model.search.some((item) => item.id === "administration-approvals")
         ? { activeId: "administration-approvals", groupId: "projects" }
@@ -985,6 +1056,8 @@ export function navigationTrail(
 ): NavigationTrailItem[] {
   if (pathname.replace(/\/$/, "") === `${base}/settings/stripe`)
     return [{ label: "Company Stripe" }];
+  if (pathname.replace(/\/$/, "") === `${base}/settings/notifications`)
+    return [{ label: "Notification settings" }];
   const resolved = resolveNavigation(model, base, pathname, searchParams);
   if (!resolved.activeId || resolved.activeId === "home") return [];
   const primary = model.primary.find((entry) => entry.id === resolved.activeId);

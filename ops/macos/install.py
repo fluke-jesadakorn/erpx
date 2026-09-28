@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install the approved ERPX payload. Run with sudo only after local acceptance."""
+"""Legacy isolated-cluster installer (5433); not for the shared 5432 deployment."""
 import argparse, grp, json, os, plistlib, pwd, secrets, shutil, socket, subprocess, time
 from pathlib import Path
 from urllib.parse import quote

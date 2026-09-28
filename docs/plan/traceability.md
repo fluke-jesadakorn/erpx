@@ -1,5 +1,7 @@
 # Traceability — Requirement → Code → Spec
 
+> Historical traceability inventory, including archived runtime observations. Current behavior is defined by [contracts](../contracts/next/README.md); delivery scope by [the production plan](../production-plan.md).
+
 > **Archived — Rust era (pruned 2026-09-02).** Every row below links to archived Rust contracts (`crates/proto/proto/erpx/*/service.proto` on `backup/rust-2026-09-02`, briefly copied to `docs/contracts/proto/`) and Rust implementations (`crates/contexts/*/src/application.rs`). This branch is now Next.js (`src/app/`) — the living route table is TBD under `docs/contracts/next/` and the archived table is kept here for reference. See `CUTOVER.md` (2026-09-02), `CONTRACT_POLICY.md`, and `ADR-020`.
 
 ## Living — Next.js routes (TBD, grows as `src/app/api` lands)
@@ -10,13 +12,13 @@ Baseline code SHA: `f6c8f9049466d8071c6f1b1b8ede584fadf69656`. The inspected moc
 
 | Requirement | Planning evidence | Implementation status |
 |---|---|---|
-| Convert the 31-module mockup to Next.js, Bun and Cloudflare | [Implementation plan](2026-09-06-mockup-to-fullstack.md), [ADR-022](../adr/ADR-022-cloudflare-runtime.md) | P0/local P1 foundation implemented; module depth remains phased |
+| Convert the 31-module mockup to Next.js, Bun and Cloudflare | [Implementation plan](../archive/planning-2026-09/2026-09-06-mockup-to-fullstack.md), [ADR-022](../adr/ADR-022-cloudflare-runtime.md) | P0/local P1 foundation implemented; module depth remains phased |
 | Preserve Holding isolation and independent human decisions | `src/server/authorization.ts`, `src/server/leave.ts`, D1 migrations | Local Workers flow verified for Mali submit and Nisa approve |
 | Store recoverable private evidence | upload/attachment route handlers, Holding R2 bindings | Intent, byte/type/checksum validation, immutable key and scoped download implemented locally |
 | Durable projections and handoffs | `src/workers/jobs.ts`, outbox/read migrations | Dispatcher and idempotent consumer implemented; remote replay gate pending |
 | Scoped workplace social feed | `src/server/social.ts`, `/holdings/[holdingId]/feed`, collaboration API routes, `0003_social.sql` | Posts, topics, comments, appreciation, post follows and persistent Stories implemented locally |
 | Multi-account and role switching | Better Auth multi-session, `account-switcher.tsx`, `POST /api/v1/holdings/{holdingSlug}/assignments/active` | Up to five verified device accounts; each account can select only its current D1 assignments |
-| Finance-first production vertical | [Implementation plan](2026-09-06-mockup-to-fullstack.md#finance-acceptance) | P4 backlog |
+| Finance-first production vertical | [Implementation plan](../archive/planning-2026-09/2026-09-06-mockup-to-fullstack.md#finance-acceptance) | P4 backlog |
 
 The routes below remain historical backlog unless the living route table marks an App Router handler implemented.
 

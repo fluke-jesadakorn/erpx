@@ -6,6 +6,7 @@ import type {
   productionDetail,
   productionWorkspace,
 } from "@/server/production";
+import { AttachmentPanel, type AttachmentPanelChange } from "@/components/attachments/attachment-panel";
 export function ProductionConsole({
   base,
   module,
@@ -249,19 +250,23 @@ export function ProductionConsole({
             ))}
         </>
       )}
-      {o && <OrderAction order={o} send={send} busy={busy} />}
+      {o && <OrderAction key={`${String(o.id)}:${Number(o.version)}`} base={base} order={o} send={send} busy={busy} />}
     </>
   );
 }
 function OrderAction({
+  base,
   order: o,
   send,
   busy,
 }: {
+  base: string;
   order: Record<string, unknown>;
   send: (i: unknown) => Promise<void>;
   busy: boolean;
 }) {
+  const [evidence, setEvidence] = useState<AttachmentPanelChange | null>(null);
+  const [qcAction, setQcAction] = useState<"pass-qc" | "fail-qc">("pass-qc");
   const status = String(o.status),
     simple =
       status === "planned"
@@ -286,6 +291,10 @@ function OrderAction({
             id: o.id,
             action: "report",
             expectedVersion: Number(o.version),
+            attachmentSetIds:
+              evidence?.setId && evidence.readyCount > 0 && evidence.bindable
+                ? [evidence.setId]
+                : [],
           });
         }}
       >
@@ -310,6 +319,19 @@ function OrderAction({
           Evidence
           <textarea name="reason" required minLength={3} />
         </label>
+        <AttachmentPanel
+          base={base}
+          targetType="production_run"
+          targetId={String(o.id)}
+          expectedTargetVersion={Number(o.version)}
+          componentKind="action"
+          componentRef="output-report"
+          purposeKey="run_report_evidence"
+          title="Run and output evidence"
+          description="Attach the batch or machine record, output photos, scrap photos, and other evidence for this reported run."
+          visibility="Visible to authorized Manufacturing and independent Quality reviewers."
+          onChange={setEvidence}
+        />
         <button className="button" disabled={busy}>
           Send to QC
         </button>
@@ -321,21 +343,65 @@ function OrderAction({
       className="card business-form"
       onSubmit={(e) => {
         e.preventDefault();
+        const action = simple === "pass-qc" ? qcAction : simple;
         void send({
           entity: "order",
           id: o.id,
-          action: simple,
+          action,
           expectedVersion: Number(o.version),
           reason: String(new FormData(e.currentTarget).get("reason")),
+          attachmentSetIds:
+            evidence?.setId && evidence.readyCount > 0 && evidence.bindable
+              ? [evidence.setId]
+              : [],
           ...(simple === "reserve" ? { expiresAt: Date.now() + 3600000 } : {}),
         });
       }}
     >
       <h2>{simple.replace("-", " ")}</h2>
+      {simple === "pass-qc" && (
+        <label>
+          QC disposition
+          <select value={qcAction} onChange={(event) => setQcAction(event.target.value as "pass-qc" | "fail-qc")}>
+            <option value="pass-qc">Pass QC and complete</option>
+            <option value="fail-qc">Fail QC and require rework</option>
+          </select>
+        </label>
+      )}
       <label>
         Evidence
         <textarea name="reason" required minLength={3} />
       </label>
+      {simple === "pass-qc" && (
+        <AttachmentPanel
+          base={base}
+          targetType="production_run"
+          targetId={String(o.id)}
+          expectedTargetVersion={Number(o.version)}
+          componentKind="action"
+          componentRef="qc-review"
+          purposeKey="qc_evidence"
+          title="QC evidence"
+          description="Attach the reviewed QC report, certificate, measurements, or inspection photos for this decision."
+          visibility="Visible to authorized Manufacturing and independent Quality reviewers."
+          onChange={setEvidence}
+        />
+      )}
+      {simple === "rework" && (
+        <AttachmentPanel
+          base={base}
+          targetType="production_run"
+          targetId={String(o.id)}
+          expectedTargetVersion={Number(o.version)}
+          componentKind="action"
+          componentRef="rework"
+          purposeKey="rework_action_evidence"
+          title="Rework evidence"
+          description="Attach the approved rework instruction, defect evidence, or completion support for this rework cycle."
+          visibility="Visible to authorized Manufacturing and independent Quality reviewers."
+          onChange={setEvidence}
+        />
+      )}
       <button className="button" disabled={busy}>
         Continue
       </button>

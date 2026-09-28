@@ -132,8 +132,9 @@ test("calendar opens in the month view with a selected day at every viewport", a
   ).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator("[data-calendar-view]")).toHaveCount(1);
   await expect(page.locator('[data-calendar-view="month"]')).toBeVisible();
+  await expect(page.locator("[data-calendar-attention]")).toHaveCount(0);
   await expect(page.locator('[data-calendar-date][data-selected="true"]')).toHaveCount(1);
-  await expect(page.getByRole("group", { name: "Calendar scope" })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Calendar view" }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "My", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Team", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Coverage", exact: true })).toBeVisible();
@@ -233,6 +234,58 @@ test("month previews cap at two and the selected date keeps its full loaded list
   await expect(page.locator('[data-selected-calendar-day] [data-calendar-event]')).toHaveCount(loadedForSelectedDate);
   await expect(page.locator('[data-selected-calendar-day]')).toContainText("Overflow preview 1");
   await expect(page.locator('[data-selected-calendar-day]')).toContainText("Overflow preview 3");
+});
+
+test("calendar attention stays compact and distinguishes loaded warning items", async ({ page }, testInfo) => {
+  await page.unroute(calendarApi);
+  await page.route(calendarApi, (route) => {
+    const fixture = calendarFixture(route.request().url());
+    const baseItem = fixture.data.items[0];
+    const items = Array.from({ length: 8 }, (_, index) => ({
+      ...baseItem,
+      id: `lifecycle:attention-${index}`,
+      source: "lifecycle",
+      sourceId: `attention-${index}`,
+      kind: "task",
+      title: index === 2 ? "ตรวจสอบเอกสารและสิทธิ์การเข้าถึงของพนักงานก่อนวันสุดท้าย" : index < 2 ? "Review final payroll" : `Preparation task ${index + 1}`,
+      startDate: index === 7 ? null : `2026-09-${String(10 + index).padStart(2, "0")}`,
+      participants: [{ id: `person-${index}`, name: `Colleague ${index + 1}` }],
+      owner: "People Operations",
+      warnings: ["Overdue preparation task"],
+    }));
+    const inSeptember = fixture.data.query.date.startsWith("2026-09");
+    void route.fulfill({ json: { data: { ...fixture.data, items: inSeptember ? items.reverse() : [], nextCursor: inSeptember ? 100 : null, coverage: { ...fixture.data.coverage, warnings: inSeptember ? 8 : 0, partial: inSeptember } } } });
+  });
+  await page.goto(`${base}/calendar?view=month&date=2026-09-12&layers=appointments`);
+  await page.getByRole("button", { name: "Refresh calendar" }).click();
+
+  const attention = page.locator("[data-calendar-attention]");
+  await expect(attention).toBeVisible();
+  await expect(attention).not.toHaveAttribute("open", "");
+  await expect(attention.locator("summary")).toContainText("8 loaded");
+  await expect(attention.locator("summary")).toContainText("Review final payroll");
+  expect(await attention.locator("summary").evaluate((element) => element.getBoundingClientRect().height)).toBeLessThanOrEqual(80);
+
+  await attention.locator("summary").focus();
+  await page.keyboard.press("Enter");
+  await expect(attention).toHaveAttribute("open", "");
+  await expect(attention.locator("li")).toHaveCount(8);
+  await expect(attention.locator("li").first()).toContainText("Colleague 1");
+  await expect(attention.locator("li").nth(1)).toContainText("Colleague 2");
+  await expect(attention.locator("li").last()).toContainText("Unscheduled");
+  await expect(attention).toContainText("Only loaded events are counted");
+  expect(await attention.locator("ul").evaluate((element) => element.getBoundingClientRect().height)).toBeLessThanOrEqual(testInfo.project.name === "mobile" ? 280 : 320);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+  await page.locator("html").evaluate((element) => element.setAttribute("data-theme", "dark"));
+  await expect(attention).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+
+  await attention.locator("li").first().getByRole("button").click();
+  await expect(page.locator("dialog[open]")).toBeVisible();
+  await expect(page.locator("dialog[open]")).toContainText("Review final payroll");
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.getByRole("button", { name: "Next month" }).click();
+  await expect(attention).toHaveCount(0);
 });
 
 test("calendar presets preserve date and timezone, reset people search, and restore history", async ({ page }) => {

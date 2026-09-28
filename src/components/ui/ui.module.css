@@ -3,8 +3,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
+.pageHeader h1 { margin: 4px 0 7px; font-size: var(--type-page); line-height: 1.12; letter-spacing: -.04em; }
+.pageHeader p { max-width: 72ch; font-size: var(--type-body); }
 .headerAction {
   display: flex;
   gap: 8px;
@@ -12,11 +14,12 @@
 }
 .empty {
   text-align: center;
-  padding: 54px 24px;
+  padding: 42px 24px;
   color: var(--muted);
 }
+.empty h2 { font-size: var(--type-card); }
 .empty p {
-  font-size: 13px;
+  font-size: var(--type-body);
   max-width: 360px;
   margin: 8px auto 18px;
 }
@@ -25,10 +28,10 @@
   place-items: center;
   width: 48px;
   height: 48px;
-  border-radius: 14px;
-  background: var(--card-2);
+  border-radius: var(--radius-md);
+  background: var(--brand-soft);
   margin: 0 auto 18px;
-  color: var(--brand);
+  color: var(--brand-strong);
 }
 .preview {
   display: flex;
@@ -52,14 +55,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 12px;
+  font-size: var(--type-meta);
   color: var(--muted);
   gap: 12px;
 }
 .metric > strong {
   display: block;
   font-size: 32px;
-  font-weight: 550;
+  font-weight: 700;
   letter-spacing: -1px;
   margin: 14px 0 4px;
   font-variant-numeric: tabular-nums;
@@ -67,7 +70,7 @@
 }
 .metric > small {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--type-meta);
 }
 .skeleton {
   display: grid;

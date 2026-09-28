@@ -41,7 +41,7 @@ export function CompanyBusinessAcceptance({ base, initial }: { base: string; ini
   const status = data.status === "accepted" ? "Accepted" : data.status === "submitted" ? "Awaiting independent review" : data.status === "rejected" ? "Returned for correction" : data.status === "revoked" ? "Revoked" : "Not submitted";
   return <section className="card" id="company-setup-acceptance" aria-label="Company setup acceptance">
     <header className="section-head"><div><p className="eyebrow">Company control</p><h2>Company setup acceptance</h2></div><span className={`badge ${data.status === "accepted" ? "success" : data.status === "submitted" ? "warning" : ""}`}>{status}</span></header>
-    <p>Accepting setup records who requested the Company to become operational and requires an independent Company administrator to review it. This control is separate from the capability evidence ledger.</p>
+    <p>Accepting setup confirms the Company structure and staff placement. It requires an independent Company administrator and does not approve transactions or certify a production release.</p>
     <ul>{data.checks.map(check => <li key={check.id}><strong>{check.ready ? "✓" : "○"} {check.label}</strong> · {check.owner}<p className="muted">{check.detail}</p></li>)}</ul>
     {data.reviewReason && <p role="status"><strong>Review note:</strong> {data.reviewReason}</p>}
     {data.reason && <p className="muted">Submitted reason: {data.reason}</p>}

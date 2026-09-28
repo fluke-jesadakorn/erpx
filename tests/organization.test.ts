@@ -9,10 +9,11 @@ import { grantPersonAccess,revokePersonAccess } from "../src/server/account-acce
 import { companyBusinessAcceptance, companyBusinessAcceptanceWork, submitCompanyBusinessAcceptance, decideCompanyBusinessAcceptance, revokeCompanyBusinessAcceptance } from "../src/server/company-business-acceptance";
 import { executeCommand } from "../src/server/commands";
 import type { WorkContext } from "../src/server/authorization";
+import { attachmentBindingState, enableAttachmentV2ForTest, seedAttachmentSet } from "./helpers/attachment-v2";
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:db,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,ceo:string,staffPosition:string,hr:WorkContext;
 const level=(n:number)=>`org-level-${f.company}-${n}`;
-beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);});
+beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);await applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS);enableAttachmentV2ForTest();});
 beforeEach(async()=>{
   f=await expenseFixture(false);hr=await f.member("hr","hr_admin");
   await installStaffLevels(db,f.owner,key());
@@ -50,6 +51,14 @@ it("checks position scope and optimistic versions without allowing reporting cyc
   await expect(savePosition(db,hr,staffPosition,input,key())).rejects.toMatchObject({status:409});
   const outsider={...hr,branchId:"other",assignmentScope:"branch" as const};
   await expect(savePosition(db,outsider,staffPosition,input,key())).rejects.toMatchObject({status:403});
+});
+it("defaults new Positions to backoffice and preserves roster requirement on omitted edits",async()=>{
+  expect((await db.prepare("SELECT roster_required FROM organization_positions WHERE id=?").bind(staffPosition).first<{roster_required:number}>())?.roster_required).toBe(0);
+  const enabled=positionSchema.parse({title:"Operations staff",branchId:f.branch,departmentId:f.department,levelId:level(6),reportsToPositionId:ceo,rosterRequired:true,expectedVersion:1,reason:"Staff work shifts"});
+  await savePosition(db,hr,staffPosition,enabled,key());
+  const renamed=positionSchema.parse({title:"Operations specialist",branchId:f.branch,departmentId:f.department,levelId:level(6),reportsToPositionId:ceo,expectedVersion:2,reason:"Clarify title"});
+  await savePosition(db,hr,staffPosition,renamed,key());
+  expect((await db.prepare("SELECT roster_required FROM organization_positions WHERE id=?").bind(staffPosition).first<{roster_required:number}>())?.roster_required).toBe(1);
 });
 it("reviews a reusable template, reuses the CEO, adds vacancies and never grants roles",async()=>{
   const template=await saveOrganizationTemplate(db,hr,null,{name:"Small team",expectedVersion:0,positions:[{key:"ceo",title:"CEO",levelNumber:1,reportsToKey:null,isCeo:true},{key:"staff",title:"Team staff",levelNumber:6,reportsToKey:"ceo",isCeo:false}]},key());
@@ -124,6 +133,19 @@ it("applies independently reviewed branch and department changes with safe suspe
   expect(applied[0].events?.map(event=>event.action)).toEqual(["submitted","applied"]);
   expect(applied[0].events?.at(-1)?.reason).toBe("Capacity and authority reviewed");
   await expect(db.prepare("UPDATE organization_node_change_events SET action='rejected' WHERE change_id=?").bind(proposal.id).run()).rejects.toThrow("IMMUTABLE_ORGANIZATION_NODE_CHANGE_EVENT");
+});
+it("binds organization-change proof in the independent review transaction and leaves stale proof unbound",async()=>{
+  const reviewer=await f.member("organization-proof-reviewer","hr_admin");
+  const proposal=await saveOrganizationNodeChange(db,f.owner,null,organizationNodeChangeSchema.parse({action:"create",kind:"branch",slug:`proof-${key().slice(0,8)}`,displayName:"Evidence branch",expectedVersion:0,reason:"Create a branch with reviewed proof"}),key(),true);
+  const proof=await seedAttachmentSet(db,reviewer,{targetType:"organization_change",targetId:proposal.id,componentKind:"action",componentRef:"organization-change-review",purposeKey:"org_change_proof",expectedTargetVersion:proposal.version});
+  const result=await decideOrganizationNodeChange(db,reviewer,proposal.id,{expectedVersion:proposal.version,decision:"approve",reason:"Registration and permit proof reviewed",attachmentSetIds:[proof.setId]},key());
+  expect(result.state).toBe("applied");
+  expect(await attachmentBindingState(db,proof.setId)).toMatchObject({set_state:"bound",link_state:"bound",binding_type:"organization_change_review"});
+
+  const staleProposal=await saveOrganizationNodeChange(db,f.owner,null,organizationNodeChangeSchema.parse({action:"create",kind:"branch",slug:`stale-proof-${key().slice(0,8)}`,displayName:"Stale evidence branch",expectedVersion:0,reason:"Verify stale proof remains editable"}),key(),true);
+  const staleProof=await seedAttachmentSet(db,reviewer,{targetType:"organization_change",targetId:staleProposal.id,componentKind:"action",componentRef:"organization-change-review",purposeKey:"org_change_proof",expectedTargetVersion:staleProposal.version});
+  await expect(decideOrganizationNodeChange(db,reviewer,staleProposal.id,{expectedVersion:staleProposal.version+1,decision:"approve",reason:"Attempt review against a stale revision",attachmentSetIds:[staleProof.setId]},key())).rejects.toMatchObject({code:"STALE_VERSION"});
+  expect(await attachmentBindingState(db,staleProof.setId)).toMatchObject({set_state:"draft",link_state:"draft"});
 });
 it("supports draft, correction rejection and requester cancellation with optimistic versions",async()=>{
   const reviewer=await f.member("organization-reviewer-2","hr_admin"),input=organizationNodeChangeSchema.parse({action:"create",kind:"branch",slug:`draft-${key().slice(0,8)}`,displayName:"Draft branch",branchId:null,targetNodeId:null,expectedNodeVersion:null,expectedVersion:0,reason:"Evaluate a possible branch"});

@@ -23,6 +23,7 @@ const financeWrite = [
 const hr = [owner, "hr_admin"];
 const stock = [owner, "warehouse_manager", "operations_manager"];
 const staff = [owner, ...Object.keys(businessRoles)];
+const noticeBroadcasters = [owner, "hr_admin", ...Object.keys(businessRoles).filter((role) => role.endsWith("_manager"))];
 const definitions: PermissionDefinition[] = [];
 function define(
   id: string,
@@ -46,6 +47,9 @@ function define(
 
 define("manage_erpx.access", "Access Manage ERPX", "manage_erpx", [owner], ["ERPX Holding and active Platform assignment"], "privileged");
 definitions[definitions.length - 1].permittedScopes = ["holding"];
+define("billing.usage.read", "View measured usage", "billing", [owner, "operations_manager"], ["Holding owners see their Holding; branch operations managers see only their selected Branch"]);
+definitions[definitions.length - 1].permittedScopes = ["holding", "branch"];
+define("inbox.notice.broadcast", "Broadcast a staff notice", "collaboration", noticeBroadcasters, ["Current Company, Branch, or Department assignment scope"], "privileged");
 
 for(const action of ["read","create","work","manage"] as const) define(`support.${action}`,`Support ${action}`,"support",action==='manage'?[owner,"support_manager"]:action==='work'?[owner,"support_agent","support_manager"]:[owner,"support_agent","support_manager","sales_operator","sales_manager"],["Source scope; current eligible owner; independent recorded customer confirmation"],action==='manage'?'privileged':'normal');
 const legalPermissions = ["read", "create", "edit", "review", "approve", "sign", "share", "export", "hold", "hold.release", "manage", "ai"] as const;
@@ -129,6 +133,94 @@ define("people.manage", "Maintain employee details", "people_payroll", [
   ...hr,
   "people_manager",
 ]);
+define(
+  "people.documents.read",
+  "Read restricted employee documents",
+  "people_payroll",
+  hr,
+  ["Exact employee scope and purpose policy"],
+  "privileged",
+);
+define(
+  "people.documents.manage",
+  "Manage restricted employee documents",
+  "people_payroll",
+  hr,
+  ["Exact employee scope, purpose policy and current record state"],
+  "privileged",
+);
+define(
+  "payroll.documents.read",
+  "Read restricted payroll documents",
+  "people_payroll",
+  [owner, "hr_admin", "payroll_preparer", "payroll_approver", "auditor"],
+  ["Holding scope and exact payroll record"],
+  "privileged",
+);
+define(
+  "payroll.documents.manage",
+  "Manage restricted payroll documents",
+  "people_payroll",
+  [owner, "hr_admin", "payroll_preparer"],
+  ["Holding scope and exact payroll record"],
+  "privileged",
+);
+define(
+  "talent.documents.read",
+  "Read restricted talent documents",
+  "people_payroll",
+  [owner, "hr_admin", "people_manager"],
+  ["Assigned requisition or candidate scope and exact document purpose"],
+  "privileged",
+);
+define(
+  "talent.documents.manage",
+  "Manage restricted talent documents",
+  "people_payroll",
+  hr,
+  ["Assigned requisition or candidate scope and exact document purpose"],
+  "privileged",
+);
+define(
+  "learning.documents.read",
+  "Read learning documents",
+  "people_payroll",
+  [owner, "hr_admin", "people_manager"],
+  ["Exact course, enrollment or employee scope"],
+  "privileged",
+);
+define(
+  "learning.documents.manage",
+  "Manage learning documents",
+  "people_payroll",
+  hr,
+  ["Exact course, enrollment or employee scope"],
+  "privileged",
+);
+define(
+  "benefits.review",
+  "Review benefit records",
+  "people_payroll",
+  [owner, "hr_admin", "people_manager"],
+  ["Exact benefit record and independent workflow step"],
+  "privileged",
+);
+define(
+  "benefits.documents.read",
+  "Read restricted benefit documents",
+  "people_payroll",
+  hr,
+  ["Exact benefit record; employee ownership never grants access to internal HR documents"],
+  "privileged",
+);
+define(
+  "benefits.documents.manage",
+  "Manage restricted benefit documents",
+  "people_payroll",
+  hr,
+  ["Exact benefit record and purpose policy"],
+  "privileged",
+);
 define(
   "people.compensation.read",
   "View compensation",
@@ -458,6 +550,14 @@ for (const p of definitions.filter(p=>p.id.startsWith("pos."))) p.permittedScope
 define("leave.self", "Use personal leave self-service", "people_payroll", staff);
 define("leave.policy.manage", "Manage company leave policies", "people_payroll", hr, [], "privileged");
 definitions.find(p=>p.id==='leave.policy.manage')!.permittedScopes=['holding'];
+define(
+  "leave.evidence.read",
+  "Read restricted leave evidence",
+  "people_payroll",
+  hr,
+  ["Requester, current eligible approver, recorded decision maker, or authorized HR only"],
+  "privileged",
+);
 const rosterManagers = [owner, "hr_admin", "people_manager", "operations_manager"];
 define("calendar.availability.read", "View availability dates without private details", "people_payroll", rosterManagers);
 define("calendar.appointments.manage", "Manage appointments in scope", "people_payroll", rosterManagers);
@@ -525,6 +625,7 @@ for (const p of definitions) {
   )
     p.permittedScopes = ["holding", "branch"];
   if (p.id === "inventory.approve") p.permittedScopes = ["holding"];
+  if (p.id.startsWith("payroll.documents.")) p.permittedScopes = ["holding"];
 }
 export const permissionCatalog: readonly PermissionDefinition[] = definitions;
 export function permissionDefinition(id: string) {

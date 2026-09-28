@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { CountRow as Row } from "@/server/inventory-counts";
 import { minorToDecimal } from "@/lib/finance-money";
+import { AttachmentPanel, type AttachmentPanelChange } from "@/components/attachments/attachment-panel";
 type Options = {
   warehouses: Row[];
   products: Row[];
@@ -291,6 +292,10 @@ export function CountActions({
 }) {
   const { send, error, pending } = useCountCommand(base),
     [reason, setReason] = useState("");
+  const [attachmentSets, setAttachmentSets] = useState<Record<string, AttachmentPanelChange>>({});
+  const attachmentSetIds = Object.values(attachmentSets)
+    .filter((item) => item.setId && item.readyCount > 0 && item.bindable)
+    .map((item) => item.setId!);
   return (
     <section className="card">
       <h2>Count workflow</h2>
@@ -307,6 +312,27 @@ export function CountActions({
       )}
       {(editable || reviewable) && (
         <>
+          {editable && ([
+            ["count_sheet", "Count sheets", "Attach signed count sheets or exported count documents."],
+            ["count_photo", "Count photos", "Attach shelf, bin, label, lot, or serial photos from the physical count."],
+            ["count_evidence", "Other count evidence", "Attach other documents supporting the counted quantities."],
+          ] as const).map(([purpose, title, description]) => (
+            <AttachmentPanel
+              key={purpose}
+              base={base}
+              targetType="stock_count"
+              targetId={String(count.id)}
+              expectedTargetVersion={Number(count.version)}
+              componentKind="action"
+              componentRef="submit"
+              purposeKey={purpose}
+              compact
+              title={title}
+              description={description}
+              visibility="Inventory preparers and authorized independent Finance reviewers can access these files."
+              onChange={(change) => setAttachmentSets((current) => ({ ...current, [purpose]: change }))}
+            />
+          ))}
           <label>
             Decision reason
             <textarea
@@ -325,6 +351,7 @@ export function CountActions({
                   onClick={() =>
                     void send(`/${count.id}/submit`, {
                       expectedVersion: count.version,
+                      attachmentSetIds,
                     })
                   }
                 >

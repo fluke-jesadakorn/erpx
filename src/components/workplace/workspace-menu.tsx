@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- Private workspace logos are served through authenticated attachment routes. */
 
 import { useHydrated } from "@/components/ui/use-hydrated";
-import { useState } from "react";
+import { useRef,useState,type MouseEvent } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -14,6 +14,7 @@ import {
 import { Dialog } from "@/components/ui/dialog";
 import { workFetch } from "@/lib/work-fetch";
 import { waitForWorkspaceMemory } from "@/lib/workspace-memory-client";
+import { leavePushForWorkspaceChange } from "@/lib/push-client";
 import type {
   CurrentWorkspaceChoice,
   WorkspaceBranchChoice,
@@ -49,6 +50,7 @@ export function WorkspaceMenu({
   const [open, setOpen] = useState(false);
   const [pendingCompany, setPendingCompany] = useState("");
   const [error, setError] = useState("");
+  const switching=useRef(false);
   const holdings = choices.filter(
     (choice): choice is Extract<WorkspaceChoice, { kind: "holding" }> =>
       choice.kind === "holding" && choice.holdingSlug !== "erpx",
@@ -93,10 +95,13 @@ export function WorkspaceMenu({
       setOpen(false);
       return;
     }
+    if(switching.current)return;
+    switching.current=true;
     setPendingCompany(`${holdingSlug}:${company.id}`);
     setError("");
     try {
       await waitForWorkspaceMemory();
+      await leavePushForWorkspaceChange(current,{holdingSlug,companyId:company.id});
       const response = await workFetch(company.switchEndpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -106,14 +111,34 @@ export function WorkspaceMenu({
         setError(
           "Business could not be selected. Check your access and try again.",
         );
+        switching.current=false;
         setPendingCompany("");
         return;
       }
       window.location.assign(company.destination);
-    } catch {
+    } catch(error) {
+      switching.current=false;
       setError(
-        "Business could not be selected. Check your connection and try again.",
+        error instanceof Error?error.message:"Business could not be selected. Check your connection and try again.",
       );
+      setPendingCompany("");
+    }
+  }
+
+  async function navigateWorkspaceLink(event:MouseEvent<HTMLAnchorElement>,holdingSlug:string|null,companyId:string|null,destination:string) {
+    if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.altKey||event.shiftKey)return;
+    if(switching.current){event.preventDefault();return;}
+    if(current.kind==="platform"||(current.holdingSlug===holdingSlug&&current.companyId===companyId)){
+      setOpen(false);return;
+    }
+    switching.current=true;
+    event.preventDefault();setPendingCompany(`${holdingSlug}:${companyId}`);setError("");
+    try {
+      await leavePushForWorkspaceChange(current,{holdingSlug,companyId});
+      window.location.assign(destination);
+    } catch(error) {
+      switching.current=false;
+      setError(error instanceof Error?error.message:"Could not turn off Push for the previous workspace. Retry the switch.");
       setPendingCompany("");
     }
   }
@@ -134,7 +159,7 @@ export function WorkspaceMenu({
         className={`${styles.workspaceChoice} ${styles.workspaceDepartmentChoice}`}
         href={department.destination}
         aria-current={isCurrent ? "location" : undefined}
-        onClick={() => setOpen(false)}
+        onClick={event => void navigateWorkspaceLink(event,holdingSlug,companyId,department.destination)}
       >
         <Network size={16} aria-hidden="true" />
         <span>{department.label}</span>
@@ -175,7 +200,7 @@ export function WorkspaceMenu({
                 className={styles.workspaceChoice}
                 href="/holdings/erpx/manage-erpx"
                 aria-current={erpxManagementCurrent ? "location" : undefined}
-                onClick={() => setOpen(false)}
+                onClick={event => void navigateWorkspaceLink(event,"erpx",null,"/holdings/erpx/manage-erpx")}
               >
                 <ShieldCheck size={17} aria-hidden="true" />
                 <span>ERPX Management</span>
@@ -241,7 +266,7 @@ export function WorkspaceMenu({
                                     aria-current={
                                       branchCurrent ? "location" : undefined
                                     }
-                                    onClick={() => setOpen(false)}
+                                    onClick={event => void navigateWorkspaceLink(event,holding.holdingSlug,company.id,branch.destination!)}
                                   >
                                     <ChoiceBrand brand={branch.brand} />
                                     <span>{branch.label}</span>
@@ -300,7 +325,7 @@ export function WorkspaceMenu({
                 aria-current={
                   current.kind === "platform" ? "location" : undefined
                 }
-                onClick={() => setOpen(false)}
+                onClick={event => void navigateWorkspaceLink(event,null,null,platform.destination)}
               >
                 <ShieldCheck size={17} aria-hidden="true" />
                 <span>{platform.label}</span>

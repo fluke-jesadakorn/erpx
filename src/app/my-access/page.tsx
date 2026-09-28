@@ -2,19 +2,38 @@ import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/
 import { permissionDefinition } from "@/lib/permissions";
 import { currentSession } from "@/server/authorization";
 import { ownIamAccess } from "@/server/iam-my-access";
+import { workspaceChoices } from "@/server/workspace-choices";
+import { accountQuickAccessItems } from "@/server/account-quick-access";
+import { readQuickAccessPreferences } from "@/server/quick-access-preferences";
+import { QuickAccessShelf } from "@/components/quick-access/shelf";
+import rail from "@/components/quick-access/area-rail.module.css";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 export default async function MyAccessPage() {
   const session = await currentSession().catch(() =>
     redirect("/login?next=/my-access"),
   );
-  const access = await ownIamAccess(session.session.user.id);
+  const [access, choices, preferences] = await Promise.all([
+    ownIamAccess(session.session.user.id),
+    workspaceChoices(),
+    readQuickAccessPreferences(session.session.user.id, "account-my-access", "account"),
+  ]);
+  const items = accountQuickAccessItems("my-access", { hasWorkspace: choices.length > 0 });
   return (
+    <>
+    <a href="#my-access-content" className="skip-link">Skip to account access</a>
+    <main>
     <FeaturePage
       className="content-stack"
-      style={{ maxWidth: 1000, margin: "40px auto", padding: 24 }}
+      style={{ maxWidth: 1360, margin: "40px auto", padding: 24 }}
     >
-      <h1>My access</h1><FeatureTabs/><WidgetGrid pageKey="account-my-access">
+      <h1>My access</h1>
+      <div className={rail.layout}>
+      <aside className={rail.rail} aria-label="Quick access">
+        <QuickAccessShelf items={items} initialPreferences={preferences} defaultIds={items.map(item => item.id)} endpoint="/api/v1/account/quick-access/my-access" requestMode="plain" embedded placement="rail" />
+      </aside>
+      <div id="my-access-content" tabIndex={-1} className={rail.content}>
+      <FeatureTabs/><WidgetGrid pageKey="account-my-access">
       <p>
         Each role is evaluated separately. Select a work role in your workspace
         to use its permissions.
@@ -62,6 +81,10 @@ export default async function MyAccessPage() {
           </details>
         </section>
       ))}</FeatureWidget>
-    </WidgetGrid></FeaturePage>
+    </WidgetGrid>
+      </div>
+      </div></FeaturePage>
+    </main>
+    </>
   );
 }

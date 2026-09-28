@@ -1,7 +1,5 @@
-# docs — hub
+# ERPX documentation
 
-> Hub is `docs/TOC.md`. Archive canonical is `docs/plan/ARCHIVE.md`.
+Start with the [current production plan](production-plan.md) and [documentation index](TOC.md).
 
-- Living: `docs/TOC.md` → `docs/plan/MAP.md` (31) → `src/app/` + `docs/contracts/next/route-table.md`
-- Archived `99a66de7` on `backup/rust-2026-09-02` `f97b74d6`: 43+40 legacy + 37 proto + 28 SQL — see `docs/plan/ARCHIVE.md` + `CUTOVER.md`
-- Agents: `docs/agents/domain.md` + `issue-tracker.md` (GitHub)
+Current behavior is in [contracts](contracts/next/README.md); vocabulary is in [CONTEXT](../CONTEXT.md); decisions are in [ADR](adr/README.md). [Dated plans](archive/planning-2026-09/README.md) and [legacy recovery](plan/ARCHIVE.md) are historical. Evidence remains at its original checksum-addressed location.

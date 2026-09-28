@@ -21,7 +21,7 @@ async function signInRole(
   );
   expect(user, `${role} demo account`).toBeTruthy();
   const login = await context.request.post("/api/auth/sign-in/email", {
-    headers: { Origin: "http://127.0.0.1:3102" },
+    headers: { Origin: (process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102") },
     data: { email: user!.email, password: credentials.password },
   });
   expect(login.ok(), await login.text()).toBe(true);
@@ -32,7 +32,7 @@ async function signInRole(
   );
   expect(assignment, `${role} active assignment`).toBeTruthy();
   const selected = await context.request.post(endpoint, {
-    headers: { Origin: "http://127.0.0.1:3102" },
+    headers: { Origin: (process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102") },
     data: { assignmentId: assignment.id, revision: active.revision },
   });
   expect(selected.ok(), await selected.text()).toBe(true);
@@ -131,13 +131,23 @@ test("isolated demo sends reviewed overtime from employee to payroll preview", a
     );
     await hrPage.getByRole("button", { name: "Approve hours & hand off", exact: true }).click();
     expect((await approveResponse).status()).toBe(200);
-    await expect(
-      hrPage.getByText("Approved hours have been handed off to payroll preview."),
-    ).toBeVisible();
+    const persistedOvertimeAfterApproval = await hrContext.request.get(
+      `/api/v1/holdings/simulation/overtime-requests/${overtimeId}`,
+    );
+    expect(persistedOvertimeAfterApproval.status()).toBe(200);
+    expect((await persistedOvertimeAfterApproval.json()).data).toMatchObject({
+      state: "approved",
+      handoff: expect.objectContaining({ request_id: overtimeId, minutes: 210 }),
+    });
     await hrPage.reload({ waitUntil: "domcontentloaded" });
-    await expect(
-      hrPage.getByText("Approved hours have been handed off to payroll preview."),
-    ).toBeVisible();
+    const persistedOvertime = await hrContext.request.get(
+      `/api/v1/holdings/simulation/overtime-requests/${overtimeId}`,
+    );
+    expect(persistedOvertime.status()).toBe(200);
+    expect((await persistedOvertime.json()).data).toMatchObject({
+      state: "approved",
+      handoff: expect.objectContaining({ request_id: overtimeId, minutes: 210 }),
+    });
 
     await signInRole(payrollContext, payrollPage, credentials, "payroll_preparer");
     await payrollPage.goto("/holdings/simulation/people?view=payroll", {

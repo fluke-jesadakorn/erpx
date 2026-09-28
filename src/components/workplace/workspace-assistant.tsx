@@ -1,22 +1,37 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { BookOpen, MessageSquare, Send, ShieldCheck, Sparkles, X, LoaderCircle } from "lucide-react";
+import { BookOpen, MessageSquare, Send, ShieldCheck, Sparkles, X, LoaderCircle, CirclePlus } from "lucide-react";
 import Link from "next/link";
 import { assistantPage, type AssistantView } from "@/lib/ai/workspace-assistant";
+import { intakeFields, intakeMissing, saveGuidedIntakeHandoff, type GuidedIntakeAction, type GuidedIntakeResult } from "@/lib/ai/guided-intake";
 import { workFetch } from "@/lib/work-fetch";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import styles from "./workspace-assistant.module.css";
 
-export function WorkspaceAssistant({base,crossContext}:{base:string;crossContext:boolean}) {
+export function WorkspaceAssistant({base,userId,companyId,assignmentId,crossContext}:{base:string;userId:string;companyId:string;assignmentId:string;crossContext:boolean}) {
   const pathname=usePathname(),search=useSearchParams();
   const ready=useHydrated();
-  const [open,setOpen]=useState(false),[mode,setMode]=useState<"page"|"workspace">("page"),[tab,setTab]=useState<"chat"|"guide">("chat");
+  const [open,setOpen]=useState(false),[mode,setMode]=useState<"page"|"workspace">("page"),[tab,setTab]=useState<"intake"|"chat"|"guide">("chat");
+  const [startPrompt,setStartPrompt]=useState("");
+  const [startSequence,setStartSequence]=useState(0);
   const [contexts,setContexts]=useState<string[]>([]);
   const launcher=useRef<HTMLButtonElement>(null),closeButton=useRef<HTMLButtonElement>(null);
   let path:string|null=null;
   try{path=assistantPage(`${pathname.slice(base.length)}${search.size?`?${search}`:""}`).path;}catch{}
-  const close=useCallback(()=>{setOpen(false);requestAnimationFrame(()=>launcher.current?.focus());},[]);
+  const close=useCallback(()=>{setOpen(false);setStartPrompt("");requestAnimationFrame(()=>launcher.current?.focus());},[]);
+  useEffect(()=>{
+    const openFromStart=(event:Event)=>{
+      const detail=(event as CustomEvent<{question?:unknown;mode?:unknown}>).detail;
+      const question=detail?.question;
+      setStartPrompt(typeof question==="string"?question.slice(0,4000):"");
+      setStartSequence(value=>value+1);
+      setTab(detail?.mode==="intake"?"intake":"chat");
+      setOpen(true);
+    };
+    window.addEventListener("erpx:open-assistant",openFromStart);
+    return()=>window.removeEventListener("erpx:open-assistant",openFromStart);
+  },[]);
   useEffect(()=>{if(!open)return;closeButton.current?.focus();const handle=(e:KeyboardEvent)=>{if(e.key==="Escape"){e.preventDefault();close();}};window.addEventListener("keydown",handle);return()=>window.removeEventListener("keydown",handle);},[open,close]);
   if(!path)return null;
   const guide=assistantPage(path).guide;
@@ -24,15 +39,62 @@ export function WorkspaceAssistant({base,crossContext}:{base:string;crossContext
     {!open&&<button ref={launcher} disabled={!ready} className={styles.launcher} onClick={()=>setOpen(true)} aria-label="Open work assistant"><Sparkles size={19}/><span>Ask ERPX</span></button>}
     {open&&<aside className={styles.panel} aria-label="ERPX work assistant">
       <header className={styles.header}><div className={styles.brand}><Sparkles/><div><strong>Your work companion</strong><small>ERPX Assistant</small></div></div><button ref={closeButton} className={styles.icon} onClick={close} aria-label="Close work assistant"><X size={20}/></button></header>
-      <div className={styles.context}><label><ShieldCheck size={14}/>{crossContext?<select aria-label="Assistant context scope" value={mode} onChange={e=>{setMode(e.target.value as typeof mode);setContexts([]);}}><option value="page">This page · {guide.title}</option><option value="workspace">Follow my work · permitted pages</option></select>:<strong>This page · {guide.title}</strong>}</label><p>{mode==="page"?"Separate conversation for this page and record.":"Current page plus the contexts you keep below. Your selected role still applies."}</p>{mode==="workspace"&&<div className={styles.chips}>{contexts.map(p=><button key={p} onClick={()=>setContexts(c=>c.filter(v=>v!==p))} aria-label={`Remove context ${p}`}>{assistantPage(p).guide.title} ×</button>)}{!contexts.includes(path)&&contexts.length<5&&<button onClick={()=>setContexts(c=>[...c,path!])}>+ Keep {guide.title} as context</button>}</div>}</div>
-      <div className={styles.tabs}><button aria-pressed={tab==="chat"} onClick={()=>setTab("chat")}><MessageSquare size={15}/>Ask & prepare</button><button aria-pressed={tab==="guide"} onClick={()=>setTab("guide")}><BookOpen size={15}/>Teach me</button></div>
-      {tab==="guide"?<div className={styles.body}><div className={styles.empty}><h3>Work confidently in {guide.title}</h3><p>{guide.purpose}</p></div><ol className={styles.steps}>{guide.steps.map(s=><li key={s}>{s}</li>)}</ol><p className={styles.notice}>Workflow guidance is available even when AI is offline. Company rules come from your published handbook.</p><Link href={`${base}/handbook`}>Open company handbook →</Link></div>:<AssistantConversation key={mode==="page"?path:"workspace"} base={base} path={path} mode={mode} contextPaths={contexts}/>}
+      {tab==="intake"?<div className={styles.context}><ShieldCheck size={14}/> Your work context controls which forms you can open. You review every draft before saving or submitting.</div>:<div className={styles.context}><label><ShieldCheck size={14}/>{crossContext?<select aria-label="Assistant context scope" value={mode} onChange={e=>{setMode(e.target.value as typeof mode);setContexts([]);}}><option value="page">This page · {guide.title}</option><option value="workspace">Follow my work · permitted pages</option></select>:<strong>This page · {guide.title}</strong>}</label><p>{mode==="page"?"Separate conversation for this page and record.":"Current page plus the contexts you keep below. Your selected role still applies."}</p>{mode==="workspace"&&<div className={styles.chips}>{contexts.map(p=><button key={p} onClick={()=>setContexts(c=>c.filter(v=>v!==p))} aria-label={`Remove context ${p}`}>{assistantPage(p).guide.title} ×</button>)}{!contexts.includes(path)&&contexts.length<5&&<button onClick={()=>setContexts(c=>[...c,path!])}>+ Keep {guide.title} as context</button>}</div>}</div>}
+      <div className={styles.tabs}><button aria-pressed={tab==="intake"} onClick={()=>setTab("intake")}><CirclePlus size={15}/>Start work</button><button aria-pressed={tab==="chat"} onClick={()=>setTab("chat")}><MessageSquare size={15}/>Ask</button><button aria-pressed={tab==="guide"} onClick={()=>setTab("guide")}><BookOpen size={15}/>Guide</button></div>
+      {tab==="guide"?<div className={styles.body}><div className={styles.empty}><h3>Work confidently in {guide.title}</h3><p>{guide.purpose}</p></div><ol className={styles.steps}>{guide.steps.map(s=><li key={s}>{s}</li>)}</ol><p className={styles.notice}>Workflow guidance is available even when AI is offline. Company rules come from your published handbook.</p><Link href={`${base}/handbook`}>Open company handbook →</Link></div>:tab==="intake"?<GuidedIntakePanel key={startSequence} base={base} userId={userId} companyId={companyId} assignmentId={assignmentId} path={path} initialQuestion={startPrompt} onContinue={()=>setOpen(false)}/>:<AssistantConversation key={`${mode==="page"?path:"workspace"}:${startPrompt}`} base={base} path={path} mode={mode} contextPaths={contexts} initialQuestion={startPrompt}/>}
     </aside>}
   </div>;
 }
 
-function AssistantConversation({base,path,mode,contextPaths}:{base:string;path:string;mode:"page"|"workspace";contextPaths:string[]}) {
-  const [loadedView,setView]=useState<AssistantView|null>(null),[question,setQuestion]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
+function GuidedIntakePanel({base,userId,companyId,assignmentId,path,initialQuestion,onContinue}:{base:string;userId:string;companyId:string;assignmentId:string;path:string;initialQuestion:string;onContinue:()=>void}) {
+  const [question,setQuestion]=useState(initialQuestion),[result,setResult]=useState<GuidedIntakeResult|null>(null),[draft,setDraft]=useState<Record<string,string>>({});
+  const [actions,setActions]=useState<GuidedIntakeAction[]>([]),[unavailable,setUnavailable]=useState<string|null>(null);
+  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState("");
+  const autoStarted=useRef(false),attempt=useRef<{message:string;key:string}|null>(null);
+  useEffect(()=>{
+    const abort=new AbortController();
+    void (async()=>{
+      try {
+        const response=await workFetch(`/api/v1${base}/assistant/intake`,{cache:"no-store",signal:abort.signal});
+        const body=await response.json();
+        if(!response.ok)throw Error(body.error?.message??"Unable to load available forms.");
+        if(!abort.signal.aborted){setActions(body.data.actions as GuidedIntakeAction[]);setUnavailable(body.data.unavailable as string|null);}
+      } catch(error) {if(!abort.signal.aborted)setError(error instanceof Error?error.message:"Unable to load available forms.");}
+      finally {if(!abort.signal.aborted)setLoading(false);}
+    })();
+    return()=>abort.abort();
+  },[base]);
+  const prepare=useCallback(async(message:string)=>{
+    if(!message.trim())return;
+    setBusy(true);setError("");setResult(null);
+    if(attempt.current?.message!==message)attempt.current={message,key:crypto.randomUUID()};
+    try {
+      const response=await workFetch(`/api/v1${base}/assistant/intake`,{method:"POST",headers:{"Content-Type":"application/json","Idempotency-Key":attempt.current.key},body:JSON.stringify({message,contextPath:path})});
+      const body=await response.json();
+      if(!response.ok)throw Error(body.error?.message??"AI could not prepare this request. Choose a form below.");
+      const next=body.data as GuidedIntakeResult;
+      setResult(next);setDraft(next.draft);setActions(next.actions);attempt.current=null;
+    }catch(cause){setError(cause instanceof Error?cause.message:"AI is unavailable. Choose a form below.");}
+    finally{setBusy(false);}
+  },[base,path]);
+  useEffect(()=>{if(autoStarted.current||!initialQuestion.trim()||loading||unavailable)return;autoStarted.current=true;void prepare(initialQuestion);},[initialQuestion,loading,unavailable,prepare]);
+  const fields=result?.intent&&result.intent!=="unknown"?intakeFields[result.intent]:[];
+  return <><div className={styles.body} aria-busy={busy||loading}>
+    <div className={styles.empty}><h3>Tell us what you need to do</h3><p>Describe it in Thai or English. ERPX can prepare a starting draft; you can also open a form directly.</p></div>
+    {result&&<section className={styles.intakeResult} aria-label="Prepared work draft"><p className={styles.intakeKind}>{result.intent==="unknown"?"Choose a form":`Suggested: ${actions.find(action=>action.id===result.intent)?.label??result.intent}`}</p><p>{result.summary}</p>
+      {!!fields.length&&<div className={styles.intakeFields}>{fields.map(field=><label key={field}>{field.replace(/([A-Z])/g," $1").replace(/^./,char=>char.toUpperCase())}{["description","body","reason","businessPurpose"].includes(field)?<textarea value={draft[field]??""} maxLength={3000} onChange={event=>setDraft(current=>({...current,[field]:event.target.value}))} rows={3}/>:<input value={draft[field]??""} maxLength={300} onChange={event=>setDraft(current=>({...current,[field]:event.target.value}))}/>}</label>)}</div>}
+      {!!intakeMissing(result.intent,draft).length&&<div className={styles.intakeMissing}><strong>Check in the form</strong><ul>{intakeMissing(result.intent,draft).map(item=><li key={item}>{item}</li>)}</ul></div>}
+      <div className={styles.sources}>{result.sources.map(source=>source.path?<Link key={source.id} href={`${base}${source.path}`} title={`Source version ${source.version}`}>{source.title}</Link>:<span key={source.id}>{source.title}</span>)}</div>
+      {result.intent!=="unknown"&&actions.some(action=>action.id===result.intent)&&<Link className={styles.continue} href={actions.find(action=>action.id===result.intent)!.href} onClick={event=>{if(result.intent!=="unknown"){if(!saveGuidedIntakeHandoff(companyId,userId,assignmentId,base,result.intent,draft)){event.preventDefault();setError("This browser could not save the prepared details. Copy them from this panel or open a form directly below; your draft is still here.");return;}window.dispatchEvent(new Event("erpx:guided-intake-handoff"));}onContinue();}}>Review in {actions.find(action=>action.id===result.intent)!.label} →</Link>}
+    </section>}
+    {unavailable&&<p className={styles.notice} role="status">{unavailable}</p>}
+    {error&&<p className={styles.notice} role="alert">{error}</p>}
+    <div className={styles.manualActions}><strong>Open a form directly</strong>{loading?<p>Loading available forms…</p>:<div>{actions.map(action=><Link key={action.id} href={action.href}>{action.label} →</Link>)}</div>}</div>
+  </div><form className={styles.composer} onSubmit={event=>{event.preventDefault();void prepare(question);}}><div className={styles.input}><textarea aria-label="Describe work to prepare" placeholder="For example, I need two monitors for the design team…" value={question} maxLength={4000} onChange={event=>setQuestion(event.target.value)} rows={2}/><button aria-label="Prepare work draft" disabled={busy||loading||!!unavailable||question.trim().length<3}>{busy?<LoaderCircle className={styles.spin} size={17}/>:<Send size={17}/>}</button></div><small>AI only prepares. You review and confirm in the owning form.</small></form></>;
+}
+
+function AssistantConversation({base,path,mode,contextPaths,initialQuestion}:{base:string;path:string;mode:"page"|"workspace";contextPaths:string[];initialQuestion:string}) {
+  const [loadedView,setView]=useState<AssistantView|null>(null),[question,setQuestion]=useState(initialQuestion),[error,setError]=useState(""),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
   const current=useRef(path),generation=useRef(0),mounted=useRef(true),tail=useRef<HTMLDivElement>(null);
   const guide=assistantPage(path).guide;
   const view=loadedView?.page===path?loadedView:null;

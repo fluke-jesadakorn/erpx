@@ -61,6 +61,24 @@ it("registers, verifies email and recovers a password through actual Better Auth
     const verified = await auth.handler(new Request(verification));
     expect([200, 302]).toContain(verified.status);
     expect((await post("sign-in/email", { email, password })).status).toBe(200);
+    vi.stubEnv("ERPX_FRONT_PMS_ORIGIN", "http://pms.localhost:3100");
+    vi.stubEnv("ERPX_FRONT_POS_ORIGIN", "http://pos.localhost:3100");
+    const pmsAuth = await createAuth("http://pms.localhost:3100");
+    const pmsSignIn = await pmsAuth.handler(new Request("http://pms.localhost:3100/api/auth/sign-in/email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Origin: "http://pms.localhost:3100" },
+      body: JSON.stringify({ email, password, callbackURL: "/" }),
+    }));
+    expect(pmsSignIn.status).toBe(200);
+    const pmsCookie = pmsSignIn.headers.get("set-cookie") ?? "";
+    expect(pmsCookie).toContain("erpx-pms.session_token");
+    expect(pmsCookie).not.toContain("Domain=");
+    const posAuth = await createAuth("http://pos.localhost:3100");
+    const posSession = await posAuth.handler(new Request("http://pos.localhost:3100/api/auth/get-session", {
+      headers: { Cookie: pmsCookie.split(";")[0] },
+    }));
+    expect(await posSession.json()).toBeNull();
+    vi.unstubAllEnvs();
     expect(
       (
         await post("request-password-reset", {

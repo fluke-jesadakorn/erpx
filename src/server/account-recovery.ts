@@ -160,11 +160,18 @@ export async function deliverAccountRecovery(
     return true;
   }
   try {
+    const link = open(env.BETTER_AUTH_SECRET, job.url_ciphertext);
+    const host = new URL(link).host;
+    const product = process.env.ERPX_FRONT_PMS_ORIGIN && host === new URL(process.env.ERPX_FRONT_PMS_ORIGIN).host
+      ? "PMS Front"
+      : process.env.ERPX_FRONT_POS_ORIGIN && host === new URL(process.env.ERPX_FRONT_POS_ORIGIN).host
+        ? "POS Front"
+        : "ERPX";
     const providerId = await send(
       env,
       account.email,
-      "Reset your ERPX password",
-      open(env.BETTER_AUTH_SECRET, job.url_ciphertext),
+      "Reset your " + product + " password",
+      link,
       job.id,
     );
     await control.batch([

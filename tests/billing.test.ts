@@ -130,7 +130,12 @@ async function fixture(now = Date.parse("2026-09-01T00:00:00+07:00")) {
       "https://erpx.example.test/holdings/test/settings?section=usage",
       at,
     );
-  const drain = (at = now) => drainBilling({ ...env }, at, stripe.request);
+  const drain = (at = now, promptpaySandbox = false) =>
+    drainBilling(
+      { ...env, ERPX_BILLING_PROMPTPAY_SANDBOX: String(promptpaySandbox) },
+      at,
+      stripe.request,
+    );
   return { id, stripe, owner, admin, command, get, drain, now };
 }
 it("uses Bangkok calendar days, including leap February and same-day starts", () => {
@@ -144,6 +149,44 @@ it("uses Bangkok calendar days, including leap February and same-day starts", ()
   expect(monthBounds("2026-09").end - monthBounds("2026-09").start).toBe(
     30 * 86400000,
   );
+});
+it("offers PromptPay only on opt-in manual Sandbox invoices", async () => {
+  const f = await fixture();
+  await f.command("enroll", { planId: "standard" });
+  const period = (await f.get()).periods[0];
+  await f.command(
+    "complete-costs",
+    { periodId: period.id, complete: true },
+    period.end_at + 1,
+    f.admin,
+  );
+  await f.command("approve", { periodId: period.id }, period.end_at + 2, f.admin);
+  await f.drain(period.end_at + 3, true);
+  const create = f.stripe.calls.find((call) => call.path === "invoices");
+  expect(create?.fields?.collection_method).toBe("send_invoice");
+  expect(create?.fields?.["payment_settings[payment_method_types][0]"]).toBe("card");
+  expect(create?.fields?.["payment_settings[payment_method_types][1]"]).toBe("promptpay");
+  const automatic = await fixture();
+  await automatic.command("enroll", { planId: "standard" });
+  await automatic.command("payment-mode", { paymentMode: "auto", consent: true });
+  const autoPeriod = (await automatic.get()).periods[0];
+  await automatic.command(
+    "complete-costs",
+    { periodId: autoPeriod.id, complete: true },
+    autoPeriod.end_at + 1,
+    automatic.admin,
+  );
+  await automatic.command(
+    "approve",
+    { periodId: autoPeriod.id },
+    autoPeriod.end_at + 2,
+    automatic.admin,
+  );
+  await automatic.drain(autoPeriod.end_at + 3, true);
+  const autoCreate = automatic.stripe.calls.find((call) => call.path === "invoices");
+  expect(autoCreate?.fields?.collection_method).toBe("charge_automatically");
+  expect(autoCreate?.fields?.["payment_settings[payment_method_types][0]"]).toBe("card");
+  expect(autoCreate?.fields?.["payment_settings[payment_method_types][1]"]).toBeUndefined();
 });
 it("issues exactly one 925 baht reviewed invoice across concurrent approvals and an interrupted Stripe response", async () => {
   const f = await fixture();

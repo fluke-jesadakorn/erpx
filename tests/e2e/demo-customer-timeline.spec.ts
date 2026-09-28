@@ -9,7 +9,7 @@ type DemoState = { fixture?: { customerId?: string } };
 async function signInRole(context: BrowserContext, page: Page, credentials: Credentials, role: string, path: string) {
   const user = credentials.users.find((item) => item.roles?.includes(role) || item.role === role);
   expect(user, `${role} demo account`).toBeTruthy();
-  const headers = { Origin: "http://127.0.0.1:3102" };
+  const headers = { Origin: (process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102") };
   const login = await context.request.post("/api/auth/sign-in/email", { headers, data: { email: user!.email, password: credentials.password } });
   expect(login.ok(), await login.text()).toBe(true);
   const endpoint = "/api/v1/holdings/simulation/assignments/active";
@@ -51,7 +51,7 @@ test("isolated demo exposes a scoped Customer 360 timeline to independent Sales 
       operatorPage.getByRole("button", { name: "Save internal note", exact: true }).click(),
     ]);
     await expect(operatorPage.getByRole("paragraph").filter({ hasText: "Demo customer asked for the updated service terms by email." }).first()).toBeVisible();
-    const source = operatorPage.locator("section.card").filter({ hasText: "Visible source activity" }).getByRole("link").first();
+    const source = operatorPage.locator("section.card").filter({ hasText: "Visible source activity" }).locator('a[href*="/commerce/orders/"]').first();
     await expect(source).toHaveAttribute("href", /\/commerce\/orders\//);
     await source.click();
     await expect(operatorPage).toHaveURL(/\/commerce\/orders\//);

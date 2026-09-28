@@ -20,7 +20,7 @@ async function signInRole(
   );
   expect(user, `${role} demo account`).toBeTruthy();
   const login = await context.request.post("/api/auth/sign-in/email", {
-    headers: { Origin: "http://127.0.0.1:3102" },
+    headers: { Origin: (process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102") },
     data: { email: user!.email, password: credentials.password },
   });
   expect(login.ok(), await login.text()).toBe(true);
@@ -31,7 +31,7 @@ async function signInRole(
   );
   expect(assignment, `${role} active assignment`).toBeTruthy();
   const selected = await context.request.post(endpoint, {
-    headers: { Origin: "http://127.0.0.1:3102" },
+    headers: { Origin: (process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102") },
     data: { assignmentId: assignment.id, revision: active.revision },
   });
   expect(selected.ok(), await selected.text()).toBe(true);
