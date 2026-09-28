@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
 import { useState } from "react";
+import styles from "./platform-migration-run.module.css";
 
 type MigrationState = {
   applied: number;
@@ -42,14 +43,14 @@ export function PlatformMigrationRun({ holdingId, migration, canRun }: { holding
       setBusy(false);
     }
   }
-  return <div className="card-grid">
-    <div>
+  return <div className={styles.layout}>
+    <div className={styles.status}>
       <strong>{migration.error ? "Migration receipt unavailable" : migration.pending.length ? `${migration.pending.length} pending migration(s)` : "Schema is up to date"}</strong>
       <p className="muted">Applied {migration.applied}{migration.latestApplied ? ` · latest ${migration.latestApplied}` : ""}</p>
       {migration.pending.length > 0 && <ul>{migration.pending.slice(0, 8).map((name) => <li key={name}><code>{name}</code></li>)}</ul>}
       {migration.pending.length > 8 && <p className="muted">และอีก {migration.pending.length - 8} รายการ</p>}
     </div>
-    {canRun ? <div>
+    {canRun ? <div className={styles.action}>
       <label>เหตุผลการรัน migration<textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={1000} required placeholder="เช่น ติดตั้ง release ที่ผ่านการตรวจสอบแล้ว" /></label>
       <button className="button" type="button" disabled={busy} onClick={() => void run()}>{busy ? "กำลังรัน…" : "Run Holding migrations"}</button>
     </div> : <p className="muted">Platform auditor ดูสถานะได้เท่านั้น ผู้ดูแล Platform ต้องเป็นผู้รัน migration</p>}

@@ -1,0 +1,45 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  gap: 24px;
+  align-items: start;
+}
+
+.status,
+.action {
+  min-width: 0;
+}
+
+.status p {
+  overflow-wrap: anywhere;
+}
+
+.action label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.action textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 84px;
+  padding: 10px 12px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--ink);
+  resize: vertical;
+}
+
+.action button {
+  max-width: 100%;
+}
+
+@media (max-width: 720px) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+}
