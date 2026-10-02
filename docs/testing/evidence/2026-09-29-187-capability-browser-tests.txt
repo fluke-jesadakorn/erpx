@@ -1,0 +1,20 @@
+Browser acceptance suite observation
+Date: 2026-09-29
+Environment: isolated local simulation (run 24367cf2e632), desktop project, one worker
+Mapped E2E specs executed: 11
+Result: 11 passed
+
+Runner output:
+Running 11 tests using 1 worker
+  ✓   1 [desktop] › tests/e2e/demo-collaboration-action-card.spec.ts:31:5 › isolated demo routes a record-linked action card to its owner (14.3s)
+  ✓   2 [desktop] › tests/e2e/demo-collaboration-attachments.spec.ts:47:5 › isolated demo exchanges a conversation attachment between members (6.2s)
+  ✓   3 [desktop] › tests/e2e/demo-collaboration-record-relations.spec.ts:52:5 › isolated demo links a support case to its sales source and records removal (6.0s)
+  ✓   4 [desktop] › tests/e2e/demo-collaboration-social.spec.ts:49:5 › isolated demo publishes a mentioned update and keeps thread actions after reload (7.7s)
+  ✓   5 [desktop] › tests/e2e/demo-crm-activities.spec.ts:25:5 › isolated demo records CRM lead activities through Sales ownership and Work (4.5s)
+  ✓   6 [desktop] › tests/e2e/demo-finance-chart-setup.spec.ts:27:5 › isolated demo renders real chart and account setup controls (3.4s)
+  ✓   7 [desktop] › tests/e2e/demo-finance-reports.spec.ts:27:5 › isolated demo traces finance report totals to the selected ledger (1.8s)
+  ✓   8 [desktop] › tests/e2e/demo-marketing-to-crm-lead.spec.ts:25:5 › consented Marketing candidate hands its brief and attribution to an eligible CRM owner (8.1s)
+  ✓   9 [desktop] › tests/e2e/demo-organization-lifecycle.spec.ts:60:5 › isolated organization setup supports reviewed correction, safe suspension and retained history (41.2s)
+  ✓  10 [desktop] › tests/e2e/demo-payroll-runs.spec.ts:55:5 › isolated demo calculates and independently approves a payroll preview (22.5s)
+  ✓  11 [desktop] › tests/e2e/demo-task-delegation.spec.ts:42:5 › isolated demo delegates task work, revokes access and independently reviews completion (10.7s)
+  11 passed (2.1m)

@@ -1,3 +1,4 @@
+import { TimeText } from "@/components/time/time-preference-context";
 import type { ApprovalView } from "@/server/approvals";
 function source(snapshotText: string | null | undefined) {
   if (!snapshotText) return null;
@@ -74,11 +75,7 @@ export function ApprovalHistory({
               <p>{d.reason || "No additional note"}</p>
               <small>
                 Reviewed version {d.reviewed_version} ·{" "}
-                {new Date(d.created_at)
-                  .toISOString()
-                  .replace("T", " ")
-                  .slice(0, 19)}{" "}
-                UTC
+                <TimeText value={d.created_at} />
               </small>
               {(d.action === "reroute" || d.action === "override") && (
                 <p>

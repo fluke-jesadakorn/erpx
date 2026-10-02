@@ -74,6 +74,9 @@ export async function workSnapshot(actor: WorkContext): Promise<WorkSnapshot> {
 }
 /** Unmemoized reference reader for parity checks and cache fills. */
 export async function readWorkSnapshot(actor: WorkContext): Promise<WorkSnapshot> {
+  // A composite queue skips inaccessible sources. Keep the same authority and
+  // scope, but return domain 403s instead of interrupting the entire Next page.
+  actor = { ...actor, pageRequest: undefined };
   const jobs: { label: string; load: () => Promise<WorkItem[]> }[] = [];
   jobs.push({label:"Legal",load:async()=> (await import("./legal/integrations")).legalWork((await holdingResources(actor.holdingId)).write,actor)});
   if (!actor.beta) jobs.push({label:"Overtime",load:()=>overtimeWork(actor)});

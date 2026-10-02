@@ -34,6 +34,8 @@ export function CalendarForm({
   close,
   accounts,
   api,
+  initialParticipantIds,
+  initialTimezone,
 }: {
   editor: CalendarEditor;
   hierarchy: CalendarHierarchy;
@@ -44,10 +46,12 @@ export function CalendarForm({
   close: () => void;
   accounts?: {id:string;name:string;email:string}[];
   api:string;
+  initialParticipantIds?:string[];
+  initialTimezone?:string;
 }) {
   const item = editor.item,
     people = hierarchy.people,
-    zone = item?.timezone ?? "Asia/Bangkok";
+    zone = item?.timezone ?? initialTimezone ?? "Asia/Bangkok";
   const [allDay,setAllDay]=useState(item?.allDay??false);
   const [availability,setAvailability]=useState<{userId:string;startsAt:number;endsAt:number}[]|null>(null);
   const [availabilityZone,setAvailabilityZone]=useState(zone);
@@ -234,7 +238,7 @@ export function CalendarForm({
             <select
               name="participants"
               multiple
-              defaultValue={item?.participants.map((p) => p.id) ?? []}
+              defaultValue={item?.participants.map((p) => p.id) ?? initialParticipantIds ?? []}
             >
               {people
                 .filter((p) => p.status !== "ended")

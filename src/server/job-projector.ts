@@ -36,6 +36,7 @@ export async function project(env: JobEnv, message: EventMessage) {
   if (!resourceSlots(env).some((s) => s.id === message.holdingId))
     throw new Error("INVALID_HOLDING");
   const { read, write } = databases(env, message.holdingId);
+  if (message.eventType.startsWith("pms.")) await (await import("./pms/social-events")).projectPmsSocialEvent(write,message);
   const futureSideEffects=process.env.NODE_ENV!=='production';
   if (message.eventType === 'commerce.customer-notification.queue' || message.eventType === 'commerce.customer-notification.retry') {
     const id=message.eventType.endsWith('.queue')?await write.prepare('SELECT id FROM commerce_customer_notifications WHERE fulfillment_id=?').bind(message.aggregateId).first<string>('id'):message.aggregateId;
@@ -43,7 +44,7 @@ export async function project(env: JobEnv, message: EventMessage) {
   }
   if (futureSideEffects && message.eventType === "legal.ai.queue") await (await import("./legal/jobs")).drainLegalAi(write,env);
   if (futureSideEffects && message.eventType === "executive.generation.queue") await (await import("./executive/generation")).drainExecutiveGeneration(write,env);
-  if (futureSideEffects && ["social.post.publish", "social.post.comment", "social.agent.retry"].includes(message.eventType)) await drainSocialAgent(write, env, message.aggregateId);
+  if (futureSideEffects && ["social.post.publish", "social.post.comment", "social.agent.retry"].includes(message.eventType)) await drainSocialAgent(write, env, message.aggregateId, undefined, registeredResources(env,message.holdingId).files,message.holdingId);
   const isLeave = message.eventType.startsWith("leave.") && !message.eventType.startsWith("leave.policy.");
   const isOvertime = message.eventType.startsWith("overtime.") && message.eventType !== "overtime.eligibility";
   const isPayroll = message.eventType.startsWith("people.payroll.");
@@ -57,6 +58,7 @@ export async function project(env: JobEnv, message: EventMessage) {
       env,
       message.aggregateId,
     );
+  if (message.eventType === "finance.ai.prepare") await (await import("./finance-ai")).drainFinanceAi(write,env);
   if (message.eventType === "request.ai.prepare") await drainRequestAi(write, env, message.aggregateId);
   let payload = message.payload,
     version = message.aggregateVersion;

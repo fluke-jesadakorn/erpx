@@ -36,6 +36,8 @@ export async function workCacheFence(db: SqlDatabase): Promise<CacheFence | null
       UNION ALL SELECT valid_until FROM people_applied_packages WHERE ended_at IS NULL
       UNION ALL SELECT (definition->>'validUntil')::bigint FROM um_candidates
       UNION ALL SELECT starts_at FROM overtime_requests UNION ALL SELECT ends_at FROM overtime_requests
+      UNION ALL SELECT starts_at FROM staff_task_delegations WHERE status='active'
+      UNION ALL SELECT expires_at FROM staff_task_delegations WHERE status='active'
     ) deadlines WHERE deadline > floor(extract(epoch FROM clock_timestamp())*1000)::bigint) deadline`).first<{
       database: string; revision: string; covered: boolean; deadline: number | null;
     }>();

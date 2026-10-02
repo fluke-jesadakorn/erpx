@@ -150,7 +150,7 @@ test("isolated demo sends reviewed overtime from employee to payroll preview", a
     });
 
     await signInRole(payrollContext, payrollPage, credentials, "payroll_preparer");
-    await payrollPage.goto("/holdings/simulation/people?view=payroll", {
+    await payrollPage.goto("/holdings/simulation/people/payroll/settings", {
       waitUntil: "domcontentloaded",
     });
     await payrollPage.getByRole("button", { name: "Create payroll preview", exact: true }).click();
@@ -168,7 +168,7 @@ test("isolated demo sends reviewed overtime from employee to payroll preview", a
     );
     await createForm.getByRole("button", { name: "Save payroll run", exact: true }).click();
     expect([200, 201]).toContain((await createResponse).status());
-    await expect(payrollPage).toHaveURL(/\/people\/payroll\/[^/?]+/);
+    await expect(payrollPage).toHaveURL(/\/people\/payroll\/runs\/[^/?]+/);
     const runId = new URL(payrollPage.url()).pathname.split("/").pop();
     expect(runId).toBeTruthy();
     const calculateResponse = payrollPage.waitForResponse(

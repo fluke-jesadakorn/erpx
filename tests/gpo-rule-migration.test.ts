@@ -48,5 +48,25 @@ it("bridges direct mappings and every owned legacy claim without issuing Directo
     ]);
     expect(await db.prepare("SELECT status FROM position_gpo_jobs WHERE id='historic-job'").first("status")).toBe("directory_applied");
     expect(await db.prepare("SELECT count(*)::int count FROM position_gpo_config_ownership WHERE connection_id=?").bind(connection).first("count")).toBe(0);
+    const levelId=await db.prepare("SELECT level_id FROM organization_positions WHERE id=?").bind(engagement!.position_id).first<string>("level_id");
+    await db.prepare(`INSERT INTO organization_gpo_rules(id,company_id,target_kind,target_id,version,revision,connection_id,gpo_id,user_filter_group_id,computer_target_ou_id,directory_config_status,last_actor_id,last_reason,updated_at)
+      VALUES('inherited-rule',?,'level',?,1,1,?,'gpo','level-group','ou','directory_applied',?,'Historical level rule',1)`)
+      .bind(f.company,levelId,connection,f.it.userId).run();
+    const covered=(await db.prepare("SELECT id FROM organization_positions WHERE company_id=? AND level_id=? AND active=1 ORDER BY id").bind(f.company,levelId).all<{id:string}>()).results.map(row=>row.id);
+    const oldSource=`gpo-rule:${JSON.stringify(["inherited-rule",engagement!.id])}`;
+    await db.prepare("INSERT INTO people_directory_membership_sources(connection_id,group_id,member_id,source_id,created_at) VALUES(?,'level-group','account',?,1)").bind(connection,oldSource).run();
+    await db.prepare(`INSERT INTO organization_gpo_membership_claims(connection_id,group_id,member_id,source_id,rule_id,company_id,position_id,engagement_id,person_id,revision,engagement_version,gpo_id,computer_target_ou_id)
+      VALUES(?,'level-group','account',?,'inherited-rule',?,?,?,?,1,1,'gpo','ou')`)
+      .bind(connection,oldSource,f.company,engagement!.position_id,engagement!.id,person).run();
+    await copyFile(join(source,"0360_position_gpo_tasks.sql"),join(track,"0360_position_gpo_tasks.sql"));
+    await migrateDatabase(db,"holding-write",root);
+    expect(provider.apply).not.toHaveBeenCalled();
+    expect((await db.prepare("SELECT target_id FROM organization_gpo_rules WHERE company_id=? AND target_kind='position' AND id LIKE 'positionized:%' ORDER BY target_id").bind(f.company).all<{target_id:string}>()).results.map(row=>row.target_id)).toEqual(covered);
+    expect(await db.prepare("SELECT active FROM organization_gpo_rules WHERE id='inherited-rule'").first("active")).toBe(false);
+    const claim=await db.prepare("SELECT rule_id,source_id FROM organization_gpo_membership_claims WHERE connection_id=? AND group_id='level-group'").bind(connection).first<{rule_id:string;source_id:string}>();
+    expect(claim?.rule_id).toBe(`positionized:${(await import("node:crypto")).createHash("md5").update(`inherited-rule:${engagement!.position_id}`).digest("hex")}`);
+    expect(claim?.source_id).toBe(`gpo-rule:${JSON.stringify([claim!.rule_id,engagement!.id])}`);
+    expect(await db.prepare("SELECT count(*)::int count FROM people_directory_membership_sources WHERE connection_id=? AND group_id='level-group' AND source_id=?").bind(connection,claim!.source_id).first("count")).toBe(1);
+    expect(await db.prepare("SELECT count(*)::int count FROM position_gpo_tasks WHERE company_id=?").bind(f.company).first("count")).toBeGreaterThanOrEqual(covered.length);
   }finally{await rm(root,{recursive:true,force:true});}
 });

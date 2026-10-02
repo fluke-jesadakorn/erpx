@@ -1,0 +1,25 @@
+.stack { display: grid; gap: 16px; min-width: 0; }
+.facts { display: grid; gap: 0; margin: 0; }
+.facts > div { display: grid; grid-template-columns: minmax(130px, 32%) minmax(0, 1fr); gap: 12px; padding: 13px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.actionRow { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.muted { color: var(--muted); }
+.summary { display: grid; gap: 5px; padding: 15px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-2); }
+.branchList { display: grid; gap: 0; }
+.branchList > div { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.section { min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.section > summary { cursor: pointer; font-weight: 650; min-height: 44px; display: flex; align-items: center; }
+.history { display: grid; gap: 10px; padding-left: 22px; }
+.history li { overflow-wrap: anywhere; }
+.history span { display: block; color: var(--muted); }
+@media (max-width: 600px) {
+  .facts > div { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+  .branchList > div { grid-template-columns: minmax(0, 1fr) auto; }
+  .branchList > div span:last-child { grid-column: 2; }
+}
+@container (max-width: 460px) {
+  .facts > div { grid-template-columns: minmax(0, 1fr); gap: 3px; }
+  .branchList > div { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+  .branchList > div span:last-child { grid-column: auto; }
+}

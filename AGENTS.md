@@ -36,7 +36,7 @@ bun run db:migrate:local; bun run db:seed:local; bun run test:integration
 
 Ports `3000`, `3001`, and `8080` are reserved for other projects. Never start ERPX or any ERPX helper service on those ports, and never stop the processes using them.
 
-- Next.js development: `3100` → `https://dev-erpx.jesadakorn.com`
+- Next.js development: `3100` → `https://console-dev-erpx.jesadakorn.com`
 - Staging standalone: `3103` → `https://erpx.jesadakorn.com`
 - Private production standalone: `3101` (loopback only)
 - Shared PostgreSQL 18.6: `5432` (dev `erpx_dev_*`, private production `erpx_*`, staging `erpx_stage_*` databases)
@@ -46,13 +46,15 @@ Check that the intended port is available before starting a service. Reuse an ex
 
 ## Required end-of-work environment availability
 
-`https://dev-erpx.jesadakorn.com` serves this workspace's development server at `http://127.0.0.1:3100`. `https://erpx.jesadakorn.com` serves the isolated staging instance at `http://127.0.0.1:3103`. Keep the installed production web/jobs service on `3101` private and the shared PostgreSQL service on `5432` available. Do not restart the retired `5433`/`5435` clusters during normal work.
+Use `https://console-dev-erpx.jesadakorn.com/` for development console work and browser verification; it serves this workspace's development server at `http://127.0.0.1:3100`. Keep the installed production web/jobs service on `3101` private and the shared PostgreSQL service on `5432` available. Do not restart the retired `5433`/`5435` clusters during normal work.
 
-- Before starting dev or staging, inspect each port and process working directory. Reuse a healthy ERPX process; never start duplicate servers.
+Do not touch staging unless the user explicitly instructs you to do so. This includes staging browser visits, health checks, deployments, builds in staging directories, migrations, configuration or route changes, and starting, stopping, or restarting staging services. Staging uses port `3103`, `https://erpx.jesadakorn.com`, `https://console-erpx.jesadakorn.com`, and `erpx_stage_*` databases. Routine development work and end-of-work verification do not authorize staging access.
+
+- Before starting dev, inspect its port and process working directory. Reuse a healthy ERPX process; never start duplicate servers. Apply the same checks to staging only when the user explicitly requests staging work.
 - After completing work and verification, leave `bun run dev` running on `3100` in a detached background process that survives the command/task ending. Use pinned Node 24.20.0 and Bun 1.2.17. Keep logs and PID information under ignored `.scratch/dev/`; never print secrets from logs.
 - If a build, configuration change, or verification requires stopping dev, restart it before finishing. Do not run a build against the same Next output directory while dev is using it; use the isolated release build or stop and restore dev.
-- Start and verify local dev and staging before changing Cloudflare routes. Preserve other Tunnel routes and services.
-- Before the final response, verify HTTP 200 from `http://127.0.0.1:3100/api/health`, `https://dev-erpx.jesadakorn.com/api/health`, `http://127.0.0.1:3103/api/health`, `https://erpx.jesadakorn.com/api/health`, and the private production service at `http://127.0.0.1:3101/api/health`. Also check the affected page through both public hostnames.
+- Start and verify the authorized environment locally before changing its Cloudflare routes. Preserve other Tunnel routes and services; staging route changes require an explicit user instruction.
+- Before the final response, verify HTTP 200 from `http://127.0.0.1:3100/api/health`, `https://console-dev-erpx.jesadakorn.com/api/health`, and the private production service at `http://127.0.0.1:3101/api/health`. Also check the affected page through `https://console-dev-erpx.jesadakorn.com/`. Check staging health and pages only when the user explicitly requests staging work.
 - For UI work, inspect the actual browser page and confirm the requested appearance/behavior. Health checks alone do not establish completion. Use the user's existing authenticated session when available; never bypass authentication. Report explicitly if login prevents verification.
 - Recheck the listener and HTTP response after the startup command has returned, so an initial startup message is not mistaken for a persistent server.
 - On 502, 404, or other failures, inspect relevant logs and fix the issue before claiming success. If blocked, state exactly what remains unverified or broken. Include the public URL and actual verification results in the final response.

@@ -8,7 +8,7 @@ import "server-only";
 
 import { z } from "zod";
 import type { WorkContext } from "@/server/authorization";
-import { holdingResources } from "@/server/runtime";
+import { holdingResources, runtimeEnv } from "@/server/runtime";
 import { ApiError } from "@/server/http";
 import { sha256 } from "@/server/crypto";
 import { decimalToMinor, minorToDecimal } from "@/lib/finance-money";
@@ -21,11 +21,21 @@ import {
 import { assertion,executeCommand,replayCommand } from "./commands";
 import { directoryPerson, canReadCompensation,canManagePeople } from "./people-directory";
 import { prepareJournal } from "./finance";
+import { payrollAccountingLines, payrollNetCostShares, type PayrollPostingItem } from "./payroll-accounting";
+import { assertPayrollSourceFresh, payrollSourceGuards } from "./payroll-readiness";
+import { parseSyntheticPayrollBankResultCsv } from "@/lib/payroll-bank-result";
 import { prepareAttachmentBinding } from "./attachments/service";
+import { snapshotMoney } from "./company-money";
 
 const country = z.string().length(2).transform((value) => value.toUpperCase());
 const currency = z.string().length(3).transform((value) => value.toUpperCase());
 const date = z.string().date();
+
+function payrollCsvCell(value:unknown){
+  const raw=String(value);
+  const safe=/^[\s\u0000-\u001f]*[=+\-@]/u.test(raw)?`'${raw}`:raw;
+  return `"${safe.replaceAll('"','""')}"`;
+}
 
 export const createPersonSchema = z.object({
   legalName: z.string().trim().min(1).max(200),
@@ -77,6 +87,49 @@ export const engagementTransitionSchema = z.object({
   endDate: date.nullable().optional(),
 });
 
+export const payrollCostVerificationSchema=z.object({expectedVersion:z.number().int().positive(),evidenceRef:z.string().trim().min(8).max(500)}).strict();
+
+export async function payrollCostAssignments(actor:WorkContext,engagementId:string){
+  actor=requirePermission(actor,"payroll.prepare");
+  if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Use a Company Payroll assignment to review dated cost units.");
+  const {write}=await holdingResources(actor.holdingId);
+  const engagement=await write.prepare("SELECT id FROM hr_engagements WHERE id=? AND company_id=?").bind(engagementId,actor.companyId).first();
+  if(!engagement)throw new ApiError(404,"ENGAGEMENT_NOT_FOUND","Engagement not found.");
+  return (await write.prepare(`SELECT a.id,a.effective_from,a.effective_to,a.branch_id,a.department_id,a.evidence_status,a.source,a.version,
+    v.evidence_ref,v.verified_by,v.created_at verified_at FROM hr_payroll_cost_assignments a
+    LEFT JOIN hr_payroll_cost_assignment_verifications v ON v.assignment_id=a.id
+    WHERE a.engagement_id=? AND a.company_id=? AND a.status='active' ORDER BY a.effective_from,a.id`)
+    .bind(engagementId,actor.companyId).all()).results;
+}
+
+export async function verifyPayrollCostAssignment(actor:WorkContext,assignmentId:string,input:z.infer<typeof payrollCostVerificationSchema>,commandId:string){
+  actor=requirePermission(actor,"payroll.prepare");
+  if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Use a Company Payroll assignment to verify historical cost units.");
+  const {write}=await holdingResources(actor.holdingId);
+  const prior=await replayCommand(write,actor,commandId,"people.cost-assignment.verify",assignmentId,input);if(prior)return prior;
+  const assignment=await write.prepare(`SELECT a.id,a.engagement_id,a.effective_from,a.effective_to,a.branch_id,a.department_id,a.evidence_status,a.source,a.version,
+    e.start_date,e.branch_id current_branch_id,e.department_id current_department_id FROM hr_payroll_cost_assignments a
+    JOIN hr_engagements e ON e.id=a.engagement_id AND e.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.status='active'`)
+    .bind(assignmentId,actor.companyId).first<{id:string;engagement_id:string;effective_from:string;effective_to:string|null;branch_id:string|null;department_id:string|null;evidence_status:string;source:string;version:number;start_date:string;current_branch_id:string|null;current_department_id:string|null}>();
+  if(!assignment)throw new ApiError(404,"PAYROLL_COST_ASSIGNMENT_NOT_FOUND","Dated cost assignment not found.");
+  if(assignment.evidence_status!=="legacy_unverified"||assignment.source!=="migration"||assignment.version!==input.expectedVersion)
+    throw new ApiError(409,"PAYROLL_COST_ASSIGNMENT_CHANGED","Only an unchanged imported interval can be verified here.");
+  const history=await write.prepare("SELECT 1 FROM staff_organization_history WHERE engagement_id=? AND company_id=? LIMIT 1").bind(assignment.engagement_id,actor.companyId).first();
+  if(history||assignment.branch_id!==assignment.current_branch_id||assignment.department_id!==assignment.current_department_id)
+    throw new ApiError(409,"PAYROLL_COST_HISTORY_RECONSTRUCTION_REQUIRED","Recorded organization changes need dated reconstruction before this interval can be verified.");
+  const now=Date.now(),result={id:assignmentId,status:"verified",version:input.expectedVersion+1};
+  return executeCommand(write,actor,commandId,"people.cost-assignment.verify",input,assignmentId,input.expectedVersion+1,result,[
+    assertion(write,commandId,"assignment-version","EXISTS(SELECT 1 FROM hr_payroll_cost_assignments a JOIN hr_engagements e ON e.id=a.engagement_id AND e.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.status='active' AND a.evidence_status='legacy_unverified' AND a.source='migration' AND a.version=? AND a.branch_id IS NOT DISTINCT FROM e.branch_id AND a.department_id IS NOT DISTINCT FROM e.department_id AND NOT EXISTS(SELECT 1 FROM staff_organization_history h WHERE h.engagement_id=a.engagement_id AND h.company_id=a.company_id))",[assignmentId,actor.companyId,input.expectedVersion]),
+    write.prepare("UPDATE hr_payroll_cost_assignments SET evidence_status='verified',source='hr_attestation',version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?").bind(now,assignmentId,actor.companyId,input.expectedVersion),
+    write.prepare("INSERT INTO hr_payroll_cost_assignment_verifications(id,company_id,assignment_id,verified_by,evidence_ref,previous_version,created_at) VALUES(?,?,?,?,?,?,?)").bind(`cost-verification-${commandId}`,actor.companyId,assignmentId,actor.userId,input.evidenceRef,input.expectedVersion,now),
+    write.prepare("SELECT set_config('erpx.payroll_cost_repair',?,true)").bind(assignmentId),
+    write.prepare(`UPDATE hr_time_entries t SET cost_assignment_id=a.id,cost_branch_id=a.branch_id,cost_department_id=a.department_id,version=t.version+1,updated_at=?
+      FROM hr_payroll_cost_assignments a WHERE a.id=? AND a.company_id=? AND t.engagement_id=a.engagement_id AND t.status='approved'
+      AND t.work_date>=a.effective_from AND (a.effective_to IS NULL OR t.work_date<=a.effective_to)
+      AND t.cost_assignment_id IS NULL`).bind(now,assignmentId,actor.companyId),
+  ]);
+}
+
 export const payGroupSchema = z.object({
   name: z.string().trim().min(1).max(120),
   countryCode: country,
@@ -112,6 +165,7 @@ export const paymentBatchSchema = z.object({
   sourceType: z.enum(["payroll", "expense", "contractor"]),
   sourceId: z.string().min(1),
   formatCode: z.string().trim().min(1).max(80).default("generic-csv"),
+  bankAccountId: z.string().min(1).optional(),
 });
 
 export const timeEntrySchema = z.object({
@@ -127,19 +181,32 @@ export const paymentConfirmationSchema = z.object({
     reference: z.string().min(1),
     status: z.enum(["confirmed", "failed"]),
     confirmationRef: z.string().max(160).optional(),
+    bankTransactionId: z.string().min(1).optional(),
+    bankVersion: z.number().int().positive().optional(),
   })).min(1),
 });
 
 export const payrollPostSchema = z.object({
-  chartId: z.string().min(1),
-  periodId: z.string().min(1),
-  entryDate: date,
-  expenseAccountId: z.string().min(1),
-  netPayableAccountId: z.string().min(1),
+  chartId: z.string().min(1).optional(),
+  periodId: z.string().min(1).optional(),
+  entryDate: date.optional(),
+  accountMappingId: z.string().min(1).optional(),
+  expenseAccountId: z.string().min(1).optional(),
+  netPayableAccountId: z.string().min(1).optional(),
   taxPayableAccountId: z.string().min(1).optional(),
   employerContributionAccountId: z.string().min(1).optional(),
+  employerExpenseAccountId: z.string().min(1).optional(),
+  socialSecurityPayableAccountId: z.string().min(1).optional(),
+  advanceReceivableAccountId: z.string().min(1).optional(),
+  benefitPayableAccountId: z.string().min(1).optional(),
+  otherDeductionPayableAccountId: z.string().min(1).optional(),
+  serviceChargeExpenseAccountId: z.string().min(1).optional(),
+  overtimeExpenseAccountId: z.string().min(1).optional(),
+  bonusExpenseAccountId: z.string().min(1).optional(),
   expectedVersion: z.number().int().positive(),
 });
+
+export const payrollAccountMappingSchema = payrollPostSchema.omit({periodId:true,entryDate:true,expectedVersion:true,accountMappingId:true}).required({chartId:true,expenseAccountId:true,netPayableAccountId:true});
 
 export const payrollCorrectionRequestSchema = z.object({
   expectedVersion: z.number().int().positive(),
@@ -197,6 +264,7 @@ function receipt(write: SqlDatabase, id: string, operation: string, digest: stri
 }
 
 export async function listPeople(actor: WorkContext,filters:{levelId?:string;departmentId?:string}={}) {
+  actor = requirePermission(actor,"people.manage");
   const { write } = await holdingResources(actor.holdingId);
   const rows = await write.prepare(`SELECT p.id,p.user_id,p.legal_name,p.preferred_name,p.email,p.country_code,p.status,p.version,
       e.id AS engagement_id,e.job_title,e.worker_type,e.employment_type,e.status AS engagement_status,e.start_date,e.currency,
@@ -208,10 +276,11 @@ export async function listPeople(actor: WorkContext,filters:{levelId?:string;dep
   return rows.results;
 }
 
-export async function getPerson(actor: WorkContext, personId: string) {
+export async function getPerson(actor: WorkContext, personId: string, engagementId?: string) {
   const { write } = await holdingResources(actor.holdingId);
-  const person = await directoryPerson(actor,personId);
+  const person = await directoryPerson(actor,personId,engagementId);
   const privateAccess = canReadCompensation(actor,person.user_id);
+  if (!canManagePeople(actor) && !privateAccess) throw new ApiError(403,"PERSON_DETAILS_FORBIDDEN","Open the Holding directory to view this person's work contact details.");
   const compensation = privateAccess ? await write.prepare("SELECT base_amount_minor,hourly_rate_minor,pay_frequency,effective_from AS compensation_effective_from FROM hr_compensation_revisions WHERE engagement_id=? AND status='approved' AND effective_from<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (effective_to IS NULL OR effective_to>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')) ORDER BY effective_from DESC LIMIT 1").bind(person.engagement_id).first() : null;
   const [leave,time] = privateAccess ? await Promise.all([
     write.prepare("SELECT l.id,l.number,l.start_date,l.days,l.state,l.decision_note FROM leave_requests l JOIN employees e ON e.id=l.employee_id WHERE e.person_id=? AND l.company_id=? AND (?::text IS NULL OR l.branch_id=?) ORDER BY l.start_date DESC LIMIT 24").bind(personId,actor.companyId,actor.branchId,actor.branchId).all(),
@@ -395,8 +464,10 @@ export async function listCountryPacks(actor: WorkContext){actor = requirePermis
 export async function transitionCountryPack(actor: WorkContext,packId:string,input:z.infer<typeof countryPackTransitionSchema>,commandId:string){actor = requirePermission(actor,"people.compensation.approve");const {write}=await holdingResources(actor.holdingId);const prior=await replayCommand(write,actor,commandId,`people.country-pack.${input.status}`,packId,input);if(prior)return prior;const pack=await write.prepare("SELECT status FROM hr_country_packs WHERE id=?").bind(packId).first<{status:string}>();if(!pack)throw new ApiError(404,"COUNTRY_PACK_NOT_FOUND","Country pack not found.");const allowed=(pack.status==="testing"&&input.status==="validated")||(pack.status==="validated"&&input.status==="active")||(pack.status==="active"&&input.status==="superseded");if(!allowed)throw new ApiError(409,"INVALID_COUNTRY_PACK_TRANSITION","Country pack status must progress testing → validated → active.");const now=Date.now();await executeCommand(write,actor,commandId,`people.country-pack.${input.status}`,input,packId,1,{id:packId,status:input.status},[assertion(write,commandId,"pack-status","EXISTS(SELECT 1 FROM hr_country_packs WHERE id=? AND status=?)",[packId,pack.status]),write.prepare("UPDATE hr_country_packs SET status=?,approval_evidence=?,validated_by=?,effective_from=CASE WHEN ?='active' THEN COALESCE(effective_from,?) ELSE effective_from END,updated_at=? WHERE id=? AND status=?").bind(input.status,input.proof,actor.userId,input.status,new Date().toISOString().slice(0,10),now,packId,pack.status)]);return {id:packId,status:input.status};}
 
 async function calculateItem(write: SqlDatabase, run: { id: string; company_id: string; period_start: string; period_end: string; currency: string }, engagement: { id: string; version:number; person_id: string; worker_type: string; employment_type: string; start_date: string; end_date: string | null; job_title: string },policy:{overtimeMultiplierBps:number;prorationMethod:"calendar_days"|"none"},useSimulationAdapter:boolean) {
+  const payee=await write.prepare("SELECT id,version,legal_name,preferred_name FROM hr_people WHERE id=? AND company_id=? AND status='active' AND merged_into_id IS NULL").bind(engagement.person_id,run.company_id).first<{id:string;version:number;legal_name:string;preferred_name:string|null}>();
+  if(!payee)throw new ApiError(422,"PAYROLL_PAYEE_INVALID","Verify the employee identity before calculating payroll.");
   const compensation = await write.prepare(`SELECT * FROM hr_compensation_revisions WHERE engagement_id=? AND status IN ('active','approved') AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC LIMIT 1`).bind(engagement.id,run.period_end,run.period_start).first<Record<string, string | number | null>>();
-  const time = await write.prepare("SELECT id,version,regular_hours,overtime_hours FROM hr_time_entries WHERE engagement_id=? AND work_date BETWEEN ? AND ? AND status='approved' ORDER BY id").bind(engagement.id,run.period_start,run.period_end).all<{id:string;version:number;regular_hours:number;overtime_hours:number}>();
+  const time = await write.prepare("SELECT id,version,work_date,regular_hours,overtime_hours,cost_assignment_id,cost_branch_id,cost_department_id FROM hr_time_entries WHERE engagement_id=? AND work_date BETWEEN ? AND ? AND status='approved' ORDER BY id").bind(engagement.id,run.period_start,run.period_end).all<{id:string;version:number;work_date:string;regular_hours:number;overtime_hours:number;cost_assignment_id:string|null;cost_branch_id:string|null;cost_department_id:string|null}>();
   const handoffs=(await write.prepare('SELECT id,request_id,request_version,minutes,work_date FROM overtime_payroll_handoffs WHERE engagement_id=? AND work_date BETWEEN ? AND ? ORDER BY id').bind(engagement.id,run.period_start,run.period_end).all<{id:string;request_id:string;request_version:number;minutes:number;work_date:string}>()).results;
   const hours = {handoffs,regular:time.results.reduce((sum,t)=>sum+t.regular_hours,0),overtime:time.results.reduce((sum,t)=>sum+t.overtime_hours,0)+handoffs.reduce((sum,h)=>sum+h.minutes/60,0),entries:time.results};
   const base = Number(compensation?.base_amount_minor ?? 0); const hourly = Number(compensation?.hourly_rate_minor ?? 0); const regular = Number(hours?.regular ?? 0); const overtime = Number(hours?.overtime ?? 0);
@@ -415,6 +486,10 @@ async function calculateItem(write: SqlDatabase, run: { id: string; company_id: 
     components.push({code:`payroll-advance:${repayment.id}`,label:`Payroll advance repayment · ${repayment.due_period_start}`,kind:"deduction",amount:minorToDecimal(Number(repayment.amount_minor))});
   }
   const day=86400000,periodDays=Math.floor((Date.parse(run.period_end)-Date.parse(run.period_start))/day)+1,activeStart=engagement.start_date>run.period_start?engagement.start_date:run.period_start,activeEnd=engagement.end_date&&engagement.end_date<run.period_end?engagement.end_date:run.period_end,activeDays=Math.floor((Date.parse(activeEnd)-Date.parse(activeStart))/day)+1,partial=activeDays!==periodDays;
+  const costAssignments=(await write.prepare("SELECT id,effective_from,effective_to,branch_id,department_id,evidence_status,version FROM hr_payroll_cost_assignments WHERE engagement_id=? AND company_id=? AND status='active' AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from,id").bind(engagement.id,run.company_id,activeEnd,activeStart).all<{id:string;effective_from:string;effective_to:string|null;branch_id:string|null;department_id:string|null;evidence_status:string;version:number}>()).results;
+  const assignmentOn=(workDate:string)=>costAssignments.filter(row=>row.effective_from<=workDate&&(row.effective_to===null||row.effective_to>=workDate));
+  for(let dateMs=Date.parse(activeStart);dateMs<=Date.parse(activeEnd);dateMs+=day){const rows=assignmentOn(new Date(dateMs).toISOString().slice(0,10));if(rows.length!==1||rows[0].evidence_status!=="verified")throw new ApiError(422,"PAYROLL_COST_ALLOCATION_INCOMPLETE","Verify dated branch and department assignments for every work day before payroll review.");}
+  for(const entry of time.results){const rows=assignmentOn(entry.work_date);if(rows.length!==1||rows[0].id!==entry.cost_assignment_id||rows[0].branch_id!==entry.cost_branch_id||rows[0].department_id!==entry.cost_department_id)throw new ApiError(422,"PAYROLL_TIME_COST_EVIDENCE_MISSING","Approve time again after its dated cost unit is verified.");}
   if(partial&&policy.prorationMethod==="none")throw new ApiError(422,"PRORATION_REQUIRED","This pay group does not permit automatic proration for partial-period employment.");
   const normalizedComponents = components.filter((component): component is {code:string;label:string;kind:"earning"|"deduction"|"employer";amount:string} => ["earning","deduction","employer"].includes(component.kind));
   const mockContext = useSimulationAdapter
@@ -440,10 +515,11 @@ async function calculateItem(write: SqlDatabase, run: { id: string; company_id: 
     ? calculateThaiHotelPayrollFixture({ payroll: { ...payrollInput, components: ordinaryComponents }, fixtures: mockComponents })
     : calculatePayrollAmounts({ ...payrollInput, components: ordinaryComponents });
   const { gross, deductions, employer, net } = calculated;
-  const inputSnapshot={engagement,compensation,hours,benefitInputs,advanceRepayments,period:{start:run.period_start,end:run.period_end},policy:{...policy,activeDays,periodDays,...(useSimulationAdapter?{calculationAdapter:thaiHotelPayrollMockId,statutoryCalculation:false}:{})}};
+  const inputSnapshot={engagement,payee,compensation,hours,benefitInputs,advanceRepayments,costAssignments,period:{start:run.period_start,end:run.period_end},policy:{...policy,activeDays,periodDays,...(useSimulationAdapter?{calculationAdapter:thaiHotelPayrollMockId,statutoryCalculation:false}:{})}};
   const result={grossMinor:gross,deductionsMinor:deductions,employerCostMinor:employer,netMinor:net,...("adapter" in calculated?{adapter:calculated.adapter}:{}),explanation:{baseMinor:base,hourlyRateMinor:hourly,regularHours:regular,overtimeHours:overtime,overtimeMultiplierBps:policy.overtimeMultiplierBps,activeDays,periodDays,components:[...calculated.applied,...mockContext]}};
   return { itemId:`payitem-${crypto.randomUUID()}`, engagementId:engagement.id, personId:engagement.person_id, workerType:engagement.worker_type, inputSnapshot, result, gross, deductions, employer, net };
 }
+export { calculateItem as calculatePayrollItemForSystem };
 
 export async function createPayrollRun(actor:WorkContext,input:z.infer<typeof payrollRunSchema>,key:string) {
   actor = requirePermission(actor,"payroll.prepare");if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");const {write}=await holdingResources(actor.holdingId),id=`payrun-${key}`;const previous=await replayCommand(write,actor,key,"people.payroll.create",id,input);if(previous)return previous;
@@ -552,7 +628,7 @@ export async function calculatePayrollRun(actor:WorkContext,runId:string,key=cry
   if(!["draft","calculating","preview","failed"].includes(run.status)||!["preview","final_pay"].includes(run.mode))throw new ApiError(409,"PAYROLL_LOCKED","Only an unapproved payroll preview can be recalculated.");
   // A run is company-wide; a branch preparer may not read or calculate other branches.
   if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Use a holding-level payroll assignment for company-wide runs.");
-  const engagements=await write.prepare("SELECT e.id,e.version,e.person_id,e.worker_type,e.employment_type,e.start_date,e.end_date,e.job_title FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.status IN ('active','ended') AND p.status='active' AND p.merged_into_id IS NULL AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?) AND (?::text IS NULL OR e.id=?) ORDER BY e.id").bind(actor.companyId,run.pay_group_id,run.currency,run.period_end,run.period_start,(run as Record<string,unknown>).scope_engagement_id??null,(run as Record<string,unknown>).scope_engagement_id??null).all<{id:string;version:number;person_id:string;worker_type:string;employment_type:string;start_date:string;end_date:string|null;job_title:string}>();
+  const engagements=await write.prepare("SELECT e.id,e.version,e.person_id,e.worker_type,e.employment_type,e.start_date,e.end_date,e.job_title,e.branch_id,e.department_id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.worker_type='employee' AND e.status IN ('active','ended') AND p.status='active' AND p.merged_into_id IS NULL AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?) AND (?::text IS NULL OR e.id=?) ORDER BY e.id").bind(actor.companyId,run.pay_group_id,run.currency,run.period_end,run.period_start,(run as Record<string,unknown>).scope_engagement_id??null,(run as Record<string,unknown>).scope_engagement_id??null).all<{id:string;version:number;person_id:string;worker_type:string;employment_type:string;start_date:string;end_date:string|null;job_title:string;branch_id:string|null;department_id:string|null}>();
   if(!engagements.results.length)throw new ApiError(422,"PAYROLL_EMPTY","Assign active employees to this pay group before calculating.");
   const group=await write.prepare("SELECT overtime_multiplier_bps,proration_method FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(run.pay_group_id,actor.companyId).first<{overtime_multiplier_bps:number;proration_method:"calendar_days"|"none"}>();if(!group)throw new ApiError(409,"PAY_GROUP_CHANGED","The pay group is no longer active.");
   const policy={overtimeMultiplierBps:Number(group.overtime_multiplier_bps),prorationMethod:group.proration_method};
@@ -585,77 +661,159 @@ export async function workPayrollRows(actor: WorkContext) {
   return (await write.prepare("SELECT r.* FROM hr_payroll_runs r JOIN hr_pay_groups g ON g.id=r.pay_group_id WHERE r.company_id=? ORDER BY r.updated_at DESC").bind(actor.companyId).all<Record<string,string|number|null>>()).results;
 }
 export async function getPayrollRun(actor: WorkContext, runId: string) { if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment."); const canReadPayroll=hasPermission(actor,"payroll.read"),canReadPayment=hasPermission(actor,"payroll.payment.read"); if(!canReadPayroll&&!canReadPayment)requirePermission(actor,"payroll.read"); const paymentOnly=!canReadPayroll; const {write}=await holdingResources(actor.holdingId); const run=await write.prepare("SELECT r.*,g.overtime_multiplier_bps,g.proration_method FROM hr_payroll_runs r JOIN hr_pay_groups g ON g.id=r.pay_group_id WHERE r.id=? AND r.company_id=?").bind(runId,actor.companyId).first(); if(!run)throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found."); const [items,exports,corrections,paymentBatch]=await Promise.all([write.prepare("SELECT i.*,p.legal_name,p.id person_id FROM hr_payroll_items i JOIN hr_engagements e ON e.id=i.engagement_id JOIN hr_people p ON p.id=e.person_id WHERE i.run_id=? ORDER BY p.legal_name").bind(runId).all(),write.prepare("SELECT id,run_revision,checksum_sha256,created_at FROM hr_payroll_review_exports WHERE run_id=? ORDER BY run_revision DESC").bind(runId).all(),write.prepare("SELECT * FROM hr_payroll_corrections WHERE run_id=? AND company_id=? ORDER BY created_at DESC,id DESC").bind(runId,actor.companyId).all(),write.prepare("SELECT * FROM hr_payment_batches WHERE company_id=? AND source_type='payroll' AND source_id=? AND status<>'cancelled' ORDER BY created_at DESC,id DESC LIMIT 1").bind(actor.companyId,runId).first()]); const paymentItems=paymentBatch ? (await write.prepare("SELECT * FROM hr_payment_batch_items WHERE batch_id=? ORDER BY reference").bind(String(paymentBatch.id)).all()).results : []; return {run:paymentOnly?{...run,totals_json:"{}",input_digest:null,error_message:null}:run,items:paymentOnly?[]:items.results,exports:paymentOnly?[]:exports.results,corrections:paymentOnly?[]:corrections.results,paymentBatch,paymentItems}; }
-export async function listPayrollRuns(actor: WorkContext) { actor = requirePermission(actor,"payroll.read"); if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment."); const {write}=await holdingResources(actor.holdingId); return (await write.prepare("SELECT * FROM hr_payroll_runs WHERE company_id=? ORDER BY pay_date DESC,created_at DESC").bind(actor.companyId).all()).results; }
+export async function listPayrollRuns(actor: WorkContext) { const canReadPayroll=hasPermission(actor,"payroll.read"),canReadPayment=hasPermission(actor,"payroll.payment.read");if(!canReadPayroll&&!canReadPayment)requirePermission(actor,"payroll.read");if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");const {write}=await holdingResources(actor.holdingId);if(!canReadPayroll)return (await write.prepare("SELECT r.id,r.period_start,r.period_end,r.pay_date,r.currency,r.status,r.version,b.id payment_batch_id,b.status payment_status,b.total_minor net_payable_minor FROM hr_payroll_runs r LEFT JOIN hr_payment_batches b ON b.source_type='payroll' AND b.source_id=r.id AND b.company_id=r.company_id AND b.status<>'cancelled' WHERE r.company_id=? AND r.status='posted' ORDER BY r.pay_date DESC,r.created_at DESC").bind(actor.companyId).all()).results;return (await write.prepare("SELECT * FROM hr_payroll_runs WHERE company_id=? ORDER BY pay_date DESC,created_at DESC").bind(actor.companyId).all()).results; }
 
 export async function payrollPostingOptions(actor: WorkContext) {
   actor = requirePermission(actor,"finance.approve");
   if (actor.branchId || actor.departmentId) throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");
   const { write } = await holdingResources(actor.holdingId);
-  const [charts, periods] = await Promise.all([
+  const [charts, periods, mappings, groups] = await Promise.all([
     write.prepare("SELECT id,name,base_currency FROM finance_charts WHERE company_id=? AND status='active' ORDER BY name").bind(actor.companyId).all(),
     write.prepare("SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC").bind(actor.companyId).all(),
+    write.prepare("SELECT id,pay_group_id,chart_id,accounts_json,status,version,created_by,approved_by FROM hr_payroll_account_mappings WHERE company_id=? AND status IN ('draft','approved') ORDER BY pay_group_id,created_at DESC").bind(actor.companyId).all(),
+    write.prepare("SELECT id,name,currency,frequency FROM hr_pay_groups WHERE company_id=? AND status='active' ORDER BY name").bind(actor.companyId).all(),
   ]);
   const chartIds = charts.results.map(row => String((row as Record<string,unknown>).id));
   const accounts = chartIds.length ? await write.prepare(`SELECT id,chart_id,code,name,category,currency FROM finance_accounts WHERE company_id=? AND status='active' AND chart_id IN (${chartIds.map(() => "?").join(",")}) ORDER BY code`).bind(actor.companyId,...chartIds).all() : { results: [] };
-  return { charts: charts.results, periods: periods.results, accounts: accounts.results };
+  return { charts: charts.results, periods: periods.results, accounts: accounts.results, mappings: mappings.results, groups: groups.results };
+}
+
+type ResolvedPayrollPost = z.infer<typeof payrollPostSchema> & {chartId:string;periodId:string;entryDate:string;expenseAccountId:string;netPayableAccountId:string;resolvedMappingId:string|null;resolvedMappingVersion:number|null};
+
+async function resolvePayrollPost(write:SqlDatabase,actor:WorkContext,runId:string,input:z.infer<typeof payrollPostSchema>):Promise<ResolvedPayrollPost>{
+  const run=await write.prepare("SELECT pay_group_id,period_end FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,actor.companyId).first<{pay_group_id:string;period_end:string}>();
+  if(!run)throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found.");
+  const mapping=await write.prepare(`SELECT id,chart_id,accounts_json,version FROM hr_payroll_account_mappings WHERE company_id=? AND pay_group_id=? AND status='approved' ${input.accountMappingId?"AND id=?":""} ORDER BY created_at DESC LIMIT 1`).bind(...(input.accountMappingId?[actor.companyId,run.pay_group_id,input.accountMappingId]:[actor.companyId,run.pay_group_id])).first<{id:string;chart_id:string;accounts_json:string;version:number}>();
+  if(!mapping)throw new ApiError(409,"PAYROLL_ACCOUNT_MAPPING_REQUIRED","An independently approved pay-group account mapping is required before payroll posting.");
+  const saved=JSON.parse(mapping.accounts_json) as z.infer<typeof payrollAccountMappingSchema>;
+  if(input.chartId!==undefined&&input.chartId!==mapping.chart_id)throw new ApiError(422,"PAYROLL_MAPPING_OVERRIDE_FORBIDDEN","The chart must match the approved pay-group mapping.");
+  for(const [name,value] of Object.entries(input))if(name.endsWith("AccountId")&&name!=="accountMappingId"&&value!==undefined&&value!==saved[name as keyof typeof saved])
+    throw new ApiError(422,"PAYROLL_MAPPING_OVERRIDE_FORBIDDEN","Payroll accounts must match the approved pay-group mapping.");
+  const merged={...saved,...input};
+  const chartId=mapping.chart_id;
+  if(!merged.expenseAccountId||!merged.netPayableAccountId)throw new ApiError(422,"PAYROLL_ACCOUNT_MAPPING_REQUIRED","The approved mapping needs wage expense and net payable accounts.");
+  const dateHint=input.entryDate??run.period_end;
+  let entryDate=dateHint,periodId=input.periodId;
+  if(!periodId){
+    let periods=(await write.prepare("SELECT id,start_date FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=? ORDER BY start_date").bind(actor.companyId,dateHint,dateHint).all<{id:string;start_date:string}>()).results;
+    if(!periods.length&&!input.entryDate){
+      const next=(await write.prepare("SELECT id,start_date FROM finance_periods WHERE company_id=? AND state='open' AND start_date>? ORDER BY start_date LIMIT 1").bind(actor.companyId,run.period_end).all<{id:string;start_date:string}>()).results;
+      if(next.length){entryDate=next[0].start_date;periods=(await write.prepare("SELECT id,start_date FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=?").bind(actor.companyId,entryDate,entryDate).all<{id:string;start_date:string}>()).results;}
+    }
+    if(periods.length!==1)throw new ApiError(409,"PAYROLL_ACCOUNTING_PERIOD_REQUIRED","Select one open accounting period for payroll accrual.");
+    periodId=periods[0].id;
+  }
+  return {...merged,chartId,periodId,entryDate,expenseAccountId:merged.expenseAccountId,netPayableAccountId:merged.netPayableAccountId,resolvedMappingId:mapping.id,resolvedMappingVersion:mapping.version};
+}
+
+export async function savePayrollAccountMapping(actor:WorkContext,payGroupId:string,input:z.infer<typeof payrollAccountMappingSchema>,key:string){
+  actor=requirePermission(actor,"finance.approve");if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Use a Company finance assignment for payroll mapping.");
+  const {write}=await holdingResources(actor.holdingId),id=`payroll-mapping-${key}`,previous=await replayCommand(write,actor,key,"people.payroll.mapping.save",id,input);if(previous)return previous;
+  const group=await write.prepare("SELECT id,currency FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(payGroupId,actor.companyId).first<{id:string;currency:string}>();if(!group)throw new ApiError(404,"PAY_GROUP_NOT_FOUND","Active pay group not found.");
+  const chart=await write.prepare("SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active'").bind(input.chartId,actor.companyId).first<{id:string;base_currency:string}>();if(!chart||chart.base_currency!==group.currency)throw new ApiError(422,"PAYROLL_CHART_CURRENCY","Payroll chart must use the pay-group currency.");
+  const ids=[...new Set(Object.entries(input).filter(([name])=>name.endsWith("AccountId")).map(([,value])=>value).filter((value):value is string=>typeof value==="string"))];
+  const accounts=await write.prepare(`SELECT id,currency,category FROM finance_accounts WHERE company_id=? AND chart_id=? AND status='active' AND id IN (${ids.map(()=>"?").join(",")})`).bind(actor.companyId,input.chartId,...ids).all<{id:string;currency:string;category:string}>();
+  if(accounts.results.length!==ids.length||accounts.results.some(account=>account.currency!==group.currency))throw new ApiError(422,"PAYROLL_ACCOUNT_INVALID","Every mapped account must be active in the selected chart and currency.");
+  const categories=new Map(accounts.results.map(row=>[row.id,row.category]));
+  for(const [name,value] of Object.entries(input))if(name.endsWith("AccountId")&&typeof value==="string"){
+    const required=name==="advanceReceivableAccountId"?"asset":name.endsWith("ExpenseAccountId")||name==="expenseAccountId"?"expense":"liability";
+    if(categories.get(value)!==required)throw new ApiError(422,"PAYROLL_ACCOUNT_INVALID",`${name} must point to an active ${required} account.`);
+  }
+  const now=Date.now();return executeCommand(write,actor,key,"people.payroll.mapping.save",input,id,1,{id,payGroupId,status:"draft",version:1},[write.prepare("INSERT INTO hr_payroll_account_mappings(id,company_id,pay_group_id,chart_id,accounts_json,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,'draft',?,?,?)").bind(id,actor.companyId,payGroupId,input.chartId,JSON.stringify(input),actor.userId,now,now)]);
+}
+
+export async function approvePayrollAccountMapping(actor:WorkContext,mappingId:string,expectedVersion:number,key:string){
+  actor=requirePermission(actor,"finance.approve");if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Use a Company finance assignment for payroll mapping.");
+  const {write}=await holdingResources(actor.holdingId),input={expectedVersion},previous=await replayCommand(write,actor,key,"people.payroll.mapping.approve",mappingId,input);if(previous)return previous;
+  const row=await write.prepare("SELECT id,pay_group_id,created_by,status,version FROM hr_payroll_account_mappings WHERE id=? AND company_id=?").bind(mappingId,actor.companyId).first<{id:string;pay_group_id:string;created_by:string;status:string;version:number}>();
+  if(!row)throw new ApiError(404,"PAYROLL_MAPPING_NOT_FOUND","Payroll account mapping not found.");
+  if(row.status!=="draft"||row.version!==expectedVersion)throw new ApiError(409,"PAYROLL_MAPPING_CHANGED","Refresh this mapping before approval.");
+  if(samePerson(actor,row.created_by))throw new ApiError(409,"SELF_REVIEW_FORBIDDEN","A different Finance approver must approve the mapping.");
+  const now=Date.now();return executeCommand(write,actor,key,"people.payroll.mapping.approve",input,mappingId,expectedVersion+1,{id:mappingId,status:"approved",version:expectedVersion+1},[
+    assertion(write,key,"mapping-review","EXISTS(SELECT 1 FROM hr_payroll_account_mappings WHERE id=? AND company_id=? AND status='draft' AND version=? AND NOT iam_same_person(created_by,?,company_id))",[mappingId,actor.companyId,expectedVersion,actor.userId]),
+    write.prepare("UPDATE hr_payroll_account_mappings SET status='superseded',version=version+1,updated_at=? WHERE company_id=? AND pay_group_id=? AND status='approved'").bind(now,actor.companyId,row.pay_group_id),
+    write.prepare("UPDATE hr_payroll_account_mappings SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=?").bind(actor.userId,now,mappingId),
+  ]);
+}
+
+async function preparePayrollAccrual(write: SqlDatabase, actor: WorkContext, runId: string, requested: z.infer<typeof payrollPostSchema>, key: string) {
+  const input=await resolvePayrollPost(write,actor,runId,requested);
+  const run = await write.prepare(`SELECT r.*, COUNT(i.id) item_count,
+      COUNT(i.id) FILTER (WHERE i.status NOT IN ('calculated','approved','posted')) invalid_items
+    FROM hr_payroll_runs r LEFT JOIN hr_payroll_items i ON i.run_id=r.id
+    WHERE r.id=? AND r.company_id=? GROUP BY r.id`).bind(runId, actor.companyId).first<Record<string,string|number|null>>();
+  if (!run) throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found.");
+  if (String(run.status) !== "approved") throw new ApiError(409,"PAYROLL_NOT_APPROVED","An independently approved payroll run is required before GL posting.");
+  if (Number(run.version) !== input.expectedVersion) throw new ApiError(409,"VERSION_CONFLICT","The payroll run changed. Refresh before posting.");
+  if (Number(run.item_count) <= 0 || Number(run.invalid_items) > 0) throw new ApiError(409,"PAYROLL_ITEMS_INVALID","Every payroll item must be calculated or approved before posting.");
+  await assertPayrollSourceFresh(write,runId);
+  if (input.entryDate < String(run.period_end)) throw new ApiError(422,"PAYROLL_ACCRUAL_DATE_INVALID","Recognize payroll expense at period end or later in an open adjustment period.");
+  const items = (await write.prepare("SELECT id,worker_type,gross_minor,deductions_minor,employer_cost_minor,net_minor,input_snapshot_json,result_json FROM hr_payroll_items WHERE run_id=? ORDER BY id").bind(runId).all<PayrollPostingItem & {worker_type:string}>()).results;
+  if(items.some(item=>item.worker_type!=="employee"))throw new ApiError(409,"CONTRACTOR_PAYABLE_ROUTE","Contractor amounts must be handled through Finance payables, not posted as payroll.");
+  const accrual = payrollAccountingLines(items,input);
+  const expected = JSON.parse(String(run.totals_json)) as {gross:number;deductions:number;employer:number;net:number};
+  if (accrual.totals.grossMinor !== expected.gross || accrual.totals.deductionsMinor !== expected.deductions || accrual.totals.employerMinor !== expected.employer || accrual.totals.netMinor !== expected.net)
+    throw new ApiError(409,"PAYROLL_TOTALS_INVALID","Approved run totals changed after review.");
+  const journal = await prepareJournal(write, actor, {
+    chartId: input.chartId, periodId: input.periodId, entryDate: input.entryDate,
+    currency: String(run.currency),
+    memo: `Payroll ${String(run.period_start)} to ${String(run.period_end)}${input.entryDate > String(run.period_end) ? " · adjustment for closed work period" : ""}`,
+    sourceType: "payroll", sourceId: runId, isOpening: false, lines: accrual.lines,
+  }, key, "posted");
+  const roles = new Map<string,string>();
+  const setRole=(id:string,role:string)=>{const previous=roles.get(id);if(previous&&previous!==role)throw new ApiError(422,"PAYROLL_ACCOUNT_INVALID","An account cannot serve incompatible payroll expense, liability or asset roles.");roles.set(id,role);};
+  for (const id of [input.expenseAccountId,input.employerExpenseAccountId,input.overtimeExpenseAccountId,input.bonusExpenseAccountId,input.serviceChargeExpenseAccountId].filter((id):id is string=>!!id)) setRole(id,"expense");
+  for (const id of [input.netPayableAccountId,input.taxPayableAccountId,input.employerContributionAccountId,input.socialSecurityPayableAccountId,input.benefitPayableAccountId,input.otherDeductionPayableAccountId].filter((id):id is string=>!!id)) setRole(id,"liability");
+  if(input.advanceReceivableAccountId)setRole(input.advanceReceivableAccountId,"asset");
+  const ids=[...roles.keys()];
+  const valid=await write.prepare(`SELECT id,category,currency FROM finance_accounts WHERE company_id=? AND chart_id=? AND status='active' AND id IN (${ids.map(()=>"?").join(",")})`).bind(actor.companyId,input.chartId,...ids).all<{id:string;category:string;currency:string}>();
+  if(valid.results.length!==ids.length||valid.results.some(row=>row.category!==roles.get(row.id)||row.currency!==run.currency))throw new ApiError(422,"PAYROLL_ACCOUNT_INVALID","Payroll mapping needs active wage expense, payable liability, and advance asset accounts in the run currency.");
+  return {run,accrual,journal,input};
+}
+
+export async function previewPayrollAccounting(actor: WorkContext, runId: string, input: z.infer<typeof payrollPostSchema>) {
+  actor = requirePermission(actor,"finance.approve");
+  if (actor.branchId || actor.departmentId) throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");
+  const {write}=await holdingResources(actor.holdingId);
+  const {run,accrual,input:resolved}=await preparePayrollAccrual(write,actor,runId,input,`preview-${crypto.randomUUID()}`);
+  return {runId,runVersion:Number(run.version),entryDate:resolved.entryDate,periodId:resolved.periodId,accountMappingId:resolved.resolvedMappingId,accountMappingVersion:resolved.resolvedMappingVersion,lines:accrual.lines,totals:accrual.totals,categories:accrual.categories};
 }
 
 export async function postPayroll(actor: WorkContext, runId: string, input: z.infer<typeof payrollPostSchema>, key: string) {
   actor = requirePermission(actor,"finance.approve");
   if (actor.branchId || actor.departmentId) throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");
+  if((await runtimeEnv()).ERPX_ENVIRONMENT==="production")throw new ApiError(409,"PAYROLL_ENGINE_UNAVAILABLE","Certified Thai payroll is required before production ledger posting.");
   const { write } = await holdingResources(actor.holdingId);
   const previous = await replayCommand(write, actor, key, "people.payroll.post", runId, input);
   if (previous) return previous;
-  const run = await write.prepare(`SELECT r.*, COALESCE(SUM(i.gross_minor),0) gross_minor,
-      COALESCE(SUM(i.deductions_minor),0) deductions_minor,
-      COALESCE(SUM(i.employer_cost_minor),0) employer_minor,
-      COALESCE(SUM(i.net_minor),0) net_minor,
-      COUNT(i.id) item_count,
-      COUNT(i.id) FILTER (WHERE i.status NOT IN ('calculated','approved','posted')) invalid_items
-    FROM hr_payroll_runs r LEFT JOIN hr_payroll_items i ON i.run_id=r.id
-    WHERE r.id=? AND r.company_id=?
-    GROUP BY r.id`).bind(runId, actor.companyId).first<Record<string, string | number | null>>();
-  if (!run) throw new ApiError(404,"PAYROLL_RUN_NOT_FOUND","Payroll run not found.");
-  if (String(run.status) !== "approved") throw new ApiError(409,"PAYROLL_NOT_APPROVED","An independently approved payroll run is required before GL posting.");
-  if (Number(run.version) !== input.expectedVersion) throw new ApiError(409,"VERSION_CONFLICT","The payroll run changed. Refresh before posting.");
-  if (Number(run.item_count) <= 0 || Number(run.invalid_items) > 0) throw new ApiError(409,"PAYROLL_ITEMS_INVALID","Every payroll item must be calculated or approved before posting.");
-  if (Number(run.deductions_minor) > 0 && !input.taxPayableAccountId) throw new ApiError(422,"TAX_PAYABLE_ACCOUNT_REQUIRED","Select the liability account that holds payroll deductions.");
-  if (Number(run.employer_minor) > 0 && !input.employerContributionAccountId) throw new ApiError(422,"EMPLOYER_ACCOUNT_REQUIRED","Select the liability account that holds employer contributions.");
-  const gross = Number(run.gross_minor), deductions = Number(run.deductions_minor), employer = Number(run.employer_minor), net = Number(run.net_minor);
-  if (gross < 0 || deductions < 0 || employer < 0 || net <= 0 || gross + employer !== net + deductions + employer) throw new ApiError(409,"PAYROLL_TOTALS_INVALID","Payroll totals do not balance to a payable amount.");
-  const lines = [
-    { accountId: input.expenseAccountId, description: "Payroll gross and employer cost", debit: minorToDecimal(gross + employer), credit: "0" },
-    { accountId: input.netPayableAccountId, description: "Net pay payable to employees", debit: "0", credit: minorToDecimal(net) },
-    ...(deductions > 0 ? [{ accountId: input.taxPayableAccountId!, description: "Payroll deductions payable", debit: "0", credit: minorToDecimal(deductions) }] : []),
-    ...(employer > 0 ? [{ accountId: input.employerContributionAccountId!, description: "Employer contributions payable", debit: "0", credit: minorToDecimal(employer) }] : []),
-  ];
-  const journal = await prepareJournal(write, actor, {
-    chartId: input.chartId,
-    periodId: input.periodId,
-    entryDate: input.entryDate,
-    currency: String(run.currency),
-    memo: `Payroll ${String(run.period_start)} to ${String(run.period_end)}`,
-    sourceType: "payroll",
-    sourceId: runId,
-    isOpening: false,
-    lines,
-  }, `${key}-journal`, "posted");
-  const now = Date.now(), result = { id: runId, status: "posted", version: input.expectedVersion + 1, journalId: journal.result.id, netPayableMinor: net };
+  const {run,accrual,journal,input:resolved}=await preparePayrollAccrual(write,actor,runId,input,`${key}-journal`);
+  let moneySnapshot:SqlStatement|null=null;
+  try { moneySnapshot=(await snapshotMoney(write,actor,{sourceType:"payroll_run",sourceId:runId,amountKind:"net_payable",
+    transactionDate:String(run.pay_date),currency:String(run.currency),currencyScale:2,amountUnits:String(accrual.totals.netMinor)})).statement; }
+  catch(error){if(!(error instanceof ApiError&&error.code==="MANUAL_RATE_REQUIRED"))throw error;}
+  const now = Date.now(), result = { id: runId, status: "posted", version: input.expectedVersion + 1, journalId: journal.result.id, netPayableMinor: accrual.totals.netMinor };
   return executeCommand(write, actor, key, "people.payroll.post", input, runId, input.expectedVersion + 1, result, [
     assertion(write, key, "payroll-run", "EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='approved' AND version=? AND input_digest IS NOT NULL)", [runId, actor.companyId, input.expectedVersion]),
+    ...(resolved.resolvedMappingId?[assertion(write,key,"payroll-mapping","EXISTS(SELECT 1 FROM hr_payroll_account_mappings WHERE id=? AND company_id=? AND pay_group_id=(SELECT pay_group_id FROM hr_payroll_runs WHERE id=?) AND status='approved' AND version=?)",[resolved.resolvedMappingId,actor.companyId,runId,resolved.resolvedMappingVersion])]:[]),
+    ...await payrollSourceGuards(write,key,runId),
     assertion(write, key, "payroll-items", "NOT EXISTS(SELECT 1 FROM hr_payroll_items WHERE run_id=? AND status NOT IN ('calculated','approved','posted'))", [runId]),
     assertion(write, key, "payroll-posting-unique", "NOT EXISTS(SELECT 1 FROM hr_payroll_postings WHERE run_id=?)", [runId]),
     ...journal.steps,
     write.prepare("UPDATE hr_payroll_runs SET status='posted',posted_by=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND status='approved' AND version=?").bind(actor.userId, now, runId, actor.companyId, input.expectedVersion),
     write.prepare("UPDATE hr_payroll_items SET status='posted' WHERE run_id=? AND status IN ('calculated','approved')").bind(runId),
-    write.prepare("INSERT INTO hr_payroll_postings(id,run_id,journal_id,created_at) VALUES(?,?,?,?)").bind(`payroll-posting-${key}`, runId, journal.result.id, now),
+    write.prepare("INSERT INTO hr_payroll_postings(id,run_id,journal_id,account_mapping_id,account_mapping_version,created_at) VALUES(?,?,?,?,?,?)").bind(`payroll-posting-${key}`, runId, journal.result.id, resolved.resolvedMappingId, resolved.resolvedMappingVersion, now),
+    ...(moneySnapshot?[moneySnapshot]:[]),
   ]);
 }
 
 export async function approvePayrollRun(actor:WorkContext,runId:string,expectedVersion:number,key:string) {
   actor = requirePermission(actor,"payroll.approve");if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");const {write}=await holdingResources(actor.holdingId);const input={expectedVersion};const previous=await replayCommand(write,actor,key,"people.payroll.approve",runId,input);if(previous)return previous;
+  const submitted=await write.prepare("SELECT submitted_by FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,actor.companyId).first<{submitted_by:string|null}>();
+  if(submitted?.submitted_by&&samePerson(actor,submitted.submitted_by))throw new ApiError(409,"SELF_REVIEW_FORBIDDEN","A different person must approve the submitted payroll revision.");
+  await assertPayrollSourceFresh(write,runId);
   return executeCommand(write,actor,key,"people.payroll.approve",input,runId,expectedVersion+1,{id:runId,status:"approved",version:expectedVersion+1},[
-    assertion(write,key,"run","EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND version=? AND status='preview' AND created_by!=? AND input_digest IS NOT NULL)",[runId,actor.companyId,expectedVersion,actor.userId]),
+    assertion(write,key,"run","EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND version=? AND status='in_review' AND submitted_by IS NOT NULL AND NOT iam_same_person(submitted_by,?,company_id) AND submitted_digest=input_digest AND input_digest IS NOT NULL)",[runId,actor.companyId,expectedVersion,actor.userId]),
+    ...await payrollSourceGuards(write,key,runId),
     write.prepare("UPDATE hr_payroll_runs SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=?").bind(actor.userId,Date.now(),runId),
     write.prepare("INSERT INTO decision_evidence(id,command_id,record_id,action,actor_id,assignment_id,reviewed_version,input_digest,created_at) SELECT ?,?,?,?,?,?,?,input_digest,? FROM hr_payroll_runs WHERE id=?").bind(crypto.randomUUID(),key,runId,"people.payroll.approve",actor.userId,actor.assignmentId,expectedVersion,Date.now(),runId),
   ]);
@@ -710,12 +868,16 @@ export async function exportPayrollReview(actor:WorkContext,runId:string,key:str
   actor=requirePermission(actor,"payroll.read");if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");
   const {write,files}=await holdingResources(actor.holdingId),previous=await replayCommand(write,actor,key,"people.payroll.review-export",runId,{});if(previous)return previous;
   const run=await write.prepare("SELECT id,status,revision,input_digest,currency,period_start,period_end FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId,actor.companyId).first<{id:string;status:string;revision:number;input_digest:string|null;currency:string;period_start:string;period_end:string}>();
-  if(!run||!["preview","approved"].includes(run.status)||!run.input_digest)throw new ApiError(409,"PAYROLL_REVIEW_NOT_READY","Calculate a payroll preview before exporting review evidence.");
+  if(!run||!["preview","in_review","approved"].includes(run.status)||!run.input_digest)throw new ApiError(409,"PAYROLL_REVIEW_NOT_READY","Calculate a payroll preview before exporting review evidence.");
+  await assertPayrollSourceFresh(write,runId);
+  const existing=await write.prepare("SELECT checksum_sha256 FROM hr_payroll_review_exports WHERE run_id=? AND run_revision=?").bind(runId,run.revision).first<{checksum_sha256:string}>();
+  if(existing)return {id:runId,revision:run.revision,checksum:existing.checksum_sha256};
   const items=await write.prepare("SELECT p.legal_name,i.worker_type,i.gross_minor,i.deductions_minor,i.employer_cost_minor,i.net_minor,i.currency,i.input_snapshot_json FROM hr_payroll_items i JOIN hr_engagements e ON e.id=i.engagement_id JOIN hr_people p ON p.id=e.person_id WHERE i.run_id=? ORDER BY p.legal_name").bind(runId).all<{legal_name:string;worker_type:string;gross_minor:number;deductions_minor:number;employer_cost_minor:number;net_minor:number;currency:string;input_snapshot_json:string}>();
-  const csv=["employee,worker_type,gross,deductions,employer_cost,net,currency,input_snapshot",...items.results.map(item=>[item.legal_name,item.worker_type,minorToDecimal(item.gross_minor),minorToDecimal(item.deductions_minor),minorToDecimal(item.employer_cost_minor),minorToDecimal(item.net_minor),item.currency,item.input_snapshot_json].map(value=>`"${String(value).replaceAll('"','""')}"`).join(","))].join("\n"),checksum=await sha256(csv),fileKey=`${actor.holdingId}/people/payroll/${runId}/review-${run.revision}.csv`,exportId=`payroll-review-${key}`,now=Date.now();
+  const csv=["employee,worker_type,gross,deductions,employer_cost,net,currency,input_snapshot",...items.results.map(item=>[item.legal_name,item.worker_type,minorToDecimal(item.gross_minor),minorToDecimal(item.deductions_minor),minorToDecimal(item.employer_cost_minor),minorToDecimal(item.net_minor),item.currency,item.input_snapshot_json].map(payrollCsvCell).join(","))].join("\n"),checksum=await sha256(csv),fileKey=`${actor.holdingId}/people/payroll/${runId}/review-${run.revision}.csv`,exportId=`payroll-review-${key}`,now=Date.now();
   await files.put(fileKey,csv,{httpMetadata:{contentType:"text/csv"},customMetadata:{sha256:checksum,inputDigest:run.input_digest,period:`${run.period_start}:${run.period_end}`}});
   return executeCommand(write,actor,key,"people.payroll.review-export",{},runId,Number(run.revision),{id:runId,revision:run.revision,checksum},[
-    assertion(write,key,"run","EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND revision=? AND input_digest=? AND status IN ('preview','approved'))",[runId,actor.companyId,run.revision,run.input_digest]),
+    assertion(write,key,"run","EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND revision=? AND input_digest=? AND status IN ('preview','in_review','approved'))",[runId,actor.companyId,run.revision,run.input_digest]),
+    ...await payrollSourceGuards(write,key,runId),
     write.prepare("INSERT INTO hr_payroll_review_exports(id,run_id,run_revision,file_key,checksum_sha256,created_by,created_at) VALUES(?,?,?,?,?,?,?)").bind(exportId,runId,run.revision,fileKey,checksum,actor.userId,now),
   ]);
 }
@@ -727,17 +889,23 @@ export async function getPayrollReviewFile(actor:WorkContext,runId:string,revisi
 
 export async function createPaymentBatch(actor: WorkContext, input: z.infer<typeof paymentBatchSchema>, commandId: string) {
   actor = requirePermission(actor,"payroll.payment.prepare"); const {write}=await holdingResources(actor.holdingId); const c=await command(write,actor,commandId,"people.payment-batch.create",input); if(c.result)return c.result;
+  if(input.sourceType==="payroll"&&(actor.branchId||actor.departmentId))throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Use a Company assignment to prepare payroll payment.");
+  if(input.sourceType==="payroll"&&(await runtimeEnv()).ERPX_ENVIRONMENT==="production")throw new ApiError(409,"PAYROLL_ENGINE_UNAVAILABLE","Certified Thai payroll is required before production payment preparation.");
   const duplicate = await write.prepare("SELECT id FROM hr_payment_batches WHERE company_id=? AND source_type=? AND source_id=? AND status NOT IN ('cancelled') LIMIT 1").bind(actor.companyId, input.sourceType, input.sourceId).first();
   if (duplicate) throw new ApiError(409, "PAYMENT_BATCH_EXISTS", "An outstanding payment batch already exists for this obligation.");
   let currency = "";
-  let items: { results: Array<{ id: string; engagement_id: string | null; person_id: string | null; legal_name: string; preferred_name: string | null; net_minor: number; currency: string }> };
+  let items: { results: Array<{ id: string; engagement_id: string | null; person_id: string | null; legal_name: string; preferred_name: string | null; net_minor: number; currency: string; input_snapshot_json?:string }> };
   if (input.sourceType === "payroll") {
     const source = await write.prepare("SELECT id,status,currency FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(input.sourceId,actor.companyId).first<{id:string;status:string;currency:string}>();
     if (!source || source.status !== "posted") throw new ApiError(409,"PAYROLL_NOT_POSTED","Payroll must be posted before payment export.");
     currency = source.currency;
-    items = await write.prepare(`SELECT i.id,i.engagement_id,e.person_id,p.legal_name,p.preferred_name,i.net_minor,i.currency
-      FROM hr_payroll_items i JOIN hr_engagements e ON e.id=i.engagement_id JOIN hr_people p ON p.id=e.person_id
-      WHERE i.run_id=? AND i.net_minor>0 AND i.status='posted' ORDER BY i.id`).bind(input.sourceId).all<{id:string;engagement_id:string;person_id:string;legal_name:string;preferred_name:string|null;net_minor:number;currency:string}>();
+    const posted=(await write.prepare("SELECT id,engagement_id,net_minor,currency,input_snapshot_json FROM hr_payroll_items WHERE run_id=? AND net_minor>0 AND status='posted' ORDER BY engagement_id").bind(input.sourceId).all<{id:string;engagement_id:string;net_minor:number;currency:string;input_snapshot_json:string}>()).results;
+    items={results:posted.map(item=>{
+      const snapshot=JSON.parse(item.input_snapshot_json) as {engagement?:{person_id:string};payee?:{id:string;legal_name:string;preferred_name:string|null}};
+      const payee=snapshot.payee;
+      if(!payee?.id||!payee.legal_name||payee.id!==snapshot.engagement?.person_id)throw new ApiError(409,"PAYROLL_PAYEE_REVIEW_REQUIRED","The posted payroll item lacks an approved employee payment identity.");
+      return {...item,person_id:payee.id,legal_name:payee.legal_name,preferred_name:payee.preferred_name};
+    })};
   } else if (input.sourceType === "expense") {
     throw new ApiError(409,"EXPENSE_PAYABLE_REQUIRED","Record reimbursement against the posted expense payable.");
   } else {
@@ -749,36 +917,136 @@ export async function createPaymentBatch(actor: WorkContext, input: z.infer<type
     items = { results: [{ id: invoice.id, engagement_id: null, person_id: null, legal_name: invoice.legal_name, preferred_name: null, net_minor: Number(invoice.total_minor), currency: invoice.currency }] };
   }
   if(!items.results.length)throw new ApiError(409,"PAYMENT_ITEMS_EMPTY","There are no approved payable items to export.");
-  const total=items.results.reduce((sum,item)=>sum+item.net_minor,0); if (total <= 0) throw new ApiError(422, "PAYMENT_TOTAL_INVALID", "Payment amount must be greater than zero."); const batchId=`payment-${crypto.randomUUID()}`; const now=Date.now(); const statements:SqlStatement[]=[write.prepare("INSERT INTO hr_payment_batches(id,company_id,source_type,source_id,currency,status,format_code,total_minor,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(batchId,actor.companyId,input.sourceType,input.sourceId,currency,"draft",input.formatCode,total,actor.userId,now,now)];
+  if(input.sourceType==="payroll"&&input.bankAccountId){
+    const bank=await write.prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND category='asset' AND currency=? AND status='active'").bind(input.bankAccountId,actor.companyId,currency).first();
+    if(!bank)throw new ApiError(422,"BANK_ACCOUNT_INVALID","Select an active bank asset account in the payroll currency.");
+  }
+  const total=items.results.reduce((sum,item)=>sum+item.net_minor,0); if (total <= 0) throw new ApiError(422, "PAYMENT_TOTAL_INVALID", "Payment amount must be greater than zero."); const batchId=`payment-${crypto.randomUUID()}`; const now=Date.now(); const statements:SqlStatement[]=[
+    ...(input.sourceType==="payroll"?[assertion(write,commandId,"posted-payroll-source","EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='posted')",[input.sourceId,actor.companyId])]:[]),
+    ...items.results.filter((item):item is typeof item & {input_snapshot_json:string}=>!!item.input_snapshot_json).map((item,index)=>assertion(write,commandId,`posted-payment-item-${index}`,"EXISTS(SELECT 1 FROM hr_payroll_items WHERE id=? AND run_id=? AND status='posted' AND net_minor=? AND input_snapshot_json=?)",[item.id,input.sourceId,item.net_minor,item.input_snapshot_json])),
+    write.prepare("INSERT INTO hr_payment_batches(id,company_id,source_type,source_id,currency,status,format_code,total_minor,bank_account_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)").bind(batchId,actor.companyId,input.sourceType,input.sourceId,currency,"draft",input.formatCode,total,input.sourceType==="payroll"?input.bankAccountId??null:null,actor.userId,now,now)];
   if(input.sourceType==='contractor')statements.push(
     assertion(write,commandId,'supplier-payment-reservation',"NOT EXISTS(SELECT 1 FROM finance_supplier_instructions WHERE invoice_id=? AND status IN ('reserved','exported','unknown','confirmed'))",[input.sourceId]),
     assertion(write,commandId,'contractor-batch-unique',"NOT EXISTS(SELECT 1 FROM hr_payment_batches WHERE company_id=? AND source_type='contractor' AND source_id=? AND status<>'cancelled' AND id<>?)",[actor.companyId,input.sourceId,batchId]),
     write.prepare('UPDATE finance_invoices SET version=version+1,updated_at=? WHERE id=? AND company_id=?').bind(now,input.sourceId,actor.companyId),
   );
-  for(const item of items.results)statements.push(write.prepare("INSERT INTO hr_payment_batch_items(id,batch_id,engagement_id,person_id,reference,payee_name,amount_minor,currency) VALUES(?,?,?,?,?,?,?,?)").bind(`payitem-${crypto.randomUUID()}`,batchId,item.engagement_id,item.person_id,`PAY-${input.sourceId}-${item.id}`,item.preferred_name??item.legal_name,item.net_minor,item.currency));
+  for(const item of items.results){
+    const reviewed=item.input_snapshot_json?(JSON.parse(item.input_snapshot_json) as {payee?:{legal_name:string;preferred_name:string|null}}).payee:null;
+    statements.push(write.prepare("INSERT INTO hr_payment_batch_items(id,batch_id,engagement_id,person_id,reference,payee_name,amount_minor,currency) VALUES(?,?,?,?,?,?,?,?)").bind(`payitem-${crypto.randomUUID()}`,batchId,item.engagement_id,item.person_id,`PAY-${input.sourceId}-${item.id}`,reviewed?(reviewed.preferred_name??reviewed.legal_name):(item.preferred_name??item.legal_name),item.net_minor,item.currency));
+  }
   const result={id:batchId,status:"draft",totalMinor:total,itemCount:items.results.length}; statements.push(receipt(write,commandId,"people.payment-batch.create",c.digest,result));
   await executeCommand(write,actor,commandId,"people.payment-batch.create",input,batchId,1,result,statements); return result;
 }
 
-export async function approvePaymentBatch(actor: WorkContext,batchId:string,expectedVersion:number,commandId:string){actor = requirePermission(actor,"finance.pay");const {write}=await holdingResources(actor.holdingId);const prior=await replayCommand(write,actor,commandId,"people.payment-batch.approve",batchId,{expectedVersion});if(prior)return prior;const batch=await write.prepare("SELECT status,version,created_by FROM hr_payment_batches WHERE id=? AND company_id=?").bind(batchId,actor.companyId).first<{status:string;version:number;created_by:string}>();if(!batch)throw new ApiError(404,"PAYMENT_BATCH_NOT_FOUND","Payment batch not found.");if(samePerson(actor,batch.created_by))throw new ApiError(409,"SELF_REVIEW_FORBIDDEN","A different person must approve the payment batch.");if(batch.status!=="draft"||batch.version!==expectedVersion)throw new ApiError(409,"PAYMENT_BATCH_NOT_APPROVABLE","Refresh the payment batch before approving it.");const now=Date.now();await executeCommand(write,actor,commandId,"people.payment-batch.approve",{expectedVersion},batchId,1,{id:batchId,status:"approved",version:expectedVersion+1},[assertion(write,commandId,"batch-version","EXISTS(SELECT 1 FROM hr_payment_batches WHERE id=? AND company_id=? AND version=? AND status='draft' AND created_by!=?)",[batchId,actor.companyId,expectedVersion,actor.userId]),write.prepare("UPDATE hr_payment_batches SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND status='draft' AND version=?").bind(actor.userId,now,batchId,actor.companyId,expectedVersion),write.prepare("INSERT INTO decision_evidence(id,command_id,record_id,action,actor_id,assignment_id,reviewed_version,input_digest,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(),commandId,batchId,"people.payment-batch.approve",actor.userId,actor.assignmentId,expectedVersion,commandId,now)]);return {id:batchId,status:"approved",version:expectedVersion+1};}
+export async function preparePaymentRetry(actor:WorkContext,batchId:string,expectedVersion:number,commandId:string){
+  actor=requirePermission(actor,"payroll.payment.prepare");
+  if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Use a Company assignment to retry payroll payments.");
+  const {write}=await holdingResources(actor.holdingId),input={expectedVersion};
+  const prior=await replayCommand(write,actor,commandId,"people.payment-batch.retry",batchId,input);if(prior)return prior;
+  const batch=await write.prepare("SELECT source_type,status,version FROM hr_payment_batches WHERE id=? AND company_id=?").bind(batchId,actor.companyId).first<{source_type:string;status:string;version:number}>();
+  if(!batch)throw new ApiError(404,"PAYMENT_BATCH_NOT_FOUND","Payment batch not found.");
+  if(batch.source_type!=="payroll"||batch.status!=="partially_settled"||batch.version!==expectedVersion)throw new ApiError(409,"PAYMENT_RETRY_NOT_READY","Refresh the partially settled payroll batch before preparing a retry.");
+  if((await runtimeEnv()).ERPX_ENVIRONMENT==="production")throw new ApiError(409,"PAYROLL_ENGINE_UNAVAILABLE","Certified bank instructions are required before production payroll retry.");
+  const failed=await write.prepare("SELECT COUNT(*) count FROM hr_payment_batch_items WHERE batch_id=? AND status='failed'").bind(batchId).first<{count:number}>();
+  if(!Number(failed?.count))throw new ApiError(409,"PAYMENT_RETRY_NOT_READY","Record at least one bank rejection before preparing a retry.");
+  const now=Date.now();const result={id:batchId,status:"draft",version:expectedVersion+1,retryItems:Number(failed?.count??0)};
+  return executeCommand(write,actor,commandId,"people.payment-batch.retry",input,batchId,result.version,result,[
+    assertion(write,commandId,"batch-retry-version","EXISTS(SELECT 1 FROM hr_payment_batches WHERE id=? AND company_id=? AND source_type='payroll' AND status='partially_settled' AND version=?)",[batchId,actor.companyId,expectedVersion]),
+    assertion(write,commandId,"batch-retry-items","EXISTS(SELECT 1 FROM hr_payment_batch_items WHERE batch_id=? AND status='failed')",[batchId]),
+    write.prepare("UPDATE hr_payment_batches SET status='draft',retry_requested_by=?,approved_by=NULL,version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?").bind(actor.userId,now,batchId,actor.companyId,expectedVersion),
+  ]);
+}
 
-export async function exportPaymentBatch(actor: WorkContext,batchId:string,commandId:string){actor = requirePermission(actor,"payroll.payment.execute");const {write,files}=await holdingResources(actor.holdingId);const prior=await replayCommand(write,actor,commandId,"people.payment-batch.export",batchId,{});if(prior)return prior;const batch=await write.prepare("SELECT * FROM hr_payment_batches WHERE id=? AND company_id=?").bind(batchId,actor.companyId).first<{id:string;status:string;source_type:string;source_id:string;format_code:string;currency:string;total_minor:number}>();if(!batch)throw new ApiError(404,"PAYMENT_BATCH_NOT_FOUND","Payment batch not found.");if(batch.status!=="approved")throw new ApiError(409,"PAYMENT_BATCH_LOCKED","An independently approved payment batch is required before export.");const items=await write.prepare("SELECT reference,payee_name,amount_minor,currency,status FROM hr_payment_batch_items WHERE batch_id=? ORDER BY reference").bind(batchId).all<{reference:string;payee_name:string;amount_minor:number;currency:string;status:string}>();const lines=["reference,payee,amount,currency,status",...items.results.map((item)=>[item.reference,`\"${item.payee_name.replaceAll('"','""')}\"`,minorToDecimal(item.amount_minor),item.currency,item.status].join(","))].join("\n");const key=`${actor.holdingId}/people/payments/${batchId}.csv`;const checksum=await sha256(lines);await files.put(key,lines,{httpMetadata:{contentType:"text/csv"},customMetadata:{sha256:checksum,format:batch.format_code}});await executeCommand(write,actor,commandId,"people.payment-batch.export",{},batchId,1,{id:batchId,status:"exported",fileKey:key,checksum,itemCount:items.results.length},[assertion(write,commandId,"batch-status","EXISTS(SELECT 1 FROM hr_payment_batches WHERE id=? AND company_id=? AND status='approved')",[batchId,actor.companyId]),write.prepare("UPDATE hr_payment_batches SET status='exported',file_key=?,file_checksum=?,exported_at=?,version=version+1,updated_at=? WHERE id=?").bind(key,checksum,Date.now(),Date.now(),batchId)]);return {id:batchId,status:"exported",fileKey:key,checksum,itemCount:items.results.length};}
+export async function approvePaymentBatch(actor: WorkContext,batchId:string,expectedVersion:number,commandId:string){actor = requirePermission(actor,"finance.pay");const {write}=await holdingResources(actor.holdingId);const prior=await replayCommand(write,actor,commandId,"people.payment-batch.approve",batchId,{expectedVersion});if(prior)return prior;const batch=await write.prepare("SELECT status,version,source_type,created_by,retry_requested_by FROM hr_payment_batches WHERE id=? AND company_id=?").bind(batchId,actor.companyId).first<{status:string;version:number;source_type:string;created_by:string;retry_requested_by:string|null}>();if(!batch)throw new ApiError(404,"PAYMENT_BATCH_NOT_FOUND","Payment batch not found.");if(batch.source_type==="payroll"&&(actor.branchId||actor.departmentId))throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Use a Company assignment to approve payroll payment.");if(samePerson(actor,batch.retry_requested_by??batch.created_by))throw new ApiError(409,"SELF_REVIEW_FORBIDDEN","A different person must approve the payment batch.");if(batch.status!=="draft"||batch.version!==expectedVersion)throw new ApiError(409,"PAYMENT_BATCH_NOT_APPROVABLE","Refresh the payment batch before approving it.");const now=Date.now();await executeCommand(write,actor,commandId,"people.payment-batch.approve",{expectedVersion},batchId,1,{id:batchId,status:"approved",version:expectedVersion+1},[assertion(write,commandId,"batch-version","EXISTS(SELECT 1 FROM hr_payment_batches WHERE id=? AND company_id=? AND version=? AND status='draft' AND NOT iam_same_person(COALESCE(retry_requested_by,created_by),?,company_id))",[batchId,actor.companyId,expectedVersion,actor.userId]),write.prepare("UPDATE hr_payment_batches SET status='approved',approved_by=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND status='draft' AND version=?").bind(actor.userId,now,batchId,actor.companyId,expectedVersion),write.prepare("INSERT INTO decision_evidence(id,command_id,record_id,action,actor_id,assignment_id,reviewed_version,input_digest,created_at) VALUES(?,?,?,?,?,?,?,?,?)").bind(crypto.randomUUID(),commandId,batchId,"people.payment-batch.approve",actor.userId,actor.assignmentId,expectedVersion,commandId,now)]);return {id:batchId,status:"approved",version:expectedVersion+1};}
+
+export async function exportPaymentBatch(actor:WorkContext,batchId:string,commandId:string){return exportPaymentBatchV2(actor,batchId,commandId);}
+
+async function exportPaymentBatchV2(actor:WorkContext,batchId:string,commandId:string){
+  actor=requirePermission(actor,"payroll.payment.execute");
+  const {write,files}=await holdingResources(actor.holdingId);
+  const prior=await replayCommand(write,actor,commandId,"people.payment-batch.export",batchId,{});
+  if(prior)return prior;
+  const batch=await write.prepare("SELECT id,status,version,source_type,source_id,format_code,retry_requested_by FROM hr_payment_batches WHERE id=? AND company_id=?").bind(batchId,actor.companyId).first<{id:string;status:string;version:number;source_type:string;source_id:string;format_code:string;retry_requested_by:string|null}>();
+  if(!batch)throw new ApiError(404,"PAYMENT_BATCH_NOT_FOUND","Payment batch not found.");
+  if(batch.source_type==="payroll"&&(actor.branchId||actor.departmentId))throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Use a Company assignment to export payroll payment.");
+  if(batch.source_type==="payroll"&&(await runtimeEnv()).ERPX_ENVIRONMENT==="production")throw new ApiError(409,"PAYROLL_ENGINE_UNAVAILABLE","Certified Thai payroll is required before production bank export.");
+  if(batch.status!=="approved")throw new ApiError(409,"PAYMENT_BATCH_LOCKED","An independently approved payment batch is required before export.");
+  const eligibleStatus=batch.retry_requested_by?"failed":"outstanding";
+  const items=(await write.prepare("SELECT id,reference,person_id,payee_name,amount_minor,currency,status FROM hr_payment_batch_items WHERE batch_id=? AND status=? ORDER BY reference").bind(batchId,eligibleStatus).all<{id:string;reference:string;person_id:string|null;payee_name:string;amount_minor:number;currency:string;status:string}>()).results;
+  if(!items.length)throw new ApiError(409,"PAYMENT_ITEMS_EMPTY","No outstanding payment instructions remain.");
+  const payrollItemGuards:SqlStatement[]=[];
+  if(batch.source_type==="payroll"){
+    for(const [index,item] of items.entries()){
+      const posted=await write.prepare("SELECT id,engagement_id,net_minor,currency,input_snapshot_json FROM hr_payroll_items WHERE run_id=? AND status='posted' AND ?=('PAY-'||?||'-'||id)").bind(batch.source_id,item.reference,batch.source_id).first<{id:string;engagement_id:string;net_minor:number;currency:string;input_snapshot_json:string}>();
+      if(!posted)throw new ApiError(409,"PAYROLL_PAYEE_REVIEW_REQUIRED","The payment instruction no longer matches a posted payroll item.");
+      const snapshot=JSON.parse(posted.input_snapshot_json) as {payee?:{id:string;legal_name:string;preferred_name:string|null}};
+      const payee=snapshot.payee;
+      if(!payee?.id||item.person_id!==payee.id||item.payee_name!==(payee.preferred_name??payee.legal_name)||item.amount_minor!==posted.net_minor||item.currency!==posted.currency)throw new ApiError(409,"PAYROLL_PAYEE_REVIEW_REQUIRED","The payment instruction differs from the approved payroll identity or amount.");
+      payrollItemGuards.push(assertion(write,commandId,`payment-item-${index}`,"EXISTS(SELECT 1 FROM hr_payment_batch_items b JOIN hr_payroll_items p ON p.run_id=? AND p.id=? WHERE b.id=? AND b.batch_id=? AND b.status=? AND b.reference=? AND b.person_id=? AND b.payee_name=? AND b.amount_minor=? AND b.currency=? AND p.status='posted' AND p.net_minor=? AND p.currency=? AND p.input_snapshot_json=?)",[batch.source_id,posted.id,item.id,batchId,eligibleStatus,item.reference,item.person_id,item.payee_name,item.amount_minor,item.currency,posted.net_minor,posted.currency,posted.input_snapshot_json]));
+    }
+  }
+  const total=items.reduce((sum,item)=>sum+Number(item.amount_minor),0);
+  if(!Number.isSafeInteger(total)||total<=0)throw new ApiError(422,"PAYMENT_TOTAL_INVALID","Export amount is invalid.");
+  const csv=["reference,payee,amount,currency,status",...items.map(item=>[item.reference,item.payee_name,minorToDecimal(item.amount_minor),item.currency,"outstanding"].map(payrollCsvCell).join(","))].join("\n");
+  const fileKey=actor.holdingId+"/people/payments/"+batchId+"/attempt-"+batch.version+".csv";
+  const checksum=await sha256(csv),now=Date.now();
+  await files.put(fileKey,csv,{httpMetadata:{contentType:"text/csv"},customMetadata:{sha256:checksum,format:batch.format_code,synthetic:"true"}});
+  const result={id:batchId,status:"exported",fileKey,checksum,itemCount:items.length,totalMinor:total,synthetic:true};
+  return executeCommand(write,actor,commandId,"people.payment-batch.export",{},batchId,batch.version+1,result,[
+    assertion(write,commandId,"batch-export-version","EXISTS(SELECT 1 FROM hr_payment_batches WHERE id=? AND company_id=? AND status='approved' AND version=?)",[batchId,actor.companyId,batch.version]),
+    assertion(write,commandId,"batch-export-items","(SELECT COUNT(*) FROM hr_payment_batch_items WHERE batch_id=? AND status=?)=?",[batchId,eligibleStatus,items.length]),
+    ...payrollItemGuards,
+    ...(batch.source_type==="payroll"?[assertion(write,commandId,"posted-payroll-source","EXISTS(SELECT 1 FROM hr_payroll_runs WHERE id=? AND company_id=? AND status='posted')",[batch.source_id,actor.companyId])]:[]),
+    write.prepare("INSERT INTO hr_payment_batch_exports(id,company_id,batch_id,batch_version,file_key,checksum_sha256,item_count,total_minor,exported_by,exported_at) VALUES(?,?,?,?,?,?,?,?,?,?)").bind("payment-export-"+commandId,actor.companyId,batchId,batch.version,fileKey,checksum,items.length,total,actor.userId,now),
+    write.prepare("UPDATE hr_payment_batches SET status='exported',file_key=?,file_checksum=?,exported_at=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=?").bind(fileKey,checksum,now,now,batchId,actor.companyId,batch.version),
+  ]);
+}
 
 export async function confirmPaymentBatch(actor:WorkContext,batchId:string,input:z.infer<typeof paymentConfirmationSchema>,commandId:string) {
- actor=requirePermission(actor,"finance.pay");const {write}=await holdingResources(actor.holdingId);
+ actor=requirePermission(actor,"finance.pay");if(actor.branchId||actor.departmentId)throw new ApiError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Use a Company finance assignment to confirm payroll payments.");const {write}=await holdingResources(actor.holdingId);
  const previous=await replayCommand(write,actor,commandId,"people.payment-batch.confirm",batchId,input);if(previous)return previous;
- const batch=await write.prepare("SELECT status,version FROM hr_payment_batches WHERE id=? AND company_id=?").bind(batchId,actor.companyId).first<{status:string;version:number}>();
+ const batch=await write.prepare("SELECT id,status,version,source_type,source_id,currency,bank_account_id FROM hr_payment_batches WHERE id=? AND company_id=?").bind(batchId,actor.companyId).first<{id:string;status:string;version:number;source_type:string;source_id:string;currency:string;bank_account_id:string|null}>();
  if(!batch)throw new ApiError(404,"PAYMENT_BATCH_NOT_FOUND","Payment batch not found.");
+ if(batch.source_type==="payroll"&&(await runtimeEnv()).ERPX_ENVIRONMENT==="production")throw new ApiError(409,"PAYROLL_ENGINE_UNAVAILABLE","Certified Thai payroll is required before production bank settlement.");
  if(!["exported","partially_settled"].includes(batch.status))throw new ApiError(409,"PAYMENT_BATCH_NOT_CONFIRMABLE","Export the payment batch first.");
- const items=(await write.prepare("SELECT reference,status FROM hr_payment_batch_items WHERE batch_id=?").bind(batchId).all<{reference:string;status:string}>()).results;
+ const items=(await write.prepare("SELECT id,reference,status,amount_minor,engagement_id FROM hr_payment_batch_items WHERE batch_id=?").bind(batchId).all<{id:string;reference:string;status:string;amount_minor:number;engagement_id:string|null}>()).results;
  if(new Set(input.rows.map(r=>r.reference)).size!==input.rows.length || input.rows.some(r=>!items.some(i=>i.reference===r.reference&&["outstanding","failed"].includes(i.status))))throw new ApiError(409,"PAYMENT_ITEMS_CHANGED","Review the current outstanding payment items.");
  const remaining=items.filter(i=>i.status!=="settled"&&!input.rows.some(r=>r.reference===i.reference&&r.status==="confirmed")).length;
- const status=remaining?"partially_settled":"settled",now=Date.now();
- return executeCommand(write,actor,commandId,"people.payment-batch.confirm",input,batchId,batch.version+1,{id:batchId,status,confirmed:input.rows.length,failed:input.rows.filter(r=>r.status==="failed").length},[
- assertion(write,commandId,"payment-batch-version","EXISTS(SELECT 1 FROM hr_payment_batches WHERE id=? AND company_id=? AND version=? AND status=?)",[batchId,actor.companyId,batch.version,batch.status]),
- ...input.rows.map(row=>write.prepare("UPDATE hr_payment_batch_items SET status=?,confirmation_ref=?,settled_at=? WHERE batch_id=? AND reference=? AND status IN ('outstanding','failed')").bind(row.status==="confirmed"?"settled":"failed",row.confirmationRef??null,row.status==="confirmed"?now:null,batchId,row.reference)),
- write.prepare("UPDATE hr_payment_batches SET status=?,version=version+1,updated_at=? WHERE id=? AND company_id=?").bind(status,now,batchId,actor.companyId)
- ]);
+ const status=remaining?"partially_settled":"settled",now=Date.now(),steps:SqlStatement[]=[assertion(write,commandId,"payment-batch-version","EXISTS(SELECT 1 FROM hr_payment_batches WHERE id=? AND company_id=? AND version=? AND status=?)",[batchId,actor.companyId,batch.version,batch.status])];
+ if(batch.source_type==="payroll"){
+   const confirmed=input.rows.filter(row=>row.status==="confirmed");
+   if(confirmed.length&&!batch.bank_account_id)throw new ApiError(422,"PAYROLL_BANK_ACCOUNT_REQUIRED","Select the bank ledger account before confirming payroll payments.");
+   const posting=await write.prepare("SELECT p.journal_id,j.chart_id,r.pay_date FROM hr_payroll_postings p JOIN hr_payroll_runs r ON r.id=p.run_id JOIN finance_journals j ON j.id=p.journal_id WHERE p.run_id=? AND r.company_id=? AND j.status='posted'").bind(batch.source_id,actor.companyId).first<{journal_id:string;chart_id:string;pay_date:string}>();
+   if(!posting)throw new ApiError(409,"PAYROLL_POSTING_MISSING","A posted payroll accrual is required before bank settlement.");
+   const payables=(await write.prepare("SELECT DISTINCT account_id FROM finance_journal_lines WHERE journal_id=? AND description IN ('Net payroll payable','Net pay payable to employees')").bind(posting.journal_id).all<{account_id:string}>()).results;
+   if(payables.length!==1)throw new ApiError(409,"PAYROLL_PAYABLE_MAPPING_MISSING","The posted payroll journal needs one net-payable control account.");
+   const bankAccount=confirmed.length?await write.prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category='asset' AND status='active'").bind(batch.bank_account_id,actor.companyId,posting.chart_id,batch.currency).first():null;
+   if(confirmed.length&&!bankAccount)throw new ApiError(422,"BANK_ACCOUNT_INVALID","The bank ledger account must be active in the payroll chart and currency.");
+   if(new Set(confirmed.map(row=>row.bankTransactionId)).size!==confirmed.length)throw new ApiError(409,"BANK_EVIDENCE_REUSED","Each confirmed employee payment needs its own bank transaction.");
+   for(const [index,row] of confirmed.entries()){
+     if(!row.bankTransactionId||!row.bankVersion||!row.confirmationRef)throw new ApiError(422,"BANK_EVIDENCE_REQUIRED","Provide the exact bank transaction, version and reference for each confirmed payment.");
+     const item=items.find(candidate=>candidate.reference===row.reference)!;
+     const transaction=await write.prepare("SELECT t.id,t.version,t.amount_minor,t.currency,t.match_status,t.transaction_date,t.external_id,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=?").bind(row.bankTransactionId,actor.companyId).first<{id:string;version:number;amount_minor:number;currency:string;match_status:string;transaction_date:string;external_id:string;bank_account:string}>();
+     if(!transaction||transaction.version!==row.bankVersion||!['unmatched','proposed'].includes(transaction.match_status)||transaction.bank_account!==batch.bank_account_id||transaction.currency!==batch.currency||Number(transaction.amount_minor)!==-Number(item.amount_minor)||transaction.external_id!==row.confirmationRef||transaction.transaction_date<posting.pay_date)
+       throw new ApiError(422,"BANK_EVIDENCE_MISMATCH","Match the bank account, exact debit, currency, reference, date and transaction version.");
+     const periods=(await write.prepare("SELECT id FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=?").bind(actor.companyId,transaction.transaction_date,transaction.transaction_date).all<{id:string}>()).results;
+     if(periods.length!==1)throw new ApiError(409,"PAYROLL_SETTLEMENT_PERIOD_REQUIRED","One open accounting period must contain the bank transaction date.");
+     const payrollItem=await write.prepare("SELECT id,gross_minor,deductions_minor,employer_cost_minor,net_minor,input_snapshot_json,result_json FROM hr_payroll_items WHERE run_id=? AND engagement_id=? AND net_minor=?").bind(batch.source_id,item.engagement_id,item.amount_minor).first<PayrollPostingItem>();
+     if(!payrollItem)throw new ApiError(409,"PAYROLL_PAYMENT_ITEM_CHANGED","The payable amount no longer matches the posted payroll item.");
+     const payableLines=payrollNetCostShares(payrollItem).map(share=>({accountId:payables[0].account_id,debit:minorToDecimal(share.amountMinor),credit:"0",description:"Net payroll payable settled",dimensions:share.dimensions}));
+     if(payableLines.reduce((sum,line)=>sum+decimalToMinor(line.debit),0)!==Number(item.amount_minor))throw new ApiError(409,"PAYROLL_COST_ALLOCATION_INVALID","The payable cost-unit allocation does not match the confirmed bank debit.");
+     const journal=await prepareJournal(write,actor,{chartId:posting.chart_id,periodId:periods[0].id,entryDate:transaction.transaction_date,currency:batch.currency,memo:`Payroll payment ${item.reference} · ${row.confirmationRef}`,sourceType:"payroll_payment",sourceId:item.id,isOpening:false,lines:[...payableLines,{accountId:batch.bank_account_id!,debit:"0",credit:minorToDecimal(item.amount_minor),description:"Confirmed payroll bank debit",dimensions:{}}]},`${commandId}-settlement-${index}`,"posted");
+     steps.push(assertion(write,commandId,`bank-transaction-${index}`,"EXISTS(SELECT 1 FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? AND t.version=? AND t.match_status IN ('unmatched','proposed') AND s.bank_account=? AND t.currency=? AND t.amount_minor=? AND t.external_id=?)",[transaction.id,actor.companyId,row.bankVersion,batch.bank_account_id,batch.currency,-item.amount_minor,row.confirmationRef]));
+     steps.push(...journal.steps,write.prepare("INSERT INTO hr_payroll_payment_settlements(id,company_id,batch_id,batch_item_id,bank_transaction_id,journal_id,confirmed_by,confirmed_at) VALUES(?,?,?,?,?,?,?,?)").bind(`payroll-settlement-${commandId}-${index}`,actor.companyId,batchId,item.id,transaction.id,journal.result.id,actor.userId,now),write.prepare("UPDATE finance_bank_transactions SET match_status='matched',matched_type='payroll_payment',matched_id=?,version=version+1 WHERE id=? AND version=?").bind(item.id,transaction.id,row.bankVersion));
+   }
+ }
+ steps.push(...input.rows.map(row=>write.prepare("UPDATE hr_payment_batch_items SET status=?,confirmation_ref=?,settled_at=? WHERE batch_id=? AND reference=? AND status IN ('outstanding','failed')").bind(row.status==="confirmed"?"settled":"failed",row.confirmationRef??null,row.status==="confirmed"?now:null,batchId,row.reference)),write.prepare("UPDATE hr_payment_batches SET status=?,version=version+1,updated_at=? WHERE id=? AND company_id=?").bind(status,now,batchId,actor.companyId));
+ return executeCommand(write,actor,commandId,"people.payment-batch.confirm",input,batchId,batch.version+1,{id:batchId,status,confirmed:input.rows.filter(r=>r.status==="confirmed").length,failed:input.rows.filter(r=>r.status==="failed").length},steps);
+}
+
+export async function importSyntheticPaymentResults(actor:WorkContext,batchId:string,csv:string,commandId:string){
+  const parsed=parseSyntheticPayrollBankResultCsv(csv);
+  return confirmPaymentBatch(actor,batchId,paymentConfirmationSchema.parse(parsed),commandId);
 }
 
 export async function getPaymentFile(actor: WorkContext,batchId:string){actor = requirePermission(actor,"payroll.payment.read");const {write,files}=await holdingResources(actor.holdingId);const batch=await write.prepare("SELECT file_key,file_checksum FROM hr_payment_batches WHERE id=? AND company_id=? AND status IN ('exported','partially_settled','settled')").bind(batchId,actor.companyId).first<{file_key:string|null;file_checksum:string|null}>();if(!batch?.file_key)throw new ApiError(404,"PAYMENT_FILE_NOT_FOUND","Payment export is not available.");const object=await files.get(batch.file_key);if(!object)throw new ApiError(503,"PAYMENT_FILE_UNAVAILABLE","Payment export is temporarily unavailable.");return {object,checksum:batch.file_checksum};}

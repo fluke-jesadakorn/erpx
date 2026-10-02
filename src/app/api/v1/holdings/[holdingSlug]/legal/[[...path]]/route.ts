@@ -1,5 +1,12 @@
 import { legalReferences, addLegalReference } from "@/server/legal/references";
-import { legalKnowledge } from "@/server/legal/knowledge";
+import { legalKnowledge, lawCitation } from "@/server/legal/knowledge";
+import { legalPeople } from "@/server/legal/assignees";
+import { executedCopies, reviewExecutedCopy } from "@/server/legal/executed-copies";
+import { lawCorpusView, lawCorpusCommand } from "@/server/legal/law-corpus";
+import { legalWorkspaceView } from "@/server/legal/workspace";
+import { legalRuntimeHealth } from "@/server/legal/runtime-gate";
+import { releaseAcceptance, submitReleaseAcceptance, reviewReleaseAcceptance, revokeReleaseAcceptance } from "@/server/release-acceptance";
+import { legalProductionScope } from "@/data/production-scope";
 import { preserveAttachment } from "@/server/legal/sources";
 import { governanceView, governanceCommand } from "@/server/legal/governance";
 import { legalReports } from "@/server/legal/reports";
@@ -33,6 +40,7 @@ import {
   externalSubmission,
   documentExport,
   uploadDocument,
+  importExecutedCopy,
 } from "@/server/legal/documents";
 import { requireWorkContext } from "@/server/authorization";
 import { holdingResources } from "@/server/runtime";
@@ -47,6 +55,21 @@ export async function GET(request: Request, ctx: Context) {
     const { holdingSlug, path = [] } = await ctx.params,
       a = await requireWorkContext(holdingSlug),
       { write, files } = await holdingResources(a.holdingId);
+    const query = new URL(request.url).searchParams;
+    if (path.length === 1 && path[0] === "people")
+      return Response.json({ data: await legalPeople(write, a, Object.fromEntries(query)) }, { headers: { "Cache-Control": "private, no-store" } });
+    if (path.length === 1 && path[0] === "workspace")
+      return Response.json({ data: await legalWorkspaceView(write, a) }, { headers: { "Cache-Control": "private, no-store" } });
+    if (path.length === 1 && path[0] === "runtime-health")
+      return Response.json({ data: await legalRuntimeHealth(write, a) }, { headers: { "Cache-Control": "private, no-store" } });
+    if (path.length === 1 && path[0] === "release-acceptance")
+      return Response.json({ data: await releaseAcceptance(write, a, undefined, legalProductionScope.version) }, { headers: { "Cache-Control": "private, no-store" } });
+    if (path.length === 1 && path[0] === "laws")
+      return Response.json({ data: await lawCorpusView(write, a, query.get("ruleId") ?? undefined) }, { headers: { "Cache-Control": "private, no-store" } });
+    if (path.length === 2 && path[0] === "law-citations")
+      return Response.json({ data: await lawCitation(write, a, path[1], query.get("asOf") ?? undefined) }, { headers: { "Cache-Control": "private, no-store" } });
+    if (path.length === 3 && path[0] === "items" && path[2] === "executed-copies")
+      return Response.json({ data: await executedCopies(write, a, path[1]) }, { headers: { "Cache-Control": "private, no-store" } });
     if (path[0] === "references" && path.length === 2)
       return Response.json(
         { data: await legalReferences(write, a, path[1]) },
@@ -59,6 +82,7 @@ export async function GET(request: Request, ctx: Context) {
             write,
             a,
             new URL(request.url).searchParams.get("q"),
+            query.get("asOf") ?? undefined,
           ),
         },
         { headers: { "Cache-Control": "private, no-store" } },
@@ -200,6 +224,18 @@ export async function POST(request: Request, ctx: Context) {
     const { holdingSlug, path = [] } = await ctx.params;
     const a = await requireWorkContext(holdingSlug),
       { write, files } = await holdingResources(a.holdingId);
+    if (path.length === 3 && path[0] === "items" && path[2] === "executed-copies") {
+      if (!request.headers.get("Content-Type")?.startsWith("multipart/form-data;"))
+        throw new ApiError(422, "MULTIPART_REQUIRED", "Choose a signed PDF or scanned image.");
+      const bytes = await boundedBody(request, 10 * 1024 * 1024 + 65536);
+      const form = await new Response(bytes, { headers: { "Content-Type": request.headers.get("Content-Type")! } }).formData();
+      const file = form.get("file"), metadata = form.get("metadata");
+      if (!(file instanceof File) || typeof metadata !== "string" || metadata.length > 30000)
+        throw new ApiError(422, "EXECUTED_METADATA_REQUIRED", "Supply the signed file and its signing details.");
+      let parsed: unknown;
+      try { parsed = JSON.parse(metadata); } catch { throw new ApiError(422, "INVALID_JSON", "Signing details are invalid."); }
+      return Response.json({ data: await importExecutedCopy(write, files, a, path[1], Number(form.get("expectedVersion")), parsed, file.name, file.type, new Uint8Array(await file.arrayBuffer()), key) }, { headers: { "Cache-Control": "private, no-store" } });
+    }
     if (path.length === 2 && path[0] === "upload") {
       const body = await boundedBody(request, 10 * 1024 * 1024);
       return Response.json({
@@ -224,7 +260,7 @@ export async function POST(request: Request, ctx: Context) {
       return Response.json({
         data: await queueInspection(write, a, path[1], path[2], key),
       });
-    if (path.length)
+    if (path.length && path[0] !== "release-acceptance")
       throw new ApiError(404, "NOT_FOUND", "Unknown Legal action.");
     const text = new TextDecoder().decode(await boundedBody(request, 500000));
     if (text.length > 500000)
@@ -235,8 +271,27 @@ export async function POST(request: Request, ctx: Context) {
     } catch {
       throw new ApiError(422, "INVALID_JSON", "Invalid JSON.");
     }
+    if (path[0] === "release-acceptance") {
+      if (path.length === 3 && ["review", "revoke"].includes(path[2])) {
+        const target = await releaseAcceptance(write, a, path[1], legalProductionScope.version);
+        if (target.release?.scopeVersion !== legalProductionScope.version)
+          throw new ApiError(404, "RELEASE_NOT_FOUND", "Legal release not found.");
+      }
+      const data = path.length === 1
+        ? await submitReleaseAcceptance(write, a, { ...raw, scopeVersion: legalProductionScope.version }, key)
+        : path.length === 3 && path[2] === "review"
+          ? await reviewReleaseAcceptance(write, a, path[1], raw, key)
+          : path.length === 3 && path[2] === "revoke"
+            ? await revokeReleaseAcceptance(write, a, path[1], raw, key)
+            : (() => { throw new ApiError(404, "NOT_FOUND", "Unknown release action."); })();
+      return Response.json({ data }, { headers: { "Cache-Control": "private, no-store" } });
+    }
     const data =
-      raw?.action === "reference.add"
+      raw?.action === "executed.review"
+        ? await reviewExecutedCopy(write, a, raw, key)
+        : /^(law\.|knowledge\.document\.)/.test(raw?.action ?? "")
+          ? await lawCorpusCommand(write, a, raw, key)
+      : raw?.action === "reference.add"
         ? await addLegalReference(write, a, raw, key)
         : raw?.action === "revision.create"
           ? await startRevision(write as PostgresDatabase, a, raw, key)

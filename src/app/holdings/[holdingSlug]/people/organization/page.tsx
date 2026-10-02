@@ -1,58 +1,35 @@
-import { peopleLifecycleData } from "@/server/people-lifecycle";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/primitives";
-import { OrganizationWorkspace } from "@/components/modules/organization-workspace";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { holdingResources } from "@/server/runtime";
-import {
-  organizationOverview,
-  organizationRoster,
-} from "@/server/organization";
+import { organizationRoster } from "@/server/organization";
 import { appointmentOverview } from "@/server/department-authority";
 import { DepartmentAuthorityWorkspace } from "@/components/modules/department-authority-workspace";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
-import { PeopleNavigation } from "@/components/modules/people-navigation";
+import { peopleContextHref, type PeopleRouteSearch } from "@/lib/people-route-context";
 import { FeaturePage } from "@/components/features/feature-page";
-import { BrandAdministration } from "@/components/modules/brand-administration";
-import { administrationAccess } from "@/server/administration";
-import { listBrandProfiles } from "@/server/branding";
+import { forbidden, redirect } from "next/navigation";
 
 export default async function OrganizationPage({
   params,
   searchParams,
 }: {
   params: Promise<{ holdingSlug: string }>;
-  searchParams: Promise<{
-    position?: string;
-    changeId?: string;
-    changeState?: string;
-    changeQuery?: string;
-    changePage?: string;
-  }>;
+  searchParams: Promise<PeopleRouteSearch>;
 }) {
   const actor = await requireWorkContext((await params).holdingSlug),
     base = workspaceBase(publicScope(actor));
   const { write } = await holdingResources(actor.holdingId),
     query = await searchParams;
   const authority = await appointmentOverview(write, actor);
-  if (
-    !["people.read", "people.manage", "iam.read", "organization.manage"].some(
+  const canReadOrganization = ["people.read", "people.manage", "iam.read", "organization.manage"].some(
       (permission) => hasPermission(actor, permission),
-    )
-  ) {
-    if (
-      !authority.canPublishDepartmentIds.length &&
-      !authority.canAppointKinds.length
-    )
-      return (
-        <FeaturePage className="content-stack">
-          <PageHeader
-            title="Organization access unavailable"
-            description="Ask an appointed head or CEO to publish this department flow."
-          />
-        </FeaturePage>
-      );
+    );
+  if (!canReadOrganization && (authority.canPublishDepartmentIds.length || authority.canAppointKinds.length)) {
+    // Appointed department heads still use their existing focused approval tool.
+    // The main People panel cannot replace this workflow until authority-specific
+    // access has been moved there.
     const roster = await organizationRoster(write, actor.companyId);
     return (
       <FeaturePage className="content-stack" data-source="live">
@@ -74,50 +51,31 @@ export default async function OrganizationPage({
       </FeaturePage>
     );
   }
-  const access = await administrationAccess(actor);
-  const organization = await organizationOverview(write, actor, query);
-  return (
-    <FeaturePage className="content-stack" data-source="live">
-      <Link href={`${base}/people`}>← People</Link>
-      <PageHeader
-        title="Organization & positions"
-        description="Build your team structure, appoint leaders, and publish department approval flows."
-      />
-      <PeopleNavigation
-        base={base}
-        actor={actor}
-        scopeKind={actor.scope.kind}
-        active="organization"
-      />
-      <BrandAdministration
-        base={base}
-        {...await listBrandProfiles(write, actor)}
-        canHolding={access.owner}
-        canBranches={access.manageOrganization}
-        canStorefront={
-          access.manageOrganization && actor.scope.kind === "holding"
-        }
-        canReviewPublications={
-          hasPermission(actor, "records.review") ||
-          hasPermission(actor, "commerce.approve")
-        }
-      />
-      <DepartmentAuthorityWorkspace
-        holdingSlug={actor.holdingSlug}
-        initial={
-          authority as Parameters<
-            typeof DepartmentAuthorityWorkspace
-          >[0]["initial"]
-        }
-        people={organization.people}
-        positions={organization.positions}
-      />
-      <OrganizationWorkspace
-        base={base}
-        data={organization}
-        lifecycle={await peopleLifecycleData(write, actor)}
-        initialPositionId={query.position}
-      />
-    </FeaturePage>
-  );
+  if (!canReadOrganization) {
+    forbidden();
+  }
+  const destination: Record<string, string | null> = {};
+  if (!query.company && !query.position && !query.branch && !query.department && !query.person) destination.company = actor.companyId;
+  if (!query.position && query.view === "positions") destination.tab = "positions";
+  if (!query.position && query.view === "people") destination.tab = "people";
+  if (!query.position && query.view === "templates") {
+    destination.panel = "settings";
+    destination.section = "templates";
+  }
+  if (!query.position && (query.view === "spending" || query.view === "legacy")) {
+    destination.tab = "settings";
+    if (query.view === "spending") destination.section = "spending";
+  }
+  if (query.changeId || query.changeState || query.changeQuery || query.changePage) {
+    destination.position = null;
+    destination.section = null;
+    destination.company = actor.companyId;
+    destination.panel = "history";
+  }
+  const anchor = typeof query.changeId === "string" && query.changeId
+    ? `#organization-change-${encodeURIComponent(query.changeId)}`
+    : query.changeState || query.changeQuery || query.changePage
+      ? "#organization-change-queue"
+      : "";
+  redirect(`${peopleContextHref(base, query, destination)}${anchor}`);
 }

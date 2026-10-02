@@ -10,7 +10,7 @@ export const dynamic='force-dynamic';
 export default async function PosPage({params,searchParams}:{params:Promise<{holdingSlug:string}>;searchParams:Promise<{sale?:string;tab?:string;movement?:string;q?:string;cursor?:string;queue?:string}>}){
  const {holdingSlug}=await params,search=await searchParams,actor=await requireWorkContext(holdingSlug);
  const frontHref=await frontWorkspaceHref(actor,'pos');
- const dailyRoute=!search.tab||['sale','kitchen','shifts'].includes(search.tab)||(search.tab==='history'&&search.queue!=='approval');
+ const dailyRoute=!search.tab||['sale','kitchen'].includes(search.tab)||(['history','shifts'].includes(search.tab)&&search.queue!=='approval');
  if(frontHref&&dailyRoute){
   const query=new URLSearchParams({tab:search.tab==='history'?'history':search.tab??'sale'});
   for(const [key,value] of Object.entries({sale:search.sale,movement:search.movement,q:search.q,cursor:search.cursor}))if(value)query.set(key,value);

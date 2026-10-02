@@ -1,10 +1,12 @@
 import { requireWorkContext } from "@/server/authorization";
 import { getWorkSummary, getWorkPage } from "@/server/work-summary";
 import { errorResponse } from "@/server/http";
+import { measureReadRequest } from "@/server/runtime/read-request";
 export async function GET(
   request: Request,
   context: { params: Promise<{ holdingSlug: string }> },
 ) {
+  return measureReadRequest("work", async () => {
   try {
     const actor = await requireWorkContext((await context.params).holdingSlug),
       params = new URL(request.url).searchParams,
@@ -19,4 +21,5 @@ export async function GET(
   } catch (e) {
     return errorResponse(e);
   }
+  });
 }

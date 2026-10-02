@@ -12,6 +12,7 @@ import {
   type AccessPackage,
   type AccessPackageDefinition,
   type LifecycleCase,
+  type LifecycleCaseStatus,
   type LifecycleInput,
   type LifecyclePreview,
   type PeopleLifecycleData,
@@ -53,7 +54,7 @@ function company(actor: WorkContext) {
 }
 function readable(actor: WorkContext) {
   if (
-    !["people.read", "people.manage", "iam.read", "organization.manage"].some(
+    !["people.manage", "iam.read", "organization.manage"].some(
       (p) => hasPermission(actor, p),
     )
   )
@@ -102,6 +103,7 @@ export async function peopleLifecycleData(
   actor: WorkContext,
 ): Promise<PeopleLifecycleData> {
   readable(actor);
+  const hrView = hasPermission(actor, "people.manage");
   const db = iamDb(raw);
   const positions = (
     await db
@@ -131,10 +133,15 @@ export async function peopleLifecycleData(
     actor.branchId || actor.departmentId
       ? allPackages.filter((p) => positions.some((x) => x.package_id === p.id))
       : allPackages;
+  // IT needs case delivery state, but the HR case definition, review snapshot,
+  // author and raw error can contain private employment or compensation data.
+  const caseColumns = hrView
+    ? "c.*"
+    : "c.id,c.company_id,c.person_id,c.engagement_id,c.kind,c.status,c.version,c.effective_at,c.package_id,c.package_revision,c.updated_at,CASE WHEN c.last_error IS NOT NULL THEN 'Preparation needs attention' ELSE NULL END AS last_error";
   const cases = (
     await db
       .prepare(
-        "SELECT c.*,CASE WHEN NOT EXISTS(SELECT 1 FROM iam_identities i JOIN iam_members m ON m.identity_id=i.id AND m.user_id=i.user_id AND m.company_id=i.company_id WHERE m.company_id=c.company_id AND m.person_id=c.person_id AND m.status='active') THEN 'not_required' WHEN NOT EXISTS(SELECT 1 FROM iam_identities i JOIN iam_members m ON m.identity_id=i.id AND m.user_id=i.user_id AND m.company_id=i.company_id WHERE m.company_id=c.company_id AND m.person_id=c.person_id AND m.status='active' AND NOT EXISTS(SELECT 1 FROM people_directory_operations o WHERE o.company_id=c.company_id AND o.connection_id=i.connection_id AND o.status='completed' AND o.result->>'verified'='true' AND o.definition->'action'->>'kind'='account.disable' AND o.definition->'action'->>'caseId'=c.id AND o.definition->'action'->>'objectId'=i.external_id)) THEN 'verified' ELSE 'pending' END AS \"directoryStatus\" FROM people_lifecycle_cases c JOIN hr_engagements e ON e.id=c.engagement_id AND e.company_id=c.company_id WHERE c.company_id=? AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?) ORDER BY c.updated_at DESC,c.id",
+        `SELECT ${caseColumns},CASE WHEN NOT EXISTS(SELECT 1 FROM iam_identities i JOIN iam_members m ON m.identity_id=i.id AND m.user_id=i.user_id AND m.company_id=i.company_id WHERE m.company_id=c.company_id AND m.person_id=c.person_id AND m.status='active') THEN 'not_required' WHEN NOT EXISTS(SELECT 1 FROM iam_identities i JOIN iam_members m ON m.identity_id=i.id AND m.user_id=i.user_id AND m.company_id=i.company_id WHERE m.company_id=c.company_id AND m.person_id=c.person_id AND m.status='active' AND NOT EXISTS(SELECT 1 FROM people_directory_operations o WHERE o.company_id=c.company_id AND o.connection_id=i.connection_id AND o.status='completed' AND o.result->>'verified'='true' AND o.definition->'action'->>'kind'='account.disable' AND o.definition->'action'->>'caseId'=c.id AND o.definition->'action'->>'objectId'=i.external_id)) THEN 'verified' ELSE 'pending' END AS \"directoryStatus\" FROM people_lifecycle_cases c JOIN hr_engagements e ON e.id=c.engagement_id AND e.company_id=c.company_id WHERE c.company_id=? AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?) ORDER BY c.updated_at DESC,c.id`,
       )
       .bind(
         actor.companyId,
@@ -143,7 +150,7 @@ export async function peopleLifecycleData(
         actor.departmentId,
         actor.departmentId,
       )
-      .all<LifecycleCase>()
+      .all<LifecycleCase | LifecycleCaseStatus>()
   ).results;
   for (const c of cases)
     c.cutoffEffective =
@@ -152,7 +159,9 @@ export async function peopleLifecycleData(
   const tasks = (
     await db
       .prepare(
-        "SELECT * FROM people_preparation_tasks WHERE company_id=? ORDER BY updated_at DESC,id",
+        hrView
+          ? "SELECT * FROM people_preparation_tasks WHERE company_id=? ORDER BY updated_at DESC,id"
+          : "SELECT id,position_id,case_id,kind,title,status,assignee_id,version,updated_at,application_id,clearance_type FROM people_preparation_tasks WHERE company_id=? AND (clearance_type IS NULL OR clearance_type='directory') ORDER BY updated_at DESC,id",
       )
       .bind(actor.companyId)
       .all<PreparationTask>()
@@ -232,24 +241,31 @@ export async function peopleLifecycleData(
   ).results;
   const clearanceOwners = (await db.prepare(`SELECT a.user_id id,coalesce(max(p.legal_name),a.user_id) name,bool_or(iam_role_allows(a.role,a.company_id,'payroll.prepare') AND a.scope_kind='holding') payroll,bool_or(iam_role_allows(a.role,a.company_id,'finance.write') AND a.scope_kind='holding') finance,true equipment FROM assignments a LEFT JOIN hr_people p ON p.user_id=a.user_id AND p.company_id=a.company_id AND p.merged_into_id IS NULL WHERE a.company_id=? AND iam_assignment_active(a.id,?) GROUP BY a.user_id ORDER BY name`).bind(actor.companyId,Date.now()).all<NonNullable<PeopleLifecycleData["clearanceOwners"]>[number]>()).results;
   return {
-    clearanceOwners,
+    clearanceOwners: hrView ? clearanceOwners : [],
     roster,
-    managers,
+    managers: hrView ? managers : [],
     nodes,
     positions,
     packages,
     cases,
     tasks: tasks.map(task => ({...task,document_references:[],completion_reason:["finance","payroll"].includes(task.clearance_type ?? "") ? undefined : task.completion_reason})),
-    settings: {
-      version: settings?.version ?? 0,
-      itAssigneeId: null,
-      onboardingTasks: [],
-      offboardingTasks: [
-        "Hand over work and pending approvals",
-        "Return assigned equipment",
-      ],
-      ...settings?.definition,
-    },
+    settings: hrView
+      ? {
+          version: settings?.version ?? 0,
+          itAssigneeId: null,
+          onboardingTasks: [],
+          offboardingTasks: [
+            "Hand over work and pending approvals",
+            "Return assigned equipment",
+          ],
+          ...settings?.definition,
+        }
+      : {
+          version: settings?.version ?? 0,
+          itAssigneeId: settings?.definition.itAssigneeId ?? null,
+          onboardingTasks: [],
+          offboardingTasks: [],
+        },
     canPrepare:
       hasPermission(actor, "iam.directory.manage") &&
       !actor.branchId &&
@@ -1466,7 +1482,7 @@ export async function peopleLifecycleWork(
       .map((c) => ({
         id: c.id,
         type: "people_lifecycle" as const,
-        title: `${c.kind} · ${c.definition.reason}`,
+        title: "definition" in c ? `${c.kind} · ${c.definition.reason}` : `${c.kind} · IT preparation`,
         blocker: c.last_error ?? null,
         detail:
           c.status === "waiting_it"
@@ -1483,7 +1499,7 @@ export async function peopleLifecycleWork(
         responsibleQueue:
           c.status === "pending_review" ? "Access reviewers" : "HR / IT",
         relationships:
-          c.created_by === actor.userId
+          "created_by" in c && c.created_by === actor.userId
             ? ["requested" as const]
             : ["team" as const],
       })),

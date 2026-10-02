@@ -1,3 +1,4 @@
+import { TimeText } from "@/components/time/time-preference-context";
 import Link from "next/link";
 import { requireWorkContext, publicScope } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
@@ -37,7 +38,7 @@ export default async function Page({
         {data.invocations.map((x) => (
           <p key={String(x.id)}>
             {String(x.outcome)} · {String(x.turn_id)} ·{" "}
-            {new Date(Number(x.created_at)).toLocaleString()}
+            <TimeText value={Number(x.created_at)} />
           </p>
         ))}
       </section>

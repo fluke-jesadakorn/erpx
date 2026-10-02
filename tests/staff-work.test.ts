@@ -27,6 +27,8 @@ import {
   taskDelegationRevokeSchema,
   taskSchema,
   taskDetail,
+  taskWorkState,
+  listTasks,
   transitionTask,
   getTask,
 } from "../src/server/staff-tasks";
@@ -266,6 +268,52 @@ beforeEach(async () => {
   );
 });
 describe("Staff request routing and approval transactions", () => {
+  it("keeps Work task actions equal to authorized details through approvals, delegation and revocation", async () => {
+    const id = await task([head.userId], [head.userId]);
+    const compare = async () => {
+      for (const who of [requester, head, hr, worker, outsider]) {
+        const row = (await listTasks(db, who)).find(record => record.id === id);
+        if (!row) {
+          await expect(taskDetail(db, who, id)).rejects.toMatchObject({ status: 404 });
+          continue;
+        }
+        const detail = await taskDetail(db, who, id);
+        expect(await taskWorkState(db, who, row)).toEqual({
+          approval: detail.approval, permittedActions: detail.permittedActions,
+          blockedReason: detail.blockedReason,
+        });
+      }
+    };
+    await compare();
+    await action(requester, id, "submit");
+    await compare();
+    await db.prepare("UPDATE assignments SET revoked_at=1 WHERE id=?").bind(head.assignmentId).run();
+    await compare();
+    expect((await taskWorkState(db, head, await getTask(db, head, id))).permittedActions).not.toContain("approve");
+    await db.prepare("UPDATE assignments SET revoked_at=NULL WHERE id=?").bind(head.assignmentId).run();
+    await action(head, id, "approve");
+    await compare();
+    const handoff = await delegateTask(db, requester, id, taskDelegationSchema.parse({
+      delegateUserId: hr.userId, expiresAt: new Date(Date.now() + 60_000).toISOString(),
+      expectedVersion: (await getTask(db, requester, id)).version, reason: "Cover the receiving lead.",
+    }), key());
+    await compare();
+    await revokeTaskDelegation(db, requester, id, taskDelegationRevokeSchema.parse({
+      delegationId: handoff.delegationId, expectedVersion: handoff.version,
+      reason: "Receiving lead returned.",
+    }), key());
+    await compare();
+    await action(worker, id, "start");
+    await compare();
+    await action(worker, id, "complete");
+    await compare();
+    await action(head, id, "reject");
+    await compare();
+    await action(worker, id, "complete");
+    await action(head, id, "approve");
+    await compare();
+  });
+
   it("allows employees and contractors under every business role, and missing levels do not block personal requests", async () => {
     const chart = `chart-${company}`,
       account = `expense-${company}`;

@@ -1,4 +1,5 @@
 import "server-only";
+import { preparePmsAccounting } from "./hospitality-accounting";
 import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
@@ -19,7 +20,6 @@ import {
   record,
   records,
   type Config,
-  type Kind,
   type Property,
   type Snapshot,
 } from "@/lib/pms";
@@ -36,7 +36,11 @@ import { requirePermission } from "./iam-permissions";
 import { prepareJournal } from "./finance";
 import { prepareAttachmentBinding } from "./attachments/service";
 import { ApiError } from "./http";
+import { snapshotMoney } from "./company-money";
 import { holdingResources } from "./runtime";
+import { readAllPmsRecords, readPmsCalendar, readPmsDashboard, readPmsDetail, readPmsSetupFacts } from "./pms/read-repository";
+import type { PmsSetupFacts } from "@/lib/pms-read";
+import { pmsReadSelectionSchema, type PmsReadSelection } from "@/lib/pms-read-selection";
 import { frontWorkspaceHref } from "./front-app";
 import {
   isTransactionalSqlDatabase,
@@ -44,6 +48,7 @@ import {
   type TransactionalSqlDatabase,
 } from "./runtime/types";
 
+type ReadSnapshot = Snapshot & { dashboardHasStays?: boolean; setupFacts?: PmsSetupFacts };
 type PropertyRow = {
   id: string;
   company_id: string;
@@ -61,6 +66,12 @@ type TransferRequestRow = {
   recorded_by:string; bank_transaction_id:string|null; entry_id:string|null;
   finance_payment_id:string|null;
   created_at:number; updated_at:number;
+};
+type ChargeCorrectionRow = {
+  id:string; company_id:string; property_id:string; entry_id:string; folio_id:string;
+  status:'pending'|'approved'|'rejected'; version:number; reason:string; requested_by:string;
+  reviewed_by:string|null; review_reason:string|null; reversal_entry_id:string|null;
+  created_at:number; reviewed_at:number|null; updated_at:number;
 };
 const query = async <T>(db: SqlDatabase, sql: string, ...values: unknown[]) =>
   (
@@ -104,7 +115,9 @@ export async function loadPms(
   actor: WorkContext,
   id: string,
   lock = false,
-): Promise<Snapshot> {
+  selection?: PmsReadSelection,
+): Promise<ReadSnapshot> {
+  if (lock && selection) throw new Error("PMS_COMMAND_REQUIRES_COMPLETE_STATE");
   const row = await db
     .prepare(
       `SELECT * FROM pms_properties WHERE id=? AND company_id=?${lock ? " FOR UPDATE" : ""}`,
@@ -114,26 +127,21 @@ export async function loadPms(
   if (!row) throw new ApiError(404, "PMS_NOT_FOUND", "Hotel not found");
   const p = property(row);
   scope(actor, p);
-  const raw = await query<{
-    id: string;
-    kind: Kind;
-    data_json: string;
-    version: number;
-    updated_at: number;
-  }>(
-    db,
-    "SELECT * FROM pms_records WHERE property_id=? ORDER BY updated_at,id",
-    id,
-  );
+  const selected = selection ? pmsReadSelectionSchema.parse(selection) : undefined;
+  const dashboard = selected?.view === "dashboard" ? await readPmsDashboard(db, id, p.businessDate) : undefined;
+  const rows = dashboard?.records ?? (selected?.view === "calendar"
+    ? await readPmsCalendar(db, id, selected.from, selected.to)
+    : selected?.view === "detail" ? await readPmsDetail(db, id, selected.id)
+    : await readAllPmsRecords(db, id));
+  if (selected?.view === "detail" && !rows.some(row => row.id === selected.id))
+    throw new ApiError(404, "PMS_RECORD_NOT_FOUND", "Hotel item not found");
+  const setupFacts = selected?.view === "calendar" || selected?.view === "detail"
+    ? await readPmsSetupFacts(db, id) : undefined;
   return {
     property: p,
-    records: raw.map((r) => ({
-      id: r.id,
-      kind: r.kind,
-      data: JSON.parse(r.data_json),
-      version: Number(r.version),
-      updatedAt: Number(r.updated_at),
-    })),
+    records: rows,
+    ...(dashboard ? { dashboardHasStays: dashboard.hasStays } : {}),
+    ...(setupFacts ? { setupFacts } : {}),
   };
 }
 export const pmsPermissions = [
@@ -152,8 +160,9 @@ export const pmsPermissions = [
   "pms.reports",
   "finance.approve",
 ] as const;
-function visibleSnapshot(s: Snapshot, actor: WorkContext): Snapshot {
+function visibleSnapshot(s: ReadSnapshot, actor: WorkContext): ReadSnapshot {
   const result = structuredClone(s);
+  delete result.setupFacts;
   const financial =
     hasPermission(actor, "pms.cashier") || hasPermission(actor, "pms.reports");
   const guest =
@@ -208,7 +217,7 @@ function visibleSnapshot(s: Snapshot, actor: WorkContext): Snapshot {
     };
   return result;
 }
-export async function pmsWorkspace(actor: WorkContext, propertyId?: string, includeDayControls=false, frontMode=false) {
+export async function pmsWorkspace(actor: WorkContext, propertyId?: string, includeDayControls=false, frontMode=false, selection?: PmsReadSelection) {
   requirePermission(actor, "pms.read");
   if (actor.departmentId || actor.beta)
     throw new ApiError(
@@ -217,6 +226,8 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
       "Select a company or branch area",
     );
   const { write } = await holdingResources(actor.holdingId);
+  const readSelection = selection ? pmsReadSelectionSchema.parse(selection) : undefined;
+  const complete = !readSelection;
   const rows = await query<PropertyRow>(
     write,
     `SELECT * FROM pms_properties WHERE company_id=?${actor.branchId ? " AND branch_id=?" : ""} ORDER BY name`,
@@ -228,22 +239,22 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     throw new ApiError(404, "PMS_NOT_FOUND", "Hotel not found");
   const s = selected
     ? await (isTransactionalSqlDatabase(write)
-        ? write.transaction((tx) => loadPms(tx, actor, selected.id))
-        : loadPms(write, actor, selected.id))
+        ? write.transaction((tx) => loadPms(tx, actor, selected.id, false, readSelection))
+        : loadPms(write, actor, selected.id, false, readSelection))
     : null;
-  const configuration = !frontMode && (
+  const configuration = !frontMode && (complete || !s) && (
     hasPermission(actor, "pms.configure") ||
     hasPermission(actor, "pms.accounting.prepare") ||
     hasPermission(actor, "pms.accounting.approve"));
-  const staff = await query<{ id: string; name: string }>(
+  const staff = complete ? await query<{ id: string; name: string }>(
     write,
     "SELECT DISTINCT a.user_id id,COALESCE(h.legal_name,a.user_id) name FROM assignments a LEFT JOIN hr_people h ON h.user_id=a.user_id AND h.company_id=a.company_id AND h.merged_into_id IS NULL WHERE a.company_id=? AND a.revoked_at IS NULL AND a.valid_from<=? AND a.valid_until>? AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=?)) ORDER BY name",
     actor.companyId,
     Date.now(),
     Date.now(),
     selected?.branch_id ?? actor.branchId ?? "",
-  );
-  const accounting = !frontMode && (
+  ) : [];
+  const accounting = complete && !frontMode && (
     hasPermission(actor, "pms.accounting.prepare") ||
     hasPermission(actor, "pms.accounting.approve"));
   const branches = configuration
@@ -269,7 +280,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
       )
     : [];
   const parties =
-    !frontMode && (hasPermission(actor, "pms.cashier") ||
+    complete && !frontMode && (hasPermission(actor, "pms.cashier") ||
     hasPermission(actor, "pms.configure") ||
     hasPermission(actor, "pms.reports"))
       ? await query<{ id: string; name: string }>(
@@ -294,7 +305,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
       )
     : [];
   const docs =
-    !frontMode && s &&
+    complete && s &&
     (hasPermission(actor, "pms.cashier") || hasPermission(actor, "pms.reports"))
       ? await query<{
           id: string;
@@ -314,14 +325,14 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     advance: number;
     deposit: number;
   } = null;
-  if (!frontMode && s && hasPermission(actor, "pms.reports")) {
+  if (complete && !frontMode && s && hasPermission(actor, "pms.reports")) {
     const lines = await query<{
       account_id: string;
       debit: number;
       credit: number;
     }>(
       write,
-      "SELECT l.account_id,SUM(l.debit_minor) debit,SUM(l.credit_minor) credit FROM finance_journal_lines l JOIN pms_postings p ON p.journal_id=l.journal_id JOIN finance_journals j ON j.id=l.journal_id WHERE p.property_id=? AND j.status='posted' GROUP BY l.account_id",
+      "SELECT l.account_id,SUM(l.debit_minor) debit,SUM(l.credit_minor) credit FROM finance_journal_lines l JOIN (SELECT property_id,journal_id FROM pms_postings UNION SELECT property_id,opening_journal_id FROM pms_import_batches WHERE state='applied' AND opening_journal_id IS NOT NULL) p ON p.journal_id=l.journal_id JOIN finance_journals j ON j.id=l.journal_id WHERE p.property_id=? AND j.status='posted' GROUP BY l.account_id",
       s.property.id,
     );
     const balance = (account: string) =>
@@ -366,9 +377,11 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
         (row.kind !== "shift" || rowData.userId === actor.userId);
       })
       .map((row) => row.kind === "entry"
-        ? { ...row, data: { ...row.data, sourceKey: "front" } }
+        ? { ...row, data: { ...row.data, sourceKey: "sourceKey" in row.data && typeof row.data.sourceKey === "string" && row.data.sourceKey.startsWith("pos:") ? "pos" : "front" } }
         : row);
   }
+  if (readSelection?.view === "detail" && snapshot && !snapshot.records.some(row => row.id === readSelection.id))
+    throw new ApiError(404, "PMS_RECORD_NOT_FOUND", "Hotel item not found");
   const frontPermissions = [
     "pms.read",
     "pms.reservations",
@@ -379,7 +392,7 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     "pms.maintenance",
     "pms.audit",
   ] as const;
-  const transferRequests = s && (hasPermission(actor, "pms.cashier") || hasPermission(actor, "finance.approve"))
+  const transferRequests = complete && s && (hasPermission(actor, "pms.cashier") || hasPermission(actor, "finance.approve"))
     ? await query<TransferRequestRow>(
         write,
         "SELECT * FROM pms_transfer_requests WHERE company_id=? AND property_id=? ORDER BY created_at DESC LIMIT 100",
@@ -387,10 +400,20 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
         s.property.id,
       )
       : [];
-  const readinessChecks = s ? readiness(s) : [];
+  const chargeCorrections = complete && s && (hasPermission(actor,"pms.cashier") || hasPermission(actor,"pms.approve"))
+    ? await query<{
+        id:string; entry_id:string; folio_id:string; status:string; version:number; reason:string;
+        requested_by:string; reviewed_by:string|null; review_reason:string|null; reversal_entry_id:string|null;
+        created_at:number; entry_kind:string; entry_description:string; entry_total:number;
+      }>(write,`SELECT c.id,c.entry_id,c.folio_id,c.status,c.version,c.reason,c.requested_by,c.reviewed_by,c.review_reason,c.reversal_entry_id,c.created_at,
+        e.data_json::jsonb->>'kind' entry_kind,e.data_json::jsonb->>'description' entry_description,(e.data_json::jsonb->>'total')::bigint entry_total
+        FROM pms_charge_corrections c JOIN pms_records e ON e.id=c.entry_id AND e.property_id=c.property_id
+        WHERE c.company_id=? AND c.property_id=? ${frontMode?" AND c.requested_by=?":" AND c.status='pending'"} ORDER BY c.created_at DESC LIMIT 100`,actor.companyId,s.property.id,...(frontMode?[actor.userId]:[]))
+    : [];
+  const readinessChecks = s ? readiness(s, s.setupFacts) : [];
   return {
     bookingDelivery:
-      !frontMode && s && hasPermission(actor, "pms.configure")
+      complete && !frontMode && s && hasPermission(actor, "pms.configure")
         ? await query<{
             id: string;
             reservation_id: string;
@@ -406,12 +429,13 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     transferRequests: frontMode
       ? transferRequests.filter((row) => row.recorded_by === actor.userId)
       : transferRequests,
-    stripeConnectionReady: !frontMode && hasPermission(actor,'pms.cashier')&&Boolean(await write.prepare("SELECT 1 FROM pos_connections WHERE company_id=? AND state='ready' AND promptpay_enabled=true AND thb_bank_ready=true AND payout_interval='daily'").bind(actor.companyId).first()),
-    stripePayments: !frontMode && s&&hasPermission(actor,'pms.cashier')?await query<{id:string;folio_id:string;state:string;kind:string;amount_minor:number;refund_state:string|null;payer_email:string|null}>(write,"SELECT id,folio_id,state,kind,amount_minor,refund_state,payer_email FROM pms_stripe_payments WHERE property_id=? ORDER BY created_at DESC LIMIT 100",s.property.id):[],
-    bookingRefunds: !frontMode && hasPermission(actor,'finance.approve')&&!actor.branchId
+    chargeCorrections,
+    stripeConnectionReady: complete && !frontMode && hasPermission(actor,'pms.cashier')&&Boolean(await write.prepare("SELECT 1 FROM pos_connections WHERE company_id=? AND state='ready' AND promptpay_enabled=true AND thb_bank_ready=true AND payout_interval='daily'").bind(actor.companyId).first()),
+    stripePayments: complete && !frontMode && s&&hasPermission(actor,'pms.cashier')?await query<{id:string;folio_id:string;state:string;kind:string;amount_minor:number;refund_state:string|null;payer_email:string|null}>(write,"SELECT id,folio_id,state,kind,amount_minor,refund_state,payer_email FROM pms_stripe_payments WHERE property_id=? ORDER BY created_at DESC LIMIT 100",s.property.id):[],
+    bookingRefunds: complete && !frontMode && hasPermission(actor,'finance.approve')&&!actor.branchId
       ? await query<{id:string;property_id:string;amount_minor:number;status:string;refund_state:string;created_at:number;last_error:string|null}>(write,"SELECT id,property_id,amount_minor,status,refund_state,created_at,last_error FROM pms_booking_payments WHERE company_id=? AND refund_state IS NOT NULL ORDER BY created_at DESC LIMIT 100",actor.companyId)
       : [],
-    transferBankEvidence: !frontMode && s && hasPermission(actor,'finance.approve')
+    transferBankEvidence: complete && !frontMode && s && hasPermission(actor,'finance.approve')
       ? await query<{id:string;transaction_date:string;external_id:string;amount_minor:number;currency:string;version:number}>(write,`SELECT t.id,t.transaction_date,t.external_id,t.amount_minor,t.currency,t.version
         FROM finance_bank_transactions t JOIN finance_bank_statements b ON b.id=t.statement_id
         WHERE t.company_id=? AND b.bank_account=? AND t.currency=? AND t.amount_minor>0 AND t.match_status IN ('unmatched','proposed')
@@ -444,9 +468,9 @@ export async function pmsWorkspace(actor: WorkContext, propertyId?: string, incl
     parties: frontMode ? [] : parties,
     products: frontMode ? [] : products,
     warehouses: frontMode ? [] : warehouses,
-    documents: frontMode ? [] : docs,
+    documents: docs,
     ledger: frontMode ? null : ledger,
-    dayControls:s && includeDayControls && (hasPermission(actor,'pms.audit')||(!frontMode&&hasPermission(actor,'pms.reports')))
+    dayControls:complete && s && includeDayControls && (hasPermission(actor,'pms.audit')||(!frontMode&&hasPermission(actor,'pms.reports')))
       ? await hospitalityDayControls(write,actor.companyId,s.property.branchId,s.property.id,s.property.businessDate)
       : null,
   };
@@ -652,18 +676,8 @@ export async function effects(
   for (const doc of e.documents) await document(db, actor, s, doc);
   // Keep issued PMS receivables in Finance synchronized through the owner workflow.
   for (const f of records(s, "folio").filter(
-    (r) => r.data.invoiceId && (e.postings.length || e.documents.length),
+    (r) => (r.data.invoiceId || records(s,"entry").some(entry=>entry.data.folioId===r.id&&entry.data.method==='opening'&&entry.data.kind==='charge')) && (e.postings.length || e.documents.length),
   )) {
-    await run(
-      db,
-      "UPDATE finance_invoices SET outstanding_minor=?,status=CASE WHEN ?=0 THEN 'paid' WHEN ?<total_minor THEN 'partially_paid' ELSE 'posted' END,version=version+1,updated_at=? WHERE id=? AND company_id=? AND source_type='pms'",
-      f.data.due,
-      f.data.due,
-      f.data.due,
-      Date.now(),
-      f.data.invoiceId,
-      s.property.companyId,
-    );
     await syncAllocations(db, actor, s, f.id);
   }
 }
@@ -695,10 +709,12 @@ async function document(
     );
   if (doc.kind === "invoice") {
     const bill = entries.filter((e) =>
-      ["charge", "adjustment", "transfer"].includes(e.data.kind),
+      ["charge", "adjustment", "transfer"].includes(e.data.kind) && e.data.method!=="opening",
     );
     const total = bill.reduce((n, e) => n + e.data.total, 0),
       tax = bill.reduce((n, e) => n + e.data.tax, 0);
+    const openingDue=entries.filter(entry=>entry.data.method==="opening"&&entry.data.kind==="charge").reduce((sum,entry)=>sum+entry.data.total,0);
+    const currentDue=Math.min(total,Math.max(0,f.data.due-openingDue));
     if (total < 0 || tax < 0)
       throw new ApiError(
         409,
@@ -727,12 +743,12 @@ async function document(
       total - tax,
       tax,
       total,
-      f.data.due,
+      currentDue,
       c.accounts.receivable,
       c.accounts.revenue,
       c.accounts.tax,
       f.id,
-      f.data.due ? "posted" : "paid",
+      currentDue ? "posted" : "paid",
       journal?.journal_id ?? null,
       actor.userId,
       c.approvedBy,
@@ -804,7 +820,11 @@ async function syncAllocations(
   folioId: string,
 ) {
   const f = record(s, "folio", folioId);
-  if (!f.data.invoiceId) return;
+  const opening=(await db.prepare(`SELECT b.finance_invoice_id id,b.amount_minor total FROM pms_import_balances b
+    JOIN pms_records r ON r.id=b.entry_id AND r.property_id=b.property_id
+    WHERE b.property_id=? AND r.data_json::jsonb->>'folioId'=? AND b.pocket='due' AND b.finance_invoice_id IS NOT NULL ORDER BY b.source_key`)
+    .bind(s.property.id,folioId).all<{id:string;total:number}>()).results;
+  if (!f.data.invoiceId && !opening.length) return;
   const entries = records(s, "entry").filter((e) => e.data.folioId === folioId),
     refunds = new Map<string, number>(),
     applied = new Map<string, number>();
@@ -828,7 +848,7 @@ async function syncAllocations(
   }
   const receipts = await query<{ id: string; snapshot_json: string }>(
     db,
-    "SELECT id,snapshot_json FROM pms_documents WHERE property_id=? AND folio_id=? AND kind='receipt' ORDER BY created_at,id",
+    "SELECT COALESCE(finance_id,id) id,snapshot_json FROM pms_documents WHERE property_id=? AND folio_id=? AND (kind='receipt' OR (kind='opening' AND finance_id IS NOT NULL)) ORDER BY created_at,id",
     s.property.id,
     folioId,
   );
@@ -838,39 +858,42 @@ async function syncAllocations(
       .filter((e) => ["charge", "adjustment", "transfer"].includes(e.data.kind))
       .reduce((n, e) => n + e.data.total, 0) - f.data.due,
   );
-  await run(
-    db,
-    "DELETE FROM finance_allocations WHERE invoice_id=? AND company_id=?",
-    f.data.invoiceId,
-    s.property.companyId,
-  );
+  const currentTotal=entries.filter(e=>["charge","adjustment","transfer"].includes(e.data.kind)&&e.data.method!=="opening").reduce((sum,e)=>sum+e.data.total,0);
+  const targets=[...opening,...(f.data.invoiceId?[{id:f.data.invoiceId,total:currentTotal}]:[])].map(target=>{
+    const paid=Math.min(remaining,Number(target.total));remaining-=paid;
+    return {...target,total:Number(target.total),paid,remaining:paid};
+  });
+  for(const target of targets){
+    await run(db,"DELETE FROM finance_allocations WHERE invoice_id=? AND company_id=?",target.id,s.property.companyId);
+    const outstanding=target.total-target.paid;
+    await run(db,"UPDATE finance_invoices SET outstanding_minor=?,base_outstanding_minor=?,status=CASE WHEN ?=0 THEN 'paid' WHEN ?<total_minor THEN 'partially_paid' ELSE 'posted' END,version=version+1,updated_at=? WHERE id=? AND company_id=?",outstanding,outstanding,outstanding,outstanding,Date.now(),target.id,s.property.companyId);
+  }
   for (const r of receipts) {
     const source = JSON.parse(r.snapshot_json).entries?.[0];
-    if (!source) continue;
+    if (!source||!["payment","deposit"].includes(source.data.kind)) continue;
     const available =
       source.data.kind === "deposit"
         ? (applied.get(source.id) ?? 0)
         : Number(source.data.total);
-    const n = Math.min(
-      remaining,
-      Math.max(0, available - (refunds.get(source.id) ?? 0)),
-    );
-    if (n > 0) {
+    let budget=Math.max(0, available - (refunds.get(source.id) ?? 0));
+    for(const target of targets){
+      const n=Math.min(target.remaining,budget);
+      if (n <= 0) continue;
       await run(
         db,
         "INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,created_by,created_at) VALUES(?,?,?,?,?,?,?)",
         randomUUID(),
         s.property.companyId,
         r.id,
-        f.data.invoiceId,
+        target.id,
         n,
         actor.userId,
         Date.now(),
       );
-      remaining -= n;
+      target.remaining -= n;budget-=n;
     }
   }
-  if (remaining)
+  if (targets.some(target=>target.remaining>0))
     throw new ApiError(
       409,
       "PMS_ALLOCATION_TRACE",
@@ -963,6 +986,7 @@ export async function pmsCommand(
       throw new ApiError(403, 'PMS_BANK_VERIFICATION_REQUIRED', 'Hotel bank and card payments or refunds require verified evidence before posting');
   }
   requirePermission(actor, operationPermission(op));
+  if (op === "accounting.bootstrap") requirePermission(actor, "finance.write");
   if (op === "night.step" && !worker)
     throw new ApiError(
       403,
@@ -1049,6 +1073,63 @@ export async function pmsCommand(
             "PMS_VERSION_CONFLICT",
             "Hotel data changed. Load the latest version and review again",
           );
+      }
+      if (op === "charge.reverse")
+        throw new ApiError(409,"PMS_CORRECTION_REQUEST_REQUIRED","Request a charge correction and have another authorized person review it.");
+      if (op === "charge.correction.request") {
+        const input=z.object({id:idField,reason:z.string().trim().min(3).max(2000)}).strict().parse(command.input);
+        if(s.property.state!=="open")throw new ApiError(409,"PMS_DAY_CLOSING","Charge corrections require an open hotel day.");
+        const entry=records(s,"entry").find(row=>row.id===input.id);
+        if(!entry||!["charge","transfer"].includes(entry.data.kind)||entry.data.total<=0)
+          throw new ApiError(409,"PMS_CORRECTION_ENTRY_INVALID","Only a positive hotel folio charge or transfer can be corrected.");
+        if(entry.data.sourceKey?.startsWith("pos:"))
+          throw new ApiError(409,"PMS_POS_REVERSAL_REQUIRED","Reverse restaurant charges from the linked POS bill.");
+        if(records(s,"entry").some(row=>row.data.originalId===entry.id))
+          throw new ApiError(409,"PMS_ALREADY_REVERSED","This folio entry already has a reversal.");
+        if(await tx.prepare("SELECT 1 FROM pms_charge_corrections WHERE entry_id=? AND status='pending'").bind(entry.id).first())
+          throw new ApiError(409,"PMS_CORRECTION_ALREADY_PENDING","Another correction request for this entry is awaiting review.");
+        const id=`pms-correction-${createHash("sha256").update(key).digest("hex").slice(0,32)}`;
+        const now=Date.now(),nextVersion=s.property.version+1;
+        const result={id,propertyId:s.property.id,version:nextVersion,status:"pending",correctionVersion:1};
+        return executeCommand(tx,actor,key,`pms.${op}`,command,target,nextVersion,result,[
+          tx.prepare(`INSERT INTO pms_charge_corrections(id,company_id,property_id,entry_id,folio_id,status,version,reason,requested_by,created_at,updated_at)
+            VALUES(?,?,?,?,?,'pending',1,?,?,?,?)`).bind(id,actor.companyId,s.property.id,entry.id,entry.data.folioId,input.reason,actor.userId,now,now),
+          tx.prepare(`INSERT INTO pms_charge_correction_events(id,correction_id,company_id,property_id,entry_id,action,actor_id,correction_version,reason,created_at)
+            VALUES(?,?,?,?,?,'requested',?,1,?,?)`).bind(`pms-correction-event-${key}`,id,actor.companyId,s.property.id,entry.id,actor.userId,input.reason,now),
+          tx.prepare("UPDATE pms_properties SET version=?,updated_at=? WHERE id=? AND company_id=? AND version=?").bind(nextVersion,now,s.property.id,actor.companyId,s.property.version),
+        ],{companyId:s.property.companyId,branchId:s.property.branchId,departmentId:null});
+      }
+      if (op === "charge.correction.review") {
+        const input=z.object({id:idField,expectedVersion:z.number().int().positive(),action:z.enum(["approve","reject"]),reason:z.string().trim().min(3).max(2000)}).strict().parse(command.input);
+        if(s.property.state!=="open")throw new ApiError(409,"PMS_DAY_CLOSING","Review charge corrections before closing the hotel day.");
+        const correction=await tx.prepare("SELECT * FROM pms_charge_corrections WHERE id=? AND company_id=? AND property_id=? FOR UPDATE").bind(input.id,actor.companyId,s.property.id).first<ChargeCorrectionRow>();
+        if(!correction)throw new ApiError(404,"PMS_CORRECTION_NOT_FOUND","Charge correction request not found in this hotel.");
+        if(correction.status!=="pending"||Number(correction.version)!==input.expectedVersion)
+          throw new ApiError(409,"PMS_CORRECTION_CHANGED","This correction request changed. Reload before deciding.");
+        if(samePerson(actor,correction.requested_by))
+          throw new ApiError(403,"PMS_INDEPENDENT_REVIEW_REQUIRED","A different person must review the charge correction.");
+        const entry=records(s,"entry").find(row=>row.id===correction.entry_id);
+        if(!entry||entry.data.folioId!==correction.folio_id||entry.data.sourceKey?.startsWith("pos:")||records(s,"entry").some(row=>row.data.originalId===correction.entry_id))
+          throw new ApiError(409,"PMS_CORRECTION_SOURCE_CHANGED","The folio entry changed or already has a reversal.");
+        const propertyVersion=s.property.version,now=Date.now(),correctionVersion=Number(correction.version)+1;
+        let reversalEntryId:string|null=null,propertyVersionAfter=propertyVersion;
+        if(input.action==="approve"){
+          const original=new Map(s.records.map(row=>[row.id,JSON.stringify(row)]));
+          let outcome;
+          try{outcome=executePms(s,"charge.reverse",{id:entry.id,reason:input.reason},{userId:actor.userId,now,uuid:randomUUID,independent:other=>!samePerson(actor,other)});}
+          catch(error){if(error instanceof PmsError)throw new ApiError(error.status,error.code,error.message);throw error;}
+          reversalEntryId=outcome.id;propertyVersionAfter=s.property.version;
+          await validSetup(tx,s);await persistPmsRecords(tx,s,original);await effects(tx,actor,s,outcome.effects);
+        }else propertyVersionAfter++;
+        const result={id:correction.id,propertyId:s.property.id,version:propertyVersionAfter,status:input.action==="approve"?"approved":"rejected",correctionVersion,reversalEntryId};
+        return executeCommand(tx,actor,key,`pms.${op}`,command,target,propertyVersionAfter,result,[
+          tx.prepare(`UPDATE pms_charge_corrections SET status=?,version=?,reviewed_by=?,review_reason=?,reversal_entry_id=?,reviewed_at=?,updated_at=?
+            WHERE id=? AND company_id=? AND property_id=? AND status='pending' AND version=?`)
+            .bind(result.status,correctionVersion,actor.userId,input.reason,reversalEntryId,now,now,correction.id,actor.companyId,s.property.id,input.expectedVersion),
+          tx.prepare(`INSERT INTO pms_charge_correction_events(id,correction_id,company_id,property_id,entry_id,action,actor_id,correction_version,reason,reversal_entry_id,created_at)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?)`).bind(`pms-correction-event-${key}`,correction.id,actor.companyId,s.property.id,correction.entry_id,result.status,actor.userId,correctionVersion,input.reason,reversalEntryId,now),
+          tx.prepare("UPDATE pms_properties SET version=?,updated_at=? WHERE id=? AND company_id=? AND version=?").bind(propertyVersionAfter,now,s.property.id,actor.companyId,propertyVersion),
+        ],{companyId:s.property.companyId,branchId:s.property.branchId,departmentId:null});
       }
       let attachmentBinding: Awaited<ReturnType<typeof prepareAttachmentBinding>> | null = null;
       if (command.attachmentSetIds.length) {
@@ -1162,7 +1243,18 @@ export async function pmsCommand(
       let verifiedTransfer:TransferRequestRow|null=null;
       let matchedBankId:string|null=null;
       let engineOp=op,engineInput=command.input;
+      if(op === "accounting.bootstrap") {
+        if(records(s,"entry").length) throw new ApiError(409,"PMS_ACCOUNTING_IN_USE","Accounting is frozen after financial activity.");
+        engineInput=await preparePmsAccounting(tx,actor,s,command.input);
+        engineOp="accounting.save";
+      }
       if(op==='reservation.create' && command.input && typeof command.input==='object'){
+        const requestedCurrency=(command.input as Record<string,unknown>).currency;
+        if(typeof requestedCurrency==='string'){
+          if(requestedCurrency!==s.property.config.currency)throw new ApiError(422,'PMS_CURRENCY_SETUP_REQUIRED',`The selected ${requestedCurrency} currency needs a hotel rate plan and supported ledger/payment accounts before booking.`);
+          if(requestedCurrency!=='USD'&&!await tx.prepare('SELECT id FROM company_fx_rates WHERE company_id=? AND currency=? ORDER BY effective_date DESC,confirmed_at DESC LIMIT 1').bind(actor.companyId,requestedCurrency).first())
+            throw new ApiError(422,'MANUAL_RATE_REQUIRED',`Confirm a manual USD/${requestedCurrency} rate before booking.`);
+        }
         const campaignCode=(command.input as Record<string,unknown>).campaignCode;
         if(typeof campaignCode==='string' && campaignCode.trim()){
           const campaign=await tx.prepare('SELECT 1 FROM marketing_campaigns WHERE company_id=? AND code=?').bind(actor.companyId,campaignCode.trim()).first();
@@ -1218,10 +1310,11 @@ export async function pmsCommand(
             "Configure booking email delivery before publishing",
           );
       }
-      await validateReferences(tx, s, op, command.input);
+      await validateReferences(tx, s, engineOp, engineInput);
       if (
         [
           "accounting.save",
+          "accounting.bootstrap",
           "accounting.approve",
           "property.enable",
           "night.start",
@@ -1247,6 +1340,15 @@ export async function pmsCommand(
           );
       }
       await persistPmsRecords(tx, s, original);
+      if(op==='reservation.create'&&records(s,'reservation').some(row=>row.id===outcome.id&&row.data.state==='confirmed')){
+        const total=records(s,'stay').filter(row=>row.data.reservationId===outcome.id)
+          .reduce((sum,row)=>sum+row.data.prices.reduce((nightSum,night)=>nightSum+night.total,0),0);
+        try {
+          const evidence=await snapshotMoney(tx,actor,{sourceType:'pms_reservation',sourceId:outcome.id,amountKind:'room_total',
+            transactionDate:s.property.businessDate,currency:s.property.config.currency,currencyScale:2,amountUnits:String(total)});
+          await evidence.statement.run();
+        } catch(error){if(!(error instanceof ApiError&&error.code==='MANUAL_RATE_REQUIRED'))throw error;}
+      }
       if (op === "folio.merge") {
         const v = command.input as { id: string; toFolioId: string };
         await run(
@@ -1329,14 +1431,15 @@ export async function pmsCommand(
     throw error;
   }
 }
-export async function drainPms(db: TransactionalSqlDatabase) {
+export async function drainPms(db: TransactionalSqlDatabase, propertyId?: string, jobId?: string) {
   const jobs = await query<{
     id: string;
     property_id: string;
     actor_json: string;
   }>(
     db,
-    "SELECT id,property_id,actor_json FROM pms_jobs WHERE state IN ('pending','running') ORDER BY updated_at LIMIT 4",
+    "SELECT id,property_id,actor_json FROM pms_jobs WHERE state IN ('pending','running') AND (?::text IS NULL OR property_id=?) AND (?::text IS NULL OR id=?) ORDER BY updated_at LIMIT 4",
+    propertyId ?? null, propertyId ?? null, jobId ?? null, jobId ?? null,
   );
   for (const job of jobs) {
     try {
@@ -1381,95 +1484,10 @@ export async function drainPms(db: TransactionalSqlDatabase) {
   }
 }
 export async function pmsWork(actor: WorkContext): Promise<WorkItem[]> {
-  if (!hasPermission(actor, "pms.read") || actor.departmentId || actor.beta)
-    return [];
+  if (!hasPermission(actor, "pms.read") || actor.departmentId || actor.beta) return [];
   const { write } = await holdingResources(actor.holdingId);
-  const properties = await query<PropertyRow>(
-    write,
-    `SELECT * FROM pms_properties WHERE company_id=?${actor.branchId ? " AND branch_id=?" : ""}`,
-    actor.companyId,
-    ...(actor.branchId ? [actor.branchId] : []),
-  );
-  const frontBase = await frontWorkspaceHref(actor, "pms");
-  const items: WorkItem[] = [];
-  for (const row of properties) {
-    const s = await loadPms(write, actor, row.id);
-    if (hasPermission(actor, "finance.approve")) {
-      const pendingTransfers = await query<TransferRequestRow>(
-        write,
-        "SELECT * FROM pms_transfer_requests WHERE company_id=? AND property_id=? AND state='pending' ORDER BY created_at",
-        actor.companyId,
-        row.id,
-      );
-      for (const transfer of pendingTransfers) {
-        if (samePerson(actor, transfer.recorded_by)) continue;
-        items.push({
-          id: transfer.id,
-          type: "pms",
-          title: `${row.name} · Verify hotel bank transfer`,
-          detail: `${transfer.currency} ${(Number(transfer.amount_minor) / 100).toFixed(2)} · ${transfer.reference}`,
-          href: `/pms/folios?property=${encodeURIComponent(row.id)}&queue=approval`,
-          status: "pending",
-          updatedAt: Number(transfer.updated_at),
-          queue: "todo",
-          responsibleQueue: "Finance approver",
-          nextAction: "Match imported bank evidence to this hotel transfer",
-          relationships: ["approval"],
-        });
-      }
-    }
-    for (const r of records(s, "task"))
-      if (
-        !["done", "superseded"].includes(r.data.state) &&
-        (r.data.assigneeId === actor.userId ||
-          hasPermission(actor, "pms.inspect"))
-      ) {
-        items.push({
-          id: r.id,
-          type: "pms",
-          title: `${row.name} · ${record(s, "room", r.data.roomId).data.number} · ${r.data.type}`,
-          detail: r.data.notes || "Room task",
-          href: `${frontBase ?? "/pms/"}housekeeping?property=${encodeURIComponent(row.id)}&task=${encodeURIComponent(r.id)}`,
-          status: r.data.state,
-          updatedAt: r.updatedAt,
-          queue: "todo",
-          relationships: [
-            r.data.assigneeId === actor.userId ? "assigned" : "team",
-          ],
-        });
-      }
-    for (const r of records(s, "refund"))
-      if (
-        r.data.state === "requested" &&
-        hasPermission(actor, "pms.approve") &&
-        !samePerson(actor, r.data.requestedBy)
-      )
-        items.push({
-          id: r.id,
-          type: "pms",
-          title: `${row.name} · Approve refund`,
-          detail: r.data.reason,
-          href: `/pms/folios?property=${encodeURIComponent(row.id)}&queue=approval`,
-          status: r.data.state,
-          updatedAt: r.updatedAt,
-          queue: "todo",
-          relationships: ["approval"],
-        });
-    for (const r of records(s, "night"))
-      if (r.data.state === "blocked" && hasPermission(actor, "pms.audit"))
-        items.push({
-          id: r.id,
-          type: "pms",
-          title: `${row.name} · Close day pending`,
-          detail: r.data.message,
-          href: `${frontBase ?? "/pms/"}night-audit?property=${encodeURIComponent(row.id)}&night=${encodeURIComponent(r.id)}`,
-          status: r.data.state,
-          updatedAt: r.updatedAt,
-          queue: "todo",
-          relationships: ["team"],
-        });
-  }
-  return items;
+  const { pmsOperationalWork } = await import("./pms/home");
+  return pmsOperationalWork(write, actor);
 }
 
 /** Called inside the POS command transaction: no second command or ledger owner. */

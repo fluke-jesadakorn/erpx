@@ -56,7 +56,7 @@ export async function leaveItems(
     q.search,
     limit,
   );
-  return leave.map((l) => ({
+  const absences: CalendarItem[] = leave.map((l) => ({
     id: `leave:${l.id}${l.leave_date ? `:${l.leave_date}` : ''}`,
     source: "leave",
     sourceId: l.id,
@@ -81,4 +81,19 @@ export async function leaveItems(
     warnings: [],
     history: [],
   }));
+  const holidays = await rows<{id:string;name:string;holiday_date:string;timezone:string;calendar:string;participants:string|{id:string;name:string}[];department_id:string|null;branch_id:string|null}>(db,
+    `SELECT h.id,h.name,h.holiday_date,c.timezone,c.name calendar,e.department_id,e.branch_id,jsonb_agg(DISTINCT jsonb_build_object('id',e.person_id,'name',p.legal_name)) participants
+     FROM leave_holidays h JOIN leave_holiday_calendars c ON c.id=h.calendar_id
+     JOIN leave_policy_assignments pa ON pa.holiday_calendar_id=c.id AND pa.company_id=c.company_id AND pa.effective_from<=h.holiday_date AND coalesce(pa.effective_to,'9999-12-31')>=h.holiday_date
+     JOIN hr_engagements e ON e.id=pa.engagement_id AND e.company_id=pa.company_id JOIN hr_people p ON p.id=e.person_id AND p.company_id=e.company_id
+     WHERE c.company_id=? AND h.holiday_date>=? AND h.holiday_date<? AND e.start_date<=h.holiday_date AND (e.end_date IS NULL OR e.end_date>=h.holiday_date) AND p.merged_into_id IS NULL AND ${inList("coalesce(e.department_id,e.branch_id,e.company_id)")}
+     AND (?::text IS NULL OR e.person_id=?) AND (? OR e.person_id=?) AND (?='' OR h.name ILIKE '%'||?||'%' OR c.name ILIKE '%'||?||'%')
+     GROUP BY h.id,h.name,h.holiday_date,c.timezone,c.name,e.department_id,e.branch_id ORDER BY h.id,e.department_id,e.branch_id LIMIT ?`,
+    a.actor.companyId,from,to,idList(a.scopeIds),person,person,a.availability||a.rosterReader||a.lifecycleReader,a.staff?.person_id??"none",q.search,q.search,q.search,limit);
+  const holidayItems: CalendarItem[] = holidays.map(holiday=>{
+    const key = `${holiday.id}:${holiday.department_id??holiday.branch_id??a.actor.companyId}`;
+    const participants = (typeof holiday.participants==="string"?JSON.parse(holiday.participants):holiday.participants) as {id:string;name:string}[];
+    return {id:`holiday:${key}`,source:"leave",sourceId:holiday.id,kind:"holiday",title:holiday.name,description:holiday.calendar,allDay:true,startDate:holiday.holiday_date,endDate:addDays(holiday.holiday_date,1),startsAt:null,endsAt:null,timezone:holiday.timezone,departmentId:holiday.department_id,branchId:holiday.branch_id,participants:participants.sort((a,b)=>a.name.localeCompare(b.name)),owner:null,status:"holiday",version:0,permittedActions:[],warnings:[],history:[]};
+  });
+  return [...absences,...holidayItems];
 }

@@ -1,10 +1,11 @@
+import { FinanceRecordWorkspace, FinanceLegacyHeading } from "@/components/finance/finance-record-workspace";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import {
 EmptyState,
 PageHeader,
 StatusBadge,
 } from "@/components/ui/primitives";
-import { minorToDecimal } from "@/lib/finance-money";
+import { MoneyAmount } from "@/components/money/currency-provider";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope,requireWorkContext } from "@/server/authorization";
 import { listExpenses } from "@/server/expenses";
@@ -34,14 +35,15 @@ export default async function Expenses({
   );
   return (
     <FeaturePage className="content-stack" data-source="live">
-      <PageHeader
+      <FinanceRecordWorkspace base={base} active="receivables" title="Employee expenses" description="Review receipts, accounting and reimbursement evidence." actions={<Link className="button" href={`${base}/expenses/new`}>New expense claim</Link>}>
+      <FinanceLegacyHeading><PageHeader
         eyebrow="People · Finance"
         title="Employee expenses"
         description="Claim business costs, review receipts, post the obligation, and track reimbursement."
-      /><FeatureTabs/><WidgetGrid pageKey="finance-expenses">
-      <Link className="button" href={`${base}/expenses/new`}>
+      /></FinanceLegacyHeading><FeatureTabs/><WidgetGrid pageKey="finance-expenses">
+      <FinanceLegacyHeading><Link className="button" href={`${base}/expenses/new`}>
         New expense claim
-      </Link>
+      </Link></FinanceLegacyHeading>
       <form className="business-form" action={`${base}/expenses`}>
         <label>
           Search claims
@@ -102,7 +104,7 @@ export default async function Expenses({
               </div>
               <strong>
                 {x.amount_minor
-                  ? `${String(x.currency)} ${minorToDecimal(Number(x.amount_minor) + Number(x.tax_minor))}`
+                  ? <MoneyAmount units={(BigInt(String(x.amount_minor)) + BigInt(String(x.tax_minor))).toString()} currency={String(x.currency)} date={String(x.expense_date)} legacyScale={2} />
                   : "Amount required"}
               </strong>
               <StatusBadge status={String(x.status)} />
@@ -110,6 +112,6 @@ export default async function Expenses({
           ))
         )}
       </FeatureWidget>
-    </WidgetGrid></FeaturePage>
+    </WidgetGrid></FinanceRecordWorkspace></FeaturePage>
   );
 }

@@ -172,18 +172,14 @@ export function AiProviders({
               </button>
               <button
                 className="button"
-                disabled={
-                  pending ||
-                  !c.text_verified ||
-                  (!!c.image_model && !c.image_verified)
-                }
+                disabled={pending || !ready || !c.text_verified}
                 onClick={() =>
                   void command(`/${c.id}/activate`, {
                     expectedVersion: c.version,
                   })
                 }
               >
-                Activate
+                {c.image_model && !c.image_verified ? "Activate text model" : "Activate"}
               </button>
               <details className={styles.more}><summary aria-label={`More actions for ${c.name}`}>More <span aria-hidden="true">⌄</span></summary><div><button type="button" aria-label="Disable connection" disabled={pending} onClick={() => setRemove({ row: c, action: "disable" })}>Disable connection</button><button type="button" aria-label="Delete connection" disabled={pending} onClick={() => setRemove({ row: c, action: "delete" })}>Delete connection</button></div></details>
             </div>
@@ -207,10 +203,14 @@ export function AiProviders({
               textConnectionId: f.get("textConnectionId") || null,
               imageMode: f.get("imageMode"),
               imageConnectionId: f.get("imageConnectionId") || null,
+              homeAiName: f.get("homeAiName"),
             });
           }}
         >
           <div className={styles.defaultFields}>
+            <label>Home AI name
+              <input name="homeAiName" defaultValue={data.selection.home_ai_name} minLength={1} maxLength={40} pattern="[^@\r\n]+" required />
+            </label>
             <label>
               AI mode
               <select name="mode" defaultValue={data.selection.mode}>

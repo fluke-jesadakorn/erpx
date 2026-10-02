@@ -3,6 +3,9 @@ import { notFound, redirect } from "next/navigation";
 import { FrontAppShell, FrontLocationPicker, FrontPmsNavigation } from "@/components/front/front-app-shell";
 import { PosConsole } from "@/components/pos/pos-console";
 import { PmsWorkspaceView } from "@/components/pms/workspace";
+import { PmsToday } from "@/components/pms/home";
+import { pmsHome } from "@/server/pms/home";
+import { hasPermission } from "@/lib/permissions";
 import { WorkContextBoundary } from "@/components/workplace/work-context-boundary";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope, requireWorkContext, currentSession } from "@/server/authorization";
@@ -17,8 +20,11 @@ import type { Metadata } from "next";
 import { frontAppForHost, frontVisibleLocation, frontVisiblePath } from "@/lib/front-host";
 import { frontActionItems } from "@/server/front-quick-access";
 import { readQuickAccessPreferences } from "@/server/quick-access-preferences";
+import { moneyContext } from "@/server/company-money";
 import { PushSettings } from "@/components/settings/push-settings";
 import Link from "next/link";
+import { consoleOrigin } from "@/lib/erpx-hosts";
+import { appearancePreference } from "@/lib/appearance-preference";
 
 export const dynamic = "force-dynamic";
 
@@ -93,9 +99,10 @@ export default async function FrontAppPage({
   }
   const entry = await frontCompanyApp(holdingSlug, companySlug, app);
   if (!entry) notFound();
+  const erpPickerHref = entry.locations.length ? consoleOrigin()?.toString() : undefined;
 
   const cookieStore = await cookies();
-  const language = cookieStore.get("erpx_front_language_" + session.user.id)?.value === "en" ? "en" : "th";
+  const language = cookieStore.get("erpx_front_language_" + session.user.id)?.value === "en" ? "en" : app === "pos" || cookieStore.get("erpx_front_language_" + session.user.id)?.value === "th" ? "th" : "en";
   const cookieName = frontCookieName(app, entry);
   let remembered = cookieStore.get(cookieName)?.value ?? "";
   try { remembered = decodeURIComponent(remembered); } catch { remembered = ""; }
@@ -121,7 +128,7 @@ export default async function FrontAppPage({
     const notice = remembered && !entry.locations.some((item) => item.path === remembered)
       ? (language === "th" ? "สถานที่ล่าสุดไม่มีสิทธิ์ใช้งานแล้ว กรุณาเลือกสาขาใหม่" : "Your last location is no longer available. Choose another location.")
       : undefined;
-    return <FrontAppShell holdingSlug={holdingSlug} companySlug={companySlug} companyId={entry.companyId} companyName={entry.companyName} shortName={entry.shortName} accentColor={entry.accentColor} logoAttachmentId={entry.logoPublicationId??entry.logoAttachmentId} app={app} standalone={standalone} userId={entry.userId} initialLanguage={language}>
+    return <FrontAppShell holdingSlug={holdingSlug} companySlug={companySlug} companyId={entry.companyId} companyName={entry.companyName} shortName={entry.shortName} accentColor={entry.accentColor} logoAttachmentId={entry.logoPublicationId??entry.logoAttachmentId} app={app} standalone={standalone} erpHref={erpPickerHref} userId={entry.userId} initialLanguage={language} initialTheme={appearancePreference(cookieStore.get("erpx_appearance")?.value)}>
       <FrontLocationPicker base={frontBase} app={app} standalone={standalone} companyId={entry.companyId} userId={entry.userId} locations={entry.locations} notice={notice} />
     </FrontAppShell>;
   }
@@ -132,13 +139,13 @@ export default async function FrontAppPage({
   } catch {
     notFound();
   }
-  await ensureFrontRole(holdingSlug, entry.companyId, app, selectedLocation);
+  const frontRoles = await ensureFrontRole(holdingSlug, entry.companyId, app, selectedLocation);
   let actor;
   try {
     actor = await requireWorkContext(scope);
   } catch {
     const notice = language === "th" ? "สิทธิ์ของคุณเปลี่ยนไปแล้ว กรุณาเลือกสถานที่ที่เปิดใช้งานได้" : "Your access changed. Choose a location that is still available.";
-    return <FrontAppShell holdingSlug={holdingSlug} companySlug={companySlug} companyId={entry.companyId} companyName={entry.companyName} shortName={entry.shortName} accentColor={entry.accentColor} logoAttachmentId={entry.logoPublicationId??entry.logoAttachmentId} app={app} standalone={standalone} userId={entry.userId} initialLanguage={language}>
+    return <FrontAppShell holdingSlug={holdingSlug} companySlug={companySlug} companyId={entry.companyId} companyName={entry.companyName} shortName={entry.shortName} accentColor={entry.accentColor} logoAttachmentId={entry.logoPublicationId??entry.logoAttachmentId} app={app} standalone={standalone} erpHref={erpPickerHref} userId={entry.userId} initialLanguage={language} initialTheme={appearancePreference(cookieStore.get("erpx_appearance")?.value)}>
       <FrontLocationPicker base={frontBase} app={app} standalone={standalone} companyId={entry.companyId} userId={entry.userId} locations={entry.locations} notice={notice} />
     </FrontAppShell>;
   }
@@ -166,11 +173,20 @@ export default async function FrontAppPage({
           "SELECT l.sale_id FROM pos_stock_moves m JOIN pos_lines l ON l.fulfillment_id=m.fulfillment_id JOIN pos_sales s ON s.id=l.sale_id WHERE m.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?) ORDER BY s.created_at LIMIT 1",
           query.movement, actor.companyId, actor.branchId, actor.branchId)
       : null;
-    const data = await posWorkspace(actor, typeof query.sale === "string" ? query.sale : movement ? String(movement.sale_id) : undefined, typeof query.q === "string" ? query.q : "", typeof query.tab === "string" ? query.tab : "sale", typeof query.cursor === "string" ? query.cursor : undefined, true);
-    content = <PosConsole initial={data} base={base} erpBase={workspace} initialTab={typeof query.tab === "string" ? query.tab : undefined} frontMode frontHref={frontHref} commandScopeKey={localPath} />;
+    const dailyTabs = [["sale", "pos.sell"], ["kitchen", "pos.kitchen"], ["shifts", "pos.sell"], ["history", "pos.read"]].filter(([tab, permission]) => hasPermission(actor, permission) || (tab === "shifts" && hasPermission(actor, "pos.approve"))).map(([tab]) => tab);
+    const posTab = typeof query.tab === "string" && dailyTabs.includes(query.tab) ? query.tab : dailyTabs[0] ?? "history";
+    const data = await posWorkspace(actor, typeof query.sale === "string" ? query.sale : movement ? String(movement.sale_id) : undefined, typeof query.q === "string" ? query.q : "", posTab, typeof query.cursor === "string" ? query.cursor : undefined, true);
+    content = <PosConsole initial={data} base={base} erpBase={workspace} initialTab={posTab} frontMode frontHref={frontHref} commandScopeKey={localPath} />;
+  } else if (explicitSection === "dashboard" && !query.property) {
+    const data = await pmsHome(actor);
+    content = <>
+      <FrontPmsNavigation href={frontHref} section="dashboard" permissions={["pms.read","pms.reservations","pms.frontdesk","pms.housekeeping","pms.inspect","pms.maintenance","pms.cashier","pms.audit"].filter(permission=>hasPermission(actor,permission))} />
+      <PmsToday initial={data} api={`/api/v1/front/${encodeURIComponent(holdingSlug)}/${encodeURIComponent(companySlug)}/pms/home`} frontHref={frontHref} erpBase={workspace.replace(/\/$/,"")} branchId={actor.branchId}/>
+    </>;
   } else {
     const section = explicitSection;
-    const data = await pmsWorkspace(actor, typeof query.property === "string" ? query.property : undefined, section === "night-audit", true);
+    const data = await pmsWorkspace(actor, typeof query.property === "string" ? query.property : undefined, section === "night-audit", true,
+      section === "dashboard" ? { view: "dashboard" } : undefined);
     const sectionPermissions: Record<string, Array<(typeof data.permissions)[number]>> = {
       dashboard: ["pms.read"],
       reservations: ["pms.reservations"],
@@ -186,17 +202,23 @@ export default async function FrontAppPage({
       ? new Set((await companyFeatureCatalogue(actor)).filter((item) => ["Available", "Pilot", "Setup required"].includes(item.state)).map((item) => item.id))
       : null;
     content = <>
-      <FrontPmsNavigation href={frontHref} section={section} permissions={data.permissions} />
-      <PmsWorkspaceView initial={data} base={base} section={section} frontHref={frontHref} initialQueue={query.queue === "arrivals" || query.queue === "departures" ? query.queue : undefined} selectedFolio={typeof query.folio === "string" ? query.folio : undefined} crossLinks={pmsCrossLinks(actor, enabled ?? undefined)} frontMode />
+      <FrontPmsNavigation href={frontHref} section={section} permissions={data.permissions} propertyId={data.snapshot?.property.id} />
+      <PmsWorkspaceView initial={data} base={base} erpBase={workspace} section={section} frontHref={frontHref} selectedRecord={typeof query.record === "string" ? query.record : undefined} initialQueue={query.queue === "arrivals" || query.queue === "departures" ? query.queue : undefined} selectedFolio={typeof query.folio === "string" ? query.folio : undefined} crossLinks={pmsCrossLinks(actor, enabled ?? undefined)} frontMode />
     </>;
   }
   const quickAccessItems = frontActionItems(app, actor, frontHref);
   const quickAccessPreference = await readQuickAccessPreferences(entry.userId, "front-" + app, entry.companyId);
-  return <FrontAppShell holdingSlug={holdingSlug} companySlug={companySlug} companyId={entry.companyId} companyName={entry.companyName} shortName={entry.shortName} accentColor={entry.accentColor} logoAttachmentId={entry.logoPublicationId??entry.logoAttachmentId} app={app} standalone={standalone} frontLocation={localPath} locationName={actor.scope.kind === "branch" ? actor.scope.branchName : actor.scope.kind === "department" ? actor.scope.departmentName : entry.companyName} userId={entry.userId} initialLanguage={language} quickAccess={{
+  const money = await moneyContext(actor);
+  return <FrontAppShell holdingSlug={holdingSlug} companySlug={companySlug} companyId={entry.companyId} companyName={entry.companyName} shortName={entry.shortName} accentColor={entry.accentColor} logoAttachmentId={entry.logoPublicationId??entry.logoAttachmentId} app={app} standalone={standalone} erpHref={workspace} frontLocation={localPath} locationName={actor.scope.kind === "branch" ? actor.scope.branchName : actor.scope.kind === "department" ? actor.scope.departmentName : entry.companyName} userId={entry.userId} initialLanguage={language} initialTheme={appearancePreference(cookieStore.get("erpx_appearance")?.value)} money={money} moneyApiBase={`/api/v1${workspaceBase(publicScope(actor))}`} quickAccess={{
     items: quickAccessItems,
     preference: quickAccessPreference,
     defaultIds: quickAccessItems.slice(0, 6).map((item) => item.id),
     endpoint: "/api/v1/front/" + encodeURIComponent(holdingSlug) + "/" + encodeURIComponent(companySlug) + "/" + app + "/quick-access",
+  }} workRole={{
+    endpoint: "/api/v1/front/" + encodeURIComponent(holdingSlug) + "/" + encodeURIComponent(companySlug) + "/" + app + "/roles",
+    assignmentId: actor.assignmentId,
+    revision: actor.authority!.revision,
+    options: frontRoles.options.map(option => ({ id: option.id, label: option.label ?? option.role.replaceAll("_", " ") })),
   }}>
     <WorkContextBoundary base={workspace} companyId={actor.companyId} assignmentId={actor.assignmentId} revision={actor.authority!.revision} frontApp={app} frontLocation={selectedLocation} frontRoleEndpoint={"/api/v1/front/" + encodeURIComponent(holdingSlug) + "/" + encodeURIComponent(companySlug) + "/" + app}>
       {content}

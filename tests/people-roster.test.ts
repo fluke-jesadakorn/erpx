@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "./runtime-env";
 import { seedExpenseCompany } from "../fixtures/expenses/company";
-import { rosterCommand, rosterData, rosterNotificationLink } from "../src/server/people-roster";
+import { escalateRosterCoverage, rosterCommand, rosterData, rosterNotificationLink } from "../src/server/people-roster";
 import { rosterMonday, addDays } from "../src/lib/people-roster";
 import { rosterPositionExitStatements } from "../src/server/roster-position-exit";
 import type { WorkContext } from "../src/server/authorization";
@@ -47,6 +47,25 @@ beforeEach(async () => {
   await db.prepare("INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,roster_required,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,1,'fixture',1,1)")
     .bind(id,f.company,f.branch,f.department,"Roster staff",`${f.company}-level-1`).run();
   await db.prepare("UPDATE hr_engagements SET position_id=? WHERE person_id=ANY(?::text[])").bind(id,`{${[person(f.claimant),person(f.tie)].join(',')}}`).run();
+});
+
+it("keeps roster reads side-effect free and deduplicates scheduled coverage alerts", async () => {
+  await read();
+  const count = () => db.prepare("SELECT count(*)::int n FROM staff_notifications WHERE record_type='roster_coverage'").first<{ n: number }>();
+  expect((await count())?.n).toBe(0);
+  expect((await escalateRosterCoverage(db, monday)).missing).toBeGreaterThan(0);
+  const sent = (await count())?.n;
+  expect(sent).toBeGreaterThan(0);
+  await escalateRosterCoverage(db, monday);
+  expect((await count())?.n).toBe(sent);
+});
+
+it("reports coverage gaps for shift staff whose account is not linked yet", async () => {
+  await db.prepare("UPDATE hr_people SET user_id=NULL WHERE id=?").bind(person(f.tie)).run();
+  const w = await createWeek();
+  await addShift(w.id, [f.claimant]);
+  const version = (await db.prepare("SELECT version FROM people_roster_weeks WHERE id=?").bind(w.id).first<{ version: number }>())!.version;
+  await expect(command({ action: "week.publish", id: w.id, expectedVersion: version })).rejects.toMatchObject({ code: "ROSTER_COVERAGE" });
 });
 
 it("keeps drafts private and publishes copied templates without changing their snapshots", async () => {
@@ -192,6 +211,14 @@ it("includes staff who start midweek in publication coverage", async () => {
   await addShift(w.id,[f.claimant],addDays(monday,3));
   version=(await db.prepare("SELECT version FROM people_roster_weeks WHERE id=?").bind(w.id).first<{version:number}>())!.version;
   await command({action:"week.publish",id:w.id,expectedVersion:version});
+});
+it("includes a weekend-only engagement in its partial first week", async () => {
+  await db.prepare("UPDATE hr_engagements SET start_date=?,end_date=? WHERE person_id=?")
+    .bind(addDays(monday,5),addDays(monday,6),person(f.tie)).run();
+  const w=await createWeek();
+  await addShift(w.id,[f.claimant]);
+  const version=(await db.prepare("SELECT version FROM people_roster_weeks WHERE id=?").bind(w.id).first<{version:number}>())!.version;
+  await expect(command({action:"week.publish",id:w.id,expectedVersion:version})).rejects.toMatchObject({code:"ROSTER_COVERAGE"});
 });
 it("releases future assignments and closes pending requests with a Position exit", async () => {
   const s=await setup();

@@ -11,6 +11,8 @@ import { publishPost,savePostDraft } from "./social-home";
 import { readablePost,sourceGuard } from "./social-source";
 import { staffPeople } from "./staff-policy";
 import { getTask } from "./staff-tasks";
+import { readablePmsSource, pmsSourceRecipients } from "./pms/source";
+import { pmsSourcesSql, pmsSourceReadableSql } from "./pms/source-policy";
 import type { SqlDatabase } from "./runtime/types";
 import type { WorkSnapshot } from "./work-items";
 
@@ -18,7 +20,8 @@ export type HandoverView={date:string;ownerKey:string;items:HandoverItem[];defau
   people:{id:string;name:string}[];unavailable:boolean;reason:string|null};
 export const handoverPublishSchema=z.object({
   date:z.iso.date(),body:z.string().trim().min(1).max(3000),
-  sources:z.array(z.object({id:z.string().min(1).max(160),sourceVersion:z.number().int().positive()})).min(1).max(5),
+  sources:z.array(z.object({id:z.string().min(1).max(160),sourceVersion:z.number().int().positive(),
+    kind:z.enum(["staff_task","pms_record"]).default("staff_task")})).min(1).max(5),
   recipientIds:z.array(z.string().min(1).max(160)).min(1).max(20),
 }).strict().superRefine((input,context)=>{
   if(new Set(input.sources.map(item=>item.id)).size!==input.sources.length)
@@ -37,30 +40,35 @@ function peopleInScope(actor:WorkContext,people:Awaited<ReturnType<typeof staffP
 export async function handoverView(db:SqlDatabase,actor:WorkContext,snapshot:WorkSnapshot,
   now=Date.now()):Promise<HandoverView>{
   const date=bangkokToday(now);
-  const tasks=snapshot.items.filter(item=>item.type==="staff_task"&&item.status!=="cancelled"&&item.status!=="draft");
-  const [plan,people]=await Promise.all([
-    readDailyPlan(db,actor,date,snapshot),staffPeople(db,actor.companyId),
+  const tasks=snapshot.items.filter(item=>["staff_task","pms"].includes(item.type)&&item.status!=="cancelled"&&item.status!=="draft");
+  const [plan,people,pmsPeople]=await Promise.all([
+    readDailyPlan(db,actor,date,snapshot),staffPeople(db,actor.companyId),pmsSourceRecipients(db,actor),
   ]);
   const planned=new Set(plan.items.filter(item=>item.type==="staff_task").map(item=>item.id));
-  const ids=tasks.map(item=>item.id),versions=ids.length?(await db.prepare(`SELECT t.id,t.version FROM staff_tasks t
+  const ids=tasks.filter(item=>item.type==="staff_task").map(item=>item.id),versions=ids.length?(await db.prepare(`SELECT t.id,t.version FROM staff_tasks t
     WHERE t.company_id=? AND t.id IN (${ids.map(()=>"?").join(",")})
     AND NOT EXISTS(SELECT 1 FROM social_task_origins o WHERE o.task_id=t.id)`)
     .bind(actor.companyId,...ids).all<{id:string;version:number}>()).results:[];
   const byId=new Map(versions.map(item=>[item.id,Number(item.version)]));
+  for(const item of tasks.filter(item=>item.type==="pms")){
+    try{const source=await readablePmsSource(db,actor,item.id);byId.set(item.id,Number(source.version));}
+    catch(cause){if(!(cause instanceof ApiError&&cause.status===404))throw cause;}
+  }
   const midnight=Date.parse(`${date}T00:00:00Z`)-7*60*60_000;
   const items: HandoverItem[]=tasks.flatMap(item=>{
     const sourceVersion=byId.get(item.id);if(!sourceVersion)return [];
     const kind=handoverKind(item);
     if(kind==="completed"&&item.updatedAt<midnight&&!planned.has(item.id))return [];
     return [{id:item.id,title:item.title,status:item.status,updatedAt:item.updatedAt,href:item.href,
-      nextAction:item.nextAction,blocker:item.blocker,kind,planned:planned.has(item.id),sourceVersion}];
+      nextAction:item.nextAction,blocker:item.blocker,kind,planned:planned.has(item.id),sourceVersion,
+      sourceKind:item.type==="pms"?"pms_record" as const:"staff_task" as const}];
   }).sort((a,b)=>Number(b.planned)-Number(a.planned)||
     Number(b.kind==="blocked")-Number(a.kind==="blocked")||b.updatedAt-a.updatedAt).slice(0,30);
-  const unavailable=snapshot.unavailableSources.includes("Tasks")||items.length===0;
+  const unavailable=items.length===0;
   const suggested=items.filter(item=>item.planned||item.kind==="blocked"||item.kind==="completed");
   return {date,ownerKey:JSON.stringify([actor.companyId,actor.userId]),items,defaultIds:(suggested.length?suggested:items.slice(0,3))
-    .slice(0,5).map(item=>item.id),people:peopleInScope(actor,people).map(person=>({id:person.user_id,name:person.legal_name})),
-    unavailable,reason:snapshot.unavailableSources.includes("Tasks")?"Tasks are temporarily unavailable. Try again when they return."
+    .slice(0,5).map(item=>item.id),people:[...new Map([...peopleInScope(actor,people).map(person=>({id:person.user_id,name:person.legal_name})),...pmsPeople].map(person=>[person.id,person])).values()],
+    unavailable,reason:unavailable&&snapshot.unavailableSources.includes("Tasks")?"Tasks are temporarily unavailable. Try again when they return."
       :items.length===0?"No readable task work is available for a handover yet.":null};
 }
 
@@ -71,9 +79,10 @@ export async function publishHandover(db:SqlDatabase,actor:WorkContext,snapshot:
   const existing=await db.prepare(`SELECT body,participants_json,sources_json,published_post_id FROM social_post_drafts
     WHERE id=? AND company_id=? AND author_id=?`).bind(`post-draft-${key}`,actor.companyId,actor.userId)
     .first<{body:string;participants_json:string;sources_json:string;published_post_id:string|null}>();
-  const sources=input.sources.map(item=>({kind:"staff_task" as const,id:item.id}));
+  const sources=input.sources.map(item=>({kind:item.kind,id:item.id,...(item.kind==="pms_record"?{version:item.sourceVersion}:{})}));
   const recipients=[...input.recipientIds].sort();
   if(existing?.published_post_id){
+    await readablePost(db,actor,existing.published_post_id);
     const storedRecipients=(JSON.parse(existing.participants_json) as string[]).sort();
     const storedSources=JSON.parse(existing.sources_json) as typeof sources;
     if(existing.body!==input.body||JSON.stringify(storedRecipients)!==JSON.stringify(recipients)||
@@ -81,12 +90,24 @@ export async function publishHandover(db:SqlDatabase,actor:WorkContext,snapshot:
       throw new ApiError(409,"IDEMPOTENCY_CONFLICT","This publish key was already used for another handover.");
     return {id:existing.published_post_id,version:1};
   }
-  if(snapshot.unavailableSources.includes("Tasks"))throw new ApiError(503,"HANDOVER_SOURCE_UNAVAILABLE","Tasks are temporarily unavailable.");
+  if(input.sources.some(source=>source.kind==="staff_task")&&snapshot.unavailableSources.includes("Tasks"))throw new ApiError(503,"HANDOVER_SOURCE_UNAVAILABLE","Tasks are temporarily unavailable.");
   const visible=new Set(snapshot.items.filter(item=>item.type==="staff_task").map(item=>item.id));
-  const people=peopleInScope(actor,await staffPeople(db,actor.companyId));
-  const eligible=new Set(people.map(person=>person.user_id));
+  const pmsOnly=input.sources.every(source=>source.kind==="pms_record");
+  const eligible=new Set(pmsOnly?(await pmsSourceRecipients(db,actor)).map(person=>person.id)
+    :[...peopleInScope(actor,await staffPeople(db,actor.companyId)).map(person=>person.user_id),...(await pmsSourceRecipients(db,actor)).map(person=>person.id)]);
   if(recipients.some(id=>!eligible.has(id)))throw new ApiError(403,"HANDOVER_RECIPIENT_UNAVAILABLE","Choose current colleagues within your work scope.");
   for(const source of input.sources){
+    if(source.kind==="pms_record") {
+      const item=await readablePmsSource(db,actor,source.id);
+      if(Number(item.version)!==source.sourceVersion)throw new ApiError(409,"HANDOVER_SOURCE_CHANGED","Selected hotel work changed. Refresh before publishing.");
+      for(const recipientId of recipients) {
+        const accessible=await db.prepare(`SELECT 1 FROM (${pmsSourcesSql}) pr CROSS JOIN (SELECT ?::text user_id) recipient
+          WHERE pr.id=? AND pr.company_id=? AND ${pmsSourceReadableSql("pr","recipient.user_id")}`)
+          .bind(recipientId,source.id,actor.companyId).first();
+        if(!accessible)throw new ApiError(403,"HANDOVER_RECIPIENT_ACCESS","A colleague cannot open every linked hotel item. Choose another recipient or fewer items.");
+      }
+      continue;
+    }
     if(!visible.has(source.id))throw new ApiError(403,"HANDOVER_SOURCE_UNAVAILABLE","A selected task is no longer available to you.");
     const task=await getTask(db,actor,source.id);
     if(Number(task.version)!==source.sourceVersion)throw new ApiError(409,"HANDOVER_SOURCE_CHANGED","A selected task changed. Refresh the handover before publishing.");

@@ -1,11 +1,14 @@
 import { FeaturePage } from "@/components/features/feature-page";
 import { FinanceWorkspace, financeStyles as styles } from "@/components/finance/finance-workspace";
-import { minorToDecimal } from "@/lib/finance-money";
+import { formatMoneyUnits } from "@/lib/company-money";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { financeWorkbench } from "@/server/finance-workspace";
 import Link from "next/link";
 import { pageError } from "@/server/page-error";
+import { FinanceToday } from "@/components/finance/finance-today";
+import { financeWorkspaceV2Enabled } from "@/server/finance-presentation";
+import { workSnapshot } from "@/server/work-items";
 
 export const dynamic = "force-dynamic";
 
@@ -16,11 +19,17 @@ const roleDescription = (data: Awaited<ReturnType<typeof financeWorkbench>>) => 
   return "Financial status and records available to review";
 };
 
-export default async function FinanceWorkbenchPage({ params }: { params: Promise<{ holdingSlug: string }> }) {
+export default async function FinanceWorkbenchPage({ params, searchParams }: { params: Promise<{ holdingSlug: string }>; searchParams: Promise<{ view?: string; q?: string; page?: string }> }) {
   const holdingSlug = (await params).holdingSlug;
   const actor = await requireWorkContext(holdingSlug);
   const base = workspaceBase(publicScope(actor));
   const data = await financeWorkbench(actor).catch(error => pageError(error, holdingSlug));
+  if (financeWorkspaceV2Enabled()) {
+    const query = await searchParams;
+    const view = query.view === "waiting" || query.view === "team" ? query.view : "actions";
+    const work = await workSnapshot(actor).catch(error => pageError(error, holdingSlug));
+    return <FeaturePage className="content-stack" data-source="live" data-module="finance"><FinanceWorkspace base={base} active="work" title="Finance today" description={roleDescription(data)} actions={data.canPrepare ? <Link className="button" href={`${base}/finance/invoices?kind=receivable&new=1`}>Add document</Link> : undefined}><FinanceToday base={base} attention={data.attention} work={work} view={view} query={query.q ?? ""} page={Number(query.page ?? 1)}/></FinanceWorkspace></FeaturePage>;
+  }
   return <FeaturePage className="content-stack" data-source="live" data-module="finance">
     <FinanceWorkspace base={base} active="work" title="My finance work" description={roleDescription(data)} actions={data.canPrepare ? <Link className="button" href={`${base}/finance/invoices?new=1`}>Add document</Link> : undefined}>
       <section className={styles.hero}>
@@ -32,7 +41,7 @@ export default async function FinanceWorkbenchPage({ params }: { params: Promise
         <div className={styles.grid}>
           {data.attention.map(item => <Link className={styles.queue} data-tone={item.tone} href={`${base}/${item.href}`} key={item.id}>
             <div><span className="eyebrow">{item.label}</span><p>{item.description}</p></div>
-            <footer><strong>{item.count}</strong>{item.amountMinor !== null && item.amountMinor > 0 ? <small>{item.currency} {minorToDecimal(item.amountMinor)}</small> : <small>Open records →</small>}</footer>
+            <footer><strong>{item.count}</strong>{item.amounts?.length?<small>{item.amounts.map(amount=>formatMoneyUnits(String(amount.amountMinor),amount.currency,2)).join(" · ")}</small>:item.amountMinor !== null && item.amountMinor > 0 && item.currency ? <small>{formatMoneyUnits(String(item.amountMinor), item.currency, 2)}</small> : <small>Open records →</small>}</footer>
           </Link>)}
         </div>
       </section>

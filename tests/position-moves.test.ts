@@ -143,27 +143,33 @@ it("rolls back every employee and the position when a write fails mid-batch", as
   expect(await db.prepare("SELECT department_id,version FROM organization_positions WHERE id=?").bind(f.position).first()).toEqual({ department_id: f.department, version: 1 });
 });
 
-it("previews GPO additions, withdrawals and retained sources, then stops if reviewed policy semantics change", async () => {
+it("retains direct Position GPOs across a move, then stops if reviewed policy semantics change", async () => {
   const f = await fixture(), connection = key();
   await db.prepare("INSERT INTO iam_connections(id,company_id,name,provider,config,status,created_by,created_at) VALUES(?,?,'Move preview','active_directory','{}'::jsonb,'active',?,1)").bind(connection, f.company, f.owner.userId).run();
-  const rules = [
-    { id: key(), kind: "department", target: f.department, gpo: "shared" },
-    { id: key(), kind: "position", target: f.position, gpo: "shared" },
-    { id: key(), kind: "department", target: f.accountsDepartment, gpo: "new-team" },
-    { id: key(), kind: "department", target: f.department, gpo: "old-team" },
-  ];
+  const rules = [{ id: key(), kind: "position", target: f.position, gpo: "shared" }];
   for (const rule of rules) await db.prepare("INSERT INTO organization_gpo_rules(id,company_id,target_kind,target_id,version,revision,connection_id,gpo_id,user_filter_group_id,computer_target_ou_id,last_actor_id,last_reason,updated_at) VALUES(?,?,?,?,1,1,?,?,?,'computers',?,'Fixture reviewed policy',1)")
     .bind(rule.id, f.company, rule.kind, rule.target, connection, rule.gpo, `group-${rule.gpo}`, f.owner.userId).run();
   const input = f.move(), preview = await previewPositionMove(db, f.hr, input);
-  expect(preview.policyChanges.added.map(policy => policy.gpoId)).toEqual(["new-team"]);
-  expect(preview.policyChanges.removed.map(policy => policy.gpoId)).toEqual(["old-team"]);
+  expect(preview.policyChanges.added).toEqual([]);
+  expect(preview.policyChanges.removed).toEqual([]);
   expect(preview.policyChanges.retained).toHaveLength(1);
-  expect(preview.policyChanges.retained[0].beforeSources).toHaveLength(2);
+  expect(preview.policyChanges.retained[0].beforeSources).toHaveLength(1);
   expect(preview.policyChanges.retained[0].afterSources).toHaveLength(1);
   const submitted = await submitPositionMove(db, f.hr, input, preview.previewToken, preview.expiresAt, key());
-  await db.prepare("UPDATE organization_gpo_rules SET version=version+1,revision=revision+1,gpo_id='changed-policy' WHERE id=?").bind(rules[2].id).run();
+  await db.prepare("UPDATE organization_gpo_rules SET version=version+1,revision=revision+1,gpo_id='changed-policy' WHERE id=?").bind(rules[0].id).run();
   await drainPositionMoves(db, input.effectiveAt + 1);
   expect(await positionMoves(db, f.hr, String(submitted.id))).toMatchObject({ status: "needs_review" });
   expect(await db.prepare("SELECT department_id FROM organization_positions WHERE id=?").bind(f.position).first()).toEqual({ department_id: f.department });
   expect((await db.prepare("SELECT count(*) n FROM position_gpo_jobs WHERE company_id=?").bind(f.company).first<{ n: number }>())?.n).toBe(0);
+});
+
+it("allows HR to schedule a Position move while its GPO configuration is blocked", async () => {
+  const f=await fixture(),connection=key(),rule=key();
+  await db.prepare("INSERT INTO iam_connections(id,company_id,name,provider,config,status,created_by,created_at) VALUES(?,?,'Blocked GPO','active_directory','{}'::jsonb,'active',?,1)").bind(connection,f.company,f.owner.userId).run();
+  await db.prepare(`INSERT INTO organization_gpo_rules(id,company_id,target_kind,target_id,version,revision,connection_id,gpo_id,user_filter_group_id,computer_target_ou_id,directory_config_status,last_actor_id,last_reason,updated_at)
+    VALUES(?,?,'position',?,1,1,?,'gpo','group','ou','blocked',?,'Provider unavailable',1)`)
+    .bind(rule,f.company,f.position,connection,f.owner.userId).run();
+  const input=f.move(),preview=await previewPositionMove(db,f.hr,input);
+  expect(preview.ready).toBe(true);
+  expect((await submitPositionMove(db,f.hr,input,preview.previewToken,preview.expiresAt,key())).status).toBe("scheduled");
 });

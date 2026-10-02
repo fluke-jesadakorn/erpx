@@ -1,37 +1,27 @@
 import { BetaPeople } from "@/components/beta/people-page";
-import { FeaturePage, FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { FeaturePage, FeatureWidget, WidgetGrid } from "@/components/features/feature-page";
 import { MemberProfile } from "@/components/modules/member-profile";
-import { PayGroupEditor,PayrollRunEditor,PayrollAdvanceConsole } from "@/components/modules/payroll-controls";
 import { PeopleNavigation } from "@/components/modules/people-navigation";
 import { PeopleDirectory } from "@/components/people/people-directory";
 import { ListPagination } from "@/components/ui/list-pagination";
-import {
-EmptyState,
-PageHeader,
-StatusBadge,
-} from "@/components/ui/primitives";
-import styles from "@/components/workplace/pages.module.css";
+import { PageHeader } from "@/components/ui/primitives";
 import { PeopleEditor } from "@/components/workplace/work-editors";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope,requireWorkContext } from "@/server/authorization";
+import { pageError } from "@/server/page-error";
 import { organizationOverview } from "@/server/organization";
 import { canManagePeople,directoryOptions } from "@/server/people-directory";
 import { peopleDirectoryPage } from "@/server/people-directory-page";
 import { peopleLifecycleData } from "@/server/people-lifecycle";
-import {
-payrollOptions,
-payrollRunsPage,
-payrollAdvancePage,
-getPerson,
-} from "@/server/people-payroll";
+import { getPerson } from "@/server/people-payroll";
 import { holdingResources } from "@/server/runtime";
-import { isThaiHotelPayrollMockEnabled } from "@/server/simulation-only-adapters";
 import { staffSettings } from "@/server/staff-settings";
-import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
+import { forbidden, redirect } from "next/navigation";
 
 import directory from "./directory.module.css";
+import { PeopleOrganizationPage } from "./people-organization-page";
 
 export const dynamic = "force-dynamic";
 
@@ -51,45 +41,48 @@ export default async function PeoplePage({
     status?: string;
     level?: string;
     department?: string;
+    team?: string;
     view?: string;
     member?: string;
     position?:string;
     case?:string;
+    tab?: string;
+    edit?: string;
   }>;
 }) {
   const { holdingSlug } = await params;
   const actor = await requireWorkContext(holdingSlug);
-  const simulationPayroll = isThaiHotelPayrollMockEnabled(actor.holdingSlug);
   const search = await searchParams;
+  if (search.view === "payroll" && !actor.beta) redirect(`${workspaceBase(publicScope(actor))}/people/payroll`);
   if (actor.beta) return <BetaPeople actor={actor} member={search.member} />;
   const base = workspaceBase(publicScope(actor));
-  const canPayroll = ["holding_owner","hr_admin","people_manager","payroll_preparer","payroll_approver","finance_approver","auditor"].includes(actor.role) && !actor.branchId && !actor.departmentId;
-  const canPayrollAdvance = hasPermission(actor,"self.requests");
-  const payroll = process.env.NODE_ENV !== "production" && search.view === "payroll" && (canPayroll || canPayrollAdvance);
   const archived = search.status === "archived";
   const canManage = canManagePeople(actor);
-  const editing = !payroll && canManage && (search.new === "person" || !!search.position);
-  const editingSelectedPerson = !payroll && canManage && !!search.person;
-  const canExplore = !payroll && ["people.read","people.manage"].some(p=>hasPermission(actor,p));
+  if (!canManage && (archived || search.new === "person" || search.member || search.case)) forbidden();
+  // Preserve explicit legacy add-person, archived, linked-account, and case flows.
+  // The normal directory and all structure selections use the shared explorer.
+  if (!search.member && !search.case) {
+    return <PeopleOrganizationPage actor={actor} search={search} />;
+  }
+  const editing = canManage && search.new === "person";
+  const editingSelectedPerson = canManage && !!search.person;
+  const canExplore = ["people.read","people.manage"].some(p=>hasPermission(actor,p));
   const exploring = canExplore && search.display === "explorer";
   const { write } = await holdingResources(actor.holdingId);
-  const [directoryPage, runsPage, advanceData, staffOptions, nodes, organization, lifecycle, selectedPersonData] = await Promise.all([
-    !payroll ? peopleDirectoryPage(actor,{
+  const [directoryPage, staffOptions, nodes, organization, lifecycle, selectedPersonData] = await Promise.all([
+    peopleDirectoryPage(actor,{
       ...search,
       status: archived ? "archived" : "current",
       q: archived ? search["archived.q"] ?? search.q : search.q,
       retirement: archived ? search["archived.retirement"] ?? search.retirement : search.retirement,
       cursor: archived ? search["archived.cursor"] ?? search.cursor : search.cursor,
-    }) : null,
-    payroll && canPayroll ? payrollRunsPage(actor,search.cursor) : null,
-    payroll ? payrollAdvancePage(actor).catch(() => ({items:[],options:[]})) : null,
+    }),
     editing || editingSelectedPerson ? staffSettings(write,actor) : null,
     editing || editingSelectedPerson ? directoryOptions(actor) : [],
     editing || editingSelectedPerson ? organizationOverview(write,actor) : undefined,
-    !payroll && (editing || exploring || search.person || search.member || search.case) && ["people.manage","people.read","iam.read","organization.manage"].some(p=>hasPermission(actor,p)) ? peopleLifecycleData(write,actor) : null,
+    (editing || exploring || search.person || search.member || search.case) && ["people.manage","people.read","iam.read","organization.manage"].some(p=>hasPermission(actor,p)) ? peopleLifecycleData(write,actor) : null,
     editingSelectedPerson ? getPerson(actor, search.person!).catch(() => null) : null,
-  ]);
-  const runs=runsPage?.items??[];
+  ]).catch(error => pageError(error, holdingSlug));
   const selectedMember = directoryPage?.members.find(m=>m.id===search.member);
   return (
     <FeaturePage className="content" data-source="live">
@@ -97,11 +90,10 @@ export default async function PeoplePage({
         eyebrow="Your team"
         title="People"
         description="Manage people, positions, and employment changes. IT prepares their resources in Technology."
-        action={!payroll && !editing && canManage ? <Link className="button" href={`${base}/people?new=person`}>Add person</Link> : undefined}
+        action={!editing && canManage ? <Link className="button" href={`${base}/people?new=person`}>Add person</Link> : undefined}
       />
-      <PeopleNavigation base={base} actor={actor} scopeKind={actor.scope.kind} active={payroll ? "payroll" : "directory"} canPayroll={canPayroll || canPayrollAdvance}/>
-      {!payroll && (
-        <div className={directory.directory}>
+      <PeopleNavigation base={base} actor={actor} scopeKind={actor.scope.kind} active="directory"/>
+      <div className={directory.directory}>
           {selectedMember && !selectedMember.personId && (
             <MemberProfile actor={actor} base={base} member={selectedMember} />
           )}
@@ -152,65 +144,7 @@ export default async function PeoplePage({
           </WidgetGrid>
 
 
-        </div>
-      )}
-      {payroll && (
-        <WidgetGrid pageKey="people-payroll">
-          {simulationPayroll ? (
-            <p className="notice" role="note" data-payroll-adapter="mock">
-              Simulation only: deterministic fixture values test the payroll workflow. They are not Thai statutory calculations, and no real payment is made.
-            </p>
-          ) : (
-            <p className="notice">
-              Global payroll-core preview and controlled Finance GL posting are
-              available. Country-specific statutory calculations and bank/provider
-              execution remain separately gated.
-            </p>
-          )}
-          {hasPermission(actor,"payroll.prepare") &&
-            !actor.branchId && (
-              <><FeatureWidget id="payroll-pay-group-policy" title="Pay group policy"><PayGroupEditor base={base}/></FeatureWidget><FeatureWidget id="payroll-new-run" title="Create payroll run"><PayrollRunEditor
-                base={base}
-                groups={await payrollOptions(actor)}
-                simulationMode={simulationPayroll}
-              /></FeatureWidget></>
-          )}
-          {canPayroll && <FeatureWidget id="payroll-runs" title="Recent payroll runs"><section className="card" id="payroll-runs-content" style={{ marginTop: 24 }}>
-            <div className={styles.panelHead}>
-              <h2>Recent payroll runs</h2>
-              <span className="badge">{runs.length}</span>
-            </div>
-            {runs.length === 0 ? (
-              <EmptyState
-                title="No payroll runs"
-                description="Create a pay group and a preview run when your inputs are ready."
-              />
-            ) : (
-              runs.map((run) => (
-                <Link
-                  className="row"
-                  href={`${base}/people/payroll/${encodeURIComponent(String(run.id))}`}
-                  key={String(run.id)}
-                >
-                  <div className="row-main">
-                    <div className="row-title">
-                      {String(run.period_start)} → {String(run.period_end)}
-                    </div>
-                    <div className={styles.subline}>
-                      {String(run.currency)} · {String(run.mode)} ·{" "}
-                      {String(run.revision)} revision
-                    </div>
-                  </div>
-                  <StatusBadge status={String(run.status)} />
-                  <ArrowUpRight size={14} />
-                </Link>
-              ))
-            )}
-            {runsPage&&<ListPagination {...runsPage} query={search} count={runs.length}/>}
-          </section></FeatureWidget>}
-          <PayrollAdvanceConsole base={base} data={advanceData ?? {items:[],options:[]}} userId={actor.userId} canPrepare={hasPermission(actor,"payroll.prepare")} canApprove={hasPermission(actor,"payroll.approve")}/>
-        </WidgetGrid>
-      )}
+      </div>
     </FeaturePage>
   );
 }

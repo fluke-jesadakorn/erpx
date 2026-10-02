@@ -408,6 +408,7 @@ export type LegalDetail = {
   }[];
 };
 export type LegalData = {
+  workContext?: {companyId:string;branchId:string|null;departmentId:string|null;assignmentId:string;userId:string};
   enabled: boolean;
   items: LegalItem[];
   total: number;
@@ -417,3 +418,13 @@ export type LegalData = {
   userId: string;
   people: { id: string; name: string }[];
 };
+export const executedCopySchema=z.object({
+  approvedDocumentId:z.string().min(1),
+  signedDate:dateSchema,
+  parties:z.array(z.string().trim().min(1).max(300)).min(2).max(30),
+  signers:z.array(z.object({name:z.string().trim().min(1).max(300),party:z.string().trim().min(1).max(300),authorityDocumentIds:z.array(z.string().min(1)).min(1).max(20)}).strict()).min(1).max(30),
+  declaredPageCount:z.number().int().min(1).max(1000),
+  notes:z.string().max(4000).default(""),
+}).strict().refine(x=>x.signers.every(s=>x.parties.includes(s.party)),"Every signer must belong to a named party.");
+export type ExecutedCopyInput=z.infer<typeof executedCopySchema>;
+export type ExecutedCopy={id:string;item_id:string;document_id:string;approved_cycle:number;approved_document_id:string;approved_hash:string;executed_hash:string;metadata:ExecutedCopyInput;state:"pending_review"|"changes_required"|"confirmed";imported_by:string;imported_at:number;reviewed_by:string|null;reviewed_at:number|null;version:number};

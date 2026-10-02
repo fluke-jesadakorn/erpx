@@ -1,3 +1,4 @@
+import {aiRequestQuotaLock} from "./ai-quota";
 import type { SqlDatabase } from "./runtime/types";
 import { sha256 } from "./crypto";
 import { z } from "zod";
@@ -166,11 +167,12 @@ export async function createAiDraft(
     await db.batch([
       ...workContextGuards(db,actor,id),
       sourceGuard(db, id, source.post, actor.userId, "source"),
+      aiRequestQuotaLock(db,actor.companyId),
       assertion(
         db,
         id,
         "quota",
-        `(SELECT count(*) FROM social_ai_usage WHERE company_id=? AND month=?) + (SELECT count(*) FROM (SELECT company_id,month FROM expense_ai_usage UNION ALL SELECT company_id,month FROM request_ai_usage UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM ai_workspace_turns UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM executive_generation_jobs) WHERE company_id=? AND month=?) < COALESCE((SELECT ai_monthly_limit FROM beta_policy WHERE company_id=?),100) AND (SELECT count(*) FROM social_ai_usage WHERE company_id=? AND state='reserved' AND lease_until>?)<2 AND (SELECT count(*) FROM social_ai_usage WHERE actor_id=? AND created_at>?)<6`,
+        `(SELECT count(*) FROM social_ai_usage WHERE company_id=? AND month=?) + (SELECT count(*) FROM (SELECT company_id,month FROM expense_ai_usage UNION ALL SELECT company_id,month FROM request_ai_usage UNION ALL SELECT company_id,month FROM finance_ai_usage UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM ai_workspace_turns UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM executive_generation_jobs) WHERE company_id=? AND month=?) < COALESCE((SELECT ai_monthly_limit FROM beta_policy WHERE company_id=?),100) AND (SELECT count(*) FROM social_ai_usage WHERE company_id=? AND state='reserved' AND lease_until>?)<2 AND (SELECT count(*) FROM social_ai_usage WHERE actor_id=? AND created_at>?)<6`,
         [
           actor.companyId,
           month,

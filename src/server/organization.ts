@@ -13,6 +13,7 @@ import { reportingIssues, staffLevelTitles, type OrganizationOverview, type Orga
 import { canSeeDefaultPay, defaultCatalog } from "./staff-defaults";
 import { prepareAttachmentBinding } from "./attachments/service";
 import { rosterPositionExitStatements } from "./roster-position-exit";
+import { sha256 } from "./crypto";
 
 export const positionSchema = z.object({
   requirements: z.string().trim().max(3000).default(""),
@@ -29,6 +30,7 @@ export const organizationNodeChangeSchema=z.object({
   kind:z.enum(["branch","department"]),slug:z.string().trim().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).max(80).nullable().default(null),
   displayName:z.string().trim().min(2).max(120),branchId:z.string().min(1).nullable().default(null),
   expectedNodeVersion:z.number().int().positive().nullable().default(null),expectedVersion:z.number().int().min(0),reason:z.string().trim().min(3).max(1000),
+  previewSnapshot:z.string().regex(/^[a-f0-9]{64}$/).optional(),
 });
 export const organizationNodeDecisionSchema=z.object({expectedVersion:z.number().int().positive(),decision:z.enum(["approve","reject"]),reason:z.string().trim().min(3).max(1000),attachmentSetIds:z.array(z.string().min(1)).max(20).optional()});
 const organizationChangeFiltersSchema=z.object({
@@ -66,6 +68,7 @@ export async function organizationOverview(db: SqlDatabase, actor: WorkContext, 
   const {people,positions} = await organizationRoster(db,actor.companyId);
   const visible = (p:{branch_id:string|null;department_id:string|null}) => (!actor.branchId || p.branch_id === actor.branchId) && (!actor.departmentId || p.department_id === actor.departmentId);
   const canManage = hasPermission(actor,"organization.manage");
+  const canReadHrDetails = hasPermission(actor,"people.manage");
   const canManageUnits = await canReadOrganizationChanges(db,actor);
   const nodes = (await db.prepare("SELECT id,kind,slug,display_name,branch_id,status,hierarchy_revision FROM organization_nodes WHERE company_id=? AND kind IN ('company','branch','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR kind!='department' OR id=?) ORDER BY status,display_name").bind(actor.companyId,actor.branchId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).all<OrganizationNode>()).results;
   const levels = (await db.prepare("SELECT id,name,level_number FROM staff_levels WHERE company_id=? AND active=1 AND level_number IS NOT NULL ORDER BY level_number").bind(actor.companyId).all<{id:string;name:string;level_number:number}>()).results;
@@ -92,7 +95,7 @@ export async function organizationOverview(db: SqlDatabase, actor: WorkContext, 
       return {action:e.action,actor_name:e.actor_name,version:e.version,created_at:e.created_at,reason:snapshot.reason??null};
     });}
   }
-  return {authorizedChannelNodes,spendingTemplate:canManage?await spendingTemplate(db,actor.companyId):undefined,canManageSpending:canManage&&actor.assignmentScope==="holding",positions:positions.filter(p=>(!actor.branchId||!p.branch_id||p.branch_id===actor.branchId)&&(!actor.departmentId||!p.department_id||p.department_id===actor.departmentId)),people:people.filter(visible).map(p=>({...p,issues:[...reportingIssues(p,people,positions),...managerIssues(p)]})),nodes,levels,templates,nodeChanges,changeQueue:{recordId:filters.changeId,state:filters.changeState,query:filters.changeQuery,page,pageSize,total,pages},actorId:actor.userId,canManage,canManageUnits,
+  return {authorizedChannelNodes,spendingTemplate:canManage?await spendingTemplate(db,actor.companyId):undefined,canManageSpending:canManage&&actor.assignmentScope==="holding",positions:positions.filter(p=>(!actor.branchId||!p.branch_id||p.branch_id===actor.branchId)&&(!actor.departmentId||!p.department_id||p.department_id===actor.departmentId)),people:people.filter(visible).map(p=>({...p,email:canReadHrDetails?p.email:null,start_date:canReadHrDetails?p.start_date:"",end_date:canReadHrDetails?p.end_date:null,issues:[...reportingIssues(p,people,positions),...managerIssues(p)]})),nodes,levels,templates,nodeChanges,changeQueue:{recordId:filters.changeId,state:filters.changeState,query:filters.changeQuery,page,pageSize,total,pages},actorId:actor.userId,canManage,canManageUnits,
     defaults:await defaultCatalog(db,actor),
     monthlyPayGroups:canSeeDefaultPay(actor)?(await db.prepare("SELECT id,name,currency FROM hr_pay_groups WHERE company_id=? AND status='active' AND frequency='monthly' ORDER BY name").bind(actor.companyId).all<{id:string;name:string;currency:string}>()).results:[],
   };
@@ -115,13 +118,19 @@ async function validateNodeChange(db:SqlDatabase,actor:WorkContext,input:z.infer
     if(!await db.prepare("SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'").bind(input.branchId,actor.companyId).first())throw new ApiError(422,"BRANCH_INVALID","Choose an active branch in this company.");
   }
   if(input.action!=="create"){
-    const node=await db.prepare("SELECT id,kind,display_name,branch_id,status,hierarchy_revision FROM organization_nodes WHERE id=? AND company_id=? AND kind IN ('branch','department')").bind(input.targetNodeId,actor.companyId).first<OrganizationNode>();
+    const node=await db.prepare("SELECT id,kind,slug,display_name,branch_id,status,hierarchy_revision FROM organization_nodes WHERE id=? AND company_id=? AND kind IN ('branch','department')").bind(input.targetNodeId,actor.companyId).first<OrganizationNode>();
     if(!node)throw new ApiError(404,"ORGANIZATION_NODE_NOT_FOUND","Organization unit not found.");
     if(node.kind!==input.kind||(!relocation&&node.branch_id!==input.branchId))throw new ApiError(422,"NODE_PLACEMENT_CHANGED","Reload the organization unit and review its placement.");
     if(relocation){
+      if(input.expectedVersion===0&&await db.prepare("SELECT 1 FROM organization_draft_reservations r WHERE r.company_id=? AND ((r.kind='position' AND EXISTS(SELECT 1 FROM organization_positions p WHERE p.id=r.entity_id AND p.company_id=r.company_id AND p.department_id=?)) OR (r.kind='person' AND EXISTS(SELECT 1 FROM hr_engagements e WHERE e.id=r.entity_id AND e.company_id=r.company_id AND e.department_id=?))) LIMIT 1").bind(actor.companyId,node.id,node.id).first())throw new ApiError(409,"ORGANIZATION_DRAFT_RESERVED","This department contains changes reserved by a confirmed organization draft.");
       if(node.kind!=="department")throw new ApiError(422,"RELOCATION_REQUIRES_DEPARTMENT","Only a department can be relocated between branches.");
       if(node.status!=="active")throw new ApiError(409,"NODE_STATE_CHANGED","Only an active department can be relocated.");
+      if(node.hierarchy_revision!==input.expectedNodeVersion)throw new ApiError(409,"NODE_VERSION_CHANGED","The department changed. Preview the relocation again.");
       if(node.branch_id===input.branchId)throw new ApiError(409,"RELOCATION_UNCHANGED","Choose a different active branch for relocation.");
+      if(await db.prepare("SELECT 1 FROM organization_nodes WHERE company_id=? AND parent_id=? AND status<>'archived' LIMIT 1").bind(actor.companyId,node.id).first())
+        throw new ApiError(409,"RELOCATION_HAS_CHILDREN","Move or archive the department's child units before relocating it.");
+      if(await db.prepare("SELECT 1 FROM organization_nodes WHERE company_id=? AND parent_id=? AND slug=? LIMIT 1").bind(actor.companyId,input.branchId,node.slug).first())
+        throw new ApiError(409,"RELOCATION_SLUG_CONFLICT","A department with this URL code already exists in the destination branch.");
     }else if(input.action==="suspend"&&node.status!=="active"||input.action==="archive"&&node.status!=="active"||input.action==="reactivate"&&!(["suspended","archived"] as string[]).includes(node.status))throw new ApiError(409,"NODE_STATE_CHANGED","The organization unit is already in the requested state.");
   }
 }
@@ -129,6 +138,10 @@ export async function saveOrganizationNodeChange(db:SqlDatabase,actor:WorkContex
   actor=requireCompanyOrganizationAuthority(actor);const recordId=id??`org-change-${key}`,operation=`organization.node-change.${submit?"submit":"save"}`;
   const prior=await replayCommand(db,actor,key,operation,recordId,input);if(prior)return prior;
   await validateNodeChange(db,actor,input);
+  if(input.action==="relocate" && input.previewSnapshot){
+    const currentSnapshot=await relocationSnapshot(db,actor.companyId,input.targetNodeId!);
+    if(currentSnapshot!==input.previewSnapshot)throw new ApiError(409,"ORGANIZATION_RELOCATION_CHANGED","The department's people, positions, or access assignments changed. Preview the move again.");
+  }
   const current=id?await db.prepare("SELECT * FROM organization_node_changes WHERE id=? AND company_id=?").bind(id,actor.companyId).first<OrganizationNodeChange>():null;
   if(id&&!current)throw new ApiError(404,"ORGANIZATION_CHANGE_NOT_FOUND","Organization change not found.");
   if(current&&current.requested_by!==actor.userId)throw new ApiError(403,"CHANGE_OWNER_REQUIRED","Only the requester can correct this organization change.");
@@ -156,6 +169,28 @@ const nodeImpactSql=`SELECT
 export async function organizationNodeImpact(db:SqlDatabase,companyId:string,nodeId:string){
   return (await db.prepare(nodeImpactSql).bind(companyId,nodeId,companyId,nodeId,nodeId,companyId,nodeId,nodeId,companyId,nodeId,companyId,nodeId).first<{child_nodes:number;staff:number;positions:number;assignments:number;warehouses:number}>())!;
 }
+async function relocationSnapshot(db:SqlDatabase,companyId:string,departmentId:string){
+  const [engagements,positions,assignments,rules,head,legacyHead,flow]=await Promise.all([
+    db.prepare("SELECT id,version,status FROM hr_engagements WHERE company_id=? AND department_id=? AND status IN ('draft','onboarding','active','suspended') ORDER BY id").bind(companyId,departmentId).all(),
+    db.prepare("SELECT id,version FROM organization_positions WHERE company_id=? AND department_id=? AND active=1 ORDER BY id").bind(companyId,departmentId).all(),
+    db.prepare("SELECT id,version FROM assignments WHERE company_id=? AND scope_kind='department' AND scope_node_id=? AND revoked_at IS NULL ORDER BY id").bind(companyId,departmentId).all(),
+    db.prepare("SELECT id,version FROM organization_gpo_rules WHERE company_id=? AND target_kind='department' AND target_id=? ORDER BY id").bind(companyId,departmentId).all(),
+    db.prepare("SELECT version,position_id,person_id,effective_at FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?").bind(companyId,departmentId).first(),
+    db.prepare("SELECT version,person_id FROM department_heads WHERE company_id=? AND department_id=?").bind(companyId,departmentId).first(),
+    db.prepare("SELECT id,version,steps_json FROM department_flow_versions WHERE company_id=? AND department_id=? ORDER BY version DESC LIMIT 1").bind(companyId,departmentId).first(),
+  ]);
+  return sha256(JSON.stringify({engagements:engagements.results,positions:positions.results,assignments:assignments.results,rules:rules.results,head,legacyHead,flow}));
+}
+export async function previewOrganizationNodeChange(db:SqlDatabase,actor:WorkContext,input:z.infer<typeof organizationNodeChangeSchema>){
+  actor=requireCompanyOrganizationAuthority(actor);
+  if(input.action!=="relocate" || input.kind!=="department")throw new ApiError(422,"RELOCATION_PREVIEW_REQUIRED","Choose a department relocation.");
+  await validateNodeChange(db,actor,input);
+  const [impact,previewSnapshot]=await Promise.all([
+    organizationNodeImpact(db,actor.companyId,input.targetNodeId!),
+    relocationSnapshot(db,actor.companyId,input.targetNodeId!),
+  ]);
+  return {impact,previewSnapshot,sourceBranchId:(await db.prepare("SELECT branch_id FROM organization_nodes WHERE id=? AND company_id=?").bind(input.targetNodeId,actor.companyId).first<{branch_id:string}>())?.branch_id ?? null,destinationBranchId:input.branchId};
+}
 export async function decideOrganizationNodeChange(db:SqlDatabase,actor:WorkContext,id:string,input:z.infer<typeof organizationNodeDecisionSchema>,key:string){
   actor=requireCompanyOrganizationAuthority(actor);const operation="organization.node-change.review";
   const prior=await replayCommand(db,actor,key,operation,id,input);if(prior)return prior;
@@ -164,6 +199,11 @@ export async function decideOrganizationNodeChange(db:SqlDatabase,actor:WorkCont
   if(change.state!=="submitted")throw new ApiError(409,"CHANGE_NOT_SUBMITTED","Only submitted organization changes can be reviewed.");
   if(samePerson(actor,change.requested_by)||(await db.prepare("SELECT iam_same_person(?,?,?) same_person").bind(actor.userId,change.requested_by,actor.companyId).first<{same_person:boolean}>())?.same_person)throw new ApiError(403,"INDEPENDENT_REVIEW_REQUIRED","Another company HR administrator must review this change.");
   if(change.version!==input.expectedVersion)throw new ApiError(409,"STALE_VERSION","The organization change was updated. Reload and review it again.");
+  if(input.decision==="approve" && change.action==="relocate"){
+    const submitted=await db.prepare("SELECT snapshot_json FROM organization_node_change_events WHERE change_id=? AND action='submitted' ORDER BY created_at DESC,id DESC LIMIT 1").bind(id).first<{snapshot_json:string}>();
+    const saved=JSON.parse(submitted?.snapshot_json ?? "{}") as {previewSnapshot?:string};
+    if(saved.previewSnapshot && saved.previewSnapshot!==await relocationSnapshot(db,actor.companyId,change.target_node_id!))throw new ApiError(409,"ORGANIZATION_RELOCATION_CHANGED","The department's people, positions, or access assignments changed. Ask HR to preview and submit the move again.");
+  }
   const now=Date.now(),version=change.version+1,state=input.decision==="approve"?"applied":"rejected";
   const attachmentSetIds=input.attachmentSetIds??[];
   let attachmentBinding:Awaited<ReturnType<typeof prepareAttachmentBinding>>|null=null;
@@ -189,14 +229,37 @@ export async function decideOrganizationNodeChange(db:SqlDatabase,actor:WorkCont
       }
       if(change.action==="relocate"){
         appliedNodeId=`org-node-${id}`;
+        const [head,legacyHead,flow]=await Promise.all([
+          db.prepare("SELECT version,position_id,person_id,effective_at FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?").bind(actor.companyId,change.target_node_id).first<{version:number;position_id:string|null;person_id:string|null;effective_at:number|null}>(),
+          db.prepare("SELECT version,person_id FROM department_heads WHERE company_id=? AND department_id=?").bind(actor.companyId,change.target_node_id).first<{version:number;person_id:string}>(),
+          db.prepare("SELECT id,version,steps_json FROM department_flow_versions WHERE company_id=? AND department_id=? ORDER BY version DESC LIMIT 1").bind(actor.companyId,change.target_node_id).first<{id:string;version:number;steps_json:unknown}>(),
+        ]);
         statements.push(
+          assertion(db,key,"relocation-destination-active","EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active')",[change.branch_id,actor.companyId]),
+          assertion(db,key,"relocation-no-children","NOT EXISTS(SELECT 1 FROM organization_nodes WHERE company_id=? AND parent_id=? AND status<>'archived')",[actor.companyId,change.target_node_id]),
+          assertion(db,key,"relocation-slug-available","NOT EXISTS(SELECT 1 FROM organization_nodes destination JOIN organization_nodes source ON source.id=? AND source.company_id=destination.company_id WHERE destination.company_id=? AND destination.parent_id=? AND destination.slug=source.slug)",[change.target_node_id,actor.companyId,change.branch_id]),
+          assertion(db,key,"relocation-head-unchanged",head
+            ? "EXISTS(SELECT 1 FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=? AND version=? AND position_id IS NOT DISTINCT FROM ? AND person_id IS NOT DISTINCT FROM ? AND effective_at IS NOT DISTINCT FROM ?)"
+            : "NOT EXISTS(SELECT 1 FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?)",
+          head?[actor.companyId,change.target_node_id,head.version,head.position_id,head.person_id,head.effective_at]:[actor.companyId,change.target_node_id]),
+          assertion(db,key,"relocation-legacy-head-unchanged",legacyHead
+            ? "EXISTS(SELECT 1 FROM department_heads WHERE company_id=? AND department_id=? AND version=? AND person_id=?)"
+            : "NOT EXISTS(SELECT 1 FROM department_heads WHERE company_id=? AND department_id=?)",
+          legacyHead?[actor.companyId,change.target_node_id,legacyHead.version,legacyHead.person_id]:[actor.companyId,change.target_node_id]),
+          assertion(db,key,"relocation-flow-unchanged",flow
+            ? "(SELECT id FROM department_flow_versions WHERE company_id=? AND department_id=? ORDER BY version DESC LIMIT 1)=? AND EXISTS(SELECT 1 FROM department_flow_versions WHERE id=? AND company_id=? AND department_id=? AND version=? AND steps_json=?::jsonb)"
+            : "NOT EXISTS(SELECT 1 FROM department_flow_versions WHERE company_id=? AND department_id=?)",
+          flow?[actor.companyId,change.target_node_id,flow.id,flow.id,actor.companyId,change.target_node_id,flow.version,typeof flow.steps_json==="string"?flow.steps_json:JSON.stringify(flow.steps_json)]:[actor.companyId,change.target_node_id]),
           db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) SELECT ?,kind,slug,?,?,company_id,?,'active',1 FROM organization_nodes WHERE id=? AND company_id=?").bind(appliedNodeId,change.display_name,change.branch_id,change.branch_id,change.target_node_id,actor.companyId),
           db.prepare("UPDATE organization_nodes SET status='archived',hierarchy_revision=hierarchy_revision+1 WHERE id=? AND company_id=?").bind(change.target_node_id,actor.companyId),
           db.prepare("UPDATE hr_engagements SET branch_id=?,department_id=?,updated_at=? WHERE company_id=? AND department_id=? AND status IN ('draft','onboarding','active','suspended')").bind(change.branch_id,appliedNodeId,now,actor.companyId,change.target_node_id),
           db.prepare("UPDATE employees SET branch_id=?,department_id=? WHERE company_id=? AND department_id=? AND status='active'").bind(change.branch_id,appliedNodeId,actor.companyId,change.target_node_id),
           db.prepare("UPDATE organization_positions SET branch_id=?,department_id=?,updated_at=? WHERE company_id=? AND department_id=? AND active=1").bind(change.branch_id,appliedNodeId,now,actor.companyId,change.target_node_id),
-          db.prepare("UPDATE organization_gpo_rules SET target_id=?,version=version+1,revision=revision+1,updated_at=?,last_reason='Department relocated',last_actor_id=? WHERE company_id=? AND target_kind='department' AND target_id=?").bind(appliedNodeId,now,actor.userId,actor.companyId,change.target_node_id),
           db.prepare("UPDATE assignments SET branch_id=?,scope_node_id=?,version=version+1 WHERE company_id=? AND scope_kind='department' AND scope_node_id=? AND revoked_at IS NULL").bind(change.branch_id,appliedNodeId,actor.companyId,change.target_node_id),
+          db.prepare("INSERT INTO authority_seats(company_id,kind,scope_id,version,position_id,person_id,effective_at) SELECT company_id,kind,?,1,position_id,person_id,effective_at FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?").bind(appliedNodeId,actor.companyId,change.target_node_id),
+          db.prepare("INSERT INTO authority_appointments(id,company_id,kind,scope_id,version,position_id,person_id,effective_at,appointed_by,reason,provenance,source_reference,command_id,created_at) SELECT ?,company_id,'head',?,1,position_id,person_id,COALESCE(effective_at,?::bigint),?,'Carried forward during department relocation','explicit',?,?,? FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?").bind(`appointment-relocated-${id}`,appliedNodeId,now,actor.userId,change.target_node_id,`appointment-relocated-${id}`,now,actor.companyId,change.target_node_id),
+          db.prepare("INSERT INTO department_heads(department_id,company_id,person_id,version,updated_by,updated_at) SELECT ?,company_id,person_id,1,?,?::bigint FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=? AND person_id IS NOT NULL UNION ALL SELECT ?,legacy.company_id,legacy.person_id,1,?,?::bigint FROM department_heads legacy WHERE legacy.company_id=? AND legacy.department_id=? AND NOT EXISTS(SELECT 1 FROM authority_seats s WHERE s.company_id=legacy.company_id AND s.kind='head' AND s.scope_id=legacy.department_id)").bind(appliedNodeId,actor.userId,now,actor.companyId,change.target_node_id,appliedNodeId,actor.userId,now,actor.companyId,change.target_node_id),
+          db.prepare("INSERT INTO department_flow_versions(id,company_id,department_id,version,steps_json,published_by,reason,command_id,created_at) SELECT ?,company_id,?,1,steps_json,?,'Carried forward during department relocation',?,? FROM department_flow_versions WHERE company_id=? AND department_id=? ORDER BY version DESC LIMIT 1").bind(`department-flow-relocated-${id}`,appliedNodeId,actor.userId,`department-flow-relocated-${id}`,now,actor.companyId,change.target_node_id),
         );
       }else{
         const status=change.action==="suspend"?"suspended":change.action==="archive"?"archived":change.action==="reactivate"?"active":null;

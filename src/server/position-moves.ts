@@ -205,6 +205,9 @@ export async function drainPositionMoves(db: PostgresDatabase, now = Date.now())
         const prepared = await prepareMove(tx, actor, input, saved.expiresAt, row.id);
         if (!prepared.preview.ready || prepared.snapshotHash !== row.snapshot_hash) throw new ApiError(409, "POSITION_MOVE_REVIEW_CHANGED", prepared.preview.blockers.join(" ") || "Organization, holders or leave defaults changed. Preview the entire move again.");
         const candidate = prepared.candidate;
+        // The dated payroll cost assignment must use the reviewed move date
+        // even when a worker applies the move after its scheduled instant.
+        await tx.prepare("SELECT set_config('erpx.payroll_assignment_date',?,true)").bind(positionMoveDate(row.effective_at,input.timezone)).first();
         await tx.prepare("UPDATE organization_positions SET branch_id=?,department_id=?,level_id=?,reports_to_position_id=?,version=version+1,updated_at=? WHERE company_id=? AND id=?")
           .bind(candidate.branch_id, candidate.department_id, candidate.level_id, candidate.reports_to_position_id, now, row.company_id, candidate.id).run();
         for (const member of prepared.preview.people) {

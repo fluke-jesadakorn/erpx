@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useHydrated } from "@/components/ui/use-hydrated";
 import { useRecoverableDraft } from "@/components/ui/use-recoverable-draft";
 import { clearGuidedIntakeHandoff, readGuidedIntakeHandoff } from "@/lib/ai/guided-intake";
-import { formatUiDateTime } from "@/lib/ui-format";
+import { TimeText } from "@/components/time/time-preference-context";
 import { useStaffCommand } from "@/components/modules/staff-work-controls";
 import {
   serviceCategories,
@@ -682,14 +682,14 @@ export function RequestHistory({ detail, approverNames = {} }: { detail: Detail;
       <summary>Conversation and history</summary>
       {current&&detail.request.state==="awaiting_approval"&&<p>Current {current.stage?.replaceAll("_"," ")??"approval"} step: {approverNames[current.userId]??current.userId}</p>}
       {!!approval.route?.steps?.length&&<><p>Saved route at submission · {approval.route.steps.length} steps. Later policy changes do not change this route.</p><ol>{approval.route.steps.map((step,index)=><li key={index}>{index+1}. {step.stage?.replaceAll("_"," ")??"Approval"} · {approverNames[step.userId]??step.userId}{step.snapshot?.departmentPolicyVersion!==undefined&&<small className="muted"> · {step.snapshot.departmentPolicyId?`Department flow v${step.snapshot.departmentPolicyVersion}`:"Appointed department head"} · {step.snapshot.selector?.kind??"person"}{step.snapshot.rerouted?" · approver changed":""}</small>}</li>)}</ol></>}
-      {approval.decisions?.filter(decision=>decision.override).map((decision,index)=><p key={`override-${index}`}><strong>Decision on behalf of assigned approver:</strong> {approverNames[decision.originalApproverUserId??""]??decision.originalApproverUserId} → {approverNames[decision.actualApproverUserId??""]??decision.actualApproverUserId} · {decision.note}{decision.at?` · ${formatUiDateTime(decision.at)}`:""}</p>)}
+      {approval.decisions?.filter(decision=>decision.override).map((decision,index)=><p key={`override-${index}`}><strong>Decision on behalf of assigned approver:</strong> {approverNames[decision.originalApproverUserId??""]??decision.originalApproverUserId} → {approverNames[decision.actualApproverUserId??""]??decision.actualApproverUserId} · {decision.note}{decision.at?<> · <TimeText value={decision.at} /></>:""}</p>)}
       {detail.events.map((e) => (
         <article key={e.id} className={styles.history}>
           <strong>{e.action.replaceAll("-", " ")}</strong>
           <small className={styles.quiet}>
             {" "}
             ·{" "}
-            {formatUiDateTime(e.created_at)}
+            <TimeText value={e.created_at} />
           </small>
           {e.note && <p>{e.note}</p>}
           <small className={styles.quiet}>

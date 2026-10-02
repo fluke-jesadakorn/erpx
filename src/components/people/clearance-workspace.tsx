@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 
 import Link from "next/link";
 import { useRef, useState } from "react";
@@ -120,9 +121,7 @@ export function ClearanceWorkspace({
         </h2>
         <p>
           Access cutoff:{" "}
-          {new Date(data.case.effectiveAt).toLocaleString("en-GB", {
-            timeZone: data.case.timezone,
-          })}{" "}
+          <TimeText value={data.case.effectiveAt} />{" "}
           {data.case.timezone}. Pending tasks do not extend access.
         </p>
       </section>
@@ -218,7 +217,7 @@ export function ClearanceWorkspace({
               <>
                 <p className="muted">
                   Final-pay preview prepared:{" "}
-                  <Link href={`${base}/people/payroll/${task.finalPay.run_id}`}>
+                  <Link href={`${base}/people/payroll/runs/${encodeURIComponent(task.finalPay.run_id)}`}>
                     {String(task.finalPay.run_id)}
                   </Link>{" "}
                   · {String(task.finalPay.run_status)}
@@ -395,9 +394,7 @@ export function ClearanceWorkspace({
             {task.completed_at && (
               <small className="muted">
                 Recorded by {task.completed_by} ·{" "}
-                {new Date(task.completed_at).toLocaleString("en-GB", {
-                  timeZone: "Asia/Bangkok",
-                })}
+                <TimeText value={task.completed_at} />
               </small>
             )}
           </section>

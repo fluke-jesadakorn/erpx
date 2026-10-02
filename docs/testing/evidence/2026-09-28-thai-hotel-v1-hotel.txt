@@ -1,0 +1,41 @@
+# Thai Hotel v1 mock E2E evidence — 2026-09-28
+
+Scope: H002 (`riverside-lantern`) synthetic browser simulation. Each viewport ran against a separate isolated PostgreSQL simulation. This records mock system behavior; it is not hotel UAT, provider acceptance, or production approval.
+
+## Source fingerprint
+
+SHA-256 of the sorted per-file SHA-256 manifest for the hotel, PMS/POS and test inputs below: `061411e8efdd82817789d9c56ab9387b68b07a5976af99bcb077e5a16cd04ac4`.
+
+- `fixtures/hospitality/pilot-example.json`
+- `migrations/postgres/holding-write/0902_pms_charge_corrections.sql`
+- `src/app/front/[holdingSlug]/[companySlug]/[app]/[[...path]]/page.tsx`
+- `src/app/holdings/[holdingSlug]/pms/[[...section]]/page.tsx`
+- `src/components/pms/workspace.module.css`
+- `src/components/pms/workspace.tsx`
+- `src/components/pos/pos-console.tsx`
+- `src/components/pos/pos.module.css`
+- `src/lib/pms-model.ts`
+- `src/server/front-app.ts`
+- `src/server/hospitality-day-controls.ts`
+- `src/server/pms.ts`
+- `src/server/pos.ts`
+- `tests/e2e/thai-hotel-v1-hotel.spec.ts`
+- `tests/pms.test.ts`
+
+The simulation was prepared from these application/test inputs with Bun 1.2.17 and Node.js 24.20.0. The fingerprint excludes documentation and unrelated workspace changes.
+
+## Browser runs
+
+| Viewport | Run ID | Result | Cleanup |
+| --- | --- | --- | --- |
+| Desktop Chrome | `cf28ee8e3d84` | 1 passed, 0 failed, 0 skipped (43.7s) | Simulation process stopped; all run databases and files removed |
+| Pixel 7 mobile | `69bc54a95675` | 1 passed, 0 failed, 0 skipped (45.3s) | Simulation process stopped; all run databases and files removed |
+
+Command per run: `bun run test:e2e:local -- tests/e2e/thai-hotel-v1-hotel.spec.ts --project=<desktop|mobile>`. The test checks that the database is loopback-only and has the exact per-run H002 database name. Both isolated runs were destroyed after the result.
+
+## Verified flow
+
+- HOTEL-01: staff creates a dated, priced booking; housekeeping completes the arrival task; a separate inspector accepts the room; Front Desk assigns the room and checks in the guest. Reload/API checks confirm guest, reservation, stay, room, rate and open folio persisted. The mobile screenshot confirms the hotel heading lays out across the available width and the page does not exceed the viewport width.
+- HOTEL-02: cashier posts room charges and receives the correct stay payment; Front Desk checks the guest out; cashier records a fictional incorrect service charge after checkout and requests a correction; the pending request blocks Night Audit; an independent manager approves it; the reversal points to the original folio entry and creates exactly one posting per source/reversal. The corrected folio has zero due and advance, closes to a paid PMS invoice, the hotel cash shift closes with zero variance, journal batches balance, and the Night Audit worker completes and advances the business date.
+
+The passed rows are mock E2E evidence only. At the time of these HOTEL runs, the capability registry was 66 `flow_accepted` of 187. Separate CRM Activities and Marketing Engagement evidence later raised the current count to 68; these HOTEL runs did not change the registry. See [later H002 mock flows](2026-09-28-thai-hotel-v1-flows.txt). HOTEL production/business acceptance remains pending a real hotel and Finance reviewer, real operating data, and the release build/configuration review.

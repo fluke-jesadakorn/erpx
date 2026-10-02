@@ -2,6 +2,7 @@ import { adminSections, type AdminSection } from "./administration";
 import { iamSections } from "./iam";
 import { hasPermission } from "./permissions";
 import { peopleIamDestination } from "./people-lifecycle";
+import { financeDestinationForRoute, financeNavigation, financeRootItems, financeSidebarId } from "./finance-navigation";
 
 export type NavigationScopeKind =
   | "platform"
@@ -16,6 +17,7 @@ export type NavigationContext = {
   frontPmsHref?: string;
   /** Effective company rollout, supplied by the server for production navigation. */
   availableAppIds?: readonly string[];
+  financeWorkspaceV2?: boolean;
   scopeKind?: NavigationScopeKind;
   beta?: boolean;
   role?: string;
@@ -74,6 +76,7 @@ export type NavigationItem = {
   href: string;
   group: string;
   icon: NavigationIconId;
+  openInNewTab?: boolean;
   keywords?: string[];
   /** Direct destinations nested under a sidebar module. */
   submodules?: NavigationItem[];
@@ -120,6 +123,8 @@ export function pmsSidebarHref(item: NavigationItem, pathname: string, searchPar
 
 export type NavigationResolution = {
   activeId: string;
+  /** Presentation-only parent selection; the destination still owns breadcrumbs. */
+  sidebarId?: string;
   groupId?: string;
   detailLabel?: string;
 };
@@ -197,12 +202,14 @@ export function workplaceNavigation(
     group: string,
     icon: NavigationIconId,
     keywords?: string[],
+    openInNewTab = false,
   ): NavigationItem => ({
     id,
     label,
     href: route.startsWith("/") ? route : `${base}/${route}`,
     group,
     icon,
+    ...(openInNewTab ? { openInNewTab: true } : {}),
     ...(keywords?.length ? { keywords } : {}),
   });
 
@@ -293,27 +300,11 @@ export function workplaceNavigation(
   }
 
   const peopleItems = [
-    item("people-directory", "People directory", "people", "People", "admin-people", ["employees", "staff", "profiles"]),
-    ...(!beta ? [item("people-roster", "Roster", "people/roster", "People", "routine", ["shifts", "schedule", "swap"])] : []),
-    item(
-      "people-organization",
-      "Organization & positions",
-      "people/organization",
-      "People",
-      "organization",
-      ["organization chart", "positions"],
-    ),
-    ...(scopeKind === "holding" &&
-    !beta &&
-    (holdingRolesWithPayroll.has(role) || hasPermission(actor, "payroll.read"))
+    item("people-directory", "People", "people", "People", "admin-people", ["employees", "staff", "profiles", "organization", "positions", "archived profiles", "roster", "shifts", "schedule", "HR settings", "leave policy", "pay groups"]),
+    ...(scopeKind === "holding" && !beta &&
+      (holdingRolesWithPayroll.has(role) || hasPermission(actor, "payroll.read") || hasPermission(actor, "payroll.payment.read"))
       ? [
-          item(
-            "people-payroll",
-            "Payroll",
-            "people?view=payroll",
-            "People",
-            "payroll",
-          ),
+          item("people-payroll", "Payroll", "people/payroll", "People", "payroll", ["salary", "wages", "social security", "pay runs", "current run"]),
         ]
       : []),
     ...(beta && hasPermission(actor, "iam.read")
@@ -332,9 +323,6 @@ export function workplaceNavigation(
       item("handbook", "Company handbook", "handbook", "People", "handbook", ["policies", "knowledge"]),
       item("learn", "Learn", "learn", "People", "education"),
     ] : []),
-    ...(!beta && (hasPermission(actor, "iam.read") || hasPermission(actor, "organization.manage"))
-      ? [item("people-settings", "People settings", "people/settings", "People", "settings", ["HR templates", "lifecycle handoff", "leave policy"])]
-      : []),
   ];
   group(
     "people",
@@ -499,7 +487,7 @@ export function workplaceNavigation(
 
   if (!beta && hasPermission(actor, "pos.read")) {
     group("pos", "POS", "commerce", "business", [
-      item("pos-front", "Open POS Front", context.frontPosHref ?? `${base}/pos`, "POS", "product", ["cashier", "sales floor"]),
+      item("pos-front", "Open POS Front", context.frontPosHref ?? `${base}/pos`, "POS", "product", ["cashier", "sales floor"], true),
       ...(hasPermission(actor, "pos.approve") ? [item("pos-approvals", "POS approvals", "pos?tab=history&queue=approval", "POS", "admin-approvals")] : []),
       ...(hasPermission(actor, "pos.reports") ? [item("pos-reports", "POS reports", "pos?tab=reports", "POS", "ledger")] : []),
       ...(hasPermission(actor, "pos.configure") || hasPermission(actor, "pos.payments.configure") ? [item("pos-settings", "POS settings", "pos?tab=settings", "POS", "settings")] : []),
@@ -508,7 +496,7 @@ export function workplaceNavigation(
 
   if (!beta && scopeKind !== "department" && hasPermission(actor,"pms.read")) {
     group("pms", "Hotel PMS", "pms", "business", [
-      item("pms-front", "Open PMS Front", context.frontPmsHref ?? `${base}/pms/dashboard`, "Hotel PMS", "pms", ["hotel", "reservation", "housekeeping", "rooms", "book room"]),
+      item("pms-front", "Open PMS Front", context.frontPmsHref ?? `${base}/pms/dashboard`, "Hotel PMS", "pms", ["hotel", "reservation", "housekeeping", "rooms", "book room"], true),
       ...(hasPermission(actor, "pms.approve") || hasPermission(actor, "finance.approve") ? [item("pms-approvals", "PMS approvals", "pms/folios?queue=approval", "Hotel PMS", "admin-approvals")] : []),
       ...(hasPermission(actor, "pms.reports") ? [item("pms-reports", "PMS reports", "pms/reports", "Hotel PMS", "ledger")] : []),
       ...(hasPermission(actor, "pms.configure") || hasPermission(actor, "pms.accounting.prepare") || hasPermission(actor, "pms.accounting.approve") ? [item("pms-settings", "PMS settings", "pms/settings", "Hotel PMS", "settings")] : []),
@@ -520,6 +508,7 @@ export function workplaceNavigation(
         item("finance-receivables", "Receivables", "finance/invoices?kind=receivable&queue=open", "Finance", "invoice", ["accounts receivable", "collections"]),
         item("finance-payables", "Payables", "finance/invoices?kind=payable&queue=open", "Finance", "invoice", ["accounts payable", "supplier invoices"]),
         item("finance-bank", "Cash & banking", "finance/bank", "Finance", "bank", ["bank statements", "cash", "reconciliation", "bank reconciliation"]),
+        ...(scopeKind!=="department"&&hasPermission(actor,"pms.reports")?[item("finance-hotels","Hotel accounting","finance/hotels","Finance","pms",["hotel receivables","PMS GL","advances","deposits"])]:[]),
         item(
           "finance-ledger",
           "Accounting",
@@ -529,6 +518,7 @@ export function workplaceNavigation(
           ["journals", "general ledger"],
         ),
         item("finance-close", "Period close", "finance/close", "Finance", "routine", ["period close", "close checklist"]),
+        item("finance-tax", "ภาษี", "finance/tax", "Finance", "ledger", ["VAT", "ภ.พ.30", "tax register"]),
         item("finance-reports", "Reports", "finance/reports", "Finance", "ledger", ["trial balance", "financial statements", "aging"]),
         item("finance-engines", "Calculation engines", "finance/engines", "Finance", "routine", ["cash flow", "statutory", "goodwill", "NCI", "equity method", "manufacturing costing"]),
         ...(scopeKind === "holding" ? [item("finance-group", "Group reporting", "finance/group", "Finance", "organization", ["consolidation", "intercompany", "NCI"])] : []),
@@ -542,7 +532,8 @@ export function workplaceNavigation(
           ["expense claims", "reimbursements"],
         ),
     ] : [];
-    group("finance", "Finance", "finance", "business", financeItems, financeItems[0]?.href, ["accounting"]);
+    const financeEntries = context.financeWorkspaceV2 ? financeNavigation(context) : financeItems;
+    group("finance", "Finance", "finance", "business", financeEntries, financeEntries[0]?.href, ["accounting"]);
   }
 
   if (!beta) {
@@ -664,8 +655,6 @@ export function workplaceNavigation(
       if (!allowed.has(apps[index].id)) apps.splice(index, 1);
     const finance = apps.find((app) => app.id === 'finance');
     if (finance) finance.items = finance.items.filter((entry) => !['finance-engines','finance-group'].includes(entry.id));
-    const people = apps.find((app) => app.id === 'people');
-    if (people) people.items = people.items.filter((entry) => entry.id !== 'people-payroll');
   }
 
   // Branch usage remains available under Technology even when the optional
@@ -708,13 +697,7 @@ export function workplaceNavigation(
     href: app.href ?? app.items[0].href,
     group: "Apps",
     keywords: app.keywords,
-    submodules: [
-      ...(app.id === "people" ? [
-        { ...app.items[0], id: "people-current", label: "Current profiles" },
-        { ...app.items[0], id: "people-archived", label: "Archived profiles", href: `${app.items[0].href}?status=archived` },
-      ] : []),
-      ...app.items.filter((entry) => entry.href !== (app.href ?? app.items[0].href)),
-    ],
+    submodules: app.items.filter((entry) => entry.href !== (app.href ?? app.items[0].href)),
   } satisfies NavigationItem]));
   const destinationItems = new Map(
     [...primary, ...standalone].map((entry) => [entry.id, entry]),
@@ -733,6 +716,7 @@ export function workplaceNavigation(
   };
   const pos = apps.find((app) => app.id === "pos");
   const pms = apps.find((app) => app.id === "pms");
+  const finance = apps.find((app) => app.id === "finance");
   const erpxManagementApp = apps.find((app) => app.id === "erpx-management");
   const erpxManagementCategory: NavigationCategory | null = erpxManagementApp
     ? {
@@ -758,7 +742,9 @@ export function workplaceNavigation(
         ...(pos ? [{ id: "pos", label: "POS", icon: "commerce", apps: pos.items } satisfies NavigationCategory] : []),
         ...(pms ? [{ id: "pms", label: "Hotel PMS", icon: "pms", apps: pms.items } satisfies NavigationCategory] : []),
         category("operations", "Projects & Routines", "projects", ["projects"]),
-        category("finance", "Finance", "finance", ["finance"]),
+        ...(context.financeWorkspaceV2 && finance
+          ? [{ id: "finance", label: "Finance", icon: "finance", apps: financeRootItems(finance.items) } satisfies NavigationCategory]
+          : [category("finance", "Finance", "finance", ["finance"])]),
         category("management", "Management", "projects", ["executive", "legal"]),
         category("system", "System", "technology", ["technology", "feedback", "pilot-features", "future-features"]),
       ]).filter((entry): entry is NavigationCategory => entry !== null);
@@ -829,6 +815,11 @@ export function resolveNavigation(
   if (route === "usage") return { activeId: model.search.some((item) => item.id === "branch-usage") ? "branch-usage" : "administration-usage", groupId: "technology" };
   if (route === "my-access") return { activeId: "my-access" };
   if (route === "work") return { activeId: hasApp(model, "resources") || base === "/platform" ? "work" : "home" };
+  if (route === "payroll") return {
+    activeId: "people-payroll",
+    groupId: "people",
+    detailLabel: second === "runs" && third ? "Payroll run" : second === "history" ? "History" : second === "advances" ? "Advances" : second === "settings" ? "Settings" : undefined,
+  };
   if (route === "future-features") return { activeId: "future-features" };
   if (route === "requests")
     return { activeId: "home", detailLabel: second ? "Request" : undefined };
@@ -840,7 +831,7 @@ export function resolveNavigation(
     };
   if (route === "technology") return {activeId: ({organization:"technology-organization",positions:"technology-organization",employees:"technology-organization",directory:"technology-organization",resources:"technology-devices",attributes:"technology-attributes"} as Record<string,string>)[searchParams?.get("view")??"organization"]??"technology-organization",groupId:"technology"};
   if (route === "people") {
-    if (second === "roster") return { activeId: "people-roster", groupId: "people" };
+    if (second === "roster") return { activeId: "people-directory", groupId: "people" };
     if (second === "settings") {
       const section = queryValue(searchParams, "section");
       const technologyId: Record<string, string> = {
@@ -849,10 +840,10 @@ export function resolveNavigation(
         groups: "technology-organization",
       };
       if (standard && technologyId[section]) return { activeId: technologyId[section], groupId: "technology" };
-      return { activeId: "people-settings", groupId: "people" };
+      return { activeId: "people-directory", groupId: "people" };
     }
     if (second === "organization")
-      return { activeId: "people-organization", groupId: "people" };
+      return { activeId: "people-directory", groupId: "people" };
     if (second === "access") {
       const view = queryValue(searchParams, "view");
       return standard
@@ -863,8 +854,10 @@ export function resolveNavigation(
       return {
         activeId: "people-payroll",
         groupId: "people",
-        detailLabel: third ? "Payroll run" : undefined,
+        detailLabel: third === "runs" ? "Payroll run" : third === "history" ? "History" : third === "advances" ? "Advances" : third === "settings" ? "Settings" : third ? "Payroll run" : undefined,
       };
+    if (second === "move")
+      return { activeId: "people-directory", groupId: "people", detailLabel: third === "review" ? "Review move" : "Move" };
     if (queryValue(searchParams, "view") === "payroll")
       return { activeId: "people-payroll", groupId: "people" };
     return {
@@ -933,6 +926,11 @@ export function resolveNavigation(
     return { activeId: "pms-front", groupId: "pms" };
   }
   if (route === "finance") {
+    if (model.search.some(item => item.id === "finance-payments")) {
+      const activeId = financeDestinationForRoute(second, queryValue(searchParams, "kind"));
+      const detailLabel = third ? ({ journals: "Journal", payments: "Payment", invoices: "Invoice", refunds: "Refund", "supplier-batches": "Supplier batch", tax: third === "entries" ? "Tax entry" : third === "corrections" ? "Tax correction" : "VAT workpaper" } as Record<string, string>)[second ?? ""] : undefined;
+      return { activeId, sidebarId: financeSidebarId(activeId), groupId: "finance", detailLabel };
+    }
     const bySection: Record<string, string> = {
       ledger: "finance-ledger",
       accounting: "finance-ledger",
@@ -940,7 +938,9 @@ export function resolveNavigation(
       invoices: queryValue(searchParams, "kind") === "payable" ? "finance-payables" : "finance-receivables",
       payments: "finance-payables",
       bank: "finance-bank",
+      hotels:"finance-hotels",
       close: "finance-close",
+      tax: "finance-tax",
       reports: "finance-reports",
       engines: "finance-engines",
       group: "finance-group",
@@ -966,6 +966,7 @@ export function resolveNavigation(
     if (model.search.some((item) => item.id === "finance-expenses"))
       return {
         activeId: "finance-expenses",
+        ...(model.search.some(item => item.id === "finance-payments") ? { sidebarId: financeSidebarId("finance-expenses") } : {}),
         groupId: "finance",
         detailLabel: second ? "Expense claim" : undefined,
       };
@@ -1014,7 +1015,7 @@ export function resolveNavigation(
       if (section === "approvals") return model.search.some((item) => item.id === "administration-approvals")
         ? { activeId: "administration-approvals", groupId: "projects" }
         : { activeId: "projects-routines", groupId: "projects" };
-      return { activeId: section === "organization" ? "people-organization" : "people-settings", groupId: "people" };
+      return { activeId: "people-directory", groupId: "people" };
     }
     const administration = model.apps.find(
       (entry) => entry.id === "administration",
@@ -1026,7 +1027,7 @@ export function resolveNavigation(
     if (section === "feedback")
       return { activeId: "feedback", groupId: "resources" };
     if (["people", "organization"].includes(section) && !administration?.items.some((entry) => entry.id === `administration-${section}`))
-      return { activeId: section === "people" ? "people-settings" : "people-organization", groupId: "people" };
+      return { activeId: section === "people" ? "people-settings" : "people-directory", groupId: "people" };
     return {
       activeId: `administration-${section}`,
       groupId: "administration",
@@ -1060,6 +1061,20 @@ export function navigationTrail(
     return [{ label: "Notification settings" }];
   const resolved = resolveNavigation(model, base, pathname, searchParams);
   if (!resolved.activeId || resolved.activeId === "home") return [];
+  if (resolved.activeId === "people-directory" && resolved.groupId === "people")
+    return [
+      { label: "People", ...(resolved.detailLabel ? { href: `${base}/people` } : {}) },
+      ...(resolved.detailLabel ? [{ label: resolved.detailLabel }] : []),
+    ];
+  const payrollBase = `${base}/people/payroll`;
+  if (pathname === payrollBase || pathname.startsWith(`${payrollBase}/`)) {
+    const section = pathname.slice(payrollBase.length).split("/")[1];
+    return [
+      { label: "People", href: `${base}/people` },
+      { label: "Payroll", ...(section ? { href: payrollBase } : {}) },
+      ...(section ? [{ label: section === "history" ? "History" : section === "advances" ? "Advances" : section === "settings" ? "Settings" : "Payroll run" }] : []),
+    ];
+  }
   const primary = model.primary.find((entry) => entry.id === resolved.activeId);
   if (primary)
     return [

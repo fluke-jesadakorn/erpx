@@ -37,6 +37,7 @@ type NodeRow = {
 async function businessWorkspaceChoice(
   holding: HoldingBinding,
   userId: string,
+  assignmentId?: string,
 ) {
   const { write } = await holdingResources(holding.id);
   const now = Date.now();
@@ -48,6 +49,7 @@ async function businessWorkspaceChoice(
          JOIN organization_nodes c ON c.id=a.company_id AND c.kind='company' AND c.status='active'
          LEFT JOIN organization_nodes n ON n.id=a.scope_node_id
          WHERE a.user_id=? AND a.revoked_at IS NULL
+           ${assignmentId ? "AND a.id=?" : ""}
            AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
            AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
            AND a.valid_from<=? AND a.valid_until>?
@@ -69,7 +71,7 @@ async function businessWorkspaceChoice(
            )
          ORDER BY c.display_name,c.id,a.scope_kind,a.scope_node_id,a.id`,
       )
-      .bind(userId, now, now)
+      .bind(userId, ...(assignmentId ? [assignmentId] : []), now, now)
       .all<AssignmentRow>()
   ).results;
 
@@ -134,6 +136,14 @@ async function businessWorkspaceChoice(
 }
 
 export const workspaceChoices = cache(() => measureReadPhase("workspace_choices",readWorkspaceChoices));
+/** Scope choices to the role the user just chose, without selecting a workspace. */
+export async function workspaceChoicesForAssignment(holdingId: string, assignmentId: string): Promise<WorkspaceChoice[]> {
+  const [{ session }, holdings] = await Promise.all([currentSession(), activeHoldingBindings()]);
+  const holding = holdings.find(item => item.id === holdingId);
+  if (!holding) return [];
+  const choice = await businessWorkspaceChoice(holding, session.user.id, assignmentId);
+  return choice ? [choice] : [];
+}
 async function readWorkspaceChoices(): Promise<WorkspaceChoice[]> {
   const { session } = await currentSession();
   const business = (

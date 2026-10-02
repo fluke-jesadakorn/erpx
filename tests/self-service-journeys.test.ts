@@ -298,7 +298,7 @@ describe('Staff self-service transactional journeys',()=>{
   const payroll=await person('Payroll','payroll_preparer'),group=`paygroup-${company}`;
   await db.prepare("INSERT INTO hr_pay_groups(id,company_id,name,country_code,currency,frequency,timezone,created_by,created_at,updated_at) VALUES(?,?,'Test payroll','TH','THB','monthly','Asia/Bangkok','fixture',1,1)").bind(group,company).run();
   await db.prepare('UPDATE hr_engagements SET pay_group_id=? WHERE id=?').bind(group,row.engagement_id).run();
-  await db.prepare("INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,hourly_rate_minor,expected_hours,currency,components_json,status,approved_by,created_by,created_at,updated_at) VALUES(?,?,'2026-01-01','monthly',10000,0,160,'THB','[]','approved',?,'fixture',1,1)").bind(`comp-${company}`,row.engagement_id,hr.userId).run();
+  await db.prepare("INSERT INTO hr_compensation_revisions(id,engagement_id,effective_from,pay_frequency,base_amount_minor,hourly_rate_minor,expected_hours,currency,components_json,status,approved_by,created_by,created_at,updated_at) VALUES(?,?,'2026-01-01','monthly',1000000,6250,160,'THB','[]','approved',?,'fixture',1,1)").bind(`comp-${company}`,row.engagement_id,hr.userId).run();
   await db.prepare("INSERT INTO flow_defaults(company_id,kind,step_key,primary_user_id,created_by,reason,created_at) VALUES(?,'payroll','calculate',?,'fixture','Test payroll preparer',1)").bind(company,payroll.userId).run();
   const run=await createPayrollRun(payroll,payrollRunSchema.parse({payGroupId:group,periodStart:'2026-09-01',periodEnd:'2026-09-30',payDate:'2026-09-30',currency:'THB'}),key());
   await calculatePayrollRun(payroll,String(run.id),key());

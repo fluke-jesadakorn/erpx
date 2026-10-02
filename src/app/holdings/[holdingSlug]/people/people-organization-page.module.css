@@ -1,0 +1,3 @@
+.page:global(.content-stack) {
+  max-width: 2200px;
+}

@@ -5,6 +5,7 @@ import { workTypeTone } from "@/lib/work-category-tone";
 import type { WorkAttention as Attention } from "@/lib/work-attention";
 import { workBlocker } from "@/lib/work-attention";
 import styles from "./work-attention.module.css";
+import { TimeText } from "@/components/time/time-preference-context";
 
 export function WorkAttention({ base, attention, compact = false, prominent = false, loading = false, deferred = false, retry, returnTo, snapshotAt = 0 }: {
   base: string;
@@ -32,7 +33,7 @@ export function WorkAttention({ base, attention, compact = false, prominent = fa
         <span className={styles.action}>{item.nextAction ?? item.detail}</span>
         {workBlocker(item) && <span className={styles.blocker}>Blocked · {workBlocker(item)}</span>}
         {!compact && <span className={styles.owner}><CornerDownRight size={14} aria-hidden />{item.flow?.current?.primary?.name ?? item.flow?.current?.teamName ?? item.responsibleQueue ?? "Unassigned"}</span>}
-        {!compact && item.dueAt && <span className={styles.due} data-overdue={snapshotAt > 0 && item.dueAt < snapshotAt}>{snapshotAt > 0 && item.dueAt < snapshotAt ? "Overdue" : "Due"} · {new Date(item.dueAt).toLocaleDateString("en-GB", { timeZone: "Asia/Bangkok" })}</span>}
+        {!compact && item.dueAt && <span className={styles.due} data-overdue={snapshotAt > 0 && item.dueAt < snapshotAt}>{snapshotAt > 0 && item.dueAt < snapshotAt ? "Overdue" : "Due"} · <TimeText value={item.dueAt} /></span>}
       </Link>
     </li>)}</ul>}
     {!deferred && !loading && !attention.total && !attention.incomplete && <div className={styles.caughtUp}><CircleCheck size={20} aria-hidden /><div><strong>No actions for you right now</strong><p>{attention.waiting ? `${attention.waiting} ${attention.waiting === 1 ? "item is" : "items are"} with others.` : "You’re all caught up."}</p></div></div>}

@@ -29,5 +29,26 @@ export const releaseCriteria = [
   { id: 'finance_signoff', label: 'Finance sign-off on accounting, settlement and external filing controls', owner: 'Finance', permission: 'finance.approve' },
 ] as const;
 
-export type ReleaseCriterion = typeof releaseCriteria[number]['id'];
+/** Legal acceptance is per Company and does not inherit the hotel pilot limits. */
+export const legalProductionScope = {
+  version: 'legal-th-operations-v1', country: 'TH', modules: ['legal'],
+  deferred: ['electronic_signing', 'automatic_destruction', 'government_filing', 'industry_packs'],
+} as const;
+
+export const legalReleaseCriteria = [
+  { id: 'legal_workflows', label: 'Scoped Legal UAT journeys, independent review and executed copies', owner: 'Legal owner / QA', permission: 'legal.manage' },
+  { id: 'legal_content', label: 'Named legal specialist accepts rules, templates, applicability and Company policy', owner: 'Thai legal specialist', permission: 'legal.manage' },
+  { id: 'legal_access', label: 'Current assignments, confidential membership and cross-Company denial', owner: 'IT / Legal reviewer', permission: 'organization.manage' },
+  { id: 'legal_documents', label: 'Quarantine, scanner, OCR, provenance, private files and legal holds', owner: 'IT / Legal reviewer', permission: 'legal.manage' },
+  { id: 'legal_ai', label: 'Company provider policy, citation evaluation, insufficient evidence and provider failure', owner: 'Legal specialist / AI owner', permission: 'legal.manage' },
+  { id: 'legal_release', label: 'Lint, typecheck, migration upgrade and isolated production browser acceptance', owner: 'Engineering / QA', permission: 'organization.manage' },
+  { id: 'legal_operations', label: 'Jobs, email, off-machine restore (RPO 1h / RTO 4h), rollback and alerts', owner: 'Operations / IT', permission: 'organization.manage' },
+] as const;
+
+export type ReleaseScopeVersion = typeof productionScope.version | typeof legalProductionScope.version;
+export const allReleaseCriteria = [...releaseCriteria, ...legalReleaseCriteria] as const;
+export function criteriaForScope(scope: ReleaseScopeVersion) {
+  return scope === legalProductionScope.version ? legalReleaseCriteria : releaseCriteria;
+}
+export type ReleaseCriterion = typeof allReleaseCriteria[number]['id'];
 export type GateState = 'pending' | 'passed' | 'not_applicable';

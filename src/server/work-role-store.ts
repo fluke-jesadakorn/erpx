@@ -38,3 +38,19 @@ export async function restoreWorkSelection(db:SqlDatabase,input:{sessionId:strin
   throw error;
  }
 }
+
+/** Initialize only the requested company's context; never move to another workspace. */
+export async function initializeWorkSelection(
+ db:SqlDatabase,
+ input:{sessionId:string;userId:string;companyId:string;expiresAt:number},
+ assignments:{id:string;version?:number}[],
+ eligible:{id:string;version?:number}[],
+) {
+ let selection=await restoreWorkSelection(db,input,assignments);
+ if(!selection && assignments.length===1 && eligible.length===1) {
+  const assignment=eligible[0];
+  try {selection=await selectWorkRole(db,{...input,assignmentId:assignment.id,assignmentVersion:assignment.version!,revision:0});}
+  catch(error){selection=await readWorkSelection(db,input.sessionId,input.userId,input.companyId);if(!selection)throw error;}
+ }
+ return selection;
+}

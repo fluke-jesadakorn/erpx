@@ -18,6 +18,7 @@ export type Draft = {
   version: number;
   mentions_json?: string;
   content_json?: string | null;
+  rich_content_json?: string | null;
 };
 export type Meta = {
   handoffContext?: { companyId: string; userId: string; assignmentId: string; base: string };

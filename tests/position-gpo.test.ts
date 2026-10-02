@@ -3,7 +3,7 @@ import { env,applyMigrations } from "./runtime-env";
 import { expenseFixture,expenseDb as db,key } from "./helpers/expense-fixture";
 import { previewPositionGpo,publishPositionGpo as rawPublishPositionGpo,previewUnmapPositionGpo,unmapPositionGpo,positionGpoOverview,reconcilePositionGpo,drainPositionGpo,retryPositionGpo,retryPositionGpoConfig } from "../src/server/position-gpo";
 import type { DirectoryInventory } from "../src/lib/directory-operations";
-import { effectiveGpoRules, gpoRulesOverview, previewGpoRule, publishGpoRule, previewRemoveGpoRule, removeGpoRule } from "../src/server/gpo-rules";
+import { effectiveGpoRules, gpoRulesOverview, previewGpoRule, publishGpoRule, previewRemoveGpoRule, removeGpoRule, markPositionGpoNotRequired } from "../src/server/gpo-rules";
 import type { GpoRuleInput } from "../src/lib/gpo-rules";
 
 const provider=vi.hoisted(()=>({read:vi.fn(),apply:vi.fn()}));
@@ -216,6 +216,7 @@ it("recovers configuration failure and records Directory readback separately fro
   const policy=await db.prepare("SELECT version,directory_config_status FROM position_gpo_policies WHERE company_id=? AND position_id=?")
     .bind(s.f.company,s.headPosition).first<{version:number;directory_config_status:string}>();
   expect(policy?.directory_config_status).toBe("blocked");
+  expect((await gpoRulesOverview(db,s.itActor)).tasks.find(task=>task.positionId===s.headPosition)?.status).toBe("blocked");
   await retryPositionGpoConfig(db,s.itActor,{positionId:s.headPosition,expectedVersion:policy!.version,reason:"Directory is back"},key());
   await drainPositionGpo(db);
   let job=await db.prepare("SELECT id,version,status,directory_observed_at,endpoint_observed_at FROM position_gpo_jobs WHERE company_id=? AND position_id=? AND account_id='retry-account'")
@@ -229,6 +230,7 @@ it("recovers configuration failure and records Directory readback separately fro
   expect(job?.status).toBe("directory_applied");
   expect(job?.directory_observed_at).toBeTruthy();
   expect(job?.endpoint_observed_at).toBeNull();
+  expect((await gpoRulesOverview(db,s.itActor)).tasks.find(task=>task.positionId===s.headPosition)?.status).toBe("completed");
 });
 
 it("unmaps one Position without removing a shared GPO target, then allows a new revision",async()=>{
@@ -294,6 +296,7 @@ it("retains account provenance after a successful write with lost readback",asyn
   const blocked=await db.prepare("SELECT id,version,status FROM position_gpo_jobs WHERE company_id=? AND position_id=? AND account_id='partial-account'")
     .bind(s.f.company,s.headPosition).first<{id:string;version:number;status:string}>();
   expect(blocked?.status).toBe("blocked");
+  expect((await gpoRulesOverview(db,s.itActor)).tasks.find(task=>task.positionId===s.headPosition)?.status).toBe("completed");
   await retryPositionGpo(db,s.itActor,{id:blocked!.id,expectedVersion:blocked!.version,reason:"Readback available"},key());
   await drainPositionGpo(db);
   expect(await db.prepare("SELECT count(*)::integer count FROM people_directory_membership_sources WHERE connection_id=? AND member_id='partial-account' AND source_id='external'").bind(s.connection).first("count")).toBe(0);
@@ -392,43 +395,48 @@ it("supersedes an obsolete blocked account job after an IT remap",async()=>{
   expect(s.members("group")).not.toContain("old-blocked-account");
 });
 
-it("adds Level, Department and direct policies with independent shared-membership provenance",async()=>{
-  const s=await setup();await s.link(s.headPerson,"inherited-account");
-  const levelId=await db.prepare("SELECT level_id FROM organization_positions WHERE id=?").bind(s.headPosition).first<string>("level_id");
-  await db.prepare("UPDATE organization_positions SET branch_id=?,department_id=?,version=version+1 WHERE id=?").bind(s.f.branch,s.f.department,s.headPosition).run();
-  const level=await publishRule(s,ruleInput(s,{kind:"level",id:levelId!}));
-  const department=await publishRule(s,ruleInput(s,{kind:"department",id:s.f.department},"group","gpo2"));
-  const direct=await publishRule(s,ruleInput(s,{kind:"position",id:s.headPosition},"group2","gpo2"));
+it("creates a pending Position task, supports multiple mappings, and completes after Directory read-back",async()=>{
+  const s=await setup();await s.link(s.headPerson,"multi-policy-account");
+  const before=(await gpoRulesOverview(db,s.itActor)).tasks.find(task=>task.positionId===s.headPosition);
+  expect(before).toMatchObject({status:"pending",mappingCount:0});
+  const first=await publishRule(s,ruleInput(s,{kind:"position",id:s.headPosition}));
+  const second=await publishRule(s,ruleInput(s,{kind:"position",id:s.headPosition},"group2","gpo2"));
+  expect((await gpoRulesOverview(db,s.itActor)).tasks.find(task=>task.positionId===s.headPosition)).toMatchObject({status:"pending",mappingCount:2});
+  await drainPositionGpo(db,100);
   const overview=await gpoRulesOverview(db,s.itActor);
-  expect(overview.effectiveByPosition[s.headPosition].map(rule=>rule.id).sort()).toEqual([level.id,department.id,direct.id].sort());
-  expect(overview.effectiveByPosition[s.headPosition].filter(rule=>rule.inherited)).toHaveLength(2);
-  await drainPositionGpo(db,100);
-  expect(s.members("group")).toContain("inherited-account");expect(s.members("group2")).toContain("inherited-account");
-  expect(await db.prepare("SELECT count(*)::int count FROM organization_gpo_membership_claims WHERE company_id=? AND member_id='inherited-account' AND group_id='group'").bind(s.f.company).first("count")).toBe(2);
-  const removal={id:department.id,expectedVersion:1,reason:"Remove only Department source"};
-  const preview=await previewRemoveGpoRule(db,s.itActor,removal);
-  expect(preview.changes.remove).toEqual([]);
-  await removeGpoRule(db,s.itActor,{...removal,previewToken:preview.token},key());
-  await drainPositionGpo(db,100);
-  expect(s.members("group")).toContain("inherited-account");
-  expect(await db.prepare("SELECT count(*)::int count FROM organization_gpo_membership_claims WHERE company_id=? AND member_id='inherited-account' AND group_id='group'").bind(s.f.company).first("count")).toBe(1);
-  expect(s.links("ou")).toEqual(expect.arrayContaining(["gpo","gpo2"]));
+  expect(overview.effectiveByPosition[s.headPosition].map(rule=>rule.id).sort()).toEqual([first.id,second.id].sort());
+  expect(overview.tasks.find(task=>task.positionId===s.headPosition)).toMatchObject({status:"completed",verifiedCount:2});
+  expect(s.members("group")).toContain("multi-policy-account");expect(s.members("group2")).toContain("multi-policy-account");
+  expect(overview.jobs.filter(job=>job.position_id===s.headPosition && job.account_id==="multi-policy-account").length).toBeGreaterThanOrEqual(2);
 });
 
-it("uses the Position default Level, covers future positions and follows a Position move",async()=>{
-  const s=await setup();await s.link(s.headPerson,"future-inherited");
+it("rejects Level and Department writes and never inherits a policy after a Position move",async()=>{
+  const s=await setup();
   const levelId=await db.prepare("SELECT level_id FROM organization_positions WHERE id=?").bind(s.headPosition).first<string>("level_id");
-  const rule=await publishRule(s,ruleInput(s,{kind:"level",id:levelId!}));
-  // Actual staff rank differs deliberately: inheritance follows the Position.
-  await db.prepare("UPDATE hr_engagements SET level_id=?,version=version+1 WHERE person_id=?").bind(`org-level-${s.f.company}-6`,s.headPerson).run();
-  await drainPositionGpo(db,100);expect(s.members("group")).toContain("future-inherited");
+  await expect(previewGpoRule(db,s.itActor,ruleInput(s,{kind:"level",id:levelId!}))).rejects.toThrow();
+  await expect(previewGpoRule(db,s.itActor,ruleInput(s,{kind:"department",id:s.f.department}))).rejects.toThrow();
+  const rule=await publishRule(s,ruleInput(s,{kind:"position",id:s.headPosition}));
   const future=`future-position-${key()}`;
-  await db.prepare("INSERT INTO organization_positions(id,company_id,title,level_id,reports_to_position_id,created_by,created_at,updated_at) VALUES(?,?,'Future inherited position',?,?,?,1,1)").bind(future,s.f.company,levelId,s.ownerPosition,s.f.owner.userId).run();
-  expect((await effectiveGpoRules(db,s.f.company)).some(row=>row.position_id===future&&row.id===rule.id)).toBe(true);
-  await db.prepare("UPDATE organization_positions SET level_id=?,version=version+1 WHERE id=?").bind(`org-level-${s.f.company}-4`,s.headPosition).run();
-  await drainPositionGpo(db,100);await drainPositionGpo(db,100);
-  expect(s.members("group")).not.toContain("future-inherited");
-  expect((await gpoRulesOverview(db,s.itActor)).effectiveByPosition[future][0].id).toBe(rule.id);
+  await db.prepare("INSERT INTO organization_positions(id,company_id,title,level_id,reports_to_position_id,created_by,created_at,updated_at) VALUES(?,?,'Future direct position',?,?,?,1,1)").bind(future,s.f.company,levelId,s.ownerPosition,s.f.owner.userId).run();
+  expect((await effectiveGpoRules(db,s.f.company)).some(row=>row.position_id===future&&row.id===rule.id)).toBe(false);
+  expect((await gpoRulesOverview(db,s.itActor)).tasks.find(task=>task.positionId===future)).toMatchObject({status:"pending"});
+});
+
+it("closes a task with a reason and version, then reopens on a Position change",async()=>{
+  const s=await setup();
+  const task=(await gpoRulesOverview(db,s.itActor)).tasks.find(item=>item.positionId===s.headPosition)!;
+  await expect(markPositionGpoNotRequired(db,s.itActor,{positionId:s.headPosition,expectedVersion:task.version,reason:" "},key())).rejects.toThrow();
+  await markPositionGpoNotRequired(db,s.itActor,{positionId:s.headPosition,expectedVersion:task.version,reason:"No Windows policy needed"},key());
+  expect((await gpoRulesOverview(db,s.itActor)).tasks.find(item=>item.positionId===s.headPosition)).toMatchObject({status:"not_required",reason:"No Windows policy needed"},key());
+  await expect(markPositionGpoNotRequired(db,s.itActor,{positionId:s.headPosition,expectedVersion:task.version,reason:"Still no policy"},key())).rejects.toMatchObject({code:"GPO_TASK_CHANGED"});
+  await db.prepare("UPDATE organization_positions SET title=title||' revised',version=version+1 WHERE id=?").bind(s.headPosition).run();
+  expect((await gpoRulesOverview(db,s.itActor)).tasks.find(item=>item.positionId===s.headPosition)?.status).toBe("pending");
+  const pending=(await gpoRulesOverview(db,s.itActor)).tasks.find(item=>item.positionId===s.headPosition)!;
+  await markPositionGpoNotRequired(db,s.itActor,{positionId:s.headPosition,expectedVersion:pending.version,reason:"Still no policy"},key());
+  await publishRule(s,ruleInput(s,{kind:"position",id:s.headPosition}));
+  const reopened=(await gpoRulesOverview(db,s.itActor)).tasks.find(item=>item.positionId===s.headPosition)!;
+  expect(reopened.status).toBe("pending");
+  await expect(markPositionGpoNotRequired(db,s.itActor,{positionId:s.headPosition,expectedVersion:reopened.version,reason:"Still no policy"},key())).rejects.toMatchObject({code:"GPO_TASK_CHANGED"});
 });
 
 it("rejects expired and stale rule previews and preserves exact command replay",async()=>{
@@ -446,19 +454,17 @@ it("rejects expired and stale rule previews and preserves exact command replay",
   await expect(publishGpoRule(db,s.itActor,{...payload,reason:"Different replay input"},commandKey)).rejects.toMatchObject({code:"IDEMPOTENCY_CONFLICT"});
 });
 
-it("supersedes changed inherited rules independently when their revisions and groups overlap",async()=>{
+it("supersedes changed direct rules independently when groups overlap",async()=>{
   const s=await setup();await s.link(s.headPerson,"overlapping-rule-account");
-  const levelId=await db.prepare("SELECT level_id FROM organization_positions WHERE id=?").bind(s.headPosition).first<string>("level_id");
-  const inherited=await publishRule(s,ruleInput(s,{kind:"level",id:levelId!}));
-  const direct=await publishRule(s,ruleInput(s,{kind:"position",id:s.headPosition},"group","gpo2"));
+  const first=await publishRule(s,ruleInput(s,{kind:"position",id:s.headPosition}));
+  const second=await publishRule(s,ruleInput(s,{kind:"position",id:s.headPosition},"group","gpo2"));
   await reconcilePositionGpo(db);
-  const changed={...ruleInput(s,{kind:"level",id:levelId!},"group2"),id:inherited.id,expectedVersion:1};
-  await publishRule(s,changed);
+  await publishRule(s,{...ruleInput(s,{kind:"position",id:s.headPosition},"group2"),id:first.id,expectedVersion:1});
   await drainPositionGpo(db,100);
   expect(s.members("group")).toContain("overlapping-rule-account");
   expect(s.members("group2")).toContain("overlapping-rule-account");
-  expect(await db.prepare("SELECT status FROM position_gpo_jobs WHERE company_id=? AND rule_id=? AND account_id='overlapping-rule-account' AND revision=1 AND desired_action='add'").bind(s.f.company,inherited.id).first("status")).toBe("superseded");
-  expect(await db.prepare("SELECT status FROM position_gpo_jobs WHERE company_id=? AND rule_id=? AND account_id='overlapping-rule-account' AND revision=1 AND desired_action='add'").bind(s.f.company,direct.id).first("status")).toBe("directory_applied");
+  expect(await db.prepare("SELECT status FROM position_gpo_jobs WHERE company_id=? AND rule_id=? AND account_id='overlapping-rule-account' AND revision=1 AND desired_action='add'").bind(s.f.company,first.id).first("status")).toBe("superseded");
+  expect(await db.prepare("SELECT status FROM position_gpo_jobs WHERE company_id=? AND rule_id=? AND account_id='overlapping-rule-account' AND revision=1 AND desired_action='add'").bind(s.f.company,second.id).first("status")).toBe("directory_applied");
 });
 
 it("allows HR to inspect effective rules without publishing and keeps Company boundaries",async()=>{
@@ -487,26 +493,17 @@ it("keeps legacy Position endpoints synchronized with direct rule edits and remo
   expect((await gpoRulesOverview(db,s.itActor)).rules[0]).toMatchObject({id:current.id,version:4,active:true});
 });
 
-it("refreshes delivery evidence when an employee transfers between positions sharing a Level rule",async()=>{
-  const s=await setup();await s.link(s.headPerson,"same-level-transfer");
-  const levelId=await db.prepare("SELECT level_id FROM organization_positions WHERE id=?").bind(s.headPosition).first<string>("level_id");
-  await publishRule(s,ruleInput(s,{kind:"level",id:levelId!}));
+it("reopens completed task after a material Position change",async()=>{
+  const s=await setup();await publishRule(s,ruleInput(s,{kind:"position",id:s.headPosition}));
   await drainPositionGpo(db,100);
-  const next=`same-level-${key()}`;
-  await db.prepare("INSERT INTO organization_positions(id,company_id,title,level_id,reports_to_position_id,created_by,created_at,updated_at) VALUES(?,?,'Second position',?,?,?,1,1)").bind(next,s.f.company,levelId,s.ownerPosition,s.f.owner.userId).run();
-  await db.prepare("UPDATE hr_engagements SET position_id=?,version=version+1 WHERE person_id=?").bind(next,s.headPerson).run();
-  const writes=provider.apply.mock.calls.length;
-  await drainPositionGpo(db,100);
-  expect(s.members("group")).toContain("same-level-transfer");
-  expect(provider.apply.mock.calls.length).toBe(writes);
-  expect(await db.prepare("SELECT status FROM position_gpo_jobs WHERE company_id=? AND position_id=? AND account_id='same-level-transfer' AND desired_action='add'").bind(s.f.company,next).first("status")).toBe("directory_applied");
-  expect(await db.prepare("SELECT position_id FROM organization_gpo_membership_claims WHERE company_id=? AND member_id='same-level-transfer'").bind(s.f.company).first("position_id")).toBe(next);
+  expect((await gpoRulesOverview(db,s.itActor)).tasks.find(task=>task.positionId===s.headPosition)?.status).toBe("completed");
+  await db.prepare("UPDATE organization_positions SET title=title||' changed',version=version+1 WHERE id=?").bind(s.headPosition).run();
+  expect((await gpoRulesOverview(db,s.itActor)).tasks.find(task=>task.positionId===s.headPosition)?.status).toBe("pending");
 });
 
-it("serializes concurrent drains when the final two policy sources are removed",async()=>{
+it("serializes concurrent drains when the final two direct policy sources are removed",async()=>{
   const s=await setup();await s.link(s.headPerson,"concurrent-final-sources");
-  const levelId=await db.prepare("SELECT level_id FROM organization_positions WHERE id=?").bind(s.headPosition).first<string>("level_id");
-  const rules=[await publishRule(s,ruleInput(s,{kind:"level",id:levelId!})),await publishRule(s,ruleInput(s,{kind:"position",id:s.headPosition},"group","gpo2"))];
+  const rules=[await publishRule(s,ruleInput(s,{kind:"position",id:s.headPosition})),await publishRule(s,ruleInput(s,{kind:"position",id:s.headPosition},"group","gpo2"))];
   await drainPositionGpo(db,100);
   for(const rule of rules){const input={id:rule.id,expectedVersion:1,reason:"Remove final policy source"};const preview=await previewRemoveGpoRule(db,s.itActor,input);await removeGpoRule(db,s.itActor,{...input,previewToken:preview.token},key());}
   await Promise.all([drainPositionGpo(db,100),drainPositionGpo(db,100)]);

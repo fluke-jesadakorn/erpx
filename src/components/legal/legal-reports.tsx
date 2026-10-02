@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 import { useState } from "react";
 import s from "./legal.module.css";
 type Row = Record<string, string | number | null>;
@@ -65,7 +66,7 @@ function Table({
                       {r[k]}
                     </button>
                   ) : k === "created_at" ? (
-                    new Date(Number(r[k])).toLocaleString()
+                    <TimeText value={Number(r[k])} />
                   ) : (
                     String(r[k] ?? "—")
                   )}
@@ -111,7 +112,7 @@ export function LegalReports({
       {data && (
         <>
           <p className={s.small}>
-            As of {new Date(data.asOf).toLocaleString()}. Results follow your
+            As of <TimeText value={data.asOf} />. Results follow your
             current record permissions.
           </p>
           {(

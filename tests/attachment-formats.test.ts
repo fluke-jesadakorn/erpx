@@ -19,7 +19,7 @@ const scannerDatabase=join(repository,".scratch/dev/clamav/db");
 const heifEncoder="/opt/homebrew/opt/libheif/bin/heif-enc";
 const heifConverter="/opt/homebrew/opt/libheif/bin/heif-convert";
 
-(existsSync(scannerSocket)&&existsSync(join(scannerDatabase,"daily.cvd"))?describe:describe.skip)("real attachment scanner",()=>{
+(existsSync(scannerSocket)&&["daily.cvd","daily.cld"].some(name=>existsSync(join(scannerDatabase,name)))?describe:describe.skip)("real attachment scanner",()=>{
   const environment={...process.env,ERPX_ATTACHMENTS_V2:"true",ERPX_CLAMD_SOCKET:scannerSocket,ERPX_CLAMAV_DATABASE_DIR:scannerDatabase};
 
   it("reports current ClamAV readiness and distinguishes clean bytes from EICAR",async()=>{

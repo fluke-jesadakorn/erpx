@@ -14,7 +14,7 @@ import {
 import { provisioningInput } from "@/lib/technology";
 import { directoryOperationsApi } from "@/server/directory-operations-api";
 import { positionGpoOverview, previewPositionGpo, publishPositionGpo, previewUnmapPositionGpo, unmapPositionGpo, retryPositionGpo, retryPositionGpoConfig } from "@/server/position-gpo";
-import { gpoRulesOverview, previewGpoRule, publishGpoRule, previewRemoveGpoRule, removeGpoRule, retryGpoRuleConfig } from "@/server/gpo-rules";
+import { gpoRulesOverview, previewGpoRule, publishGpoRule, previewRemoveGpoRule, removeGpoRule, retryGpoRuleConfig, markPositionGpoNotRequired } from "@/server/gpo-rules";
 import { organizationAccessData } from "@/server/organization-access";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 export const dynamic = "force-dynamic";
@@ -71,6 +71,7 @@ export async function POST(request: Request, context: Context) {
         ),
       });
     if (path[0] === "gpo-rules") {
+      if (path[1] === "not-required") return Response.json({ data: await markPositionGpoNotRequired(db, contextActor, raw, key) });
       if (path[1] === "preview") return Response.json({ data: await previewGpoRule(db, contextActor, raw) });
       if (path[1] === "publish") return Response.json({ data: await publishGpoRule(db, contextActor, raw, key) });
       if (path[1] === "remove-preview") return Response.json({ data: await previewRemoveGpoRule(db, contextActor, raw) });

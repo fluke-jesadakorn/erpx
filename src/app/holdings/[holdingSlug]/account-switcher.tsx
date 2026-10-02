@@ -18,6 +18,7 @@ import styles from "@/components/workplace/account.module.css";
 import Link from "next/link";
 import { Appearance } from "@/components/workplace/workplace-controls";
 import { leavePushSession } from "@/lib/push-client";
+import { useContextSwitch } from "@/components/workplace/context-switch-provider";
 
 type DeviceSession = {
   session: { token: string; userId: string };
@@ -28,21 +29,17 @@ type Props = {
   assignments?: import("@/server/authorization").WorkAssignment[];
   preferredAssignmentId?: string | null;
   contextRevision?: number;
+  companyId?: string;
   workspaceBase: string;
   activeUser: { id: string; name: string; email: string };
   theme: string;
 };
 
-function accountSwitchDestination(workspaceBase: string) {
-  const destination = new URL("/", window.location.origin);
-  destination.searchParams.set("account", "switch");
-  destination.searchParams.set("from", `${workspaceBase}/home`);
-  return destination;
-}
-
-export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments = [], preferredAssignmentId = null, contextRevision = 0 }: Props) {
+export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments = [], preferredAssignmentId = null, contextRevision = 0, companyId }: Props) {
+  const { switchContext, busy } = useContextSwitch();
   const ready = useHydrated();
   const root = useRef<HTMLDivElement>(null);
+  const scrollPosition = useRef({ x: 0, y: 0 });
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [pending, setPending] = useState("");
@@ -73,7 +70,7 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
           "button:not(:disabled),input:not(:disabled),a[href],select",
         ) ?? [],
       ).filter((element) => element.getClientRects().length);
-    focusable()[0]?.focus();
+    focusable()[0]?.focus({ preventScroll: true });
     function keyboard(event: KeyboardEvent) {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -95,69 +92,55 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
     document.addEventListener("keydown", keyboard);
     return () => {
       document.removeEventListener("keydown", keyboard);
-      previous?.focus();
+      previous?.focus({ preventScroll: true });
     };
   }, [open, adding]);
 
   async function chooseAccount(session: DeviceSession) {
-    if (session.user.id === activeUser.id) return;
+    if (session.user.id === activeUser.id || pending || busy) return;
     setPending(`account:${session.user.id}`);
     setError("");
-    try { if(workspaceBase!=="/platform")await leavePushSession(workspaceBase); }
-    catch(error){setError(error instanceof Error?error.message:"Could not leave push session.");setPending("");return;}
-    const { authClient } = await import("@/lib/auth-client");
-    const result = await authClient.multiSession.setActive({
-      sessionToken: session.session.token,
-    });
-    if (result.error) {
-      setError(result.error.message ?? "Account could not be selected.");
-      setPending("");
-      return;
-    }
-    // The selected account may belong to a different Holding. Resolve the
-    // first workspace it is actually authorized to use instead of reloading
-    // the current Holding, which would be intentionally hidden as a 404.
-    window.location.replace(accountSwitchDestination(workspaceBase));
+    try {
+      await switchContext({ companyId, scroll: scrollPosition.current, onCommitted: () => setOpen(false), action: async () => {
+        if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
+        const { authClient } = await import("@/lib/auth-client");
+        const result = await authClient.multiSession.setActive({ sessionToken: session.session.token });
+        if (result.error) throw new Error(result.error.message ?? "Account could not be selected.");
+      } });
+    } catch (error) { setError(error instanceof Error ? error.message : "Account could not be selected."); }
+    finally { setPending(""); }
   }
 
   async function addAccount(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending("add");
     setError("");
-    try { if(workspaceBase!=="/platform")await leavePushSession(workspaceBase); }
-    catch(error){setError(error instanceof Error?error.message:"Could not leave push session.");setPending("");return;}
     const form = new FormData(event.currentTarget);
-    const { authClient } = await import("@/lib/auth-client");
-    const result = await authClient.signIn.email({
-      email: String(form.get("email")),
-      password: String(form.get("password")),
-      // Root resolves the newly active account's first authorized workspace;
-      // the current Holding is not necessarily available to that account.
-      callbackURL: "/",
-    });
-    if (result.error) {
-      setError(result.error.message ?? "Account could not be added.");
-      setPending("");
-      return;
-    }
-    window.location.replace(accountSwitchDestination(workspaceBase));
+    try {
+      await switchContext({ companyId, scroll: scrollPosition.current, onCommitted: () => setOpen(false), action: async () => {
+        if (workspaceBase !== "/platform") await leavePushSession(workspaceBase);
+        const { authClient } = await import("@/lib/auth-client");
+        const result = await authClient.signIn.email({ email: String(form.get("email")), password: String(form.get("password")) });
+        if (result.error) throw new Error(result.error.message ?? "Account could not be added.");
+      } });
+    } catch (error) { setError(error instanceof Error ? error.message : "Account could not be added."); }
+    finally { setPending(""); }
   }
 
   async function chooseRole(assignmentId: string) {
-    if(document.querySelector<HTMLElement>("[data-work-dirty=true]") && !window.confirm("Change role and discard unsaved changes?"))return;
+    if (assignmentId === preferredAssignmentId || pending || busy) return;
     setPending("role"); setError("");
     try {
-      if(workspaceBase!=="/platform"&&assignments.find(option=>option.id===assignmentId)?.companyId!==assignments.find(option=>option.id===preferredAssignmentId)?.companyId)
-        await leavePushSession(workspaceBase);
-      const response = await workFetch(`/api/v1${workspaceBase}/assignments/active`, {
-        method: "POST", headers: { "content-type": "application/json", "x-erpx-context-company": assignments.find(option=>option.id===assignmentId)?.companyId??"" },
-        body: JSON.stringify({ assignmentId, revision: contextRevision }),
-      });
-      if (!response.ok) throw new Error("Role could not be selected. Refresh to check your current access.");
-      const {data}=await response.json();
-      const channel=new BroadcastChannel("erpx-work-context");channel.postMessage({changed:true});channel.close();
-      window.location.assign(data.href);
-    } catch (error) { setError(error instanceof Error ? error.message : "Role could not be selected."); setPending(""); }
+      await switchContext({ companyId, scroll: scrollPosition.current, onCommitted: () => setOpen(false), action: async () => {
+        const response = await workFetch(`/api/v1${workspaceBase}/assignments/active`, {
+          method: "POST", headers: { "content-type": "application/json", "x-erpx-context-company": assignments.find(option=>option.id===assignmentId)?.companyId ?? companyId ?? "" },
+          body: JSON.stringify({ assignmentId, revision: contextRevision }),
+        });
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error?.message ?? "Role could not be selected. Refresh to check your current access.");
+      } });
+    } catch (error) { setError(error instanceof Error ? error.message : "Role could not be selected."); }
+    finally { setPending(""); }
   }
 
   async function signOut() {
@@ -179,7 +162,7 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
     <div className={`account-switcher ${styles.skin}`} ref={root}>
       <button
         className="account-trigger"
-        disabled={!ready}
+        disabled={!ready || busy || Boolean(pending)}
         aria-label={`Account menu for ${activeUser.name}, ${activeUser.email}`}
         title={`${activeUser.name} · ${activeUser.email}`}
         type="button"
@@ -187,6 +170,7 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
         aria-expanded={open}
         onClick={() => {
           const next = !open;
+          if (next) scrollPosition.current = { x: window.scrollX, y: window.scrollY };
           setOpen(next);
           setAdding(false);
           setError("");
@@ -222,6 +206,7 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
                     <button
                       type="button"
                       className={`account-option ${active ? "active" : ""}`}
+                      aria-current={active ? "true" : undefined}
                       key={item.user.id}
                       disabled={Boolean(pending)}
                       onClick={() => void chooseAccount(item)}
@@ -244,7 +229,7 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
               </div>
               <Link className="button ghost" href={`${workspaceBase}/iam/my-access`} onClick={() => setOpen(false)}>My access & security</Link>
               {workspaceBase!=="/platform"&&<Link className="button ghost" href={`${workspaceBase}/settings/notifications`} onClick={() => setOpen(false)}>Notification settings</Link>}
-              {workspaceBase !== "/platform" && <Link className="button ghost" href={`${workspaceBase}/people?member=${activeUser.id}`} onClick={() => setOpen(false)}>My profile</Link>}
+              {workspaceBase !== "/platform" && <Link className="button ghost" href={`${workspaceBase}/profiles/${encodeURIComponent(activeUser.id)}`} onClick={() => setOpen(false)}>My profile</Link>}
               {assignments.length > 0 && <section className="role-section">
                 <RoleSelect assignments={assignments} value={preferredAssignmentId ?? ""} disabled={Boolean(pending)} onChange={value => void chooseRole(value)} />
                 <p className="role-hint">Only this role is used for actions and approvals. Self-approval rules still apply.</p>
@@ -257,12 +242,12 @@ export function AccountSwitcher({ workspaceBase, activeUser, theme, assignments 
                     setAdding(true);
                     setError("");
                   }}
-                  disabled={accounts.length >= 5}
+                  disabled={accounts.length >= 5 || Boolean(pending) || busy}
                 >
                   <Plus size={16} />
                   Add another account
                 </button>
-                <button type="button" onClick={() => void signOut()}>
+                <button type="button" disabled={Boolean(pending) || busy} onClick={() => void signOut()}>
                   <LogOut size={16} />
                   Sign out all
                 </button>

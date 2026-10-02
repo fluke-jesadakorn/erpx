@@ -15,6 +15,7 @@ import {
   type ReactNode,
 } from "react";
 import Link from "next/link";
+import { registerUnsavedWork } from "@/lib/context-switch";
 import { resizeGrid } from "@/lib/widget-geometry";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
@@ -47,6 +48,9 @@ const Environment = createContext<NavigationContext>({
   workspaceBase: "/account",
   scopeKind: "platform",
 });
+export function useFeatureNavigation() {
+  return useContext(Environment);
+}
 const PageDrawer = createContext<{
   open: boolean;
   setOpen: (open: boolean) => void;
@@ -74,7 +78,7 @@ export function FeatureTabs() {
     pathname,
     new URLSearchParams(search),
   );
-  if (feature.id === "people") return null;
+  if (feature.id === "people" || feature.id === "finance" && navigation.financeWorkspaceV2) return null;
   const hasPeopleTools = feature.secondaryTabs.length > 0;
   if (feature.tabs.length < 2 && !hasPeopleTools) return null;
   return (
@@ -303,11 +307,12 @@ function LayoutGrid({
   }
   useEffect(() => {
     if (!draft) return;
+    const unregister = registerUnsavedWork(() => true);
     const prevent = (e: BeforeUnloadEvent) => {
       e.preventDefault();
     };
     window.addEventListener("beforeunload", prevent);
-    return () => window.removeEventListener("beforeunload", prevent);
+    return () => { unregister(); window.removeEventListener("beforeunload", prevent); };
   }, [draft]);
   useEffect(() => {
     if (!draft) return;

@@ -23,8 +23,12 @@ export function calculatePayrollAmounts(input: {
     ? Math.round(input.baseMinor*input.prorationNumerator/input.prorationDenominator)
     : input.baseMinor;
   const overtimeMultiplier=(input.overtimeMultiplierBps??15000)/10000;
+  if (input.employmentType === "salaried" && input.overtimeHours > 0 && input.hourlyMinor <= 0) {
+    throw new Error("Approved hourly rate is required to pay salaried overtime.");
+  }
+  const overtimePay = Math.round(input.hourlyMinor * input.overtimeHours * overtimeMultiplier);
   let gross = input.employmentType === "salaried"
-    ? base
+    ? base + overtimePay
     : input.employmentType === "contractor"
       ? input.baseMinor
       : Math.round(input.hourlyMinor * (input.regularHours + input.overtimeHours * overtimeMultiplier));

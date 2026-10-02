@@ -3,6 +3,7 @@ import { enrollmentToken } from "./enrollment";
 import type { SqlDatabase } from "../runtime/types";
 import type { BetaEnvironment } from "../beta-config";
 import { sendBetaEmail } from "../beta-email";
+import { legalRuntimePredicate } from './runtime-gate';
 export async function drainLegalInvitations(
   db: SqlDatabase,
   env: BetaEnvironment & {
@@ -21,7 +22,7 @@ export async function drainLegalInvitations(
   const token = crypto.randomUUID(),
     j = await db
       .prepare(
-        "UPDATE legal_invitation_jobs SET state='running',attempts=attempts+1,lease_token=?,lease_until=? WHERE id=(SELECT id FROM legal_invitation_jobs WHERE state='queued' AND next_attempt_at<=? ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *",
+        `UPDATE legal_invitation_jobs SET state='running',attempts=attempts+1,lease_token=?,lease_until=? WHERE id=(SELECT j.id FROM legal_invitation_jobs j JOIN legal_shares s ON s.id=j.share_id JOIN legal_items i ON i.id=s.item_id WHERE j.state='queued' AND j.next_attempt_at<=? AND ${legalRuntimePredicate('i.company_id','invitations')} ORDER BY j.created_at FOR UPDATE OF j SKIP LOCKED LIMIT 1) RETURNING *`,
       )
       .bind(token, now + 30000, now)
       .first<{
@@ -34,7 +35,7 @@ export async function drainLegalInvitations(
   try {
     const share = await db
       .prepare(
-        "SELECT s.email,s.expires_at FROM legal_shares s JOIN legal_items i ON i.id=s.item_id JOIN legal_settings c ON c.company_id=i.company_id AND c.enabled WHERE s.id=? AND s.revoked_at IS NULL AND s.expires_at>?",
+        `SELECT s.email,s.expires_at FROM legal_shares s JOIN legal_items i ON i.id=s.item_id JOIN legal_settings c ON c.company_id=i.company_id AND c.enabled WHERE s.id=? AND s.revoked_at IS NULL AND s.expires_at>? AND ${legalRuntimePredicate('i.company_id','invitations')}`,
       )
       .bind(j.share_id, Date.now())
       .first<{ email: string; expires_at: number }>();

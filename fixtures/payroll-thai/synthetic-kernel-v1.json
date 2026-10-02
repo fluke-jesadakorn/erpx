@@ -1,0 +1,78 @@
+{
+  "id": "synthetic-thai-payroll-kernel-v1",
+  "certified": false,
+  "purpose": "Development regression cases only. Rates and amounts below are deliberately fictional; they are not a Thai statutory country pack or independent expert expected results.",
+  "legalMethodReference": "https://www.rd.go.th/3558.html",
+  "rules": {
+    "countryCode": "TH",
+    "currency": "THB",
+    "version": "synthetic-test-only",
+    "effectiveFrom": "2026-01-01",
+    "effectiveTo": "2026-12-31",
+    "standardExpenseRateBps": 0,
+    "standardExpenseCapMinor": 0,
+    "taxBands": [
+      { "upToMinor": 10000, "rateBps": 0 },
+      { "upToMinor": null, "rateBps": 1000 }
+    ],
+    "socialSecurity": {
+      "employeeRateBps": 500,
+      "employerRateBps": 500,
+      "minimumWageBaseMinor": 0,
+      "maximumWageBaseMinor": 20000,
+      "roundingUnitMinor": 1
+    }
+  },
+  "cases": [
+    {
+      "id": "regular-plus-irregular",
+      "input": {
+        "payDate": "2026-09-30",
+        "regularTaxableMinor": 10000,
+        "irregularTaxableMinor": 1000,
+        "nonTaxableMinor": 0,
+        "socialSecurityWageMinor": 11000,
+        "socialSecurityEligible": true,
+        "otherEmployeeDeductionsMinor": 0,
+        "verifiedAnnualDeductionsMinor": 0,
+        "taxablePaidBeforeMinor": 80000,
+        "taxWithheldBeforeMinor": 5000,
+        "scheduledPaysInYear": 12,
+        "lastPayInYear": false,
+        "priorIncomeComplete": true
+      },
+      "expected": {
+        "grossMinor": 11000,
+        "taxWithheldMinor": 2116,
+        "employeeSsoMinor": 550,
+        "employerSsoMinor": 550,
+        "netMinor": 8334
+      }
+    },
+    {
+      "id": "year-end-true-up",
+      "input": {
+        "payDate": "2026-12-31",
+        "regularTaxableMinor": 10000,
+        "irregularTaxableMinor": 0,
+        "nonTaxableMinor": 0,
+        "socialSecurityWageMinor": 10000,
+        "socialSecurityEligible": true,
+        "otherEmployeeDeductionsMinor": 0,
+        "verifiedAnnualDeductionsMinor": 0,
+        "taxablePaidBeforeMinor": 110000,
+        "taxWithheldBeforeMinor": 10080,
+        "scheduledPaysInYear": 12,
+        "lastPayInYear": true,
+        "priorIncomeComplete": true
+      },
+      "expected": {
+        "grossMinor": 10000,
+        "taxWithheldMinor": 920,
+        "employeeSsoMinor": 500,
+        "employerSsoMinor": 500,
+        "netMinor": 8580
+      }
+    }
+  ]
+}

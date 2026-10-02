@@ -2,7 +2,7 @@ import type { WorkItem } from "./work-item";
 
 export type HandoverKind = "completed" | "pending" | "blocked";
 export type HandoverItem = Pick<WorkItem,"id"|"title"|"status"|"updatedAt"|"href"|"nextAction"|"blocker"> & {
-  kind:HandoverKind;sourceVersion:number;planned:boolean;
+  kind:HandoverKind;sourceVersion:number;planned:boolean;sourceKind?:"staff_task"|"pms_record";
 };
 export function bangkokToday(now=Date.now()) {
   return new Date(now+7*60*60_000).toISOString().slice(0,10);

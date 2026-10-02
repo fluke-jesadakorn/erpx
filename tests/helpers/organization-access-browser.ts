@@ -3,7 +3,7 @@ import type { OrganizationAccessData } from "../../src/lib/organization-access";
 import type { DirectoryAutomationData } from "../../src/lib/directory-operations";
 
 export async function organizationSession(context: BrowserContext, role: "hr_admin" | "it_admin") {
-  const login = await context.request.post("/api/auth/sign-in/email", { data: {
+  const login = await context.request.post("/api/auth/sign-in/email", { headers: { Origin: process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3100" }, data: {
     email: role === "hr_admin" ? process.env.ERPX_E2E_HR_EMAIL ?? "lara.suwan@erpx.dev" : process.env.ERPX_E2E_ADMIN_EMAIL ?? "jesadakorn.kirtnu@gmail.com",
     password: role === "hr_admin" ? process.env.ERPX_E2E_HR_PASSWORD ?? "12345678" : process.env.ERPX_E2E_ADMIN_PASSWORD ?? "12345678",
   } });
@@ -40,7 +40,7 @@ export async function openHrOrganization(page: Page, url: string) {
 /** Browser confirmations never move real staff or change Directory access. */
 export async function interceptOrganizationWrites(page: Page) {
   const writes: { path: string; body: Record<string, unknown> }[] = [];
-  await page.route(/\/api\/v1\/.*\/(?:technology\/(?:gpo-rules|position-gpo)|people\/(?:organization\/position-moves|lifecycle\/placements))\/(?:submit|publish|remove|unmap|retry|retry-config|[^/]+\/cancel)$/, async route => {
+  await page.route(/\/api\/v1\/.*\/(?:technology\/(?:gpo-rules|position-gpo)|people\/(?:organization\/position-moves|lifecycle\/placements))\/(?:submit|publish|remove|unmap|retry|retry-config|not-required|[^/]+\/cancel)$/, async route => {
     const request = route.request();
     if (request.method() !== "POST") return route.continue();
     const body = request.postDataJSON() as Record<string, unknown>;

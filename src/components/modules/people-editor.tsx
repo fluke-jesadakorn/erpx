@@ -123,6 +123,8 @@ export function PeopleEditor({
               preferredName: f.get("preferredName"),
               email: f.get("email"),
               phone: f.get("phone"),
+              workEmail: f.get("workEmail"),
+              workPhone: f.get("workPhone"),
               countryCode: f.get("countryCode"),
               branchId: branch,
               departmentId: f.get("departmentId") || null,
@@ -141,7 +143,7 @@ export function PeopleEditor({
               acceptRecommendedLeave: f.get("acceptRecommendedLeave")==="on",
               reason: f.get("reason") || "Staff profile updated",
               ...(member ? { linkedMemberUserId: member.id } : {}),
-              ...(person ? { expectedVersion: person.version } : {}),
+              ...(person ? { expectedVersion: person.version, ...(person.engagement_id ? { engagementId: person.engagement_id, expectedEngagementVersion: person.engagement_version } : {}) } : {}),
             });
           }}
         >
@@ -164,7 +166,7 @@ export function PeopleEditor({
             />
           </label>
           <label>
-            Work email
+            Private email (HR)
             <input
               name="email"
               type="email"
@@ -174,11 +176,28 @@ export function PeopleEditor({
             />
           </label>
           <label>
-            Phone
+            Private phone (HR)
             <input
               name="phone"
               type="tel"
               defaultValue={String(person?.phone ?? "")}
+            />
+          </label>
+          <p className="muted">Published work contacts are visible to everyone in this Holding.</p>
+          <label>
+            Published work email
+            <input
+              name="workEmail"
+              type="email"
+              defaultValue={String(person?.work_email ?? "")}
+            />
+          </label>
+          <label>
+            Published work phone
+            <input
+              name="workPhone"
+              type="tel"
+              defaultValue={String(person?.work_phone ?? "")}
             />
           </label>
           <label>

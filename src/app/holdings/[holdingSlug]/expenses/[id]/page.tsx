@@ -1,4 +1,7 @@
+import { FinanceRecordWorkspace, FinanceLegacyHeading } from "@/components/finance/finance-record-workspace";
 import { BusinessDocumentBranding } from "@/components/brand/business-document";
+import { MoneyAmount } from "@/components/money/currency-provider";
+import { TimeText } from "@/components/time/time-preference-context";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { ApprovalAdminLink } from "@/components/modules/approval-admin-link";
 import { ApprovalHistory } from "@/components/modules/approval-history";
@@ -12,7 +15,6 @@ import { StatusBadge } from "@/components/ui/primitives";
 import { FlowPanel,documentFlow } from "@/components/workplace/flow-panel";
 import { RecordNextAction } from "@/components/workplace/record-next-action";
 import { WorkReturn } from "@/components/workplace/work-return";
-import { minorToDecimal } from "@/lib/finance-money";
 import { workspaceBase } from "@/lib/workspace";
 import { publicScope,requireWorkContext } from "@/server/authorization";
 import {
@@ -60,13 +62,13 @@ export default async function Expense({
     staffOptions = await staffSettings(write, actor);
   if (expense.workflow_version === 2)
     return (
-      <div data-print-document={printing || undefined}><BusinessDocumentBranding actor={actor} kind="expense" recordId={id} requestedMode={query.brand} title={expense.request_kind === "payment" ? "Payment request" : "Expense claim"} reference={String(expense.receipt_reference ?? id)} printing={printing}/><ExpenseWorkflowPage
+      <FeaturePage className="content-stack" data-source="live" data-print-document={printing || undefined}><FinanceRecordWorkspace base={base} active="receivables" title={String(expense.merchant || "New expense claim")} description={`${expense.legal_name} · ${expense.request_kind === "payment" ? "Payment request" : "Expense claim"}`} actions={<StatusBadge status={String(expense.status)}/>}><WorkReturn base={base}/><BusinessDocumentBranding actor={actor} kind="expense" recordId={id} requestedMode={query.brand} title={expense.request_kind === "payment" ? "Payment request" : "Expense claim"} reference={String(expense.receipt_reference ?? id)} printing={printing}/><ExpenseWorkflowPage
         base={base}
         actor={actor}
         data={data}
         options={options}
         canRepair={staffOptions.canManage}
-      /></div>
+      /></FinanceRecordWorkspace></FeaturePage>
     );
   const posting =
     canPostExpenses(actor) &&
@@ -79,9 +81,9 @@ export default async function Expense({
     ].includes(actor.userId);
   const flow = await documentFlow(actor,"expense",id);
   return (
-    <FeaturePage className="content-stack" data-source="live" data-print-document={printing || undefined}><WorkReturn base={base}/>
+    <FeaturePage className="content-stack" data-source="live" data-print-document={printing || undefined}><FinanceRecordWorkspace base={base} active="receivables" title={String(expense.merchant)} description={`${expense.legal_name} · ${expense.expense_date} · ${expense.category_name}`} actions={<StatusBadge status={String(expense.status)}/>}><WorkReturn base={base}/>
       <BusinessDocumentBranding actor={actor} kind="expense" recordId={id} requestedMode={query.brand} title="Expense claim" reference={String(expense.receipt_reference ?? id)} printing={printing}/>
-      <Link className="back-link" href={`${base}/expenses`}>
+      <FinanceLegacyHeading><Link className="back-link" href={`${base}/expenses`}>
         ← Employee expenses
       </Link>
       <div className="section-head">
@@ -96,7 +98,7 @@ export default async function Expense({
           </p>
         </div>
         <StatusBadge status={String(expense.status)} />
-      </div><FeatureTabs/><WidgetGrid pageKey="expenses-detail">
+      </div></FinanceLegacyHeading><FeatureTabs/><WidgetGrid pageKey="expenses-detail">
       <section data-critical-notice><RecordNextAction flow={flow}/></section><ExpenseActions
         canCancel={permittedActions.includes("cancel")}
         base={base}
@@ -107,24 +109,24 @@ export default async function Expense({
         periods={options.periods}
       /><section className="card-grid">
         {[
-          ["Net amount", expense.amount_minor],
-          ["Recoverable tax", expense.tax_minor],
+          ["Net amount", String(expense.amount_minor)],
+          ["Recoverable tax", String(expense.tax_minor)],
           [
             "Claim total",
-            Number(expense.amount_minor) + Number(expense.tax_minor),
+            (BigInt(String(expense.amount_minor)) + BigInt(String(expense.tax_minor))).toString(),
           ],
           [
             "Outstanding",
             expense.cancelled_at
-              ? 0
+              ? "0"
               : (expense.outstanding_minor ??
-                Number(expense.amount_minor) + Number(expense.tax_minor)),
+                (BigInt(String(expense.amount_minor)) + BigInt(String(expense.tax_minor))).toString()),
           ],
         ].map(([label, value]) => (
           <article className="card" key={String(label)}>
             <span className="eyebrow">{String(label)}</span>
             <strong>
-              {String(expense.currency)} {minorToDecimal(Number(value))}
+              <MoneyAmount units={String(value)} currency={String(expense.currency)} date={String(expense.expense_date)} legacyScale={2} />
             </strong>
           </article>
         ))}
@@ -202,7 +204,7 @@ export default async function Expense({
                 <span className="muted"> · {String(p.payment_date)}</span>
               </div>
               <strong>
-                {String(p.currency)} {minorToDecimal(Number(p.amount_minor))}
+                <MoneyAmount units={String(p.amount_minor)} currency={String(p.currency)} date={String(p.payment_date)} legacyScale={2} />
               </strong>
             </div>
           ))
@@ -236,11 +238,7 @@ export default async function Expense({
               <strong>{String(a.action).replaceAll(".", " ")}</strong>
               <div className="muted">
                 {String(a.actor_name)} ·{" "}
-                {new Date(Number(a.created_at))
-                  .toISOString()
-                  .replace("T", " ")
-                  .slice(0, 19)}{" "}
-                UTC
+                <TimeText value={Number(a.created_at)} />
               </div>
             </div>
           </div>
@@ -255,6 +253,6 @@ export default async function Expense({
         }
       />
       <FlowPanel flow={flow} actor={actor} kind="expense" id={id} base={base}/>
-    </WidgetGrid></FeaturePage>
+    </WidgetGrid></FinanceRecordWorkspace></FeaturePage>
   );
 }

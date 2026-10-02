@@ -3,7 +3,7 @@ import { applyMigrations,env } from "./runtime-env";
 import { expenseDb as db,expenseFixture,key } from "./helpers/expense-fixture";
 import { deliveryEvidence } from "./helpers/delivery-evidence";
 import { assignFlowPrimary,resolveFlow } from "../src/server/flow-routing";
-import { postInvoice,postJournal } from "../src/server/finance";
+import { aging,calculateCloseReconciliations,postInvoice,postJournal } from "../src/server/finance";
 import { completeCommerceReturn,decideCommerceReturn,fulfillOrder,getOrder,invoiceFulfillment,orderSchema,requestCommerceReturn,saveMaster,saveOrder,settleInvoice,transitionOrder } from "../src/server/commerce";
 import { attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet } from "./helpers/attachment-v2";
 
@@ -44,7 +44,7 @@ it("returns a supplier receipt through independent review, stock reversal and de
   await expect(requestCommerceReturn(f.owner,String(receipt.fulfillmentId),{expectedVersion:2,date:"2026-09-04",reason:"Exceeds remaining quantity",lines:[{lineId:String(line.id),quantity:"2"}]},key())).rejects.toMatchObject({code:"OVER_RETURN"});
 });
 
-async function paidReturn(kind:'sales'|'purchase',paid='15',taxBps=0) {
+async function paidReturn(kind:'sales'|'purchase',paid='15',taxBps=0,returnDate='2026-09-04') {
   const {settleInvoice}=await import('../src/server/commerce');
   for(const [suffix,category] of [['receivable','asset'],['inventory','asset'],['clearing','liability']])await db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,?,?,'THB',1,1)").bind(`${f.company}-${suffix}`,f.chart,f.company,suffix,suffix,category).run();
   await db.prepare('UPDATE commerce_settings SET receivable_account_id=?,inventory_account_id=?,clearing_account_id=?,output_tax_account_id=? WHERE company_id=?').bind(`${f.company}-receivable`,`${f.company}-inventory`,`${f.company}-clearing`,f.accounts.tax,f.company).run();
@@ -71,7 +71,7 @@ async function paidReturn(kind:'sales'|'purchase',paid='15',taxBps=0) {
   const settlement=await settleInvoice(f.payer,invoiceId,{expectedVersion:2,date:'2026-09-03',amount:paid,reference:'Simulated original bank payment',attachmentSetIds:paymentEvidence?[paymentEvidence.setId]:[]},key());
   if(paymentEvidence)expect(await attachmentBindingState(db,paymentEvidence.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'invoice_payment_settlement'});
   details=await getOrder(f.owner,orderId);
-  const requestKey=key(),input={expectedVersion:2,date:'2026-09-04',reason:'Customer or supplier accepted the whole return',lines:[{lineId:String(details.fulfillmentLines[0].id),quantity:'2',...(kind==='sales'?{condition:'unknown' as const,conditionNote:'Returned units require independent Quality inspection',qualityDueDate:'2026-09-05'}:{})}]};
+  const requestKey=key(),input={expectedVersion:2,date:returnDate,reason:'Customer or supplier accepted the whole return',lines:[{lineId:String(details.fulfillmentLines[0].id),quantity:'2',...(kind==='sales'?{condition:'unknown' as const,conditionNote:'Returned units require independent Quality inspection',qualityDueDate:new Date(Date.parse(returnDate)+86400000).toISOString().slice(0,10)}:{})}]};
   const requested=await requestCommerceReturn(f.owner,String(fulfillment.fulfillmentId),input,requestKey);
   expect(await requestCommerceReturn(f.owner,String(fulfillment.fulfillmentId),input,requestKey)).toEqual(requested);
   await expect(requestCommerceReturn(f.owner,'different-source',input,requestKey)).rejects.toMatchObject({code:'IDEMPOTENCY_CONFLICT'});
@@ -91,6 +91,17 @@ async function paidReturn(kind:'sales'|'purchase',paid='15',taxBps=0) {
   const refundId=String(completed.refundId);
   expect(completed).toMatchObject({creditedMinor:2000+Math.round(2000*taxBps/10000)-Number(paid)*100,refundMinor:Number(paid)*100});
   expect(await db.prepare('SELECT outstanding_minor,status FROM finance_invoices WHERE id=?').bind(invoiceId).first()).toEqual({outstanding_minor:0,status:'paid'});
+  const kindOfDebt=kind==='sales'?'receivable':'payable';
+  const beforePayment=(await aging(f.manager,kindOfDebt,'2026-09-02',f.chart)).find(i=>i.id===invoiceId);
+  expect(beforePayment?.outstanding).toBe((20+Math.round(2000*taxBps/10000)/100).toFixed(2));
+  const beforeReturn=(await aging(f.manager,kindOfDebt,'2026-09-03',f.chart)).find(i=>i.id===invoiceId);
+  expect(beforeReturn?.outstanding??"0.00").toBe((20+Math.round(2000*taxBps/10000)/100-Number(paid)).toFixed(2));
+  expect((await aging(f.manager,kindOfDebt,returnDate,f.chart)).some(i=>i.id===invoiceId)).toBe(false);
+  const control=await db.prepare("SELECT CASE WHEN kind='receivable' THEN debit_account_id ELSE credit_account_id END id FROM finance_invoices WHERE id=?").bind(invoiceId).first<string>('id');
+  await db.prepare("UPDATE finance_accounts SET is_control=1,control_kind=? WHERE id=?").bind(kindOfDebt,control).run();
+  const period=await db.prepare("SELECT * FROM finance_periods WHERE id=?").bind(f.period).first<Record<string,string|number|null>>();
+  const reconciliation=await calculateCloseReconciliations(db,f.manager,{...period!,end_date:returnDate});
+  expect(reconciliation.rows.find(r=>r.accountId===control)).toMatchObject({sourceMinor:-Number(paid)*100,differenceMinor:0});
   expect(await db.prepare('SELECT COUNT(*) n FROM finance_refund_obligations WHERE return_id=?').bind(requested.id).first('n')).toBe(1);
   expect(await db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(warehouse.id,product.id).first()).toEqual(kind==='sales'?{quantity_milli:2000,value_minor:1200}:{quantity_milli:0,value_minor:0});
   if(kind==='sales'){
@@ -112,6 +123,51 @@ async function paidReturn(kind:'sales'|'purchase',paid='15',taxBps=0) {
   }
   return {refundId,invoiceId,requested,warehouse,product,settlement};
 }
+it.each(['sales','purchase'] as const)('retains the original VAT and records a signed October %s return in its own tax month',async kind=>{
+  const source=await paidReturn(kind,'15',700,'2026-10-02'),actor={...f.owner,branchId:null,departmentId:null};
+  const {prepareAccountingProfile,decideAccountingProfile}=await import('../src/server/accounting-profiles');
+  const p=await prepareAccountingProfile(actor,{statutoryChartId:f.chart,standard:'TFRS for NPAEs',fiscalStartMonth:1,effectiveDate:'2026-01-01',eligibilityEvidence:'Fixture entity eligibility reviewed for NPAEs',policyEvidence:'Fixture VAT source mapping and deduction policy reviewed',taxBasis:'current_tax',inventoryPolicy:'moving_average',depreciationPolicy:'straight_line'},key());
+  await decideAccountingProfile(f.manager,p.id,'approve',{expectedVersion:1,reason:'Independent NPAEs and statutory ledger approval'},key());
+  const {prepareVatEntry,reviewVatEntry,vatWorkspace,prepareVatPackage,prepareVatCorrection,reviewVatCorrection,vatCorrectionSchema,vatCorrectionDetail,approveVatPackage,vatPackageDetail}=await import('../src/server/finance-tax-register');
+  const facts={taxPointDate:'2026-09-02',claimMonth:'2026-09',documentReference:'ORIGINAL-FIXTURE-VAT',treatment:'standard' as const,deductibleBps:10000,legalBasis:'Reviewed VAT for original goods and the referenced return note',taxPointEvidence:'Original goods delivered on September 2; document and journal evidence reviewed',documentEvidence:'Fictional original VAT document retained only in isolated fixture'};
+  const original=await prepareVatEntry(actor,{...facts,sourceType:'invoice',sourceId:source.invoiceId,expectedSourceVersion:Number(await db.prepare('SELECT version FROM finance_invoices WHERE id=?').bind(source.invoiceId).first('version'))},key());
+  await reviewVatEntry(f.manager,original.id,'approve',{expectedVersion:1,reason:'Reviewed the original full VAT point and source tax lines'},key());
+  const note=await prepareVatEntry(actor,{...facts,sourceType:'commerce_return',sourceId:String(source.requested.id),expectedSourceVersion:3,taxPointDate:'2026-10-02',claimMonth:'2026-10',documentReference:'RETURN-FIXTURE-VAT'},key());
+  expect(note).toMatchObject({taxMinor:-140,deductibleMinor:-140});
+  await reviewVatEntry(f.manager,note.id,'approve',{expectedVersion:1,reason:'Reviewed referenced original, October return and signed VAT lines'},key());
+  const sept=await vatWorkspace(f.manager,{filingMonth:'2026-09'}),oct=await vatWorkspace(f.manager,{filingMonth:'2026-10'});
+  expect(sept.entries).toEqual(expect.arrayContaining([expect.objectContaining({id:original.id,tax_minor:140})]));
+  expect(oct.entries).toEqual(expect.arrayContaining([expect.objectContaining({id:note.id,tax_minor:-140,original_entry_id:original.id})]));
+  expect(sept.reconciliation?.ready).toBe(true);expect(oct.reconciliation?.ready).toBe(true);
+  const pack=await prepareVatPackage(actor,{chartId:f.chart,filingMonth:'2026-10',filingKind:'original',reason:'Prepare only the October return while preserving September VAT'},key());
+  expect(kind==='sales'?pack.result.outputVatMinor:pack.result.inputVatMinor).toBe(-140);
+  const previous=(await db.prepare('SELECT * FROM finance_tax_entries WHERE id IN (?,?) ORDER BY id').bind(original.id,note.id).all()).results;
+  const correctionInput=vatCorrectionSchema.parse({...facts,expectedEntryVersion:2,expectedSourceVersion:Number(await db.prepare('SELECT version FROM finance_invoices WHERE id=?').bind(source.invoiceId).first('version')),documentReference:'CORRECTED-ORIGINAL-FIXTURE',treatment:kind==='purchase'?'allocated':'standard',deductibleBps:kind==='purchase'?5000:10000,reason:'Reviewed correction must update the original and its linked return together'});
+  await expect(prepareVatCorrection(actor,original.id,{...correctionInput,taxPointDate:'2026-11-01',claimMonth:'2026-11'},key())).rejects.toMatchObject({code:'RETURN_TAX_DATE_INVALID'});
+  let correction=await prepareVatCorrection(actor,original.id,correctionInput,key());expect(correction.entryCount).toBe(2);
+  if(kind==='purchase'){
+    // A later return revision must stale the whole family, even with equal GL.
+    await db.prepare('UPDATE commerce_returns SET version=version+1 WHERE id=?').bind(source.requested.id).run();
+    await expect(reviewVatCorrection(f.manager,correction.id,'approve',{expectedVersion:1,reason:'The referenced return changed after family preparation'},key())).rejects.toMatchObject({code:'VAT_CORRECTION_STALE'});
+    await reviewVatCorrection(f.manager,correction.id,'reject',{expectedVersion:1,reason:'Retain stale family evidence and prepare all current return revisions'},key());
+    correction=await prepareVatCorrection(actor,original.id,correctionInput,key());
+  }
+  const detail=await vatCorrectionDetail(f.manager,correction.id);
+  expect(detail.entries.map(e=>[e.previous.id,e.replacement.tax_minor,e.replacement.deductible_minor])).toEqual([[original.id,140,kind==='purchase'?70:140],[note.id,-140,kind==='purchase'?-70:-140]]);
+  await expect(db.batch([
+    db.prepare("UPDATE finance_tax_entries SET status='approved',version=2,reviewed_by=?,review_reason='Incomplete family review fixture',reviewed_at=1 WHERE id=?").bind(f.manager.userId,detail.entries[0].replacement.id),
+    db.prepare("UPDATE finance_vat_corrections SET status='approved',version=2,reviewed_by=?,review_reason='Incomplete family review fixture',reviewed_at=1 WHERE id=?").bind(f.manager.userId,correction.id),
+  ])).rejects.toThrow('VAT_CORRECTION_NOT_ATOMIC');
+  expect((await vatCorrectionDetail(f.manager,correction.id)).entries.every(e=>e.replacement.status==='prepared')).toBe(true);
+  await reviewVatCorrection(f.manager,correction.id,'approve',{expectedVersion:1,reason:'Independent review of original and signed return deduction replacements'},key());
+  expect((await db.prepare('SELECT * FROM finance_tax_entries WHERE id IN (?,?) ORDER BY id').bind(original.id,note.id).all()).results).toEqual(previous);
+  const currentSept=await vatWorkspace(f.manager,{filingMonth:'2026-09'}),currentOct=await vatWorkspace(f.manager,{filingMonth:'2026-10'});
+  expect(currentSept.entries).toHaveLength(1);expect(currentOct.entries).toHaveLength(1);
+  expect(currentOct.entries[0]).toMatchObject({original_entry_id:currentSept.entries[0].id,deductible_minor:kind==='purchase'?-70:-140});
+  expect(currentOct.reconciliation).toMatchObject({ready:true,pendingCorrections:0});
+  await expect(approveVatPackage(f.manager,pack.id,{expectedVersion:1,reason:'Earlier return package is stale after the linked correction'},key())).rejects.toMatchObject({code:'VAT_PACKAGE_STALE'});
+  expect((await vatPackageDetail(f.manager,pack.id)).snapshot.register[0].id).toBe(note.id);
+});
 async function approveObligation(id:string) {
  const {approveRefund}=await import('../src/server/refunds');
  const input={expectedVersion:1,beneficiaryName:'Simulated counterparty',beneficiaryAccount:'TEST-BANK-123',reason:'Checked original invoice, return and beneficiary independently'};
@@ -213,4 +269,13 @@ it('keeps tax in the full paid credit and creates exactly the gross refund oblig
  expect(note).toEqual({subtotal_minor:2000,tax_minor:140,total_minor:2140,credited_minor:0,refund_minor:2140});
  const tax=await db.prepare("SELECT SUM(l.debit_minor-l.credit_minor) balance FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.status='posted' AND l.account_id=?").bind(f.company,f.accounts.tax).first('balance');
  expect(tax).toBe(0);
+});
+
+
+it.each(['sales','purchase'] as const)('keeps September %s balances after a full October return',async kind=>{
+  const source=await paidReturn(kind,'15',0,'2026-10-04'),debtKind=kind==='sales'?'receivable':'payable';
+  expect((await aging(f.manager,debtKind,'2026-09-30',f.chart)).find(row=>row.id===source.invoiceId)?.outstanding).toBe('5.00');
+  const period=await db.prepare('SELECT * FROM finance_periods WHERE id=?').bind(f.period).first<Record<string,string|number|null>>();
+  const september=await calculateCloseReconciliations(db,f.manager,{...period!,end_date:'2026-09-30'});
+  expect(september.rows.find(row=>row.kind===debtKind)).toMatchObject({sourceMinor:500,ledgerMinor:500,differenceMinor:0});
 });

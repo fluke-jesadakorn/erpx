@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, CheckSquare2, CirclePlus, MessageSquareText, ReceiptText, ShoppingBasket, Sparkles, Send } from "lucide-react";
+import { CalendarDays, CheckSquare2, CirclePlus, MessageSquareText, ReceiptText, ShoppingBasket, Sparkles, Send, Scale } from "lucide-react";
 import { useState } from "react";
 import styles from "./start-actions.module.css";
 
@@ -14,11 +14,12 @@ const actions = [
   { id: "handover", label: "Pass on work", icon: Send, path: "/home#handover" },
 ] as const;
 
-export function StartActions({ base, compact = false, rail = false, onNavigate }: {
+export function StartActions({ base, compact = false, rail = false, onNavigate, canRequestLegal = false }: {
   base: string;
   compact?: boolean;
   rail?: boolean;
   onNavigate?: () => void;
+  canRequestLegal?: boolean;
 }) {
   const [prompt, setPrompt] = useState("");
   function ask() {
@@ -37,6 +38,7 @@ export function StartActions({ base, compact = false, rail = false, onNavigate }
       <button type="submit">Ask ERPX</button>
     </form>
     <div className={styles.actions}>
+      {canRequestLegal && <Link href={`${base}/legal?kind=request&new=request`} onClick={onNavigate}><Scale size={18} aria-hidden="true" />Request legal advice</Link>}
       {actions.map(({ id, label, icon: Icon, path }) => <Link key={id} href={`${base}${path}`} onClick={onNavigate}>
         <Icon size={18} aria-hidden="true" />{label}
       </Link>)}

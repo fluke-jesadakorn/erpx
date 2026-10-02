@@ -72,11 +72,13 @@ async function rosterGaps(db: SqlDatabase, companyId: string, departmentId: stri
   return rows<RosterGap>(db, `SELECT p.id person_id,p.legal_name,e.id engagement_id,?::date::text week_start
     FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id
     JOIN organization_positions pos ON pos.id=e.position_id AND pos.company_id=e.company_id AND pos.active=1 AND pos.roster_required=1
-    WHERE p.company_id=? AND e.department_id=? AND p.status='active' AND p.merged_into_id IS NULL AND p.user_id IS NOT NULL
+    WHERE p.company_id=? AND e.department_id=? AND p.status='active' AND p.merged_into_id IS NULL
       AND e.status='active' AND e.start_date::date<=(?::date+6) AND (e.end_date IS NULL OR e.end_date::date>=?::date)
-      AND EXISTS (SELECT 1 FROM assignments grant_row WHERE grant_row.company_id=p.company_id AND grant_row.user_id=p.user_id
-        AND iam_assignment_active(grant_row.id,?) AND iam_principal_active(grant_row.user_id,grant_row.company_id,?))
-      AND EXISTS (SELECT 1 FROM generate_series(?::date,?::date+6,interval '1 day') day WHERE extract(isodow FROM day)<=5
+      AND EXISTS (SELECT 1 FROM generate_series(?::date,?::date+6,interval '1 day') day WHERE
+        (extract(isodow FROM day)<=5 OR NOT EXISTS (
+          SELECT 1 FROM generate_series(?::date,?::date+6,interval '1 day') weekday
+          WHERE extract(isodow FROM weekday)<=5 AND weekday::date>=e.start_date::date
+            AND (e.end_date IS NULL OR weekday::date<=e.end_date::date)))
         AND day::date>=e.start_date::date AND (e.end_date IS NULL OR day::date<=e.end_date::date)
         AND NOT EXISTS (SELECT 1 FROM leave_requests l LEFT JOIN employees emp ON emp.id=l.employee_id AND emp.company_id=l.company_id
           WHERE l.company_id=e.company_id AND l.state='approved' AND coalesce(l.person_id,emp.person_id)=p.id
@@ -85,7 +87,37 @@ async function rosterGaps(db: SqlDatabase, companyId: string, departmentId: stri
               AND (day::date<>l.start_date::date OR l.start_segment='full') AND (l.end_date IS NULL OR day::date<>l.end_date::date OR l.end_segment='full'))))
       AND NOT EXISTS (SELECT 1 FROM people_roster_assignments a JOIN people_roster_shifts s ON s.id=a.shift_id AND s.state='active'
         JOIN people_roster_weeks w ON w.id=s.week_id WHERE w.company_id=e.company_id AND w.department_id=e.department_id AND w.week_start=?::date
-        AND a.engagement_id=e.id AND a.state='assigned') ORDER BY p.legal_name,p.id`, start, companyId, departmentId, start, start, Date.now(), Date.now(), start, start, start);
+        AND a.engagement_id=e.id AND a.state='assigned') ORDER BY p.legal_name,p.id`, start, companyId, departmentId, start, start, start, start, start, start, start);
+}
+/** Emit manager alerts outside reads; stable IDs make scheduled retries safe. */
+export async function escalateRosterCoverage(db: SqlDatabase, today = rosterMonday()) {
+  const departments = await rows<{ company_id: string; department_id: string; branch_id: string | null }>(db, `
+    SELECT DISTINCT e.company_id,e.department_id,d.branch_id FROM hr_engagements e
+    JOIN organization_positions p ON p.id=e.position_id AND p.company_id=e.company_id AND p.active=1 AND p.roster_required=1
+    JOIN organization_nodes d ON d.id=e.department_id AND d.company_id=e.company_id AND d.kind='department' AND d.status='active'
+    WHERE e.status='active'`);
+  let missing = 0;
+  for (const department of departments) for (const weekStart of [today, addDays(today, 7)]) {
+    for (const gap of await rosterGaps(db, department.company_id, department.department_id, weekStart)) {
+      missing++;
+      await run(db, `WITH RECURSIVE ancestors AS (
+        SELECT id,parent_id FROM organization_nodes WHERE id=? AND company_id=?
+        UNION ALL SELECT parent.id,parent.parent_id FROM organization_nodes parent
+          JOIN ancestors child ON child.parent_id=parent.id WHERE parent.company_id=?
+      ) INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)
+      SELECT ? || '-' || a.user_id,?,a.user_id,'roster_coverage',?,1,?,? FROM assignments a
+      WHERE a.company_id=? AND iam_assignment_active(a.id,?) AND iam_principal_active(a.user_id,a.company_id,?)
+        AND iam_role_allows(a.role,a.company_id,'roster.manage')
+        AND (a.scope_kind='holding' OR a.scope_kind='branch' AND a.scope_node_id=?
+          OR a.scope_kind='department' AND a.scope_node_id IN (SELECT id FROM ancestors))
+      ON CONFLICT DO NOTHING`, department.department_id, department.company_id, department.company_id,
+        `roster-coverage-${gap.engagement_id}-${weekStart}`, department.company_id,
+        `${department.department_id}:${weekStart}:${gap.person_id}`,
+        `${gap.legal_name} needs a roster shift for the week of ${weekStart}.`, Date.now(),
+        department.company_id, Date.now(), Date.now(), department.branch_id);
+    }
+  }
+  return { missing };
 }
 async function requireCoverage(db:SqlDatabase,w:RosterWeek|ShiftWithWeek) {
   const gaps=await rosterGaps(db,w.company_id,w.department_id,w.week_start);
@@ -439,12 +471,6 @@ export async function rosterData(db: SqlDatabase, actor: WorkContext, query: { d
     data.people = (await rosterStaffPeople(db, actor.companyId, selected.id, start, addDays(start,6))).filter(p=>p.roster_required===1).map(p => ({ person_id: p.person_id, legal_name: p.legal_name, engagement_id: p.engagement_id }));
     const current=rosterMonday();
     data.coverageGaps = [...await rosterGaps(db,actor.companyId,selected.id,current),...await rosterGaps(db,actor.companyId,selected.id,addDays(current,7))];
-    for(const gap of data.coverageGaps) await run(db,`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at)
-      SELECT gen_random_uuid()::text,?,a.user_id,'roster_coverage',?,1,?,? FROM assignments a
-      WHERE a.company_id=? AND iam_assignment_active(a.id,?) AND iam_principal_active(a.user_id,a.company_id,?)
-        AND iam_role_allows(a.role,a.company_id,'roster.manage')
-        AND (a.scope_kind='holding' OR a.scope_kind='branch' AND a.scope_node_id=? OR a.scope_kind='department' AND a.scope_node_id=?)
-      ON CONFLICT DO NOTHING`,actor.companyId,`${selected.id}:${gap.week_start}:${gap.person_id}`,`${gap.legal_name} needs a roster shift for the week of ${gap.week_start}.`,Date.now(),actor.companyId,Date.now(),Date.now(),selected.branch_id,selected.id);
   }
   data.requests = await rows<RosterRequest>(db, `SELECT r.*,p.legal_name requester_name,c.legal_name coworker_name FROM people_roster_requests r JOIN hr_people p ON p.id=r.requester_person_id LEFT JOIN hr_people c ON c.id=r.coworker_person_id
     WHERE r.company_id=? AND r.department_id=? AND (? OR r.requester_person_id=? OR r.coworker_person_id=?) ORDER BY r.created_at DESC LIMIT 200`, actor.companyId, selected.id, manager, staff?.person_id ?? null, staff?.person_id ?? null);

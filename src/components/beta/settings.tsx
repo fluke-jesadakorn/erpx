@@ -3,7 +3,7 @@ import { BillingConsole } from "@/components/billing/billing-console";
 import betaStyles from "@/components/beta/beta.module.css";
 import { useEffect, useState, useRef } from "react";
 import { betaFetch } from "@/lib/beta-client";
-import { formatUiDateTime } from "@/lib/ui-format";
+import { TimeText } from "@/components/time/time-preference-context";
 import type { AdminSection } from "@/lib/administration";
 type Settings = {
   policy: {
@@ -208,7 +208,7 @@ export function BetaSettings({
                 <p key={i.id}>
                   {i.email} ·{" "}
                   {i.invitation_state === "Invited"
-                    ? `Invited · expires ${formatUiDateTime(i.expires_at, "Asia/Bangkok", { dateStyle: "medium" })}`
+                    ? <>Invited · expires <TimeText value={i.expires_at} /></>
                     : i.invitation_state}
                 </p>
               ))}

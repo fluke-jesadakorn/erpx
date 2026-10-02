@@ -21,11 +21,11 @@ export function BetaAuthForm({
   if (mode === "reset" && (!token || invalid))
     return (
       <div className={`beta-form ${betaStyles.surface}`}>
-        <Alert tone="danger" title={frontMode ? "ลิงก์ใช้ไม่ได้" : "Reset link unavailable"}>
-          {frontMode ? "ลิงก์นี้หมดอายุหรือถูกแทนด้วยคำขอใหม่" : "This link is invalid, expired, or has been replaced by a newer request."}
+        <Alert tone="danger" title="Reset link unavailable">
+          This link is invalid, expired, or has been replaced by a newer request.
         </Alert>
-        <a href="/forgot-password">{frontMode ? "ขอลิงก์ใหม่" : "Request a new reset link"}</a>
-        <a href="/login">{frontMode ? "เข้าสู่ระบบ" : "Sign in"}</a>
+        <a href="/forgot-password">Request a new reset link</a>
+        <a href="/login">Sign in</a>
       </div>
     );
   return (
@@ -68,14 +68,14 @@ export function BetaAuthForm({
             form.reset();
           }
           setMessage(
-            frontMode && result.error ? "ดำเนินการไม่สำเร็จ กรุณาตรวจสอบข้อมูลแล้วลองอีกครั้ง" : result.error?.message ??
+            frontMode && result.error ? "The request could not be completed. Check your details and try again." : result.error?.message ??
               (mode === "reset"
-                ? frontMode ? "เปลี่ยนรหัสผ่านแล้ว เข้าสู่ระบบได้เลย" : "Password changed. You can sign in."
-                : frontMode ? "ตรวจสอบอีเมลเพื่อทำขั้นตอนต่อไป" : "Check your email for the next step."),
+                ? "Password changed. You can sign in."
+                : "Check your email for the next step."),
           );
         } catch {
           setFailed(true);
-          setMessage(frontMode ? "เชื่อมต่อไม่ได้ กรุณาลองอีกครั้ง" : "Unable to complete the request. Please try again.");
+          setMessage("Unable to complete the request. Please try again.");
         } finally {
           setBusy(false);
         }
@@ -85,10 +85,10 @@ export function BetaAuthForm({
         <Field label="Your name" required><TextInput name="name" required maxLength={100} autoComplete="name" /></Field>
       )}
       {mode !== "reset" && (
-        <Field label={frontMode ? "อีเมล" : "Email"} required><TextInput type="email" name="email" required autoComplete="email" /></Field>
+        <Field label="Email" required><TextInput type="email" name="email" required autoComplete="email" /></Field>
       )}
       {(mode === "signup" || mode === "reset") && !completed && (
-        <Field label={frontMode ? "รหัสผ่านใหม่" : "Password"} required hint={frontMode ? "อย่างน้อย 12 ตัวอักษร" : "Use at least 12 characters."}>
+        <Field label={frontMode ? "New password" : "Password"} required hint="Use at least 12 characters.">
           <TextInput
             type="password"
             name="password"
@@ -102,13 +102,13 @@ export function BetaAuthForm({
         {mode === "signup"
             ? "Create account"
             : mode === "verify"
-              ? frontMode ? "ส่งลิงก์ยืนยันอีกครั้ง" : "Resend verification link"
+              ? "Resend verification link"
               : mode === "forgot"
-                ? frontMode ? "ส่งลิงก์กู้รหัสผ่าน" : "Send reset link"
-                : frontMode ? "เปลี่ยนรหัสผ่าน" : "Change password"}
+                ? "Send reset link"
+                : "Change password"}
       </Button>}
-      {message && <Alert tone={failed ? "danger" : "success"} title={frontMode ? failed ? "ดำเนินการไม่สำเร็จ" : "ขั้นตอนถัดไป" : failed ? "Request not completed" : "Check the next step"} live>{message}</Alert>}
-      <a href="/login">{frontMode ? "เข้าสู่ระบบ" : "Sign in"}</a>
+      {message && <Alert tone={failed ? "danger" : "success"} title={failed ? "Request not completed" : "Check the next step"} live>{message}</Alert>}
+      <a href="/login">Sign in</a>
       {mode === "signup" && (
         <a href="/verify-email">Resend verification email</a>
       )}

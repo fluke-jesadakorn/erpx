@@ -1,4 +1,5 @@
 import { signingAuthority } from "./authority";
+import { assertLegalSigningEnabled } from "./signing";
 import "server-only";
 import { z } from "zod";
 import { currentSession } from "../authorization";
@@ -211,6 +212,7 @@ export async function portalCommand(
     })
     .parse(raw);
   z.string().uuid().parse(key);
+  if(["sign","decline"].includes(x.action))assertLegalSigningEnabled();
   if (["sign", "decline"].includes(x.action)) await requireFreshMfa(a);
   const digest = hash(JSON.stringify({ user: a.userId, input: raw }));
   return db.transaction(async (tx) => {

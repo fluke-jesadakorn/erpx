@@ -104,7 +104,7 @@ export function FxRevaluationControls({ base, data, canPrepare, canApprove, user
     {data.period.state === "open" && chartIds.map(chartId => <ChartPreparation key={chartId} base={base} data={data} chartId={chartId} canPrepare={canPrepare} />)}
     {!chartIds.length && !data.runs.length && <p className="muted">No foreign-currency receivables or payables are outstanding at period end.</p>}
     {data.runs.map(run => <article className="card content-stack" key={String(run.id)}>
-      <div className="split-row"><div><strong>{String(run.chart_name)}</strong><p className="muted">อัตราปิดงวด: {Object.entries(JSON.parse(String(run.rates_json)) as Record<string, string>).map(([currency, rate]) => `${currency} ${rate}`).join(" · ")}</p></div><span className="status-badge">{String(run.status)}</span></div>
+      <div className="split-row"><div><strong>{String(run.chart_name)}</strong><p className="muted">Closing rates: {Object.entries(JSON.parse(String(run.rates_json)) as Record<string, string>).map(([currency, rate]) => `${currency} ${rate}`).join(" · ")}</p></div><span className="status-badge">{String(run.status)}</span></div>
       <p className="muted">Preparation evidence: {String(run.preparation_proof)} · source {String(run.source_hash).slice(0, 12)}</p>
       {run.decision_proof && <p className="muted">Decision evidence: {String(run.decision_proof)}</p>}
       <RunDecision base={base} run={run} canApprove={canApprove} userId={userId} />

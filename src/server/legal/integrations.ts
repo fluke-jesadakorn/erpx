@@ -108,12 +108,12 @@ export async function legalCalendar(
   return (
     await db
       .prepare(
-        `SELECT i.* FROM (SELECT id,id item_id,title,description,due_date,timezone,department_id,branch_id,owner_id,state,version,company_id,classification FROM legal_items UNION ALL ${Object.values(
+        `SELECT i.* FROM (SELECT id,id item_id,title,description,due_date,timezone,department_id,branch_id,owner_id,state,version,company_id,classification,kind,created_by FROM legal_items UNION ALL ${Object.values(
           featureSpecs,
         )
           .map(
             (spec) =>
-              `SELECT f.id,i.id item_id,f.title,i.description,f.due_date,i.timezone,i.department_id,i.branch_id,f.owner_id,f.state,f.version,i.company_id,i.classification FROM ${spec.table} f JOIN legal_items i ON i.id=f.item_id`,
+              `SELECT f.id,i.id item_id,f.title,i.description,f.due_date,i.timezone,i.department_id,i.branch_id,f.owner_id,f.state,f.version,i.company_id,i.classification,i.kind,i.created_by FROM ${spec.table} f JOIN legal_items i ON i.id=f.item_id`,
           )
           .join(
             " UNION ALL ",

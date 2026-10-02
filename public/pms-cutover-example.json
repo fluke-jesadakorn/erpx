@@ -1,0 +1,12 @@
+{
+  "propertyId": "replace-with-hotel-id",
+  "expectedVersion": 1,
+  "cutoverDate": "2026-09-30",
+  "currency": "THB",
+  "source": "legacy-cutover",
+  "roomTypes": [{"key":"deluxe","name":"Deluxe","capacity":2}],
+  "rooms": [{"key":"101","number":"101","typeKey":"deluxe"}],
+  "rates": [{"key":"standard","name":"Standard","typeKey":"deluxe","from":"2026-09-30","to":"2027-09-30","priceMinor":150000}],
+  "guests": [{"key":"guest-1","name":"Rehearsal guest"}],
+  "reservations": [{"key":"booking-1","guestKey":"guest-1","typeKey":"deluxe","rateKey":"standard","roomKey":"101","arrival":"2026-09-29","departure":"2026-10-02","adults":2,"state":"in_house","opening":{"due":0,"advance":150000,"advanceTax":0,"deposit":100000}}]
+}

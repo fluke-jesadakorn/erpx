@@ -6,6 +6,7 @@ import { WorkFlow } from "./work-flow";
 import { operationFromWork } from "@/lib/operation-presentation";
 import { workTypeTone } from "@/lib/work-category-tone";
 import styles from "./work-list.module.css";
+import { TimeText } from "@/components/time/time-preference-context";
 export function WorkList({
   base,
   items,
@@ -49,9 +50,7 @@ export function WorkList({
               {item.dueAt && (
                 <small className={styles.due}>
                   Due{" "}
-                  {new Date(item.dueAt).toLocaleDateString("en-GB", {
-                    timeZone: "Asia/Bangkok",
-                  })}
+                  <TimeText value={item.dueAt} />
                 </small>
               )}
               {workBlocker(item) && item.queue !== "completed" && <p className={styles.blocker}>Needs attention: {workBlocker(item)}</p>}

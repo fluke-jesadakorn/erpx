@@ -548,13 +548,13 @@ const delivery: Record<string, ModuleDelivery> = {
     gap: "Lead qualification, owner-specific activities, scoped opportunity pipeline and source-approved quotation/order handoff implemented; customer identity/consent, deduplication, SLA escalation, provider delivery and full S01 acceptance remain.",
     overrides: {
       activities: {
-        status: "implemented",
+        status: "flow_accepted",
         ui: "src/app/holdings/[holdingSlug]/crm/[id]/page.tsx; src/components/modules/crm-activity-console.tsx",
         api: "src/app/api/v1/holdings/[holdingSlug]/crm/activities/route.ts",
         service: "src/server/crm-activities.ts",
         schema: "migrations/postgres/holding-write/0214_customer_followups.sql; migrations/postgres/holding-write/0286_crm_lead_activities.sql",
-        test: "tests/customer-followups.test.ts; tests/crm-activities.test.ts; tests/e2e/demo-crm-activities.spec.ts",
-        gap: "Source-order follow-ups and lead/opportunity activities now have eligible owners, due dates, audited reassignment/cancellation/completion, idempotency, version guards and Work/Inbox handoff. SLA escalation, communications provider delivery and full Company business acceptance remain.",
+        test: "docs/testing/evidence/2026-09-28-crm-marketing-flows.txt; tests/customer-followups.test.ts; tests/crm-activities.test.ts; tests/e2e/demo-crm-activities.spec.ts",
+        gap: "Fresh isolated browser acceptance covers cross-role scheduling, manager visibility and completion. Integration evidence covers replay-safe creation/cancellation, eligible-owner reassignment, stale/scope denial and immutable history. SLA escalation, communication-provider delivery and full Company business acceptance remain.",
       },
       "feature-leads": {
         status: "implemented",
@@ -587,6 +587,13 @@ const delivery: Record<string, ModuleDelivery> = {
     schema: "migrations/postgres/holding-write/0232_marketing.sql",
     test: "tests/marketing.test.ts",
     gap: "Independently activated forms/content/domain/provider assets, consented attributed lead candidates, engagement evidence and idempotent CRM owner-service handoff are implemented. Public form hosting, provider delivery/webhooks, campaign analytics, browser and business acceptance remain.",
+    overrides: {
+      "feature-engagement": {
+        status: "flow_accepted",
+        test: "docs/testing/evidence/2026-09-28-crm-marketing-flows.txt; tests/e2e/demo-marketing-to-crm-lead.spec.ts; tests/marketing.test.ts",
+        gap: "Fresh isolated browser acceptance records campaign/source attribution and a Sales engagement, then verifies the CRM lead handoff retains the brief and source. Service tests cover replay-safe event and handoff writes, consent enforcement and scoped campaign summaries. Public provider/webhook ingestion, approved campaign-ID and Finance-cost analytics, and Company business acceptance remain.",
+      },
+    },
   },
   manufacturing: {
     stage: 4,

@@ -1,7 +1,8 @@
 import { beforeAll,beforeEach,describe,expect,it,vi } from "vitest";
 import { applyMigrations,env,type TestMigration } from "./runtime-env";
 import { expenseDb as db,expenseFixture,key } from "./helpers/expense-fixture";
-import { approvePayment,calculateCloseReconciliations,confirmPayment,createInvoice,createParty,createPayment,importBankStatement,postInvoice,releasePayment,reversePayment } from "../src/server/finance";
+import { approvePayment,bankWorkspace,calculateCloseReconciliations,confirmPayment,createInvoice,createParty,createPayment,importBankStatement,invoicesPage,postInvoice,releasePayment,reversePayment } from "../src/server/finance";
+import { confirmManualRate } from "../src/server/company-money";
 import { assignFlowPrimary,resolveFlow } from "../src/server/flow-routing";
 
 vi.mock("server-only",()=>({}));
@@ -22,6 +23,37 @@ async function payable(amount="100"){
 }
 
 describe("generic controlled payments",()=>{
+ it("reads each statement's bank currency and chart currency in paged and print views",async()=>{
+  const statement=await importBankStatement(f.reviewer,{bankAccount:f.accounts.cash,statementNumber:`DISPLAY-${key()}`,statementDate:"2026-09-30",opening:"0",closing:"50",sourceHash:key(),rows:[{externalId:`DISPLAY-ROW-${key()}`,transactionDate:"2026-09-30",amount:"50",currency:"THB"}]},key());
+  for(const query of [{},{print:"1"}]) {
+   const view=await bankWorkspace(f.owner,query);
+   expect(view.statements.find(row=>row.id===statement.id)).toMatchObject({currency:"THB",base_currency:"THB",opening_minor:0,closing_minor:5000});
+   expect(view.statements.every(row=>typeof row.currency==="string"&&row.currency!=="undefined")).toBe(true);
+  }
+  const other=await expenseFixture();
+  expect((await bankWorkspace(other.owner,{})).statements.some(row=>row.id===statement.id)).toBe(false);
+  expect((await bankWorkspace(f.owner,{chart:f.chart,view:"unmatched",q:"DISPLAY"})).transactions).toHaveLength(1);
+  expect((await bankWorkspace(f.owner,{chart:other.chart})).statements).toEqual([]);
+  expect((await bankWorkspace(f.owner,{chart:other.chart})).transactions).toEqual([]);
+  expect((await bankWorkspace(f.owner,{q:"does not exist"})).transactions).toEqual([]);
+ });
+ it("filters payable documents by their owning chart without leaking another Company",async()=>{
+  const supplier=await createParty(f.reviewer,{kind:"supplier",code:`CHART-${key()}`,name:"Chart selection supplier",currency:"THB",paymentTermsDays:30,creditLimit:"0"},key());
+  const invoice=await createInvoice(f.reviewer,{partyId:String(supplier.id),kind:"payable",invoiceNumber:`CHART-${key()}`,invoiceDate:"2026-09-10",dueDate:"2026-10-10",currency:"THB",subtotal:"10",tax:"0",debitAccountId:f.accounts.expense,creditAccountId:f.accounts.payable},key());
+  const other=await expenseFixture();
+  expect((await invoicesPage(f.owner,{chartId:f.chart,kind:"payable"})).items.map(row=>row.id)).toContain(invoice.id);
+  expect((await invoicesPage(f.owner,{chartId:f.chart,kind:"receivable"})).items).toEqual([]);
+  expect((await invoicesPage(f.owner,{chartId:other.chart})).items).toEqual([]);
+  expect((await invoicesPage(other.owner,{chartId:f.chart})).items).toEqual([]);
+ });
+ it("freezes the confirmed USD snapshot when an invoice is posted and a dated rate is revised",async()=>{
+  const original=await confirmManualRate(f.manager,{currency:"THB",effectiveDate:"2026-09-10",currencyPerUsd:"36",note:"Company manual quote"},key());
+  const {invoice}=await payable("100");
+  const before=await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_invoice' AND source_id=? AND amount_kind='total'").bind(f.company,invoice.id).first();
+  expect(before).toEqual({amount_units:"10000",usd_units:"278",fx_rate_id:original.id});
+  await confirmManualRate(f.manager,{currency:"THB",effectiveDate:"2026-09-10",currencyPerUsd:"37",note:"Revised after posting"},key());
+  expect(await db.prepare("SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_invoice' AND source_id=? AND amount_kind='total'").bind(f.company,invoice.id).first()).toEqual(before);
+ });
  it("uses three people and atomically posts, allocates, and reconciles exact bank evidence",async()=>{
   const {supplier,invoice}=await payable();
   const payment=await createPayment(f.reviewer,{partyId:String(supplier.id),kind:"payment",paymentNumber:`PAY-${key()}`,paymentDate:"2026-09-12",currency:"THB",amount:"100",bankAccount:f.accounts.cash},key());
@@ -67,12 +99,14 @@ describe("generic controlled payments",()=>{
   ]);
   const supplier=await createParty(f.reviewer,{kind:"supplier",code:`USD-SUP-${key()}`,name:"USD supplier",currency:"USD",paymentTermsDays:30,creditLimit:"0"},key()),invoice=await createInvoice(f.reviewer,{partyId:String(supplier.id),kind:"payable",invoiceNumber:`USD-BILL-${key()}`,invoiceDate:"2026-09-10",dueDate:"2026-10-10",currency:"USD",subtotal:"100",tax:"0",debitAccountId:ids.expense,creditAccountId:ids.payable},key()),flow=await resolveFlow(db,f.owner,"invoice",String(invoice.id));
   await assignFlowPrimary(db,f.owner,"invoice",String(invoice.id),{stepKey:"draft",userId:f.manager.userId,reason:"Independent USD invoice reviewer",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());
-  await expect(postInvoice(f.manager,String(invoice.id),{periodId:f.period,entryDate:"2026-09-10",expectedVersion:1},key())).rejects.toMatchObject({code:"FX_RATE_REQUIRED"});
-  await postInvoice(f.manager,String(invoice.id),{periodId:f.period,entryDate:"2026-09-10",expectedVersion:1,fxRate:"35"},key());
+  await expect(postInvoice(f.manager,String(invoice.id),{periodId:f.period,entryDate:"2026-09-10",expectedVersion:1},key())).rejects.toMatchObject({code:"MANUAL_RATE_REQUIRED"});
+  await confirmManualRate(f.manager,{currency:"THB",effectiveDate:"2026-09-10",currencyPerUsd:"35",note:"Invoice-date manual rate"},key());
+  await postInvoice(f.manager,String(invoice.id),{periodId:f.period,entryDate:"2026-09-10",expectedVersion:1},key());
   const payment=await createPayment(f.reviewer,{partyId:String(supplier.id),kind:"payment",paymentNumber:`USD-PAY-${key()}`,paymentDate:"2026-09-20",currency:"USD",amount:"100",bankAccount:ids.bank},key());
   await approvePayment(f.manager,String(payment.id),{expectedVersion:1,proof:"Independent USD obligation review"},key());await releasePayment(f.payer,String(payment.id),{expectedVersion:2,proof:"Treasury released the USD transfer"},key());
-  const statement=await importBankStatement(f.reviewer,{bankAccount:ids.bank,statementNumber:`USD-STMT-${key()}`,statementDate:"2026-12-31",opening:"0",closing:"-100",closingFxRate:"36",sourceHash:key(),rows:[{externalId:`USD-TX-${key()}`,transactionDate:"2026-09-20",amount:"-100",currency:"USD"}]},key()),bankId=String(await db.prepare("SELECT id FROM finance_bank_transactions WHERE statement_id=?").bind(statement.id).first("id"));
-  const result=await confirmPayment(f.payer,String(payment.id),{expectedVersion:3,periodId:f.period,bankTransactionId:bankId,bankVersion:1,bankReference:"USD-WIRE",proof:"Treasury matched the exact USD bank debit",fxRate:"36",fxGainAccountId:ids.gain,fxLossAccountId:ids.loss,allocations:[{invoiceId:String(invoice.id),amount:"100"}]},key());
+  await confirmManualRate(f.manager,{currency:"THB",effectiveDate:"2026-09-20",currencyPerUsd:"36",note:"Bank-date manual rate"},key());
+  const statement=await importBankStatement(f.reviewer,{bankAccount:ids.bank,statementNumber:`USD-STMT-${key()}`,statementDate:"2026-12-31",opening:"0",closing:"-100",sourceHash:key(),rows:[{externalId:`USD-TX-${key()}`,transactionDate:"2026-09-20",amount:"-100",currency:"USD"}]},key()),bankId=String(await db.prepare("SELECT id FROM finance_bank_transactions WHERE statement_id=?").bind(statement.id).first("id"));
+  const result=await confirmPayment(f.payer,String(payment.id),{expectedVersion:3,periodId:f.period,bankTransactionId:bankId,bankVersion:1,bankReference:"USD-WIRE",proof:"Treasury matched the exact USD bank debit",fxGainAccountId:ids.gain,fxLossAccountId:ids.loss,allocations:[{invoiceId:String(invoice.id),amount:"100"}]},key());
   expect(result).toMatchObject({status:"settled",realizedFx:"-100.00"});expect(result.fxJournalId).toBeTruthy();
   expect(await db.prepare("SELECT fx_rate_micros,base_total_minor,base_outstanding_minor,status FROM finance_invoices WHERE id=?").bind(invoice.id).first()).toMatchObject({fx_rate_micros:35_000_000,base_total_minor:350_000,base_outstanding_minor:0,status:"paid"});
   expect(await db.prepare("SELECT fx_rate_micros,base_amount_minor,fx_journal_id FROM finance_payments WHERE id=?").bind(payment.id).first()).toMatchObject({fx_rate_micros:36_000_000,base_amount_minor:360_000,fx_journal_id:result.fxJournalId});

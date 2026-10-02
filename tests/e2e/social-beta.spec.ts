@@ -298,31 +298,31 @@ test("keeps a failed image upload in the composer and retries it", async ({
       .first()
       .fill(marker);
     await composer
-      .getByLabel("Add photos", { exact: true })
+      .getByLabel("Add images to post", { exact: true })
       .setInputFiles({
         name: "wrong.txt",
         mimeType: "text/plain",
         buffer: Buffer.from("not an image"),
       });
-    await expect(page.locator(".beta-status")).toContainText(
+    await expect(composer.getByRole("status").filter({ hasText: "JPEG, PNG, and WebP" })).toContainText(
       "JPEG, PNG, and WebP",
     );
     await expect(composer.getByRole("img", { name: "wrong.txt" })).toHaveCount(
       0,
     );
     await composer
-      .getByLabel("Add photos", { exact: true })
+      .getByLabel("Add images to post", { exact: true })
       .setInputFiles({
         name: "too-large.png",
         mimeType: "image/png",
         buffer: Buffer.alloc(10 * 1024 * 1024 + 1),
       });
-    await expect(page.locator(".beta-status")).toContainText("10 MB");
+    await expect(composer.getByRole("status").filter({ hasText: "10 MB" })).toContainText("10 MB");
     await expect(
       composer.getByRole("img", { name: "too-large.png" }),
     ).toHaveCount(0);
     await composer
-      .getByLabel("Add photos", { exact: true })
+      .getByLabel("Add images to post", { exact: true })
       .setInputFiles({ name, mimeType: "image/png", buffer: tinyPng });
     let failed = false;
     await page.route("**/uploads/*/content", async (route) => {
@@ -347,7 +347,7 @@ test("keeps a failed image upload in the composer and retries it", async ({
     );
     await expect(
       composer.getByLabel("Post message", { exact: true }).first(),
-    ).toHaveValue(marker);
+    ).toContainText(marker);
     await expect(composer.getByRole("img", { name })).toBeVisible();
     await composer
       .getByRole("button", { name: "Share update", exact: true })

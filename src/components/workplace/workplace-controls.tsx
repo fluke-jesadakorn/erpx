@@ -283,8 +283,11 @@ function LegacyWorkplaceNavigation(
         key={item.id}
         className={child ? styles.navChildLink : undefined}
         href={item.href}
+        target={item.openInNewTab ? "_blank" : undefined}
+        rel={item.openInNewTab ? "noopener noreferrer" : undefined}
         aria-current={item.id === resolved.activeId ? "page" : undefined}
         title={item.label}
+        aria-label={item.openInNewTab ? `${item.label}, opens in a new tab` : undefined}
         onClick={() => {
           closeMobile();
           if (item.id === "home") readHome();
@@ -298,6 +301,7 @@ function LegacyWorkplaceNavigation(
           <NavigationIcon id={item.icon} />
         )}
         <span>{item.label}</span>
+        {item.openInNewTab && <ArrowUpRight size={14} aria-hidden="true" />}
         {(item.id === "home" || item.id === "work") &&
           workspaceBase !== "/platform" && (
             <span
@@ -473,13 +477,13 @@ export function CommandSearch(props: NavigationContext) {
         </div>
         <div className={styles.commandResults}>
           {results.map((item) => (
-            <Link key={item.id} href={item.href} onClick={() => setOpen(false)}>
+            <Link key={item.id} href={item.href} target={item.openInNewTab ? "_blank" : undefined} rel={item.openInNewTab ? "noopener noreferrer" : undefined} aria-label={item.openInNewTab ? `${item.label}, opens in a new tab` : undefined} onClick={() => setOpen(false)}>
               <NavigationIcon id={item.icon} />
               <span>
                 <strong>{item.label}</strong>
                 <small>{item.group}</small>
               </span>
-              <ArrowUpRight size={14} />
+              <ArrowUpRight size={14} aria-hidden="true" />
             </Link>
           ))}
           {!results.length && <p>No matching pages in this workspace.</p>}

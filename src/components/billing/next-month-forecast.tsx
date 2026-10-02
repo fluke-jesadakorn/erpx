@@ -4,14 +4,14 @@ import { betaFetch } from "@/lib/beta-client";
 import { calculateSeatForecast, parseForecastBaht, parseForecastGb } from "@/lib/billing-forecast";
 import type { SeatForecastBaseline } from "@/server/billing-forecast";
 import { useEffect, useState } from "react";
+import { TimeText } from "@/components/time/time-preference-context";
 import styles from "./next-month-forecast.module.css";
 
 const money = (satang: number) => new Intl.NumberFormat("en-US", {
   style: "currency", currency: "THB",
 }).format(satang / 100);
 const number = (value: number) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
-const observed = (at: number | null) => at === null ? "Unavailable" :
-  new Date(at).toLocaleString("en-US", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" });
+const observed = (at: number | null) => at === null ? "Unavailable" : <TimeText value={at} />;
 const gbInput = (bytes: number | null) => bytes === null ? "" :
   (Math.round(bytes / 1_000) / 1_000_000).toFixed(6).replace(/\.?0+$/, "");
 

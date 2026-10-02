@@ -11,6 +11,16 @@ const bundle = await Bun.build({
   entrypoints: [resolve("scripts/local/jobs.ts")], outdir,
   target: "node", format: "esm", conditions: ["react-server"],
   external: ["pg"], naming: "jobs.mjs",
+  // Match Next's server-layer alias: its public navigation entry includes the
+  // client AppRouterContext, which cannot initialize with react-server React.
+  plugins: [{
+    name: "next-server-navigation",
+    setup(build) {
+      build.onResolve({ filter: /^next\/navigation$/ }, () => ({
+        path: resolve("node_modules/next/dist/client/components/navigation.react-server.js"),
+      }));
+    },
+  }],
 });
 if (!bundle.success) throw new Error("DEV_JOBS_BUILD_FAILED");
 const child = Bun.spawn([node, resolve(outdir, "jobs.mjs")], {

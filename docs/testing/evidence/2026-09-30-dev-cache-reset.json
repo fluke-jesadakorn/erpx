@@ -1,0 +1,269 @@
+{
+  "date": "2026-09-30",
+  "environment": "development",
+  "origin": "https://console-dev-erpx.jesadakorn.com",
+  "scope": "Anonymous HTTP probes and generated dev-cache reset only. No authenticated business-page benchmark; no staging access.",
+  "method": "Python urllib complete-body requests, three sequential samples for each local URL; process/cache/route compilation and background traffic were not controlled. These are operational observations, not a causal before/after speed benchmark.",
+  "before_reset": [
+    {
+      "url": "http://127.0.0.1:3100/api/health",
+      "samples_ms": [
+        18157,
+        1122,
+        71
+      ],
+      "statuses": [
+        200,
+        200,
+        200
+      ]
+    },
+    {
+      "url": "http://127.0.0.1:3100/login",
+      "samples_ms": [
+        10639,
+        1267,
+        1953
+      ],
+      "statuses": [
+        200,
+        200,
+        200
+      ]
+    }
+  ],
+  "cleanup": {
+    "removed": [
+      ".next/dev",
+      ".next/cache",
+      "tsconfig.tsbuildinfo",
+      "tests/tsconfig.tsbuildinfo"
+    ],
+    "scope": "Generated development output and compiler caches only; no shared Redis flush, databases, dependencies, runtime releases or durable files."
+  },
+  "after_reset": [
+    {
+      "url": "http://127.0.0.1:3100/api/health",
+      "sample": 1,
+      "status": 200,
+      "ms": 18642
+    },
+    {
+      "url": "http://127.0.0.1:3100/api/health",
+      "sample": 2,
+      "status": 200,
+      "ms": 904
+    },
+    {
+      "url": "http://127.0.0.1:3100/api/health",
+      "sample": 3,
+      "status": 200,
+      "ms": 18
+    },
+    {
+      "url": "http://127.0.0.1:3100/login",
+      "sample": 1,
+      "status": 200,
+      "ms": 1207
+    },
+    {
+      "url": "http://127.0.0.1:3100/login",
+      "sample": 2,
+      "status": 200,
+      "ms": 38
+    },
+    {
+      "url": "http://127.0.0.1:3100/login",
+      "sample": 3,
+      "status": 200,
+      "ms": 50
+    },
+    {
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "sample": 1,
+      "status": 200,
+      "ms": 232
+    },
+    {
+      "url": "https://console-dev-erpx.jesadakorn.com/login",
+      "sample": 1,
+      "status": 200,
+      "ms": 840
+    },
+    {
+      "url": "http://127.0.0.1:3101/api/health",
+      "sample": 1,
+      "status": 200,
+      "ms": 24
+    }
+  ],
+  "failures": [
+    {
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "method": "curl",
+      "status": 502,
+      "total_seconds": 1.505145
+    },
+    {
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "method": "curl",
+      "error": "timeout",
+      "timeout_seconds": 15
+    }
+  ],
+  "launcher_pid": 43121,
+  "listener_pid": 43147,
+  "toolchain": {
+    "node": "24.20.0",
+    "bun": "1.2.17",
+    "next": "16.3.4",
+    "bundler": "webpack"
+  },
+  "limitations": [
+    "Signed-out browser session; no auth bypass.",
+    "Browser navigation/control timed out.",
+    "Public 200 observations coexist with intermittent errors; network cause is not established.",
+    "Cache reset is not proof of performance improvement.",
+    "An investigative du size scan ran during the probes and consumed CPU/filesystem resources; it was stopped. It further invalidates causal performance comparisons."
+  ],
+  "final_checks": [
+    {
+      "name": "local_dev",
+      "url": "http://127.0.0.1:3100/api/health",
+      "error": "TimeoutError",
+      "ms": 20016
+    },
+    {
+      "name": "public_dev",
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "status": 403,
+      "ms": 87
+    },
+    {
+      "name": "private_prod",
+      "url": "http://127.0.0.1:3101/api/health",
+      "status": 200,
+      "final_url": "http://127.0.0.1:3101/api/health",
+      "ms": 21,
+      "login_required": false
+    },
+    {
+      "name": "affected_page",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/people",
+      "status": 403,
+      "ms": 87
+    }
+  ],
+  "resource_observation": {
+    "next_rss_kib": 4990496,
+    "next_cpu_percent": 58.0,
+    "size_scan_cpu_percent": 66.6,
+    "size_scan_stopped": true
+  },
+  "latest_curl_checks": [
+    {
+      "status": 0,
+      "total_seconds": 20.011618,
+      "final_url": "http://127.0.0.1:3100/api/health",
+      "name": "local_dev",
+      "url": "http://127.0.0.1:3100/api/health",
+      "exit_code": 28,
+      "login_required": false
+    },
+    {
+      "status": 0,
+      "total_seconds": 20.011113,
+      "final_url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "name": "public_dev",
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "exit_code": 28,
+      "login_required": false
+    },
+    {
+      "status": 200,
+      "total_seconds": 0.054007,
+      "final_url": "http://127.0.0.1:3101/api/health",
+      "name": "private_prod",
+      "url": "http://127.0.0.1:3101/api/health",
+      "exit_code": 0,
+      "login_required": false
+    },
+    {
+      "status": 0,
+      "total_seconds": 20.011498,
+      "final_url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/people",
+      "name": "affected_page",
+      "url": "https://console-dev-erpx.jesadakorn.com/holdings/acme/people",
+      "exit_code": 28,
+      "login_required": false
+    }
+  ],
+  "dev_heap_adjustment": {
+    "launcher_pid": 48670,
+    "node_options": "--max-old-space-size=8192",
+    "retained_compiler_cache": true,
+    "system_memory_gib": 48,
+    "default_pinned_node_heap_limit_mib": 4288,
+    "reason": "Repeated health timeouts and high CPU/RSS; heap/GC cause is a hypothesis, not profiled proof.",
+    "scope": "Current detached development process only; no tracked application/Next config, staging or production change.",
+    "listener_pid": 48688
+  },
+  "post_heap_checks": [
+    {
+      "status": 0,
+      "total_seconds": 25.00604,
+      "final_url": "http://127.0.0.1:3100/api/health",
+      "name": "local_dev",
+      "url": "http://127.0.0.1:3100/api/health",
+      "exit_code": 28
+    },
+    {
+      "status": 0,
+      "total_seconds": 25.011292,
+      "final_url": "http://127.0.0.1:3100/api/health",
+      "name": "local_dev_warm",
+      "url": "http://127.0.0.1:3100/api/health",
+      "exit_code": 28
+    },
+    {
+      "status": 200,
+      "total_seconds": 6.650182,
+      "final_url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "name": "public_dev",
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "exit_code": 0
+    },
+    {
+      "status": 200,
+      "total_seconds": 2.447561,
+      "final_url": "https://console-dev-erpx.jesadakorn.com/login",
+      "name": "public_login",
+      "url": "https://console-dev-erpx.jesadakorn.com/login",
+      "exit_code": 0
+    },
+    {
+      "status": 200,
+      "total_seconds": 0.044398,
+      "final_url": "http://127.0.0.1:3101/api/health",
+      "name": "private_prod",
+      "url": "http://127.0.0.1:3101/api/health",
+      "exit_code": 0
+    }
+  ],
+  "final_availability_checks": [
+    {
+      "status": 200,
+      "total_seconds": 1.69246,
+      "name": "local_dev",
+      "url": "http://127.0.0.1:3100/api/health",
+      "exit_code": 0
+    },
+    {
+      "status": 200,
+      "total_seconds": 17.2985,
+      "name": "public_dev",
+      "url": "https://console-dev-erpx.jesadakorn.com/api/health",
+      "exit_code": 0
+    }
+  ]
+}

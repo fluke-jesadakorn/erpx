@@ -1,3 +1,4 @@
+import { TimeText } from "@/components/time/time-preference-context";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { PageHeader } from "@/components/ui/primitives";
 import { HandbookEditor } from "@/components/workplace/handbook-controls";
@@ -98,10 +99,7 @@ export default async function Article({
               Revision {r.revision} · {r.title || "Untitled draft"}
             </Link>{" "}
             · {r.published_at ? "Published" : "Draft"} ·{" "}
-            {new Date(r.published_at ?? r.created_at).toLocaleDateString(
-              "en-GB",
-              { timeZone: "Asia/Bangkok" },
-            )}
+            <TimeText value={r.published_at ?? r.created_at} />
           </p>
         ))}
       </details></FeatureWidget>

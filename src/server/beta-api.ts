@@ -11,9 +11,14 @@ import {
   postAction,
   postDraftSchema,
   postView,
+  postContentSchema,
   publishPost,
   savePostDraft,
   socialAudienceOptions,
+  createCommentUploadDraft,
+  cancelCommentUploadDraft,
+  createPostEditUploadDraft,
+  cancelPostEditUploadDraft,
 } from "./social-home";
 import { sourceSnapshot, readablePost } from "./social-source";
 import { createAiDraft, aiRequestSchema } from "./social-ai";
@@ -34,6 +39,8 @@ type Context = {
 };
 export function betaHandler(resource = "beta") {
   return async (request: Request, context: Context) => {
+    const requestId = crypto.randomUUID();
+    let actionName: string | undefined;
     try {
       const { holdingSlug, path = [], id } = await context.params,
         actor = await requireWorkContext(holdingSlug),
@@ -94,7 +101,7 @@ export function betaHandler(resource = "beta") {
             drafts: (
               await db
                 .prepare(
-                  "SELECT id,body,branch_id,department_id,audience_kind,audience_id,participants_json,sources_json,purpose,version,mentions_json,content_json FROM social_post_drafts WHERE author_id=? AND company_id=? AND published_post_id IS NULL ORDER BY updated_at DESC LIMIT 20",
+                  "SELECT id,body,branch_id,department_id,audience_kind,audience_id,participants_json,sources_json,purpose,version,mentions_json,content_json,rich_content_json FROM social_post_drafts WHERE author_id=? AND company_id=? AND published_post_id IS NULL AND comment_parent_post_id IS NULL AND edit_post_id IS NULL ORDER BY updated_at DESC LIMIT 20",
                 )
                 .bind(actor.userId, actor.companyId)
                 .all()
@@ -111,7 +118,7 @@ export function betaHandler(resource = "beta") {
               .first(),
             usage: await db
               .prepare(
-                "SELECT count(*) requests,sum(input_tokens) inputTokens,sum(output_tokens) outputTokens FROM (SELECT input_tokens,output_tokens FROM social_ai_usage WHERE company_id=? AND month=? UNION ALL SELECT input_tokens,output_tokens FROM (SELECT company_id,month,input_tokens,output_tokens FROM expense_ai_usage UNION ALL SELECT company_id,month,input_tokens,output_tokens FROM request_ai_usage) WHERE company_id=? AND month=?)",
+                "SELECT count(*) requests,sum(input_tokens) inputTokens,sum(output_tokens) outputTokens FROM (SELECT input_tokens,output_tokens FROM social_ai_usage WHERE company_id=? AND month=? UNION ALL SELECT input_tokens,output_tokens FROM (SELECT company_id,month,input_tokens,output_tokens FROM expense_ai_usage UNION ALL SELECT company_id,month,input_tokens,output_tokens FROM request_ai_usage UNION ALL SELECT company_id,month,input_tokens,output_tokens FROM finance_ai_usage) WHERE company_id=? AND month=?)",
               )
               .bind(
                 actor.companyId,
@@ -225,15 +232,13 @@ export function betaHandler(resource = "beta") {
               data = { id: task.id, state: task.state, existing: true };
             }
           }
-        } else if (resource === "post")
-          data = await postAction(
-            db,
-            actor,
-            id!,
-            z
+        } else if (resource === "post") {
+          const command = z
               .object({
                 action: z.enum([
                   "comment",
+                  "delete_comment",
+                  "edit_comment",
                   "appreciate",
                   "follow",
                   "report",
@@ -241,17 +246,30 @@ export function betaHandler(resource = "beta") {
                   "edit",
                   "retract",
                 ]),
-                body: z.string().max(3000).optional(),
+                body: z.string().max(30000).optional(),
+                content: postContentSchema.optional(),
+                richContent: z.unknown().optional(),
                 expectedVersion: z.number().int().positive().optional(),
                 active: z.boolean().optional(),
                 mentions: mentionsSchema.optional(),
                 mentionUserIds: z.array(z.string().max(160)).max(10).optional(),
                 parentCommentId: z.string().min(1).max(160).optional(),
+                commentId: z.string().min(1).max(160).optional(),
+                commentDraftId: z.string().min(1).max(160).optional(),
+                editDraftId: z.string().min(1).max(160).optional(),
               })
-              .parse(input),
-            key,
-          );
+              .parse(input);
+          actionName = command.action;
+          data = await postAction(db, actor, id!, command, key);
+        }
         else if (path[0] === "agent-replies") data = await retryAgentReply(db, actor, path[1], key);
+        else if (path[0] === "comment-uploads") data = path[1]
+          ? await cancelCommentUploadDraft(db,actor,path[1],key)
+          : await createCommentUploadDraft(db,actor,z.string().min(1).max(160).parse(input.postId),key);
+        else if (path[0] === "post-edit-uploads") data = path[1]
+          ? await cancelPostEditUploadDraft(db,actor,path[1],key)
+          : await createPostEditUploadDraft(db,actor,z.string().min(1).max(160).parse(input.postId),
+              z.number().int().positive().parse(input.expectedVersion),key);
         else if (path[0] === "drafts")
           data =
             path[2] === "publish"
@@ -350,7 +368,25 @@ export function betaHandler(resource = "beta") {
         { headers: { "Cache-Control": "private, no-store" } },
       );
     } catch (e) {
-      return errorResponse(e);
+      const response = errorResponse(e);
+      if (response.status >= 500) {
+        const errorCode = e instanceof ApiError
+          ? e.code
+          : e && typeof e === "object" && "code" in e && typeof e.code === "string" && /^[A-Z0-9_]{1,80}$/i.test(e.code)
+            ? e.code
+            : undefined;
+        console.error(JSON.stringify({
+          event: "beta_request_failed",
+          requestId,
+          method: request.method,
+          resource,
+          action: actionName,
+          errorName: e instanceof Error ? e.name : typeof e,
+          errorCode,
+        }));
+        response.headers.set("X-Request-ID", requestId);
+      }
+      return response;
     }
   };
 }

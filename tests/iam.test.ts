@@ -1127,27 +1127,27 @@ it("expires directory evidence at five minutes and never turns an outage into lo
   ).toBe(false);
 });
 
-it("protects the parent authority of the final recovery administrator", async () => {
+it("keeps emergency recovery independent from delegated company ownership", async () => {
   const f = await fixture(),
     recovery = await f.user();
-  await db
+  await expect(db
     .prepare("UPDATE assignments SET parent_id=?,valid_until=? WHERE id=?")
     .bind(f.owner.assignmentId, now() + 86400000, recovery.assignmentId)
-    .run();
+    .run()).rejects.toThrow(/Delegated permission ceiling exceeded/);
   await db
     .prepare(
       "INSERT INTO iam_members(company_id,user_id,principal_id,login_policy) VALUES(?,?,?,'emergency')",
     )
     .bind(f.companyId, recovery.userId, "local:" + recovery.userId)
     .run();
-  await expect(
-    db
-      .prepare(
-        "UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=?",
-      )
-      .bind(now(), f.owner.assignmentId)
-      .run(),
-  ).rejects.toThrow();
+  await db
+    .prepare("UPDATE assignments SET revoked_at=?,version=version+1 WHERE id=?")
+    .bind(now(), f.owner.assignmentId)
+    .run();
+  expect((await db.prepare("SELECT parent_id FROM assignments WHERE id=?")
+    .bind(recovery.assignmentId).first<{parent_id:string|null}>())?.parent_id).toBeNull();
+  expect((await db.prepare("SELECT iam_assignment_active(?,?) ok")
+    .bind(f.owner.assignmentId, now()).first())!.ok).toBe(false);
   expect(
     (await db
       .prepare("SELECT iam_assignment_active(?,?) ok")

@@ -40,6 +40,7 @@ export const aiSelectionSchema = z.object({
   textConnectionId: z.string().nullable().default(null),
   imageMode: z.enum(["default", "custom", "disabled"]).default("default"),
   imageConnectionId: z.string().nullable().default(null),
+  homeAiName: z.string().trim().min(1).max(40).refine(value => !/[@\r\n]/.test(value)).optional(),
 });
 type Connection = {
   id: string;
@@ -74,6 +75,7 @@ type Selection = {
   text_connection_id: string | null;
   image_connection_id: string | null;
   image_mode: "default" | "custom" | "disabled";
+  home_ai_name: string;
 };
 export type AiConnectionView = Connection &
   Omit<Revision, "credential_json"> & {
@@ -103,11 +105,14 @@ export type AiProviderSnapshot = {
   kind: "text" | "image";
   deploymentDigest?: string;
 };
-async function gatewayEndpoint(db: SqlDatabase, companyId: string, target: AiEndpoint, connectionId: string | null): Promise<AiEndpoint> {
+async function gatewayEndpoint(db: SqlDatabase, companyId: string, target: AiEndpoint, connectionId: string | null, holdingId?: string): Promise<AiEndpoint> {
   const holding = await db.prepare("SELECT holding_id FROM beta_bootstrap WHERE singleton=1").first<{holding_id:string}>();
-  if (!holding) throw new ApiError(503,"AI_GATEWAY_SCOPE","The Holding's AI billing scope is unavailable.");
+  if (holding && holdingId && holding.holding_id !== holdingId)
+    throw new ApiError(403,"AI_GATEWAY_SCOPE","The AI billing scope does not match this Holding.");
+  const scopedHoldingId = holdingId ?? holding?.holding_id;
+  if (!scopedHoldingId) throw new ApiError(503,"AI_GATEWAY_SCOPE","The Holding's AI billing scope is unavailable.");
   return { ...target, gateway: {
-    db, holdingId: holding.holding_id, companyId, branchId: null, connectionId,
+    db, holdingId: scopedHoldingId, companyId, branchId: null, connectionId,
     fundingSource: connectionId ? "byok" : "erpx",
     feature: "", requestId: "",
   } };
@@ -210,6 +215,7 @@ export async function aiProviderOverview(
     text_connection_id: null,
     image_connection_id: null,
     image_mode: "default",
+    home_ai_name: "AI",
   };
   const usage = (
     await db
@@ -504,7 +510,7 @@ export async function activateAiConnection(
   if (prior) return prior;
   const row = await connection(db, actor.companyId, id),
     rev = await revision(db, row);
-  if (!rev.text_verified || (rev.image_model && !rev.image_verified))
+  if (!rev.text_verified)
     throw new ApiError(
       422,
       "AI_TEST_REQUIRED",
@@ -526,7 +532,7 @@ export async function activateAiConnection(
         db,
         key,
         "tested-revision",
-        "EXISTS(SELECT 1 FROM ai_connection_revisions WHERE connection_id=? AND revision=? AND text_verified=1 AND (image_model IS NULL OR image_verified=1))",
+        "EXISTS(SELECT 1 FROM ai_connection_revisions WHERE connection_id=? AND revision=? AND text_verified=1)",
         [id, row.draft_revision],
       ),
       db
@@ -554,6 +560,11 @@ export async function selectAiProviders(
       input,
     );
   if (prior) return prior;
+  const currentName = (await db.prepare("SELECT home_ai_name FROM ai_company_settings WHERE company_id=?")
+    .bind(actor.companyId).first<{home_ai_name:string}>())?.home_ai_name ?? "AI";
+  const homeAiName=input.homeAiName??currentName;
+  if (homeAiName !== currentName && !(await companyAuthority(db, actor, ["holding_owner"])))
+    throw new ApiError(403, "AI_OWNER_REQUIRED", "Only the company owner can rename the Home AI.");
   const checks: SqlStatement[] = [];
   for (const [id, kind] of (input.mode === "custom"
     ? [
@@ -602,6 +613,7 @@ export async function selectAiProviders(
     { version: input.expectedVersion + 1 },
     [
       guard(db, key, actor),
+      ...(homeAiName!==currentName?[authorityGuard(db,key,actor,["holding_owner"])]:[]),
       assertion(
         db,
         key,
@@ -610,9 +622,10 @@ export async function selectAiProviders(
         [actor.companyId, input.expectedVersion],
       ),
       ...checks,
+      ...(homeAiName!==currentName?[db.prepare("INSERT INTO ai_home_name_history(company_id,name) VALUES(?,?) ON CONFLICT DO NOTHING").bind(actor.companyId,currentName)]:[]),
       db
         .prepare(
-          "INSERT INTO ai_company_settings(company_id,version,mode,text_connection_id,image_connection_id,image_mode,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET version=excluded.version,mode=excluded.mode,text_connection_id=excluded.text_connection_id,image_connection_id=excluded.image_connection_id,image_mode=excluded.image_mode,updated_by=excluded.updated_by,updated_at=excluded.updated_at",
+          "INSERT INTO ai_company_settings(company_id,version,mode,text_connection_id,image_connection_id,image_mode,home_ai_name,updated_by,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(company_id) DO UPDATE SET version=excluded.version,mode=excluded.mode,text_connection_id=excluded.text_connection_id,image_connection_id=excluded.image_connection_id,image_mode=excluded.image_mode,home_ai_name=excluded.home_ai_name,updated_by=excluded.updated_by,updated_at=excluded.updated_at",
         )
         .bind(
           actor.companyId,
@@ -623,6 +636,7 @@ export async function selectAiProviders(
             ? input.imageConnectionId
             : null,
           input.imageMode,
+          homeAiName,
           actor.userId,
           Date.now(),
         ),
@@ -710,6 +724,7 @@ export async function resolveAiProvider(
   env: BetaEnvironment,
   kind: "text" | "image",
   holdingSlug?: string,
+  holdingId?: string,
 ) {
   const settings = await db
     .prepare("SELECT * FROM ai_company_settings WHERE company_id=?")
@@ -776,7 +791,7 @@ export async function resolveAiProvider(
         baseUrl: env.AI_BASE_URL,
         model: env.AI_MODEL,
         apiKey: env.AI_API_KEY,
-      },null),
+      },null,holdingId),
       snapshot: {
         companyId,
         connectionId: null,
@@ -814,7 +829,7 @@ export async function resolveAiProvider(
     );
   const target = await endpoint(env, companyId, row, rev, kind);
   return {
-    endpoint: await gatewayEndpoint(db,companyId,target,id),
+    endpoint: await gatewayEndpoint(db,companyId,target,id,holdingId),
     snapshot: {
       companyId,
       connectionId: id,

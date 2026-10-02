@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 import {
   useRef,
   useState,
@@ -914,7 +915,7 @@ export function UserManagement({
                       </p>
                       <small>
                         Expires{" "}
-                        {new Date(g.validUntil).toISOString().slice(0, 10)}
+                        <TimeText value={g.validUntil} />
                       </small>
                     </div>
                   ))}
@@ -1225,7 +1226,7 @@ function AttributeValueForm({
     ),
     canEdit =
       target === "person"
-        ? data.canManagePeople
+        ? data.canManagePersonAttributes
         : target === "unit"
           ? data.canManageOrganization
           : data.canManageGroups || data.canManage;

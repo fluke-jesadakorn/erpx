@@ -6,7 +6,7 @@ import { Search, List, Network, UserRound } from "lucide-react";
 import { Dialog } from "@/components/ui/dialog";
 import dynamic from "next/dynamic";
 const LifecyclePanel=dynamic(()=>import("./lifecycle-workspace").then(module=>module.LifecyclePanel));
-import type { PeopleLifecycleData } from "@/lib/people-lifecycle";
+import { hasLifecycleCaseDetail, type PeopleLifecycleData } from "@/lib/people-lifecycle";
 import { positionGpoStatus } from "@/components/people/gpo-status";
 import type { OrganizationOverview } from "@/lib/organization";
 import { PeopleEditor } from "@/components/modules/people-editor";
@@ -254,6 +254,7 @@ export function PeopleDirectory({
                 ? "Verified account linked"
                 : "Identity verification required before account linking"}
             </p>
+            {person.userId && <Link className="button secondary" href={`${base}/profiles/${encodeURIComponent(person.userId)}`}>View member profile</Link>}
             {(person.accounts?.length ?? 0) > 1 && (
               <div>
                 <strong>Verified accounts</strong>
@@ -296,9 +297,10 @@ export function PeopleDirectory({
                   positionId: person.positionId,
                   managerPersonId: person.managerPersonId,
                 }}
-                initialCase={lifecycle.cases.find(
+                initialCase={lifecycle.cases.filter(hasLifecycleCaseDetail).find(
                   (c) =>
-                    c.id === search.get("case") && c.person_id === person.personId,
+                    c.id === search.get("case") &&
+                    c.person_id === person.personId,
                 )}
                 initialPositionId={targetPosition}
               />

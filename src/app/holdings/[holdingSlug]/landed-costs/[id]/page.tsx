@@ -1,3 +1,4 @@
+import { TimeText } from "@/components/time/time-preference-context";
 import Link from 'next/link';
 import {StatusBadge} from '@/components/ui/primitives';
 import {LandedCostActions} from '@/components/modules/landed-cost-controls';
@@ -18,6 +19,6 @@ export default async function Page({params}:{params:Promise<{holdingSlug:string;
   <LandedCostActions key={String(cost.version)} base={base} record={cost} canApprove={canApprove} canCancel={canCancel}/>
   <section className="card"><h2>Allocation by item</h2><div className="business-table-wrap"><table className="business-table"><thead><tr><th>Item</th><th>Received</th><th>Receipt value</th><th>Allocated cost</th></tr></thead><tbody>{lines.map(l=><tr key={String(l.id)}><td>{String(l.sku)} · {String(l.name)}</td><td>{Number(l.quantity_milli)/1000} {String(l.unit)}</td><td>{minorToDecimal(Number(l.receipt_value_minor))}</td><td>{minorToDecimal(Number(l.allocated_minor))}</td></tr>)}</tbody></table></div></section>
   {!!lots.length&&<section className="card"><h2>Lot and serial allocation</h2><div className="business-table-wrap"><table className="business-table"><thead><tr><th>Lot / serial</th><th>Quantity</th><th>Receipt value</th><th>Allocated cost</th></tr></thead><tbody>{lots.map(l=><tr key={String(l.id)}><td>{l.serial_number?`Serial ${l.serial_number}`:`Lot ${l.lot_code}`}</td><td>{Number(l.quantity_milli)/1000}</td><td>{minorToDecimal(Number(l.receipt_value_minor))}</td><td>{minorToDecimal(Number(l.allocated_minor))}</td></tr>)}</tbody></table></div></section>}
-  <section className="card"><h2>Audit history</h2>{events.map(e=><div className="row" key={String(e.id)}><strong>{String(e.action).replaceAll('_',' ')}</strong><span>{String(e.reason)} · Version {String(e.reviewed_version)}</span><time>{new Date(Number(e.created_at)).toISOString()}</time></div>)}</section>
+  <section className="card"><h2>Audit history</h2>{events.map(e=><div className="row" key={String(e.id)}><strong>{String(e.action).replaceAll('_',' ')}</strong><span>{String(e.reason)} · Version {String(e.reviewed_version)}</span><time>{<TimeText value={Number(e.created_at)} />}</time></div>)}</section>
  </div>;
 }

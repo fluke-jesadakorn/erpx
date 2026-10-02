@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { env, applyMigrations } from "./runtime-env";
 import type { WorkContext } from "../src/server/authorization";
-import { beginClose, calculateCloseReconciliations, closePeriod } from "../src/server/finance";
+import { beginClose, calculateCloseReconciliations, closePeriod,cancelClose } from "../src/server/finance";
 
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 const db=env.H001_DB;
@@ -34,9 +34,9 @@ beforeAll(async()=>{
     INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal) VALUES
       ('close-l1','close-opening','close-bank',100000,0,100000,0,0),('close-l2','close-opening','close-ar',30000,0,30000,0,1),
       ('close-l3','close-opening','close-ap',0,20000,0,20000,2),('close-l4','close-opening','close-equity',0,110000,0,110000,3);
-    INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,status,created_by,posted_at,created_at,updated_at) VALUES
-      ('close-ar-invoice','close-company','close-customer','receivable','OPEN-AR','2026-01-01','2026-01-31','THB',30000,30000,30000,'close-ar','close-equity','posted','close-preparer',2,1,2),
-      ('close-ap-invoice','close-company','close-supplier','payable','OPEN-AP','2026-01-01','2026-01-31','THB',20000,20000,20000,'close-equity','close-ap','posted','close-preparer',2,1,2);
+    INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,status,created_by,posted_at,created_at,updated_at,journal_id,source_type,source_id) VALUES
+      ('close-ar-invoice','close-company','close-customer','receivable','OPEN-AR','2026-01-01','2026-01-31','THB',30000,30000,30000,'close-ar','close-equity','posted','close-preparer',2,1,2,'close-opening','opening_import','close-opening'),
+      ('close-ap-invoice','close-company','close-supplier','payable','OPEN-AP','2026-01-01','2026-01-31','THB',20000,20000,20000,'close-equity','close-ap','posted','close-preparer',2,1,2,'close-opening','opening_import','close-opening');
     INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,opening_minor,closing_minor,status,source_hash,imported_by,created_at) VALUES
       ('close-bank-jan','close-company','close-bank','JAN-2026','2026-01-31',100000,100000,'reconciled','close-bank-jan-hash','close-preparer',1),
       ('close-bank-feb','close-company','close-bank','FEB-2026','2026-02-28',100000,100000,'reconciled','close-bank-feb-hash','close-preparer',2),
@@ -66,5 +66,17 @@ describe("finance close reconciliation",()=>{
       INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal) VALUES('close-late-1','close-late','close-bank',100,0,100,0,0),('close-late-2','close-late','close-equity',0,100,0,100,1);
     `);
     await expect(closePeriod(approver,"close-mar",{expectedVersion:Number(prepared.version),proof:"Evidence changed"},"close-mar-approve")).rejects.toMatchObject({code:"CLOSE_RECONCILIATION_STALE"});
+    await expect(cancelClose(preparer,"close-mar",{expectedVersion:99,reason:"Stale preparation cancellation"},"close-mar-cancel-stale")).rejects.toMatchObject({code:"VERSION_CONFLICT"});
+    const cancellation={expectedVersion:Number(prepared.version),reason:"Retain the old evidence and correct changed bank support"};
+    const cancelled=await cancelClose(preparer,"close-mar",cancellation,"close-mar-cancel");
+    expect(await cancelClose(preparer,"close-mar",cancellation,"close-mar-cancel")).toEqual(cancelled);
+    expect(cancelled).toMatchObject({state:"open",version:2});
+    expect(await db.prepare("SELECT COUNT(*) n FROM finance_close_reconciliations WHERE period_id='close-mar' AND close_version=1").first("n")).toBe(3);
+    await db.exec("UPDATE finance_bank_statements SET closing_minor=100100,base_closing_minor=100100 WHERE id='close-bank-mar'");
+    const refreshed=await beginClose(preparer,"close-mar","close-mar-reprepare");
+    expect(refreshed).toMatchObject({state:"closing",version:3});
+    await expect(closePeriod(approver,"close-mar",{expectedVersion:1,proof:"Reject superseded evidence"},"close-mar-approve-old")).rejects.toMatchObject({code:"VERSION_CONFLICT"});
+    await closePeriod(approver,"close-mar",{expectedVersion:3,proof:"Independently reviewed corrected March reconciliation"},"close-mar-approve-new");
+    expect(await db.prepare("SELECT COUNT(*) n FROM finance_close_reconciliations WHERE period_id='close-mar'").first("n")).toBe(6);
   });
 });

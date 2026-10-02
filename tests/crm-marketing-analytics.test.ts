@@ -1,4 +1,4 @@
-import {beforeAll,beforeEach,expect,it,vi} from 'vitest';
+import {afterEach,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from './runtime-env';
 import {expenseDb as db,expenseFixture,key} from './helpers/expense-fixture';
 import {saveMaster} from '../src/server/commerce';
@@ -11,7 +11,9 @@ vi.mock('../src/server/runtime',()=>({holdingResources:async()=>({write:env.H001
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 const date='2026-09-25',range={from:'2026-09-01',to:'2026-09-30'};
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
-beforeEach(async()=>{f=await expenseFixture();f.tie.role='holding_owner';f.tie.branchId=null;f.tie.departmentId=null;f.tie.assignmentId=await f.grant(f.tie,'holding_owner');});
+// Fixture event timestamps belong to the fixed September reporting window.
+beforeEach(async()=>{vi.setSystemTime(new Date('2026-09-25T09:00:00Z'));f=await expenseFixture();f.tie.role='holding_owner';f.tie.branchId=null;f.tie.departmentId=null;f.tie.assignmentId=await f.grant(f.tie,'holding_owner');});
+afterEach(()=>{vi.useRealTimers();});
 it('keeps a confirmed PMS win after cancellation and only counts posted journal revenue',async()=>{
  const campaign=await changeMarketingCampaign({...f.owner,modules:['marketing']},{action:'create',code:`HOTEL_${key().slice(0,8)}`,name:'Hotel campaign'},key());
  const customer=String((await saveMaster(f.owner,'parties',null,{kind:'customer',code:key(),name:'Hotel customer'},key())).id);
@@ -88,8 +90,9 @@ it('reports first and last touch separately and leaves ROI empty without linked 
  expect((await marketingAnalytics(creator,range)).metrics.find(x=>x.id==='qualified')?.value).toBe(1);
  const expense=key(),asset=key(),journal=key(),line=key(),now=Date.now();
  for(const [id,category] of [[expense,'expense'],[asset,'asset']])await db.prepare('INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)').bind(id,f.chart,f.company,key(),category,category,now,now).run();
- await db.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,status,created_by,posted_by,posted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,'THB','posted',?,?,?,?,?)").bind(journal,f.company,f.chart,f.period,key(),date,creator.userId,creator.userId,now,now,now).run();
+ await db.prepare("INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,'THB','draft',?,?,?)").bind(journal,f.company,f.chart,f.period,key(),date,creator.userId,now,now).run();
  await db.prepare('INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal) VALUES(?,?,?,1000,0,1000,0,0),(?,?,?,0,1000,0,1000,1)').bind(line,journal,expense,key(),journal,asset).run();
+ await db.prepare("UPDATE finance_journals SET status='posted',posted_by=?,posted_at=? WHERE id=?").bind(reviewer.userId,now,journal).run();
  expect(await marketingCostSources(creator)).toContainEqual(expect.objectContaining({source_line_id:line,debit_minor:'1000',currency:'THB'}));
  await changeMarketingCampaign(creator,{action:'link-cost',campaignId:first.id,journalLineId:line,evidence:'Posted Finance campaign invoice expense'},key());
  expect((await marketingCostSources(creator)).some(source=>source.source_line_id===line)).toBe(false);

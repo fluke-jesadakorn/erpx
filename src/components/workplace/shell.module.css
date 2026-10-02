@@ -193,6 +193,10 @@
   font-size: 12px;
   border-radius: 8px;
 }
+.nav .navChildLink[target="_blank"],
+.mobileTree .navChildLink[target="_blank"] {
+  grid-template-columns: 16px minmax(0, 1fr) 14px;
+}
 .navChildIcon {
   width: 16px;
   height: 16px;

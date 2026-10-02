@@ -526,7 +526,7 @@ async function searchPayrollSummaryEvidence(db: SqlDatabase, actor: WorkContext,
       currency: row.currency,
       status: row.status,
       version: row.version,
-      href: `/people/payroll/${encodeURIComponent(row.id)}`,
+      href: `/people/payroll/runs/${encodeURIComponent(row.id)}`,
     })),
     hasMore,
     nextCursor: hasMore && items.length ? encodePayrollSummaryCursor(items.at(-1)!) : null,
@@ -538,7 +538,7 @@ async function readPayrollSummaryEvidence(db: SqlDatabase, actor: WorkContext, r
   await requirePayrollSummaryEvidence(db, actor);
   const row = await payrollSummaryRows(db, actor, filters, "", undefined, recordId, 1).first<PayrollSummaryEvidenceRow>();
   if (!row) throw new ApiError(404, "EVIDENCE_NOT_FOUND", "This source record is unavailable in the selected role, scope or filters.");
-  const record = { ...row, href: `/people/payroll/${encodeURIComponent(row.id)}` };
+  const record = { ...row, href: `/people/payroll/runs/${encodeURIComponent(row.id)}` };
   const queryHash = await sha256(JSON.stringify({ providerId: payrollSummaryProviderId, metric: payrollSummaryMetric, filters, scope: [actor.companyId, actor.assignmentId], recordId }));
   await currentAuthority(db, actor);
   await audit(db, actor, payrollSummaryProviderId, payrollSummaryMetric, "open", [{ id: row.id, version: row.version }], payrollSummaryFields, queryHash);

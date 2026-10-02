@@ -37,6 +37,18 @@ it("records explicit HR and head appointments with authority, versions and repla
   expect((await departmentRoute(db,f.company,f.claimant.userId)).steps[0].userId).toBe(f.tie.userId);
 });
 
+it("loads publish authority with a bounded number of database reads",async()=>{
+  const prepare=vi.spyOn(db,"prepare");
+  try{
+    const overview=await appointmentOverview(db,f.owner);
+    expect(overview.departments.length).toBeGreaterThan(1);
+    const actorLookups=prepare.mock.calls.filter(([sql])=>
+      sql.includes("SELECT id FROM hr_people WHERE company_id=? AND iam_same_person"));
+    expect(actorLookups).toHaveLength(1);
+  }finally{prepare.mockRestore();}
+  expect((await appointmentOverview(db,f.head)).canPublishDepartmentIds).toContain(f.department);
+});
+
 it("grants People and Leave work from the current HR appointment without granting IAM or Finance",async()=>{
   const unappointed=await f.member("Unappointed HR","hr_admin");
   expect((await loadIamAuthority(db,f.company,unappointed.userId,"hr_admin")).permissions).not.toContain("people.manage");

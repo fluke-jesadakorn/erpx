@@ -46,12 +46,12 @@ export async function readGpoRules(db: SqlDatabase, companyId?: string) {
 export async function effectiveGpoRules(db: SqlDatabase, companyId?: string): Promise<EffectiveRuleRow[]> {
   return (await db.prepare(`SELECT r.*,p.id position_id,COALESCE(l.name,n.display_name,direct.title,r.target_id) target_name
     FROM organization_positions p JOIN organization_gpo_rules r ON r.company_id=p.company_id AND r.active
-      AND ((r.target_kind='position' AND r.target_id=p.id) OR (r.target_kind='level' AND r.target_id=p.level_id) OR (r.target_kind='department' AND r.target_id=p.department_id))
+      AND r.target_kind='position' AND r.target_id=p.id
     LEFT JOIN staff_levels l ON r.target_kind='level' AND l.id=r.target_id AND l.company_id=r.company_id AND l.active=1
     LEFT JOIN organization_nodes n ON r.target_kind='department' AND n.id=r.target_id AND n.company_id=r.company_id AND n.status='active'
     LEFT JOIN organization_positions direct ON r.target_kind='position' AND direct.id=r.target_id AND direct.company_id=r.company_id AND direct.active=1
     WHERE p.active=1 AND (?::text IS NULL OR p.company_id=?)
-      AND (r.target_kind='position' OR r.target_kind='level' AND l.id IS NOT NULL OR r.target_kind='department' AND n.id IS NOT NULL)
+      AND r.target_kind='position'
     ORDER BY p.id,r.id`).bind(companyId ?? null, companyId ?? null).all<EffectiveRuleRow>()).results;
 }
 function present(row: GpoRuleRow): GpoRule {
@@ -76,13 +76,46 @@ export async function gpoRulesOverview(db: PostgresDatabase, actor: WorkContext)
     WHERE j.company_id=? AND p.active=1 AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?)
     ORDER BY j.updated_at DESC,j.id LIMIT 200`)
     .bind(actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).all<GpoRulesOverview["jobs"][number]>()).results;
+  const taskRows = (await db.prepare(`SELECT t.position_id position_id,p.title position_name,t.version,t.disposition,t.reason,
+      count(r.id)::int mapping_count,count(r.id) FILTER (WHERE r.directory_config_status='directory_applied')::int verified_count,
+      count(r.id) FILTER (WHERE r.directory_config_status='blocked')::int blocked_count
+    FROM position_gpo_tasks t JOIN organization_positions p ON p.id=t.position_id AND p.company_id=t.company_id
+    LEFT JOIN organization_gpo_rules r ON r.company_id=t.company_id AND r.target_kind='position' AND r.target_id=t.position_id AND r.active
+    WHERE t.company_id=? AND p.active=1 AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?)
+    GROUP BY t.position_id,p.title,t.version,t.disposition,t.reason ORDER BY p.title,t.position_id`)
+    .bind(actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId)
+    .all<{position_id:string;position_name:string;version:number;disposition:string|null;reason:string|null;mapping_count:number;verified_count:number;blocked_count:number}>()).results;
+  const tasks: GpoRulesOverview["tasks"] = taskRows.map(row => ({ positionId: row.position_id, positionName: row.position_name,
+    version: row.version, reason: row.reason, mappingCount: row.mapping_count, verifiedCount: row.verified_count,
+    status: row.disposition === 'not_required' ? 'not_required' : row.blocked_count ? 'blocked' : row.mapping_count && row.mapping_count === row.verified_count ? 'completed' : 'pending' }));
   const effectiveByPosition: GpoRulesOverview["effectiveByPosition"] = Object.fromEntries(positions.map(row => [row.id, []]));
   for (const row of effective) effectiveByPosition[row.position_id].push({ ...present(row), inherited: row.target_kind !== "position" });
-  return { rules, effectiveByPosition, jobs, canManage: canManageGpoRules(actor) };
+  return { rules, effectiveByPosition, jobs, tasks, canManage: canManageGpoRules(actor) };
+}
+export async function markPositionGpoNotRequired(db: PostgresDatabase, actor: WorkContext, raw: unknown, key: string) {
+  const input = z.object({ positionId: z.string().min(1), expectedVersion: z.number().int().positive(), reason: z.string().trim().min(3).max(1000) }).parse(raw);
+  manage(actor);
+  const operation = "organization.gpo.not_required";
+  const prior = await replayCommand(db, actor, key, operation, input.positionId, input); if (prior) return prior;
+  const eligible = await db.prepare(`SELECT 1 FROM position_gpo_tasks t JOIN organization_positions p ON p.company_id=t.company_id AND p.id=t.position_id AND p.active=1
+    WHERE t.company_id=? AND t.position_id=? AND t.version=? AND t.disposition IS NULL
+      AND NOT EXISTS(SELECT 1 FROM organization_gpo_rules r WHERE r.company_id=t.company_id AND r.target_kind='position' AND r.target_id=t.position_id AND r.active)`)
+    .bind(actor.companyId,input.positionId,input.expectedVersion).first();
+  if (!eligible) throw new ApiError(409, "GPO_TASK_CHANGED", "Reload the Position task before closing it; active mappings must be removed first.");
+  const version = input.expectedVersion + 1;
+  return executeCommand(db, actor, key, operation, input, input.positionId, version,
+    { positionId: input.positionId, version, status: "not_required" }, [
+      assertion(db,key,"gpo-task-version",`EXISTS(SELECT 1 FROM position_gpo_tasks t JOIN organization_positions p ON p.company_id=t.company_id AND p.id=t.position_id AND p.active=1
+        WHERE t.company_id=? AND t.position_id=? AND t.version=? AND t.disposition IS NULL
+          AND NOT EXISTS(SELECT 1 FROM organization_gpo_rules r WHERE r.company_id=t.company_id AND r.target_kind='position' AND r.target_id=t.position_id AND r.active))`,
+        [actor.companyId,input.positionId,input.expectedVersion]),
+      db.prepare("UPDATE position_gpo_tasks SET disposition='not_required',reason=?,version=?,updated_at=? WHERE company_id=? AND position_id=?")
+        .bind(input.reason,version,Date.now(),actor.companyId,input.positionId),
+    ]);
 }
 type Position = { id: string; title: string; branch_id: string | null; department_id: string | null; level_id: string; version: number };
 export const gpoRuleMatchesPosition = (rule: Pick<GpoRuleRow, "target_kind" | "target_id" | "active">, position: Pick<Position,"id"|"level_id"|"department_id">) => rule.active &&
-  (rule.target_kind === "position" ? rule.target_id === position.id : rule.target_kind === "level" ? rule.target_id === position.level_id : rule.target_id === position.department_id);
+  rule.target_kind === "position" && rule.target_id === position.id;
 const rulesSnapshotSql = `SELECT COALESCE(jsonb_agg(jsonb_build_array(id,target_kind,target_id,version,revision,connection_id,gpo_id,user_filter_group_id,computer_target_ou_id,active) ORDER BY id),'[]'::jsonb)::text snapshot FROM organization_gpo_rules WHERE company_id=?`;
 async function catalogSnapshot(db: PostgresDatabase, companyId: string) { return (await db.prepare(rulesSnapshotSql).bind(companyId).first<{ snapshot: string }>())!.snapshot; }
 async function targetName(db: PostgresDatabase, companyId: string, target: GpoRuleTarget) {
@@ -112,6 +145,7 @@ async function impact(db: PostgresDatabase, actor: WorkContext, input: z.infer<t
     throw new ApiError(409, "GPO_RULE_CHANGED", "Reload the current GPO rule before reviewing this change.");
   const definition = input as z.infer<typeof gpoRuleInput>;
   const target = removing ? { kind: current!.target_kind, id: current!.target_id } : definition.target;
+  if (target.kind !== "position") throw new ApiError(422, "GPO_TARGET_INVALID", "GPO rules can only target a Position.");
   if (current && !removing && (current.target_kind !== target.kind || current.target_id !== target.id)) throw new ApiError(422, "GPO_RULE_TARGET_IMMUTABLE", "Remove the existing assignment and add a rule at the new source.");
   const name = removing ? current!.target_name : await targetName(db, actor.companyId, target);
   const evidence = removing ? null : await providerEvidence(db, actor, definition);

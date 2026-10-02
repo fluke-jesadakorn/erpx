@@ -33,11 +33,11 @@ export function PeopleNavigation({
 }) {
   const ids: Record<typeof active, string> = {
     directory: "people-directory",
-    roster: "people-roster",
-    organization: "people-organization",
+    roster: "people-directory",
+    organization: "people-directory",
     payroll: "people-payroll",
     access: "people-access",
-    settings: "people-settings",
+    settings: "people-directory",
     handbook: "handbook",
     learn: "learn",
   };

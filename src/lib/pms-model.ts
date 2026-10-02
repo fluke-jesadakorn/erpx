@@ -438,6 +438,8 @@ export const defaultConfig: Config = {
 };
 export const operationPermission = (op: string) =>
   op === "payment.verify_transfer" ? "finance.approve" :
+  op === "charge.correction.request" ? "pms.cashier" :
+  op === "charge.correction.review" || op === "charge.reverse" ? "pms.approve" :
   op === "property.create" ||
   op === "property.save" ||
   op === "booking.save" ||
@@ -448,7 +450,7 @@ export const operationPermission = (op: string) =>
   op.startsWith("rate.") ||
   op === "item.save"
     ? "pms.configure"
-    : op === "accounting.save"
+    : op === "accounting.save" || op === "accounting.bootstrap"
       ? "pms.accounting.prepare"
       : op === "accounting.approve"
         ? "pms.accounting.approve"

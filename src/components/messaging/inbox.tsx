@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 import { FeatureTabBar,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 
 
@@ -640,14 +641,7 @@ function Conversation({
               <strong>
                 {message.sender_id === userId ? "You" : message.sender_name}
               </strong>
-              <time dateTime={new Date(message.created_at).toISOString()}>
-                {new Date(message.created_at).toLocaleString(undefined, {
-                  month: "short",
-                  day: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </time>
+              <TimeText value={message.created_at} />
             </div>
             <div className={styles.bubble}>
               {message.body && <p>{message.body}</p>}

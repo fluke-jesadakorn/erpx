@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronDown, CirclePlus, Grid2X2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ArrowUpRight, ChevronDown, CirclePlus, Grid2X2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useEffect, useId, useRef, useState, type ComponentType } from "react";
 import { Dialog } from "@/components/ui/dialog";
 import {
@@ -22,6 +22,7 @@ import {
 } from "@/lib/workplace-navigation";
 import { useNavigationCounts } from "./navigation-counts";
 import { StartActions } from "@/components/today/start-actions";
+import { hasPermission } from "@/lib/permissions";
 import styles from "./shell.module.css";
 import appStyles from "./app-navigation.module.css";
 
@@ -51,6 +52,8 @@ export function AppNavigation({ context, mobile = false, Icon }: {
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(activeCategoryId);
   const [openPrimaryId, setOpenPrimaryId] = useState<string | null>(["work", "inbox", "calendar"].includes(active.activeId) ? active.activeId : null);
   const navRef = useRef<HTMLElement>(null);
+  const railScrollRef = useRef<HTMLDivElement>(null);
+  const flyoutRef = useRef<HTMLDivElement>(null);
   const activeLinkRef = useRef<HTMLAnchorElement>(null);
   const triggerRefs = useRef(new Map<string, HTMLButtonElement>());
   const treeId = useId().replaceAll(":", "");
@@ -65,16 +68,16 @@ export function AppNavigation({ context, mobile = false, Icon }: {
       try {
         const saved = window.localStorage.getItem(accordionKey);
         setOpenCategoryId(
-          activeCategoryId ??
+          rail ? null : activeCategoryId ??
             (activePrimary ? null : saved && categoryIds.split(":").includes(saved) ? saved : null),
         );
         if (["work", "inbox", "calendar"].includes(active.activeId)) setOpenPrimaryId(active.activeId);
       } catch {
-        setOpenCategoryId(activeCategoryId);
+        setOpenCategoryId(rail ? null : activeCategoryId);
       }
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [accordionKey, activeCategoryId, active.activeId, activePrimary, location, categoryIds]);
+  }, [accordionKey, activeCategoryId, active.activeId, activePrimary, location, categoryIds, rail]);
 
   useEffect(() => {
     const wideScreen = window.matchMedia("(min-width: 1440px)");
@@ -89,6 +92,37 @@ export function AppNavigation({ context, mobile = false, Icon }: {
     wideScreen.addEventListener("change", syncRail);
     return () => wideScreen.removeEventListener("change", syncRail);
   }, [railKey]);
+
+  useEffect(() => {
+    if (!rail || !openCategoryId) return;
+    const trigger = triggerRefs.current.get(openCategoryId);
+    const scroller = railScrollRef.current;
+    const flyout = flyoutRef.current;
+    if (!trigger || !scroller || !flyout) return;
+    const position = () => {
+      const anchor = trigger.getBoundingClientRect();
+      const bounds = scroller.getBoundingClientRect();
+      if (anchor.bottom <= bounds.top || anchor.top >= bounds.bottom) {
+        setOpenCategoryId(null);
+        return;
+      }
+      flyout.style.top = `${Math.max(8, Math.min(anchor.top, window.innerHeight - flyout.offsetHeight - 8))}px`;
+      flyout.style.left = `${Math.max(8, Math.min(anchor.right + 12, window.innerWidth - flyout.offsetWidth - 8))}px`;
+      flyout.style.visibility = "visible";
+    };
+    const frame = window.requestAnimationFrame(() => {
+      trigger.scrollIntoView({ block: "nearest" });
+      position();
+    });
+    scroller.addEventListener("scroll", position, { passive: true });
+    window.addEventListener("resize", position);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      scroller.removeEventListener("scroll", position);
+      window.removeEventListener("resize", position);
+      flyout.style.visibility = "hidden";
+    };
+  }, [rail, openCategoryId]);
 
   useEffect(() => {
     if (!rail || !openCategoryId) return;
@@ -130,7 +164,7 @@ export function AppNavigation({ context, mobile = false, Icon }: {
   function toggleRail() {
     const next = !rail;
     setRail(next);
-    setOpenCategoryId(activeCategoryId);
+    setOpenCategoryId(next ? null : activeCategoryId);
     try {
       window.localStorage.setItem(railKey, String(next));
     } catch {
@@ -140,7 +174,7 @@ export function AppNavigation({ context, mobile = false, Icon }: {
 
   function itemCurrent(item: NavigationItem) {
     if (item.id === "erpx-management") return active.activeId === item.id;
-    return active.groupId === item.id || active.activeId === item.id;
+    return active.groupId === item.id || (active.sidebarId ?? active.activeId) === item.id;
   }
 
   function primaryLink(item: NavigationItem) {
@@ -206,6 +240,10 @@ export function AppNavigation({ context, mobile = false, Icon }: {
       ? pathname === item.href && query.get("status") !== "archived" && query.get("view") !== "payroll"
       : item.id === "people-archived"
         ? pathname === item.href.split("?")[0] && query.get("status") === "archived"
+      : item.id === "people-payroll"
+        ? active.activeId === "people-payroll"
+      : ["people-payroll-history", "people-payroll-advances", "people-payroll-settings"].includes(item.id)
+        ? pathname === item.href
       : item.submodules?.length
       ? item.id !== "people" && active.groupId === item.id && active.activeId === model.apps.find((app) => app.id === item.id)?.items[0]?.id
       : itemCurrent(item);
@@ -215,14 +253,18 @@ export function AppNavigation({ context, mobile = false, Icon }: {
         ref={current ? activeLinkRef : undefined}
         className={inFlyout ? appStyles.flyoutLink : styles.navAppLink}
         href={pmsSidebarHref(item, pathname, query)}
+        target={item.openInNewTab ? "_blank" : undefined}
+        rel={item.openInNewTab ? "noopener noreferrer" : undefined}
         aria-current={current ? "page" : undefined}
         data-active={current || undefined}
+        aria-label={item.openInNewTab ? `${item.label}, opens in a new tab` : undefined}
         onClick={() => {
           if (rail) setOpenCategoryId(null);
         }}
       >
         <Icon id={item.icon} size={18} strokeWidth={1.8} />
         <span>{item.label}</span>
+        {item.openInNewTab && <ArrowUpRight size={14} aria-hidden="true" />}
       </Link>
     );
   }
@@ -270,7 +312,7 @@ export function AppNavigation({ context, mobile = false, Icon }: {
         </button>
         {rail ? (
           expanded && (
-            <div id={childrenId} className={appStyles.railFlyout} role="group" aria-label={category.label}>
+            <div ref={flyoutRef} id={childrenId} className={appStyles.railFlyout} role="group" aria-label={category.label}>
               <strong>{category.label}</strong>
               {categoryItems(category, true)}
             </div>
@@ -289,8 +331,11 @@ export function AppNavigation({ context, mobile = false, Icon }: {
       <Link
         className={appStyles.launcherRow}
         href={item.href}
+        target={item.openInNewTab ? "_blank" : undefined}
+        rel={item.openInNewTab ? "noopener noreferrer" : undefined}
         key={`${item.id}:${item.href}`}
         aria-current={itemCurrent(item) ? "page" : undefined}
+        aria-label={item.openInNewTab ? `${item.label}, opens in a new tab` : undefined}
         onClick={() => setLauncherOpen(false)}
       >
         <Icon id={item.icon} />
@@ -298,9 +343,24 @@ export function AppNavigation({ context, mobile = false, Icon }: {
           <strong>{item.label}</strong>
           {contextLabel && <small>{contextLabel}</small>}
         </span>
+        {item.openInNewTab && <ArrowUpRight size={14} aria-hidden="true" />}
       </Link>
     );
   }
+
+  const entries = <>
+        {model.primary.flatMap((entry, index) => mobile && base !== "/platform" && index === 2
+          ? [<button key="start" type="button" className={appStyles.mobileStart} onClick={() => setStartOpen(true)} aria-label="Start work"><CirclePlus size={24} aria-hidden="true" /><span>Start</span></button>, primaryLink(entry)]
+          : [primaryLink(entry)])}
+        {!mobile && base !== "/platform" && <button type="button" className={appStyles.launcherButton} aria-label="Start" title={rail ? "Start" : undefined} onClick={() => setStartOpen(true)}><CirclePlus size={18} aria-hidden="true"/><span>Start</span></button>}
+        {!mobile && model.categories
+          .filter((category) => category.id === "erpx-management")
+          .map(categorySection)}
+        {!mobile && <span className={styles.navLabel}>Apps by work</span>}
+        {!mobile && model.categories
+          .filter((category) => category.id !== "erpx-management")
+          .map(categorySection)}
+  </>;
 
   return (
     <>
@@ -310,17 +370,7 @@ export function AppNavigation({ context, mobile = false, Icon }: {
         aria-label={mobile ? "Mobile navigation" : "Primary"}
         data-rail={!mobile && rail ? "true" : undefined}
       >
-        {model.primary.flatMap((entry, index) => mobile && base !== "/platform" && index === 2
-          ? [<button key="start" type="button" className={appStyles.mobileStart} onClick={() => setStartOpen(true)} aria-label="Start work"><CirclePlus size={24} aria-hidden="true" /><span>Start</span></button>, primaryLink(entry)]
-          : [primaryLink(entry)])}
-        {!mobile && base !== "/platform" && <button type="button" className={appStyles.launcherButton} onClick={() => setStartOpen(true)}><CirclePlus size={18} aria-hidden="true"/><span>Start</span></button>}
-        {!mobile && model.categories
-          .filter((category) => category.id === "erpx-management")
-          .map(categorySection)}
-        {!mobile && <span className={styles.navLabel}>Apps by work</span>}
-        {!mobile && model.categories
-          .filter((category) => category.id !== "erpx-management")
-          .map(categorySection)}
+        {!mobile && rail ? <div ref={railScrollRef} className={appStyles.railScroll}>{entries}</div> : entries}
         <button
           type="button"
           className={mobile ? styles.moreButton : appStyles.launcherButton}
@@ -375,9 +425,9 @@ export function AppNavigation({ context, mobile = false, Icon }: {
                   <h3>{category.label}</h3>
                   {category.apps.flatMap((item) => [
                     launcherRow(item),
-                    ...(item.submodules ?? []).map((submodule) =>
+                    ...(item.submodules ?? []).flatMap((submodule) => [
                       launcherRow(submodule, item.label),
-                    ),
+                    ]),
                   ])}
                 </section>
               ))}
@@ -386,7 +436,7 @@ export function AppNavigation({ context, mobile = false, Icon }: {
         </div>
       </Dialog>
       <Dialog title="Start work" open={startOpen} onClose={() => setStartOpen(false)} presentation="responsive-panel">
-        <StartActions base={base} compact onNavigate={() => setStartOpen(false)} />
+        <StartActions base={base} compact canRequestLegal={hasPermission({ role: context.role ?? "", permissions: context.permissions }, "legal.create") && (!context.availableAppIds || context.availableAppIds.includes("legal"))} onNavigate={() => setStartOpen(false)} />
       </Dialog>
     </>
   );

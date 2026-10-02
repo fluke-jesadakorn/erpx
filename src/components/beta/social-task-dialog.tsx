@@ -10,6 +10,9 @@ import { betaFetch } from "@/lib/beta-client";
 import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/foundation";
 import { useSocialCommand } from "./social-command";
+import { localMinuteAt } from "@/lib/calendar-timeline";
+import { PreferredDateTimeField } from "@/components/time/preferred-date-time-field";
+import { useDisplayTimeZone } from "@/components/time/time-preference-context";
 import type { Meta } from "./social-types";
 export function SocialTaskDialog({
   base,
@@ -30,6 +33,7 @@ export function SocialTaskDialog({
 }) {
   const router = useRouter(),
     api = `/api/v1${base}`;
+  const { timeZone } = useDisplayTimeZone();
   const { run, send, busy, message, setMessage } = useSocialCommand();
   const [source, setSource] = useState<TaskSource | null>(null),
     [ai, setAi] = useState<AiResult | null>(null);
@@ -125,12 +129,10 @@ export function SocialTaskDialog({
           );
           if (generated.result.dueAt) {
             const date = new Date(generated.result.dueAt);
+            const local = localMinuteAt(date.getTime(), timeZone);
             setDue(
               (value) =>
-                value ||
-                new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-                  .toISOString()
-                  .slice(0, 16),
+                value || `${local.date}T${local.time}`,
             );
           }
         }
@@ -240,6 +242,7 @@ export function SocialTaskDialog({
               className="beta-form"
               onSubmit={(e) => {
                 e.preventDefault();
+                const dueAt = String(new FormData(e.currentTarget).get("dueAt"));
                 run(async () => {
                   if (!source)
                     throw new Error(
@@ -253,7 +256,7 @@ export function SocialTaskDialog({
                         title,
                         description,
                         assigneeUserId: assignee,
-                        dueAt: new Date(due).toISOString(),
+                        dueAt,
                         projectId: null,
                         startApprovers: [],
                         completionApprovers: [reviewer],
@@ -298,15 +301,7 @@ export function SocialTaskDialog({
                   ))}
                 </select>
               </label>
-              <label>
-                Due date · your local time
-                <input
-                  type="datetime-local"
-                  required
-                  value={due}
-                  onChange={(e) => setDue(e.target.value)}
-                />
-              </label>
+              <PreferredDateTimeField name="dueAt" label="Due date" required valueLocal={due} onLocalChange={setDue} />
               <label>
                 Independent completion reviewer
                 <select

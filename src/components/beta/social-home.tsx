@@ -38,6 +38,7 @@ export function SocialHome({
   single = false,
   calendarEnabled = false,
   initialDay,
+  canRequestLegal = false,
 }: {
   base: string;
   userId: string;
@@ -49,6 +50,7 @@ export function SocialHome({
   single?: boolean;
   calendarEnabled?: boolean;
   initialDay?: Promise<SelfServiceSeed | null>;
+  canRequestLegal?: boolean;
 }) {
   const [attention, setAttention] = useState<Attention>(() => workAttention([]));
   const [attentionLoading, setAttentionLoading] = useState(!single);
@@ -328,7 +330,7 @@ export function SocialHome({
             setToolsOpen(false);
             window.requestAnimationFrame(() => document.getElementById("today-tools-toggle")?.focus());
           }}>Close today&apos;s tools</button>
-          <div className={styles.railStart}><StartActions base={base} rail /></div>
+          <div className={styles.railStart}><StartActions base={base} rail canRequestLegal={canRequestLegal} /></div>
           <MyDayCard key={base} base={base} enabled={calendarEnabled} initial={initialDay} plan={<DailyPlan base={base} />} />
         </aside>}
         {todayView !== "feed" && !single ? <div className={styles.todayWork}>
@@ -350,7 +352,6 @@ export function SocialHome({
             key={post.id}
             base={base}
             post={post}
-            meta={meta}
             userId={userId}
             canModerate={canModerate}
             single={single}

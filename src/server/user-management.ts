@@ -121,7 +121,7 @@ function commandPermission(change: ManagementChange, actor: IamActor) {
     ? "iam.roles.manage"
     : change.operation === "values"
       ? change.input.target === "person"
-        ? "people.manage"
+        ? "people.custom_attributes.write"
         : change.input.target === "unit"
           ? "organization.manage"
           : "iam.manage"
@@ -249,7 +249,11 @@ export async function managementSnapshot(
       }) as AttributeDefinition,
   );
   const attributes = allAttributes
-    .map((a) => ({ ...a, ...attributeAccess(a, actor.role, actor.scopeKind) }))
+    .map((a) => {
+      const access = attributeAccess(a, actor.role, actor.scopeKind);
+      const companyIt = a.target === "person" && !a.ownerRole && actor.role === "it_admin" && actor.scopeKind === "holding" && hasPermission(actor, "people.custom_attributes.write");
+      return { ...a, canView: access.canView || companyIt, canEdit: companyIt || access.canEdit && (a.target !== "person" || hasPermission(actor, "people.custom_attributes.write")) };
+    })
     .filter((a) => a.canView || hasPermission(actor, "iam.roles.manage"));
   const visibleFields = new Set(
     attributes.filter((a) => a.canView).map((a) => a.id),
@@ -382,6 +386,7 @@ export async function managementSnapshot(
     canDefine:
       actor.scopeKind === "holding" && hasPermission(actor, "iam.roles.manage"),
     canManagePeople: hasPermission(actor, "people.manage"),
+    canManagePersonAttributes: hasPermission(actor, "people.custom_attributes.write"),
     canManageOrganization: hasPermission(actor, "organization.manage"),
     canReview: hasPermission(actor, "iam.review"),
   };
@@ -727,7 +732,7 @@ async function applyChange(
         );
         if (
           !field ||
-          !attributeAccess(field, actor.role, actor.scopeKind).canEdit
+          !field.canEdit
         )
           fail(
             "Your role cannot reset this field.",
@@ -751,7 +756,7 @@ async function applyChange(
             a.id === id &&
             a.target === input.target &&
             !a.archived &&
-            attributeAccess(a, actor.role, actor.scopeKind).canEdit,
+            a.canEdit,
         )
       )
         fail(

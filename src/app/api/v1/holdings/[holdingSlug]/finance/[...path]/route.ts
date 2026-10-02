@@ -1,3 +1,8 @@
+import { financeAiWorkspace, saveFinanceAiPolicy, queueFinanceAi, dismissFinanceAi, applyFinanceAiDraft } from "@/server/finance-ai";
+import { financeAiDecisionSchema } from "@/lib/finance-ai";
+import { holdingResources, runtimeEnv } from "@/server/runtime";
+import { accountingProfiles,prepareAccountingProfile,decideAccountingProfile,accountingProfileSchema,accountingProfileDecisionSchema,financialEvents } from "@/server/accounting-profiles";
+import { vatWorkspace,vatPackageDetail,vatPackageExport,prepareVatEntry,reviewVatEntry,prepareVatCorrection,reviewVatCorrection,vatCorrectionDetail,taxEntryDetail,vatCorrectionSchema,prepareVatPackage,approveVatPackage,exportVatWorkpaper,recordVatFiling,supersedeVatPackage,vatEntrySchema,taxReviewSchema,vatPackageSchema,vatFilingSchema } from "@/server/finance-tax-register";
 import {listSupplierBatches,supplierBatchWorkspace,createSupplierBatch,decideSupplierBatch,exportSupplierBatch,recoverSupplierExport,recordSupplierResult,confirmSupplierInstruction,supplierBatchSchema,supplierDecisionSchema,supplierExportSchema,supplierResultSchema,supplierConfirmSchema} from "@/server/supplier-payments";
 import {recoverRefundExport,listRefunds,refundWorkspace,approveRefund,prepareRefundInstruction,exportRefundInstructions,confirmRefundInstruction,recordRefundException,refundApprovalSchema,refundInstructionSchema,refundExportSchema,refundConfirmationSchema,refundExceptionSchema} from "@/server/refunds";
 import { requirePermission } from "@/server/iam-permissions";
@@ -7,6 +12,8 @@ import { ApiError, errorResponse } from "@/server/http";
 import {
   aging,
   beginClose,
+  cancelClose,
+  cancelCloseSchema,
   closePeriod,
   createAccount,
   createAccountSchema,
@@ -59,11 +66,14 @@ import {
   getPayment,
   postInvoice,
   postJournal,
+  postJournalBatch,
+  journalBatchSchema,
   reconcileBankTransaction,
   reopenPeriod,
   reverseJournal,
   statements,
   trialBalance,
+  reportDateSchema,
   partySchema,
   invoiceSchema,
   closeProofSchema,
@@ -117,6 +127,17 @@ export async function GET(request: Request, context: FinanceRouteContext) {
     const { holdingSlug, path } = await context.params;
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
     const parts = segments(path); const search = new URL(request.url).searchParams;
+    if(parts[0]==="ai"&&parts.length===1)return Response.json({data:await financeAiWorkspace((await holdingResources(actor.holdingId)).write,actor,await runtimeEnv())});
+    if(parts[0]==="accounting-profiles")return Response.json({data:await accountingProfiles(actor)});
+    if(parts[0]==="financial-events")return Response.json({data:await financialEvents(actor,{chartId:search.get("chartId")??"",startDate:search.get("startDate")??undefined,endDate:search.get("endDate")??undefined})});
+    if(parts[0]==="tax-register"&&parts.length===1)return Response.json({data:await vatWorkspace(actor,{chartId:search.get("chartId")??undefined,filingMonth:search.get("filingMonth")??undefined})});
+    if(parts[0]==="tax-entries"&&parts.length===2)return Response.json({data:await taxEntryDetail(actor,parts[1])});
+    if(parts[0]==="vat-corrections"&&parts.length===2)return Response.json({data:await vatCorrectionDetail(actor,parts[1])});
+    if(parts[0]==="vat-packages"&&parts.length===2)return Response.json({data:await vatPackageDetail(actor,parts[1])});
+    if(parts[0]==="vat-packages"&&parts.length===3&&parts[2]==="export"){
+      const exported=await vatPackageExport(actor,parts[1]);
+      return new Response(exported.content,{headers:{"Content-Type":"text/csv; charset=utf-8","Content-Disposition":`attachment; filename="${exported.filename}"`,"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
+    }
     if (parts[0] === "charts") {
       if (parts[1] && parts[2] === "accounts") return Response.json({ data: await listAccounts(actor, parts[1]) });
       return Response.json({ data: await listCharts(actor) });
@@ -139,9 +160,9 @@ export async function GET(request: Request, context: FinanceRouteContext) {
     }
     if (parts[0] === "invoices") return parts[1] ? Response.json({ data: await getInvoice(actor, parts[1]) }) : Response.json({ data: await listInvoices(actor) });
     if (parts[0] === "payments") return parts[1] ? Response.json({ data: await getPayment(actor, parts[1]) }) : Response.json({ data: await listPayments(actor) });
-    if (parts[0] === "trial-balance") return Response.json({ data: await trialBalance(actor, search.get("periodId") ?? undefined,search.get("chartId")??undefined) });
-    if (parts[0] === "statements") return Response.json({ data: await statements(actor, search.get("periodId") ?? undefined,search.get("chartId")??undefined) });
-    if (parts[0] === "aging") { const kind = search.get("kind"); if (kind !== "payable" && kind !== "receivable") throw new ApiError(422, "INVALID_AGING_KIND", "kind must be payable or receivable."); return Response.json({ data: await aging(actor, kind, search.get("asOf") ?? new Date().toISOString().slice(0, 10)) }); }
+    if (parts[0] === "trial-balance") return Response.json({ data: await trialBalance(actor, search.get("periodId") ?? undefined,search.get("chartId")??undefined,reportDateSchema.parse({startDate:search.get("startDate")??undefined,endDate:search.get("endDate")??undefined})) });
+    if (parts[0] === "statements") return Response.json({ data: await statements(actor, search.get("periodId") ?? undefined,search.get("chartId")??undefined,reportDateSchema.parse({startDate:search.get("startDate")??undefined,endDate:search.get("endDate")??undefined})) });
+    if (parts[0] === "aging") { const kind = search.get("kind"); if (kind !== "payable" && kind !== "receivable") throw new ApiError(422, "INVALID_AGING_KIND", "kind must be payable or receivable."); return Response.json({ data: await aging(actor, kind, search.get("asOf") ?? new Date().toISOString().slice(0, 10),search.get("chartId")??undefined) }); }
     if(parts[0]==="engines")return Response.json({data:await financeEngineWorkspace(actor)});
     if(parts[0]==="intercompany")return Response.json({data:await intercompanyWorkspace(actor)});
     if(parts[0]==="group-entities")return Response.json({data:await intercompanyWorkspace(actor)});
@@ -158,6 +179,27 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     const { holdingSlug, path } = await context.params;
     const actor = requirePermission(await requireWorkContext(holdingSlug),"finance.read");
     const parts = segments(path); const input = await body(request);
+    if(parts[0]==="ai") {
+      const {write}=await holdingResources(actor.holdingId),env=await runtimeEnv(),key=needCommand(request);
+      if(parts.length===2&&parts[1]==="policy")return Response.json({data:await saveFinanceAiPolicy(write,actor,env,input,key)});
+      if(parts.length===2&&parts[1]==="prepare")return Response.json({data:await queueFinanceAi(write,actor,env,input,key)},{status:202});
+      if(parts.length===3&&parts[2]==="dismiss")return Response.json({data:await dismissFinanceAi(write,actor,parts[1],financeAiDecisionSchema.parse(input),key)});
+      if(parts.length===3&&parts[2]==="apply-draft")return Response.json({data:await applyFinanceAiDraft(write,actor,parts[1],input,key)});
+      throw new ApiError(404,"NOT_FOUND","Finance AI action not found.");
+    }
+    if(parts[0]==="accounting-profiles"&&parts.length===1)return Response.json({data:await prepareAccountingProfile(actor,accountingProfileSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="accounting-profiles"&&parts.length===3&&(parts[2]==="approve"||parts[2]==="reject"))return Response.json({data:await decideAccountingProfile(actor,parts[1],parts[2],accountingProfileDecisionSchema.parse(input),needCommand(request))});
+    if(parts[0]==="tax-entries"&&parts.length===1)return Response.json({data:await prepareVatEntry(actor,vatEntrySchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="tax-entries"&&parts.length===3&&parts[2]==="corrections")return Response.json({data:await prepareVatCorrection(actor,parts[1],vatCorrectionSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="vat-corrections"&&parts.length===3&&(parts[2]==="approve"||parts[2]==="reject"))return Response.json({data:await reviewVatCorrection(actor,parts[1],parts[2],taxReviewSchema.parse(input),needCommand(request))});
+    if(parts[0]==="tax-entries"&&parts.length===3&&(parts[2]==="approve"||parts[2]==="reject"))return Response.json({data:await reviewVatEntry(actor,parts[1],parts[2],taxReviewSchema.parse(input),needCommand(request))});
+    if(parts[0]==="vat-packages"&&parts.length===1)return Response.json({data:await prepareVatPackage(actor,vatPackageSchema.parse(input),needCommand(request))},{status:201});
+    if(parts[0]==="vat-packages"&&parts.length===3){
+      if(parts[2]==="approve")return Response.json({data:await approveVatPackage(actor,parts[1],taxReviewSchema.parse(input),needCommand(request))});
+      if(parts[2]==="export")return Response.json({data:await exportVatWorkpaper(actor,parts[1],taxReviewSchema.parse(input),needCommand(request))});
+      if(parts[2]==="file")return Response.json({data:await recordVatFiling(actor,parts[1],vatFilingSchema.parse(input),needCommand(request))});
+      if(parts[2]==="supersede")return Response.json({data:await supersedeVatPackage(actor,parts[1],taxReviewSchema.parse(input),needCommand(request))});
+    }
     if(parts[0]==="project-cost-allocations"&&parts.length===1){const parsed=projectCostAllocationSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Invalid project cost allocation.");return Response.json({data:await createProjectCostAllocation(actor,parsed.data,needCommand(request))},{status:201});}
     if(parts[0]==="project-cost-allocations"&&parts.length===3&&parts[2]==="review"){const parsed=projectCostAllocationDecisionSchema.safeParse(input);if(!parsed.success)throw new ApiError(422,"VALIDATION_FAILED",parsed.error.issues[0]?.message??"Project cost review evidence is required.");return Response.json({data:await decideProjectCostAllocation(actor,parts[1],parsed.data,needCommand(request))});}
     if(parts[0]==="calculation-runs"&&parts.length===1)return Response.json({data:await createCalculationRun(actor,calculationRunSchema.parse(input),needCommand(request))},{status:201});
@@ -199,8 +241,10 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     if (parts[0] === "journals" && parts.length === 1) { const parsed = createJournalSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Invalid journal."); return Response.json({ data: await createJournal(actor, {...parsed.data,sourceType:"manual",sourceId:undefined,isOpening:false}, needCommand(request)) }, { status: 201 }); }
     if (parts[0] === "opening-balances" && parts[1] === "preview") { const parsed = openingTrialBalanceSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Opening trial balance is invalid."); return Response.json({ data: await previewOpeningTrialBalance(actor, parsed.data) }); }
     if (parts[0] === "opening-balances" && parts[1] === "import") { const parsed = openingTrialBalanceSchema.extend({previewToken:z.string().length(64)}).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", parsed.error.issues[0]?.message ?? "Opening trial balance is invalid."); return Response.json({ data: await importOpeningTrialBalance(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
+    if(parts[0]==="journals"&&parts.length===2&&parts[1]==="batch-post")return Response.json({data:await postJournalBatch(actor,journalBatchSchema.parse(input),needCommand(request))});
     if (parts[0] === "journals" && parts[2] === "post") { const parsed = z.object({ expectedVersion: z.number().int().positive() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "expectedVersion is required."); return Response.json({ data: await postJournal(actor, parts[1], needCommand(request), parsed.data) }); }
     if (parts[0] === "journals" && parts[2] === "reverse") { const parsed = z.object({ periodId: z.string(), entryDate: z.string().date(), memo: z.string().optional() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "A reversal period and date are required."); return Response.json({ data: await reverseJournal(actor, parts[1], needCommand(request), parsed.data) }, { status: 201 }); }
+    if(parts[0]==="periods"&&parts.length===3&&parts[2]==="cancel-close")return Response.json({data:await cancelClose(actor,parts[1],cancelCloseSchema.parse(input),needCommand(request))});
     if (parts[0] === "periods" && parts[2] === "begin-close") return Response.json({ data: await beginClose(actor, parts[1], needCommand(request)) });
     if (parts[0] === "periods" && parts[2] === "close") { const parsed = closeProofSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Close evidence is required."); return Response.json({ data: await closePeriod(actor, parts[1], parsed.data, needCommand(request)) }); }
     if (parts[0] === "periods" && parts[2] === "reopen") { const parsed = closeProofSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Reopen evidence is required."); return Response.json({ data: await reopenPeriod(actor, parts[1], parsed.data, needCommand(request)) }); }
@@ -226,7 +270,7 @@ export async function POST(request: Request, context: FinanceRouteContext) {
     if (parts[0] === "revenue-contracts" && parts.length === 1) { const parsed = revenueContractSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid revenue contract."); return Response.json({ data: await createRevenueContract(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
     if (parts[0] === "revenue-obligations" && parts.length === 1) { const parsed = revenueObligationSchema.safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid revenue obligation."); return Response.json({ data: await createRevenueObligation(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
     if (parts[0] === "revenue-obligations" && parts[2] === "recognize") { const parsed = z.object({ amount: z.string(), periodId: z.string(), entryDate: z.string().date() }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Revenue recognition period, date and amount are required."); return Response.json({ data: await recognizeRevenue(actor, parts[1], parsed.data, needCommand(request)) }); }
-    if (parts[0] === "bank" && parts[1] === "statements" && parts[2] === "import") { const parsed = z.object({ bankAccount: z.string(), statementNumber: z.string(), statementDate: z.string().date(), opening: z.string(), closing: z.string(), closingFxRate:z.string().optional(), sourceHash: z.string().min(8), rows: z.array(z.object({ externalId: z.string(), transactionDate: z.string().date(), description: z.string().optional(), amount: z.string(), currency: z.string().length(3) })).min(1) }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid bank statement."); return Response.json({ data: await importBankStatement(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
+    if (parts[0] === "bank" && parts[1] === "statements" && parts[2] === "import") { const parsed = z.object({ bankAccount: z.string(), statementNumber: z.string(), statementDate: z.string().date(), opening: z.string(), closing: z.string(), closingFxRate:z.string().optional(), sourceHash: z.string().min(8), rows: z.array(z.object({ externalId: z.string(), transactionDate: z.string().date(), description: z.string().optional(), amount: z.string(), currency: z.string().length(3) })).max(500) }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Invalid bank statement."); return Response.json({ data: await importBankStatement(actor, parsed.data, needCommand(request)) }, { status: 201 }); }
     if (parts[0] === "bank" && parts[1] === "transactions" && parts[3] === "reconcile") { const parsed = z.object({ expectedVersion: z.number().int().positive(), matchedType: z.string(), matchedId: z.string(), proof: z.string(), attachmentSetIds: z.array(z.string().min(1)).max(20).default([]) }).safeParse(input); if (!parsed.success) throw new ApiError(422, "VALIDATION_FAILED", "Reconciliation evidence is required."); return Response.json({ data: await reconcileBankTransaction(actor, parts[2], parsed.data, needCommand(request)) }); }
     throw new ApiError(404, "NOT_FOUND", "Finance resource not found.");
   } catch (error) { return errorResponse(error); }

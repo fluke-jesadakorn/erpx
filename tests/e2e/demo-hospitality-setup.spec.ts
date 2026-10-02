@@ -3,11 +3,23 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { Pool } from "pg";
+import { frontWorkspacePath, signInFrontRole, type SimulatedFrontCredentials } from "../helpers/front-simulation-session";
 
 type Credentials={password:string;users:{email:string;role:string;userId?:string}[]};
 type State={fixture:{companyId:string;hospitality:{companyId:string;propertyId:string;registerId:string;warehouseId:string;openingJournalId:string;openingInventoryAccountId:string}}};
 
 async function signIn(context:BrowserContext,credentials:Credentials,role:string) {
+  const frontApp=role.startsWith("pms_")?"pms":role.startsWith("pos_")?"pos":null;
+  if(frontApp){
+    const run=process.env.ERPX_DEMO_RUN;
+    expect(run,"Prepare an isolated hospitality browser simulation first.").toMatch(/^[a-f0-9]{12}$/);
+    const state=JSON.parse(await readFile(resolve(`.runtime/browser/${run}/state.json`),"utf8")) as State;
+    const page=await context.newPage();
+    try {
+      await signInFrontRole(context,page,credentials as SimulatedFrontCredentials,role,frontApp,state.fixture.hospitality.companyId,frontWorkspacePath(state.fixture.hospitality.companyId));
+    } finally { await page.close(); }
+    return;
+  }
   const user=credentials.users.find(item=>item.role===role&&item.email.endsWith("@riverside-lantern.example"));
   expect(user,`${role} Riverside account`).toBeTruthy();
   const login=await context.request.post("/api/auth/sign-in/email",{data:{email:user!.email,password:credentials.password}});
@@ -82,8 +94,8 @@ test("cashier and kitchen complete a restaurant bill on the existing hotel folio
     const cashierPage=await cashier.newPage();
     await cashierPage.goto("/holdings/riverside-lantern/pos?tab=shifts");
     const openShifts=(await(await cashier.request.get("/api/v1/holdings/riverside-lantern/pos?tab=shifts")).json()).data.shifts.filter((shift:{state:string})=>shift.state==="open");
-    if(!openShifts.length)await cashierPage.getByRole("button",{name:"Open cash session",exact:true}).click();
-    await expect(cashierPage.getByRole("button",{name:"Close cash session"})).toBeVisible();
+    if(!openShifts.length)await cashierPage.getByRole("button",{name:"Open cash shift",exact:true}).click();
+    await expect(cashierPage.getByRole("button",{name:"Close cash shift"})).toBeVisible();
     await cashierPage.goto("/holdings/riverside-lantern/pos");
     await cashierPage.getByRole("button",{name:"Open new sale"}).click();
     await cashierPage.getByRole("button",{name:/Basil chicken rice/}).click();
@@ -144,8 +156,8 @@ test("wrong-room, stale and revoked-cashier room charges leave the bill recovera
     await page.goto("/holdings/riverside-lantern/pos?tab=shifts");
     const posApi="/api/v1/holdings/riverside-lantern/pos";
     const shifts=(await(await cashier.request.get(`${posApi}?tab=shifts`)).json()).data.shifts;
-    if(!shifts.some((shift:{state:string})=>shift.state==="open"))await page.getByRole("button",{name:"Open cash session",exact:true}).click();
-    await expect(page.getByRole("button",{name:"Close cash session"})).toBeVisible();
+    if(!shifts.some((shift:{state:string})=>shift.state==="open"))await page.getByRole("button",{name:"Open cash shift",exact:true}).click();
+    await expect(page.getByRole("button",{name:"Close cash shift"})).toBeVisible();
     await page.goto("/holdings/riverside-lantern/pos");
     await page.getByRole("button",{name:"Open new sale"}).click();
     await page.getByRole("button",{name:/Bottled water/}).click();
@@ -229,9 +241,9 @@ test("hotel cashier records a transfer and independent Finance matches bank evid
     const initial=(await(await cashier.request.get(`/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`)).json()).data;
     const cashierId=credentials.users.find(user=>user.role==="pms_cashier"&&user.email.endsWith("@riverside-lantern.example"))!.userId;
     if(!initial.snapshot.records.some((row:{kind:string;data:{state?:string;userId?:string}})=>row.kind==="shift"&&row.data.state==="open"&&row.data.userId===cashierId)){
-      await cashierPage.locator("summary").filter({hasText:"Open shift"}).click();
+      await cashierPage.locator("summary").filter({hasText:"Open cash shift"}).click();
       await cashierPage.getByLabel("Shift / till name").fill("Hotel transfer desk");
-      await cashierPage.getByRole("button",{name:"Open shift",exact:true}).click();
+      await cashierPage.getByRole("button",{name:"Open cash shift",exact:true}).click();
     }
     const hotel=(await(await cashier.request.get(`/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`)).json()).data;
     const folio=hotel.snapshot.records.find((row:{kind:string;data:{state?:string}})=>row.kind==="folio"&&row.data.state==="open");
@@ -241,7 +253,8 @@ test("hotel cashier records a transfer and independent Finance matches bank evid
     await cashierPage.getByLabel("Transfer amount").fill("42.80");
     await cashierPage.getByLabel("Bank transfer reference").fill(transferReference);
     await cashierPage.getByRole("button",{name:"Record bank transfer pending verification",exact:true}).click();
-    await expect(cashierPage.locator("article").filter({hasText:transferReference}).last().getByText("Bank transfer recorded; no folio payment has posted.")).toBeVisible();
+    const pendingTransferCard=cashierPage.locator("article").filter({hasText:transferReference}).last();
+    await expect(pendingTransferCard.getByText("pending",{exact:true})).toBeVisible();
     const manifest=JSON.parse(await readFile(resolve(directory,"databases.json"),"utf8")) as {databases:{H002_DB:string}};
     const databaseUrl=new URL(manifest.databases.H002_DB);
     expect(databaseUrl.hostname).toBe("127.0.0.1");
@@ -274,7 +287,7 @@ test("hotel cashier records a transfer and independent Finance matches bank evid
       expect(imported.rows).toHaveLength(1);
       const bankId=imported.rows[0].id;
       const financePage=await finance.newPage();
-      await financePage.goto(`/holdings/riverside-lantern/pms/folios?property=${propertyId}&folio=${folio.id}`);
+      await financePage.goto(`/holdings/riverside-lantern/pms/folios?queue=approval&property=${propertyId}&folio=${folio.id}`);
       const transferCard=financePage.locator("article").filter({hasText:transferReference}).last();
       await expect(transferCard.locator("summary").filter({hasText:"Finance: verify imported bank row"})).toBeVisible();
       await transferCard.locator("summary").filter({hasText:"Finance: verify imported bank row"}).click();
@@ -329,8 +342,8 @@ test("cashier records an external tax reference and independent Finance verifies
     const page=await cashier.newPage();
     await page.goto("/holdings/riverside-lantern/pos?tab=shifts");
     const shifts=(await(await cashier.request.get("/api/v1/holdings/riverside-lantern/pos?tab=shifts")).json()).data.shifts;
-    if(!shifts.some((shift:{state:string})=>shift.state==="open"))await page.getByRole("button",{name:"Open cash session",exact:true}).click();
-    await expect(page.getByRole("button",{name:"Close cash session"})).toBeVisible();
+    if(!shifts.some((shift:{state:string})=>shift.state==="open"))await page.getByRole("button",{name:"Open cash shift",exact:true}).click();
+    await expect(page.getByRole("button",{name:"Close cash shift"})).toBeVisible();
     await page.goto("/holdings/riverside-lantern/pos");
     await page.getByRole("button",{name:"Open new sale"}).click();
     await page.getByRole("button",{name:/Bottled water/}).click();
@@ -376,8 +389,8 @@ test("Night Audit shows restaurant blockers and rejects an early close",async({b
     const cashierPage=await cashier.newPage();
     await cashierPage.goto("/holdings/riverside-lantern/pos?tab=shifts");
     const shifts=(await(await cashier.request.get("/api/v1/holdings/riverside-lantern/pos?tab=shifts")).json()).data.shifts;
-    if(!shifts.some((shift:{state:string})=>shift.state==="open"))await cashierPage.getByRole("button",{name:"Open cash session",exact:true}).click();
-    await expect(cashierPage.getByRole("button",{name:"Close cash session"})).toBeVisible();
+    if(!shifts.some((shift:{state:string})=>shift.state==="open"))await cashierPage.getByRole("button",{name:"Open cash shift",exact:true}).click();
+    await expect(cashierPage.getByRole("button",{name:"Close cash shift"})).toBeVisible();
     const auditPage=await auditor.newPage();
     await auditPage.goto(`/holdings/riverside-lantern/pms/night-audit?property=${state.fixture.hospitality.propertyId}`);
     await expect(auditPage.getByRole("heading",{name:"Restaurant day controls"})).toBeVisible();
@@ -404,18 +417,21 @@ test("front desk and cashier settle checkout and recover Night Audit",async({bro
   const state=JSON.parse(await readFile(resolve(`.runtime/browser/${run}/state.json`),"utf8")) as State;
   const credentials=JSON.parse(await readFile(resolve(`.runtime/browser/${run}/credentials.json`),"utf8")) as Credentials;
   const frontDesk=await browser.newContext(testInfo.project.use),cashier=await browser.newContext(testInfo.project.use),restaurantCashier=await browser.newContext(testInfo.project.use),auditor=await browser.newContext(testInfo.project.use),administrator=await browser.newContext(testInfo.project.use);
+  [frontDesk,cashier,restaurantCashier,auditor,administrator].forEach(context=>context.setDefaultTimeout(15_000));
+  const administratorPage=await administrator.newPage();
   try {
     await Promise.all([
       signIn(frontDesk,credentials,"pms_frontdesk"),
       signIn(cashier,credentials,"pms_cashier"),
       signIn(restaurantCashier,credentials,"pos_cashier"),
       signIn(auditor,credentials,"pms_night_auditor"),
-      signIn(administrator,credentials,"holding_owner"),
+      signInFrontRole(administrator,administratorPage,credentials as SimulatedFrontCredentials,"holding_owner","pms",state.fixture.hospitality.companyId,frontWorkspacePath(state.fixture.hospitality.companyId)),
     ]);
     const propertyId=state.fixture.hospitality.propertyId;
     const pmsApi=`/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`;
+    const frontPmsCommand=`/api/v1/front/riverside-lantern/${encodeURIComponent(state.fixture.hospitality.companyId)}/pms`;
     const submitPms=async(page:Page,name:string)=>{
-      const response=page.waitForResponse(row=>row.request().method()==="POST"&&row.url().endsWith("/api/v1/holdings/riverside-lantern/pms"));
+      const response=page.waitForResponse(row=>row.request().method()==="POST"&&new URL(row.url()).pathname===frontPmsCommand);
       await page.getByRole("button",{name,exact:true}).click();
       expect((await response).ok(),`${name} command`).toBe(true);
     };
@@ -435,9 +451,9 @@ test("front desk and cashier settle checkout and recover Night Audit",async({bro
     await cashierPage.goto(`/holdings/riverside-lantern/pms/cashier?property=${propertyId}`);
     const cashierId=credentials.users.find(user=>user.role==="pms_cashier"&&user.email.endsWith("@riverside-lantern.example"))!.userId;
     if(!afterNights.snapshot.records.some((row:{kind:string;data:{state?:string;userId?:string}})=>row.kind==="shift"&&row.data.state==="open"&&row.data.userId===cashierId)){
-      await cashierPage.locator("summary").filter({hasText:"Open shift"}).click();
+      await cashierPage.locator("summary").filter({hasText:"Open cash shift"}).click();
       await cashierPage.getByLabel("Shift / till name").fill("Checkout till");
-      await submitPms(cashierPage,"Open shift");
+      await submitPms(cashierPage,"Open cash shift");
     }
     await cashierPage.goto(`/holdings/riverside-lantern/pms/folios?property=${propertyId}&folio=${folioId}`);
     await cashierPage.locator("summary").filter({hasText:"Receive payment / advance"}).click();
@@ -450,9 +466,11 @@ test("front desk and cashier settle checkout and recover Night Audit",async({bro
     await frontDeskPage.locator("summary").filter({hasText:"Check out"}).click();
     await submitPms(frontDeskPage,"Check out");
     await expect(frontDeskPage.getByText("Checked out",{exact:true}).first()).toBeVisible();
-    await cashierPage.reload();
-    await cashierPage.locator("summary").filter({hasText:"Issue invoice / close folio"}).click();
-    await submitPms(cashierPage,"Issue invoice / close folio");
+    await cashierPage.goto(`/holdings/riverside-lantern/pms/folios?property=${propertyId}&folio=${folioId}`);
+    const closeFolio=cashierPage.locator("details").filter({hasText:"Close folio"}).last();
+    await expect(closeFolio).toBeVisible();
+    await closeFolio.locator("summary").click();
+    await submitPms(cashierPage,"Close folio");
     const closed=(await(await cashier.request.get(pmsApi)).json()).data;
     const closedFolio=closed.snapshot.records.find((row:{id:string})=>row.id===folioId);
     expect(closedFolio.data).toMatchObject({state:"closed",due:0});
@@ -461,8 +479,8 @@ test("front desk and cashier settle checkout and recover Night Audit",async({bro
     await cashierPage.goto(`/holdings/riverside-lantern/pms/cashier?property=${propertyId}`);
     const openHotelShifts=closed.snapshot.records.filter((row:{kind:string;data:{state?:string;userId?:string}})=>row.kind==="shift"&&row.data.state==="open"&&row.data.userId===cashierId);
     for(const shift of openHotelShifts){
-      await cashierPage.locator("article").filter({hasText:shift.data.name}).last().locator("summary").filter({hasText:"Close shift"}).click();
-      await submitPms(cashierPage,"Close shift");
+      await cashierPage.locator("article").filter({hasText:shift.data.name}).last().locator("summary").filter({hasText:"Close cash shift"}).click();
+      await submitPms(cashierPage,"Close cash shift");
     }
     const posPage=await restaurantCashier.newPage();
     const posApi="/api/v1/holdings/riverside-lantern/pos";
@@ -487,7 +505,7 @@ test("front desk and cashier settle checkout and recover Night Audit",async({bro
       const counted=Number(shift.opening_minor)+Number(receipts.rows[0].cash);
       await posPage.getByLabel("Count cash").fill((counted/100).toFixed(2));
       const closedShift=posPage.waitForResponse(response=>response.request().method()==="POST"&&response.url().endsWith("/pos/shift/close"));
-      await posPage.getByRole("button",{name:"Close cash session",exact:true}).click();
+      await posPage.getByRole("button",{name:"Close cash shift",exact:true}).click();
       expect((await closedShift).ok()).toBe(true);
     }
     } finally {await db.end();}
@@ -517,7 +535,6 @@ test("front desk and cashier settle checkout and recover Night Audit",async({bro
       expect(blocked.job.state).toBe("blocked");
       expect(blocked.job.error_code).toBeTruthy();
       expect(blocked.property.state).toBe("closing");
-      const administratorPage=await administrator.newPage();
       await administratorPage.goto(`/holdings/riverside-lantern/pms/night-audit?property=${propertyId}`);
       const resume=administratorPage.locator("summary:visible").filter({hasText:"Resolve and continue"}).first();
       await expect(resume).toBeVisible();

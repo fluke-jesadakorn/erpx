@@ -8,11 +8,15 @@ import { PostgresDatabase } from "@/server/runtime/postgres";
 import { posWorkspace } from "@/server/pos";
 import { posCommand } from "@/server/pos-core";
 import { pmsWorkspace, pmsCommand } from "@/server/pms";
+import { pmsReadSelectionFromSearch } from "@/lib/pms-read-selection";
 import { staffBookingSearch, bookingError } from "@/server/pms-booking";
 import { isTransactionalSqlDatabase } from "@/server/runtime/types";
 import { selectWorkRole } from "@/server/work-role-store";
 import { frontActionItems } from "@/server/front-quick-access";
 import { readQuickAccessPreferences, saveQuickAccessPreferences } from "@/server/quick-access-preferences";
+import { pmsHomeRead, pmsHomeWrite } from "@/server/pms/home-api";
+import { posCustomers } from '@/server/pos-daily';
+import { posProductImage } from '@/server/pos-images';
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +71,10 @@ export async function GET(request: Request, { params }: Context) {
     if (rawApp !== "pos" && rawApp !== "pms")
       throw new ApiError(404, "NOT_FOUND", "Not found.");
     const app = rawApp as FrontAppKind;
+    if (app === "pms" && path[0] === "home") {
+      const actor = await frontActor(request, holdingSlug, companySlug, app);
+      return Response.json({data:await pmsHomeRead(actor,path.slice(1),new URL(request.url).searchParams)}, {headers:{"Cache-Control":"private, no-store"}});
+    }
     if (path.length === 1 && path[0] === "roles") {
       const brand = await frontCompanyBrand(holdingSlug, companySlug);
       if (!brand) throw new ApiError(404, "FRONT_NOT_FOUND", "This Front app is unavailable.");
@@ -83,6 +91,11 @@ export async function GET(request: Request, { params }: Context) {
       const actor = await frontActor(request, holdingSlug, companySlug, app);
       return Response.json({ data: await readQuickAccessPreferences(actor.userId, "front-" + app, actor.companyId) }, { headers: { "Cache-Control": "private, no-store" } });
     }
+    if(app==='pos'&&path[0]==='images'&&path.length===2)return posProductImage(await frontActor(request,holdingSlug,companySlug,app),path[1]);
+    if(app==='pos'&&path.join('/')==='customers/search'){
+      const actor=await frontActor(request,holdingSlug,companySlug,app),db=(await holdingResources(actor.holdingId)).write;
+      return Response.json({data:await posCustomers(db,actor,new URL(request.url).searchParams.get('q')??'')},{headers:{'Cache-Control':'private, no-store'}});
+    }
     if (path.length)
       throw new ApiError(403, "FRONT_ROUTE_FORBIDDEN", "This work belongs in ERPX administration.");
     const actor = await frontActor(request, holdingSlug, companySlug, app);
@@ -97,7 +110,7 @@ export async function GET(request: Request, { params }: Context) {
       );
     }
     return Response.json(
-      { data: await pmsWorkspace(actor, search.get("property") ?? undefined, search.get("dayControls") === "1", true) },
+      { data: await pmsWorkspace(actor, search.get("property") ?? undefined, search.get("dayControls") === "1", true, pmsReadSelectionFromSearch(search)) },
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {
@@ -112,6 +125,10 @@ export async function POST(request: Request, { params }: Context) {
     if (rawApp !== "pos" && rawApp !== "pms")
       throw new ApiError(404, "NOT_FOUND", "Not found.");
     const app = rawApp as FrontAppKind;
+    if (app === "pms" && path[0] === "home") {
+      const actor = await frontActor(request, holdingSlug, companySlug, app);
+      return Response.json({data:await pmsHomeWrite(actor,path.slice(1),await request.json(),commandKey(request))}, {headers:{"Cache-Control":"private, no-store"}});
+    }
     if (path.length === 1 && path[0] === "roles") {
       const brand = await frontCompanyBrand(holdingSlug, companySlug);
       if (!brand) throw new ApiError(404, "FRONT_NOT_FOUND", "This Front app is unavailable.");

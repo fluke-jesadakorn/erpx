@@ -1,4 +1,5 @@
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { frontWorkspacePath, signInFrontRole, type SimulatedFrontCredentials } from "../helpers/front-simulation-session";
@@ -50,7 +51,7 @@ test("H002 AI drafts from authorized versions, cites hotel evidence, then falls 
     expect((await prepareResponse).ok()).toBe(true);
     await expect(employeePage.getByText("Source: this saved request, version 1.", { exact: true })).toBeVisible();
     await expect(employeePage.getByText("Review draft: Riverside kitchen rice restock", { exact: true })).toBeVisible();
-    const title = employeePage.getByLabel("Title", { exact: true });
+    const title = employeePage.getByLabel("What do you need?", { exact: true });
     await expect(title).toHaveValue("Riverside kitchen rice restock");
     await employeePage.getByRole("button", { name: "Use suggested title", exact: true }).click();
     await expect(title).toHaveValue("Review draft: Riverside kitchen rice restock");
@@ -81,9 +82,9 @@ test("H002 AI drafts from authorized versions, cites hotel evidence, then falls 
 
     const pmsPage = await pmsAuditor.newPage();
     await signInFrontRole(pmsAuditor, pmsPage, credentials as SimulatedFrontCredentials, "holding_owner", "pms", companyId, auditPath);
-    const dayClose = pmsPage.locator("details").filter({ hasText: "Start day close" }).first();
-    await dayClose.locator("summary").click();
-    await expect(dayClose.locator("form")).toBeVisible();
+    const manualDayClose = pmsPage.locator("details").filter({ hasText: "Start day close" }).first();
+    await manualDayClose.locator("summary").click();
+    await expect(manualDayClose.locator("form")).toBeVisible();
     await pmsPage.reload({ waitUntil: "domcontentloaded" });
     await expect(pmsPage.locator("details").filter({ hasText: "Start day close" }).first().locator("summary")).toBeVisible();
     const assistantApiPage = await assistantApi.newPage();
@@ -162,6 +163,29 @@ test("H002 AI drafts from authorized versions, cites hotel evidence, then falls 
     });
     expect(failedAssistant.status()).toBe(503);
     expect((await failedAssistant.json()).error.code).toBe("AI_DISABLED");
+
+    // AI is unavailable, so the night auditor completes the same day close by hand.
+    await pmsPage.reload({ waitUntil: "domcontentloaded" });
+    const manualFallbackClose = pmsPage.locator("details").filter({ hasText: "Start day close" }).first();
+    await manualFallbackClose.locator("summary").click();
+    const pmsCommand = `/api/v1/front/riverside-lantern/${companyId}/pms`;
+    const startClose = pmsPage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith(pmsCommand));
+    await manualFallbackClose.getByRole("button", { name: "Start day close", exact: true }).click();
+    const closeResult = await startClose;
+    expect(closeResult.ok(), await closeResult.text()).toBe(true);
+    const beforeDrain = (await (await pmsAuditor.request.get(`/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`)).json()).data;
+    expect(beforeDrain.snapshot.property.state).toBe("closing");
+    const completedNightsBefore = beforeDrain.snapshot.records.filter((record: { kind: string; data: { state?: string } }) => record.kind === "night" && record.data.state === "completed").length;
+    const completed = JSON.parse(execFileSync("bun", ["--conditions=react-server", resolve("scripts/fixtures/hospitality-drain-demo-job.ts"), run], { cwd: resolve("."), timeout: 30_000 }).toString()) as { job: { state: string; error_code: string | null }; property: { state: string; business_date: string } };
+    expect(completed).toMatchObject({ job: { state: "completed", error_code: null }, property: { state: "open" } });
+    expect(completed.property.business_date).not.toBe(beforeDrain.snapshot.property.businessDate);
+    const completedAudit = (await (await pmsAuditor.request.get(`/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`)).json()).data;
+    const completedNightsAfter = completedAudit.snapshot.records.filter((record: { kind: string; data: { state?: string } }) => record.kind === "night" && record.data.state === "completed").length;
+    expect(completedNightsAfter).toBe(completedNightsBefore + 1);
+    const replayedDrain = JSON.parse(execFileSync("bun", ["--conditions=react-server", resolve("scripts/fixtures/hospitality-drain-demo-job.ts"), run], { cwd: resolve("."), timeout: 30_000 }).toString()) as typeof completed;
+    expect(replayedDrain).toEqual(completed);
+    const replayedAudit = (await (await pmsAuditor.request.get(`/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`)).json()).data;
+    expect(replayedAudit.snapshot.records.filter((record: { kind: string; data: { state?: string } }) => record.kind === "night" && record.data.state === "completed")).toHaveLength(completedNightsAfter);
 
     await employeePage.reload({ waitUntil: "domcontentloaded" });
     await employeePage.locator("#workspace-content").getByText("AI preparation", { exact: true }).click();

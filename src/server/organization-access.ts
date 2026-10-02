@@ -8,7 +8,7 @@ import { ApiError } from "./http";
 import { organizationRoster } from "./organization";
 
 export async function organizationAccessData(db: SqlDatabase, actor: WorkContext): Promise<OrganizationAccessData> {
-  if (!["iam.read", "people.read", "people.manage", "organization.manage"].some(permission => hasPermission(actor, permission))) {
+  if (!["iam.read", "people.manage", "organization.manage"].some(permission => hasPermission(actor, permission))) {
     throw new ApiError(403, "PERMISSION_REQUIRED", "Your selected role cannot view organization and access.");
   }
   const [{ people, positions }, nodeRows, levelRows] = await Promise.all([
@@ -25,9 +25,17 @@ export async function organizationAccessData(db: SqlDatabase, actor: WorkContext
   const inScope = (item: { branch_id: string | null; department_id: string | null }) =>
     (!actor.branchId || item.branch_id === actor.branchId) && (!actor.departmentId || item.department_id === actor.departmentId);
   const company = actor.scope.kind === "holding" && actor.assignmentScope === "holding" && !actor.branchId && !actor.departmentId;
+  const canViewHrDetails = hasPermission(actor, "people.manage");
   return {
     positions: positions.filter(position => position.active === 1 && inScope(position)),
-    people: people.filter(inScope).map(person => ({ ...person, issues: reportingIssues(person, people, positions) })),
+    people: people.filter(inScope).map(person => ({
+      ...person,
+      // IT uses the placement graph, but private contact and employment dates stay in HR.
+      email: canViewHrDetails ? person.email : null,
+      start_date: canViewHrDetails ? person.start_date : "",
+      end_date: canViewHrDetails ? person.end_date : null,
+      issues: reportingIssues(person, people, positions),
+    })),
     nodes: nodeRows.results,
     levels: levelRows.results,
     canManage: company && hasPermission(actor, "organization.manage") && hasPermission(actor, "people.manage"),

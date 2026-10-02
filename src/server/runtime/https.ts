@@ -25,8 +25,19 @@ export async function pinnedNodeRequest(
       },
       (response) => {
         if ((response.statusCode ?? 500) >= 300) {
-          response.resume();
-          resolve(new Response(null, { status: response.statusCode ?? 500 }));
+          if (response.statusCode !== 403 || new URL(url).hostname !== "opencode.ai") {
+            response.resume();
+            resolve(new Response(null, { status: response.statusCode ?? 500 }));
+            return;
+          }
+          const chunks: Uint8Array[] = [];
+          let bytes = 0;
+          response.on("data", (chunk: Uint8Array) => {
+            bytes += chunk.byteLength;
+            if (bytes <= 4096) chunks.push(chunk);
+          });
+          response.on("error", reject);
+          response.on("end", () => resolve(new Response(bytes <= 4096 ? Buffer.concat(chunks) : null, { status: 403 })));
           return;
         }
         const chunks: Uint8Array[] = [];

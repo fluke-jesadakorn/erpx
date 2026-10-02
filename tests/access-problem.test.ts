@@ -20,8 +20,8 @@ it.each([
 it.each(["https://evil.example", "//evil.example", "/\\evil.example", "/api/v1/delete", "/login", "/access?reason=expired", "/holdings/%2f%2fevil.example", "/holdings/acme/\rhome", "/holdings/acme/%5cfoo", "/holdings/acme/%00home", "/holdings/../../api/auth/sign-out", "/holdings/%2e%2e/access", "/holdings/acme/..", null, "x".repeat(2001)])("rejects unsafe or looping return path %s", value => {
   expect(safeReturnPath(value)).toBeNull();
 });
-it("accepts scoped application links and retains ordinary query parameters", () => {
-  const path = "/holdings/acme/branches/bangkok/departments/operations/home?tag=delivery";
+it("accepts scoped application links and retains query parameters and fragments", () => {
+  const path = "/holdings/acme/branches/bangkok/departments/operations/home?tag=delivery&filter=a%2Fb#current%2Fitem";
   expect(safeReturnPath(path)).toBe(path);
   expect(safeReturnPath("/platform/home")).toBe("/platform/home");
 });

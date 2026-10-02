@@ -6,6 +6,9 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { clearGuidedIntakeHandoff, readGuidedIntakeHandoff } from "@/lib/ai/guided-intake";
 import { preparedTaskFields } from "@/lib/ai/prepared-work";
 import { formatUiDateTime } from "@/lib/ui-format";
+import { localMinuteAt } from "@/lib/calendar-timeline";
+import { PreferredDateTimeField } from "@/components/time/preferred-date-time-field";
+import { TimeText, useDisplayTimeZone } from "@/components/time/time-preference-context";
 import { useRouter } from "next/navigation";
 import type { StaffPerson } from "@/server/staff-policy";
 import type { TaskDetail, TaskRow, ProjectRow } from "@/server/staff-tasks";
@@ -224,13 +227,6 @@ function Approvers({
     </fieldset>
   );
 }
-function localInput(timestamp: number | null) {
-  if (timestamp === null) return "";
-  const date = new Date(timestamp);
-  return new Date(timestamp - date.getTimezoneOffset() * 60000)
-    .toISOString()
-    .slice(0, 16);
-}
 export function TaskEditor({
   base,
   options,
@@ -260,6 +256,7 @@ export function TaskEditor({
   initialDueDate?: string;
   initialProjectId?: string;
 }) {
+  const { timeZone, ready: timeReady } = useDisplayTimeZone();
   const [defaultDue] = useState(() => initialDueDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDueDate) ? `${initialDueDate}T09:00` : "");
   const source = task ?? template,
     { send, busy, error } = useStaffCommand(base),
@@ -282,7 +279,8 @@ export function TaskEditor({
           : JSON.parse(source.completion_approvers_json).length ? "completion" : "none"
         : createAs === "routine" ? "completion" : "none",
     ),
-    [due, setDue] = useState(task ? localInput(task.due_at) : defaultDue);
+    [dueOverride, setDue] = useState<string | null>(null);
+  const due = dueOverride ?? (task?.due_at != null && timeReady ? (() => { const value = localMinuteAt(task.due_at, timeZone); return `${value.date}T${value.time}`; })() : defaultDue);
   const creator = clone
     ? userId
     : source
@@ -352,7 +350,7 @@ export function TaskEditor({
             ...(routine
               ? { published: f.get("published") === "on" }
               : {
-                  dueAt: due ? new Date(due).toISOString() : null,
+                  dueAt: f.get("dueAt") || null,
                   reason: f.get("reason") ?? "",
                 }),
           };
@@ -409,18 +407,8 @@ export function TaskEditor({
               ))}
             </select>
           </label>
-          {!templateMode && (
-            <label>
-              Due date and time {ordinaryTask ? "(optional)" : ""}
-              <input
-                name="dueAt"
-                type="datetime-local"
-                required={!ordinaryTask}
-                value={due}
-                onChange={(e) => setDue(e.target.value)}
-              />
-            </label>
-          )}
+          {!templateMode && <PreferredDateTimeField name="dueAt" label={`Due date and time${ordinaryTask ? " (optional)" : ""}`}
+            required={!ordinaryTask} valueLocal={due} onLocalChange={setDue} />}
         </div>
         <label>
           Description
@@ -446,7 +434,7 @@ export function TaskEditor({
               setPhase(next);
               if ((next === "start" || next === "both") && !before.length) setBefore([""]);
               if ((next === "completion" || next === "both") && !after.length) setAfter([""]);
-              if (next !== "none" && !due) setDue(localInput(Date.now() + 86400000));
+              if (next !== "none" && !due) { const value = localMinuteAt(Date.now() + 86400000, timeZone); setDue(`${value.date}T${value.time}`); }
             }}
           >
             {maySkipReview && <option value="none">No review needed</option>}
@@ -638,18 +626,18 @@ export function TaskDelegationControls({
 }) {
   const { send, busy, error } = useStaffCommand(base),
     canDelegate = detail.permittedActions.includes("delegate"),
-    [expiry, setExpiry] = useState(() => localInput(Date.now() + 86_400_000)),
+    [defaultExpiry] = useState(() => Date.now() + 86_400_000),
     [delegate, setDelegate] = useState(""),
     [reason, setReason] = useState(""),
     [revokeReason, setRevokeReason] = useState("");
-  const timestamp = (value: number) => new Date(value).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+  const timestamp = (value: number) => <TimeText value={value} />;
   return (
     <section className="card">
       <h2>Temporary delegation</h2>
       {detail.delegation ? (
         <>
           <p className="notice">
-            This task is delegated to <strong>{detail.delegation.delegate_name}</strong> until {new Date(detail.delegation.expires_at).toISOString().replace("T", " ").slice(0, 16)} UTC.
+            This task is delegated to <strong>{detail.delegation.delegate_name}</strong> until {timestamp(detail.delegation.expires_at)}.
           </p>
           <p className="muted">Reason: {detail.delegation.reason}</p>
           {canDelegate && (
@@ -675,7 +663,7 @@ export function TaskDelegationControls({
             event.preventDefault();
             void send(`staff-tasks/${detail.task.id}/delegate`, {
               delegateUserId: delegate,
-              expiresAt: new Date(expiry).toISOString(),
+              expiresAt: String(new FormData(event.currentTarget).get("expiry")),
               expectedVersion: detail.task.version,
               reason,
             });
@@ -690,10 +678,7 @@ export function TaskDelegationControls({
                 .map((person) => <option key={person.user_id} value={person.user_id}>{person.legal_name}</option>)}
             </select>
           </label>
-          <label>
-            Expires
-            <input type="datetime-local" value={expiry} onChange={(event) => setExpiry(event.target.value)} required />
-          </label>
+          <PreferredDateTimeField name="expiry" label="Expires" required initialInstant={defaultExpiry} />
           <label>
             Reason
             <textarea value={reason} onChange={(event) => setReason(event.target.value)} minLength={3} maxLength={2000} required />
@@ -715,7 +700,7 @@ export function TaskDelegationControls({
                 <p><strong>{entry.delegate_name}</strong> · {entry.status}</p>
                 <p>Delegated by {entry.delegator_name} from {timestamp(entry.starts_at)} until {timestamp(entry.expires_at)}.</p>
                 <p>Reason: {entry.reason}</p>
-                {entry.status === "revoked" && <p>Revoked by {entry.revoked_by_name} {entry.revoked_at ? `at ${timestamp(entry.revoked_at)}` : ""}. Reason: {entry.revoke_reason ?? "No reason retained for this earlier revocation."}</p>}
+                {entry.status === "revoked" && <p>Revoked by {entry.revoked_by_name} {entry.revoked_at ? <>at {timestamp(entry.revoked_at)}</> : ""}. Reason: {entry.revoke_reason ?? "No reason retained for this earlier revocation."}</p>}
               </li>
             ))}
           </ol>
@@ -836,7 +821,7 @@ export function RoutineScheduleControls({
 }) {
   const { send, busy, error } = useStaffCommand(base),
     [frequency, setFrequency] = useState("daily"),
-    [defaultDue] = useState(() => localInput(Date.now() + 86400000));
+    [defaultDueInstant] = useState(() => Date.now() + 86400000);
   function scheduleForm(schedule?: ScheduleRow) {
     return (
       <form
@@ -969,23 +954,13 @@ export function RoutineScheduleControls({
             void send(
               `routine-templates/${template.id}/run`,
               {
-                dueAt: new Date(
-                  String(new FormData(e.currentTarget).get("dueAt")),
-                ).toISOString(),
+                dueAt: String(new FormData(e.currentTarget).get("dueAt")),
               },
               "staff-tasks",
             );
           }}
         >
-          <label>
-            Task due date and time
-            <input
-              name="dueAt"
-              type="datetime-local"
-              required
-              defaultValue={defaultDue}
-            />
-          </label>
+          <PreferredDateTimeField name="dueAt" label="Task due date and time" required initialInstant={defaultDueInstant} />
           <button className="button" disabled={busy || !template.published}>
             Create occurrence
           </button>

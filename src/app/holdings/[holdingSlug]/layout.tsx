@@ -1,9 +1,11 @@
 import { measureReadPhase } from "@/server/runtime/read-metrics";
+import { financeWorkspaceV2Enabled } from "@/server/finance-presentation";
 import { ProductBrand } from "@/components/brand/product-brand";
 import { appearancePreference } from "@/lib/appearance-preference";
 import { WorkspaceBrandMark } from "@/components/brand/workspace-brand";
 import { FeatureEnvironment } from "@/components/features/feature-page";
 import { NavigationCountsProvider } from "@/components/workplace/navigation-counts";
+import { CurrencyProvider, CurrencySelector } from "@/components/money/currency-provider";
 import { RememberWorkspace } from "@/components/workplace/remember-workspace";
 import styles from "@/components/workplace/shell.module.css";
 import { WorkContextBoundary } from "@/components/workplace/work-context-boundary";
@@ -31,6 +33,7 @@ import { resolveWorkspaceBrand } from "@/server/branding";
 import { executiveVisible } from "@/server/executive/access";
 import { pageError } from "@/server/page-error";
 import { holdingResources } from "@/server/runtime";
+import { moneyContext } from "@/server/company-money";
 import { companyFeatureCatalogue } from "@/server/hospitality-rollout";
 import { workspaceChoices } from "@/server/workspace-choices";
 import { Building2 } from "lucide-react";
@@ -85,9 +88,11 @@ export default async function WorkplaceLayout({
     context.scope.kind === "holding" ? listWorkspaceCompanies(context.holdingId) : Promise.resolve([]),
     administrationAccess(context),
   ]));
+  const money = await moneyContext(context);
   const featureCatalogue = process.env.NODE_ENV === 'production'
     ? await companyFeatureCatalogue(context) : [];
   const navigation = {
+    financeWorkspaceV2: financeWorkspaceV2Enabled(),
     manageErpxVisible: context.holdingId === "h003" && context.scope.kind === "holding" &&
       hasPermission(context, "manage_erpx.access") &&
       await requirePlatformContext().then((platform) => platform.userId === context.userId).catch(() => false),
@@ -150,7 +155,8 @@ export default async function WorkplaceLayout({
   if (context.scope.kind === "department")
     ancestors.push(ancestor(context.scope.departmentName, base));
   return (
-    <NavigationCountsProvider key={`${base}:${context.userId}:${context.companyId}:${context.authority!.revision}`} base={base}>
+    <NavigationCountsProvider key={`${base}:${context.userId}:${context.companyId}:${context.assignmentId}:${context.authority!.revision}`} base={base}>
+    <CurrencyProvider initial={money} apiBase={`/api/v1${base}`}>
     <div className={styles.shell}>
       <RememberWorkspace base={base} companyId={context.companyId} assignmentId={context.assignmentId} revision={context.authority!.revision} />
       <a href="#workspace-content" className="skip-link">
@@ -222,12 +228,14 @@ export default async function WorkplaceLayout({
             </Suspense>
           </div>
           <div className={styles.actions}>
+            <CurrencySelector />
             <CommandSearch {...navigation} />
             <AccountSwitcher
               workspaceBase={base}
               assignments={context.availableAssignments ?? context.assignments}
               preferredAssignmentId={context.assignmentId}
               contextRevision={context.authority!.revision}
+              companyId={context.companyId}
               activeUser={{
                 id: context.userId,
                 name: context.name,
@@ -239,8 +247,9 @@ export default async function WorkplaceLayout({
         </header>
         <div>
           <WorkContextBoundary
-            key={`${context.companyId}:${context.assignmentId}:${context.authority!.revision}`}
+            key={`${context.userId}:${context.companyId}:${context.assignmentId}:${context.authority!.revision}`}
             base={base}
+            userId={context.userId}
             companyId={context.companyId}
             assignmentId={context.assignmentId}
             revision={context.authority!.revision}
@@ -258,6 +267,7 @@ export default async function WorkplaceLayout({
         <WorkplaceNavigation {...navigation} mobile />
       </Suspense></div>
     </div>
+    </CurrencyProvider>
     </NavigationCountsProvider>
   );
 }

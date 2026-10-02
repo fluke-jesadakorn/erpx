@@ -6,10 +6,11 @@ import { accountKeys,saleAmounts,portion,recipeQuantities,formatPosMoney,busines
 import { defaultConfig,pmsAccountKeys } from '../src/lib/pms';
 import { drainPos,posStripeWebhook,verifyPosStripeSignature } from '../src/server/pos-stripe';
 import type { WorkContext } from '../src/server/authorization';
+import {posCustomers,posDayReport} from '../src/server/pos-daily';
 import { attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet } from './helpers/attachment-v2';
 vi.mock('../src/server/runtime',async()=>{const {env}=await import('./runtime-env');return {runtimeEnv:async()=>env,holdingResources:async()=>({write:env.H001_DB})};});
 const db=env.H001_DB;
-afterEach(()=>{vi.unstubAllGlobals();vi.unstubAllEnvs();});
+afterEach(()=>{vi.useRealTimers();vi.unstubAllGlobals();vi.unstubAllEnvs();});
 const actor={userId:'cashier',assignmentId:'pos-cashier',role:'holding_owner',companyId:'pos-company',branchId:null,departmentId:null,holdingId:'h001',holdingSlug:'pos-test',name:'Cashier',email:'cashier@example.test',assignmentScope:'holding',scope:{kind:'holding',holdingId:'h001',holdingSlug:'pos-test',holdingName:'POS',companyId:'pos-company'},modules:['pos'],assignments:[],workspaces:[],inherited:false,holdingName:'POS'} as WorkContext;
 const manager={...actor,userId:'manager',assignmentId:'pos-manager'};
 let serial=0;
@@ -20,11 +21,11 @@ async function createSale(mode='retail'){
 }
 async function add(sale:string,product='tea',qty=1000){await change('sale.add',sale,{productId:product,quantityMilli:qty,modifierIds:[],discountMinor:0,note:''});}
 async function pay(sale:string,amount=10700){await change('payment.create',sale,{method:'cash',amountMinor:amount,tenderedMinor:amount,reference:''});}
-async function kitchen(sale:string,action:string){const f=(await one(db,'SELECT f.* FROM pos_fulfillments f JOIN pos_lines l ON l.fulfillment_id=f.id WHERE l.sale_id=?',sale))!;return command(`kitchen.${action}`,{id:f.id,expectedVersion:f.version,reason:'customer changed order'});}
+async function kitchen(sale:string,action:string){const f=(await one(db,'SELECT f.* FROM pos_fulfillments f JOIN pos_lines l ON l.fulfillment_id=f.id WHERE l.sale_id=?',sale))!;return command(`kitchen.${action}`,{id:f.id,expectedVersion:f.version,reason:'customer changed order'},action==='cancel'?manager:actor);}
 async function clearPosSetup(){await run(db,'DELETE FROM pos_shifts');await run(db,'DELETE FROM pos_tables');await run(db,'DELETE FROM pos_registers');await run(db,'DELETE FROM pos_settings');}
 beforeAll(async()=>{await Promise.all([applyMigrations(db,env.STAFF_TEST_MIGRATIONS),applyMigrations(env.CONTROL_DB,env.CONTROL_TEST_MIGRATIONS)]);enableAttachmentV2ForTest();},120000);
 beforeEach(async()=>{
- await db.exec(`TRUNCATE hospitality_tax_documents,company_feature_rollouts,pms_sources,pms_postings,pms_records,pms_properties,pos_receipts,pos_audit,pos_jobs,pos_stripe_events,pos_settlements,pos_oauth_states,pos_connections,pos_connection_history,pos_cash_movements,pos_refund_payments,pos_refunds,pos_payments,pos_lines,pos_reservations,pos_stock_moves,pos_fulfillments,pos_sales,pos_tables,pos_shifts,pos_registers,pos_catalog,pos_settings,pos_postings,finance_bank_transactions,finance_bank_statements,finance_allocations,finance_invoices,finance_payments,finance_journal_lines,finance_journals,finance_parties,commerce_stock,commerce_products,commerce_warehouses,commerce_settings,finance_accounts,finance_periods,finance_charts,assignments,command_assertions CASCADE;
+ await db.exec(`TRUNCATE pos_day_closes,pos_sale_documents,pos_product_images,pos_register_catalog,hospitality_tax_documents,company_feature_rollouts,pms_sources,pms_postings,pms_records,pms_properties,pos_receipts,pos_audit,pos_jobs,pos_stripe_events,pos_settlements,pos_oauth_states,pos_connections,pos_connection_history,pos_cash_movements,pos_refund_payments,pos_refunds,pos_payments,pos_lines,pos_reservations,pos_stock_moves,pos_fulfillments,pos_sales,pos_tables,pos_shifts,pos_registers,pos_catalog,pos_settings,pos_postings,finance_bank_transactions,finance_bank_statements,finance_allocations,finance_invoices,finance_payments,finance_journal_lines,finance_journals,finance_parties,commerce_stock,commerce_products,commerce_warehouses,commerce_settings,finance_accounts,finance_periods,finance_charts,assignments,command_assertions CASCADE;
  INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES('pos-company','company','pos-company','POS test','pos-company') ON CONFLICT DO NOTHING;
  INSERT INTO organization_nodes(id,kind,slug,display_name,company_id,parent_id,branch_id) VALUES('pos-branch','branch','pos-branch','Branch','pos-company','pos-company','pos-branch') ON CONFLICT DO NOTHING;
  INSERT INTO assignments(id,user_id,role,modules_json,company_id,scope_kind,valid_from,valid_until) VALUES('pos-cashier','cashier','holding_owner','["pos"]','pos-company','holding',0,9999999999999),('pos-manager','manager','holding_owner','["pos"]','pos-company','holding',0,9999999999999);
@@ -40,8 +41,22 @@ beforeEach(async()=>{
  await run(db,'INSERT INTO commerce_settings VALUES(?,?,?,?,?,?,?,?,?,?,?,?)','pos-company','chart','THB','receivable','refund','revenue','inventory','advance','cogs','outputTax','outputTax','cash');
  await command('settings.save',{enabled:true,currency:'THB',timezone:'Asia/Bangkok',cashierDiscountBps:0,accounts:{chartId:'chart',...Object.fromEntries(accountKeys.map(k=>[k,k]))},expectedVersion:0});
  await command('catalog.save',{productId:'latte',barcode:'8850001',category:'Coffee',kind:'recipe',station:'Bar',recipe:[{productId:'milk',quantityMilli:200}],modifiers:[],taxInclusive:false,expectedVersion:0});
+ await command('catalog.save',{productId:'tea',barcode:'8850002',category:'Retail',kind:'stock',station:'Shop',recipe:[],modifiers:[],taxInclusive:false,registerIds:['retail','restaurant'],expectedVersion:0});
 });
 describe('POS committed business flows',()=>{
+ it('does not silently open a sale in a different selected currency and requires a manual quote',async()=>{
+  const request={shiftId:'shift-retail',serviceMode:'retail' as const};
+  await expect(command('sale.create',{...request,currency:'USD'})).rejects.toMatchObject({code:'POS_CURRENCY_SETUP_REQUIRED'});
+  await expect(command('sale.create',{...request,currency:'THB'})).rejects.toMatchObject({code:'MANUAL_RATE_REQUIRED'});
+  await run(db,"INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES(?,?,?,?,?,?,?,?)",'pos-manual-rate','pos-company','THB','2026-09-29','36','manager',Date.now(),'test quote');
+  const sale=await command('sale.create',{...request,currency:'THB'});
+  expect(await one(db,'SELECT currency FROM pos_sales WHERE id=?',sale.id)).toMatchObject({currency:'THB'});
+  await add(String(sale.id));await pay(String(sale.id));await change('sale.complete',String(sale.id));
+  const snapshot=await one(db,"SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_type='pos_sale' AND source_id=?",sale.id);
+  expect(snapshot).toMatchObject({amount_units:'10700',usd_units:'297',fx_rate_id:'pos-manual-rate'});
+  await run(db,"INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES(?,?,?,?,?,?,?,?)",'pos-revised-rate','pos-company','THB','2026-09-29','37','manager',Date.now()+1,'corrected later');
+  expect(await one(db,"SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_type='pos_sale' AND source_id=?",sale.id)).toEqual(snapshot);
+ });
  it('bootstraps a retail register from Commerce once, reuses its primary accounts, and preserves code collisions',async()=>{
   await clearPosSetup();
   await run(db,"INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,created_at,updated_at) VALUES('legacy-pos-advance','chart','pos-company','POS-CUSTOMER-ADVANCES','Legacy account','liability',0,0)");
@@ -139,6 +154,7 @@ describe('POS committed business flows',()=>{
  it('supports a cash sale after bootstrap without opening a session automatically',async()=>{
   await clearPosSetup();
   const setup=await command('settings.bootstrap',{},actor,'pos-bootstrap-cash-sale');
+  await command('catalog.save',{productId:'tea',barcode:'8850002',category:'Retail',kind:'stock',station:'Shop',recipe:[],modifiers:[],taxInclusive:false,registerIds:[setup.registerId],expectedVersion:1});
   expect(await one(db,'SELECT count(*) n FROM pos_shifts')).toEqual({n:0});
   const shift=await command('shift.open',{registerId:setup.registerId,openingMinor:25000},actor,'pos-bootstrap-open-cash');
   const sale=String((await command('sale.create',{shiftId:shift.id,serviceMode:'retail'},actor,'pos-bootstrap-cash-sale-create')).id);
@@ -152,6 +168,7 @@ describe('POS committed business flows',()=>{
  it('matches a transfer sale to imported bank evidence using the bootstrapped bank account',async()=>{
   await clearPosSetup();
   const setup=await command('settings.bootstrap',{},actor,'pos-bootstrap-transfer-sale');
+  await command('catalog.save',{productId:'tea',barcode:'8850002',category:'Retail',kind:'stock',station:'Shop',recipe:[],modifiers:[],taxInclusive:false,registerIds:[setup.registerId],expectedVersion:1});
   const shift=await command('shift.open',{registerId:setup.registerId,openingMinor:0},actor,'pos-bootstrap-open-transfer');
   const sale=String((await command('sale.create',{shiftId:shift.id,serviceMode:'retail'},actor,'pos-bootstrap-transfer-create')).id);
   await add(sale,'tea');
@@ -188,9 +205,7 @@ describe('POS committed business flows',()=>{
   expect((await taxDocumentView(actor,invoiceId)).documents).toMatchObject([{id:saved.id,state:'recorded',total_minor:10700,tax_minor:700}]);
   await expect(taxDocumentCommand(actor,{action:'verify',invoiceId,documentId:saved.id,expectedVersion:1},'tax-document-self-review')).rejects.toMatchObject({code:'INDEPENDENT_REVIEW_REQUIRED'});
   await expect(taxDocumentCommand(manager,input,'tax-document-duplicate')).rejects.toMatchObject({code:'CONFLICT'});
-  await run(db,'UPDATE finance_invoices SET tax_minor=701 WHERE id=?',invoiceId);
-  await expect(taxDocumentCommand(manager,{action:'verify',invoiceId,documentId:saved.id,expectedVersion:1},'tax-document-wrong-tax')).rejects.toMatchObject({code:'INVOICE_CHANGED'});
-  await run(db,'UPDATE finance_invoices SET tax_minor=700 WHERE id=?',invoiceId);
+  await expect(run(db,'UPDATE finance_invoices SET tax_minor=701 WHERE id=?',invoiceId)).rejects.toMatchObject({code:'23514'});
   expect(await taxDocumentCommand(manager,{action:'verify',invoiceId,documentId:saved.id,expectedVersion:1},'tax-document-reviewed')).toMatchObject({state:'verified',version:2});
   expect(await taxDocumentCommand(manager,{action:'void',invoiceId,documentId:saved.id,expectedVersion:2,reason:'Issuer voided paper original'},'tax-document-voided')).toMatchObject({state:'voided',version:3});
   const replacement=await taxDocumentCommand(actor,{...input,externalReference:'TAX-0002',documentTaxMinor:600,reason:'Replacement paper invoice has wrong tax'},'tax-document-replacement');
@@ -228,6 +243,10 @@ describe('POS committed business flows',()=>{
   await expect(assertProductionFeatureRoute(db,actor.companyId,'people/lifecycle/cases/draft','POST')).resolves.toBeUndefined();
   for(const destination of ['people/payroll/runs','people/pay-groups','people/country-packs','people/payments/batches'])
     await expect(assertProductionFeatureRoute(db,actor.companyId,destination,'POST')).rejects.toMatchObject({code:'FEATURE_COMING_SOON'});
+  vi.stubEnv('ERPX_ENVIRONMENT','staging');
+  for(const destination of ['people/payroll/runs','people/pay-groups','people/country-packs','people/payments/batches'])
+    await expect(assertProductionFeatureRoute(db,actor.companyId,destination,'POST')).resolves.toBeUndefined();
+  vi.stubEnv('ERPX_ENVIRONMENT','production');
   await expect(changeCompanyFeatureRollout(actor,{moduleId:'pos',state:'available',expectedVersion:1,reason:'Claim general release'},`pilot-pos-rollout-${++serial}`)).rejects.toMatchObject({code:'FEATURE_ACCEPTANCE_REQUIRED'});
   await expect(changeCompanyFeatureRollout(actor,{moduleId:'sales',state:'pilot',expectedVersion:0,reason:'Try broad orders'},`pilot-sales-rollout-${++serial}`)).rejects.toMatchObject({code:'FEATURE_FUTURE_GATE'});
  });
@@ -301,6 +320,8 @@ describe('POS committed business flows',()=>{
   expect(await one(db,'SELECT count(*) n FROM pms_postings')).toEqual({n:1});
   expect(await one(db,'SELECT count(*) n FROM pos_payments')).toEqual({n:0});
   expect(await one(db,"SELECT count(*) n FROM pos_postings WHERE source_key LIKE 'sale:%' OR source_key LIKE 'receipt:%'")).toEqual({n:0});
+  expect((await posWorkspace(actor,undefined,'','reports')).reports).toEqual([]);
+  expect((await posDayReport(db,actor,'pos-branch',String(saleRow!.business_date))).totals).toMatchObject({roomChargeMinor:10700,grossMinor:0,taxMinor:0,received:{}});
   expect(await one(db,"SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='tea'")).toEqual({quantity_milli:9000});
   const other=await createSale('dine_in');await add(other);
   const changed=await one(db,'SELECT version FROM pos_sales WHERE id=?',other);
@@ -332,10 +353,38 @@ describe('POS committed business flows',()=>{
   await run(db,'UPDATE assignments SET revoked_at=NULL WHERE id=?','pos-cashier');
   const second=await command('sale.charge_to_room',{id:other,expectedVersion:changed!.version,propertyId:'hotel',stayId:'stay',expectedPropertyVersion:3},actor);
   expect(second.state).toBe('completed');
+  await reviewShifts();
+  const prepared=await command('day.prepare',{branchId:'pos-branch',businessDate:String(saleRow!.business_date)},manager);
+  vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(new Date(new Date(`${saleRow!.business_date}T12:00:00+07:00`).getTime()+86400000));
+  const correction={propertyId:'hotel',expectedPropertyVersion:4,reason:'Prepared item discarded',restockLineIds:[]};
+  await expect(change('sale.reverse_room_charge',other,correction,manager)).rejects.toMatchObject({code:'POS_DAY_REVIEW_PENDING'});
+  await command('day.confirm',{id:prepared.id,expectedVersion:1});
+  await expect(change('sale.reverse_room_charge',other,correction,manager)).rejects.toMatchObject({code:'POS_DAY_CLOSED'});
+  expect(await one(db,'SELECT count(*) n FROM pos_room_charge_reversals')).toEqual({n:1});
+  expect(await one(db,'SELECT version FROM pms_properties WHERE id=?','hotel')).toEqual({version:4});
+  await run(db,'UPDATE pms_properties SET business_date=? WHERE id=?',businessDate(),'hotel');
   const wasted=await change('sale.reverse_room_charge',other,{propertyId:'hotel',expectedPropertyVersion:4,reason:'Prepared item discarded',restockLineIds:[]},manager);
   expect(wasted).toMatchObject({restoredCostMinor:0,wastedCostMinor:3000});
   expect(await one(db,"SELECT quantity_milli FROM commerce_stock WHERE warehouse_id='warehouse' AND product_id='tea'")).toEqual({quantity_milli:9000});
   expect(await one(db,"SELECT count(*) n FROM pos_postings WHERE source_key LIKE 'room-reversal:%'")).toEqual({n:2});
+ });
+ it('reports hotel blockers and actual product availability on every daily tab',async()=>{
+  const {posWorkspace}=await import('../src/server/pos');
+  await run(db,"INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,created_by,updated_at) VALUES('hotel','pos-company','pos-branch','Hotel',?,'setup',?,'system',0)",businessDate(),JSON.stringify(defaultConfig));
+  for(const tab of ['sale','kitchen','shifts','history']) {
+   const data=await posWorkspace(actor,undefined,'',tab,undefined,true);
+   expect(data.frontReady).toBe(false);
+   expect(data.frontSetup?.hasProducts).toBe(true);
+   expect(data.frontSetup?.blockedRegisters).toMatchObject([{hotel_name:'Hotel',hotel_state:'setup',finance_approved:false},{hotel_name:'Hotel',hotel_state:'setup',finance_approved:false}]);
+   if(tab!=='sale')expect(data.products).toEqual([]);
+  }
+  await run(db,"UPDATE pms_properties SET state='open'");
+  const open=await posWorkspace(actor,undefined,'','kitchen',undefined,true);
+  expect(open.frontReady).toBe(true);expect(open.frontSetup?.blockedRegisters).toEqual([]);
+  await run(db,"UPDATE pms_properties SET business_date='2000-01-01'");
+  expect((await posWorkspace(actor,undefined,'','shifts',undefined,true)).frontReady).toBe(false);
+  await run(db,"UPDATE commerce_products SET status='archived'");
+  expect((await posWorkspace(actor,undefined,'','history',undefined,true)).frontSetup?.hasProducts).toBe(false);
  });
  it('exposes company currency without exposing accounting configuration',async()=>{
   const {posWorkspace}=await import('../src/server/pos');
@@ -470,6 +519,8 @@ describe('POS committed business flows',()=>{
   expect(await one(db,"SELECT quantity_milli FROM commerce_stock WHERE product_id='milk'")).toEqual({quantity_milli:9600});expect(await one(db,'SELECT COUNT(*) n FROM pos_stock_moves')).toEqual({n:1});
  });
  it('partial returns require independent review, restore original cost, and cannot exceed original quantity',async()=>{
+  const refundRateId=`pos-refund-rate-${++serial}`;
+  await run(db,"INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES(?,?,?,?,?,?,?,?)",refundRateId,'pos-company','THB',businessDate(),'36','manager',Date.now(),'refund quote');
   const sale=await createSale();await add(sale,'tea',2000);await pay(sale,21400);await change('sale.complete',sale);const line=(await one(db,'SELECT * FROM pos_lines WHERE sale_id=?',sale))!;
   const refund=await change('refund.request',sale,{reason:'one damaged package',payoutShiftId:'shift-retail',lines:[{lineId:line.id,quantityMilli:1000,restock:true}]});
   await expect(command('refund.approve',{id:refund.id,expectedVersion:1,reason:'cash returned'})).rejects.toMatchObject({code:'POS_INDEPENDENT_REVIEW'});
@@ -478,6 +529,9 @@ describe('POS committed business flows',()=>{
   expect(await attachmentBindingState(db,evidence.setId)).toMatchObject({set_state:'bound',link_state:'bound',binding_type:'pos_refund_decision'});
   expect(await one(db,"SELECT quantity_milli,value_minor FROM commerce_stock WHERE product_id='tea'")).toEqual({quantity_milli:9000,value_minor:27000});
   expect(await one(db,'SELECT state FROM pos_refunds WHERE id=?',refund.id)).toEqual({state:'completed'});
+  expect((await posDayReport(db,manager,'pos-branch',businessDate())).totals).toMatchObject({taxMinor:1400,refundTaxMinor:700,netTaxMinor:700,refundMinor:10700,netMinor:10700});
+  expect(await one(db,"SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_type='pos_refund' AND source_id=?",refund.id)).toEqual({amount_units:'10700',usd_units:'297',fx_rate_id:refundRateId});
+  expect((await all(db,"SELECT amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE source_type='pos_refund_payment' AND source_id IN (SELECT id FROM pos_refund_payments WHERE refund_id=?)",refund.id))).toEqual([{amount_units:'10700',usd_units:'297',fx_rate_id:refundRateId}]);
   await expect(change('refund.request',sale,{reason:'too many',lines:[{lineId:line.id,quantityMilli:2000,restock:true}]})).rejects.toMatchObject({code:'POS_REFUND_QUANTITY'});
  });
  it('closed periods and changed scopes leave no payment or journal effects',async()=>{
@@ -486,15 +540,44 @@ describe('POS committed business flows',()=>{
  });
 });
 describe('POS provider recovery and reporting',()=>{
+ it('requires a PromptPay payer email before reserving stock or queuing a provider request',async()=>{
+  const sale=await createSale();await add(sale);
+  await expect(change('payment.create',sale,{method:'stripe_promptpay',amountMinor:10700,tenderedMinor:10700})).rejects.toMatchObject({code:'POS_PROMPTPAY_EMAIL_REQUIRED',status:422});
+  for(const table of ['pos_payments','pos_jobs','pos_reservations','finance_payments','finance_journals'])expect(await one(db,`SELECT COUNT(*) n FROM ${table}`)).toEqual({n:0});
+  expect(await one(db,'SELECT state FROM pos_sales WHERE id=?',sale)).toEqual({state:'open'});
+ });
+ it('repairs a legacy missing-email request using the same payment and provider idempotency key',async()=>{
+  await run(db,"INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES('pos-company','acct_original',false,true,true,true,true,'ready','daily',true)");
+  vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_pos_fixture_not_a_real_key');
+  const sale=await createSale();await add(sale);
+  const payment=await change('payment.create',sale,{method:'stripe_promptpay',amountMinor:10700,tenderedMinor:10700,payerEmail:'payer@example.test'});
+  await run(db,'UPDATE pos_payments SET payer_email=NULL WHERE id=?',payment.id);
+  const fetcher=vi.fn(async(_url:string|URL|Request,init?:RequestInit)=>{
+   expect(new Headers(init?.headers).get('Idempotency-Key')).toBe(`pos-promptpay-${payment.id}`);
+   expect(new URLSearchParams(String(init?.body)).get('payment_method_data[billing_details][email]')).toBe('restored@example.test');
+   return new Response(JSON.stringify({id:'pi_restored_email',status:'requires_action',next_action:{promptpay_display_qr_code:{data:'test-qr'}}}));
+  });vi.stubGlobal('fetch',fetcher);
+  await drainPos(db,'h001');expect(fetcher).not.toHaveBeenCalled();
+  expect(await one(db,"SELECT state,last_error FROM pos_jobs WHERE record_id=? AND kind='checkout'",payment.id)).toEqual({state:'exception',last_error:'POS_PROMPTPAY_EMAIL_REQUIRED'});
+  const input={id:payment.id,expectedVersion:1,payerEmail:'restored@example.test'};
+  await command('payment.retry',input,actor,'same-email-recovery');await command('payment.retry',input,actor,'same-email-recovery');
+  await expect(command('payment.retry',{...input,payerEmail:'another@example.test'})).rejects.toMatchObject({code:'POS_VERSION_CONFLICT'});
+  await drainPos(db,'h001',1);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(await one(db,'SELECT provider_id,payer_email,state FROM pos_payments WHERE id=?',payment.id)).toEqual({provider_id:'pi_restored_email',payer_email:'restored@example.test',state:'pending'});
+  expect(await one(db,'SELECT COUNT(*) n FROM pos_payments')).toEqual({n:1});
+  const current=(await one(db,'SELECT version FROM pos_payments WHERE id=?',payment.id))!;
+  await expect(command('payment.retry',{id:payment.id,expectedVersion:current.version,payerEmail:'another@example.test'})).rejects.toMatchObject({code:'POS_PAYMENT_LOCKED'});
+ });
  it('creates a bank-scannable PromptPay QR on the company account and settles only after provider verification',async()=>{
   await run(db,"INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES('pos-company','acct_original',false,true,true,true,true,'ready','daily',true)");
   vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_pos_fixture_not_a_real_key');
   const sale=await createSale();await add(sale);
-  const payment=await change('payment.create',sale,{method:'stripe_promptpay',amountMinor:10700,tenderedMinor:10700,payerEmail:''});
+  const payment=await change('payment.create',sale,{method:'stripe_promptpay',amountMinor:10700,tenderedMinor:10700,payerEmail:'payer@example.test'});
   let paid=false;
   const fetcher=vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{
    expect(new Headers(init?.headers).get('Stripe-Account')).toBe('acct_original');
-   if(init?.method==='POST')return new Response(JSON.stringify({id:'pi_promptpay',status:'requires_action',next_action:{promptpay_display_qr_code:{data:'000201010212'}}}));
+   if(init?.method==='POST'){expect(new URLSearchParams(String(init.body)).get('payment_method_data[billing_details][email]')).toBe('payer@example.test');return new Response(JSON.stringify({id:'pi_promptpay',status:'requires_action',next_action:{promptpay_display_qr_code:{data:'000201010212'}}}));}
    return new Response(JSON.stringify({id:'pi_promptpay',status:paid?'succeeded':'requires_action',amount_received:paid?10700:0,currency:'thb',metadata:{pos_payment_id:payment.id}}));
   });
   vi.stubGlobal('fetch',fetcher);await drainPos(db,'h001');
@@ -505,12 +588,95 @@ describe('POS provider recovery and reporting',()=>{
   expect(await one(db,'SELECT COUNT(*) n FROM finance_payments')).toEqual({n:1});
   expect(fetcher.mock.calls.some(([url])=>String(url).includes('checkout/sessions'))).toBe(false);
  });
- async function stripePending(){
+ it.each([true,false])('recovers cached legacy PromptPay validation errors only with definite non-creation evidence (%s)',async(definite)=>{
+  await run(db,"INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES('pos-company','acct_original',false,true,true,true,true,'ready','daily',true)");
+  vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_pos_fixture_not_a_real_key');
+  const sale=await createSale();await add(sale);const payment=await change('payment.create',sale,{method:'stripe_promptpay',amountMinor:10700,tenderedMinor:10700,payerEmail:'restored@example.test'});
+  const keys:string[]=[];vi.stubGlobal('fetch',vi.fn(async(_url:string|URL|Request,init?:RequestInit)=>{
+   const key=new Headers(init?.headers).get('Idempotency-Key')!;keys.push(key);
+   const body=new URLSearchParams(String(init?.body));
+   if(key.endsWith('-billing-email-v2'))return new Response(JSON.stringify({id:'pi_legacy_recovered',status:'requires_action',next_action:{promptpay_display_qr_code:{data:'test-qr'}}}));
+   if(body.has('payment_method_data[billing_details][email]')||body.has('receipt_email'))return new Response(JSON.stringify({error:{type:'idempotency_error'}}),{status:400});
+   return definite?new Response(JSON.stringify({error:{type:'invalid_request_error',code:'parameter_missing',param:'billing_details[email]'}}),{status:400}):new Response(JSON.stringify({error:{type:'api_error'}}),{status:500});
+  }));await drainPos(db,'h001',1);
+  expect(keys.filter(key=>key.endsWith('-billing-email-v2'))).toHaveLength(definite?1:0);
+  expect(await one(db,'SELECT COUNT(*) n FROM pos_payments')).toEqual({n:1});
+  expect(await one(db,'SELECT state,provider_id FROM pos_payments WHERE id=?',payment.id)).toEqual(definite?{state:'pending',provider_id:'pi_legacy_recovered'}:{state:'requested',provider_id:null});
+  if(!definite)expect(await one(db,"SELECT state,last_error FROM pos_jobs WHERE record_id=? AND kind='checkout'",payment.id)).toEqual({state:'exception',last_error:'POS_PROVIDER_LOOKUP_REQUIRED'});
+ });
+ it('stops a provider email-restricted refund with an actionable exception and no local refund posting',async()=>{
+  const {sale,payment}=await stripePending();vi.stubGlobal('fetch',mockPaid(payment));await drainPos(db,'h001');
+  const line=(await one(db,'SELECT id FROM pos_lines WHERE sale_id=?',sale))!;
+  const refund=await change('refund.request',sale,{reason:'provider email restriction test',lines:[{lineId:line.id,quantityMilli:500,restock:true}]});await command('refund.approve',{id:refund.id,expectedVersion:1},manager);
+  const rp=(await one(db,'SELECT id FROM pos_refund_payments WHERE refund_id=?',refund.id))!;
+  const before=await one(db,'SELECT COUNT(*) n FROM finance_journals');
+  const returnsBefore=await one(db,"SELECT COUNT(*) n FROM pos_stock_moves WHERE kind='return'");
+  vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request)=>String(url).includes('checkout/sessions/')?new Response(JSON.stringify({id:'cs_fixture',payment_intent:'pi_fixture'})):new Response(JSON.stringify({error:{type:'invalid_request_error',message:'Cannot send email. Verify the merchant email first.'}}),{status:400})));
+  await drainPos(db,'h001');
+  expect(await one(db,"SELECT state,last_error,attempts FROM pos_jobs WHERE record_id=? AND kind='refund'",rp.id)).toEqual({state:'exception',last_error:'POS_PROVIDER_REFUND_EMAIL_RESTRICTED',attempts:1});
+  expect(await one(db,'SELECT state,provider_id FROM pos_refund_payments WHERE id=?',rp.id)).toEqual({state:'requested',provider_id:null});
+  expect(await one(db,'SELECT COUNT(*) n FROM finance_journals')).toEqual(before);
+  expect(await one(db,"SELECT COUNT(*) n FROM pos_stock_moves WHERE kind='return'")).toEqual(returnsBefore);
+ });
+ it('shows provider-confirmed accounting-pending payments to cashiers without revealing internal payment references',async()=>{
+  const {posWorkspace}=await import('../src/server/pos');
+  const {sale,payment}=await stripePending();
+  const pending=await posWorkspace(actor,sale,'','sale',undefined,true);
+  expect(pending.payments[0]).toMatchObject({id:payment,provider_payment_confirmed:false});
+  await run(db,'UPDATE pos_payments SET provider_received_at=?,provider_id=? WHERE id=?',Date.now(),'cs_verified_provider',payment);
+  const confirmed=await posWorkspace(actor,sale,'','sale',undefined,true);
+  expect(confirmed.payments[0]).toMatchObject({id:payment,state:'pending',provider_payment_confirmed:true});
+  for(const key of ['provider_received_at','provider_id','finance_payment_id'])expect(confirmed.payments[0]).not.toHaveProperty(key);
+ });
+ async function restrictedPromptPayRefund(){
+  const {sale,payment}=await stripePending('stripe_promptpay');vi.stubGlobal('fetch',mockPaid(payment));await drainPos(db,'h001');
+  const line=(await one(db,'SELECT id FROM pos_lines WHERE sale_id=?',sale))!;
+  const refund=await change('refund.request',sale,{reason:'customer supplied replacement refund email',lines:[{lineId:line.id,quantityMilli:500,restock:true}]});await command('refund.approve',{id:refund.id,expectedVersion:1},manager);
+  const rp=(await one(db,'SELECT * FROM pos_refund_payments WHERE refund_id=?',refund.id))!;
+  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({error:{type:'invalid_request_error',message:'Cannot send email. Verify the merchant email first.'}}),{status:400})));await drainPos(db,'h001');
+  const job=(await one(db,"SELECT * FROM pos_jobs WHERE kind='refund' AND record_id=?",rp.id))!;
+  return {sale,payment,refund,rp,job};
+ }
+ it('reviews PromptPay instruction email corrections with Finance and version guards while preserving original snapshots',async()=>{
+  const {sale,payment,refund,rp,job}=await restrictedPromptPayRefund();
+  const frozen=await one(db,'SELECT md5(snapshot_json::text) digest FROM pos_sale_documents WHERE sale_id=?',sale),returns=await one(db,"SELECT COUNT(*) n FROM pos_stock_moves WHERE kind='return'"),journals=await one(db,'SELECT COUNT(*) n FROM finance_journals');
+  const input={id:job.id,accountingDate:businessDate(),reason:'customer controlled recipient correction',refundInstructionsEmail:'blocked@example.test',expectedRefundVersion:2};
+  await expect(command('exception.retry',input,{...manager,permissions:['pos.approve']})).rejects.toMatchObject({code:'PERMISSION_REQUIRED'});
+  await expect(command('exception.retry',input,{...manager,branchId:'pos-branch'})).rejects.toMatchObject({code:'POS_COMPANY_SETTINGS'});
+  await expect(command('exception.retry',{...input,expectedRefundVersion:1},manager)).rejects.toMatchObject({code:'POS_VERSION_CONFLICT'});
+  await expect(command('exception.retry',{...input,refundInstructionsEmail:'payer@example.test'},manager)).rejects.toMatchObject({code:'POS_REFUND_EMAIL_UNCHANGED'});
+  const {posWorkspace}=await import('../src/server/pos');expect((await posWorkspace(manager,undefined,'','reports')).jobs.find(j=>j.id===job.id)?.refund_version).toBe(2);
+  await command('exception.retry',input,manager,'instruction-email-first');expect(await command('exception.retry',input,manager,'instruction-email-first')).toEqual({id:job.id});
+  expect((await one(db,'SELECT version FROM pos_refunds WHERE id=?',refund.id))?.version).toBe(3);
+  await drainPos(db,'h001');expect((await one(db,'SELECT state,last_error FROM pos_jobs WHERE id=?',job.id))).toEqual({state:'exception',last_error:'POS_PROVIDER_REFUND_EMAIL_RESTRICTED'});
+  await command('exception.retry',{...input,refundInstructionsEmail:'allowed@example.test',expectedRefundVersion:3},manager,'instruction-email-second');
+  const keys:string[]=[],emails:string[]=[];let status='pending';
+  vi.stubGlobal('fetch',vi.fn(async(_url:string|URL|Request,init?:RequestInit)=>{
+   if(init?.method==='POST'){const email=new URLSearchParams(String(init.body)).get('instructions_email');keys.push(new Headers(init.headers).get('Idempotency-Key')!);emails.push(email!);if(email!=='allowed@example.test')return new Response(JSON.stringify({error:{type:'invalid_request_error',message:'Cannot send email. Recipient is not permitted.'}}),{status:400});}
+   return new Response(JSON.stringify({id:'re_corrected',amount:5350,status,metadata:{pos_refund_payment_id:rp.id}}));
+  }));await drainPos(db,'h001');
+  const originalKey=`pos-refund-${rp.id}-0`;expect(keys).toEqual([originalKey,`${originalKey}-instructions-1`,`${originalKey}-instructions-2`]);expect(emails).toEqual(['payer@example.test','blocked@example.test','allowed@example.test']);
+  expect(await one(db,'SELECT payer_email FROM pos_payments WHERE id=?',payment)).toEqual({payer_email:'payer@example.test'});expect(await one(db,'SELECT md5(snapshot_json::text) digest FROM pos_sale_documents WHERE sale_id=?',sale)).toEqual(frozen);
+  expect(await one(db,'SELECT COUNT(*) n FROM finance_journals')).toEqual(journals);expect(await one(db,"SELECT COUNT(*) n FROM pos_stock_moves WHERE kind='return'")).toEqual(returns);
+  status='succeeded';await run(db,'UPDATE pos_jobs SET next_attempt_at=0 WHERE id=?',job.id);await drainPos(db,'h001');
+  expect((await one(db,'SELECT state FROM pos_refunds WHERE id=?',refund.id))?.state).toBe('completed');expect(keys).toHaveLength(3);expect(await one(db,'SELECT COUNT(*) n FROM finance_journals')).toEqual({n:Number(journals!.n)+1});expect(await one(db,"SELECT COUNT(*) n FROM pos_stock_moves WHERE kind='return'")).toEqual(returns);
+ });
+ it('adopts an original provider refund instead of creating another after an email correction',async()=>{
+  const {rp,job}=await restrictedPromptPayRefund();await command('exception.retry',{id:job.id,accountingDate:businessDate(),reason:'customer replacement recipient',refundInstructionsEmail:'allowed@example.test',expectedRefundVersion:2},manager);
+  const keys:string[]=[];vi.stubGlobal('fetch',vi.fn(async(_url:string|URL|Request,init?:RequestInit)=>{if(init?.method==='POST')keys.push(new Headers(init.headers).get('Idempotency-Key')!);return new Response(JSON.stringify({id:'re_original',amount:5350,status:'succeeded',metadata:{pos_refund_payment_id:rp.id}}));}));await drainPos(db,'h001');
+  expect(keys).toEqual([`pos-refund-${rp.id}-0`]);expect((await one(db,'SELECT state,provider_id FROM pos_refund_payments WHERE id=?',rp.id))).toEqual({state:'succeeded',provider_id:'re_original'});
+ });
+ it('never starts an email-corrected refund when the original provider outcome is unknown',async()=>{
+  const {rp,job}=await restrictedPromptPayRefund(),journals=await one(db,'SELECT COUNT(*) n FROM finance_journals');await command('exception.retry',{id:job.id,accountingDate:businessDate(),reason:'customer replacement recipient',refundInstructionsEmail:'allowed@example.test',expectedRefundVersion:2},manager);
+  const keys:string[]=[];vi.stubGlobal('fetch',vi.fn(async(_url:string|URL|Request,init?:RequestInit)=>{keys.push(new Headers(init?.headers).get('Idempotency-Key')!);return new Response(JSON.stringify({error:{type:'api_error',message:'Unknown provider outcome'}}),{status:500});}));await drainPos(db,'h001');
+  expect(keys).toEqual([`pos-refund-${rp.id}-0`]);expect(await one(db,'SELECT state,provider_id FROM pos_refund_payments WHERE id=?',rp.id)).toEqual({state:'requested',provider_id:null});expect(await one(db,'SELECT COUNT(*) n FROM finance_journals')).toEqual(journals);
+ });
+ async function stripePending(method:'stripe_card'|'stripe_promptpay'='stripe_card'){
   await run(db,"INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state) VALUES('pos-company','acct_original',false,true,true,true,true,'ready')");
   const sale=await createSale();await add(sale);
-  const p=await change('payment.create',sale,{method:'stripe_card',amountMinor:10700,tenderedMinor:10700});
+  const p=await change('payment.create',sale,{method,amountMinor:10700,tenderedMinor:10700,...(method==='stripe_promptpay'?{payerEmail:'payer@example.test'}:{})});
   await run(db,"UPDATE pos_jobs SET state='completed' WHERE kind='checkout'");
-  await run(db,"UPDATE pos_payments SET provider_id='cs_fixture',state='pending' WHERE id=?",p.id);
+  await run(db,"UPDATE pos_payments SET provider_id=?,state='pending' WHERE id=?",method==='stripe_promptpay'?'pi_fixture':'cs_fixture',p.id);
   await run(db,"INSERT INTO pos_jobs(id,company_id,kind,record_id,created_at) VALUES('check-fixture','pos-company','check_payment',?,0)",p.id);
   vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_pos_fixture_not_a_real_key');
   return {sale,payment:String(p.id)};
@@ -534,18 +700,92 @@ describe('POS provider recovery and reporting',()=>{
   await run(db,"UPDATE finance_periods SET state='open'");await command('exception.retry',{id:'check-fixture',accountingDate:'2026-09-17',reason:'approved open period'},manager);await drainPos(db,'h001');
   expect((await one(db,'SELECT state FROM pos_sales WHERE id=?',sale))?.state).toBe('completed');
  });
- it('webhook mode, duplicate and reverse delivery cannot route across companies',async()=>{
+ it('rejects webhook mode mismatch and deduplicates delivery on the company route',async()=>{
   await run(env.CONTROL_DB,"INSERT INTO pos_stripe_routes VALUES('acct_original',false,'h001','pos-company',0) ON CONFLICT DO NOTHING");
   vi.stubEnv('POS_STRIPE_TEST_WEBHOOK_SECRET','whsec_pos_fixture');vi.stubEnv('POS_STRIPE_LIVE_WEBHOOK_SECRET','whsec_live_fixture');
   const body=JSON.stringify({id:'evt_pos_fixture',type:'unhandled.test',account:'acct_original',livemode:false,data:{object:{id:'obj'}}}),t=Math.floor(Date.now()/1000),sign=(raw:string)=>`t=${t},v1=${createHmac('sha256','whsec_pos_fixture').update(`${t}.${raw}`).digest('hex')}`;
   await posStripeWebhook(body,sign(body));await posStripeWebhook(body,sign(body));expect(await one(db,"SELECT COUNT(*) n FROM pos_stripe_events WHERE id='evt_pos_fixture'")).toEqual({n:1});
   const live=body.replace('"livemode":false','"livemode":true');await expect(posStripeWebhook(live,sign(live))).rejects.toMatchObject({code:'POS_WEBHOOK_MODE'});
  });
+ it('expired card checkout releases the unpaid reservation without cash, stock or accounting effects',async()=>{
+  const {sale,payment}=await stripePending();
+  expect(await one(db,'SELECT COUNT(*) n FROM pos_reservations')).toEqual({n:1});
+  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({id:'cs_fixture',status:'expired',payment_status:'unpaid'}))));
+  await drainPos(db,'h001');
+  expect(await one(db,'SELECT state FROM pos_payments WHERE id=?',payment)).toEqual({state:'cancelled'});
+  expect(await one(db,'SELECT state FROM pos_sales WHERE id=?',sale)).toEqual({state:'open'});
+  expect(await one(db,'SELECT COUNT(*) n FROM pos_reservations')).toEqual({n:0});
+  await run(db,"UPDATE pos_jobs SET state='pending',next_attempt_at=0 WHERE id='check-fixture'");await drainPos(db,'h001');
+  expect(await one(db,"SELECT quantity_milli,value_minor FROM commerce_stock WHERE product_id='tea'")).toEqual({quantity_milli:10000,value_minor:30000});
+  for(const table of ['finance_payments','finance_invoices','finance_journals','pos_stock_moves','pos_sale_documents'])expect(await one(db,`SELECT COUNT(*) n FROM ${table}`)).toEqual({n:0});
+ });
+ it.each(['expired','requires_payment_method'])('cancels %s PromptPay once and releases the unpaid bill without financial effects',async reason=>{
+  await run(db,"INSERT INTO pos_connections(company_id,account_id,livemode,charges_enabled,payouts_enabled,card_enabled,promptpay_enabled,state,payout_interval,thb_bank_ready) VALUES('pos-company','acct_original',false,true,true,true,true,'ready','daily',true)");
+  vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_pos_fixture_not_a_real_key');
+  const sale=await createSale();await add(sale);
+  const payment=await change('payment.create',sale,{method:'stripe_promptpay',amountMinor:10700,tenderedMinor:10700,payerEmail:'payer@example.test'});
+  let status='requires_action';const cancelKeys:string[]=[];
+  vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{
+   expect(new Headers(init?.headers).get('Stripe-Account')).toBe('acct_original');
+   if(String(url).endsWith('/cancel')){cancelKeys.push(new Headers(init?.headers).get('Idempotency-Key')!);status='canceled';}
+   return new Response(JSON.stringify({id:'pi_promptpay_expiry',status,next_action:{promptpay_display_qr_code:{data:'test-qr'}},amount_received:0,currency:'thb',metadata:{pos_payment_id:payment.id}}));
+  }));
+  await drainPos(db,'h001');
+  expect(await one(db,'SELECT COUNT(*) n FROM pos_reservations')).toEqual({n:1});
+  if(reason==='expired')await run(db,'UPDATE pos_payments SET expires_at=? WHERE id=?',Date.now()-1,payment.id);
+  else status='requires_payment_method';
+  await run(db,"UPDATE pos_jobs SET next_attempt_at=0 WHERE kind='check_payment'");await drainPos(db,'h001');
+  await run(db,"UPDATE pos_jobs SET state='pending',next_attempt_at=0 WHERE kind='check_payment'");await drainPos(db,'h001');
+  expect(cancelKeys).toEqual([`pos-cancel-${payment.id}`]);
+  expect(await one(db,'SELECT state FROM pos_payments WHERE id=?',payment.id)).toEqual({state:'cancelled'});
+  expect(await one(db,'SELECT state FROM pos_sales WHERE id=?',sale)).toEqual({state:'open'});
+  expect(await one(db,'SELECT COUNT(*) n FROM pos_reservations')).toEqual({n:0});
+  expect(await one(db,"SELECT quantity_milli,value_minor FROM commerce_stock WHERE product_id='tea'")).toEqual({quantity_milli:10000,value_minor:30000});
+  for(const table of ['finance_payments','finance_invoices','finance_journals','pos_stock_moves','pos_sale_documents'])expect(await one(db,`SELECT COUNT(*) n FROM ${table}`)).toEqual({n:0});
+ });
+ it('reconciles newer refund callbacks before older payment/refund callbacks without duplicate accounting or stock',async()=>{
+  const {sale,payment}=await stripePending();vi.stubGlobal('fetch',mockPaid(payment));await drainPos(db,'h001');
+  const receipt=(await one(db,'SELECT snapshot_json FROM pos_sale_documents WHERE sale_id=?',sale))!;
+  const line=(await one(db,'SELECT id FROM pos_lines WHERE sale_id=?',sale))!;
+  const refund=await change('refund.request',sale,{reason:'partial provider return',lines:[{lineId:line.id,quantityMilli:500,restock:true}]});
+  await command('refund.approve',{id:refund.id,expectedVersion:1},manager);
+  const rp=(await one(db,'SELECT * FROM pos_refund_payments WHERE refund_id=?',refund.id))!;
+  await run(db,"UPDATE pos_refund_payments SET provider_id='re_ordered',state='pending' WHERE id=?",rp.id);
+  await run(db,"UPDATE pos_jobs SET state='completed' WHERE kind='refund'");
+  vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{
+   expect(new Headers(init?.headers).get('Stripe-Account')).toBe('acct_original');
+   const body=String(url).includes('/refunds/')?{id:'re_ordered',status:'succeeded',amount:5350,metadata:{pos_refund_payment_id:rp.id}}:String(url).includes('/payment_intents/')?{id:'pi_fixture',status:'succeeded',amount_received:10700,currency:'thb',metadata:{pos_payment_id:payment}}:{id:'cs_fixture',payment_status:'paid',payment_intent:'pi_fixture'};
+   return new Response(JSON.stringify(body));
+  }));
+  await run(env.CONTROL_DB,"INSERT INTO pos_stripe_routes VALUES('acct_original',false,'h001','pos-company',0) ON CONFLICT DO NOTHING");
+  vi.stubEnv('POS_STRIPE_TEST_WEBHOOK_SECRET','whsec_pos_fixture');
+  const events=[
+   {id:'evt_refund_newer',created:2,type:'refund.updated',data:{object:{id:'re_ordered',status:'succeeded',metadata:{pos_refund_payment_id:rp.id}}}},
+   {id:'evt_payment_older',created:1,type:'checkout.session.completed',data:{object:{id:'cs_fixture',payment_status:'unpaid',metadata:{pos_payment_id:payment}}}},
+   {id:'evt_refund_older',created:1,type:'refund.created',data:{object:{id:'re_ordered',status:'pending',metadata:{pos_refund_payment_id:rp.id}}}},
+  ];
+  for(const event of [...events,events[0],events[2]]){
+   const raw=JSON.stringify({...event,account:'acct_original',livemode:false}),timestamp=Math.floor(Date.now()/1000);
+   const signature=`t=${timestamp},v1=${createHmac('sha256','whsec_pos_fixture').update(`${timestamp}.${raw}`).digest('hex')}`;
+   await posStripeWebhook(raw,signature);await drainPos(db,'h001');
+  }
+  expect(await one(db,"SELECT COUNT(*) n FROM pos_stripe_events WHERE applied_at IS NOT NULL")).toEqual({n:3});
+  expect(await one(db,"SELECT COUNT(*) n FROM pos_jobs WHERE kind='event' AND state='completed'")).toEqual({n:3});
+  expect(await one(db,'SELECT state FROM pos_refunds WHERE id=?',refund.id)).toEqual({state:'completed'});
+  expect(await one(db,"SELECT COUNT(*) n FROM finance_payments WHERE kind='receipt'")).toEqual({n:1});
+  expect(await one(db,"SELECT COUNT(*) n FROM finance_payments WHERE kind='refund'")).toEqual({n:1});
+  expect(await one(db,'SELECT COUNT(*) n FROM finance_invoices')).toEqual({n:1});
+  expect(await one(db,'SELECT COUNT(*) n FROM pos_postings WHERE source_key=?',`refund-payment:${rp.id}`)).toEqual({n:1});
+  expect(await one(db,"SELECT COUNT(*) n FROM pos_stock_moves WHERE kind='return'")).toEqual({n:1});
+  expect(await one(db,"SELECT quantity_milli,value_minor FROM commerce_stock WHERE product_id='tea'")).toEqual({quantity_milli:9500,value_minor:28500});
+  expect(await one(db,'SELECT snapshot_json FROM pos_sale_documents WHERE sale_id=?',sale)).toEqual(receipt);
+ });
  it('hosted onboarding accepts account-link responses without an object id',async()=>{
   vi.stubEnv('POS_STRIPE_TEST_SECRET_KEY','sk_test_fixture');vi.stubEnv('ERPX_PUBLIC_ORIGIN','https://pos.example.test');
-  const fetcher=vi.fn(async(url:string|URL|Request)=>new Response(JSON.stringify(String(url).endsWith('/account_links')?{object:'account_link',url:'https://connect.stripe.com/setup/test'}:String(url).includes('/external_accounts')?{data:[]}:{id:'acct_onboard_fixture',country:'TH',charges_enabled:false,payouts_enabled:false,capabilities:{},requirements:{currently_due:['business_profile.url']}})));
+  const fetcher=vi.fn(async(url:string|URL|Request)=>new Response(JSON.stringify(String(url).endsWith('/account_links')?{object:'account_link',url:'https://connect.stripe.com/setup/test',expires_at:2000000000}:String(url).includes('/external_accounts')?{data:[]}:{id:'acct_onboard_fixture',country:'TH',charges_enabled:false,payouts_enabled:false,capabilities:{},requirements:{currently_due:['business_profile.url']}})));
   vi.stubGlobal('fetch',fetcher);await command('connection.create',{livemode:false});await drainPos(db,'h001');
-  expect((await one(db,"SELECT state FROM pos_jobs WHERE kind='connect'"))?.state).toBe('completed');expect(fetcher).toHaveBeenCalledTimes(4);
+  const setup=(await one(db,"SELECT state,payload_json FROM pos_jobs WHERE kind='connect'"))!;
+  expect(setup.state).toBe('completed');expect(JSON.parse(String(setup.payload_json))).toMatchObject({accountId:'acct_onboard_fixture',livemode:false,urlExpiresAt:2000000000000});expect(fetcher).toHaveBeenCalledTimes(4);
  });
  it('failed provider refund retries with a new attempt only after review and never restores stock twice',async()=>{
   const {sale,payment}=await stripePending();vi.stubGlobal('fetch',mockPaid(payment));await drainPos(db,'h001');
@@ -575,10 +815,123 @@ describe('POS provider recovery and reporting',()=>{
   expect((await one(db,"SELECT matched_type FROM finance_bank_transactions WHERE id='bank-line'"))?.matched_type).toBe('pos_payout');
   await run(db,"UPDATE pos_jobs SET state='pending',next_attempt_at=0 WHERE id='job_payout'");await drainPos(db,'h001');expect(await one(db,"SELECT COUNT(*) n FROM pos_settlements WHERE kind='payout'")).toEqual({n:1});
  });
+ it('verifies a manual payout balance movement and requires an approved bank journal before matching',async()=>{
+  const {payment}=await stripePending();vi.stubGlobal('fetch',mockPaid(payment));await drainPos(db,'h001');
+  const movement={id:'txn_manual_payout',currency:'thb',amount:-10400,fee:0,net:-10400,source:'po_manual',type:'payout'};
+  let payoutStatus='paid';
+  const fetcher=vi.fn(async(url:string|URL|Request)=>{
+   expect(String(url)).not.toContain('balance_transactions?');
+   return new Response(JSON.stringify(String(url).includes('balance_transactions/')?movement:{id:'po_manual',currency:'thb',amount:10400,status:payoutStatus,automatic:false,balance_transaction:movement.id}));
+  });vi.stubGlobal('fetch',fetcher);
+  await run(db,"INSERT INTO pos_stripe_events VALUES('evt_manual','acct_original',false,'pos-company','payout.paid',?,0,NULL)",JSON.stringify({id:'po_manual'}));
+  await run(db,"INSERT INTO pos_jobs(id,company_id,kind,record_id,created_at) VALUES('job_manual','pos-company','event','evt_manual',0)");
+  const before=await one(db,'SELECT COUNT(*) n FROM finance_journals');await drainPos(db,'h001');
+  const payout=(await one(db,"SELECT * FROM pos_settlements WHERE provider_id='po_manual'"))!;
+  expect(payout.state).toBe('unmapped');expect(JSON.parse(String(payout.details_json))).toMatchObject({manualPayout:true,net:-10400,items:null,balanceTransaction:movement.id});
+  expect(await one(db,'SELECT COUNT(*) n FROM finance_journals')).toEqual(before);
+  await run(db,"INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,memo,status,created_by,created_at,updated_at) VALUES('manual-j','pos-company','chart','period','MANUAL-PAYOUT','2026-09-17','THB',1000000,'manual','Verified payout','draft','cashier',0,0)");
+  await run(db,"INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal) VALUES('manual-bank','manual-j','bank',10400,0,10400,0,1),('manual-stripe','manual-j','stripe',0,10400,0,10400,2)");
+  await run(db,"UPDATE finance_journals SET status='posted',posted_by='manager',posted_at=1 WHERE id='manual-j'");
+  const input={id:payout.id,expectedVersion:1,journalId:'manual-j',reason:'verified provider balance movement and independently posted journal'};
+  await run(db,"INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,memo,status,created_by,created_at,updated_at) VALUES('manual-offset-j','pos-company','chart','period','MANUAL-PAYOUT-OFFSET','2026-09-17','THB',1000000,'manual','Incorrect bank offset','draft','cashier',0,0)");
+  await run(db,"INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,base_debit_minor,base_credit_minor,ordinal) VALUES('offset-bank-debit','manual-offset-j','bank',10400,0,10400,0,1),('offset-bank-credit','manual-offset-j','bank',0,100,0,100,2),('offset-stripe','manual-offset-j','stripe',0,10400,0,10400,3),('offset-cash','manual-offset-j','cash',100,0,100,0,4)");
+  await run(db,"UPDATE finance_journals SET status='posted',posted_by='manager',posted_at=1 WHERE id='manual-offset-j'");
+  await expect(command('settlement.map_external',{...input,journalId:'manual-offset-j'},manager)).rejects.toMatchObject({code:'POS_EXTERNAL_JOURNAL_MISMATCH'});
+  expect((await one(db,'SELECT state,journal_id,version FROM pos_settlements WHERE id=?',payout.id))).toEqual({state:'unmapped',journal_id:null,version:1});
+  await expect(command('settlement.map_external',input,{...manager,branchId:'pos-branch'})).rejects.toMatchObject({code:'POS_COMPANY_SETTINGS'});
+  await expect(command('settlement.map_external',{...input,expectedVersion:2},manager)).rejects.toMatchObject({code:'POS_VERSION_CONFLICT'});
+  await command('settlement.map_external',input,manager,'manual-payout-map');
+  expect((await one(db,"SELECT state,journal_id FROM pos_settlements WHERE id=?",payout.id))).toEqual({state:'paid',journal_id:'manual-j'});
+  await run(db,"UPDATE pos_jobs SET state='pending',next_attempt_at=0 WHERE id='job_manual'");await run(db,"UPDATE pos_stripe_events SET applied_at=NULL WHERE id='evt_manual'");await drainPos(db,'h001');
+  expect((await one(db,"SELECT state,journal_id FROM pos_settlements WHERE id=?",payout.id))).toEqual({state:'paid',journal_id:'manual-j'});
+  await run(db,"INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,source_hash,imported_by,created_at) VALUES('manual-statement','pos-company','bank','TEST ONLY','2026-09-17','manual-fixture','manager',0)");
+  await run(db,"INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,amount_minor,currency) VALUES('manual-bank-line','manual-statement','pos-company','2026-09-17','po_manual',10400,'THB')");
+  const match={id:payout.id,expectedVersion:2,bankTransactionId:'manual-bank-line',bankVersion:1,reason:'sandbox statement matched to genuine payout reference'};
+  await command('settlement.match',match,manager,'manual-payout-bank-match');
+  expect(await command('settlement.match',match,manager,'manual-payout-bank-match')).toEqual({id:payout.id});
+  expect((await one(db,"SELECT matched_type FROM finance_bank_transactions WHERE id='manual-bank-line'"))?.matched_type).toBe('pos_payout');
+  const matchedJournalCount=(await one(db,'SELECT COUNT(*) n FROM finance_journals'))!.n;
+  payoutStatus='failed';await run(db,"INSERT INTO pos_stripe_events VALUES('evt_manual_failed','acct_original',false,'pos-company','payout.failed',?,0,NULL)",JSON.stringify({id:'po_manual'}));await run(db,"INSERT INTO pos_jobs(id,company_id,kind,record_id,created_at) VALUES('job_manual_failed','pos-company','event','evt_manual_failed',0)");await drainPos(db,'h001');
+  expect((await one(db,"SELECT state FROM pos_settlements WHERE id=?",payout.id))?.state).toBe('failed');
+  expect(await one(db,'SELECT COUNT(*) n FROM finance_journals')).toEqual({n:Number(matchedJournalCount)+1});
+  await run(db,"UPDATE pos_stripe_events SET applied_at=NULL WHERE id='evt_manual_failed'");await run(db,"UPDATE pos_jobs SET state='pending',next_attempt_at=0 WHERE id='job_manual_failed'");await drainPos(db,'h001');
+  expect(await one(db,'SELECT COUNT(*) n FROM finance_journals')).toEqual({n:Number(matchedJournalCount)+1});
+ });
+ it('refuses a manual payout whose verified balance transaction belongs to another source',async()=>{
+  await stripePending();await run(db,"UPDATE pos_jobs SET state='completed'");vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request)=>new Response(JSON.stringify(String(url).includes('balance_transactions/')?{id:'txn_wrong',currency:'thb',amount:-10400,fee:0,net:-10400,type:'payout',source:'po_other'}:{id:'po_manual',currency:'thb',amount:10400,status:'paid',automatic:false,balance_transaction:'txn_wrong'}))));
+  await run(db,"INSERT INTO pos_stripe_events VALUES('evt_bad_manual','acct_original',false,'pos-company','payout.paid',?,0,NULL)",JSON.stringify({id:'po_manual'}));await run(db,"INSERT INTO pos_jobs(id,company_id,kind,record_id,created_at) VALUES('job_bad_manual','pos-company','event','evt_bad_manual',0)");await drainPos(db,'h001');
+  expect(await one(db,"SELECT state,last_error FROM pos_jobs WHERE id='job_bad_manual'")).toEqual({state:'exception',last_error:'POS_MANUAL_PAYOUT_BALANCE_MISMATCH'});expect(await one(db,"SELECT COUNT(*) n FROM pos_settlements WHERE kind='payout'")).toEqual({n:0});
+ });
+ it('refreshes verified PromptPay py_ fees, preserves payment postings, and records each fee once',async()=>{
+  const {payment}=await stripePending();vi.stubGlobal('fetch',mockPaid(payment));await drainPos(db,'h001');
+  const bt={id:'txn_prompt_fee',currency:'thb',amount:10700,fee:190,net:10510,source:'py_prompt',type:'payment'};
+  vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{
+   expect(new Headers(init?.headers).get('Stripe-Account')).toBe('acct_original');
+   return new Response(JSON.stringify(String(url).includes('/charges/')?{id:'py_prompt',metadata:{pos_payment_id:payment}}:String(url).includes('balance_transactions?')?{data:[bt],has_more:false}:bt));
+  }));
+  const before=await one(db,'SELECT COUNT(*) n FROM finance_payments');
+  const input={expectedVersion:1,accountingDate:'2026-09-17',reason:'recover delayed provider fee'};
+  const key='pos-fee-refresh-idempotent';const sync=await command('settlement.refresh',input,manager,key);
+  expect(await command('settlement.refresh',input,manager,key)).toEqual(sync);
+  await drainPos(db,'h001');
+  expect(await one(db,"SELECT state,fee_minor FROM pos_settlements WHERE provider_id='txn_prompt_fee'")).toEqual({state:'recorded',fee_minor:190});
+  expect(await one(db,"SELECT SUM(debit_minor-credit_minor) balance FROM finance_journal_lines WHERE account_id='fees'")).toEqual({balance:190});
+  expect(await one(db,'SELECT COUNT(*) n FROM finance_payments')).toEqual(before);
+  const journalCount=await one(db,'SELECT COUNT(*) n FROM finance_journals');
+  await command('settlement.refresh',input,manager);await drainPos(db,'h001');
+  expect(await one(db,'SELECT COUNT(*) n FROM finance_journals')).toEqual(journalCount);
+  await expect(command('settlement.refresh',{...input,expectedVersion:2},manager)).rejects.toMatchObject({code:'POS_VERSION_CONFLICT'});
+  await expect(command('settlement.refresh',input,{...manager,branchId:'pos-branch'})).rejects.toMatchObject({code:'POS_COMPANY_SETTINGS'});
+ });
+ it('adopts a known PromptPay pyr_ refund and records its owned balance without a duplicate payout',async()=>{
+  const {sale,refund,rp,job}=await restrictedPromptPayRefund();
+  const frozen=await one(db,'SELECT md5(snapshot_json::text) digest FROM pos_sale_documents WHERE sale_id=?',sale),returns=await one(db,"SELECT COUNT(*) n FROM pos_stock_moves WHERE kind='return'");
+  const attached={id:job.id,providerId:'pyr_owned_promptpay',accountingDate:businessDate(),reason:'verified existing PromptPay refund'};
+  const before=await one(db,'SELECT COUNT(*) n FROM finance_journals');
+  await command('exception.attach_provider',attached,manager,'attach-promptpay-pyr');expect(await command('exception.attach_provider',attached,manager,'attach-promptpay-pyr')).toEqual({id:job.id});
+  const calls:string[]=[];vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request,init?:RequestInit)=>{expect(init?.method).not.toBe('POST');calls.push(String(url));return new Response(JSON.stringify({id:'pyr_owned_promptpay',amount:5350,status:'succeeded',metadata:{pos_refund_payment_id:rp.id}}));}));await drainPos(db,'h001');
+  expect(calls.every(url=>url.endsWith('/refunds/pyr_owned_promptpay'))).toBe(true);
+  expect(await one(db,'SELECT state FROM pos_refunds WHERE id=?',refund.id)).toEqual({state:'completed'});expect(await one(db,'SELECT state,provider_id FROM pos_refund_payments WHERE id=?',rp.id)).toEqual({state:'succeeded',provider_id:'pyr_owned_promptpay'});
+  const journalCount=await one(db,'SELECT COUNT(*) n FROM finance_journals');expect(journalCount).toEqual({n:Number(before!.n)+1});
+  const owned={id:'txn_owned_prompt_refund',currency:'thb',amount:-5350,fee:0,net:-5350,source:'pyr_owned_promptpay',type:'refund'},foreign={...owned,id:'txn_foreign_prompt_refund',source:'pyr_foreign_promptpay'};
+  vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request)=>new Response(JSON.stringify(String(url).includes('balance_transactions?')?{data:[owned,foreign],has_more:false}:String(url).endsWith(owned.id)?owned:foreign))));
+  const input={expectedVersion:1,accountingDate:businessDate(),reason:'verify PromptPay refund balance ownership'};await command('settlement.refresh',input,manager);await drainPos(db,'h001');
+  expect(await one(db,'SELECT state,journal_id FROM pos_settlements WHERE provider_id=?',owned.id)).toEqual({state:'recorded',journal_id:null});expect(await one(db,'SELECT state FROM pos_settlements WHERE provider_id=?',foreign.id)).toEqual({state:'unmapped'});
+  await command('settlement.refresh',input,manager);await drainPos(db,'h001');expect(await one(db,'SELECT COUNT(*) n FROM finance_journals')).toEqual(journalCount);
+  expect(await one(db,'SELECT md5(snapshot_json::text) digest FROM pos_sale_documents WHERE sale_id=?',sale)).toEqual(frozen);expect(await one(db,"SELECT COUNT(*) n FROM pos_stock_moves WHERE kind='return'")).toEqual(returns);
+ });
+ it('refuses fee synchronization after its connected account binding changes',async()=>{
+  await stripePending();
+  await run(db,"UPDATE pos_jobs SET state='completed' WHERE kind='check_payment'");
+  await command('settlement.refresh',{expectedVersion:1,accountingDate:'2026-09-17',reason:'binding continuity test'},manager);
+  await run(db,"UPDATE pos_connections SET account_id='acct_other' WHERE company_id='pos-company'");
+  const fetcher=vi.fn();vi.stubGlobal('fetch',fetcher);await drainPos(db,'h001');
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(await one(db,"SELECT state,last_error FROM pos_jobs WHERE kind='balance_sync'")).toEqual({state:'exception',last_error:'POS_CONNECTION_AUTHORITY_CHANGED'});
+ });
+ it('waits for a charge balance transaction instead of marking its fee event applied prematurely',async()=>{
+  const {payment}=await stripePending();vi.stubGlobal('fetch',mockPaid(payment));await drainPos(db,'h001');
+  let ready=false;const bt={id:'txn_delayed_fee',currency:'thb',amount:10700,fee:190,net:10510,source:'py_delayed',type:'payment'};
+  vi.stubGlobal('fetch',vi.fn(async(url:string|URL|Request)=>new Response(JSON.stringify(String(url).includes('/charges/')?{id:'py_delayed',metadata:{pos_payment_id:payment},balance_transaction:ready?bt.id:null}:bt))));
+  await run(db,"INSERT INTO pos_stripe_events VALUES('evt_delayed_charge','acct_original',false,'pos-company','charge.succeeded',?,0,NULL)",JSON.stringify({id:'py_delayed'}));
+  await run(db,"INSERT INTO pos_jobs(id,company_id,kind,record_id,created_at) VALUES('job_delayed_charge','pos-company','event','evt_delayed_charge',0)");await drainPos(db,'h001');
+  expect(await one(db,"SELECT applied_at FROM pos_stripe_events WHERE id='evt_delayed_charge'")).toEqual({applied_at:null});
+  expect(await one(db,"SELECT state FROM pos_jobs WHERE id='job_delayed_charge'")).toEqual({state:'pending'});
+  ready=true;await run(db,"UPDATE pos_jobs SET next_attempt_at=0 WHERE id='job_delayed_charge'");await drainPos(db,'h001');
+  expect((await one(db,"SELECT applied_at FROM pos_stripe_events WHERE id='evt_delayed_charge'"))?.applied_at).not.toBeNull();
+  expect(await one(db,"SELECT state FROM pos_jobs WHERE id='job_delayed_charge'")).toEqual({state:'completed'});
+  expect(await one(db,"SELECT fee_minor,state FROM pos_settlements WHERE provider_id='txn_delayed_fee'")).toEqual({fee_minor:190,state:'recorded'});
+ });
  it('full manual advance refund releases the reservation and lets the original bill be edited',async()=>{
   const sale=await createSale();await add(sale);await pay(sale);
   const r=await change('refund.request',sale,{amountMinor:10700,reason:'customer changed mind',payoutShiftId:'shift-retail'});
+  const {posWorkspace}=await import('../src/server/pos');
+  expect((await posWorkspace(actor,sale,'','sale',undefined,true)).refunds).toMatchObject([{id:r.id,sale_id:sale,state:'requested',amount_minor:10700}]);
+  const otherSale=await createSale();
+  expect((await posWorkspace(actor,otherSale,'','sale',undefined,true)).refunds).toEqual([]);
+  expect((await posWorkspace(actor,sale,'','reports',undefined,true)).refunds).toEqual([]);
   await command('refund.approve',{id:r.id,expectedVersion:1,reason:'cash returned in full'},manager);
+  expect((await posWorkspace(actor,sale,'','sale',undefined,true)).refunds).toMatchObject([{id:r.id,state:'completed'}]);
   expect(await one(db,'SELECT COUNT(*) n FROM pos_reservations')).toEqual({n:0});expect((await one(db,'SELECT state FROM pos_sales WHERE id=?',sale))?.state).toBe('open');await add(sale);
  });
  it('reports actual return cost and disallows discount preparer self approval',async()=>{
@@ -606,4 +959,119 @@ it('quality quarantine blocks a reserved retail payment without consuming stock 
  expect(await one(db,'SELECT count(*) n FROM pos_receipts')).toEqual(receiptsBefore);
  const {posWorkspace}=await import('../src/server/pos');const workspace=await posWorkspace(actor,undefined,'','sale');
  expect(workspace.stock.find(s=>s.product_id==='tea')?.quality_held).toBe(1);
+});
+
+it('bootstraps a named restaurant while omitted mode still selects retail',async()=>{
+ await clearPosSetup();
+ const result=await command('settings.bootstrap',{mode:'restaurant',registerName:'Practice kitchen',warehouseId:'warehouse'},actor,'restaurant-bootstrap');
+ expect(await one(db,'SELECT name,mode,warehouse_id FROM pos_registers WHERE id=?',result.registerId)).toMatchObject({name:'Practice kitchen',mode:'restaurant',warehouse_id:'warehouse'});
+ expect(await command('settings.bootstrap',{mode:'restaurant',registerName:'Practice kitchen',warehouseId:'warehouse'},actor,'restaurant-bootstrap')).toEqual(result);
+ expect(await one(db,'SELECT count(*) n FROM pos_shifts')).toEqual({n:0});
+});
+
+it('rejects duplicate table names while replaying the successful table command',async()=>{
+ const input={registerId:'restaurant',name:'Table 1',seats:4};
+ const saved=await command('table.create',input,actor,'setup-table-first');
+ expect(await command('table.create',input,actor,'setup-table-first')).toEqual(saved);
+ await expect(command('table.create',{...input,name:' Table 1 '},actor,'setup-table-duplicate')).rejects.toMatchObject({code:'POS_TABLE_NAME_EXISTS'});
+ expect(await one(db,"SELECT count(*) n FROM pos_tables WHERE register_id='restaurant'")).toEqual({n:1});
+});
+
+it('replays simultaneous copies of one command without adding a second line',async()=>{
+ const sale=await createSale(),input={id:sale,expectedVersion:1,productId:'tea',quantityMilli:1000,modifierIds:[],discountMinor:0,note:''};
+ const results=await Promise.all([command('sale.add',input,actor,'same-in-flight-command'),command('sale.add',input,actor,'same-in-flight-command')]);
+ expect(results[0]).toEqual(results[1]);expect(await one(db,'SELECT COUNT(*) n FROM pos_lines WHERE sale_id=?',sale)).toEqual({n:1});
+});
+
+it('rejects ingredients and products excluded from this register catalog',async()=>{
+ const sale=await createSale();
+ await expect(add(sale,'milk')).rejects.toMatchObject({code:'POS_PRODUCT_INVALID'});
+ await run(db,"DELETE FROM pos_register_catalog WHERE register_id='retail' AND product_id='tea'");
+ await expect(add(sale)).rejects.toMatchObject({code:'POS_PRODUCT_INVALID'});
+ await run(db,"INSERT INTO pos_register_catalog(register_id,product_id) VALUES('retail','tea')");
+ await run(db,"UPDATE pos_catalog SET enabled=false WHERE product_id='tea'");
+ await expect(add(sale)).rejects.toMatchObject({code:'POS_PRODUCT_INVALID'});
+});
+
+it('checks the draft catalog version and price before changing the bill',async()=>{
+ const sale=await createSale();
+ await expect(change('sale.add',sale,{productId:'tea',quantityMilli:1000,expectedCatalogVersion:2,expectedPriceMinor:10000})).rejects.toMatchObject({code:'POS_CATALOG_CHANGED'});
+ await expect(change('sale.add',sale,{productId:'tea',quantityMilli:1000,expectedCatalogVersion:1,expectedPriceMinor:9999})).rejects.toMatchObject({code:'POS_CATALOG_CHANGED'});
+ expect(await one(db,'SELECT COUNT(*) n FROM pos_lines WHERE sale_id=?',sale)).toEqual({n:0});
+});
+
+it('preserves line and bill discounts exactly when a quantity is split',async()=>{
+ const sale=await createSale();await add(sale,'tea',3000);await change('sale.discount',sale,{amountMinor:101});
+ const line=(await one(db,'SELECT * FROM pos_lines WHERE sale_id=?',sale))!;
+ const split=await change('sale.split',sale,{lineId:line.id,quantityMilli:1000});
+ const portions=await all(db,'SELECT discount_minor,bill_discount_minor FROM pos_lines WHERE sale_id IN (?,?)',sale,split.id);
+ expect(portions.reduce((sum,l)=>sum+Number(l.discount_minor),0)).toBe(101);expect(portions.reduce((sum,l)=>sum+Number(l.bill_discount_minor),0)).toBe(101);
+ await change('sale.discount',String(split.id),{amountMinor:0});
+ expect(await one(db,'SELECT discount_minor FROM pos_sales WHERE id=?',split.id)).toEqual({discount_minor:0});
+});
+
+it('shares CRM parties, refuses duplicate contact identities, and freezes receipt data',async()=>{
+ const customer=await command('customer.create',{name:'Snapshot Customer',phone:'0801234567',email:'receipt@example.test'});
+ await expect(command('customer.create',{name:'Different name',phone:'080-123-4567'})).rejects.toMatchObject({code:'POS_CUSTOMER_DUPLICATE'});
+ expect((await posCustomers(db,actor,'receipt@example.test')).map(p=>p.id)).toContain(customer.id);
+ const sale=await createSale();await change('sale.customer',sale,{partyId:customer.id});await add(sale);await pay(sale);await change('sale.complete',sale);
+ const before=(await one(db,'SELECT snapshot_json FROM pos_sale_documents WHERE sale_id=?',sale))!;
+ const journalCount=await one(db,'SELECT COUNT(*) n FROM finance_journals');
+ await run(db,'UPDATE finance_parties SET name=? WHERE id=?','Later changed name',customer.id);
+ expect((await one(db,'SELECT snapshot_json FROM pos_sale_documents WHERE sale_id=?',sale))!.snapshot_json).toEqual(before.snapshot_json);
+ await expect(run(db,'UPDATE pos_sale_documents SET created_at=created_at+1 WHERE sale_id=?',sale)).rejects.toMatchObject({code:'23514'});
+ expect(await one(db,'SELECT COUNT(*) n FROM finance_journals')).toEqual(journalCount);
+});
+
+async function reviewShifts(){
+ for(const id of ['shift-retail','shift-kitchen']){
+  const cash=(await one(db,"SELECT COALESCE(SUM(p.amount_minor),0) n FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id WHERE s.shift_id=? AND p.method='cash' AND p.state='succeeded'",id))!;
+  const shift=(await one(db,'SELECT * FROM pos_shifts WHERE id=?',id))!;
+  await command('shift.close',{id,expectedVersion:shift.version,countedMinor:10000+Number(cash.n)});
+  const closed=(await one(db,'SELECT version FROM pos_shifts WHERE id=?',id))!;
+  await command('shift.review',{id,expectedVersion:closed.version,reason:'Independent cash count'},manager);
+ }
+}
+
+it('blocks close for open sales and requires independent Finance without reposting revenue',async()=>{
+ const date=businessDate(),sale=await createSale();await add(sale);
+ expect((await posDayReport(db,manager,'pos-branch',date)).blockers.map(b=>b.code)).toContain('OPEN_SALE');
+ await expect(command('day.prepare',{branchId:'pos-branch',businessDate:date},manager)).rejects.toMatchObject({code:'POS_DAY_BLOCKED'});
+ await pay(sale);await change('sale.complete',sale);await reviewShifts();
+ const journals=await one(db,'SELECT COUNT(*) n FROM finance_journals');
+ const prepared=await command('day.prepare',{branchId:'pos-branch',businessDate:date},manager);
+ await expect(command('day.confirm',{id:prepared.id,expectedVersion:1},manager)).rejects.toMatchObject({code:'POS_INDEPENDENT_REVIEW'});
+ await command('day.confirm',{id:prepared.id,expectedVersion:1});
+ expect(await one(db,'SELECT COUNT(*) n FROM finance_journals')).toEqual(journals);
+ await expect(run(db,"UPDATE pos_day_closes SET snapshot_json='{}'::jsonb WHERE id=?",prepared.id)).rejects.toMatchObject({code:'23514'});
+ await expect(command('shift.open',{registerId:'retail',openingMinor:0})).rejects.toMatchObject({code:'POS_DAY_CLOSED'});
+});
+
+it('validates denomination totals and rejects the person who counted the drawer as reviewer',async()=>{
+ await expect(command('shift.close',{id:'shift-retail',expectedVersion:1,countedMinor:10000,denominations:{10000:2}})).rejects.toMatchObject({code:'POS_CASH_COUNT'});
+ await command('shift.close',{id:'shift-retail',expectedVersion:1,countedMinor:10000,denominations:{5000:2}});
+ await expect(command('shift.review',{id:'shift-retail',expectedVersion:2,reason:'Self review'})).rejects.toMatchObject({code:'POS_INDEPENDENT_REVIEW'});
+ expect(await one(db,"SELECT denominations_json->>'5000' count FROM pos_shifts WHERE id='shift-retail'")).toEqual({count:'2'});
+});
+
+it('keeps prepared day evidence stable until Finance confirms before a later-day refund',async()=>{
+ vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(new Date('2026-09-30T12:00:00Z'));
+ const date=businessDate();
+ // These isolated fixture shifts were inserted before this test fixed its clock.
+ await run(db,"UPDATE pos_shifts SET business_date=? WHERE id IN ('shift-retail','shift-kitchen')",date);
+ const sale=await createSale();await add(sale);await pay(sale);await change('sale.complete',sale);await reviewShifts();
+ const prepared=await command('day.prepare',{branchId:'pos-branch',businessDate:date},manager);
+ const line=(await one(db,'SELECT id FROM pos_lines WHERE sale_id=?',sale))!;
+ vi.setSystemTime(new Date('2026-10-01T12:00:00Z'));
+ const refund={reason:'Later-day original-cost return',lines:[{lineId:line.id,quantityMilli:1000,restock:true}]};
+ await expect(change('refund.request',sale,refund)).rejects.toMatchObject({code:'POS_DAY_REVIEW_PENDING'});
+ expect(await one(db,'SELECT COUNT(*) n FROM pos_refunds WHERE sale_id=?',sale)).toEqual({n:0});
+ await command('day.confirm',{id:prepared.id,expectedVersion:1});
+ const result=await change('refund.request',sale,refund);
+ expect(await one(db,'SELECT accounting_date,tax_minor FROM pos_refunds WHERE id=?',result.id)).toMatchObject({accounting_date:'2026-10-01',tax_minor:700});
+});
+
+it('keeps daily reports within the authorized company and branch',async()=>{
+ await expect(posDayReport(db,{...actor,branchId:'another-branch'},'pos-branch',businessDate())).rejects.toMatchObject({code:'POS_NOT_FOUND'});
+ await expect(posDayReport(db,{...actor,companyId:'another-company'},'pos-branch',businessDate())).rejects.toMatchObject({code:'POS_NOT_FOUND'});
 });

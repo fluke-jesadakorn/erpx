@@ -277,6 +277,7 @@ export type ManagementSnapshot = {
   canManageGroups?: boolean;
   canDefine: boolean;
   canManagePeople: boolean;
+  canManagePersonAttributes: boolean;
   canManageOrganization: boolean;
   canReview: boolean;
 };

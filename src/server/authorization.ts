@@ -6,7 +6,7 @@ import type { PermissionActor } from "@/lib/iam";
 import { readCompanyPreference, readWorkspacePreference } from "./workspace-preferences";
 import {cache} from "react";
 import { ApiError } from "./http";
-import { readWorkSelection, restoreWorkSelection, selectWorkRole, type WorkAuthority } from "./work-role-store";
+import { initializeWorkSelection, type WorkAuthority } from "./work-role-store";
 import type { SqlDatabase } from "./runtime/types";
 import { betaAccess } from "./beta-access";
 import { assertProductionFeatureRoute } from './hospitality-rollout';
@@ -69,6 +69,8 @@ export type ResolvedWorkspaceScope =
     };
 
 export type WorkContext = {
+  /** Trusted proxy evidence for permission recovery in the page render. */
+  pageRequest?: true;
   inspection?: true;
   iam?: PermissionActor["iam"];
   authority?: WorkAuthority;
@@ -169,13 +171,15 @@ async function findNode(
   database: SqlDatabase,
   kind: OrganizationNode["kind"],
   slug: string,
+  companyId?: string,
 ) {
   return database
     .prepare(
       `SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
-       FROM organization_nodes WHERE kind=? AND slug=? AND status='active'`,
+       FROM organization_nodes WHERE kind=? AND slug=? AND status='active'
+         ${companyId ? "AND company_id=?" : ""}`,
     )
-    .bind(kind, slug)
+    .bind(kind, slug, ...(companyId ? [companyId] : []))
     .first<OrganizationNode>();
 }
 
@@ -207,6 +211,7 @@ async function validateNodeLineage(
 }
 
 export type WorkspaceCompany = { id: string; name: string };
+export type WorkspaceResolutionOptions = { companyId?: string };
 
 export const listWorkspaceCompanies = cache(async (holdingId: HoldingId) => {
   const { write } = await holdingResources(holdingId);
@@ -226,6 +231,7 @@ export const listWorkspaceCompanies = cache(async (holdingId: HoldingId) => {
 
 export async function resolveWorkspaceScope(
   requested: HoldingWorkspaceScope,
+  options: WorkspaceResolutionOptions = {},
 ): Promise<Exclude<ResolvedWorkspaceScope, { kind: "platform" }>> {
   const binding = await holdingBindingBySlug(requested.holdingSlug);
   const { write } = await holdingResources(binding.id);
@@ -235,11 +241,17 @@ export async function resolveWorkspaceScope(
     const frontCompanySlug = requestHeaders.get("x-erpx-front-company");
     const { session } = await currentSession();
     const savedCompany = await readCompanyPreference((await runtimeEnv()).CONTROL_DB,session.user.id,binding.id);
-    const preferred = contextCompany ?? savedCompany?.company_id ?? cookieValue(
+    // A switch keeps the company of the open browser page. Account preferences
+    // initialize browsers without a choice; they cannot move an existing page.
+    const preferred = options.companyId ?? contextCompany ?? cookieValue(
       requestHeaders.get("cookie"),
       `erpx_company_${binding.id}`,
-    );
-    let company = frontCompanySlug
+    ) ?? savedCompany?.company_id;
+    const available = !frontCompanySlug && !preferred
+      ? await listWorkspaceCompanies(binding.id)
+      : [];
+    const selectedCompany = preferred ?? (available.length === 1 ? available[0].id : undefined);
+    const company = frontCompanySlug
       ? await write
           .prepare(
             `SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
@@ -247,32 +259,16 @@ export async function resolveWorkspaceScope(
           )
           .bind(frontCompanySlug)
           .first<OrganizationNode>()
-      : preferred
+      : selectedCompany
       ? await write
           .prepare(
             `SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
              FROM organization_nodes WHERE kind='company' AND id=? AND status='active'`,
           )
-          .bind(preferred)
+          .bind(selectedCompany)
           .first<OrganizationNode>()
-      : await write
-          .prepare(
-            `SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
-             FROM organization_nodes WHERE kind='company' AND status='active'
-             ORDER BY display_name,id LIMIT 1`,
-          )
-          .first<OrganizationNode>();
-    if (!company && !contextCompany && !frontCompanySlug) {
-      const available=await listWorkspaceCompanies(binding.id);
-      if(available[0]) company=await write.prepare("SELECT id,kind,slug,display_name,parent_id,company_id,branch_id FROM organization_nodes WHERE id=? AND status='active'").bind(available[0].id).first<OrganizationNode>();
-    }
+      : null;
     if (!company) throw new Error("COMPANY_REQUIRED");
-    // Company preference is browser-local and may belong to a previous account.
-    // Recover only to a company this account can actually open at holding scope.
-    const available = await listWorkspaceCompanies(binding.id);
-    if (!contextCompany && !frontCompanySlug && available.length && !available.some(item => item.id === company!.id)) {
-      company = { ...company, id: available[0].id };
-    }
     await assertFrontCompany(write, company.id);
     return {
       kind: "holding",
@@ -290,8 +286,10 @@ export async function resolveWorkspaceScope(
           "JOIN organization_nodes c ON c.id=n.company_id AND c.kind='company' AND c.slug=? AND c.status='active' " +
           "WHERE n.kind='branch' AND n.slug=? AND n.status='active'",
         ).bind(frontCompanySlug, requested.branchSlug).first<OrganizationNode>()
-      : await findNode(write, "branch", requested.branchSlug);
+      : await findNode(write, "branch", requested.branchSlug, options.companyId);
     if (!branch) throw new Error("WORKSPACE_NOT_FOUND");
+    if (options.companyId && branch.company_id !== options.companyId)
+      throw new Error("WORKSPACE_NOT_FOUND");
     await validateNodeLineage(write, branch);
     await assertFrontCompany(write, branch.company_id);
     return {
@@ -314,8 +312,10 @@ export async function resolveWorkspaceScope(
           "JOIN organization_nodes c ON c.id=n.company_id AND c.kind='company' AND c.slug=? AND c.status='active' " +
           "WHERE n.kind='branch' AND n.slug=? AND n.status='active'",
         ).bind(frontCompanySlug, requested.branchSlug).first<OrganizationNode>()
-      : await findNode(write, "branch", requested.branchSlug);
+      : await findNode(write, "branch", requested.branchSlug, options.companyId);
     if (!branch) throw new Error("WORKSPACE_NOT_FOUND");
+    if (options.companyId && branch.company_id !== options.companyId)
+      throw new Error("WORKSPACE_NOT_FOUND");
   }
   const department = await write
     .prepare(
@@ -323,6 +323,10 @@ export async function resolveWorkspaceScope(
         ? `SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
            FROM organization_nodes WHERE kind='department' AND slug=? AND company_id=?
            AND status='active' AND branch_id=? AND parent_id=?`
+        : options.companyId
+          ? `SELECT id,kind,slug,display_name,parent_id,company_id,branch_id
+             FROM organization_nodes WHERE kind='department' AND slug=? AND company_id=?
+             AND status='active' AND branch_id IS NULL`
         : (await headers()).get("x-erpx-front-company")
           ? `SELECT n.id,n.kind,n.slug,n.display_name,n.parent_id,n.company_id,n.branch_id
              FROM organization_nodes n JOIN organization_nodes c ON c.id=n.company_id AND c.kind='company' AND c.slug=? AND c.status='active'
@@ -332,7 +336,7 @@ export async function resolveWorkspaceScope(
              AND status='active' AND branch_id IS NULL`,
     )
     .bind(
-      ...((await headers()).get("x-erpx-front-company") && !branch ? [(await headers()).get("x-erpx-front-company")!, requested.departmentSlug] : [requested.departmentSlug]),
+      ...(options.companyId && !branch ? [requested.departmentSlug, options.companyId] : (await headers()).get("x-erpx-front-company") && !branch ? [(await headers()).get("x-erpx-front-company")!, requested.departmentSlug] : [requested.departmentSlug]),
       ...(branch ? [branch.company_id, branch.id, branch.id] : []),
     )
     .first<OrganizationNode>();
@@ -449,9 +453,9 @@ export type AccountAccessContext = {
  sessionId:string; expiresAt:number; userId:string; name:string; email:string;
  scope:Exclude<ResolvedWorkspaceScope,{kind:"platform"}>; assignments:WorkAssignment[]; requestHeaders:Headers;
 };
-export async function requireAccountAccess(requested:HoldingWorkspaceScope|string):Promise<AccountAccessContext> {
+export async function requireAccountAccess(requested:HoldingWorkspaceScope|string,options:WorkspaceResolutionOptions={}):Promise<AccountAccessContext> {
  const {session,requestHeaders}=await currentSession();
- const scope=await resolveWorkspaceScope(typeof requested==="string"?await requestedHoldingScope(requested):requested);
+ const scope=await resolveWorkspaceScope(typeof requested==="string"?await requestedHoldingScope(requested):requested,options);
  const {write}=await holdingResources(scope.holdingId),now=Date.now();
  if(await write.prepare('SELECT 1 FROM iam_revoked_sessions WHERE session_id=? AND company_id=? AND user_id=?').bind(session.session.id,scope.companyId,session.user.id).first())throw new ApiError(401,'SESSION_REVOKED','Sign in again to access this company.');
  await refreshDirectoryMember(write as PostgresDatabase,scope.companyId,session.user.id);
@@ -467,20 +471,23 @@ export async function requireAccountAccess(requested:HoldingWorkspaceScope|strin
  const assignments=validRows.map(a=>({id:a.id,role:a.role,companyId:a.company_id,branchId:a.branch_id,modules:JSON.parse(a.modules_json) as string[],scopeKind:a.scope_kind,scopeNodeId:a.scope_node_id,version:a.version,validUntil:a.valid_until,label:[a.roleName,a.company_name,a.branch_name,a.scope_name].filter(Boolean).join(" · ")}));
  return {sessionId:session.session.id,expiresAt:new Date(session.session.expiresAt).getTime(),userId:session.user.id,name:session.user.name,email:session.user.email,scope,assignments,requestHeaders};
 }
-export async function requireWorkContext(requested:HoldingWorkspaceScope|string):Promise<WorkContext> {
- return cachedWorkContext(JSON.stringify(typeof requested==="string"?await requestedHoldingScope(requested):requested));
+export async function requireWorkContext(requested:HoldingWorkspaceScope|string,options:WorkspaceResolutionOptions={}):Promise<WorkContext> {
+ try {
+  return await cachedWorkContext(JSON.stringify({requested:typeof requested==="string"?await requestedHoldingScope(requested):requested,options}));
+ } catch (error) {
+  if ((await headers()).get("x-erpx-api") === "false") {
+   const { pageError } = await import("./page-error");
+   return pageError(error, typeof requested === "string" ? requested : requested.holdingSlug);
+  }
+  throw error;
+ }
 }
 const cachedWorkContext=cache(async (key:string):Promise<WorkContext>=>{
- const requested=JSON.parse(key) as HoldingWorkspaceScope;
- const access=await measureReadPhase("account_access",()=>requireAccountAccess(requested)),{scope}=access;
+ const {requested,options}=JSON.parse(key) as {requested:HoldingWorkspaceScope;options:WorkspaceResolutionOptions};
+ const access=await measureReadPhase("account_access",()=>requireAccountAccess(requested,options)),{scope}=access;
  const {write}=await holdingResources(scope.holdingId);
- let selection=await restoreWorkSelection(write,{sessionId:access.sessionId,userId:access.userId,companyId:scope.companyId,expiresAt:access.expiresAt},access.assignments);
  const eligible=access.assignments.filter(a=>assignmentApplies(a,scope));
- if(!selection && access.assignments.length===1 && eligible.length===1) {
-  const a=eligible[0];
-  try {selection=await selectWorkRole(write,{sessionId:access.sessionId,userId:access.userId,companyId:scope.companyId,assignmentId:a.id,assignmentVersion:a.version!,revision:0,expiresAt:access.expiresAt});}
-  catch(error){selection=await readWorkSelection(write,access.sessionId,access.userId,scope.companyId);if(!selection)throw error;}
- }
+ const selection=await initializeWorkSelection(write,{sessionId:access.sessionId,userId:access.userId,companyId:scope.companyId,expiresAt:access.expiresAt},access.assignments,eligible);
  if(!selection) throw new ApiError(409,"WORK_ROLE_REQUIRED","Choose a work role to continue.");
  const assignment=eligible.find(a=>a.id===selection.assignment_id && a.version===selection.assignment_version);
  if(!assignment || selection.expires_at<=Date.now()) throw new ApiError(409,"WORK_ROLE_UNAVAILABLE","Your selected role no longer covers this workspace. Choose an available role.");
@@ -492,7 +499,7 @@ const cachedWorkContext=cache(async (key:string):Promise<WorkContext>=>{
  const assignedModules=beta?[]:assignment.role.startsWith("custom_")?[...new Set(iam.permissions.filter(p=>p.startsWith("module.")).map(p=>p.split(".")[1]))]:modulesForRole(assignment.role,assignment.modules);
  const modules=iam.permissions.includes("module.people_payroll.read")?[...new Set([...assignedModules,"people_payroll"])]:assignedModules.filter(module=>module!=="people_payroll");
  await assertProductionFeatureRoute(write,scope.companyId,access.requestHeaders.get('x-erpx-destination')??'',method??'GET');
- return {iam,userId:access.userId,name:access.name,email:access.email,assignmentId:assignment.id,role:assignment.role,
+ return {...(access.requestHeaders.get("x-erpx-api") === "false" ? { pageRequest: true as const } : {}),iam,userId:access.userId,name:access.name,email:access.email,assignmentId:assignment.id,role:assignment.role,
  companyId:scope.companyId,branchId:scope.kind==="holding"?null:scope.branchId,departmentId:scope.kind==="department"?scope.departmentId:null,
  holdingId:scope.holdingId,holdingSlug:scope.holdingSlug,holdingName:scope.holdingName,beta,scope,assignmentScope:assignment.scopeKind,
  inherited:assignment.scopeKind!==scope.kind,modules,assignments:[assignment],availableAssignments:access.assignments,

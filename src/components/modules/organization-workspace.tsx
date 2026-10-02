@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 import { AttachmentPanel, type AttachmentPanelChange } from "@/components/attachments/attachment-panel";
 import { AttachmentFeatureSurface } from "@/components/attachments/attachment-feature-context";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
@@ -7,10 +8,12 @@ import { SetupChecklist, type SetupItem } from "@/components/ui/setup-checklist"
 
 
 import { PositionPreparation } from "@/components/people/lifecycle-workspace";
+import { LevelLeaveDefaults } from "@/components/people/level-leave-defaults";
 import { staffLevelTitles,type OrganizationNode,type OrganizationNodeChange,type OrganizationOverview,type OrganizationPosition,type OrganizationTemplatePosition } from "@/lib/organization";
 import type { PeopleLifecycleData } from "@/lib/people-lifecycle";
 import { Network,UserPlus,Users } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { OrganizationChart } from "./organization-chart";
 import styles from "./organization.module.css";
@@ -40,7 +43,7 @@ export function OrganizationWorkspace({base,data,lifecycle,initialPositionId,ini
     {(!initialView || initialView === "positions")&&lifecycle&&<FeatureWidget id="organization-positionpreparation" title="Position preparation"><PositionPreparation base={base} data={{...lifecycle,canPrepare:false}} surface="people" positionId={initialPositionId} hrDetails={id=>{const position=data.positions.find(p=>p.id===id);return position&&<><p>{data.people.filter(p=>p.position_id===id).length} staff · Level {position.level_number} · Reports to {data.positions.find(p=>p.id===position.reports_to_position_id)?.title??"Company leadership"}</p>{lifecycle.canPrepare&&<Link href={`${base}/technology?view=organization&position=${encodeURIComponent(id)}`}>Open position GPO in Technology</Link>}{data.canManage&&<details><summary>Edit HR position details</summary><PositionEditor base={base} data={data} position={position}/></details>}</>;}}/></FeatureWidget>}
     {(!initialView || initialView === "positions")&&<FeatureWidget id="organization-positions" title="Positions and levels"><p className="muted">Positions stay when staff move or leave. HR defines the work and reporting line. IT prepares resources separately in Technology.</p>
       <label>Find position<input type="search" value={positionSearch} onChange={event=>setPositionSearch(event.target.value)} placeholder="Search position title or level"/></label>
-      {data.positions.filter(position=>`${position.title} ${position.level_number}`.toLowerCase().includes(positionSearch.toLowerCase())).map(position=><details key={position.id} id={`position-${position.id}`} open={initialPositionId===position.id?true:undefined} className={styles.position}><summary><strong>{position.title}</strong> · Level {position.level_number} · {position.active?data.people.filter(p=>p.position_id===position.id).length+" staff":"Archived"}</summary><p>{data.nodes.find(n=>n.id===position.branch_id)?.display_name??"Company"} / {data.nodes.find(n=>n.id===position.department_id)?.display_name??"All departments"} · Reports to {data.positions.find(p=>p.id===position.reports_to_position_id)?.title??"Company leadership"}</p><PositionDefaultPay base={base} data={data} position={position}/>{data.canManage&&<><Link className="button secondary" href={`${base}/people?position=${encodeURIComponent(position.id)}`}>Add staff to this position</Link><details><summary>Edit position details</summary><PositionEditor base={base} data={data} position={position}/></details></>}</details>)}
+      {data.positions.filter(position=>`${position.title} ${position.level_number}`.toLowerCase().includes(positionSearch.toLowerCase())).map(position=><details key={position.id} id={`position-${position.id}`} open={initialPositionId===position.id?true:undefined} className={styles.position}><summary><strong>{position.title}</strong> · Level {position.level_number} · {position.active?data.people.filter(p=>p.position_id===position.id).length+" staff":"Archived"}</summary><p>{data.nodes.find(n=>n.id===position.branch_id)?.display_name??"Company"} / {data.nodes.find(n=>n.id===position.department_id)?.display_name??"All departments"} · Reports to {data.positions.find(p=>p.id===position.reports_to_position_id)?.title??"Company leadership"}</p><PositionDefaultPay base={base} data={data} position={position}/>{data.canManage&&<><Link className="button secondary" href={`${base}/people?new=person&position=${encodeURIComponent(position.id)}`}>Add staff to this position</Link><details><summary>Edit position details</summary><PositionEditor base={base} data={data} position={position}/></details></>}</details>)}
       {data.canManage&&<details className={styles.position}><summary>Add a position</summary><PositionEditor base={base} data={data}/></details>}
     </FeatureWidget>}
     <SpendingReadiness base={base}/>
@@ -48,12 +51,12 @@ export function OrganizationWorkspace({base,data,lifecycle,initialPositionId,ini
     {(!initialView || initialView === "templates")&&data.canManage&&<FeatureWidget id="organization-templateeditor" title="Organization templates"><TemplateEditor base={base} data={data}/></FeatureWidget>}
   </WidgetGrid>;
 }
-function PositionDefaultPay({base,data,position}:{base:string;data:OrganizationOverview;position:OrganizationPosition}){
+export function PositionDefaultPay({base,data,position}:{base:string;data:OrganizationOverview;position:OrganizationPosition}){
   const pay=data.defaults?.pay.find(item=>item.position_id===position.id),{send,busy,error}=useStaffCommand(base);
   if(!data.monthlyPayGroups?.length)return null;
   return <section className="card"><h4>Default pay</h4><p>{pay?`${pay.currency} ${(pay.monthly_amount_minor/100).toLocaleString()} / month · ${pay.pay_group_name} · v${pay.version}`:"No default pay yet"}</p><p className="muted">Recommendation only. Payroll uses approved compensation.</p>{data.canManage&&<details><summary>Edit default pay</summary><form className="business-form" onSubmit={event=>{event.preventDefault();const fields=new FormData(event.currentTarget);void send(`people/organization/positions/${position.id}/default-pay`,{payGroupId:fields.get("payGroupId"),currency:fields.get("currency"),monthlyAmount:Math.round(Number(fields.get("amount"))*100),expectedVersion:pay?.version??0});}}><label>Monthly pay group<select name="payGroupId" required defaultValue={pay?.pay_group_id??""}><option value="">Choose pay group</option>{data.monthlyPayGroups.map(group=><option key={group.id} value={group.id}>{group.name} · {group.currency}</option>)}</select></label><label>Currency<select name="currency" defaultValue={pay?.currency??"USD"}>{[...new Set(data.monthlyPayGroups.map(group=>group.currency))].map(currency=><option key={currency}>{currency}</option>)}</select></label><label>Monthly amount<input name="amount" type="number" min="0" step="0.01" required defaultValue={pay?pay.monthly_amount_minor/100:undefined}/></label><button className="button" disabled={busy}>Save new version</button>{error&&<p role="alert">{error}</p>}</form></details>}</section>;
 }
-function OrganizationUnits({base,data}:{base:string;data:OrganizationOverview}){
+export function OrganizationUnits({base,data}:{base:string;data:OrganizationOverview}){
   const active=data.nodes.filter(n=>n.kind!=="company"&&n.status==="active"),suspended=data.nodes.filter(n=>n.kind!=="company"&&n.status==="suspended"),archived=data.nodes.filter(n=>n.kind!=="company"&&n.status==="archived"),[documentNodeId,setDocumentNodeId]=useState<string|null>(null),documentNode=data.nodes.find(node=>node.id===documentNodeId);
   return <div className="content-stack">
     <p className="muted">Create or change a business unit through an independent review. Active staff, roles, positions, child units, or warehouses must be moved before a unit can be suspended or archived. Relocating a department moves its current staff, positions and scoped assignments with it.</p>
@@ -81,11 +84,11 @@ function NodeChangeForm({base,data,node,change}:{base:string;data:OrganizationOv
     <div className={styles.formActions}><button className="button secondary" name="mode" value="draft" disabled={busy}>Save draft</button><button className="button" name="mode" value="submit" disabled={busy}>Submit for review</button></div>{error&&<p role="alert" className="error">{error}</p>}
   </form>;
 }
-function OrganizationChangeQueue({base,data}:{base:string;data:OrganizationOverview}){
+export function OrganizationChangeQueue({base,data}:{base:string;data:OrganizationOverview}){
   const {send,busy,error}=useStaffCommand(base),[reason,setReason]=useState<Record<string,string>>({}),[proof,setProof]=useState<Record<string,AttachmentPanelChange>>({});
   const queue=data.changeQueue;
   const pageLink=(page:number)=>`${base}/people/organization?${new URLSearchParams({changeState:queue.state,changeQuery:queue.query,changePage:String(page)})}#organization-change-queue`;
-  const timestamp=(value:number)=>new Date(value).toISOString().replace("T"," ").slice(0,16)+" UTC";
+  const timestamp=(value:number)=><TimeText value={value} />;
   return <section id="organization-change-queue" className={styles.changeRequests} aria-label="Organization change requests">
     <h3>Organization change requests</h3>
     {queue.recordId&&<p>Showing the linked request. <Link href={`${base}/people/organization#organization-change-queue`}>View all open requests</Link></p>}
@@ -127,8 +130,8 @@ function OrganizationChangeQueue({base,data}:{base:string;data:OrganizationOverv
     {error&&<p role="alert" className="error">{error}</p>}
   </section>;
 }
-function InstallLevels({base}:{base:string}){const {send,busy,error}=useStaffCommand(base);return <section className="card"><h2>Set up six staff levels</h2><p>Install the numbered catalog, then explicitly assign each staff member. Existing levels and history are retained.</p><button className="button" disabled={busy} onClick={()=>void send("people/organization/levels",{})}>Install staff levels</button>{error&&<p role="alert">{error}</p>}</section>;}
-function PositionEditor({base,data,position}:{base:string;data:OrganizationOverview;position?:OrganizationPosition}){
+export function InstallLevels({base}:{base:string}){const {send,busy,error}=useStaffCommand(base);return <section className="card"><h2>Set up six staff levels</h2><p>Install the numbered catalog, then explicitly assign each staff member. Existing levels and history are retained.</p><button className="button" disabled={busy} onClick={()=>void send("people/organization/levels",{})}>Install staff levels</button>{error&&<p role="alert">{error}</p>}</section>;}
+export function PositionEditor({base,data,position}:{base:string;data:OrganizationOverview;position?:OrganizationPosition}){
   const {send,busy,error}=useStaffCommand(base),[branch,setBranch]=useState(position?.branch_id??""),[ceo,setCeo]=useState(Boolean(position?.is_ceo));
   return <form className="business-form" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget);await send(`people/organization/positions${position?`/${position.id}`:""}`,{title:f.get("title"),branchId:branch||null,departmentId:f.get("department")||null,levelId:f.get("level"),reportsToPositionId:ceo?null:f.get("manager")||null,isCeo:ceo,rosterRequired:f.get("rosterRequired")==="on",active:f.get("active")==="on",expectedVersion:position?.version??0,requirements:f.get("requirements"),reason:f.get("reason")});}}>
     <label>Work requirements<textarea name="requirements" defaultValue={position?.requirements??""} maxLength={3000} placeholder="Accounting system, branch printer, laptop…"/></label>
@@ -144,7 +147,7 @@ function PositionEditor({base,data,position}:{base:string;data:OrganizationOverv
     <button className="button" disabled={busy||!data.levels.length}>{position?"Save position":"Create position"}</button>{error&&<p role="alert">{error}</p>}
   </form>;
 }
-function TemplateEditor({base,data}:{base:string;data:OrganizationOverview}){
+export function TemplateEditor({base,data}:{base:string;data:OrganizationOverview}){
   const {send,busy,error}=useStaffCommand(base);
   const starter:OrganizationTemplatePosition[]=staffLevelTitles.map((title,i)=>({key:`level-${i+1}`,title,levelNumber:i+1,reportsToKey:i?`level-${i}`:null,isCeo:i===0,rosterRequired:false}));
   const [draft,setDraft]=useState(starter),[name,setName]=useState("Standard organization"),[selected,setSelected]=useState(""),[branch,setBranch]=useState("");
@@ -165,4 +168,41 @@ function TemplateEditor({base,data}:{base:string;data:OrganizationOverview}){
       <button className="button" disabled={busy}>Apply reviewed template</button>
     </form>}
   </section>{error&&<p role="alert" className="error">{error}</p>}</div>;
+}
+
+/** Advanced HR organization controls shared by the consolidated Company Settings panel. */
+export function OrganizationAdvancedTools({base,data,lifecycle}:{base:string;data:OrganizationOverview;lifecycle?:PeopleLifecycleData|null}) {
+  const section = useSearchParams().get("section");
+  const currentPositions = data.positions.filter(position => position.active === 1);
+  const vacancies = currentPositions.filter(position => !data.people.some(person => person.position_id === position.id));
+  const issues = data.people.filter(person => person.issues.length);
+  return <div className="content-stack" aria-label="Advanced organization tools">
+    <section className="card">
+      <h3>Organization readiness</h3>
+      <p>{data.people.length} people · {currentPositions.length} active positions · {vacancies.length} vacant positions · {issues.length} profiles need review</p>
+      {issues.length > 0 && <Link href={`${base}/people?tab=people`}>Review people and reporting warnings</Link>}
+    </section>
+    <details id="people-company-levels" className={styles.position} open={section === "levels" || data.levels.length < 6}>
+      <summary><strong>Company levels and leave defaults</strong> · {data.levels.length} levels</summary>
+      <ol>{data.levels.map(level => <li key={level.id}>Level {level.level_number} · {level.name}</li>)}</ol>
+      {data.levels.length < 6 && data.canManage && <InstallLevels base={base} />}
+      {data.canManage && data.levels.length > 0 && <LevelLeaveDefaults base={base} levels={data.levels} defaults={data.defaults?.leave ?? []} />}
+    </details>
+    {data.canManage && <details id="people-company-templates" className={styles.position} open={section === "templates"}>
+      <summary><strong>Organization templates</strong> · {data.templates.length} saved</summary>
+      <TemplateEditor base={base} data={data} />
+    </details>}
+    <details id="people-company-spending" className={styles.position} open={section === "spending"}>
+      <summary><strong>Spending approval readiness and exceptions</strong></summary>
+      <SpendingReadiness base={base} />
+      {data.canManageSpending && data.spendingTemplate && <SpendingTemplateEditor base={base} data={data} />}
+    </details>
+    {lifecycle && <details id="people-company-it-preparation" className={styles.position} open={section === "preparation"}>
+      <summary><strong>Position preparation and IT handoff</strong></summary>
+      <PositionPreparation base={base} data={{...lifecycle,canPrepare:false}} surface="people" hrDetails={id => {
+        const position = data.positions.find(item => item.id === id);
+        return position && <><p>{data.people.filter(person => person.position_id === id).length} people · Level {position.level_number}</p><Link href={`${base}/people?position=${encodeURIComponent(id)}`}>Open HR position</Link><Link href={`${base}/technology?view=organization&position=${encodeURIComponent(id)}`}>Open IT policies and delivery</Link></>;
+      }} />
+    </details>}
+  </div>;
 }

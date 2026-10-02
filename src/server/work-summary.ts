@@ -6,6 +6,7 @@ import { workSnapshot, nextWorkSteps, type WorkSnapshot } from "./work-items";
 import { getWorkCapabilities } from "./work-capabilities";
 import { buildWorkCards } from "./work-cards";
 import { readWorkCardPreferences } from "./work-card-preferences";
+import { projectWorkPage, type WorkPageQuery } from "@/lib/work-page";
 
 export async function getWorkCardProjection(actor: WorkContext, work: WorkSnapshot | Promise<WorkSnapshot>) {
   const { write } = await holdingResources(actor.holdingId);
@@ -42,19 +43,7 @@ export async function getWorkSummary(actor: WorkContext) {
 export type WorkSummary = Awaited<ReturnType<typeof getWorkSummary>>;
 
 /** Keep the complete policy snapshot on the server; send only this view's rows. */
-export async function getWorkPage(actor: WorkContext, query: {
-  view:string;queue:string;type:string;q:string;responsibility:string;offset?:number;
-}) {
-  const { filterWork,workInView,workViews,isMyAction } = await import("@/lib/work-item");
-  const summary=await getWorkSummary(actor);
-  const selected=filterWork(workInView(summary.items,query.view),query.view==='legacy'?query.queue:'all',query.type,query.q,query.responsibility);
-  const requested=Number.isSafeInteger(query.offset)&&query.offset!>0?query.offset!:0;
-  const offset=Math.min(requested,Math.max(0,Math.floor((selected.length-1)/30)*30));
-  return {...summary,items:selected.slice(offset,offset+30),
-    list:{offset,total:selected.length,hasMore:offset+30<selected.length},
-    actionCount:summary.unavailableSources.length?null:summary.items.filter(isMyAction).length,
-    viewCounts:Object.fromEntries(workViews.map(([id])=>[id,filterWork(workInView(summary.items,id),'all',query.type,query.q,query.responsibility).length])),
-    relationships:[...new Set(summary.items.flatMap(i=>i.relationships??[]))],
-  };
+export async function getWorkPage(actor: WorkContext, query: WorkPageQuery) {
+  return projectWorkPage(await getWorkSummary(actor), query);
 }
 export type WorkPageSummary=Awaited<ReturnType<typeof getWorkPage>>;

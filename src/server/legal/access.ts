@@ -5,6 +5,8 @@ import { requirePermission } from "../iam-permissions";
 import { ApiError } from "../http";
 import { assertion } from "../commands";
 import type { LegalItem, LegalKind } from "@/lib/legal/model";
+import { hasPermission } from "@/lib/permissions";
+import { productionFeatureGuard } from "../hospitality-rollout";
 export const tables: Record<LegalKind, string> = {
   request: "legal_requests",
   matter: "legal_matters",
@@ -28,7 +30,7 @@ export function fail(
 }
 export function visibility(a: WorkContext, alias = "i") {
   return {
-    sql: `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?) AND (${alias}.classification='internal' OR EXISTS(SELECT 1 FROM legal_members lm WHERE lm.item_id=${alias}.id AND lm.user_id=?))`,
+    sql: `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?) AND (${alias}.classification='internal' OR EXISTS(SELECT 1 FROM legal_members lm WHERE lm.item_id=${alias}.id AND lm.user_id=?))${a.role==='legal_requester'?` AND ${alias}.kind='request' AND ${alias}.created_by=?`:''}`,
     values: [
       a.companyId,
       a.branchId,
@@ -36,6 +38,7 @@ export function visibility(a: WorkContext, alias = "i") {
       a.departmentId,
       a.departmentId,
       a.userId,
+      ...(a.role==='legal_requester'?[a.userId]:[]),
     ],
   };
 }
@@ -102,6 +105,7 @@ export function guards(
   key: string,
   edit = false,
   allowFrozen = false,
+  preparation = false,
 ): SqlStatement[] {
   const v = visibility(a);
   return [
@@ -109,6 +113,7 @@ export function guards(
       "SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))",
     ),
     lock(db, a.companyId),
+    ...(preparation&&!a.branchId&&!a.departmentId&&hasPermission(a,"legal.manage")?[assertion(db,key,"legal-preparation-only","EXISTS(SELECT 1 FROM legal_items WHERE id=? AND kind IN ('rule','template'))",[id])]:productionFeatureGuard(db,key,a.companyId,"legal")),
     ...(!allowFrozen
       ? [
           assertion(
@@ -136,19 +141,22 @@ export function guards(
     ),
   ];
 }
-export async function eligible(db: SqlDatabase, a: WorkContext, id: string) {
+export async function eligible(db: SqlDatabase, a: WorkContext, id: string, scope: {branch_id:string|null;department_id:string|null} = {branch_id:a.branchId,department_id:a.departmentId}, permission: string|null = null) {
   if (
     !(await db
       .prepare(
-        "SELECT 1 FROM assignments WHERE company_id=? AND user_id=? AND revoked_at IS NULL AND valid_from<=? AND valid_until>? LIMIT 1",
+        "SELECT 1 WHERE legal_person_eligible(?,?,?,?,?)",
       )
-      .bind(a.companyId, id, Date.now(), Date.now())
+      .bind(a.companyId, id, scope.branch_id, scope.department_id, permission)
       .first())
   )
     fail(
-      "Choose a person with current Company access.",
+      "Choose an active person with access to this Company and record scope.",
       "LEGAL_PERSON_UNAVAILABLE",
     );
+}
+export function personGuard(db:SqlDatabase,a:WorkContext,key:string,userId:string,scope:{branch_id:string|null;department_id:string|null}={branch_id:a.branchId,department_id:a.departmentId},permission:string|null=null){
+  return assertion(db,key,`legal-person-${userId}-${permission??'member'}`,"legal_person_eligible(?,?,?,?,?)",[a.companyId,userId,scope.branch_id,scope.department_id,permission]);
 }
 export function event(
   db: SqlDatabase,

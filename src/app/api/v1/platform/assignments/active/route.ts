@@ -2,10 +2,17 @@ import { rememberPlatformRole } from "@/server/workspace-preferences";
 import { runtimeEnv } from "@/server/runtime";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireManageErpxContext } from "@/server/authorization";
+import { requireManageErpxContext, requirePlatformContext } from "@/server/authorization";
 import { ApiError, errorResponse } from "@/server/http";
 
 const schema = z.object({ assignmentId: z.string().min(1).max(128) });
+
+export async function GET() {
+  try {
+    const actor = await requirePlatformContext();
+    return NextResponse.json({ data: { userId: actor.userId, assignmentId: actor.assignmentId } }, { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) { return errorResponse(error); }
+}
 
 export async function POST(request: Request) {
   try {

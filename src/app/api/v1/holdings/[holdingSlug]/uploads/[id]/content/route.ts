@@ -15,6 +15,8 @@ export async function PUT(
   request: Request,
   context: RouteContext<"/api/v1/holdings/[holdingSlug]/uploads/[id]/content">,
 ) {
+  const requestId = crypto.randomUUID();
+  let operation = "authorize";
   try {
     const origin = request.headers.get("origin");
     if (origin && origin !== requestPublicOrigin(request))
@@ -27,7 +29,9 @@ export async function PUT(
         "ATTACHMENTS_READ_ONLY",
         "Attachment intake is disabled during rollback. Existing clean bound evidence remains readable.",
       );
+    operation = "open_resources";
     const { write, files } = await holdingResources(actor.holdingId);
+    operation = "load_reservation";
     const universal = await write
       .prepare(
         `SELECT u.declared_bytes,u.media_type,u.attachment_set_id,u.owner_type,u.purpose,
@@ -68,6 +72,7 @@ export async function PUT(
         "UPLOAD_TYPE",
         "Content-Type must match the reserved file type.",
       );
+    operation = "read_body";
     const buffer = await readBoundedUploadBody(
       request,
       Number(universal.declared_bytes),
@@ -91,15 +96,17 @@ export async function PUT(
         "ATTACHMENT_COMPATIBILITY_CONTEXT_CHANGED",
         "This legacy upload no longer matches an approved domain binding context.",
       );
+    operation = "complete_upload";
     const uploaded = await completeAttachmentUpload(
       write,
       files,
       actor,
       id,
       buffer,
-      { compatibilityAdapter },
+      { compatibilityAdapter, requestId },
     );
     if (compatibilityAdapter) {
+      operation = "scan";
       const state = await scanAttachmentNow(write, files, uploaded.sourceId);
       if (state !== "available")
         throw new ApiError(
@@ -119,6 +126,7 @@ export async function PUT(
           },
           { status: 202 },
         );
+      operation = "bind";
       const result = await bindCompatibilityAttachmentSet(
         write,
         actor,
@@ -131,6 +139,28 @@ export async function PUT(
     }
     return Response.json({ data: uploaded }, { status: 202 });
   } catch (error) {
-    return errorResponse(error);
+    const response = errorResponse(error instanceof Error && error.name === "XMinioStorageFull"
+      ? new ApiError(507, "UPLOAD_STORAGE_FULL", "File storage is temporarily full. Your draft is saved; try the upload again later.")
+      : error);
+    if (response.status >= 500) {
+      const errorCode = error && typeof error === "object" && "code" in error &&
+        typeof error.code === "string" && /^[A-Za-z0-9_]{1,80}$/.test(error.code)
+        ? error.code : undefined;
+      const errorName = error instanceof Error && /^[A-Za-z0-9_]{1,80}$/.test(error.name)
+        ? error.name : typeof error;
+      console.error(JSON.stringify({
+        event: "attachment_upload_failed",
+        requestId,
+        operation,
+        errorName,
+        errorCode,
+      }));
+      const body = await response.json() as { error: { code: string; message: string } };
+      return Response.json({ error: { ...body.error, requestId } }, {
+        status: response.status,
+        headers: { "X-Request-ID": requestId },
+      });
+    }
+    return response;
   }
 }

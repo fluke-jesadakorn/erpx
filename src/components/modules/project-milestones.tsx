@@ -4,12 +4,10 @@ import { useState, type FormEvent } from "react";
 import type { ProjectMilestoneRow } from "@/server/project-milestones";
 import type { StaffPerson } from "@/server/staff-policy";
 import { useStaffCommand } from "./staff-work-controls";
+import { localDateTimeCandidates, localMinuteAt } from "@/lib/calendar-timeline";
+import { TimeText, useDisplayTimeZone } from "@/components/time/time-preference-context";
+import { utcOffset } from "@/lib/ui-format";
 
-function localDateTime(value: number) {
-  const date = new Date(value);
-  const local = new Date(value - date.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
-}
 
 export function ProjectMilestoneConsole({
   base,
@@ -29,10 +27,13 @@ export function ProjectMilestoneConsole({
   canManage: boolean;
 }) {
   const { send, busy, error } = useStaffCommand(base);
+  const {timeZone} = useDisplayTimeZone();
   const [editing, setEditing] = useState<ProjectMilestoneRow | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueAt, setDueAt] = useState("");
+  const [dueChoice, setDueChoice] = useState<number|null>(null);
+  const [timeError, setTimeError] = useState("");
   const [ownerUserId, setOwnerUserId] = useState(projectOwnerId);
   const [dependsOnMilestoneIds, setDependsOnMilestoneIds] = useState<string[]>([]);
   const memberIds = new Set([projectOwnerId, ...members]);
@@ -42,7 +43,9 @@ export function ProjectMilestoneConsole({
     setEditing(row);
     setTitle(row.title);
     setDescription(row.description);
-    setDueAt(localDateTime(row.due_at));
+    const local = localMinuteAt(row.due_at,timeZone);
+    setDueAt(`${local.date}T${local.time}`);
+    setDueChoice(row.due_at);
     setOwnerUserId(memberIds.has(row.owner_user_id) ? row.owner_user_id : projectOwnerId);
     setDependsOnMilestoneIds(row.depends_on_ids);
   }
@@ -52,17 +55,22 @@ export function ProjectMilestoneConsole({
     setTitle("");
     setDescription("");
     setDueAt("");
+    setDueChoice(null);setTimeError("");
     setOwnerUserId(projectOwnerId);
     setDependsOnMilestoneIds([]);
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const candidates = localDateTimeCandidates(dueAt,timeZone);
+    if (!candidates.length) { setTimeError(`This local time does not exist in ${timeZone}. Choose another time.`); return; }
+    if (candidates.length > 1 && !candidates.includes(dueChoice ?? -1)) { setTimeError("This time occurs twice. Choose the UTC offset below."); return; }
+    setTimeError("");
     const milestonePath = `projects/${encodeURIComponent(projectId)}/milestones${editing ? `/${encodeURIComponent(editing.id)}` : ""}`;
     const result = await send(milestonePath, {
       title,
       description,
-      dueAt: new Date(dueAt).toISOString(),
+      dueAt: new Date(candidates.length === 1 ? candidates[0] : dueChoice!).toISOString(),
       ownerUserId,
       dependsOnMilestoneIds,
       expectedVersion: editing?.version ?? 1,
@@ -88,7 +96,7 @@ export function ProjectMilestoneConsole({
           return <li className="row" key={milestone.id}>
             <div>
               <strong>{milestone.title}</strong>
-              <p>{milestone.state.replaceAll("_", " ")} · Due {new Date(milestone.due_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} · {milestone.owner_name ?? milestone.owner_user_id}{milestone.is_overdue ? " · Overdue" : ""}</p>
+              <p>{milestone.state.replaceAll("_", " ")} · Due <TimeText value={milestone.due_at} /> · {milestone.owner_name ?? milestone.owner_user_id}{milestone.is_overdue ? " · Overdue" : ""}</p>
               {milestone.depends_on_titles.length > 0 && <p>Prerequisites: {milestone.depends_on_titles.join(", ")}</p>}
               {milestone.blocked_by_count > 0 && <p role="status">Blocked until complete: {milestone.blocked_by_titles.join(", ")}</p>}
               {milestone.description && <p>{milestone.description}</p>}
@@ -106,7 +114,9 @@ export function ProjectMilestoneConsole({
       {canManage && <form className="content-stack" onSubmit={save}>
         <h3>{editing ? "Edit milestone" : "Add a milestone"}</h3>
         <label>Milestone title<input required minLength={2} maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} /></label>
-        <label>Due date and time<input required type="datetime-local" value={dueAt} onChange={(event) => setDueAt(event.target.value)} /></label>
+        <label>Due date and time · {timeZone}<input required type="datetime-local" value={dueAt} onChange={(event) => {setDueAt(event.target.value);setDueChoice(null);setTimeError("");}} /></label>
+        {dueAt && localDateTimeCandidates(dueAt,timeZone).length > 1 && <fieldset><legend>Choose the offset for this repeated local time</legend>{localDateTimeCandidates(dueAt,timeZone).map(instant => <label key={instant}><input type="radio" name="dueOffset" checked={dueChoice===instant} onChange={() => setDueChoice(instant)} />{utcOffset(instant,timeZone)}</label>)}</fieldset>}
+        {timeError && <p role="alert">{timeError}</p>}
         <label>Responsible member<select required value={ownerUserId} onChange={(event) => setOwnerUserId(event.target.value)}>
           {owners.map((person) => <option key={person.user_id} value={person.user_id}>{person.legal_name}</option>)}
           {!owners.some((person) => person.user_id === ownerUserId) && <option value={ownerUserId}>{ownerUserId}</option>}

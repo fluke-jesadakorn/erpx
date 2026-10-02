@@ -671,6 +671,12 @@
     "columns": 12
   },
   {
+    "id": "billing-target",
+    "title": "Measured usage & target billing",
+    "page": "platform-billing",
+    "columns": 12
+  },
+  {
     "id": "billing-overview",
     "title": "Overview",
     "page": "administration-usage",

@@ -1,11 +1,15 @@
 "use client";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Alert, Button, Field, TextInput } from "@/components/ui/foundation";
+const subscribeHydration = () => () => {};
+const clientHydrated = () => true;
+const serverHydrated = () => false;
 
 export function LoginForm({ next, frontMode = false }: { next?: string; frontMode?: boolean }) {
   const router = useRouter();
+  const hydrated = useSyncExternalStore(subscribeHydration, clientHydrated, serverHydrated);
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -33,7 +37,7 @@ export function LoginForm({ next, frontMode = false }: { next?: string; frontMod
     }
   }
   return (
-    <form className="form" onSubmit={submit}>
+    <form className="form" method="post" onSubmit={submit}>
       <Field label={frontMode ? "อีเมลพนักงาน" : "Work email"} required>
         <TextInput name="email" type="email" autoComplete="username" required />
       </Field>
@@ -46,7 +50,7 @@ export function LoginForm({ next, frontMode = false }: { next?: string; frontMod
         />
       </Field>
       {error && <Alert tone="danger" title={frontMode ? "เข้าสู่ระบบไม่สำเร็จ" : "Sign in failed"} live>{error}</Alert>}
-      <Button type="submit" pending={pending}>{frontMode ? "เข้าสู่ระบบ" : "Sign in"}</Button>
+      <Button type="submit" pending={pending} disabled={!hydrated}>{frontMode ? "เข้าสู่ระบบ" : "Sign in"}</Button>
     </form>
   );
 }

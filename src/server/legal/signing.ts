@@ -7,6 +7,10 @@ import { requireFreshMfa } from "../iam-mfa";
 import { runtimeEnv } from "../runtime";
 import { executeCommand, assertion, replayCommand } from "../commands";
 import { access, guards, event, fail } from "./access";
+/** v1 records externally signed originals; sending/signing needs its own release. */
+export function assertLegalSigningEnabled(){
+  fail("Signing through ERPX is unavailable in this release. Import the signed original for independent review.","LEGAL_SIGNING_DISABLED",409);
+}
 export async function sendEnvelope(
   db: SqlDatabase,
   a: WorkContext,
@@ -23,6 +27,7 @@ export async function sendEnvelope(
     })
     .parse(raw);
   const item = await access(db, a, x.id, "legal.sign");
+  assertLegalSigningEnabled();
   const prior = await replayCommand<{ id: string; version: number }>(
     db,
     a,
@@ -125,6 +130,7 @@ export async function signingAction(
       consent: z.string().optional(),
     })
     .parse(raw);
+  if(x.action!=="signing.view")assertLegalSigningEnabled();
   const item = await access(db, a, x.id),
     e = await db
       .prepare(

@@ -1,0 +1,3 @@
+reference,status,confirmation_ref,bank_transaction_id,bank_version
+PAY-synthetic-run-item-001,confirmed,TX-SYNTHETIC-001,bank-tx-synthetic-001,1
+PAY-synthetic-run-item-002,failed,,,

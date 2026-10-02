@@ -4,6 +4,7 @@ import Link from "next/link";
 import {workFetch} from "@/lib/work-fetch";
 import type {InboxItem} from "@/server/inbox";
 import styles from "./inbox-updates.module.css";
+import { TimeText } from "@/components/time/time-preference-context";
 type Person={id:string;name:string;email:string};
 type Node={id:string;kind:string;name:string;inScope?:boolean};
 type SentNotice={id:string;title:string;accepted_count:number;delivered_count:number;created_at:number};
@@ -52,7 +53,7 @@ export function InboxUpdates({base,canBroadcast}:{base:string;canBroadcast:boole
     </div>
     {error&&<p role="alert">{error}</p>}{status&&<p role="status">{status}</p>}
     <div className={styles.list}>{items.length===0?<p>No matching updates.</p>:items.map(item=><article key={item.id} className={styles.item} data-unread={!item.readAt}>
-      <div><span className={styles.category}>{item.category}</span> <time dateTime={new Date(item.createdAt).toISOString()}>{new Date(item.createdAt).toLocaleString()}</time></div>
+      <div><span className={styles.category}>{item.category}</span> <TimeText value={item.createdAt} /></div>
       {item.href?<Link href={`${base}${item.href}`}>{item.message}</Link>:<p>{item.message}</p>}
       <div className={styles.actions}><button onClick={()=>void state(item.id,{read:!item.readAt})}>{item.readAt?"Mark unread":"Mark read"}</button><button onClick={()=>void state(item.id,{archived:true})}>Archive</button></div>
     </article>)}</div>
@@ -64,7 +65,7 @@ export function InboxUpdates({base,canBroadcast}:{base:string;canBroadcast:boole
       <p>Notices are plain text. Delivery status does not show who read them.</p><button disabled={busy}>{busy?"Sending…":"Send notice"}</button>
     </form></details>
     {sent.length>0&&<details className={styles.compose}><summary>Sent notices</summary><div className={styles.list}>{sent.map(notice=><p key={notice.id}>
-      <strong>{notice.title}</strong> · {notice.delivered_count}/{notice.accepted_count} deliveries accepted · {new Date(notice.created_at).toLocaleString()}
+      <strong>{notice.title}</strong> · {notice.delivered_count}/{notice.accepted_count} deliveries accepted · <TimeText value={notice.created_at} />
     </p>)}</div></details>}
   </div>;
 }

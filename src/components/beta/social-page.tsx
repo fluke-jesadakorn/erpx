@@ -6,6 +6,7 @@ import { publicScope, type WorkContext } from "@/server/authorization";
 import { workspaceBase } from "@/lib/workspace";
 import { companyAuthority } from "@/server/staff-policy";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
+import { hasPermission } from "@/lib/permissions";
 const initialFeedSize = 8;
 export async function SocialPage({
   actor,
@@ -34,6 +35,7 @@ export async function SocialPage({
       name={actor.name}
       branchId={actor.branchId}
       canModerate={moderate}
+      canRequestLegal={hasPermission(actor, "legal.create")}
       initialPosts={posts}
       initialMeta={{
         handoffContext: { companyId: actor.companyId, userId: actor.userId,

@@ -1,5 +1,5 @@
 "use client";
-import { FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
+import { FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { AttachmentPanel } from "@/components/attachments/attachment-panel";
 import { AttachmentFeatureSurface } from "@/components/attachments/attachment-feature-context";
 import { RecordDocumentPanel, type RecordDocumentPurpose } from "@/components/attachments/record-document-panel";
@@ -10,8 +10,8 @@ import { PmsPromptPay } from './promptpay-counter';
 import { decimalToMinor } from "@/lib/finance-money";
 import {
 accountLabels,
+visiblePmsSections,
 dates,
-money,
 operationPermission,
 plusDays,
 pmsAccountKeys,
@@ -20,9 +20,11 @@ type DataMap,
 type Kind,
 type PmsRecord,
 } from "@/lib/pms-model";
+import { useCurrency, useMoneyFormatter } from "@/components/money/currency-provider";
 import { availability } from "@/lib/pms-inventory";
 import { dailyRoomReport, nightBlockers } from "@/lib/pms-read";
 import { workFetch } from "@/lib/work-fetch";
+import { TimeText } from "@/components/time/time-preference-context";
 import type { PmsWorkspace } from "@/server/pms";
 import {
 BedDouble,
@@ -41,10 +43,21 @@ import dynamic from "next/dynamic";
 const BookingFlow = dynamic(() => import("./booking-flow").then(module => module.BookingFlow));
 const BookingSettings = dynamic(() => import("./booking-settings").then(module => module.BookingSettings));
 import styles from "./workspace.module.css";
+import { ModuleTiles } from "@/components/hospitality/module-tiles";
+import { pmsMenu } from "@/components/hospitality/module-menu";
 import { FrontLocalizedTree, useFrontLanguage } from "@/components/front/front-language";
 import { frontText } from "@/lib/front-language";
 
 type Option = { id: string; name: string };
+function nightAuditMessage(message: string) {
+  return message === "PMS_PERIOD_CLOSED"
+    ? "Finance needs to check the accounting period for this business date before day close can continue."
+    : message;
+}
+function StatAmount({ formatted }: { formatted: string }) {
+  const separator = formatted.indexOf(" · ");
+  return separator < 0 ? <>{formatted}</> : <>{formatted.slice(0, separator)}<small className={styles.amountContext}> · {formatted.slice(separator + 3)}</small></>;
+}
 type Field = {
   name: string;
   label: string;
@@ -343,7 +356,7 @@ function Form({
         )}
         <div className={styles.formFoot}>
           <button className="button" disabled={busy}>
-            {busy ? "Saving…" : title}
+            {frontText(busy ? "Saving…" : title, language)}
           </button>
           {error && (
             <button
@@ -359,7 +372,7 @@ function Form({
               Review and use latest version
             </button>
           )}
-          {success && <span role="status">Saved</span>}
+          {success && <span role="status">{frontText("Saved", language)}</span>}
           {error && <span role="alert">{error}</span>}
         </div>
       </form>
@@ -408,6 +421,7 @@ const labelState: Record<string, string> = {
   clean: "Needs inspection",
   inspected: "Inspected",
   pending: "Pending",
+  verified: "Verified",
   working: "In progress",
   done: "Inspected",
   superseded: "Replaced by newer work",
@@ -442,11 +456,13 @@ type FrontPmsRows = <K extends Kind>(kind: K) => PmsRecord<K>[];
 function FrontPmsDaily({
   data,
   base,
+  erpBase,
   frontHref,
   section,
   snapshot,
   property,
   propertyId,
+  selectedRecord,
   today,
   from,
   setFrom,
@@ -474,11 +490,13 @@ function FrontPmsDaily({
 }: {
   data: PmsWorkspace;
   base: string;
+  erpBase: string;
   frontHref: string;
   section: string;
   snapshot: NonNullable<PmsWorkspace["snapshot"]> | null;
   property: NonNullable<PmsWorkspace["snapshot"]>["property"] | undefined;
   propertyId?: string;
+  selectedRecord?: string;
   today: string;
   from: string;
   setFrom: (value: string) => void;
@@ -505,9 +523,12 @@ function FrontPmsDaily({
   onPropertyChange: (value: string) => void;
 }) {
   const language = useFrontLanguage();
+  const formatSelectedMoney = useMoneyFormatter();
+  const money = (value: number) => formatSelectedMoney(value, property?.config.currency ?? "THB", today, 2);
   const tr = (value: string) => frontText(value, language);
   const roomRows = rows("room");
-  const taskRows = rows("task");
+  const taskRows = [...rows("task")].sort((a, b) => Number(b.data.priority === "urgent") - Number(a.data.priority === "urgent") || a.data.date.localeCompare(b.data.date) || roomName(a.data.roomId).localeCompare(roomName(b.data.roomId), undefined, { numeric: true }));
+  const visibleStays = stays.filter((row) => query === "arrivals" ? row.data.state === "reserved" && row.data.arrival === today : query === "departures" ? row.data.state === "in_house" && row.data.departure <= today : !query || row.data.state === query);
   const reservationRows = rows("reservation").filter((row) =>
     `${row.data.number} ${guestName(row.data.guestId)} ${row.data.externalRef} ${row.data.source}`
       .toLowerCase()
@@ -531,7 +552,11 @@ function FrontPmsDaily({
           .map((row) => `${row.data.name} · ${tr("Close cash shift")}`),
       ]
     : [];
-  const canOperate = Boolean(data.frontReady ?? (property && property.state === "open"));
+  const canRecoverBlockedNight = section === "night-audit" &&
+    property?.state === "closing" &&
+    can("pms.audit") &&
+    rows("night").some((row) => row.data.state === "blocked");
+  const canOperate = Boolean(data.frontReady ?? (property && property.state === "open")) || canRecoverBlockedNight;
   const showReservationForms = can("pms.reservations");
   const showFrontDeskForms = can("pms.frontdesk");
   const showCashierForms = can("pms.cashier");
@@ -642,7 +667,7 @@ function FrontPmsDaily({
                 </Panel>
                 <Panel title="Reservations">
                   <input aria-label={tr("Search reservations")} placeholder={tr("Search by name or confirmation number")} value={query} onChange={(event) => setQuery(event.target.value)} />
-                  {reservationRows.map((row) => <article className={styles.record} key={row.id}>
+                  {reservationRows.map((row) => <article className={styles.record} key={row.id} data-pms-record={row.id} tabIndex={-1}>
                     <div className={styles.line}><strong>{row.data.number}</strong><Badge>{labelState[row.data.state]}</Badge></div>
                     <p>{guestName(row.data.guestId)} · {row.data.source}</p>
                     {stays.filter((stay) => stay.data.reservationId === row.id).map((stay) => <p className={styles.muted} key={stay.id}>{stay.data.arrival} → {stay.data.departure} · {roomName(stay.data.roomId)}</p>)}
@@ -659,13 +684,14 @@ function FrontPmsDaily({
             )}
 
             {section === "front-desk" && <Panel title="Front desk">
-              <div className={styles.filters}>{["", "arrivals", "departures", "reserved", "in_house"].map((value) => <button type="button" key={value} className={`button ${query === value ? "" : "secondary"}`} onClick={() => setQuery(value)}>{tr(labelState[value] ?? "All")}</button>)}</div>
-              {stays.filter((row) => query === "arrivals" ? row.data.state === "reserved" && row.data.arrival === today : query === "departures" ? row.data.state === "in_house" && row.data.departure <= today : !query || row.data.state === query).map((row) => <article className={styles.record} key={row.id}>
+              <div className={styles.filters}>{["", "arrivals", "departures", "reserved", "in_house"].map((value) => <button type="button" key={value} aria-pressed={query === value} className={`button ${query === value ? "" : "secondary"}`} onClick={() => setQuery(value)}>{tr(labelState[value] ?? "All")}</button>)}</div>
+              {visibleStays.map((row) => <article className={styles.record} key={row.id} data-pms-record={row.id} tabIndex={-1}>
                 <div className={styles.line}><h3>{guestName(row.data.guestId)}</h3><Badge>{labelState[row.data.state]}</Badge></div>
                 <p>{roomName(row.data.roomId)} · {row.data.arrival} → {row.data.departure} · {row.data.adults} guests</p>
+                {showCashierForms && row.data.folioId && <Link className="button secondary" href={`${frontHref.replace(/\/$/, "")}/folios?${new URLSearchParams({ property: propertyId ?? "", folio: row.data.folioId })}`}>{tr("Guest folio")}</Link>}
                 <PmsRecordDocuments base={base} targetType="pms_stay" targetId={row.id} expectedTargetVersion={row.version} title="Registration and transfer documents" purposes={stayDocumentPurposes} editable={showFrontDeskForms}/>
                 {rows("guest").filter((guest) => guest.id === row.data.guestId).map((guest) => <PmsRecordDocuments key={guest.id} base={base} targetType="pms_guest" targetId={guest.id} expectedTargetVersion={guest.version} title="Guest identity and consent" purposes={guestDocumentPurposes} editable={showReservationForms}/>)}
-                {showFrontDeskForms && <>
+                {showFrontDeskForms && ["reserved", "in_house"].includes(row.data.state) && <>
                   {form(row.data.state === "in_house" ? "Move room" : "Assign room", row.data.state === "in_house" ? "stay.move" : "stay.assign", [select("roomId", "Room", rooms), field("reason", "Notes", "text", "", false)], { id: row.id })}
                   {row.data.state === "reserved" ? <>
                     {form("Check in", "stay.check_in", [], { id: row.id })}
@@ -680,7 +706,7 @@ function FrontPmsDaily({
                   {form("Change dates / extend stay", "stay.change_dates", [field("arrival", "Arrival date", "date", row.data.arrival), field("departure", "New departure date", "date", row.data.departure), select("rateId", "Rate plan", rates, row.data.rateId), field("reason", "Reason")], { id: row.id })}
                 </>}
               </article>)}
-              {!stays.length && <Empty>{tr("No guests are currently in house")}</Empty>}
+              {!visibleStays.length && <Empty>{language === "th" ? "ไม่มีผู้เข้าพักในคิวนี้ เลือกคิวอื่นเพื่อดูรายการ" : "No guests in this queue. Choose another view to see other stays."}</Empty>}
             </Panel>}
 
             {section === "rooms" && <Panel title="Rooms">
@@ -695,8 +721,10 @@ function FrontPmsDaily({
 
             {section === "housekeeping" && <>
               <Panel title="Housekeeping tasks">
-                {roomRows.map((row) => showHousekeepingForms && form(`${tr("Create housekeeping task")} · ${tr("Room")} ${row.data.number}`, "task.create", [select("type", "Task type", [{ id: "arrival", name: "Before arrival" }, { id: "stayover", name: "During stay" }, { id: "departure", name: "After check-out" }], "arrival"), field("date", "Work date", "date", today)], { roomId: row.id }))}
-                {taskRows.filter((row) => !["done", "superseded"].includes(row.data.state)).map((row) => <article className={styles.record} key={row.id}>
+                {showHousekeepingForms && <details className={styles.taskCreation} open={roomRows.some(row => row.id === selectedRecord)}><summary>{tr("Create housekeeping task")}</summary>
+                {roomRows.map((row) => showHousekeepingForms && <div key={row.id} data-pms-record={row.id} tabIndex={-1}>{form(`${tr("Create housekeeping task")} · ${tr("Room")} ${row.data.number}`, "task.create", [select("type", "Task type", [{ id: "arrival", name: "Before arrival" }, { id: "stayover", name: "During stay" }, { id: "departure", name: "After check-out" }], "arrival"), field("date", "Work date", "date", today)], { roomId: row.id })}</div>)}
+                </details>}
+                {taskRows.filter((row) => row.id === selectedRecord || !["done", "superseded"].includes(row.data.state)).map((row) => <article className={styles.record} key={row.id} data-pms-record={row.id} tabIndex={-1}>
                   <div className={styles.line}><h3>{tr("Room")} {roomName(row.data.roomId)} · {labelState[row.data.type]}</h3><Badge>{labelState[row.data.state]}</Badge></div>
                   <p>{row.data.date} · {row.data.priority === "urgent" ? tr("Urgent") : tr("Normal")}</p>
                   {showInspectionForms && form("Assign task", "task.assign", [select("assigneeId", "Staff member", data.staff), select("priority", "Priority", [{ id: "normal", name: "Normal" }, { id: "urgent", name: "Urgent" }], row.data.priority)], { id: row.id })}
@@ -705,44 +733,82 @@ function FrontPmsDaily({
                     { base, targetType: "pms_task", targetId: row.id, expectedTargetVersion: row.version, purposeKey: "room_photo", title: "Room completion photos", description: "Attach room-condition photos taken while completing this task." },
                     { base, targetType: "pms_task", targetId: row.id, expectedTargetVersion: row.version, purposeKey: "damage_photo", title: "Damage evidence", description: "Attach damage photos when the completed task found an exception." },
                   ])}
-                  {showInspectionForms && row.data.state === "clean" && form("Inspect task", "task.inspect", [], { id: row.id })}
+                  {showInspectionForms && row.data.state === "clean" && (row.data.completedBy === data.userId
+                    ? <p className={styles.notice}>{language === "th" ? "ส่งตรวจแล้ว ให้พนักงานอีกคนตรวจรับห้องนี้" : "Ready for review. Another staff member must inspect this room."}</p>
+                    : form("Inspect task", "task.inspect", [], { id: row.id }))}
                 </article>)}
                 {!taskRows.some((row) => !["done", "superseded"].includes(row.data.state)) && <Empty>{tr("No open room tasks")}</Empty>}
               </Panel>
               <Panel title="Rooms under maintenance">
-                {rows("block").filter((row) => row.data.kind === "maintenance" && row.data.state === "active").map((row) => <div className={styles.record} key={row.id}><strong>{tr("Room")} {roomName(row.data.roomId)} · {row.data.name}</strong><p>{row.data.from} → {row.data.to}</p>{showMaintenanceForms && form("Reopen room after inspection", "maintenance.close", [], { id: row.id })}</div>)}
+                {rows("block").filter((row) => row.data.kind === "maintenance" && row.data.state === "active").map((row) => <div className={styles.record} key={row.id} data-pms-record={row.id} tabIndex={-1}><strong>{tr("Room")} {roomName(row.data.roomId)} · {row.data.name}</strong><p>{row.data.from} → {row.data.to}</p>{showMaintenanceForms && form("Reopen room after inspection", "maintenance.close", [], { id: row.id })}</div>)}
               </Panel>
             </>}
 
             {section === "folios" && showCashierForms && <Panel title="Guest folio">
-              <label>{tr("Select folio")} <select value={currentFolio?.id ?? ""} onChange={(event) => setFolioId(event.target.value)}>{folios.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+              <label className={styles.folioPicker}>{tr("Select folio")} <select value={currentFolio?.id ?? ""} onChange={(event) => setFolioId(event.target.value)}>{folios.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
               {currentFolio ? <>
-                <div className={styles.stats}>{[["Balance due", currentFolio.data.due], ["Advance", currentFolio.data.advance], ["Deposit", currentFolio.data.deposit]].map(([label, value]) => <div className={styles.stat} key={String(label)}><span>{tr(String(label))}</span><strong>{money(Number(value))}</strong></div>)}</div>
+                <h3>{guestName(currentFolio.data.guestId)}</h3>
+                <div className={styles.stats}>{[["Balance due", currentFolio.data.due], ["Advance", currentFolio.data.advance], ["Deposit", currentFolio.data.deposit]].map(([label, value]) => <div className={styles.stat} key={String(label)}><span>{tr(String(label))}</span><strong><StatAmount formatted={money(Number(value))}/></strong></div>)}</div>
                 <Badge>{labelState[currentFolio.data.state]}</Badge>
-                <div className={styles.tableWrap}><table><thead><tr><th>{tr("Date")}</th><th>{tr("Item")}</th><th>{tr("Amount")}</th></tr></thead><tbody>{rows("entry").filter((entry) => entry.data.folioId === currentFolio.id).map((entry) => <tr key={entry.id}><td>{entry.data.date}</td><td>{entry.data.description}<small className={styles.muted}>{entry.data.kind} · {entry.data.reference}</small></td><td>{money(entry.data.total)}</td></tr>)}</tbody></table></div>
-                {form("Receive payment / advance", "payment.receive", [field("amount", "Amount", "money", currentFolio.data.due / 100), ...payments], { folioId: currentFolio.id })}
-                {form("Receive deposit", "payment.deposit", [field("amount", "Amount", "money", 0), ...payments], { folioId: currentFolio.id })}
-                {openShifts.length > 0 && form("Record bank transfer pending verification", "payment.request_transfer", [field("amount", "Transfer amount", "money", currentFolio.data.due / 100), field("reference", "Bank transfer reference"), select("kind", "Transfer purpose", [{ id: "receipt", name: "Room payment" }, { id: "deposit", name: "Security deposit" }], "receipt"), select("shiftId", "Cashier shift", openShifts, openShifts[0]?.id)], { folioId: currentFolio.id })}
-                {data.transferRequests.filter((item) => item.folio_id === currentFolio.id && item.recorded_by === data.userId).map((item) => <article className={styles.record} key={item.id}><strong>{money(Number(item.amount_minor))} · {item.reference}</strong><Badge>{item.state}</Badge>{item.state === "pending" && form("Cancel transfer request", "payment.cancel_transfer", [], { id: item.id, expectedTransferVersion: Number(item.version) })}</article>)}
-                {form("Add service charge", "charge.add", [field("description", "Item"), field("price", "Price", "money", 0)], { folioId: currentFolio.id })}
-                {form("Apply deposit to balance due", "payment.apply_deposit", [field("amount", "Amount", "money", 0), field("reason", "Reason")], { folioId: currentFolio.id })}
-                {form("Request refund", "refund.request", [select("pocket", "Fund type", [{ id: "advance", name: "Advance" }, { id: "deposit", name: "Deposit" }], "advance"), field("amount", "Amount", "money", 0), field("reason", "Reason")], { folioId: currentFolio.id })}
-                {form("Close folio", "folio.close", [], { id: currentFolio.id })}
+                <div className={`${styles.tableWrap} ${styles.folioEntries}`}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>{tr("Date")}</th>
+                        <th>{tr("Item")}</th>
+                        <th>{tr("Amount")}</th>
+                        <th>{tr("Correction")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows("entry").filter((entry) => entry.data.folioId === currentFolio.id).map((entry) => {
+                        const pending = data.chargeCorrections.find((item) => item.entry_id === entry.id && item.status === "pending");
+                        const reversed = rows("entry").some((item) => item.data.originalId === entry.id);
+                        const eligible = entry.data.method!=="opening" && ["charge", "transfer"].includes(entry.data.kind) &&
+                          entry.data.total > 0 && !entry.data.sourceKey?.startsWith("pos") && !reversed;
+                        return (
+                          <tr key={entry.id}>
+                            <td>{entry.data.date}</td>
+                            <td>{entry.data.description}<small className={styles.muted}>{entry.data.kind} · {entry.data.reference}</small></td>
+                            <td><StatAmount formatted={money(entry.data.total)}/></td>
+                            <td>{pending ? tr("Awaiting independent review") : eligible ? form("Request reversal", "charge.correction.request", [field("reason", "Reason")], { id: entry.id }) : null}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {propertyId&&<Link className="button secondary" href={`${erpBase}/pms/folios?property=${encodeURIComponent(propertyId)}&queue=corrections`}>{tr("Manage folio corrections in ERPX")}</Link>}
+                {currentFolio.data.state !== "closed" && form("Receive payment / advance", "payment.receive", [field("amount", "Amount", "money", currentFolio.data.due / 100), ...payments], { folioId: currentFolio.id })}
+                {currentFolio.data.state !== "closed" && form("Receive deposit", "payment.deposit", [field("amount", "Amount", "money", 0), ...payments], { folioId: currentFolio.id })}
+                {currentFolio.data.state !== "closed" && openShifts.length > 0 && form("Record bank transfer pending verification", "payment.request_transfer", [field("amount", "Transfer amount", "money", currentFolio.data.due / 100), field("reference", "Bank transfer reference"), select("kind", "Transfer purpose", [{ id: "receipt", name: "Room payment" }, { id: "deposit", name: "Security deposit" }], "receipt"), select("shiftId", "Cashier shift", openShifts, openShifts[0]?.id)], { folioId: currentFolio.id })}
+                {data.transferRequests.filter((item) => item.folio_id === currentFolio.id && item.recorded_by === data.userId).map((item) => <article className={styles.record} key={item.id} data-pms-record={item.id} tabIndex={-1}><strong>{money(Number(item.amount_minor))} · {item.reference}</strong><Badge tone={item.state === "verified" ? "good" : item.state === "pending" ? "warn" : undefined}>{labelState[item.state] ?? item.state}</Badge>{item.state === "pending" && form("Cancel transfer request", "payment.cancel_transfer", [], { id: item.id, expectedTransferVersion: Number(item.version) })}</article>)}
+                {data.chargeCorrections.filter(item=>item.folio_id===currentFolio.id).map(item=><article className={styles.record} key={item.id} data-pms-record={item.id} tabIndex={-1}><strong>{tr("Correction")} · {item.status}</strong><p>{item.reason}</p>{item.review_reason&&<p>{item.review_reason}</p>}</article>)}
+                {data.documents.filter(document=>document.folio_id===currentFolio.id).map(document=><a className={styles.record} key={document.id} href={`${erpBase}/pms/documents/${document.id}?property=${propertyId}`}>{tr(document.kind === "receipt" ? "Receipt" : document.kind === "refund" ? "Refund" : "Invoice")} · <TimeText value={document.created_at}/></a>)}
+                {currentFolio.data.state !== "closed" && form("Add service charge", "charge.add", [field("description", "Item"), field("price", "Price", "money", 0)], { folioId: currentFolio.id })}
+                {currentFolio.data.state !== "closed" && form("Apply deposit to balance due", "payment.apply_deposit", [field("amount", "Amount", "money", 0), field("reason", "Reason")], { folioId: currentFolio.id })}
+                {currentFolio.data.state !== "closed" && form("Request refund", "refund.request", [select("pocket", "Fund type", [{ id: "advance", name: "Advance" }, { id: "deposit", name: "Deposit" }], "advance"), field("amount", "Amount", "money", 0), field("reason", "Reason")], { folioId: currentFolio.id })}
+                {rows("refund").filter((row) => row.data.folioId === currentFolio.id).map((row) => <article className={styles.record} key={row.id} data-pms-record={row.id} tabIndex={-1}>
+                  <strong>{money(row.data.amount)} · {row.data.reason}</strong>
+                  <Badge>{labelState[row.data.state]}</Badge>
+                  {row.data.state === "approved" && form("Pay refund", "refund.pay", payments, { id: row.id })}
+                </article>)}
+                {currentFolio.data.state !== "closed" && form("Close folio", "folio.close", [], { id: currentFolio.id })}
               </> : <Empty>{tr("The folio will be created when the reservation is confirmed")}</Empty>}
             </Panel>}
 
             {section === "cashier" && showCashierForms && <Panel title="Cashier shifts">
               {form("Open cash shift", "shift.open", [field("name", "Shift / till name"), field("opening", "Opening float", "money", 0)])}
-              {rows("shift").map((row) => <article className={styles.record} key={row.id}><div className={styles.line}><h3>{row.data.name}</h3><Badge>{labelState[row.data.state]}</Badge></div><p>{row.data.date}</p><p>{tr("System cash")} {money(row.data.cash)} · {tr("Counted cash")} {money(row.data.counted)} · {tr("Variance")} {money(row.data.variance)}</p>{row.data.state === "open" && <>{form("Move cash / deposit", "cash.move", [{ ...field("amount", "Amount (+cash in / −bank deposit)", "money", 0), min: -9999999 }, field("reason", "Reason")], { shiftId: row.id })}{form("Close cash shift", "shift.close", [field("counted", "Counted cash", "money", row.data.cash / 100), field("handover", "Handover record", "textarea", "", false)], { id: row.id })}</>}</article>)}
+              {rows("shift").map((row) => <article className={styles.record} key={row.id} data-pms-record={row.id} tabIndex={-1}><div className={styles.line}><h3>{row.data.name}</h3><Badge>{labelState[row.data.state]}</Badge></div><p>{row.data.date}</p><p>{tr("System cash")} {money(row.data.cash)} · {tr("Counted cash")} {money(row.data.counted)} · {tr("Variance")} {money(row.data.variance)}</p>{row.data.state === "open" && <>{form("Move cash / deposit", "cash.move", [{ ...field("amount", "Amount (+cash in / −bank deposit)", "money", 0), min: -9999999 }, field("reason", "Reason")], { shiftId: row.id })}{form("Close cash shift", "shift.close", [field("counted", "Counted cash", "money", row.data.cash / 100), field("handover", "Handover record", "textarea", "", false)], { id: row.id })}</>}</article>)}
               {!rows("shift").length && <Empty>{tr("No cash shifts yet")}</Empty>}
             </Panel>}
 
             {section === "night-audit" && can("pms.audit") && <Panel title="Night audit">
               <div className={styles.auditHero}><MoonStar size={38} /><div><h3>{tr("Close business day")} {today}</h3><p>{tr("Post room charges and start the next day after today's work is complete")}</p></div></div>
-              {data.dayControls && <section className={styles.record}><p>{tr("Business date")} {data.dayControls.businessDate} · {data.dayControls.openBills} {tr("open bills")} · {data.dayControls.pendingPayments} {tr("pending payments")} · {data.dayControls.openShifts} {tr("open cash shifts")}</p>{data.dayControls.blockers.length > 0 && <ul className={styles.blockers}>{data.dayControls.blockers.map((item) => <li key={item}>{item}</li>)}</ul>}</section>}
-              {operationalNightBlockers.length > 0 ? <ul className={styles.blockers}>{operationalNightBlockers.map((item) => <li key={item}>{item}</li>)}</ul> : <p className={styles.notice}>{tr("Ready to close the day")}</p>}
-              {!operationalNightBlockers.length && !data.dayControls?.blockers.length && form("Start day close", "night.start")}
-              {rows("night").slice().reverse().map((row) => <article className={styles.record} key={row.id}><strong>{row.data.date}</strong> <Badge tone={row.data.state === "completed" ? "good" : "warn"}>{labelState[row.data.state]}</Badge><p>{row.data.message}</p>{row.data.state === "blocked" && form("Resolve and continue", "night.resume", [], { id: row.id })}</article>)}
+              {data.dayControls && <section className={styles.record}><p>POS · {tr("Business date")} {data.dayControls.businessDate} · {data.dayControls.openBills} {tr("open bills")} · {data.dayControls.pendingPayments} {tr("pending payments")} · {data.dayControls.openShifts} {tr("open cash shifts")}</p>{data.dayControls.blockers.length > 0 && <ul className={styles.blockers}>{data.dayControls.blockers.map((item) => <li key={item}>{item}</li>)}</ul>}</section>}
+              {property?.state === "open" && <>{operationalNightBlockers.length > 0 ? <ul className={styles.blockers}>{operationalNightBlockers.map((item) => <li key={item}>{item}</li>)}</ul> : !data.dayControls?.blockers.length && <p className={styles.notice}>{tr("Ready to close the day")}</p>}
+              {!operationalNightBlockers.length && !data.dayControls?.blockers.length && form("Start day close", "night.start")}</>}
+              {rows("night").slice().reverse().map((row) => <article className={styles.record} key={row.id} data-pms-record={row.id} tabIndex={-1}><strong>{row.data.date}</strong> <Badge tone={row.data.state === "completed" ? "good" : "warn"}>{labelState[row.data.state]}</Badge><p>{tr(nightAuditMessage(row.data.message))}</p>{row.data.state === "blocked" && form("Resolve and continue", "night.resume", [], { id: row.id })}</article>)}
             </Panel>}
           </>
         )}
@@ -762,6 +828,7 @@ export function PmsWorkspaceView({
   frontHref,
   frontPosHref,
   initialQueue,
+  selectedRecord,
 }: {
   initial: PmsWorkspace;
   base: string;
@@ -773,14 +840,17 @@ export function PmsWorkspaceView({
   frontHref?: string;
   frontPosHref?: string;
   initialQueue?: string;
+  selectedRecord?: string;
 }) {
   const language = useFrontLanguage();
+  const formatSelectedMoney = useMoneyFormatter();
+  const { displayCurrency } = useCurrency();
   const tr = useCallback((value: string) => frontText(value, language), [language]);
   const router = useRouter();
   const [data, setData] = useState(initial),
     [error, setError] = useState(""),
     [query, setQuery] = useState(initialQueue ?? ""),
-    [folioId, setFolioId] = useState(selectedFolio ?? ""),
+    [folioId, setFolioId] = useState(() => selectedFolio ?? (initial.snapshot ? records(initial.snapshot, "folio").find(row => row.data.state !== "closed")?.id ?? records(initial.snapshot, "folio")[0]?.id : "") ?? ""),
     [from, setFrom] = useState(
       initial.snapshot?.property.businessDate ?? initial.defaultDate,
     );
@@ -806,7 +876,7 @@ export function PmsWorkspaceView({
       pending=true;
       try {
         const r = await workFetch(
-          `/api/v1${base}/pms?${new URLSearchParams({...(propertyId?{property:propertyId}:{}),...(section==='night-audit'?{dayControls:'1'}:{})})}`,
+          `/api/v1${base}/pms?${new URLSearchParams({...(propertyId?{property:propertyId}:{}),...(section==='night-audit'?{dayControls:'1'}:{}),...(section==='dashboard'?{view:'dashboard'}:{})})}`,
           {signal:controller.signal},
         );
         if (r.ok) {
@@ -827,6 +897,7 @@ export function PmsWorkspaceView({
     };
   }, [base, language, propertyId, section, tr]);
   const send: Send = async (op, input, version, attachmentSetIds = []) => {
+    if (op === "reservation.create") input = { ...(input as Record<string, unknown>), currency: displayCurrency };
     if (frontMode && (op === "property.create" || op.startsWith("settings."))) {
       setError(tr("Hotel setup is available in ERPX administration."));
       return false;
@@ -867,7 +938,7 @@ export function PmsWorkspaceView({
       let refreshed = false;
       try {
         const fresh = await workFetch(
-          `/api/v1${base}/pms?property=${encodeURIComponent(pid)}`,
+          `/api/v1${base}/pms?${new URLSearchParams({property:pid,...(section==='dashboard'?{view:'dashboard'}:{})})}`,
         );
         if (fresh.ok) {
           setData((await fresh.json()).data);
@@ -897,6 +968,7 @@ export function PmsWorkspaceView({
     p = s?.property,
     version = p?.version,
     permissions = data.permissions;
+  const money = (value: number) => formatSelectedMoney(value, p?.config.currency ?? "THB", p?.businessDate ?? from, 2);
   const can = (permission: string) => permissions.some((p) => p === permission);
   const form = (
     title: string,
@@ -917,10 +989,17 @@ export function PmsWorkspaceView({
       version={version}
       transform={transform}
       attachments={attachments}
+      open={!!selectedRecord && (hidden.id === selectedRecord || hidden.roomId === selectedRecord)}
     />
   );
   const rows = <K extends Kind>(kind: K): PmsRecord<K>[] =>
     s ? records(s, kind) : [];
+  useEffect(()=>{
+    if(!selectedRecord)return;
+    const target=document.querySelector<HTMLElement>(`[data-pms-record="${CSS.escape(selectedRecord)}"]`);
+    if(!target)return;
+    target.scrollIntoView({block:"center"});target.focus({preventScroll:true});
+  },[selectedRecord,propertyId,section]);
   const options = <K extends Kind>(
     kind: K,
     label: (d: DataMap[K], id: string) => string,
@@ -937,7 +1016,7 @@ export function PmsWorkspaceView({
     ),
     guests = options("guest", (d) => d.name),
     rates = options("rate", (d) => `${d.name} · ${money(d.price)}`),
-    folios = options("folio", (d) => `${d.name} · Due ${money(d.due)}`),
+    folios = options("folio", (d) => `${guestName(d.guestId)} · ${d.name} · ${tr("Balance due")} ${money(d.due)}`),
     stays = rows("stay"),
     today = p?.businessDate ?? from;
   const currentFolio =
@@ -1011,11 +1090,13 @@ export function PmsWorkspaceView({
     return <FrontPmsDaily
       data={data}
       base={base}
+      erpBase={erpBase}
       frontHref={frontHref ?? `${base}/pms/`}
       section={section}
       snapshot={s}
       property={p}
       propertyId={propertyId}
+      selectedRecord={selectedRecord}
       today={today}
       from={from}
       setFrom={setFrom}
@@ -1078,7 +1159,9 @@ export function PmsWorkspaceView({
             <RefreshCw size={16} />
           </button>
         </div>
-      </header><FeatureTabs/><WidgetGrid>
+      </header>
+      <ModuleTiles label={tr("Hotel tasks")} current={section} items={pmsMenu(language).filter(item=>visiblePmsSections(permission=>permissions.some(value=>value===permission)).some(([id])=>id===item.id)).map(item=>({...item,href:`${base}/pms/${item.id}${propertyId?`?property=${encodeURIComponent(propertyId)}`:""}`}))}/>
+      <WidgetGrid>
       {error && (
         <div className={styles.error} role="alert">
           {error}
@@ -1115,6 +1198,7 @@ export function PmsWorkspaceView({
       </div>
       {!p ? (
         <Panel title="Set up your first hotel">
+          {!frontMode && <Link className="button secondary" href={`${erpBase}/hospitality/setup`}>Hotel + Restaurant Setup</Link>}
           <Empty>{tr("Add a hotel and connect it to a branch, then configure rooms, rates and accounts.")}</Empty>
           {frontMode ? (
             <Link className="button secondary" href={`${erpBase}/pms/settings`}>
@@ -1227,7 +1311,7 @@ export function PmsWorkspaceView({
                         <Badge>{labelState[r.data.state]}</Badge>
                       </Link>
                     ))}
-                  {!stays.length && (
+                  {!(s?.dashboardHasStays ?? Boolean(stays.length)) && (
                     <Empty>
                       No reservations yet. Open the hotel to start accepting
                       bookings.
@@ -1354,7 +1438,7 @@ export function PmsWorkspaceView({
                       .includes(query.toLowerCase()),
                   )
                   .map((r) => (
-                    <article key={r.id} className={styles.record}>
+                    <article key={r.id} className={styles.record} data-pms-record={r.id} tabIndex={-1}>
                       <div className={styles.line}>
                         <strong>{r.data.number}</strong>
                         <Badge>{labelState[r.data.state]}</Badge>
@@ -1420,7 +1504,7 @@ export function PmsWorkspaceView({
                         <ol>
                           {r.data.history?.map((h, i) => (
                             <li key={i}>
-                              {new Date(h.at).toLocaleString("en-GB")} ·{" "}
+                              <TimeText value={h.at} /> ·{" "}
                               {h.action} ·{" "}
                               {data.staff.find((st) => st.id === h.actor)
                                 ?.name ?? h.actor}
@@ -1498,7 +1582,7 @@ export function PmsWorkspaceView({
                       : !query || r.data.state === query,
                 )
                 .map((r) => (
-                  <article key={r.id} className={styles.record}>
+                  <article key={r.id} className={styles.record} data-pms-record={r.id} tabIndex={-1}>
                     <div className={styles.line}>
                       <h3>{guestName(r.data.guestId)}</h3>
                       <Badge>{labelState[r.data.state]}</Badge>
@@ -1704,14 +1788,14 @@ export function PmsWorkspaceView({
               </Panel>
               <Panel title="Tasks">
                 {rows("task")
-                  .filter((r) => !["done", "superseded"].includes(r.data.state))
+                  .filter((r) => r.id === selectedRecord || !["done", "superseded"].includes(r.data.state))
                   .sort(
                     (a, b) =>
                       Number(b.data.priority === "urgent") -
                       Number(a.data.priority === "urgent"),
                   )
                   .map((r) => (
-                    <article key={r.id} className={styles.record}>
+                    <article key={r.id} className={styles.record} data-pms-record={r.id} tabIndex={-1}>
                       <div className={styles.line}>
                         <h3>
                           Room {roomName(r.data.roomId)} ·{" "}
@@ -1798,7 +1882,7 @@ export function PmsWorkspaceView({
                       r.data.state === "active",
                   )
                   .map((r) => (
-                    <div className={styles.record} key={r.id}>
+                    <div className={styles.record} key={r.id} data-pms-record={r.id} tabIndex={-1}>
                       <strong>
                         Room {roomName(r.data.roomId)} · {r.data.name}
                       </strong>
@@ -1819,10 +1903,10 @@ export function PmsWorkspaceView({
             </>
           )}
           {section === "folios" &&
-            (can("pms.cashier") || can("pms.reports")) && (
+            (can("pms.cashier") || can("pms.reports") || can("pms.approve")) && (
               <>
                 <Panel title="Guest folio">
-                  <label>
+                  <label className={styles.folioPicker}>
                     Select folio
                     <select
                       value={currentFolio?.id ?? ""}
@@ -1837,6 +1921,7 @@ export function PmsWorkspaceView({
                   </label>
                   {currentFolio ? (
                     <>
+                      <h3>{guestName(currentFolio.data.guestId)}</h3>
                       <div className={styles.stats}>
                         {[
                           ["Balance due", currentFolio.data.due],
@@ -1845,12 +1930,12 @@ export function PmsWorkspaceView({
                         ].map(([label, n]) => (
                           <div className={styles.stat} key={String(label)}>
                             <span>{label}</span>
-                            <strong>{money(Number(n))}</strong>
+                            <strong><StatAmount formatted={money(Number(n))}/></strong>
                           </div>
                         ))}
                       </div>
                       <Badge>{labelState[currentFolio.data.state]}</Badge>
-                      <div className={styles.tableWrap}>
+                      <div className={`${styles.tableWrap} ${styles.folioEntries}`}>
                         <table>
                           <thead>
                             <tr>
@@ -1872,43 +1957,21 @@ export function PmsWorkspaceView({
                                       {e.data.kind} · {e.data.reference}
                                     </small>
                                   </td>
-                                  <td>{money(e.data.total)}</td>
+                                  <td><StatAmount formatted={money(e.data.total)}/></td>
                                   <td>
-                                    {["charge", "transfer"].includes(
-                                      e.data.kind,
-                                    ) &&
-                                      e.data.total > 0 && (
-                                        <>
-                                          {form(
-                                            "Reverse entry",
-                                            "charge.reverse",
-                                            [field("reason", "Reason")],
-                                            { id: e.id },
-                                          )}
-                                          {form(
-                                            "Transfer charge",
-                                            "folio.transfer",
-                                            [
-                                              select(
-                                                "toFolioId",
-                                                "Destination folio",
-                                                folios.filter(
-                                                  (f) =>
-                                                    f.id !== currentFolio.id,
-                                                ),
-                                              ),
-                                              field("reason", "Reason"),
-                                            ],
-                                            { entryId: e.id },
-                                          )}
-                                        </>
-                                      )}
+                                    {["charge", "transfer"].includes(e.data.kind) && e.data.total > 0 && (
+                                      <>
+                                        {e.data.sourceKey?.startsWith("pos") ? null : rows("entry").some(item=>item.data.originalId===e.id) ? null : data.chargeCorrections.some(item=>item.entry_id===e.id) ? <span>Awaiting independent review</span> : form("Request reversal","charge.correction.request",[field("reason","Reason")],{id:e.id})}
+                                        {form("Transfer charge","folio.transfer",[select("toFolioId","Destination folio",folios.filter(f=>f.id!==currentFolio.id)),field("reason","Reason")],{entryId:e.id})}
+                                      </>
+                                    )}
                                   </td>
                                 </tr>
                               ))}
                           </tbody>
                         </table>
                       </div>
+                      {propertyId&&<Link className="button secondary" href={`${erpBase}/pms/folios?property=${encodeURIComponent(propertyId)}&queue=corrections`}>Manage folio corrections</Link>}
                       <>
                         <div>
                           {form(
@@ -1948,8 +2011,8 @@ export function PmsWorkspaceView({
                           )}
                           {data.transferRequests.filter(item=>item.folio_id===currentFolio.id).map(item=>{
                             const bankChoices=data.transferBankEvidence.filter(bank=>bank.external_id===item.reference&&Number(bank.amount_minor)===Number(item.amount_minor)&&bank.currency===item.currency&&bank.transaction_date===item.business_date);
-                            return <article className={styles.record} key={item.id}>
-                              <strong>{money(Number(item.amount_minor))} · {item.reference}</strong> <Badge>{item.state}</Badge>
+                            return <article className={styles.record} key={item.id} data-pms-record={item.id} tabIndex={-1}>
+                              <strong>{money(Number(item.amount_minor))} · {item.reference}</strong> <Badge tone={item.state === "verified" ? "good" : item.state === "pending" ? "warn" : undefined}>{labelState[item.state] ?? item.state}</Badge>
                               <p>Bank transfer {item.state==='pending'?'recorded; no folio payment has posted':item.state==='verified'?'verified against imported bank evidence':'cancelled without a payment'}.</p>
                               {item.state==='pending'&&<>
                                 {form("Cancel unverified reference","payment.cancel_transfer",[],{id:item.id,expectedTransferVersion:Number(item.version)})}
@@ -2089,13 +2152,17 @@ export function PmsWorkspaceView({
                   )}
                 </Panel>
                 <Panel title="Refunds & credit">
+                  {can("pms.approve") && <Link className="button secondary" href={`${erpBase}/pms/cashier?property=${propertyId}&queue=approval`}>{tr("Review cashier shifts")}</Link>}
+                  {!rows("refund").some((r) => !["paid", "rejected"].includes(r.data.state)) &&
+                    !rows("credit").some((r) => r.data.state === "requested") &&
+                    <Empty>No refund or credit requests available for review.</Empty>}
                   {rows("refund")
                     .filter(
                       (r) =>
                         r.data.state !== "paid" && r.data.state !== "rejected",
                     )
                     .map((r) => (
-                      <article className={styles.record} key={r.id}>
+                      <article className={styles.record} key={r.id} data-pms-record={r.id} tabIndex={-1}>
                         <strong>
                           {money(r.data.amount)} · {r.data.reason}
                         </strong>
@@ -2124,7 +2191,7 @@ export function PmsWorkspaceView({
                   {rows("credit")
                     .filter((r) => r.data.state === "requested")
                     .map((r) => (
-                      <div key={r.id} className={styles.record}>
+                      <div key={r.id} className={styles.record} data-pms-record={r.id} tabIndex={-1}>
                         <strong>
                           {
                             data.parties.find((p) => p.id === r.data.partyId)
@@ -2141,8 +2208,17 @@ export function PmsWorkspaceView({
                       </div>
                     ))}
                 </Panel>
+                <Panel title="Folio charge corrections">
+                  {data.chargeCorrections.map((item)=><article className={styles.record} key={item.id} data-pms-record={item.id} tabIndex={-1}>
+                    <strong>{item.entry_description} · {money(Number(item.entry_total))}</strong>
+                    <p>Requested by {item.requested_by} · {item.reason}</p>
+                    <Badge>Awaiting independent review</Badge>
+                    {can("pms.approve")&&item.requested_by!==data.userId&&form("Review correction","charge.correction.review",[select("action","Decision",[{id:"approve",name:"Approve reversal"},{id:"reject",name:"Return request"}]),field("reason","Review reason")],{id:item.id,expectedVersion:Number(item.version)})}
+                  </article>)}
+                  {!data.chargeCorrections.length&&<Empty>No folio corrections are awaiting review.</Empty>}
+                </Panel>
                 {data.bookingRefunds.length>0&&<Panel title="Online booking refunds for Finance">
-                  {data.bookingRefunds.map(item=><article className={styles.record} key={item.id}>
+                  {data.bookingRefunds.map(item=><article className={styles.record} key={item.id} data-pms-record={item.id} tabIndex={-1}>
                     <strong>{money(item.amount_minor)} · {item.id.slice(0,8)}</strong>
                     <Badge>{item.refund_state}</Badge>
                     {item.last_error&&<span>{item.last_error}</span>}
@@ -2154,6 +2230,8 @@ export function PmsWorkspaceView({
                   </article>)}
                 </Panel>}
                 <Panel title="Documents">
+                  {!currentFolio?.data.invoiceId && !data.documents.some((d) => !currentFolio || d.folio_id === currentFolio.id) &&
+                    <Empty>No documents available for this folio yet.</Empty>}
                   {currentFolio?.data.invoiceId && <TaxDocumentReference base={erpBase} invoiceId={currentFolio.data.invoiceId}/>}
                   {data.documents
                     .filter(
@@ -2170,9 +2248,7 @@ export function PmsWorkspaceView({
                           {d.kind} · {d.id.slice(0, 8)}
                         </span>
                         <span>
-                          {new Date(d.created_at).toLocaleString("en-GB", {
-                            timeZone: p.config.timezone,
-                          })}
+                          <TimeText value={d.created_at} />
                         </span>
                       </Link>
                     ))}
@@ -2186,7 +2262,7 @@ export function PmsWorkspaceView({
                 field("opening", "Opening float", "money", 0),
               ])}
               {rows("shift").map((r) => (
-                <article className={styles.record} key={r.id}>
+                <article className={styles.record} key={r.id} data-pms-record={r.id} tabIndex={-1}>
                   <div className={styles.line}>
                     <h3>{r.data.name}</h3>
                     <Badge>{labelState[r.data.state]}</Badge>
@@ -2270,8 +2346,9 @@ export function PmsWorkspaceView({
                   select("warehouseId", "Warehouse", data.warehouses),
                   field("price", "Sale price", "money", 0),
                 ])}
+                {!rows("item").length&&<p className={styles.empty}>{tr("No items available in this view.")}</p>}
                 {rows("item").map((r) => (
-                  <article className={styles.record} key={r.id}>
+                  <article className={styles.record} key={r.id} data-pms-record={r.id} tabIndex={-1}>
                     <h3>{r.data.name}</h3>
                     {r.data.kind === "linen" && (
                       <p>
@@ -2328,8 +2405,9 @@ export function PmsWorkspaceView({
                   field("foundDate", "Date found", "date", today),
                   field("notes", "Notes", "textarea", "", false),
                 ])}
+                {!rows("lost").length&&<p className={styles.empty}>{tr("No lost-property records available in this view.")}</p>}
                 {rows("lost").map((r) => (
-                  <div className={styles.record} key={r.id}>
+                  <div className={styles.record} key={r.id} data-pms-record={r.id} tabIndex={-1}>
                     <strong>{r.data.description}</strong>
                     <p>
                       Room {roomName(r.data.roomId)} · {r.data.location} ·{" "}
@@ -2370,6 +2448,7 @@ export function PmsWorkspaceView({
                 ))}
               </Panel>
               <Panel title="Movement history">
+                {!rows("movement").length&&<p className={styles.empty}>{tr("No stock movements available in this view.")}</p>}
                 {rows("movement")
                   .slice(-30)
                   .reverse()
@@ -2406,15 +2485,14 @@ export function PmsWorkspaceView({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
               />
+              {!rows("guest").some(r=>`${r.data.name} ${r.data.phone}`.includes(query))&&<p className={styles.empty}>{tr("No matching guest records available in this view.")}</p>}
               {rows("guest")
                 .filter((r) => `${r.data.name} ${r.data.phone}`.includes(query))
                 .map((r) => (
-                  <article className={styles.record} key={r.id}>
+                  <article className={styles.record} key={r.id} data-pms-record={r.id} tabIndex={-1}>
                     <h3>{r.data.name}</h3>
-                    <p>
-                      {r.data.phone} · {r.data.email} · {r.data.nationality}
-                    </p>
-                    <p>{r.data.notes}</p>
+                    {[r.data.phone,r.data.email,r.data.nationality].some(Boolean)&&<p>{[r.data.phone,r.data.email,r.data.nationality].filter(Boolean).join(" · ")}</p>}
+                    {r.data.notes&&<p>{r.data.notes}</p>}
                     <p className={styles.muted}>
                       History{" "}
                       {stays.filter((s) => s.data.guestId === r.id).length}{" "}
@@ -2500,7 +2578,7 @@ export function PmsWorkspaceView({
                             <li key={b}>{b}</li>
                           ))}
                         </ul>
-                      ) : (
+                      ) : !data.dayControls?.blockers.length && (
                         <p className={styles.notice}>Ready to close the day.</p>
                       )}
                       {!nightBlockers(s!).length && !data.dayControls?.blockers.length && form("Start day close", "night.start")}
@@ -2510,14 +2588,14 @@ export function PmsWorkspaceView({
                     .slice()
                     .reverse()
                     .map((r) => (
-                      <article className={styles.record} key={r.id}>
+                      <article className={styles.record} key={r.id} data-pms-record={r.id} tabIndex={-1}>
                         <strong>{r.data.date}</strong>{" "}
                         <Badge
                           tone={r.data.state === "completed" ? "good" : "warn"}
                         >
                           {labelState[r.data.state]}
                         </Badge>
-                        <p>{r.data.message}</p>
+                        <p>{tr(nightAuditMessage(r.data.message))}</p>
                         {r.data.state === "blocked" &&
                           form("Resolve and continue", "night.resume", [], {
                             id: r.id,
@@ -2658,6 +2736,7 @@ export function PmsWorkspaceView({
           )}
           {section === "settings" && (
             <>
+              {(can("pms.configure")||can("pms.accounting.approve"))&&<Panel title="Hotel cutover"><Link href={`${erpBase}/pms/import?property=${p.id}`}>Preview imported hotel records and Finance-approved opening balances →</Link></Panel>}
               {can("pms.configure") && (
                 <BookingSettings
                   key={p.id}
@@ -2687,6 +2766,12 @@ export function PmsWorkspaceView({
                 </Panel>
               )}
               <Panel title="Hotel details">
+                {!can("pms.configure")&&<>
+                  <dl className={styles.settingsOverview}>
+                    {[["Hotel name",p.name],["Country code",p.config.country],["Time zone",p.config.timezone],["Business date",p.businessDate],["Check-in time",p.config.checkIn],["Check-out time",p.config.checkOut]].map(([label,value])=><div key={label}><dt>{tr(label)}</dt><dd>{value}</dd></div>)}
+                  </dl>
+                  {p.config.cancellationPolicy&&<p className={styles.muted}>{tr("Cancellation policy")}: {p.config.cancellationPolicy}</p>}
+                </>}
                 {form("Save hotel", "property.save", [
                   field("name", "Hotel name", "text", p.name),
                   field("country", "Country code", "text", p.config.country),
@@ -2725,7 +2810,7 @@ export function PmsWorkspaceView({
                     field("amenities", "Amenities", "textarea", "", false),
                   ])}
                   {rows("room_type").map((r) => (
-                    <div className={styles.record} key={r.id}>
+                    <div className={styles.record} key={r.id} data-pms-record={r.id} tabIndex={-1}>
                       <strong>{r.data.name}</strong> · {r.data.capacity} guests
                       {form(
                         "Edit room type",
@@ -2760,7 +2845,7 @@ export function PmsWorkspaceView({
                     field("active", "Room active", "checkbox", true),
                   ])}
                   {rows("room").map((r) => (
-                    <div className={styles.record} key={r.id}>
+                    <div className={styles.record} key={r.id} data-pms-record={r.id} tabIndex={-1}>
                       <strong>{r.data.number}</strong> · {r.data.building}{" "}
                       {r.data.floor}
                       {form(
@@ -2793,7 +2878,7 @@ export function PmsWorkspaceView({
               <Panel title="Rate plans">
                 {form("Add rate plan", "rate.save", rateFields())}
                 {rows("rate").map((r) => (
-                  <div className={styles.record} key={r.id}>
+                  <div className={styles.record} key={r.id} data-pms-record={r.id} tabIndex={-1}>
                     <strong>
                       {r.data.name} · {money(r.data.price)}
                     </strong>
@@ -2835,6 +2920,7 @@ export function PmsWorkspaceView({
                 ))}
               </Panel>
               <Panel title="Accounting & tax">
+                <Link href={`${erpBase}/hospitality/setup`}>Hotel + Restaurant Setup</Link>
                 <p>
                   Pilot currency THB · The preparer and approver must be
                   different people.
@@ -2843,6 +2929,15 @@ export function PmsWorkspaceView({
                   {p.config.approvedBy ? "Approved" : "Awaiting approval"} ·
                   Revision {p.config.revision}
                 </Badge>
+                {!can("pms.configure")&&<>
+                  <dl className={styles.settingsOverview}>
+                    {[["Chart of accounts",data.charts.find(chart=>chart.id===p.config.chartId)?.name??tr("Not configured")],["Currency",p.config.currency],["Tax (%)",`${p.config.taxBps/100}%`],["Service Charge (%)",`${p.config.serviceBps/100}%`],["Sale prices include tax and Service Charge",tr(p.config.taxInclusive?"Yes":"No")],["Advance is taxed when received",tr(p.config.advanceTax?"Yes":"No")]].map(([label,value])=><div key={label}><dt>{tr(label)}</dt><dd>{value}</dd></div>)}
+                  </dl>
+                  <details className={styles.settingsMapping} open={!p.config.approvedBy}>
+                    <summary>{tr("Account mappings")} · {pmsAccountKeys.length}</summary>
+                    <dl className={styles.settingsOverview}>{pmsAccountKeys.map(key=>{const account=data.accounts.find(row=>row.id===p.config.accounts[key]);return <div key={key}><dt>{tr(accountLabels[key])}</dt><dd>{account?`${account.code} · ${account.name}`:tr("Account unavailable")}</dd></div>;})}</dl>
+                  </details>
+                </>}
                 {form(
                   "Save accounting and tax setup",
                   "accounting.save",
@@ -2892,7 +2987,7 @@ export function PmsWorkspaceView({
                     ),
                   }),
                 )}
-                {form("Approve accounting and tax setup", "accounting.approve")}
+                {!p.config.approvedBy&&(p.config.preparedBy===data.userId?<p className={styles.muted}>{tr("A different Finance reviewer must approve this setup.")}</p>:form("Approve accounting and tax setup", "accounting.approve"))}
                 {form("Verify readiness and open hotel", "property.enable")}
               </Panel>
             </>

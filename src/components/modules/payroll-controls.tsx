@@ -1,86 +1,234 @@
 "use client";
-
 import { workFetch } from "@/lib/work-fetch";
-import { useRef,useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { minorToDecimal } from "@/lib/finance-money";
+import { MoneyAmount } from "@/components/money/currency-provider";
 import Link from "next/link";
 import { AttachmentPanel, type AttachmentPanelChange } from "@/components/attachments/attachment-panel";
 import { RecordDocumentPanel } from "@/components/attachments/record-document-panel";
-type Row=Record<string,unknown>;
-function usePeopleCommand(base:string){const router=useRouter(),attempt=useRef<{body:string;key:string}|null>(null);const [busy,setBusy]=useState(false),[error,setError]=useState("");async function send(path:string,input:unknown,redirect=false){const body=JSON.stringify(input);if(attempt.current?.body!==path+body)attempt.current={body:path+body,key:crypto.randomUUID()};setBusy(true);setError("");try{const r=await workFetch(`/api/v1${base}/people/${path}`,{method:"POST",headers:{"Content-Type":"application/json","Idempotency-Key":attempt.current.key},body});const v=await r.json() as {data:{id:string};error?:{message:string}};if(!r.ok)throw new Error(v.error?.message??"Could not save.");attempt.current=null;if(redirect)router.push(`${base}/people/payroll/${v.data.id}`);router.refresh();return true;}catch(e){setError(e instanceof Error?e.message:"Connection interrupted. Retry.");return false;}finally{setBusy(false);}}return {send,busy,error};}
-export function PayrollRunEditor({base,groups,simulationMode=false}:{base:string;groups:Row[];simulationMode?:boolean}){const [open,setOpen]=useState(false);const {send,busy,error}=usePeopleCommand(base);return <section className="card"><button className="button" onClick={()=>setOpen(!open)}>{simulationMode?"Create payroll simulation (mock)":"Create payroll preview"}</button>{open&&<form className="business-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget),group=groups.find(g=>g.id===f.get("payGroupId"));void send("payroll/runs",{payGroupId:f.get("payGroupId"),currency:group?.currency,periodStart:f.get("periodStart"),periodEnd:f.get("periodEnd"),payDate:f.get("payDate"),mode:"preview"},true);}}><label>Pay group<select name="payGroupId" required><option value="">Select pay group</option>{groups.map(g=><option key={String(g.id)} value={String(g.id)}>{String(g.name)} · {String(g.currency)}</option>)}</select></label><label>Period start<input name="periodStart" type="date" required/></label><label>Period end<input name="periodEnd" type="date" required/></label><label>Pay date<input name="payDate" type="date" required/></label><button className="button" disabled={busy}>Save payroll run</button><p className="muted">{simulationMode?"Simulation only: fixed, synthetic fixture values exercise the workflow; they are not Thai statutory calculations and no money is transferred.":"Global gross-pay preview. Statutory tax, social contributions and payment execution require validated local adapters."}</p></form>}{error&&<p role="alert">{error}</p>}</section>;}
-export function PayGroupEditor({base}:{base:string}){const {send,busy,error}=usePeopleCommand(base),[open,setOpen]=useState(false);return <section className="card"><button type="button" className="button secondary" onClick={()=>setOpen(!open)}>{open?"Close pay group form":"Configure pay group"}</button>{error&&<p role="alert">{error}</p>}{open&&<form className="business-form" onSubmit={async event=>{event.preventDefault();const form=new FormData(event.currentTarget);if(await send("pay-groups",{name:form.get("name"),countryCode:form.get("countryCode"),currency:form.get("currency"),frequency:form.get("frequency"),timezone:form.get("timezone"),overtimeMultiplierBps:Math.round(Number(form.get("overtimeMultiplier"))*10000),prorationMethod:form.get("prorationMethod")}))setOpen(false);}}><label>Name<input name="name" required maxLength={120}/></label><label>Country code<input name="countryCode" required minLength={2} maxLength={2} defaultValue="TH"/></label><label>Currency<input name="currency" required minLength={3} maxLength={3} defaultValue="THB"/></label><label>Frequency<select name="frequency" defaultValue="monthly"><option value="weekly">Weekly</option><option value="fortnightly">Fortnightly</option><option value="semimonthly">Semimonthly</option><option value="monthly">Monthly</option></select></label><label>Timezone<input name="timezone" required defaultValue="Asia/Bangkok"/></label><label>Overtime multiplier<input name="overtimeMultiplier" type="number" min="1" max="5" step="0.01" required defaultValue="1.5"/></label><label>Proration<select name="prorationMethod" defaultValue="calendar_days"><option value="calendar_days">Calendar days</option><option value="none">Require manual full-period inputs</option></select></label><button className="button" disabled={busy}>Save pay group policy</button></form>}<p className="muted">This policy controls payroll-core calculations only. It does not claim country-specific statutory compliance.</p></section>;}
-export function PayrollActions({base,run,simulationMode=false,canCalculate,canApprove,canExport,canPost,postingOptions,paymentBatch,paymentItems,canPreparePayment,canApprovePayment,canExportPayment,canConfirmPayment}:{base:string;run:Row;simulationMode?:boolean;canCalculate:boolean;canApprove:boolean;canExport:boolean;canPost:boolean;postingOptions:{charts:Row[];periods:Row[];accounts:Row[]}|null;paymentBatch:Row|null;paymentItems:Row[];canPreparePayment:boolean;canApprovePayment:boolean;canExportPayment:boolean;canConfirmPayment:boolean}){
- const {send,busy,error}=usePeopleCommand(base),[chartId,setChartId]=useState(String(postingOptions?.charts[0]?.id??"")),totals=JSON.parse(String(run.totals_json??"{}")) as {deductions?:number;employer?:number},accounts=(postingOptions?.accounts??[]).filter(account=>String(account.chart_id)===chartId),expenses=accounts.filter(account=>String(account.category)==="expense"),liabilities=accounts.filter(account=>String(account.category)==="liability"),batch=paymentBatch;
- return <section className="card"><div className="form-actions">{canCalculate&&["draft","calculating","preview","failed"].includes(String(run.status))&&<button className="button" disabled={busy} onClick={()=>send(`payroll/runs/${run.id}/calculate`,{})}>{simulationMode?"Calculate deterministic mock payroll":"Calculate gross-pay preview"}</button>}{canApprove&&run.status==="preview"&&<button className="button" disabled={busy} onClick={()=>send(`payroll/runs/${run.id}/approve`,{expectedVersion:run.version})}>Approve reviewed preview</button>}{canExport&&["preview","approved"].includes(String(run.status))&&<button className="button secondary" disabled={busy} onClick={()=>send(`payroll/runs/${run.id}/export-review`,{})}>Export this reviewed revision</button>}</div>{error&&<p role="alert">{error}</p>}
-  {canPost&&run.status==="approved"&&postingOptions&&<form className="business-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void send(`payroll/runs/${run.id}/post`,{chartId:f.get("chartId"),periodId:f.get("periodId"),entryDate:f.get("entryDate"),expenseAccountId:f.get("expenseAccountId"),netPayableAccountId:f.get("netPayableAccountId"),taxPayableAccountId:f.get("taxPayableAccountId")||undefined,employerContributionAccountId:f.get("employerContributionAccountId")||undefined,expectedVersion:Number(run.version)});}}><h2>Post approved payroll to Finance</h2><p className="muted">Finance posting creates one balanced, source-linked journal and unlocks a controlled payment batch.</p><label>Chart<select name="chartId" value={chartId} onChange={e=>setChartId(e.target.value)} required>{postingOptions.charts.map(chart=><option key={String(chart.id)} value={String(chart.id)}>{String(chart.name)} · {String(chart.base_currency)}</option>)}</select></label><label>Open accounting period<select name="periodId" required><option value="">Select period</option>{postingOptions.periods.map(period=><option key={String(period.id)} value={String(period.id)}>{String(period.name)} · {String(period.start_date)} to {String(period.end_date)}</option>)}</select></label><label>Posting date<input name="entryDate" type="date" defaultValue={String(run.pay_date)} required/></label><label>Payroll expense account<select name="expenseAccountId" required><option value="">Select expense account</option>{expenses.map(account=><option key={String(account.id)} value={String(account.id)}>{String(account.code)} · {String(account.name)}</option>)}</select></label><label>Net-pay payable account<select name="netPayableAccountId" required><option value="">Select liability account</option>{liabilities.map(account=><option key={String(account.id)} value={String(account.id)}>{String(account.code)} · {String(account.name)}</option>)}</select></label>{Number(totals.deductions??0)>0&&<label>Deductions payable account<select name="taxPayableAccountId" required><option value="">Select liability account</option>{liabilities.map(account=><option key={String(account.id)} value={String(account.id)}>{String(account.code)} · {String(account.name)}</option>)}</select></label>}{Number(totals.employer??0)>0&&<label>Employer contribution account<select name="employerContributionAccountId" required><option value="">Select liability account</option>{liabilities.map(account=><option key={String(account.id)} value={String(account.id)}>{String(account.code)} · {String(account.name)}</option>)}</select></label>}<button className="button" disabled={busy||!postingOptions.charts.length||!postingOptions.periods.length||!expenses.length||!liabilities.length}>Post GL and create payable obligation</button></form>}{canPost&&run.status==="approved"&&!postingOptions&&<p className="notice">Finance posting needs an active chart, open accounting period, and approved liability accounts.</p>}
-  {canPreparePayment&&run.status==="posted"&&!batch&&<form className="business-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void send("payments/batches",{sourceType:"payroll",sourceId:String(run.id),formatCode:f.get("formatCode")});}}><h2>Prepare payroll payment batch</h2><p className="muted">Create a payable instruction from posted net pay. An independent Finance or Treasury user must approve it before export.</p><label>Export format<select name="formatCode" defaultValue="generic-csv"><option value="generic-csv">Generic CSV sandbox adapter</option><option value="iso20022">ISO 20022 sandbox adapter</option></select></label><button className="button" disabled={busy}>Create payment batch</button></form>}
-  {batch&&<section className="stacked-list" aria-label="Payroll payment batch"><h2>Payroll payment batch</h2><p className="muted">{String(batch.status)} · {String(batch.currency)} {minorToDecimal(Number(batch.total_minor))} · {String(paymentItems.length)} payees · prepared by {String(batch.created_by)}</p><div className="form-actions">{canApprovePayment&&batch.status==="draft"&&<button className="button" disabled={busy} onClick={()=>send(`payments/batches/${batch.id}/approve`,{expectedVersion:Number(batch.version)})}>Approve payment batch</button>}{canExportPayment&&batch.status==="approved"&&<button className="button" disabled={busy} onClick={()=>send(`payments/batches/${batch.id}/export`,{})}>Export payment instruction</button>}{["exported","partially_settled","settled"].includes(String(batch.status))&&<Link className="button secondary" href={`/api/v1${base}/people/payments/batches/${batch.id}/file`}>Download payment file</Link>}</div>{canConfirmPayment&&["exported","partially_settled"].includes(String(batch.status))&&<form className="business-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget),rows=paymentItems.map(item=>({reference:String(item.reference),status:String(f.get(`status:${item.reference}`)),confirmationRef:String(f.get(`ref:${item.reference}`)||"")||undefined}));void send(`payments/batches/${batch.id}/confirm`,{rows});}}><h3>Confirm sandbox bank results</h3>{paymentItems.map(item=><div className="row" key={String(item.reference)}><div className="row-main"><strong>{String(item.payee_name)}</strong><span>{String(item.reference)} · {String(item.currency)} {minorToDecimal(Number(item.amount_minor))} · {String(item.status)}</span></div><label>Result<select name={`status:${item.reference}`} defaultValue={String(item.status)==="failed"?"failed":"confirmed"}><option value="confirmed">Confirmed</option><option value="failed">Failed</option></select></label><label>Bank reference<input name={`ref:${item.reference}`} required/></label></div>)}<button className="button" disabled={busy}>Save payment results</button></form>}</section>}
-  <p className="muted">{simulationMode?"Mock payroll results are synthetic test fixtures only. They do not implement Thai statutory calculation and cannot initiate a real bank transfer.":"This core payroll evidence uses versioned inputs, configured proration and overtime. Country-specific statutory calculation and live bank/provider execution remain separately gated."}</p></section>;
+import { payrollErrorMessage, type PayrollApiError } from "@/lib/payroll-errors";
+type Row = Record<string, unknown>;
+function usePeopleCommand(base: string) {
+    const router = useRouter(), attempt = useRef<{
+        body: string;
+        key: string;
+    } | null>(null);
+    const [busy, setBusy] = useState(false), [error, setError] = useState("");
+    async function send(path: string, input: unknown, redirect = false) {
+        const body = JSON.stringify(input);
+        if (attempt.current?.body !== path + body)
+            attempt.current = { body: path + body, key: crypto.randomUUID() };
+        setBusy(true);
+        setError("");
+        try {
+            const response = await workFetch(`/api/v1${base}/people/${path}`, { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.current.key }, body });
+            const result = await response.json() as {
+                data?: {
+                    id: string;
+                };
+                error?: PayrollApiError;
+            };
+            if (!response.ok)
+                throw result.error ?? { message: "Could not save." };
+            attempt.current = null;
+            if (redirect && result.data?.id)
+                router.push(`${base}/people/payroll/runs/${result.data.id}`);
+            router.refresh();
+            return true;
+        }
+        catch (cause) {
+            setError(payrollErrorMessage(cause, "Could not save Payroll changes."));
+            return false;
+        }
+        finally {
+            setBusy(false);
+        }
+    }
+    return { send, busy, error };
 }
-export function PayrollCorrectionControls({base,run,corrections,userId,canRequest,canReview}:{base:string;run:Row;corrections:Row[];userId:string;canRequest:boolean;canReview:boolean}){
- const {send,busy,error}=usePeopleCommand(base),pending=corrections.find(c=>c.status==="pending"),[correctionFiles,setCorrectionFiles]=useState<AttachmentPanelChange|null>(null);
- return <section className="card" id="payroll-corrections"><h2>Reviewed corrections</h2><p className="muted">An approved preview stays locked until a different Payroll approver authorizes reopening it. Every prior export remains available as revision evidence.</p>{error&&<p role="alert">{error}</p>}
-  {canRequest&&run.status==="approved"&&!pending&&<form className="business-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void send(`payroll/runs/${run.id}/corrections`,{expectedVersion:Number(run.version),reason:f.get("reason"),attachmentSetIds:correctionFiles?.setId&&correctionFiles.readyCount>0&&correctionFiles.bindable?[correctionFiles.setId]:[]});}}><label>Correction reason and source evidence<textarea name="reason" required minLength={3} maxLength={2000}/></label><AttachmentPanel base={base} targetType="payroll_run" targetId={String(run.id)} expectedTargetVersion={Number(run.version)} componentKind="action" componentRef="correction-request" purposeKey="correction_support" title="Correction support" description="Attach the controlled source document supporting this correction request." visibility="Restricted to authorized Company Payroll document roles." onChange={setCorrectionFiles}/><button className="button secondary" disabled={busy}>Request controlled correction</button></form>}
-  {corrections.map(c=><article id={`correction-${String(c.id)}`} className="row" key={String(c.id)}><div className="row-main"><strong>{String(c.status)} · source revision {String(c.run_revision)}</strong><span>{String(c.reason)}</span>{Boolean(c.review_reason)&&<span>Decision: {String(c.review_reason)}</span>}</div>
-   {c.status==="pending"&&c.requested_by===userId&&<button className="button secondary" disabled={busy} onClick={()=>send(`payroll/corrections/${c.id}/decide`,{expectedVersion:Number(c.version),action:"cancel",reason:"Correction request withdrawn before review"})}>Cancel request</button>}
-   {c.status==="pending"&&canReview&&c.requested_by!==userId&&<form className="business-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void send(`payroll/corrections/${c.id}/decide`,{expectedVersion:Number(c.version),action:f.get("action"),reason:f.get("reason")});}}><label>Independent decision<select name="action"><option value="approve">Approve and reopen calculation</option><option value="reject">Reject correction request</option></select></label><label>Decision evidence<textarea name="reason" required minLength={3} maxLength={2000}/></label><button className="button" disabled={busy}>Record correction decision</button></form>}
-  </article>)}
-  {!corrections.length&&<p>No reviewed corrections.</p>}
+export function PayrollRunEditor({ base, groups, simulationMode = false }: {
+    base: string;
+    groups: Row[];
+    simulationMode?: boolean;
+    userId?: string;
+}) {
+    const [open, setOpen] = useState(false);
+    const { send, busy, error } = usePeopleCommand(base);
+    return <section className="card">
+  <button className="button" onClick={() => setOpen(!open)}>{(simulationMode ? "Create payroll simulation (mock)" : "Create payroll preview")}</button>
+  {open && <form className="business-form" onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget), group = groups.find(g => g.id === f.get("payGroupId")); void send("payroll/runs", { payGroupId: f.get("payGroupId"), currency: group?.currency, periodStart: f.get("periodStart"), periodEnd: f.get("periodEnd"), payDate: f.get("payDate"), mode: "preview" }, true); }}>
+   <label>{"Pay group"}<select name="payGroupId" required><option value="">{"Select pay group"}</option>{groups.map(g => <option key={String(g.id)} value={String(g.id)}>{String(g.name)} · {String(g.currency)}</option>)}</select></label>
+   <label>{"Period start"}<input name="periodStart" type="date" required/></label>
+   <label>{"Period end"}<input name="periodEnd" type="date" required/></label>
+   <label>{"Pay date"}<input name="payDate" type="date" required/></label>
+   <button className="button" disabled={busy}>{"Save payroll run"}</button>
+   <p className="muted">{(simulationMode ? "Simulation only: fixed synthetic values; no Thai statutory calculation or real transfer." : "Gross pay preview only. Statutory tax and social contributions require validated local rules.")}</p>
+  </form>}{error && <p role="alert">{error}</p>}
  </section>;
 }
-export function PayrollAdvanceConsole({base,data,userId,canPrepare,canApprove}:{base:string;data:{items:Row[];options:Row[]};userId:string;canPrepare:boolean;canApprove:boolean}){
- const {send,busy,error}=usePeopleCommand(base),items=data.items??[],options=data.options??[];
- return <section className="card" id="payroll-advances"><h2>Payroll advances</h2><p className="muted">Approved advances create versioned monthly deductions. Each request keeps its reason, reviewer, schedule, and payroll evidence together.</p>{error&&<p role="alert">{error}</p>}
-  {(canPrepare||options.length===1)&&options.length>0&&<form className="business-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void send("payroll/advances",{engagementId:f.get("engagementId"),amount:f.get("amount"),installmentCount:Number(f.get("installmentCount")),firstDeductionPeriod:f.get("firstDeductionPeriod"),currency:f.get("currency"),reason:f.get("reason")});}}>
-   <label>Employee<select name="engagementId" required>{options.map(option=><option key={String(option.engagement_id)} value={String(option.engagement_id)}>{String(option.legal_name)} · {String(option.currency)}</option>)}</select></label><label>Amount<input name="amount" type="number" min="0.01" step="0.01" required/></label><label>Installments<input name="installmentCount" type="number" min="1" max="24" defaultValue="1" required/></label><label>First deduction period<input name="firstDeductionPeriod" type="date" required/></label><label>Currency<select name="currency" required>{Array.from(new Set(options.map(option=>String(option.currency)))).map(currency=><option key={currency}>{currency}</option>)}</select></label><label>Reason<textarea name="reason" required minLength={3} maxLength={2000}/></label><button className="button" disabled={busy}>Submit payroll advance</button>
+export function PayGroupEditor({ base }: {
+    base: string;
+    userId?: string;
+}) {
+    const { send, busy, error } = usePeopleCommand(base);
+    const [open, setOpen] = useState(false);
+    return <section className="card">
+  <button type="button" className="button secondary" onClick={() => setOpen(!open)}>{(open ? "Close pay group form" : "Configure pay group")}</button>
+  {error && <p role="alert">{error}</p>}
+  {open && <form className="business-form" onSubmit={async (event) => {
+                event.preventDefault();
+                const form = new FormData(event.currentTarget);
+                if (await send("pay-groups", { name: form.get("name"), countryCode: form.get("countryCode"), currency: form.get("currency"), frequency: form.get("frequency"), timezone: form.get("timezone"), overtimeMultiplierBps: Math.round(Number(form.get("overtimeMultiplier")) * 10000), prorationMethod: form.get("prorationMethod") }))
+                    setOpen(false);
+            }}>
+   <label>{"Name"}<input name="name" required maxLength={120}/></label>
+   <label>{"Country code"}<input name="countryCode" required minLength={2} maxLength={2} defaultValue="TH"/></label>
+   <label>{"Currency"}<input name="currency" required minLength={3} maxLength={3} defaultValue="THB"/></label>
+   <label>{"Frequency"}<select name="frequency" defaultValue="monthly"><option value="weekly">{"Weekly"}</option><option value="fortnightly">{"Fortnightly"}</option><option value="semimonthly">{"Semimonthly"}</option><option value="monthly">{"Monthly"}</option></select></label>
+   <label>{"Timezone"}<input name="timezone" required defaultValue="Asia/Bangkok"/></label>
+   <label>{"Overtime multiplier"}<input name="overtimeMultiplier" type="number" min="1" max="5" step="0.01" required defaultValue="1.5"/></label>
+   <label>{"Proration"}<select name="prorationMethod" defaultValue="calendar_days"><option value="calendar_days">{"Calendar days"}</option><option value="none">{"Require manual full-period inputs"}</option></select></label>
+   <button className="button" disabled={busy}>{"Save pay group policy"}</button>
   </form>}
-  {!options.length&&<p className="muted">No active pay-group engagement is available for a payroll advance.</p>}
-  <div className="stacked-list">{items.map(item=><article className="row" id={`payroll-advance-${String(item.id)}`} key={String(item.id)}><div className="row-main"><strong>{String(item.legal_name)} · {String(item.currency)} {minorToDecimal(Number(item.amount_minor))}</strong><span>{String(item.status)} · {String(item.installment_count)} installments from {String(item.first_deduction_period)}</span><span>{String(item.reason)}</span>{Boolean(item.review_reason)&&<span>Decision: {String(item.review_reason)}</span>}<RecordDocumentPanel base={base} targetType="payroll_advance" targetId={String(item.id)} expectedTargetVersion={Number(item.version)} editable={item.status==="pending"&&(canPrepare||item.requested_by===userId)} title="Advance support" purposes={[{key:"advance_support",label:"Payroll advance support",description:"Attach the employee request or reviewed supporting document.",visibility:"Only the employee owner and authorized Payroll document roles can access these files."}]}/></div>{item.status==="pending"&&item.requested_by===userId&&<button className="button secondary" disabled={busy} onClick={()=>send(`payroll/advances/${String(item.id)}/decide`,{expectedVersion:Number(item.version),action:"cancel",reason:"Requester withdrew the advance before review"})}>Cancel request</button>}{item.status==="pending"&&canApprove&&item.requested_by!==userId&&<form className="business-form" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);void send(`payroll/advances/${String(item.id)}/decide`,{expectedVersion:Number(item.version),action:f.get("action"),reason:f.get("reason")});}}><label>Decision<select name="action"><option value="approve">Approve and schedule deductions</option><option value="reject">Reject request</option></select></label><label>Decision evidence<textarea name="reason" required minLength={3} maxLength={2000}/></label><button className="button" disabled={busy}>Record decision</button></form>}</article>)}</div>{!items.length&&<p>No payroll advances yet.</p>}
+  <p className="muted">{"This policy controls core payroll calculations; it does not claim Thai statutory compliance."}</p>
  </section>;
 }
-export function CompensationEditor({base,person,groups,revisions,canEdit,canApprove,userId}:{base:string;person:Row;groups:Row[];revisions:Row[];canEdit:boolean;canApprove:boolean;userId:string}){const {send,busy,error}=usePeopleCommand(base);const [open,setOpen]=useState(false);return <section className="card"><h2>Compensation and pay group</h2>{error&&<p role="alert">{error}</p>}{canEdit&&<><form className="business-form" onSubmit={e=>{e.preventDefault();void send(`engagements/${person.engagement_id}/pay-group`,{expectedVersion:person.engagement_version,payGroupId:new FormData(e.currentTarget).get("payGroupId")||null});}}><label>Pay group<select name="payGroupId" defaultValue={String(person.pay_group_id??"")}><option value="">Not assigned</option>{groups.filter(g=>g.currency===person.currency).map(g=><option key={String(g.id)} value={String(g.id)}>{String(g.name)}</option>)}</select></label><button className="button secondary" disabled={busy}>Update pay group</button></form><button className="button secondary" onClick={()=>setOpen(!open)}>New compensation revision</button>{open&&<form className="business-form" onSubmit={async e=>{e.preventDefault();const f=new FormData(e.currentTarget),components=[] as Array<{code:string;label:string;kind:"earning"|"deduction";amount:FormDataEntryValue|null;taxable:boolean}>;if(Number(f.get("allowance"))>0)components.push({code:"ALLOWANCE",label:"Contractual allowance",kind:"earning",amount:f.get("allowance"),taxable:true});if(Number(f.get("deduction"))>0)components.push({code:"RECURRING_DEDUCTION",label:"Recurring deduction",kind:"deduction",amount:f.get("deduction"),taxable:false});if(await send("compensation",{engagementId:person.engagement_id,currency:person.currency,effectiveFrom:f.get("effectiveFrom"),effectiveTo:f.get("effectiveTo")||null,payFrequency:f.get("frequency"),baseAmount:f.get("base"),hourlyRate:f.get("hourly"),expectedHours:Number(f.get("hours")),components}))setOpen(false);}}><label>Effective from<input name="effectiveFrom" type="date" required/></label><label>Effective through (optional)<input name="effectiveTo" type="date"/></label><label>Pay frequency<select name="frequency" defaultValue="monthly">{["weekly","fortnightly","semimonthly","monthly","off_cycle"].map(v=><option key={v}>{v}</option>)}</select></label><label>Base pay ({String(person.currency)})<input name="base" type="number" min="0" step="0.01" defaultValue="0" required/></label><label>Hourly rate<input name="hourly" type="number" min="0" step="0.01" defaultValue="0" required/></label><label>Expected hours<input name="hours" type="number" min="0" max="744" step="0.01" defaultValue="0" required/></label><label>Recurring allowance<input name="allowance" type="number" min="0" step="0.01" defaultValue="0" required/></label><label>Recurring deduction<input name="deduction" type="number" min="0" step="0.01" defaultValue="0" required/></label><button className="button" disabled={busy}>Save compensation draft</button></form>}</>}{revisions.map(r=><div className="row" key={String(r.id)}><div className="row-main"><strong>{String(r.currency)} {minorToDecimal(Number(r.base_amount_minor))} · {String(r.pay_frequency)}</strong><span>{String(r.effective_from)} → {String(r.effective_to??"ongoing")} · {String(r.status)}</span></div>{canApprove&&r.created_by!==userId&&["draft","approved"].includes(String(r.status))&&<button className="button secondary" disabled={busy} onClick={()=>send(`compensation/${r.id}/transition`,{expectedVersion:r.version,status:r.status==="draft"?"approved":"superseded"})}>{r.status==="draft"?"Approve revision":"Supersede revision"}</button>}</div>)}</section>;}
-export function TimeEntryEditor({base,person,entries,canEdit,canApprove,userId}:{base:string;person:Row;entries:Row[];canEdit:boolean;canApprove:boolean;userId:string}) {
-  const {send,busy,error}=usePeopleCommand(base);
-  const [editing,setEditing]=useState<Row|null>(null);
-  const [reviewing,setReviewing]=useState<string|null>(null);
-  const [correctionFiles,setCorrectionFiles]=useState<AttachmentPanelChange|null>(null);
-  return <section className="card"><h2>Time entries</h2>
-    {error&&<p role="alert">{error}</p>}
-    {canEdit&&<form key={String(editing?.id??"new")} className="business-form" onSubmit={async e=>{
-      e.preventDefault();const f=new FormData(e.currentTarget);
-      if(await send(editing?`time-entries/${editing.id}`:"time-entries",{
-        ...(editing?{expectedVersion:editing.version,attachmentSetIds:correctionFiles?.setId&&correctionFiles.readyCount>0&&correctionFiles.bindable?[correctionFiles.setId]:[]}:{engagementId:person.engagement_id}),workDate:f.get("date"),regularHours:Number(f.get("regular")),overtimeHours:Number(f.get("overtime")),note:f.get("note")
-      })){setEditing(null);setCorrectionFiles(null);}
-    }}>
-      <label>Work date<input name="date" type="date" required defaultValue={String(editing?.work_date??"")}/></label>
-      <label>Regular hours<input name="regular" type="number" min="0" max="24" step="0.01" required defaultValue={String(editing?.regular_hours??8)}/></label>
-      <label>Overtime hours<input name="overtime" type="number" min="0" max="24" step="0.01" required defaultValue={String(editing?.overtime_hours??0)}/></label>
-      <label>Work note<input name="note" maxLength={500} defaultValue={String(editing?.note??"")}/></label>
-      {editing?.status === "rejected" && (
-        <AttachmentPanel
-          base={base}
-          targetType="time_entry"
-          targetId={String(editing.id)}
-          expectedTargetVersion={Number(editing.version)}
-          componentKind="action"
-          componentRef="correction-resubmission"
-          purposeKey="corrected_entry_proof"
-          title="Correction proof"
-          description="Attach the source document or image supporting this corrected time entry."
-          visibility="Visible only to the employee and authorized time reviewers."
-          onChange={setCorrectionFiles}
-        />
-      )}
-      <button className="button" disabled={busy}>{editing?"Save and resubmit time":"Submit time for approval"}</button>
-      {editing&&<button className="button secondary" type="button" onClick={()=>{setEditing(null);setCorrectionFiles(null);}}>Cancel edit</button>}
+export function PayrollActions({ base, run, simulationMode = false, canCalculate, canApprove, canExport, canPost, postingOptions, paymentBatch, paymentItems, canPreparePayment, canApprovePayment, canExportPayment, canConfirmPayment }: {
+    base: string;
+    run: Row;
+    simulationMode?: boolean;
+    canCalculate: boolean;
+    canApprove: boolean;
+    canExport: boolean;
+    canPost: boolean;
+    postingOptions: {
+        charts: Row[];
+        periods: Row[];
+        accounts: Row[];
+    } | null;
+    paymentBatch: Row | null;
+    paymentItems: Row[];
+    canPreparePayment: boolean;
+    canApprovePayment: boolean;
+    canExportPayment: boolean;
+    canConfirmPayment: boolean;
+}) {
+    const { send, busy, error } = usePeopleCommand(base), [chartId, setChartId] = useState(String(postingOptions?.charts[0]?.id ?? "")), totals = JSON.parse(String(run.totals_json ?? "{}")) as {
+        deductions?: number;
+        employer?: number;
+    }, accounts = (postingOptions?.accounts ?? []).filter(account => String(account.chart_id) === chartId), expenses = accounts.filter(account => String(account.category) === "expense"), liabilities = accounts.filter(account => String(account.category) === "liability"), batch = paymentBatch;
+    return <section className="card"><div className="form-actions">{canCalculate && ["draft", "calculating", "preview", "failed"].includes(String(run.status)) && <button className={run.status === "preview" ? "button secondary" : "button"} disabled={busy} onClick={() => send(`payroll/runs/${run.id}/calculate`, {})}>{simulationMode ? "Calculate deterministic mock payroll" : "Calculate gross-pay preview"}</button>}{canApprove && run.status === "in_review" && <button className="button" disabled={busy} onClick={() => send(`payroll/runs/${run.id}/approve`, { expectedVersion: run.version })}>Approve submitted review</button>}{canExport && ["preview", "in_review", "approved"].includes(String(run.status)) && <button className="button secondary" disabled={busy} onClick={() => send(`payroll/runs/${run.id}/export-review`, {})}>Export this reviewed revision</button>}</div>{error && <p role="alert">{error}</p>}
+  {canPost && run.status === "approved" && postingOptions && <form className="business-form" onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); void send(`payroll/runs/${run.id}/post`, { chartId: f.get("chartId"), periodId: f.get("periodId"), entryDate: f.get("entryDate"), expenseAccountId: f.get("expenseAccountId"), netPayableAccountId: f.get("netPayableAccountId"), taxPayableAccountId: f.get("taxPayableAccountId") || undefined, employerContributionAccountId: f.get("employerContributionAccountId") || undefined, expectedVersion: Number(run.version) }); }}><h2>Post approved payroll to Finance</h2><p className="muted">Finance posting creates one balanced, source-linked journal and unlocks a controlled payment batch.</p><label>Chart<select name="chartId" value={chartId} onChange={e => setChartId(e.target.value)} required>{postingOptions.charts.map(chart => <option key={String(chart.id)} value={String(chart.id)}>{String(chart.name)} · {String(chart.base_currency)}</option>)}</select></label><label>Open accounting period<select name="periodId" required><option value="">Select period</option>{postingOptions.periods.map(period => <option key={String(period.id)} value={String(period.id)}>{String(period.name)} · {String(period.start_date)} to {String(period.end_date)}</option>)}</select></label><label>Posting date<input name="entryDate" type="date" defaultValue={String(run.pay_date)} required/></label><label>Payroll expense account<select name="expenseAccountId" required><option value="">Select expense account</option>{expenses.map(account => <option key={String(account.id)} value={String(account.id)}>{String(account.code)} · {String(account.name)}</option>)}</select></label><label>Net-pay payable account<select name="netPayableAccountId" required><option value="">Select liability account</option>{liabilities.map(account => <option key={String(account.id)} value={String(account.id)}>{String(account.code)} · {String(account.name)}</option>)}</select></label>{Number(totals.deductions ?? 0) > 0 && <label>Deductions payable account<select name="taxPayableAccountId" required><option value="">Select liability account</option>{liabilities.map(account => <option key={String(account.id)} value={String(account.id)}>{String(account.code)} · {String(account.name)}</option>)}</select></label>}{Number(totals.employer ?? 0) > 0 && <label>Employer contribution account<select name="employerContributionAccountId" required><option value="">Select liability account</option>{liabilities.map(account => <option key={String(account.id)} value={String(account.id)}>{String(account.code)} · {String(account.name)}</option>)}</select></label>}<button className="button" disabled={busy || !postingOptions.charts.length || !postingOptions.periods.length || !expenses.length || !liabilities.length}>Post GL and create payable obligation</button></form>}{canPost && run.status === "approved" && !postingOptions && <p className="notice">Finance posting needs an active chart, open accounting period, and approved liability accounts.</p>}
+  {canPreparePayment && run.status === "posted" && !batch && <form className="business-form" onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); void send("payments/batches", { sourceType: "payroll", sourceId: String(run.id), formatCode: f.get("formatCode") }); }}><h2>Prepare payroll payment batch</h2><p className="muted">Create a payable instruction from posted net pay. An independent Finance or Treasury user must approve it before export.</p><label>Export format<select name="formatCode" defaultValue="generic-csv"><option value="generic-csv">Generic CSV sandbox adapter</option><option value="iso20022">ISO 20022 sandbox adapter</option></select></label><button className="button" disabled={busy}>Create payment batch</button></form>}
+  {batch && <section className="stacked-list" aria-label="Payroll payment batch"><h2>Payroll payment batch</h2><p className="muted">{String(batch.status)} · <MoneyAmount units={String(batch.total_minor)} currency={String(batch.currency)} legacyScale={2}/> · {String(paymentItems.length)} payees · prepared by {String(batch.created_by)}</p><div className="form-actions">{canApprovePayment && batch.status === "draft" && <button className="button" disabled={busy} onClick={() => send(`payments/batches/${batch.id}/approve`, { expectedVersion: Number(batch.version) })}>Approve payment batch</button>}{canExportPayment && batch.status === "approved" && <button className="button" disabled={busy} onClick={() => send(`payments/batches/${batch.id}/export`, {})}>Export payment instruction</button>}{["exported", "partially_settled", "settled"].includes(String(batch.status)) && <Link className="button secondary" href={`/api/v1${base}/people/payments/batches/${batch.id}/file`}>Download payment file</Link>}</div>{canConfirmPayment && ["exported", "partially_settled"].includes(String(batch.status)) && <form className="business-form" onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget), rows = paymentItems.map(item => ({ reference: String(item.reference), status: String(f.get(`status:${item.reference}`)), confirmationRef: String(f.get(`ref:${item.reference}`) || "") || undefined })); void send(`payments/batches/${batch.id}/confirm`, { rows }); }}><h3>Confirm sandbox bank results</h3>{paymentItems.map(item => <div className="row" key={String(item.reference)}><div className="row-main"><strong>{String(item.payee_name)}</strong><span>{String(item.reference)} · <MoneyAmount units={String(item.amount_minor)} currency={String(item.currency)} legacyScale={2}/> · {String(item.status)}</span></div><label>Result<select name={`status:${item.reference}`} defaultValue={String(item.status) === "failed" ? "failed" : "confirmed"}><option value="confirmed">Confirmed</option><option value="failed">Failed</option></select></label><label>Bank reference<input name={`ref:${item.reference}`} required/></label></div>)}<button className="button" disabled={busy}>Save payment results</button></form>}</section>}
+  <p className="muted">{simulationMode ? "Mock payroll results are synthetic test fixtures only. They do not implement Thai statutory calculation and cannot initiate a real bank transfer." : "This core payroll evidence uses versioned inputs, configured proration and overtime. Country-specific statutory calculation and live bank/provider execution remain separately gated."}</p></section>;
+}
+export function PayrollCorrectionControls({ base, run, corrections, userId, canRequest, canReview }: {
+    base: string;
+    run: Row;
+    corrections: Row[];
+    userId: string;
+    canRequest: boolean;
+    canReview: boolean;
+}) {
+    const { send, busy, error } = usePeopleCommand(base), pending = corrections.find(c => c.status === "pending"), [correctionFiles, setCorrectionFiles] = useState<AttachmentPanelChange | null>(null);
+    return <section className="card" id="payroll-corrections"><h2>{"Reviewed corrections"}</h2><p className="muted">{"An approved preview remains locked until a different approver authorizes reopening it. Prior exports remain as revision evidence."}</p>{error && <p role="alert">{error}</p>}
+  {canRequest && run.status === "approved" && !pending && <form className="business-form" onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); void send(`payroll/runs/${run.id}/corrections`, { expectedVersion: Number(run.version), reason: f.get("reason"), attachmentSetIds: correctionFiles?.setId && correctionFiles.readyCount > 0 && correctionFiles.bindable ? [correctionFiles.setId] : [] }); }}><label>{"Correction reason and source evidence"}<textarea name="reason" required minLength={3} maxLength={2000}/></label><AttachmentPanel base={base} targetType="payroll_run" targetId={String(run.id)} expectedTargetVersion={Number(run.version)} componentKind="action" componentRef="correction-request" purposeKey="correction_support" title={"Correction support"} description={"Attach the controlled source document supporting this correction request."} visibility={"Restricted to authorized Company Payroll document roles."} onChange={setCorrectionFiles}/><button className="button secondary" disabled={busy}>{"Request controlled correction"}</button></form>}
+  {corrections.map(c => <article id={`correction-${String(c.id)}`} className="row" key={String(c.id)}><div className="row-main"><strong>{String(c.status)} · {"source revision"} {String(c.run_revision)}</strong><span>{String(c.reason)}</span>{Boolean(c.review_reason) && <span>{"Decision"}: {String(c.review_reason)}</span>}</div>
+   {c.status === "pending" && c.requested_by === userId && <button className="button secondary" disabled={busy} onClick={() => send(`payroll/corrections/${c.id}/decide`, { expectedVersion: Number(c.version), action: "cancel", reason: "Correction request withdrawn before review" })}>{"Cancel request"}</button>}
+   {c.status === "pending" && canReview && c.requested_by !== userId && <form className="business-form" onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); void send(`payroll/corrections/${c.id}/decide`, { expectedVersion: Number(c.version), action: f.get("action"), reason: f.get("reason") }); }}><label>{"Independent decision"}<select name="action"><option value="approve">{"Approve and reopen calculation"}</option><option value="reject">{"Reject correction request"}</option></select></label><label>{"Decision evidence"}<textarea name="reason" required minLength={3} maxLength={2000}/></label><button className="button" disabled={busy}>{"Record correction decision"}</button></form>}
+  </article>)}
+  {!corrections.length && <p>{"No reviewed corrections."}</p>}
+ </section>;
+}
+export function PayrollAdvanceConsole({ base, data, userId, canPrepare, canApprove }: {
+    base: string;
+    data: {
+        items: Row[];
+        options: Row[];
+    };
+    userId: string;
+    canPrepare: boolean;
+    canApprove: boolean;
+}) {
+    const { send, busy, error } = usePeopleCommand(base), items = data.items ?? [], options = data.options ?? [];
+    return <section className="card" id="payroll-advances"><h2>{"Payroll advances"}</h2><p className="muted">{"Approved advances create scheduled deductions with their reason, reviewer, and evidence retained."}</p>{error && <p role="alert">{error}</p>}
+  {(canPrepare || options.length === 1) && options.length > 0 && <form className="business-form" onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); void send("payroll/advances", { engagementId: f.get("engagementId"), amount: f.get("amount"), installmentCount: Number(f.get("installmentCount")), firstDeductionPeriod: f.get("firstDeductionPeriod"), currency: f.get("currency"), reason: f.get("reason") }); }}>
+   <label>{"Employee"}<select name="engagementId" required>{options.map(option => <option key={String(option.engagement_id)} value={String(option.engagement_id)}>{String(option.legal_name)} · {String(option.currency)}</option>)}</select></label><label>{"Amount"}<input name="amount" type="number" min="0.01" step="0.01" required/></label><label>{"Installments"}<input name="installmentCount" type="number" min="1" max="24" defaultValue="1" required/></label><label>{"First deduction period"}<input name="firstDeductionPeriod" type="date" required/></label><label>{"Currency"}<select name="currency" required>{Array.from(new Set(options.map(option => String(option.currency)))).map(currency => <option key={currency}>{currency}</option>)}</select></label><label>{"Reason"}<textarea name="reason" required minLength={3} maxLength={2000}/></label><button className="button" disabled={busy}>{"Submit payroll advance"}</button>
+  </form>}
+  {!options.length && <p className="muted">{"No active pay-group engagement is available for an advance."}</p>}
+  <div className="stacked-list">{items.map(item => <article className="row" id={`payroll-advance-${String(item.id)}`} key={String(item.id)}><div className="row-main"><strong>{String(item.legal_name)} · <MoneyAmount units={String(item.amount_minor)} currency={String(item.currency)} legacyScale={2}/></strong><span>{String(item.status)} · {String(item.installment_count)} {"installments from"} {String(item.first_deduction_period)}</span><span>{String(item.reason)}</span>{Boolean(item.review_reason) && <span>{"Decision"}: {String(item.review_reason)}</span>}<RecordDocumentPanel base={base} targetType="payroll_advance" targetId={String(item.id)} expectedTargetVersion={Number(item.version)} editable={item.status === "pending" && (canPrepare || item.requested_by === userId)} title={"Advance support"} purposes={[{ key: "advance_support", label: "Payroll advance support", description: "Attach the employee request or reviewed supporting document.", visibility: "Only the employee owner and authorized Payroll document roles can access these files." }]}/></div>{item.status === "pending" && item.requested_by === userId && <button className="button secondary" disabled={busy} onClick={() => send(`payroll/advances/${String(item.id)}/decide`, { expectedVersion: Number(item.version), action: "cancel", reason: "Requester withdrew the advance before review" })}>{"Cancel request"}</button>}{item.status === "pending" && canApprove && item.requested_by !== userId && <form className="business-form" onSubmit={e => { e.preventDefault(); const f = new FormData(e.currentTarget); void send(`payroll/advances/${String(item.id)}/decide`, { expectedVersion: Number(item.version), action: f.get("action"), reason: f.get("reason") }); }}><label>{"Decision"}<select name="action"><option value="approve">{"Approve and schedule deductions"}</option><option value="reject">{"Reject request"}</option></select></label><label>{"Decision evidence"}<textarea name="reason" required minLength={3} maxLength={2000}/></label><button className="button" disabled={busy}>{"Record decision"}</button></form>}</article>)}</div>{!items.length && <p>{"No payroll advances yet."}</p>}
+ </section>;
+}
+export function CompensationEditor({ base, person, groups, revisions, canEdit, canApprove, userId }: {
+    base: string;
+    person: Row;
+    groups: Row[];
+    revisions: Row[];
+    canEdit: boolean;
+    canApprove: boolean;
+    userId: string;
+}) {
+    const { send, busy, error } = usePeopleCommand(base);
+    const [open, setOpen] = useState(false);
+    return <section className="card"><h2>Compensation and pay group</h2>{error && <p role="alert">{error}</p>}{canEdit && <><form className="business-form" onSubmit={e => { e.preventDefault(); void send(`engagements/${person.engagement_id}/pay-group`, { expectedVersion: person.engagement_version, payGroupId: new FormData(e.currentTarget).get("payGroupId") || null }); }}><label>Pay group<select name="payGroupId" defaultValue={String(person.pay_group_id ?? "")}><option value="">Not assigned</option>{groups.filter(g => g.currency === person.currency).map(g => <option key={String(g.id)} value={String(g.id)}>{String(g.name)}</option>)}</select></label><button className="button secondary" disabled={busy}>Update pay group</button></form><button className="button secondary" onClick={() => setOpen(!open)}>New compensation revision</button>{open && <form className="business-form" onSubmit={async (e) => {
+                    e.preventDefault();
+                    const f = new FormData(e.currentTarget), components = [] as Array<{
+                        code: string;
+                        label: string;
+                        kind: "earning" | "deduction";
+                        amount: FormDataEntryValue | null;
+                        taxable: boolean;
+                    }>;
+                    if (Number(f.get("allowance")) > 0)
+                        components.push({ code: "ALLOWANCE", label: "Contractual allowance", kind: "earning", amount: f.get("allowance"), taxable: true });
+                    if (Number(f.get("deduction")) > 0)
+                        components.push({ code: "RECURRING_DEDUCTION", label: "Recurring deduction", kind: "deduction", amount: f.get("deduction"), taxable: false });
+                    if (await send("compensation", { engagementId: person.engagement_id, currency: person.currency, effectiveFrom: f.get("effectiveFrom"), effectiveTo: f.get("effectiveTo") || null, payFrequency: f.get("frequency"), baseAmount: f.get("base"), hourlyRate: f.get("hourly"), expectedHours: Number(f.get("hours")), components }))
+                        setOpen(false);
+                }}><label>Effective from<input name="effectiveFrom" type="date" required/></label><label>Effective through (optional)<input name="effectiveTo" type="date"/></label><label>Pay frequency<select name="frequency" defaultValue="monthly">{["weekly", "fortnightly", "semimonthly", "monthly", "off_cycle"].map(v => <option key={v}>{v}</option>)}</select></label><label>Base pay ({String(person.currency)})<input name="base" type="number" min="0" step="0.01" defaultValue="0" required/></label><label>Hourly rate<input name="hourly" type="number" min="0" step="0.01" defaultValue="0" required/></label><label>Expected hours<input name="hours" type="number" min="0" max="744" step="0.01" defaultValue="0" required/></label><label>Recurring allowance<input name="allowance" type="number" min="0" step="0.01" defaultValue="0" required/></label><label>Recurring deduction<input name="deduction" type="number" min="0" step="0.01" defaultValue="0" required/></label><button className="button" disabled={busy}>Save compensation draft</button></form>}</>}{revisions.map(r => <div className="row" key={String(r.id)}><div className="row-main"><strong><MoneyAmount units={String(r.base_amount_minor)} currency={String(r.currency)} date={String(r.effective_from)} legacyScale={2}/> · {String(r.pay_frequency)}</strong><span>{String(r.effective_from)} → {String(r.effective_to ?? "ongoing")} · {String(r.status)}</span></div>{canApprove && r.created_by !== userId && ["draft", "approved"].includes(String(r.status)) && <button className="button secondary" disabled={busy} onClick={() => send(`compensation/${r.id}/transition`, { expectedVersion: r.version, status: r.status === "draft" ? "approved" : "superseded" })}>{r.status === "draft" ? "Approve revision" : "Supersede revision"}</button>}</div>)}</section>;
+}
+export function TimeEntryEditor({ base, person, entries, canEdit, canApprove, userId }: {
+    base: string;
+    person: Row;
+    entries: Row[];
+    canEdit: boolean;
+    canApprove: boolean;
+    userId: string;
+}) {
+    const { send, busy, error } = usePeopleCommand(base);
+    const [editing, setEditing] = useState<Row | null>(null);
+    const [reviewing, setReviewing] = useState<string | null>(null);
+    const [correctionFiles, setCorrectionFiles] = useState<AttachmentPanelChange | null>(null);
+    return <section className="card"><h2>Time entries</h2>
+    {error && <p role="alert">{error}</p>}
+    {canEdit && <form key={String(editing?.id ?? "new")} className="business-form" onSubmit={async (e) => {
+                e.preventDefault();
+                const f = new FormData(e.currentTarget);
+                if (await send(editing ? `time-entries/${editing.id}` : "time-entries", {
+                    ...(editing ? { expectedVersion: editing.version, attachmentSetIds: correctionFiles?.setId && correctionFiles.readyCount > 0 && correctionFiles.bindable ? [correctionFiles.setId] : [] } : { engagementId: person.engagement_id }), workDate: f.get("date"), regularHours: Number(f.get("regular")), overtimeHours: Number(f.get("overtime")), note: f.get("note")
+                })) {
+                    setEditing(null);
+                    setCorrectionFiles(null);
+                }
+            }}>
+      <label>Work date<input name="date" type="date" required defaultValue={String(editing?.work_date ?? "")}/></label>
+      <label>Regular hours<input name="regular" type="number" min="0" max="24" step="0.01" required defaultValue={String(editing?.regular_hours ?? 8)}/></label>
+      <label>Overtime hours<input name="overtime" type="number" min="0" max="24" step="0.01" required defaultValue={String(editing?.overtime_hours ?? 0)}/></label>
+      <label>Work note<input name="note" maxLength={500} defaultValue={String(editing?.note ?? "")}/></label>
+      {editing?.status === "rejected" && (<AttachmentPanel base={base} targetType="time_entry" targetId={String(editing.id)} expectedTargetVersion={Number(editing.version)} componentKind="action" componentRef="correction-resubmission" purposeKey="corrected_entry_proof" title="Correction proof" description="Attach the source document or image supporting this corrected time entry." visibility="Visible only to the employee and authorized time reviewers." onChange={setCorrectionFiles}/>)}
+      <button className="button" disabled={busy}>{editing ? "Save and resubmit time" : "Submit time for approval"}</button>
+      {editing && <button className="button secondary" type="button" onClick={() => { setEditing(null); setCorrectionFiles(null); }}>Cancel edit</button>}
     </form>}
-    {entries.map(t=><article key={String(t.id)}><div className="row"><strong>{String(t.work_date)}</strong><span>{String(t.regular_hours)}h + {String(t.overtime_hours)}h overtime · {String(t.status)}</span>
-      {canEdit&&t.submitted_by===userId&&["draft","submitted","rejected"].includes(String(t.status))&&<button className="button secondary" onClick={()=>{setEditing(t);setCorrectionFiles(null);}}>Edit time</button>}
-      {canApprove&&t.status==="submitted"&&t.submitted_by!==userId&&person.user_id!==userId&&<><button className="button secondary" disabled={busy} onClick={()=>send(`time-entries/${t.id}/approve`,{expectedVersion:t.version})}>Approve time</button><button className="button secondary" onClick={()=>setReviewing(String(t.id))}>Return for correction</button></>}
-      </div>{Boolean(t.note)&&<p className="muted">{String(t.note)}</p>}{Boolean(t.rejection_reason)&&<p>Correction requested: {String(t.rejection_reason)}</p>}
-      {reviewing===t.id&&<form className="business-form" onSubmit={async e=>{e.preventDefault();if(await send(`time-entries/${t.id}/reject`,{expectedVersion:t.version,reason:new FormData(e.currentTarget).get("reason")}))setReviewing(null);}}><label>Correction reason<input name="reason" required minLength={3} maxLength={500}/></label><button className="button secondary" disabled={busy}>Return time entry</button></form>}
+    {entries.map(t => <article key={String(t.id)}><div className="row"><strong>{String(t.work_date)}</strong><span>{String(t.regular_hours)}h + {String(t.overtime_hours)}h overtime · {String(t.status)}</span>
+      {canEdit && t.submitted_by === userId && ["draft", "submitted", "rejected"].includes(String(t.status)) && <button className="button secondary" onClick={() => { setEditing(t); setCorrectionFiles(null); }}>Edit time</button>}
+      {canApprove && t.status === "submitted" && t.submitted_by !== userId && person.user_id !== userId && <><button className="button secondary" disabled={busy} onClick={() => send(`time-entries/${t.id}/approve`, { expectedVersion: t.version })}>Approve time</button><button className="button secondary" onClick={() => setReviewing(String(t.id))}>Return for correction</button></>}
+      </div>{Boolean(t.note) && <p className="muted">{String(t.note)}</p>}{Boolean(t.rejection_reason) && <p>Correction requested: {String(t.rejection_reason)}</p>}
+      {reviewing === t.id && <form className="business-form" onSubmit={async (e) => {
+                    e.preventDefault();
+                    if (await send(`time-entries/${t.id}/reject`, { expectedVersion: t.version, reason: new FormData(e.currentTarget).get("reason") }))
+                        setReviewing(null);
+                }}><label>Correction reason<input name="reason" required minLength={3} maxLength={500}/></label><button className="button secondary" disabled={busy}>Return time entry</button></form>}
     </article>)}
     <p className="muted">Approved time is locked and feeds payroll calculations. Corrections require a new review.</p>
   </section>;

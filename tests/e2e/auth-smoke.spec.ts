@@ -49,18 +49,12 @@ test("invalid reset links explain how to request a replacement", async ({ page }
   await expect(page.getByLabel("Password", { exact: true })).toHaveCount(0);
 });
 
-for (const destination of [
-  { link: "Forgot password?", path: "/forgot-password", heading: "Reset your password" },
-  { link: "Verify email", path: "/verify-email", heading: "Verify your email" },
-  { link: "Join the free beta", path: "/signup", heading: "A shared home for your team’s work" },
-]) {
-  test(`login navigates to ${destination.path}`, async ({ page }) => {
-    await page.goto("/login");
-    await page.getByRole("link", { name: destination.link, exact: true }).click();
-    await expect(page).toHaveURL(new RegExp(`${destination.path}$`));
-    await expect(page.getByRole("heading", { name: destination.heading, exact: true })).toBeVisible();
-  });
-}
+test("login opens password recovery", async ({ page }) => {
+  await page.goto("/login");
+  await page.getByRole("link", { name: "Forgot password?", exact: true }).click();
+  await expect(page).toHaveURL(/\/forgot-password$/);
+  await expect(page.getByRole("heading", { name: "Reset your password.", exact: true })).toBeVisible();
+});
 
 test("seeded employee signs in through the UI and keeps their session after reload", async ({ page, baseURL }) => {
   const local = ["127.0.0.1", "localhost"].includes(new URL(baseURL!).hostname);

@@ -58,7 +58,10 @@ await cp(join(work,'scripts/legal'),join(release,'scripts/legal'),{recursive:tru
 const extraction=await Bun.build({entrypoints:[join(work,'scripts/legal/extract_docx.mjs')],outdir:join(release,'scripts/legal'),target:'node',format:'esm',naming:'extract_docx.mjs'});
 if(!extraction.success)throw new Error('LEGAL_EXTRACTOR_BUILD_FAILED');
 const tools=['jobs','launch','provision','bootstrap-admin','bootstrap-staging-admin','doctor','minio-snapshot','migrate-files-to-minio','reconcile-attachments'];
-const bundle=await Bun.build({entrypoints:tools.map(name=>join(work,'scripts/local',`${name}.ts`)),outdir:join(release,'tools'),target:'node',format:'esm',conditions:['react-server'],external:['pg'],naming:'[name].mjs'});
+const bundle=await Bun.build({entrypoints:tools.map(name=>join(work,'scripts/local',`${name}.ts`)),outdir:join(release,'tools'),target:'node',format:'esm',conditions:['react-server'],external:['pg'],naming:'[name].mjs',
+  // Mirror Next's server-layer resolution for permission helpers used by jobs.
+  plugins:[{name:'next-server-navigation',setup(build){build.onResolve({filter:/^next\/navigation$/},()=>({path:join(work,'node_modules/next/dist/client/components/navigation.react-server.js')}));}}],
+});
 if(!bundle.success)throw new Error(bundle.logs.map(log=>log.message).join('\n'));
 const schemaHash=createHash('sha256');
 for(const track of (await readdir(join(work,'migrations/postgres'))).sort()) for(const file of (await readdir(join(work,'migrations/postgres',track))).filter(f=>f.endsWith('.sql')).sort())

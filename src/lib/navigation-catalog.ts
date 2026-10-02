@@ -18,6 +18,7 @@ function appItem(app: NavigationApp): NavigationItem {
     href: app.href ?? app.items[0].href,
     group: "Apps",
     icon: app.icon,
+    ...(app.items[0]?.openInNewTab ? { openInNewTab: true } : {}),
     keywords: app.keywords,
   };
 }

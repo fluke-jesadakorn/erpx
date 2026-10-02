@@ -1,0 +1,24 @@
+.workspace { width: 100%; min-width: 0; padding: 24px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
+.workspace h2 { margin: 0 0 7px; color: var(--ink-strong); font-size: 22px; }
+.workspace p { overflow-wrap: anywhere; }
+.heading { display: flex; gap: 16px; margin: -24px -24px 22px; padding: 16px 24px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+.heading span:first-child { color: var(--brand-strong); font-weight: 700; }
+.people { display: grid; gap: 10px; margin: 22px 0; }
+.person { display: grid; grid-template-columns: minmax(0, 1fr) minmax(190px, .8fr); gap: 10px 20px; align-items: center; padding: 15px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-2); }
+.person strong, .person small { display: block; overflow-wrap: anywhere; }
+.person small { margin-top: 5px; color: var(--muted); font-size: 12px; }
+.person label, .fields label, .reason { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+.person select, .fields select, .fields input, .reason textarea { width: 100%; min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid var(--control-border); border-radius: 7px; background: var(--card); color: var(--ink); font: inherit; font-size: 13px; }
+.person .check { display: flex; align-items: center; gap: 9px; grid-column: 1 / -1; min-height: 44px; color: var(--ink); }
+.check input { width: 18px; height: 18px; accent-color: var(--brand); }
+.person p { grid-column: 1 / -1; margin: 0; font-size: 12px; }
+.good { color: var(--brand-strong); }
+.error { color: var(--danger, #d35757); }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.reason { margin-top: 15px; }
+.reason textarea { min-height: 92px; resize: vertical; }
+.assurance { padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--card-2); color: var(--muted); font-size: 13px; }
+.actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 9px; margin-top: 20px; }
+.actions a, .actions button { min-height: 44px; }
+.workspace :is(button, input, select, textarea, a):focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+@media (max-width: 680px) { .workspace { padding: 16px; } .heading { margin: -16px -16px 18px; padding: 14px 16px; } .person, .fields { grid-template-columns: 1fr; } .actions { display: grid; } }

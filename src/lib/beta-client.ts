@@ -14,6 +14,10 @@ export async function betaFetch<T>(
     body: input === undefined ? undefined : JSON.stringify(input),
   });
   const body = (await r.json()) as { data: T; error?: { message: string } };
-  if (!r.ok) throw new Error(body.error?.message ?? "Please try again.");
+  if (!r.ok) {
+    const message = body.error?.message ?? "Please try again.";
+    const requestId = r.headers.get("X-Request-ID");
+    throw Object.assign(new Error(requestId ? `${message} (Reference: ${requestId})` : message), { status:r.status, code:(body.error as {code?:string}|undefined)?.code });
+  }
   return body.data;
 }

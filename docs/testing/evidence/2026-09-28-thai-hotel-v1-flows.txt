@@ -1,0 +1,33 @@
+# Thai Hotel v1 H002 workflow evidence — 2026-09-28
+
+Scope: synthetic H002 (`riverside-lantern`) browser simulation using isolated PostgreSQL databases. These results are mock workflow evidence; they are not hotel UAT, statutory payroll acceptance, provider acceptance, or production approval.
+
+## Source fingerprints
+
+Each SHA-256 below is computed over the lexicographically sorted per-file manifest: `SHA-256(file contents)  relative/path`, then SHA-256 of the complete manifest. Inputs include all files under `src/` and `migrations/postgres/`, `package.json`, `bun.lock`, `playwright.config.ts`, the H002 simulation script and fixture, and the E2E specs listed for that run.
+
+| Run ID | E2E spec inputs | Fingerprint SHA-256 | Result |
+| --- | --- | --- | --- |
+| `7802c72152f2` | `tests/e2e/thai-hotel-v1-procurement.spec.ts`; `tests/e2e/thai-hotel-v1-overtime.spec.ts` | `5a87f0b596bfbc41fa1d233b5acc28f2d517d31c6e2568b3f034c516abf66cdf` | 2 passed, 0 failed, 0 skipped (1m 30s) |
+| `ef0d99de1bf2` | `tests/e2e/thai-hotel-v1-ai.spec.ts`; `tests/e2e/thai-hotel-v1-payroll.spec.ts`; `tests/helpers/front-simulation-session.ts` | `f4543072594277507b0bf0d3363898c20c1794bc18d7f4614914b847ecd74c1c` | AI 1 passed; Payroll mock 1 passed |
+| `1e7c82298d2e` | `tests/e2e/thai-hotel-v1-pos.spec.ts`; `tests/helpers/front-simulation-session.ts` | `e71ce45202f5409f7be49d60edb1f7da2dc23e6dec4a0e7ce31c7526c7f3dd7b` | Restaurant POS 1 passed |
+| `f7943ece1362` | `tests/e2e/thai-hotel-v1-final-pay.spec.ts` | `e8bb9ce5353a33f5b2266abf61904366f823dd6ce347846e77b683d666a191b1` | Final-pay mock 1 passed, 0 failed, 0 skipped (21.4s) |
+
+All successful scenarios ran on desktop Chromium with 0 skips and `ERPX_E2E_BASE_URL=http://127.0.0.1:3102`. Simulation H002 databases, files and server processes were destroyed after each run. Final-pay Playwright HTML report SHA-256: `01626b0fbcae2776cfce5ec18a23fccf6a1adcdb112284d8f6411365502b1b7b` (source manifest contains 1,456 files; workspace HEAD at run time: `87224265`).
+
+## Verified flows
+
+- POS-01: selected table `T01` for dine-in; added a menu item; kitchen prepared, consumed and recorded waste; stock deltas matched immutable POS movements; cashier recorded a cash sale; an independent manager approved its refund; the cash shift closed with zero variance. Room charge also persisted to the hotel folio with one balanced posting. `1e7c82298d2e` is the final run after adding the table assertion.
+- BUY-01: H002 employee purchase request passed manager and Finance review; Purchasing compared supplier quotations, proposed the lower price, and an independent purchasing reviewer approved both purchase orders.
+- BUY-02: one order had a partial receipt followed by completion; a second order was fully received. Finance posted goods journals, matched one consolidated supplier invoice, exported an approved payment instruction, imported matching synthetic bank evidence and settled the invoice.
+- HR-02: H002 employee overtime was verified by a manager and approved by HR before payroll handoff. The same browser journey also submitted/approved time, used the published roster to calculate leave, and completed manager then HR leave approval.
+- AI-01: authorized saved request produced a source-versioned proposal; the employee reviewed and saved it, a source change invalidated the old proposal, and the request remained manually editable after the AI capability was disabled.
+- Payroll mock: monthly salaried, foreign prorated salaried, daily and hourly workers were calculated; correction review, independent run approval, GL posting, payment-file export and synthetic bank confirmation all completed. A separate final-pay scenario scheduled a synthetic retirement clearance, assigned its payroll task, prepared a final-pay preview and calculated exactly one scoped employee through the last working day. The final-pay run `payrun-final-74033474-62de-4a6f-a3e7-7f0e9c60f8cb` reached `preview` with gross THB 1,062.50, deductions THB 15.00 and net THB 1,047.50. Both scenarios use synthetic fixtures, not Thai statutory calculations.
+- PAY-02 remains partial: the payroll page explicitly keeps live employee payslips unavailable until Thai calculations and restricted employee delivery are validated. Review export, independent approval, GL, payment export and synthetic bank confirmation are exercised; no employee payslip is issued by the mock.
+- AI-02 remains partial: the night-audit assistant cited hotel evidence and its answer expired after a source change; disabling AI returned the expected unavailable result. The manual fallback is asserted on the purchase request, not through a completed manual night-audit close.
+
+## Run caveats and remaining acceptance
+
+An earlier five-spec diagnostic invocation against run `c8d1d305f0a0` had 2 passed and 3 failed overall: the AI/POS login helper expected a Thai button label while the page showed English, and Payroll ran after Overtime had created a handoff for the same employee. The login/language locator was corrected; Purchasing and HR then passed in the clean focused run above, and AI, Payroll and POS were rerun on fresh isolated simulations. The original combined command is not recorded as a suite pass.
+
+The mock matrix now has 8 of 15 rows passing: HOTEL-01, HOTEL-02, POS-01, BUY-01, BUY-02, HR-02, PAY-01 and AI-01. POS-02, HR-01, PAY-02, AI-02, AUTH-01, MONEY-01 and UI-01 remain incomplete. The affected POS, Purchasing, People/Payroll and PMS catalog capabilities were already `Flow accepted`, so this work does not change the inventory count: it remains 68 of 187. Hotel manager/Finance UAT, real data, Thai statutory payroll expert results, release build/configuration review and operational gates remain pending.

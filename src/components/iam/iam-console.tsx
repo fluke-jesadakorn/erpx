@@ -13,6 +13,7 @@ type RoleRevision,
 } from "@/lib/iam";
 import { evaluateAccess } from "@/lib/permissions";
 import { workFetch } from "@/lib/work-fetch";
+import { TimeText } from "@/components/time/time-preference-context";
 import type { iamOverview } from "@/server/iam-service";
 import {
 Check,
@@ -36,7 +37,7 @@ type Row = Record<string, unknown>;
 const text = (v: unknown) => String(v ?? "");
 const date = (v: unknown) =>
   v
-    ? new Date(Number(v)).toLocaleString("en-GB", { timeZone: "Asia/Bangkok" })
+    ? <TimeText value={Number(v)} />
     : "—";
 const day = (v: number) => new Date(v).toISOString().slice(0, 10);
 const title = (s: string) => s.replaceAll("_", " ").replaceAll(".", " · ");

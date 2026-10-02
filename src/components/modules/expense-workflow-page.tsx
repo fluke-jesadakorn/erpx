@@ -1,4 +1,6 @@
+import { TimeText } from "@/components/time/time-preference-context";
 import { FlowPanel } from "@/components/workplace/flow-panel";
+import { MoneyAmount } from "@/components/money/currency-provider";
 import { ExpensePostingPreview } from "./expense-posting-preview";
 import styles from "./expense.module.css";
 import { administrationAccess } from "@/server/administration";
@@ -10,7 +12,6 @@ import {
   type expenseOptions,
 } from "@/server/expenses";
 import { expenseStageLabels, type ExpenseStage } from "@/lib/expense-workflow";
-import { minorToDecimal } from "@/lib/finance-money";
 import { ExpenseEditor, ExpenseReceipts } from "./expense-controls";
 import {
   ExpenseAccounting,
@@ -21,6 +22,7 @@ import { ApprovalHistory } from "./approval-history";
 import { ApprovalAdminLink } from "./approval-admin-link";
 import { StatusBadge } from "@/components/ui/primitives";
 import { ExpenseAiPanel } from "./expense-ai-panel";
+import { FinanceLegacyHeading } from "@/components/finance/finance-record-workspace";
 
 export async function ExpenseWorkflowPage({
   base,
@@ -61,7 +63,7 @@ export async function ExpenseWorkflowPage({
   };
   return (
     <div className="content-stack" data-source="live">
-      <Link className="back-link" href={`${base}/expenses`}>
+      <FinanceLegacyHeading><Link className="back-link" href={`${base}/expenses`}>
         ← Expense claims
       </Link>
       <header className="section-head">
@@ -74,7 +76,7 @@ export async function ExpenseWorkflowPage({
           </p>
         </div>
         <StatusBadge status={String(expense.status)} />
-      </header>
+      </header></FinanceLegacyHeading>
       {!!expense.spending_template_version&&<p className="muted">Submitted with company spending template version {String(expense.spending_template_version)}.</p>}
       <FlowPanel actor={actor} kind="expense" id={String(expense.id)} base={base}/>
       {["accounts_approval","gl_posting","payment","completed"].includes(stage) && <ExpensePostingPreview actor={actor} expense={expense} base={base}/>}
@@ -90,17 +92,14 @@ export async function ExpenseWorkflowPage({
                   ? "This claim is cancelled."
                   : `Responsible queue: ${String(expense.current_approver_name ?? expenseStageLabels[stage])}.`}
         </p>
-        {expense.amount_minor && (
+        {expense.amount_minor != null && expense.tax_minor != null && (
           <p>
             <strong>
-              Claim total: {String(expense.currency)}{" "}
-              {minorToDecimal(
-                Number(expense.amount_minor) + Number(expense.tax_minor),
-              )}
+              Claim total: <MoneyAmount units={(BigInt(String(expense.amount_minor)) + BigInt(String(expense.tax_minor))).toString()} currency={String(expense.currency)} date={String(expense.expense_date)} legacyScale={2} />
             </strong>
             {expense.outstanding_minor !== null &&
             expense.outstanding_minor !== undefined
-              ? ` · Remaining: ${minorToDecimal(Number(expense.outstanding_minor))}`
+              ? <> · Remaining: <MoneyAmount units={String(expense.outstanding_minor)} currency={String(expense.currency)} date={String(expense.expense_date)} legacyScale={2} /></>
               : ""}
           </p>
         )}
@@ -166,9 +165,9 @@ export async function ExpenseWorkflowPage({
             <dt>Expense category</dt>
             <dd>{String(expense.category_name)}</dd>
             <dt>Net amount</dt>
-            <dd>{minorToDecimal(Number(expense.amount_minor))}</dd>
+            <dd>{expense.amount_minor == null ? "Not provided" : <MoneyAmount units={String(expense.amount_minor)} currency={String(expense.currency)} date={String(expense.expense_date)} legacyScale={2} />}</dd>
             <dt>Recoverable tax</dt>
-            <dd>{minorToDecimal(Number(expense.tax_minor))}</dd>
+            <dd>{expense.tax_minor == null ? "Not provided" : <MoneyAmount units={String(expense.tax_minor)} currency={String(expense.currency)} date={String(expense.expense_date)} legacyScale={2} />}</dd>
             <dt>Receipt number</dt>
             <dd>{String(expense.receipt_reference)}</dd>
             {accounting.entryDate && (
@@ -214,11 +213,7 @@ export async function ExpenseWorkflowPage({
         {history.map((a) => (
           <p key={String(a.id)}>
             {String(a.action).replaceAll(".", " ")} · {String(a.actor_name)} ·{" "}
-            {new Date(Number(a.created_at))
-              .toISOString()
-              .slice(0, 16)
-              .replace("T", " ")}{" "}
-            UTC
+            <TimeText value={Number(a.created_at)} />
           </p>
         ))}
       </details>

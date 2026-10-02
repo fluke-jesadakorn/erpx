@@ -623,13 +623,15 @@ export async function saveTask(
     scope(current ?? staff),
   );
 }
-export async function taskDetail(
+export type TaskWorkState = Pick<TaskDetail, "approval" | "permittedActions" | "blockedReason">;
+
+/** The caller must load the authorized row with getTask or listTasks first. */
+export async function taskWorkState(
   db: SqlDatabase,
   actor: StaffActor,
-  id: string,
-): Promise<TaskDetail> {
-  const task = await getTask(db, actor, id),
-    approval = await approvalView(db, "task", id, actor),
+  task: TaskRow,
+): Promise<TaskWorkState> {
+  const approval = await approvalView(db, "task", task.id, actor),
     manage = canConfigureTask(actor, task),
     assigned = samePerson(actor,task.assignee_user_id) || isActiveDelegate(actor, task);
   let blockedReason = approval.blockedReason ?? task.blocked_reason;
@@ -677,6 +679,16 @@ export async function taskDetail(
       : []),
     ...(approval.canDecide ? ["approve", "reject"] : []),
   ];
+  return { approval, permittedActions, blockedReason };
+}
+
+export async function taskDetail(
+  db: SqlDatabase,
+  actor: StaffActor,
+  id: string,
+): Promise<TaskDetail> {
+  const task = await getTask(db, actor, id),
+    work = await taskWorkState(db, actor, task);
   const attachments = (
     await db
       .prepare(
@@ -709,7 +721,7 @@ export async function taskDetail(
     LEFT JOIN hr_people revoker ON revoker.company_id=d.company_id AND revoker.user_id=d.revoked_by AND revoker.merged_into_id IS NULL
     WHERE d.company_id=? AND d.task_id=? ORDER BY d.created_at DESC,d.id DESC LIMIT 50
   `).bind(actor.companyId, id).all<TaskDetail["delegationHistory"][number]>()).results;
-  return { task, approval, permittedActions, blockedReason, delegation, delegationHistory, attachments };
+  return { task, ...work, delegation, delegationHistory, attachments };
 }
 export async function transitionTask(
   db: SqlDatabase,

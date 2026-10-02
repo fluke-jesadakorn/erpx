@@ -203,8 +203,19 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     const ceo=sourceState.positions.find((position:{is_ceo:number})=>position.is_ceo===1);
     const levelSix=sourceState.levels.find((level:{level_number:number})=>level.level_number===6);
     expect(ceo,"active reporting position").toBeTruthy();expect(levelSix,"level-six catalog entry").toBeTruthy();
+    const workContext=await ownerPage.locator('[data-work-stale="false"]').evaluate((node:HTMLElement)=>({
+      revision:node.dataset.workRevision!,
+      company:node.dataset.workCompany!,
+      assignment:node.dataset.workAssignment!,
+    }));
     const positionResponse=await ownerContext.request.post("/api/v1/holdings/simulation/people/organization/positions",{
-      headers:{Origin:(process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102"),"Idempotency-Key":`organization-position-${run}`},
+      headers:{
+        Origin:(process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3102"),
+        "Idempotency-Key":`organization-position-${run}`,
+        "x-erpx-context-revision":workContext.revision,
+        "x-erpx-context-company":workContext.company,
+        "x-erpx-context-assignment":workContext.assignment,
+      },
       data:{title:`Movable service position ${suffix}`,branchId:applied.nodeId,departmentId:movableApplied.nodeId,levelId:levelSix.id,reportsToPositionId:ceo.id,isCeo:false,active:true,expectedVersion:0,requirements:"Service coverage in the source team.",reason:"Seed the reviewed relocation with an active position."},
     });
     expect(positionResponse.ok(),await positionResponse.text()).toBe(true);
@@ -213,8 +224,8 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     await ownerPage.reload();
     const movableUnit=unit(ownerPage,movableDepartmentName);
     await movableUnit.getByText("Propose a change",{exact:true}).click();
-    await movableUnit.getByLabel("Change",{exact:true}).selectOption("relocate");
-    await movableUnit.getByLabel("Destination branch",{exact:true}).selectOption(destinationApplied.nodeId!);
+    await movableUnit.getByRole("combobox",{name:"Change",exact:true}).selectOption("relocate");
+    await movableUnit.locator('select[name="branchId"]').selectOption(destinationApplied.nodeId!);
     await movableUnit.getByLabel("Display name",{exact:true}).fill(movableDepartmentName);
     await movableUnit.getByLabel("Business reason",{exact:true}).fill("Move the service team's active position with the department.");
     const relocation=(await command(ownerPage,movableUnit.getByRole("button",{name:"Submit for review",exact:true}),"submit"))!;
@@ -240,7 +251,7 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     await ownerPage.reload();
     const archiveUnit=unit(ownerPage,archiveDepartmentName);
     await archiveUnit.getByText("Propose a change",{exact:true}).click();
-    await archiveUnit.getByLabel("Change",{exact:true}).selectOption("archive");
+    await archiveUnit.getByRole("combobox",{name:"Change",exact:true}).selectOption("archive");
     await archiveUnit.getByLabel("Business reason",{exact:true}).fill("Retire the unused team while retaining its history.");
     const archiveChange=(await command(ownerPage,archiveUnit.getByRole("button",{name:"Submit for review",exact:true}),"submit"))!;
     recordIds.push(archiveChange.id);
@@ -250,7 +261,7 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     await ownerPage.reload();
     const archivedUnit=unit(ownerPage,archiveDepartmentName);
     await archivedUnit.getByText("Propose a change",{exact:true}).click();
-    await archivedUnit.getByLabel("Change",{exact:true}).selectOption("reactivate");
+    await archivedUnit.getByRole("combobox",{name:"Change",exact:true}).selectOption("reactivate");
     await archivedUnit.getByLabel("Business reason",{exact:true}).fill("Reopen the retained team after reviewing current staffing needs.");
     const reactivateChange=(await command(ownerPage,archivedUnit.getByRole("button",{name:"Submit for review",exact:true}),"submit"))!;
     recordIds.push(reactivateChange.id);
@@ -261,7 +272,7 @@ test("isolated organization setup supports reviewed correction, safe suspension 
     await signInRole(staffContext,staffPage,credentials,"employee",path);
     await expect(queue(staffPage)).toHaveCount(0);
     const restricted=await staffContext.request.get("/api/v1/holdings/simulation/people/organization?changeState=all");
-    expect(restricted.status()).toBe(200);expect((await restricted.json()).data.nodeChanges).toEqual([]);
+    expect(restricted.status()).toBe(403);
     await ownerPage.goto(`${path}?changeState=all&changeQuery=${encodeURIComponent(branchName)}`);
     await expect(queue(ownerPage).getByRole("article")).toHaveCount(5);
     await testInfo.attach("organization-lifecycle-result",{contentType:"application/json",body:JSON.stringify({project:testInfo.project.name,run,recordIds,branchId:applied.nodeId,destinationBranchId:destinationApplied.nodeId,relocatedFromDepartmentId:movableApplied.nodeId,relocatedToDepartmentId:relocationApplied.nodeId,relocatedPositionId:movablePosition.id,archivedAndReactivatedDepartmentId:archiveSeedApplied.nodeId,requester:owner.userId,reviewer:reviewer.userId,finalBranchStatus:"active",finalDepartmentStatus:"active",blockedSuspensionStatus:409,workReviewLink:true,inboxCorrectionLink:true},null,2)});

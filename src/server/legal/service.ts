@@ -1,4 +1,6 @@
 import { samePerson } from "@/lib/iam";
+import { legalPeople } from "./assignees";
+import { productionFeatureGuard } from "../hospitality-rollout";
 import "server-only";
 import { z } from "zod";
 import { createHash } from "node:crypto";
@@ -25,6 +27,7 @@ import {
   lock,
   event,
   eligible,
+  personGuard,
   fail,
 } from "./access";
 export const hash = (s: string | Uint8Array) =>
@@ -76,12 +79,7 @@ export async function legalData(
       )
       .bind(...v.values)
       .all<{ state: string; count: number }>(),
-    db
-      .prepare(
-        "SELECT DISTINCT a.user_id id,coalesce(p.legal_name,a.user_id) name FROM assignments a LEFT JOIN hr_people p ON p.user_id=a.user_id AND p.company_id=a.company_id AND p.merged_into_id IS NULL WHERE a.company_id=? AND a.revoked_at IS NULL AND a.valid_from<=? AND a.valid_until>? ORDER BY name LIMIT 200",
-      )
-      .bind(a.companyId, Date.now(), Date.now())
-      .all<{ id: string; name: string }>(),
+    legalPeople(db,a),
   ]);
   return {
     enabled: await enabled(db, a),
@@ -93,7 +91,8 @@ export async function legalData(
       .filter((p) => p.id.startsWith("legal.") && hasPermission(a, p.id))
       .map((p) => p.id),
     userId: a.userId,
-    people: people.results.map((p) =>
+    workContext:{companyId:a.companyId,branchId:a.branchId,departmentId:a.departmentId,assignmentId:a.assignmentId,userId:a.userId},
+    people: people.map((p) =>
       p.id === a.userId ? { ...p, name: a.name } : p,
     ),
   };
@@ -274,6 +273,8 @@ export async function legalCommand(
       fail(e instanceof Error ? e.message : "Invalid legal record.");
     }
     await eligible(db, a, x.ownerId);
+    if(x.kind==="obligation"&&x.data.escalationOwner)await eligible(db,a,String(x.data.escalationOwner));
+    if(a.role==="legal_requester"&&(x.kind!=="request"||x.ownerId!==a.userId||x.data.advice))fail("Create a request owned by you; the Legal team records advice.","LEGAL_REQUESTER_SCOPE",403);
     const prior = await replayCommand<{ id: string; version: number }>(
       db,
       a,
@@ -283,6 +284,7 @@ export async function legalCommand(
       x,
     );
     if (prior) return prior;
+    if(a.role==="legal_requester"&&!(await db.prepare("SELECT 1 FROM assignments WHERE company_id=? AND role='legal_manager' AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND legal_person_eligible(company_id,user_id,?,?,'legal.review') LIMIT 1").bind(a.companyId,a.branchId,a.departmentId).first()))fail("A current Legal Manager must be assigned to this Company before requests can be submitted.","LEGAL_ROUTING_UNAVAILABLE",409);
     const id = key,
       now = Date.now();
     return executeCommand(
@@ -296,6 +298,9 @@ export async function legalCommand(
       { id, version: 1 },
       [
         lock(db, a.companyId),
+        personGuard(db,a,key,x.ownerId),
+        ...(x.kind==="obligation"&&x.data.escalationOwner&&x.data.escalationOwner!==x.ownerId?[personGuard(db,a,key,String(x.data.escalationOwner))]:[]),
+        ...(["rule","template"].includes(x.kind)&&!a.branchId&&!a.departmentId&&hasPermission(a,"legal.manage")?[]:productionFeatureGuard(db,key,a.companyId,"legal")),
         assertion(
           db,
           key,
@@ -336,6 +341,7 @@ export async function legalCommand(
             .prepare("INSERT INTO legal_members VALUES(?,?,'edit')")
             .bind(id, u),
         ),
+        ...(a.role==="legal_requester"?[assertion(db,key,"legal-request-routing","EXISTS(SELECT 1 FROM assignments WHERE company_id=? AND role='legal_manager' AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND legal_person_eligible(company_id,user_id,?,?,'legal.review'))",[a.companyId,a.branchId,a.departmentId]),db.prepare("INSERT INTO legal_members(item_id,user_id,access) SELECT DISTINCT ?,user_id,'edit' FROM assignments WHERE company_id=? AND role='legal_manager' AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND legal_person_eligible(company_id,user_id,?,?,'legal.review') ON CONFLICT DO NOTHING").bind(id,a.companyId,a.branchId,a.departmentId)]:[]),
         event(db, a, id, "created", "", 1),
       ],
     );
@@ -343,7 +349,7 @@ export async function legalCommand(
   const id = z.string().min(1).parse(b.id),
     version = z.number().int().positive().parse(b.expectedVersion);
   const permission =
-    b.action === "hold.acknowledge"
+    a.role==="legal_requester"&&b.action==="transition"&&input.state==="review"?"legal.edit":b.action === "hold.acknowledge"
       ? "legal.read"
       : b.action === "transition"
         ? input.state === "approved"
@@ -365,6 +371,7 @@ export async function legalCommand(
                 ? "legal.approve"
                 : "legal.edit";
   const r = await access(db, a, id, permission);
+  if(a.role==="legal_requester"&&(!["update","comment","document","transition"].includes(b.action)||b.action==="transition"&&input.state!=="review"))fail("Requesters can edit their draft, submit it and reply to the Legal team.","LEGAL_REQUESTER_SCOPE",403);
   const prior = await replayCommand<{ id: string; version: number }>(
     db,
     a,
@@ -374,6 +381,7 @@ export async function legalCommand(
     raw,
   );
   if (prior) return prior;
+  if(a.role==="legal_requester"&&["update","document","transition"].includes(b.action)&&r.state!=="draft")fail("Only your draft question may be changed or submitted.","LEGAL_REQUESTER_SCOPE",403);
   if (r.version !== version)
     fail(
       "This record changed. Refresh before saving.",
@@ -407,6 +415,8 @@ export async function legalCommand(
     version,
     key,
     permission === "legal.edit",
+    false,
+    ["rule","template"].includes(r.kind),
   );
   let state = r.state,
     note = "";
@@ -423,8 +433,12 @@ export async function legalCommand(
       fail(e instanceof Error ? e.message : "Invalid record.");
     }
     if (x.kind !== r.kind) fail("Record type cannot change.");
-    await eligible(db, a, x.ownerId);
+    if(a.role==="legal_requester"&&(r.state!=="draft"||x.ownerId!==r.owner_id||(x.data.advice??"")!==(r.data.advice??"")||x.classification!==r.classification||x.country!==r.country||x.jurisdiction!==r.jurisdiction||x.language!==r.language||x.currency!==r.currency||x.timezone!==r.timezone||x.priority!==r.priority||x.dueDate!==r.due_date))fail("Only your draft question may be edited.","LEGAL_REQUESTER_SCOPE",403);
+    await eligible(db, a, x.ownerId,r);
+    if(x.kind==="obligation"&&x.data.escalationOwner)await eligible(db,a,String(x.data.escalationOwner),r);
     steps.push(
+      personGuard(db,a,key,x.ownerId,r),
+      ...(x.kind==="obligation"&&x.data.escalationOwner&&x.data.escalationOwner!==x.ownerId?[personGuard(db,a,key,String(x.data.escalationOwner),r)]:[]),
       db
         .prepare(
           "UPDATE legal_items SET title=?,description=?,classification=?,country=?,jurisdiction=?,language=?,currency=?,timezone=?,priority=?,due_date=?,owner_id=? WHERE id=?",
@@ -452,6 +466,12 @@ export async function legalCommand(
         )
         .bind(id, x.ownerId),
     );
+  } else if(b.action==="assign"){
+    const x=z.object({ownerId:z.string().min(1).max(200),reason:z.string().trim().min(3).max(4000)}).parse(input);
+    if(["archived","cancelled","closed","completed","terminated","expired"].includes(r.state))fail("Reopen this record before changing its owner.","LEGAL_TRANSITION",409);
+    await eligible(db,a,x.ownerId,r);
+    steps.push(personGuard(db,a,key,x.ownerId,r),db.prepare("UPDATE legal_items SET owner_id=? WHERE id=?").bind(x.ownerId,id),db.prepare("INSERT INTO legal_members VALUES(?,?,'edit') ON CONFLICT(item_id,user_id) DO UPDATE SET access='edit'").bind(id,x.ownerId));
+    note=x.reason;
   } else if (b.action === "transition") {
     state = z.string().parse(input.state);
     note = z.string().trim().min(3).max(4000).parse(input.reason);
@@ -478,12 +498,12 @@ export async function legalCommand(
       r.kind === "contract" &&
       !(await db
         .prepare(
-          "SELECT 1 FROM legal_envelopes WHERE item_id=? AND state='completed'",
+          "SELECT 1 FROM legal_envelopes WHERE item_id=? AND state='completed' UNION ALL SELECT 1 FROM legal_executed_copies WHERE item_id=? AND state='confirmed' AND approved_cycle=(SELECT max(cycle) FROM legal_approvals WHERE item_id=?)",
         )
-        .bind(id)
+        .bind(id,id,id)
         .first())
     )
-      fail("A completed signing envelope is required.");
+      fail("An independently confirmed executed copy is required.");
     if (
       state === "completed" &&
       r.kind === "obligation" &&
@@ -505,12 +525,13 @@ export async function legalCommand(
         access: z.enum(["read", "edit", "remove"]),
       })
       .parse(input);
-    await eligible(db, a, x.userId);
+    if(x.access!=="remove")await eligible(db, a, x.userId,r);
     if (x.access === "remove" && [r.created_by, r.owner_id].includes(x.userId))
       fail(
         "Reassign ownership before removing the owner; creator membership is retained.",
       );
     steps.push(
+      ...(x.access!=="remove"?[personGuard(db,a,key,x.userId,r)]:[]),
       x.access === "remove"
         ? db
             .prepare("DELETE FROM legal_members WHERE item_id=? AND user_id=?")
@@ -629,6 +650,7 @@ export async function legalCommand(
       .bind(x.documentId, id)
       .first<DocumentVersion>();
     if (!d) fail("Choose a document belonging to this contract.");
+    if(await db.prepare("SELECT 1 FROM legal_executed_copies WHERE document_id=?").bind(d.id).first())fail("Approve the draft document; imported executed copies are reviewed separately.");
     if (samePerson(a, d.created_by))
       fail(
         "The document author cannot approve their own document.",

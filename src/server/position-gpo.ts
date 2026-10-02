@@ -296,9 +296,7 @@ async function desiredMemberships(db:SqlDatabase):Promise<Desired[]>{
     FROM hr_engagements e JOIN hr_people person ON person.id=e.person_id AND person.company_id=e.company_id
     JOIN organization_positions position ON position.id=e.position_id AND position.company_id=e.company_id AND position.active=1
     JOIN organization_gpo_rules r ON r.company_id=e.company_id AND r.active
-      AND ((r.target_kind='position' AND r.target_id=position.id)
-        OR (r.target_kind='level' AND r.target_id=position.level_id AND EXISTS(SELECT 1 FROM staff_levels l WHERE l.id=r.target_id AND l.company_id=r.company_id AND l.active=1))
-        OR (r.target_kind='department' AND r.target_id=position.department_id AND EXISTS(SELECT 1 FROM organization_nodes n WHERE n.id=r.target_id AND n.company_id=r.company_id AND n.status='active')))
+      AND r.target_kind='position' AND r.target_id=position.id
     LEFT JOIN LATERAL (SELECT DISTINCT i.external_id FROM iam_members m JOIN iam_identities i ON i.id=m.identity_id
       WHERE m.company_id=e.company_id AND m.person_id=e.person_id AND m.status='active'
         AND i.company_id=e.company_id AND i.person_id=e.person_id AND i.connection_id=r.connection_id AND i.enabled=true) i ON true

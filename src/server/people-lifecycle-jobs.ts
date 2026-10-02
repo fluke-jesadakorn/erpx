@@ -1,3 +1,4 @@
+import { drainOrganizationDrafts } from "./organization-drafts";
 import "server-only";
 import { iamDb } from "./iam-db";
 import type { PostgresDatabase } from "./runtime/postgres";
@@ -187,6 +188,7 @@ export async function drainPeopleLifecycle(
             "UPDATE people_lifecycle_cases SET status='completed' WHERE id=$1",
             [row.id],
           );
+          await client.query("SELECT set_config('erpx.payroll_assignment_date',$1,true)",[caseDate(row.effective_at,row.definition.timezone)]);
           await client.query(
             "UPDATE hr_engagements SET position_id=$2,branch_id=$3,department_id=$4,level_id=$5,manager_person_id=$6,job_title=$7,status='active',version=version+1,updated_at=$8 WHERE id=$1",
             [
@@ -312,5 +314,5 @@ export async function drainPeopleLifecycle(
   } finally {
     client.release();
   }
-  return processed + await drainPositionMoves(raw, now);
+  return processed + await drainPositionMoves(raw, now) + await drainOrganizationDrafts(raw, now);
 }

@@ -114,6 +114,30 @@ export type LifecycleCase = {
   created_by: string;
   updated_at: number;
 };
+// Technology receives only delivery state. HR-only definition and review
+// evidence are deliberately absent from this projection.
+export type LifecycleCaseStatus = Pick<
+  LifecycleCase,
+  | "id"
+  | "company_id"
+  | "person_id"
+  | "engagement_id"
+  | "kind"
+  | "status"
+  | "version"
+  | "effective_at"
+  | "package_id"
+  | "package_revision"
+  | "updated_at"
+  | "last_error"
+  | "directoryStatus"
+  | "cutoffEffective"
+>;
+export function hasLifecycleCaseDetail(
+  value: LifecycleCase | LifecycleCaseStatus,
+): value is LifecycleCase {
+  return "definition" in value && value.definition !== undefined;
+}
 export type PreparationTask = {
   application_id?: string | null;
   clearance_type?: import("./retirement").ClearanceKind | null;
@@ -167,7 +191,7 @@ export type PeopleLifecycleData = {
     level_id: string;
     active: number;
   }[];
-  cases: LifecycleCase[];
+  cases: (LifecycleCase | LifecycleCaseStatus)[];
   tasks: PreparationTask[];
   settings: {
     version: number;

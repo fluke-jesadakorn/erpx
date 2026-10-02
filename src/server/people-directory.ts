@@ -17,6 +17,8 @@ export const directorySchema = z.object({
   preferredName: z.string().trim().max(160).default(""),
   email: z.email().transform((v) => v.toLowerCase()),
   phone: z.string().trim().max(60).default(""),
+  workEmail: z.union([z.email().transform((v) => v.toLowerCase()), z.literal("")]).optional(),
+  workPhone: z.string().trim().max(60).optional(),
   countryCode: z.string().regex(/^[A-Z]{2}$/),
   branchId: z.string().min(1),
   departmentId: z.string().nullable().default(null),
@@ -35,6 +37,8 @@ export const directorySchema = z.object({
 });
 export const directoryUpdateSchema = directorySchema.extend({
   expectedVersion: z.number().int().positive(),
+  engagementId: z.string().min(1).optional(),
+  expectedEngagementVersion: z.number().int().positive().optional(),
 });
 export const directoryStatusSchema = z.object({
   status: z.enum(["active", "inactive", "archived"]),
@@ -69,17 +73,21 @@ export async function directoryOptions(actor: WorkContext) {
     .all();
   return nodes.results;
 }
-export async function directoryPerson(actor: WorkContext, personId: string) {
+export async function directoryPerson(actor: WorkContext, personId: string, engagementId?: string) {
   const { write } = await holdingResources(actor.holdingId);
   const person = await write
     .prepare(
       `SELECT p.*,e.id AS engagement_id,e.version AS engagement_version,e.branch_id,e.department_id,e.job_title,e.worker_type,e.employment_type,e.start_date,e.end_date,e.currency,e.status AS engagement_status,e.manager_person_id,e.pay_group_id,e.position_id,e.level_id,(SELECT name FROM staff_levels WHERE id=e.level_id) level_name,(SELECT level_number FROM staff_levels WHERE id=e.level_id) level_number
-    FROM hr_people p LEFT JOIN hr_engagements e ON e.id=(SELECT x.id FROM hr_engagements x WHERE x.person_id=p.id AND x.company_id=p.company_id ORDER BY CASE WHEN x.status IN ('active','onboarding','suspended') THEN 0 ELSE 1 END,x.start_date DESC,x.id LIMIT 1)
-    WHERE p.id=? AND p.company_id=? AND p.merged_into_id IS NULL AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)`,
+    FROM hr_people p LEFT JOIN hr_engagements e ON e.id=(SELECT x.id FROM hr_engagements x WHERE x.person_id=p.id AND x.company_id=p.company_id AND (?::text IS NULL OR x.id=?) ORDER BY CASE WHEN x.status IN ('active','onboarding','suspended') THEN 0 ELSE 1 END,x.start_date DESC,x.id LIMIT 1)
+    WHERE p.id=? AND p.company_id=? AND p.merged_into_id IS NULL AND (?::text IS NULL OR e.id=?) AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)`,
     )
     .bind(
+      engagementId ?? null,
+      engagementId ?? null,
       personId,
       actor.companyId,
+      engagementId ?? null,
+      engagementId ?? null,
       actor.branchId,
       actor.branchId,
       actor.departmentId,
@@ -150,7 +158,7 @@ export async function saveDirectoryPerson(
 ) {
   actor = manage(actor);
   const { write } = await holdingResources(actor.holdingId);
-  const current = personId ? await directoryPerson(actor, personId) : null;
+  const current = personId ? await directoryPerson(actor, personId, input.engagementId) : null;
   // Stable IDs make a lost-response retry target the same aggregate.
   const id = personId ?? `person-${commandId}`;
   const engagement = String(current?.engagement_id ?? `eng-${commandId}`);
@@ -211,7 +219,7 @@ export async function saveDirectoryPerson(
         commandId,
         "engagement-version",
         "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND version=?)",
-        [engagement, Number(current.engagement_version)],
+        [engagement, input.expectedEngagementVersion ?? Number(current.engagement_version)],
       ),
     );
   steps.push(
@@ -242,13 +250,15 @@ export async function saveDirectoryPerson(
     steps.push(
       write
         .prepare(
-          "UPDATE hr_people SET legal_name=?,preferred_name=?,email=?,phone=?,country_code=?,version=version+1,updated_at=? WHERE id=?",
+          "UPDATE hr_people SET legal_name=?,preferred_name=?,email=?,phone=?,work_email=?,work_phone=?,country_code=?,version=version+1,updated_at=? WHERE id=?",
         )
         .bind(
           input.legalName,
           input.preferredName || null,
           input.email,
           input.phone || null,
+          input.workEmail === undefined ? current.work_email : input.workEmail || null,
+          input.workPhone === undefined ? current.work_phone : input.workPhone || null,
           input.countryCode,
           now,
           id,
@@ -283,7 +293,7 @@ export async function saveDirectoryPerson(
     steps.push(
       write
         .prepare(
-          "INSERT INTO hr_people(id,company_id,legal_name,preferred_name,email,phone,country_code,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO hr_people(id,company_id,legal_name,preferred_name,email,phone,work_email,work_phone,country_code,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
         )
         .bind(
           id,
@@ -292,6 +302,8 @@ export async function saveDirectoryPerson(
           input.preferredName || null,
           input.email,
           input.phone || null,
+          input.workEmail || null,
+          input.workPhone || null,
           input.countryCode,
           actor.userId,
           now,

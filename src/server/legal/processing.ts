@@ -5,6 +5,7 @@ import { executeCommand, assertion } from "../commands";
 import { loadIamAuthority } from "../iam-store";
 import { access, guards, fail } from "./access";
 import { documentAccess, inspectDocument } from "./documents";
+import { legalRuntimePredicate, legalCompanyCapabilityReady } from './runtime-gate';
 export async function queueInspection(
   db: SqlDatabase,
   a: WorkContext,
@@ -88,7 +89,7 @@ export async function drainLegalProcessing(db: SqlDatabase, files: FileStore) {
   const token = crypto.randomUUID(),
     j = await db
       .prepare(
-        "UPDATE legal_processing_jobs SET state='running',attempts=attempts+1,lease_token=?,lease_until=? WHERE id=(SELECT id FROM legal_processing_jobs WHERE state='queued' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *",
+        `UPDATE legal_processing_jobs SET state='running',attempts=attempts+1,lease_token=?,lease_until=? WHERE id=(SELECT j.id FROM legal_processing_jobs j WHERE j.state='queued' AND ${legalRuntimePredicate('j.company_id','documents')} ORDER BY j.created_at FOR UPDATE OF j SKIP LOCKED LIMIT 1) RETURNING *`,
       )
       .bind(token, Date.now() + 600000)
       .first<{
@@ -102,6 +103,7 @@ export async function drainLegalProcessing(db: SqlDatabase, files: FileStore) {
   if (!j) return;
   try {
     const a = JSON.parse(j.actor_json) as WorkContext;
+    if (!await legalCompanyCapabilityReady(db,a.companyId,'documents')) fail('Legal document processing is not ready for this Company.');
     if (
       !(await db
         .prepare(
@@ -121,6 +123,7 @@ export async function drainLegalProcessing(db: SqlDatabase, files: FileStore) {
     const d = await documentAccess(db, a, j.document_id);
     if (d.checksum !== j.checksum) fail("Source changed.");
     const result = await inspectDocument(db, files, a, d.id, j.kind);
+    if (!await legalCompanyCapabilityReady(db,a.companyId,'documents')) fail('Legal document processing readiness changed.');
     await access(db, a, j.item_id);
     await db
       .prepare(

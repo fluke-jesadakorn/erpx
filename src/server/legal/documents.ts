@@ -11,9 +11,9 @@ import { PDFDocument } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import type { WorkContext } from "../authorization";
 import type { SqlDatabase, FileStore } from "../runtime/types";
-import type { DocumentVersion } from "@/lib/legal/model";
+import { executedCopySchema, type ExecutedCopyInput, type DocumentVersion } from "@/lib/legal/model";
 import { access, guards, event, fail } from "./access";
-import { executeCommand, replayCommand } from "../commands";
+import { executeCommand, replayCommand, assertion } from "../commands";
 import { hash } from "./service";
 import { attachmentsV2ReadOnly } from "../attachments/feature";
 import {
@@ -35,9 +35,11 @@ export async function uploadDocument(
   type: string,
   bytes: Uint8Array,
   key: string,
+  executed?: ExecutedCopyInput,
 ) {
   const r = await access(db, a, id, "legal.edit");
-  if (r.state !== "draft") fail("Return to draft before adding a version.");
+  if(executed)executed=executedCopySchema.parse(executed);
+  if (executed ? r.kind!=="contract"||!["approved","executed","active"].includes(r.state) : r.state !== "draft") fail(executed?"Import a signed copy against an approved contract.":"Return to draft before adding a version.");
   z.string().min(1).max(200).parse(name);
   if (!bytes.length || bytes.length > 10 * 1024 * 1024)
     fail("Upload between 1 byte and 10 MB.");
@@ -58,18 +60,36 @@ export async function uploadDocument(
   if (!allowed)
     fail("Upload a PDF, PNG, JPEG or DOCX with a matching file signature.");
   const checksum = hash(bytes),
-    input = { id, version, name, type, checksum },
+    input = { id, version, name, type, checksum, ...(executed?{executed}:{}) },
+    operation=executed?"legal.executed.import":"legal.document.upload",
     prior = await replayCommand<{ id: string; version: number }>(
       db,
       a,
       key,
-      "legal.document.upload",
+      operation,
       id,
       input,
     );
   if (prior) return prior;
   if (r.version !== version)
     fail("The record changed. Refresh first.", "LEGAL_VERSION_CONFLICT", 409);
+  const approved=executed?await db.prepare("SELECT cycle,document_id,document_hash FROM legal_approvals WHERE item_id=? AND decision='approved' ORDER BY cycle DESC LIMIT 1").bind(id).first<{cycle:number;document_id:string;document_hash:string}>():null;
+  if(executed&&(!approved||approved.document_id!==executed.approvedDocumentId))fail("Choose the current approved document.","LEGAL_APPROVAL_STALE",409);
+  if(executed){
+    if(type!=="application/pdf"&&!type.startsWith("image/"))fail("Import an executed copy as a PDF or scanned image.");
+    if(executed.signedDate>new Intl.DateTimeFormat("en-CA",{timeZone:r.timezone,year:"numeric",month:"2-digit",day:"2-digit"}).format(Date.now()))fail("The signing date cannot be in the future.");
+    for(const documentId of new Set(executed.signers.flatMap(s=>s.authorityDocumentIds))){
+      const d=await documentAccess(db,a,documentId);
+      if(d.item_id!==id)fail("Authority evidence must be attached to this contract.");
+    }
+  }
+  const executedCopyId=executed?crypto.randomUUID():null;
+  const executionSteps=(documentId:string)=>executed&&approved&&executedCopyId?[
+    assertion(db,key,"legal-executed-approval","EXISTS(SELECT 1 FROM legal_approvals WHERE item_id=? AND cycle=? AND document_id=? AND document_hash=? AND decision='approved') AND NOT EXISTS(SELECT 1 FROM legal_approvals WHERE item_id=? AND cycle>?)",[id,approved.cycle,approved.document_id,approved.document_hash,id,approved.cycle]),
+    ...Array.from(new Set(executed.signers.flatMap(s=>s.authorityDocumentIds))).map(d=>assertion(db,key,`legal-executed-authority-${d}`,"EXISTS(SELECT 1 FROM legal_documents WHERE id=? AND item_id=?) AND NOT EXISTS(SELECT 1 FROM legal_disposals WHERE document_id=?)",[d,id,d])),
+    db.prepare("INSERT INTO legal_executed_copies(id,item_id,document_id,approved_cycle,approved_document_id,approved_hash,executed_hash,metadata,imported_by,imported_at) VALUES(?,?,?,?,?,?,?,?::jsonb,?,?)").bind(executedCopyId,id,documentId,approved.cycle,approved.document_id,approved.document_hash,checksum,JSON.stringify(executed),a.userId,Date.now()),
+    db.prepare("UPDATE legal_documents SET locked=true WHERE id=?").bind(documentId),
+  ]:[];
   if(attachmentsV2ReadOnly())fail("Attachment intake is disabled during rollback.","ATTACHMENTS_READ_ONLY",503);
   if (!attachmentsV2ReadOnly()) {
     const set = await createAttachmentSet(
@@ -149,13 +169,13 @@ export async function uploadDocument(
       db,
       a,
       key,
-      "legal.document.upload",
+      operation,
       input,
       id,
       version + 1,
-      { id, version: version + 1 },
+      { id, version: version + 1, documentId, ...(executedCopyId?{executedCopyId,state:r.state}:{}) },
       [
-        ...guards(db, a, id, version, key, true),
+        ...guards(db, a, id, version, key, true,false,["rule","template"].includes(r.kind)),
         ...binding.guards,
         db
           .prepare(
@@ -181,11 +201,12 @@ export async function uploadDocument(
           )
           .bind(Date.now(), id),
         ...binding.steps,
+        ...executionSteps(documentId),
         event(
           db,
           a,
           id,
-          "document.upload",
+          executed?"executed.import":"document.upload",
           `${name} · ${checksum}`,
           version + 1,
         ),
@@ -216,7 +237,7 @@ export async function uploadDocument(
     version + 1,
     { id, version: version + 1 },
     [
-      ...guards(db, a, id, version, key, true),
+      ...guards(db, a, id, version, key, true,false,["rule","template"].includes(r.kind)),
       db
         .prepare(
           "INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,object_key,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
@@ -241,6 +262,9 @@ export async function uploadDocument(
       event(db, a, id, "document.upload", `${name} · ${checksum}`, version + 1),
     ],
   );
+}
+export async function importExecutedCopy(db:SqlDatabase,files:FileStore,a:WorkContext,id:string,version:number,metadata:unknown,name:string,type:string,bytes:Uint8Array,key:string){
+  return uploadDocument(db,files,a,id,version,name,type,bytes,key,executedCopySchema.parse(metadata));
 }
 export async function documentAccess(
   db: SqlDatabase,
@@ -423,8 +447,10 @@ export async function inspectDocument(
       };
     } else {
       let text = d.body;
+      let pageTexts:{page:number;text:string}[]=[];
+      let pageMapping=d.media_type!=="application/vnd.openxmlformats-officedocument.wordprocessingml.document";
       if (d.object_key) {
-        if (d.media_type === "application/pdf")
+        if (d.media_type === "application/pdf"){
           text = (
             await exec(
               process.env.ERPX_PDFTOTEXT_BIN ?? "/opt/homebrew/bin/pdftotext",
@@ -432,6 +458,10 @@ export async function inspectDocument(
               { timeout: 30000, maxBuffer: 2 * 1024 * 1024 },
             )
           ).stdout;
+          const segments=text.split("\f");
+          if(!segments[segments.length-1]?.trim())segments.pop();
+          pageTexts=segments.map((text,i)=>({page:i+1,text:text.slice(0,200000)}));
+        }
         else if (d.media_type.startsWith("image/"))
           text = (
             await exec(
@@ -513,16 +543,26 @@ export async function inspectDocument(
               ).stdout,
             );
           text = texts.join("\n\n");
+          pageTexts=texts.map((text,i)=>({page:i+1,text:text.slice(0,200000)}));
         }
       }
+      if(!pageTexts.length)pageTexts=[{page:1,text:text.slice(0,200000)}];
+      if(!d.object_key)pageMapping=false;
+      let remaining=200000;
+      pageTexts=pageTexts.map(p=>{const text=p.text.slice(0,remaining);remaining-=text.length;return {...p,text};});
       result = {
         text: text.slice(0, 200000),
+        pages:pageTexts,
+        pageMapping,
+        truncated:text.length>200000,
         checksum: d.checksum,
         requiresReview: true,
       };
     }
     await documentAccess(db, a, id);
-    await db.batch([
+    const inspectionId=crypto.randomUUID();
+    result={...result,inspectionId};
+    const persisted=await db.batch([
       db.prepare(
         "SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))",
       ),
@@ -531,7 +571,7 @@ export async function inspectDocument(
           "INSERT INTO legal_document_inspections SELECT ?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM legal_destructions WHERE item_id=? AND state IN ('executing','completed'))",
         )
         .bind(
-          crypto.randomUUID(),
+          inspectionId,
           d.id,
           kind,
           JSON.stringify(result),
@@ -540,6 +580,7 @@ export async function inspectDocument(
           d.item_id,
         ),
     ]);
+    if(persisted[1].meta.changes!==1)fail("Document preservation changed while inspecting. Refresh first.","LEGAL_DOCUMENT_FROZEN",409);
     await db
       .prepare("INSERT INTO legal_access_events VALUES(?,?,?,?,?,?)")
       .bind(

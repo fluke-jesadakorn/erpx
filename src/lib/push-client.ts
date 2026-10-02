@@ -20,6 +20,10 @@ export async function currentPushSubscription() {
 /** Called while the old account's cookie and company context still exist. */
 export async function leavePushSession(base:string) {
   if(!supportsPush())return;
+  if (!document.querySelector('[data-work-revision]') && base.startsWith('/holdings/')) {
+    await leavePushHoldingSession(decodeURIComponent(base.split('/')[2]));
+    return;
+  }
   const subscription=await currentPushSubscription();
   const response=await workFetch(`/api/v1${base}/push`,{
     method:"DELETE",headers:{"Content-Type":"application/json"},

@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -26,17 +26,20 @@ async function signInRole(context: BrowserContext, page: Page, credentials: Cred
 }
 
 async function requestCommand(page: Page, requestId: string, button: string, note: string) {
-  await page.getByLabel("Message or decision evidence", { exact: true }).fill(note);
+  const workspace = page.locator("#workspace-content");
+  await workspace.getByLabel("Message or decision evidence", { exact: true }).fill(note);
   const response = page.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/riverside-lantern/requests/${requestId}/actions`));
-  await page.getByRole("button", { name: button, exact: true }).click();
+  await workspace.getByRole("button", { name: button, exact: true }).click();
   const result = await response;
   expect(result.ok(), await result.text()).toBe(true);
   await page.goto(`${page.url().split("?")[0]}?refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
 }
 
 async function submitRequest(page: Page, requestId: string) {
+  await page.getByRole("button", { name: "Review & submit", exact: true }).click();
+  await expect(page.getByRole("region", { name: "Review request" })).toBeVisible();
   const response = page.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/api/v1/holdings/riverside-lantern/requests/${requestId}/actions`));
-  await page.getByRole("button", { name: "Submit request", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm & submit", exact: true }).click();
   const result = await response;
   expect(result.ok(), await result.text()).toBe(true);
   await page.goto(`${page.url().split("?")[0]}?refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
@@ -50,16 +53,38 @@ function field(page: Page, label: string | RegExp, options?: { exact?: boolean }
   return page.locator("#workspace-content").getByLabel(label, options).first();
 }
 
+async function clickInVisualViewport(page: Page, target: Locator) {
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  const point = await target.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const hit = document.elementFromPoint(x, y);
+    const viewport = window.visualViewport;
+    return {
+      x: x - (viewport?.offsetLeft ?? 0),
+      y: y - (viewport?.offsetTop ?? 0),
+      hitTarget: hit === element || Boolean(hit && element.contains(hit)),
+    };
+  });
+  expect(point.hitTarget, "The intended mobile tap point must land on the visible control.").toBe(true);
+  await page.mouse.click(point.x, point.y);
+}
+
 async function assignWorkflowOwner(page: Page, path: string, kind: "order" | "journal" | "invoice", action: string, user: DemoUser, reason: string) {
   await page.goto(path, { waitUntil: "domcontentloaded" });
   const step = page.locator("#workflow-owners li").filter({ hasText: action }).first();
   await expect(step).toBeVisible();
-  await step.locator("details summary").click();
+  const ownerDisclosure = step.locator("details summary");
+  await ownerDisclosure.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" }));
+  await clickInVisualViewport(page, ownerDisclosure);
   await step.locator('select[name="userId"]').selectOption(user.userId);
   await step.locator('input[name="reason"]').fill(reason);
   const id = path.split("?")[0].split("/").at(-1)!;
   const response = page.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/flows/${kind}/${id}`));
-  await step.getByRole("button", { name: "Save owner", exact: true }).click();
+  const saveOwner = step.getByRole("button", { name: "Save owner", exact: true });
+  await saveOwner.evaluate((element) => element.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" }));
+  await clickInVisualViewport(page, saveOwner);
   const result = await response;
   expect(result.ok(), await result.text()).toBe(true);
   await expect(step).toContainText(user.label);
@@ -161,6 +186,23 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     await buyerPage.getByRole("button", { name: "Record decision", exact: true }).click();
     expect((await submitResponse).ok()).toBe(true);
     await buyerPage.reload({ waitUntil: "domcontentloaded" });
+    const buyerWorkContext = await buyerPage.locator("[data-work-revision]").first().evaluate((node) => {
+      const element = node as HTMLElement;
+      return {
+        "x-erpx-context-revision": element.dataset.workRevision ?? "",
+        "x-erpx-context-company": element.dataset.workCompany ?? "",
+        "x-erpx-context-assignment": element.dataset.workAssignment ?? "",
+      };
+    });
+    const submittedRfq = (await (await buyerContext.request.get(`/api/v1/holdings/riverside-lantern/procurement-rfqs/${rfqId}`)).json()).data;
+    const buyerSelfApproval = await buyerContext.request.post(`/api/v1/holdings/riverside-lantern/procurement-rfqs/${rfqId}`, {
+      headers: { Origin: process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3100", "Idempotency-Key": crypto.randomUUID(), ...buyerWorkContext },
+      data: { action: "approve", expectedVersion: Number(submittedRfq.rfq.version), reason: "The purchasing operator cannot approve their own supplier award." },
+    });
+    expect([403, 409], "an award author cannot approve their own supplier comparison").toContain(buyerSelfApproval.status());
+    const afterBuyerSelfApproval = (await (await buyerContext.request.get(`/api/v1/holdings/riverside-lantern/procurement-rfqs/${rfqId}`)).json()).data;
+    expect(afterBuyerSelfApproval.rfq.status).toBe(submittedRfq.rfq.status);
+    expect(Number(afterBuyerSelfApproval.rfq.version)).toBe(Number(submittedRfq.rfq.version));
 
     const awardPage = await awardApproverContext.newPage();
     await signInRole(awardApproverContext, awardPage, credentials, "purchasing_manager", awardApprover!, `/holdings/riverside-lantern/procurement-rfqs/${rfqId}`);
@@ -243,9 +285,21 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     await signInRole(warehouseContext, warehousePage, credentials, "warehouse_manager", warehouseManager!, `${purchaseOrderPath}?refresh=${Date.now()}`);
     await expect(warehousePage.getByRole("heading", { name: "Receive goods", exact: true }).first()).toBeVisible();
     await warehousePage.getByLabel("RLH-RICE quantity", { exact: true }).first().fill("3");
+    const firstReceiptCommand = warehousePage.waitForRequest((item) => item.method() === "POST" && item.url().includes("/api/v1/holdings/riverside-lantern/commerce/orders/") && item.url().endsWith("/fulfill"));
     const firstReceipt = warehousePage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes("/api/v1/holdings/riverside-lantern/commerce/orders/") && item.url().endsWith("/fulfill"));
     await warehousePage.getByRole("button", { name: "Record receipt", exact: true }).click();
-    expect((await firstReceipt).ok()).toBe(true);
+    const firstReceiptResponse = await firstReceipt;
+    const firstReceiptRequest = await firstReceiptCommand;
+    expect(firstReceiptResponse.ok(), await firstReceiptResponse.text()).toBe(true);
+    const firstReceiptResult = (await firstReceiptResponse.json()).data;
+    const receiptHeaders = await firstReceiptRequest.allHeaders();
+    const receiptReplayHeaders = Object.fromEntries(Object.entries(receiptHeaders).filter(([name]) => name === "idempotency-key" || name.startsWith("x-erpx-context-")));
+    const receiptReplay = await warehousePage.evaluate(async ({ path, headers, body }) => {
+      const response = await fetch(path, { method: "POST", headers, body: JSON.stringify(body) });
+      return { ok: response.ok, text: await response.text() };
+    }, { path: new URL(firstReceiptRequest.url()).pathname, headers: receiptReplayHeaders, body: firstReceiptRequest.postDataJSON() });
+    expect(receiptReplay.ok, receiptReplay.text).toBe(true);
+    expect(JSON.parse(receiptReplay.text).data.fulfillmentId).toBe(firstReceiptResult.fulfillmentId);
     await warehousePage.goto(`${purchaseOrderPath}?refresh=${Date.now()}`, { waitUntil: "domcontentloaded" });
     await expect(warehousePage.getByRole("heading", { name: "Receive goods", exact: true }).first()).toBeVisible();
     await expect(warehousePage.getByLabel("RLH-RICE quantity", { exact: true }).first()).toHaveValue("3");
@@ -400,9 +454,19 @@ test("isolated demo carries an approved purchase request through split RFQs, rec
     await instructionCard.locator('select[name="period"]').selectOption({ label: "2026" });
     await instructionCard.locator('input[name="reference"]').fill("DEMO-BANK-SUPPLIER-125");
     await instructionCard.locator('textarea[name="evidence"]').first().fill("Exact sandbox bank debit matched to the exported consolidated supplier instruction.");
+    const settleCommand = treasuryPage.waitForRequest((item) => item.method() === "POST" && item.url().includes("/supplier-instructions/") && item.url().endsWith("/confirm"));
     const settle = treasuryPage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes("/supplier-instructions/") && item.url().endsWith("/confirm"));
     await instructionCard.getByRole("button", { name: "Confirm bank debit and settle invoice", exact: true }).click();
-    expect((await settle).ok()).toBe(true);
+    const settledCommandResponse = await settle;
+    const settledCommandRequest = await settleCommand;
+    expect(settledCommandResponse.ok(), await settledCommandResponse.text()).toBe(true);
+    const settlementHeaders = await settledCommandRequest.allHeaders();
+    const settlementReplayHeaders = Object.fromEntries(Object.entries(settlementHeaders).filter(([name]) => name === "idempotency-key" || name.startsWith("x-erpx-context-")));
+    const settlementReplay = await treasuryPage.evaluate(async ({ path, headers, body }) => {
+      const response = await fetch(path, { method: "POST", headers, body: JSON.stringify(body) });
+      return { ok: response.ok, text: await response.text() };
+    }, { path: new URL(settledCommandRequest.url()).pathname, headers: settlementReplayHeaders, body: settledCommandRequest.postDataJSON() });
+    expect(settlementReplay.ok, settlementReplay.text).toBe(true);
     await treasuryPage.reload({ waitUntil: "domcontentloaded" });
     await expect(treasuryPage.getByText(/· confirmed$/)).toHaveCount(1);
 

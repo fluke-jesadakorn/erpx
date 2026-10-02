@@ -2,6 +2,7 @@ import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { type PosAccounts, settingsSchema, catalogSchema, money, qty, saleAmounts, recipeQuantities, portion, businessDate, accountKeys } from '@/lib/pos';
+import { currencyDefinition } from '@/lib/company-money';
 import { scaledAmount } from '@/lib/commerce-math';
 import { samePerson } from '@/lib/iam';
 import { hasPermission } from '@/lib/permissions';
@@ -16,6 +17,8 @@ import { applyPosRoomCharge, reversePosRoomCharge } from './pms';
 import { assertProductionModuleEnabled } from './hospitality-rollout';
 import { posCommerceAccountDefaults, posGeneratedAccountSpecs } from '@/lib/pos-bootstrap';
 import { prepareAttachmentBinding } from './attachments/service';
+import { snapshotMoney } from './company-money';
+import { capturePosReceipt,createPosCustomer,posDayCommand,assertPosDayWritable } from './pos-daily';
 export type PosRow=Record<string,string|number|boolean|null>;
 export const id=()=>randomUUID();
 export const num=(row:PosRow,key:string)=>Number(row[key]??0);
@@ -111,12 +114,20 @@ export async function completeSale(db:SqlDatabase,sale:PosRow,actorId:string,dat
   await run(db,'UPDATE finance_payments SET party_id=? WHERE id=?',party,payment.finance_payment_id);
   await run(db,'INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,created_by,created_at) VALUES(?,?,?,?,?,?,?)',id(),sale.company_id,payment.finance_payment_id,invoice,num(payment,'amount_minor')-num(payment,'refunded_minor'),actorId,Date.now());
  }
+ await capturePosMoney(db,sale,'pos_sale',str(sale,'id'),'total',str(sale,'business_date'),String(sale.total_minor));
  await run(db,"UPDATE pos_sales SET state='completed',invoice_id=?,party_id=?,table_id=NULL,version=version+1,updated_at=? WHERE id=?",invoice,party,Date.now(),sale.id);
+ await capturePosReceipt(db,str(sale,'id'));
  return {id:sale.id,state:'completed',invoiceId:invoice};
+}
+async function capturePosMoney(db:SqlDatabase,sale:PosRow,sourceType:string,sourceId:string,amountKind:string,transactionDate:string,amountUnits:string){
+ try {
+  const evidence=await snapshotMoney(db,{companyId:str(sale,'company_id')},{sourceType,sourceId,amountKind,transactionDate,currency:str(sale,'currency'),currencyScale:2,amountUnits});
+  await evidence.statement.run();
+ } catch(error){if(!(error instanceof ApiError&&error.code==='MANUAL_RATE_REQUIRED'))throw error;}
 }
 const keySchema=z.string().regex(/^[a-zA-Z0-9:_.-]{8,180}$/);
 const base=z.object({id:z.string().min(1),expectedVersion:z.number().int().positive()});
-const permissionFor=(op:string)=>op==='payment.verify_transfer'||op==='sale.reverse_room_charge'?'finance.approve':op.startsWith('settings')||op.startsWith('register')||op.startsWith('catalog')||op.startsWith('table.')?'pos.configure':op.startsWith('kitchen.')?'pos.kitchen':op==='refund.approve'||op==='refund.reject'||op==='sale.approve_discount'||op==='shift.review'||op==='cash.approve'||op.startsWith('exception.')||op.startsWith('settlement.')?'pos.approve':op.startsWith('connection.')?'pos.payments.configure':'pos.sell';
+const permissionFor=(op:string)=>op==='day.confirm'||op==='payment.verify_transfer'||op==='sale.reverse_room_charge'||op==='settlement.refresh'?'finance.approve':op==='day.prepare'?'pos.approve':op.startsWith('settings')||op.startsWith('register')||op.startsWith('catalog')||op.startsWith('table.')?'pos.configure':op.startsWith('kitchen.')?'pos.kitchen':op==='refund.approve'||op==='refund.reject'||op==='sale.approve_discount'||op==='shift.review'||op==='cash.approve'||op.startsWith('exception.')||op.startsWith('settlement.')?'pos.approve':op.startsWith('connection.')?'pos.payments.configure':'pos.sell';
 export async function posCommand(db:PostgresDatabase,actor:WorkContext,operation:string,input:unknown,key:string){
  keySchema.parse(key);if(operation.startsWith('connection.')){if(!hasPermission(actor,'pos.payments.configure')&&!hasPermission(actor,'finance.approve'))fail('POS_CONNECTION_FORBIDDEN','Company Finance access is required',403);}else requirePermission(actor,permissionFor(operation));if(operation==='settings.bootstrap')requirePermission(actor,'finance.write');if(actor.departmentId)fail('POS_BRANCH_REQUIRED','Select a company or branch for POS',403);
  if(process.env.NODE_ENV==='production'&&operation.startsWith('connection.')&&process.env.POS_STRIPE_LIVE_ENABLED!=='true')fail('POS_PROVIDER_COMING_SOON','Enable the Stripe production gate before connecting live accounts',403);
@@ -126,6 +137,9 @@ export async function posCommand(db:PostgresDatabase,actor:WorkContext,operation
   const grant=await one(tx,"SELECT id FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=? AND revoked_at IS NULL AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?)) FOR SHARE",actor.assignmentId,actor.userId,actor.companyId,actor.role,Date.now(),Date.now(),actor.branchId);
   if(!grant)fail('POS_ACCESS_CHANGED','Permissions changed. Select the role again',403);
   await tx.batch([...workContextGuards(tx,actor,key),...iamMutationGuards(tx,actor,key)]);
+  // All user commands in one Company serialize with preparation/confirmation.
+  // Stock reservations retain their own locks against other modules and jobs.
+  await run(tx,"SELECT pg_advisory_xact_lock(hashtextextended('pos-daily:'||?,0))",actor.companyId);
   const old=await one(tx,'SELECT * FROM pos_receipts WHERE id=?',key);if(old){if(old.request_hash!==hash)fail('IDEMPOTENCY_CONFLICT','Command number is already used for other data');await run(tx,'DELETE FROM command_assertions WHERE command_id=?',key);return json<Record<string,unknown>>(old.result_json);}
   const attachmentInput=z.object({id:z.string().min(1),expectedVersion:z.number().int().positive(),attachmentSetIds:z.array(z.string().min(1)).max(20).default([])}).passthrough().safeParse(input);
   const attachmentDescriptor=operation==='sale.cancel'?{targetType:'pos_sale',purposeKey:'void_evidence',bindingType:'pos_void',componentRef:'void'}
@@ -149,12 +163,12 @@ export async function posCommand(db:PostgresDatabase,actor:WorkContext,operation
  });}catch(error){if(error instanceof Error&&error.message==='QUALITY_HOLD')fail('QUALITY_HOLD','This product is quarantined. Quality inspection and independent release are required');if(['23505','23514','40001','40P01'].includes((error as {code?:string}).code??''))fail('POS_CONFLICT','Data or reserved amounts changed. Load the latest data and try again');throw error;}
 }
 async function bootstrapRetail(db:SqlDatabase,actor:WorkContext,input:unknown){
- const p=z.object({registerId:z.string().min(1).optional(),warehouseId:z.string().min(1).optional(),bankAccountId:z.string().min(1).optional()}).strict().parse(input);
+ const p=z.object({registerId:z.string().min(1).optional(),warehouseId:z.string().min(1).optional(),bankAccountId:z.string().min(1).optional(),mode:z.enum(['retail','restaurant']).default('retail'),registerName:z.string().trim().min(1).max(200).optional()}).strict().parse(input);
  const company=actor.companyId;
  if(actor.branchId)fail('POS_COMPANY_SETTINGS','Run retail setup from the Company workspace',403);
  if(!await one(db,"SELECT id FROM organization_nodes WHERE id=? AND kind='company' FOR UPDATE",company))fail('POS_COMPANY_SETTINGS','Company workspace not found',404);
  if(await one(db,'SELECT company_id FROM pos_settings WHERE company_id=? FOR UPDATE',company))fail('POS_ALREADY_CONFIGURED','POS is already configured. Review the detailed POS settings instead.');
- const existingRetailRegisters=await all(db,"SELECT * FROM pos_registers WHERE company_id=? AND mode='retail' ORDER BY name,id FOR UPDATE",company);
+ const existingRetailRegisters=await all(db,"SELECT * FROM pos_registers WHERE company_id=? AND mode=? ORDER BY name,id FOR UPDATE",company,p.mode);
 
  const commerce=await one(db,'SELECT * FROM commerce_settings WHERE company_id=? FOR UPDATE',company);
  if(!commerce)fail('POS_COMMERCE_SETUP_REQUIRED','Set up Commerce and Finance before configuring POS',409);
@@ -215,15 +229,17 @@ async function bootstrapRetail(db:SqlDatabase,actor:WorkContext,input:unknown){
  }
 
  if(!reuseRegister){
-  registerId=id();registerName='Main retail register';let nameSuffix=2;
-  while(await one(db,'SELECT id FROM pos_registers WHERE company_id=? AND branch_id=? AND name=?',company,branchId,registerName))registerName=`Main retail register ${nameSuffix++}`;
+  registerId=id();registerName=p.registerName??`Main ${p.mode} register`;let nameSuffix=2;
+  while(await one(db,'SELECT id FROM pos_registers WHERE company_id=? AND branch_id=? AND name=?',company,branchId,registerName))registerName=`${p.registerName??`Main ${p.mode} register`} ${nameSuffix++}`;
  }
  await run(db,"INSERT INTO pos_settings(company_id,enabled,currency,timezone,accounts_json,cashier_discount_bps) VALUES(?,true,?,'Asia/Bangkok',?,0)",company,currency,JSON.stringify(accounts));
- if(!reuseRegister)await run(db,"INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active) VALUES(?,?,?,?,?,'retail',true)",registerId,company,branchId,warehouseId,registerName);
- return {id:company,registerId,registerName,warehouseId,bankAccountId:accounts.bank,registerReused:reuseRegister,accountsCreated:createdAccounts};
+ if(!reuseRegister)await run(db,"INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active) VALUES(?,?,?,?,?,?,true)",registerId,company,branchId,warehouseId,registerName,p.mode);
+ return {id:company,mode:p.mode,registerId,registerName,warehouseId,bankAccountId:accounts.bank,registerReused:reuseRegister,accountsCreated:createdAccounts};
 }
 async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown):Promise<Record<string,unknown>> {
  const company=actor.companyId,user=actor.userId;
+ if(op.startsWith('day.'))return posDayCommand(db,actor,op,input);
+ if(op==='customer.create')return createPosCustomer(db,actor,input);
  if(op==='connection.create'||op==='connection.refresh'){
   if(actor.branchId)fail('POS_COMPANY_SETTINGS','Connect Stripe from the company area',403);
   const p=z.object({livemode:z.boolean().default(false)}).parse(input),job=id();
@@ -255,7 +271,15 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
  }
  if(op==='table.create'){
   const p=z.object({registerId:z.string(),name:z.string().trim().min(1).max(40),seats:z.number().int().min(1).max(100)}).parse(input);
-  scopeRow(actor,await one(db,'SELECT * FROM pos_registers WHERE id=?',p.registerId));const tid=id();await run(db,'INSERT INTO pos_tables VALUES(?,?,?,?)',tid,p.registerId,p.name,p.seats);return {id:tid};
+  scopeRow(actor,await one(db,'SELECT * FROM pos_registers WHERE id=? FOR UPDATE',p.registerId));if(await one(db,'SELECT id FROM pos_tables WHERE register_id=? AND name=?',p.registerId,p.name))fail('POS_TABLE_NAME_EXISTS','A table with this name already exists at this register',422);const tid=id();await run(db,'INSERT INTO pos_tables VALUES(?,?,?,?)',tid,p.registerId,p.name,p.seats);return {id:tid};
+ }
+ if(op==='catalog.image'){
+  const p=z.object({productId:z.string().min(1),imageId:z.string().min(1),expectedVersion:z.number().int().positive()}).parse(input);
+  const c=await one(db,'SELECT * FROM pos_catalog WHERE product_id=? AND company_id=? FOR UPDATE',p.productId,company);
+  if(!c)fail('POS_PRODUCT_INVALID','Catalog not found',404);version(c,p);
+  if(actor.branchId&&!await one(db,'SELECT rc.product_id FROM pos_register_catalog rc JOIN pos_registers r ON r.id=rc.register_id WHERE rc.product_id=? AND r.branch_id=? AND r.company_id=?',p.productId,actor.branchId,company))fail('POS_PRODUCT_INVALID','Catalog is outside this Branch',404);
+  if(!await one(db,'SELECT id FROM pos_product_images WHERE id=? AND company_id=? AND product_id=?',p.imageId,company,p.productId))fail('POS_IMAGE_INVALID','Image does not belong to this product',422);
+  await run(db,'UPDATE pos_catalog SET image_id=?,version=version+1 WHERE product_id=?',p.imageId,p.productId);return {id:p.productId,imageId:p.imageId};
  }
  if(op==='catalog.save'){
   const p=catalogSchema.parse(input);if(!await one(db,"SELECT id FROM commerce_products WHERE id=? AND company_id=? AND status='active'",p.productId,company))fail('POS_PRODUCT_INVALID','Select a company product',422);
@@ -264,17 +288,24 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
   if(new Set(p.modifiers.map(m=>m.id)).size!==p.modifiers.length)fail('POS_MODIFIER_DUPLICATE','Duplicate modifier ID',422);
   for(const part of [...p.recipe,...p.modifiers.flatMap(m=>m.ingredients)])if(!await one(db,"SELECT id FROM commerce_products WHERE id=? AND company_id=? AND status='active'",part.productId,company))fail('POS_INGREDIENT_INVALID','Ingredients must be company products',422);
   const old=await one(db,'SELECT * FROM pos_catalog WHERE product_id=? FOR UPDATE',p.productId);if((old?num(old,'version'):0)!==p.expectedVersion)fail('POS_VERSION_CONFLICT','Product data changed');
-  await run(db,'INSERT INTO pos_catalog(product_id,company_id,barcode,category,kind,station,recipe_json,modifiers_json,tax_inclusive) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(product_id) DO UPDATE SET barcode=excluded.barcode,category=excluded.category,kind=excluded.kind,station=excluded.station,recipe_json=excluded.recipe_json,modifiers_json=excluded.modifiers_json,tax_inclusive=excluded.tax_inclusive,version=pos_catalog.version+1',p.productId,company,p.barcode||null,p.category,p.kind,p.station,JSON.stringify(p.recipe),JSON.stringify(p.modifiers),p.taxInclusive);return {id:p.productId};
+  if(p.imageId&&!await one(db,'SELECT id FROM pos_product_images WHERE id=? AND company_id=? AND product_id=?',p.imageId,company,p.productId))fail('POS_IMAGE_INVALID','Choose an image owned by this product',422);
+  const registerIds=p.registerIds??(old?undefined:(await all(db,"SELECT id FROM pos_registers WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?<>'recipe' OR mode='restaurant')",company,actor.branchId,actor.branchId,p.kind)).map(r=>str(r,'id')));
+  if(registerIds){for(const rid of registerIds){const register=scopeRow(actor,await one(db,'SELECT * FROM pos_registers WHERE id=?',rid));if(p.kind==='recipe'&&register.mode!=='restaurant')fail('POS_RESTAURANT_REQUIRED','Recipes require restaurant registers',422);}}
+  await run(db,'INSERT INTO pos_catalog(product_id,company_id,barcode,category,kind,station,recipe_json,modifiers_json,tax_inclusive,enabled,image_id) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(product_id) DO UPDATE SET barcode=excluded.barcode,category=excluded.category,kind=excluded.kind,station=excluded.station,recipe_json=excluded.recipe_json,modifiers_json=excluded.modifiers_json,tax_inclusive=excluded.tax_inclusive,enabled=excluded.enabled,image_id=excluded.image_id,version=pos_catalog.version+1',p.productId,company,p.barcode||null,p.category,p.kind,p.station,JSON.stringify(p.recipe),JSON.stringify(p.modifiers),p.taxInclusive,p.enabled,p.imageId===undefined?old?.image_id??null:p.imageId);
+  if(registerIds){if(actor.branchId)await run(db,'DELETE FROM pos_register_catalog WHERE product_id=? AND register_id IN (SELECT id FROM pos_registers WHERE company_id=? AND branch_id=?)',p.productId,company,actor.branchId);else await run(db,'DELETE FROM pos_register_catalog WHERE product_id=?',p.productId);for(const rid of new Set(registerIds))await run(db,'INSERT INTO pos_register_catalog(register_id,product_id) VALUES(?,?)',rid,p.productId);}
+  return {id:p.productId};
  }
  if(op==='shift.open'){
   const p=z.object({registerId:z.string(),openingMinor:money}).parse(input),register=scopeRow(actor,await one(db,'SELECT * FROM pos_registers WHERE id=? AND active=true FOR UPDATE',p.registerId)),settings=await config(db,company);if(!settings.enabled)fail('POS_DISABLED','POS transactions are not enabled');
   const hotel=await one(db,'SELECT state,business_date FROM pms_properties WHERE company_id=? AND branch_id=? FOR SHARE',company,register.branch_id);
   if(hotel&&(hotel.state!=='open'||hotel.business_date!==businessDate()))fail('POS_HOTEL_DAY_CLOSED','Finish or recover the hotel day close before opening a restaurant cash session');
-  await openPeriod(db,company,businessDate());const sid=id();await run(db,'INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor) VALUES(?,?,?,?,?,?,?)',sid,register.id,company,register.branch_id,user,Date.now(),p.openingMinor);return {id:sid};
+  await assertPosDayWritable(db,company,str(register,'branch_id'),businessDate());
+  await openPeriod(db,company,businessDate());const sid=id();await run(db,'INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor,business_date) VALUES(?,?,?,?,?,?,?,?)',sid,register.id,company,register.branch_id,user,Date.now(),p.openingMinor,businessDate());return {id:sid};
  }
  if(op.startsWith('shift.')||op.startsWith('cash.')){
-  const p=base.extend({amountMinor:z.number().int().min(-99999999999).max(99999999999).optional(),countedMinor:money.optional(),reason:z.string().trim().min(3).max(1000).optional(),movementId:z.string().optional()}).parse(input);
+  const p=base.extend({amountMinor:z.number().int().min(-99999999999).max(99999999999).optional(),countedMinor:money.optional(),denominations:z.record(z.string(),z.number().int().nonnegative().max(100000)).optional(),reason:z.string().trim().min(3).max(1000).optional(),movementId:z.string().optional()}).parse(input);
   const shift=scopeRow(actor,await one(db,'SELECT * FROM pos_shifts WHERE id=? FOR UPDATE',p.id));version(shift,p);
+  await assertPosDayWritable(db,company,str(shift,'branch_id'),str(shift,'business_date'));
   const settings=await config(db,company),a=json<PosAccounts>(settings.accounts_json);
   if(op==='cash.create'){
    if(shift.state!=='open'||!p.amountMinor||!p.reason)fail('POS_CASH_INVALID','Enter the amount and reason in an open cash session',422);
@@ -292,18 +323,23 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
    const refunds=await one(db,"SELECT COALESCE(SUM(rp.amount_minor),0) n FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id JOIN pos_refunds r ON r.id=rp.refund_id WHERE r.payout_shift_id=? AND p.method='cash' AND rp.state='succeeded'",shift.id);
    const movements=await one(db,'SELECT COALESCE(SUM(amount_minor),0) n FROM pos_cash_movements WHERE shift_id=? AND approved_by IS NOT NULL',shift.id);
    const expected=num(shift,'opening_minor')+num(cash!,'n')-num(refunds!,'n')+num(movements!,'n');
-   await run(db,"UPDATE pos_shifts SET state='closed',counted_minor=?,expected_minor=?,variance_minor=?,closed_at=? WHERE id=?",p.countedMinor,expected,p.countedMinor-expected,Date.now(),shift.id);
+   if(p.denominations){const denominations=[100000,50000,10000,5000,2000,1000,500,200,100,50,25];if(Object.keys(p.denominations).some(k=>!denominations.includes(Number(k)))||Object.entries(p.denominations).reduce((n,[k,v])=>n+Number(k)*v,0)!==p.countedMinor)fail('POS_CASH_COUNT','Denomination counts must match the counted amount',422);}
+   await run(db,"UPDATE pos_shifts SET state='closed',counted_minor=?,expected_minor=?,variance_minor=?,closed_at=?,closed_by=?,denominations_json=?::jsonb WHERE id=?",p.countedMinor,expected,p.countedMinor-expected,Date.now(),user,p.denominations?JSON.stringify(p.denominations):null,shift.id);
   }else if(op==='shift.review'){
-   if(shift.state!=='closed'||samePerson(actor,shift.opened_by)||!p.reason)fail('POS_INDEPENDENT_REVIEW','A different manager must review the total with a reason');
+   if(shift.state!=='closed'||samePerson(actor,shift.opened_by)||samePerson(actor,shift.closed_by)||!p.reason)fail('POS_INDEPENDENT_REVIEW','A different manager must review the total with a reason');
    const variance=num(shift,'variance_minor');await posting(db,company,str(shift,'branch_id'),a,businessDate(),str(settings,'currency'),`shift:${shift.id}`,str(shift,'id'),user,pair(variance>0?a.cash:a.cashDifference,variance>0?a.cashDifference:a.cash,Math.abs(variance)));
    await run(db,"UPDATE pos_shifts SET state='reviewed',reviewed_by=?,review_reason=? WHERE id=?",user,p.reason,shift.id);
   }else fail('POS_ACTION_UNKNOWN','Command not found',404);
   await run(db,'UPDATE pos_shifts SET version=version+1 WHERE id=?',shift.id);return {id:shift.id};
  }
  if(op==='sale.create'){
-  const p=z.object({shiftId:z.string(),tableId:z.string().nullable().optional(),guests:z.number().int().min(1).max(100).default(1),partyId:z.string().nullable().optional(),serviceMode:z.enum(['retail','dine_in','takeaway'])}).parse(input);
+  const p=z.object({shiftId:z.string(),tableId:z.string().nullable().optional(),guests:z.number().int().min(1).max(100).default(1),partyId:z.string().nullable().optional(),serviceMode:z.enum(['retail','dine_in','takeaway']),currency:z.string().regex(/^[A-Z]{3}$/).refine(value=>Boolean(currencyDefinition(value))).optional()}).parse(input);
   const shift=scopeRow(actor,await one(db,"SELECT * FROM pos_shifts WHERE id=? AND state='open' FOR UPDATE",p.shiftId)),settings=await config(db,company);if(!settings.enabled)fail('POS_DISABLED','New transactions are temporarily paused');
+  if(p.currency&&p.currency!==settings.currency)fail('POS_CURRENCY_SETUP_REQUIRED',`The selected ${p.currency} currency needs a POS register, supported payment accounts and pricing setup before a new sale can start.`,422);
+  if(p.currency&&p.currency!=='USD'&&!await one(db,'SELECT id FROM company_fx_rates WHERE company_id=? AND currency=? ORDER BY effective_date DESC,confirmed_at DESC LIMIT 1',company,p.currency))fail('MANUAL_RATE_REQUIRED',`Confirm a manual USD/${p.currency} rate before starting this sale.`,422);
   const register=(await one(db,'SELECT * FROM pos_registers WHERE id=? AND active=true',shift.register_id))!;
+  await assertPosDayWritable(db,company,str(shift,'branch_id'),businessDate());
+  if(shift.business_date!==businessDate())fail('POS_SHIFT_DATE','Close the previous business day cash session before selling');
   if(!register)fail('POS_REGISTER_DISABLED','Sales point is disabled');
   if(p.serviceMode==='retail'&&register.mode!=='retail'||p.serviceMode!=='retail'&&register.mode!=='restaurant')fail('POS_MODE_INVALID','Mode does not match the sales point',422);
   if(p.tableId&&!await one(db,'SELECT id FROM pos_tables WHERE id=? AND register_id=?',p.tableId,register.id))fail('POS_TABLE_INVALID','Table is not at this sales point',422);
@@ -312,7 +348,9 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
  }
  if(op.startsWith('sale.')){
   const p=base.passthrough().parse(input),sale=await saleRow(db,actor,p.id);version(sale,p);
+  await assertPosDayWritable(db,company,str(sale,'branch_id'),op==='sale.reverse_room_charge'?businessDate():str(sale,'business_date'));
   if(op==='sale.reverse_room_charge'){
+   if(await one(db,"SELECT id FROM pos_day_closes WHERE company_id=? AND branch_id=? AND business_date=? AND state='prepared'",sale.company_id,sale.branch_id,sale.business_date))fail('POS_DAY_REVIEW_PENDING','Finance must confirm the original day close before a room-charge correction can change its source records');
    requirePermission(actor,'pos.approve');requirePermission(actor,'pms.approve');
    const q=base.extend({propertyId:z.string().min(1),expectedPropertyVersion:z.number().int().positive(),reason:z.string().trim().min(3).max(1000),restockLineIds:z.array(z.string()).max(100).default([])}).parse(input);
    const chargeAudit=await one(db,"SELECT actor_id FROM pos_audit WHERE operation='sale.charge_to_room' AND record_id=? ORDER BY created_at DESC LIMIT 1",sale.id);
@@ -326,6 +364,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
    if(q.restockLineIds.some(lineId=>!lines.some(line=>line.id===lineId&&line.kind==='stock'&&line.fulfillment_state==='delivered')))fail('POS_RETURN_NOT_STOCK','Only delivered stock items can be restocked',422);
    const reversal=await reversePosRoomCharge(db,actor,{propertyId:q.propertyId,sourceKey:`pos:${sale.id}:${sale.id}`,expectedPropertyVersion:q.expectedPropertyVersion,reason:q.reason,total:num(sale,'total_minor')});
    const accounts=json<PosAccounts>(sale.accounts_json),date=reversal.businessDate;let restored=0,wasted=0;
+   await assertPosDayWritable(db,company,str(sale,'branch_id'),date);
    await openPeriod(db,company,date);
    for(const line of lines){
     const prior=await one(db,'SELECT COALESCE(SUM(quantity_milli),0) n FROM pos_lines WHERE fulfillment_id=? AND id<?',line.fulfillment_id,line.id);
@@ -376,6 +415,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
     service:0,tax:num(sale,'tax_minor'),total:num(sale,'total_minor'),
    },p.expectedPropertyVersion);
    await run(db,"UPDATE pos_sales SET state='completed',table_id=NULL,version=version+1,updated_at=? WHERE id=?",Date.now(),sale.id);
+   await capturePosReceipt(db,str(sale,'id'));
    return {id:sale.id,state:'completed',tender:'room_charge',propertyId:p.propertyId,stayId:p.stayId,folioEntryId:result.entryId};
   }
   if(op==='sale.approve_discount'){
@@ -386,7 +426,9 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
   if(op==='sale.add'){
    await run(db,'UPDATE pos_sales SET discount_requested_by=? WHERE id=?',user,sale.id);
    const q=z.object({productId:z.string(),quantityMilli:qty,modifierIds:z.array(z.string()).max(30).default([]),discountMinor:money.default(0),note:z.string().max(500).default('')}).parse(p);
-   const product=await one(db,"SELECT p.*,c.kind,c.station,c.recipe_json,c.modifiers_json,c.tax_inclusive FROM commerce_products p LEFT JOIN pos_catalog c ON c.product_id=p.id WHERE p.id=? AND p.company_id=? AND p.status='active'",q.productId,company);if(!product)fail('POS_PRODUCT_INVALID','Product is not available for sale',422);
+   const product=await one(db,"SELECT p.*,c.kind,c.station,c.recipe_json,c.modifiers_json,c.tax_inclusive,c.version catalog_version FROM commerce_products p JOIN pos_catalog c ON c.product_id=p.id AND c.company_id=p.company_id AND c.enabled=true JOIN pos_register_catalog rc ON rc.product_id=c.product_id AND rc.register_id=? AND rc.enabled=true WHERE p.id=? AND p.company_id=? AND p.status='active'",sale.register_id,q.productId,company);if(!product)fail('POS_PRODUCT_INVALID','สินค้านี้ไม่ได้เปิดขายใน catalog ของจุดขาย กรุณาให้ผู้ดูแลเปิดขายก่อน',422);
+   const validation=z.object({expectedCatalogVersion:z.number().int().positive().optional(),expectedPriceMinor:money.optional()}).parse(p);
+   if(validation.expectedCatalogVersion!==undefined&&validation.expectedCatalogVersion!==num(product,'catalog_version')||validation.expectedPriceMinor!==undefined&&validation.expectedPriceMinor!==num(product,'price_minor'))fail('POS_CATALOG_CHANGED','ราคา/ตัวเลือกเปลี่ยน กรุณาตรวจตะกร้าก่อนส่งใหม่');
    const modifiers=json<z.infer<typeof catalogSchema>['modifiers']>(product.modifiers_json??'[]').filter(m=>q.modifierIds.includes(m.id));if(modifiers.length!==q.modifierIds.length)fail('POS_MODIFIER_INVALID','Invalid modifiers',422);
    const kind=str(product,'kind')||'stock',price=num(product,'price_minor')+modifiers.reduce((n,m)=>n+m.priceMinor,0),amounts=saleAmounts(q.quantityMilli,price,num(product,'tax_bps'),Boolean(product.tax_inclusive),q.discountMinor);
    if(kind==='recipe'&&sale.service_mode==='retail')fail('POS_RESTAURANT_REQUIRED','Prepared menus require a restaurant sales point',422);
@@ -395,6 +437,31 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
    const register=(await one(db,'SELECT * FROM pos_registers WHERE id=?',sale.register_id))!,fid=id(),lid=id();
    await run(db,'INSERT INTO pos_fulfillments(id,company_id,branch_id,warehouse_id,product_id,quantity_milli,kind,station,note,recipe_json,accounts_json,currency,business_date,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',fid,company,sale.branch_id,register.warehouse_id,q.productId,q.quantityMilli,kind,str(product,'station')||'Kitchen',q.note,JSON.stringify(recipe),sale.accounts_json,sale.currency,sale.business_date,Date.now());
    await run(db,'INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,subtotal_minor,tax_minor,modifiers_json,note) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',lid,sale.id,fid,q.productId,product.name,q.quantityMilli,price,product.tax_bps,Boolean(product.tax_inclusive),q.discountMinor,amounts.subtotal,amounts.tax,JSON.stringify(modifiers),q.note);
+  }else if(op==='sale.customer'){
+   const q=z.object({partyId:z.string().nullable()}).parse(p);
+   if(q.partyId&&!await one(db,"SELECT id FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND status='active'",q.partyId,company))fail('POS_CUSTOMER_INVALID','Customer is not available',422);
+   await run(db,'UPDATE pos_sales SET party_id=? WHERE id=?',q.partyId,sale.id);
+  }else if(op==='sale.update_line'){
+   const q=z.object({lineId:z.string(),quantityMilli:qty,discountMinor:money,note:z.string().max(500).default('')}).parse(p);
+   const line=await one(db,'SELECT l.*,f.state fulfillment_state,f.quantity_milli fulfillment_quantity FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE l.id=? AND l.sale_id=? FOR UPDATE OF l,f',q.lineId,sale.id);
+   if(!line)fail('POS_LINE_INVALID','Line is not on this bill',422);
+   if(q.quantityMilli!==num(line,'quantity_milli')&&line.fulfillment_state!=='draft')fail('POS_ITEM_IN_KITCHEN','รายการที่ส่งครัวแล้วต้องแยกบิล หรือให้ผู้อนุมัติยกเลิกพร้อมบันทึกของเสีย');
+   if(line.fulfillment_state==='draft')await run(db,'UPDATE pos_fulfillments SET quantity_milli=?,note=?,version=version+1 WHERE id=?',q.quantityMilli,q.note,line.fulfillment_id);
+   const amounts=saleAmounts(q.quantityMilli,num(line,'price_minor'),num(line,'tax_bps'),Boolean(line.tax_inclusive),q.discountMinor+num(line,'bill_discount_minor'));
+   await run(db,'UPDATE pos_lines SET quantity_milli=?,discount_minor=?,subtotal_minor=?,tax_minor=?,note=? WHERE id=?',q.quantityMilli,amounts.discount,amounts.subtotal,amounts.tax,q.note,line.id);
+   await run(db,'UPDATE pos_sales SET discount_requested_by=? WHERE id=?',user,sale.id);
+  }else if(op==='sale.discount'){
+   const q=z.object({amountMinor:money}).parse(p),lines=await all(db,'SELECT * FROM pos_lines WHERE sale_id=? ORDER BY id FOR UPDATE',sale.id);
+   const weights=lines.map(l=>scaledAmount(num(l,'price_minor'),num(l,'quantity_milli'),1000)-num(l,'discount_minor')+num(l,'bill_discount_minor'));
+   const total=weights.reduce((n,w)=>n+w,0);if(q.amountMinor>total)fail('POS_DISCOUNT_AMOUNT','Discount exceeds the bill amount',422);
+   let previous=0;
+   for(const [i,l] of lines.entries()){
+    const extra=weights[i]&&q.amountMinor?portion(q.amountMinor,previous,weights[i],total):0;previous+=weights[i];
+    const discount=num(l,'discount_minor')-num(l,'bill_discount_minor')+extra;
+    const amounts=saleAmounts(num(l,'quantity_milli'),num(l,'price_minor'),num(l,'tax_bps'),Boolean(l.tax_inclusive),discount);
+    await run(db,'UPDATE pos_lines SET discount_minor=?,bill_discount_minor=?,subtotal_minor=?,tax_minor=? WHERE id=?',discount,extra,amounts.subtotal,amounts.tax,l.id);
+   }
+   await run(db,'UPDATE pos_sales SET discount_requested_by=? WHERE id=?',user,sale.id);
   }else if(op==='sale.remove'){
    const q=z.object({lineId:z.string()}).parse(p),line=await one(db,'SELECT l.*,f.state fulfillment_state FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE l.id=? AND l.sale_id=? FOR UPDATE OF l,f',q.lineId,sale.id);if(!line||!['draft','cancelled'].includes(str(line,'fulfillment_state')))fail('POS_ITEM_IN_KITCHEN','Cancel the kitchen item before removing it from the bill');
    await run(db,'DELETE FROM pos_reservations WHERE fulfillment_id=?',line.fulfillment_id);await run(db,'DELETE FROM pos_lines WHERE id=?',line.id);
@@ -418,8 +485,9 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
      await run(db,'UPDATE pos_fulfillments SET quantity_milli=quantity_milli-?,version=version+1 WHERE id=?',q.quantityMilli,fid);
     }
     const amount=portion(num(line,'subtotal_minor'),0,q.quantityMilli,num(line,'quantity_milli')),tax=portion(num(line,'tax_minor'),0,q.quantityMilli,num(line,'quantity_milli')),discount=portion(num(line,'discount_minor'),0,q.quantityMilli,num(line,'quantity_milli'));
-    await run(db,'INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,subtotal_minor,tax_minor,modifiers_json,note) SELECT ?,?,?,product_id,name,?,price_minor,tax_bps,tax_inclusive,?,?,?,modifiers_json,note FROM pos_lines WHERE id=?',id(),target,newFid,q.quantityMilli,discount,amount,tax,line.id);
-    await run(db,'UPDATE pos_lines SET quantity_milli=quantity_milli-?,subtotal_minor=subtotal_minor-?,tax_minor=tax_minor-?,discount_minor=discount_minor-? WHERE id=?',q.quantityMilli,amount,tax,discount,line.id);
+    const billDiscount=portion(num(line,'bill_discount_minor'),0,q.quantityMilli,num(line,'quantity_milli'));
+    await run(db,'INSERT INTO pos_lines(id,sale_id,fulfillment_id,product_id,name,quantity_milli,price_minor,tax_bps,tax_inclusive,discount_minor,bill_discount_minor,subtotal_minor,tax_minor,modifiers_json,note) SELECT ?,?,?,product_id,name,?,price_minor,tax_bps,tax_inclusive,?,?,?,?,modifiers_json,note FROM pos_lines WHERE id=?',id(),target,newFid,q.quantityMilli,discount,billDiscount,amount,tax,line.id);
+    await run(db,'UPDATE pos_lines SET quantity_milli=quantity_milli-?,subtotal_minor=subtotal_minor-?,tax_minor=tax_minor-?,discount_minor=discount_minor-?,bill_discount_minor=bill_discount_minor-? WHERE id=?',q.quantityMilli,amount,tax,discount,billDiscount,line.id);
    }
    await run(db,'UPDATE pos_sales SET issuer_json=?,discount_requested_by=? WHERE id=?',sale.issuer_json,user,target);await refreshSale(db,target);await refreshSale(db,str(sale,'id'));return {id:target};
   }else if(op==='sale.cancel'){
@@ -430,10 +498,11 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
    }
    await run(db,"UPDATE pos_sales SET state='cancelled',table_id=NULL WHERE id=?",sale.id);
   }else fail('POS_ACTION_UNKNOWN','Command not found',404);
-  await refreshSale(db,str(sale,'id'));return {id:sale.id};
+  await refreshSale(db,str(sale,'id'));return {id:sale.id,version:(await one(db,'SELECT version FROM pos_sales WHERE id=?',sale.id))!.version};
  }
  if(op.startsWith('kitchen.')){
   const p=base.extend({reason:z.string().min(3).max(500).optional()}).parse(input),f=scopeRow(actor,await one(db,'SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE',p.id));version(f,p);
+  await assertPosDayWritable(db,company,str(f,'branch_id'),str(f,'business_date'));
   if(f.kind!=='recipe')fail('POS_KITCHEN_ITEM','This item is not a prepared food item',422);
   let state='';const a=json<PosAccounts>(f.accounts_json);
   if(op==='kitchen.send'&&f.state==='draft'){await reserve(db,f);state='queued';}
@@ -442,6 +511,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
   else if(op==='kitchen.deliver'&&f.state==='ready'){await posting(db,company,str(f,'branch_id'),a,businessDate(),str(f,'currency'),`deliver:${f.id}`,str(f,'id'),user,pair(a.cogs,a.wip,num(f,'cost_minor')));state='delivered';}
   else if(op==='kitchen.cancel'&&['draft','queued','preparing','ready','delivered'].includes(str(f,'state'))){
    requirePermission(actor,'pos.approve');if(!p.reason)fail('POS_REASON_REQUIRED','Enter the cancellation reason',422);
+   if(['preparing','ready','delivered'].includes(str(f,'state'))){const creator=await one(db,'SELECT s.created_by FROM pos_lines l JOIN pos_sales s ON s.id=l.sale_id WHERE l.fulfillment_id=? AND s.created_by=? LIMIT 1',f.id,user);const starter=await one(db,"SELECT actor_id FROM pos_audit WHERE operation='kitchen.start' AND record_id=? ORDER BY created_at DESC LIMIT 1",f.id);if(creator||starter&&samePerson(actor,starter.actor_id))fail('POS_INDEPENDENT_REVIEW','ผู้อนุมัติอีกคนต้องยกเลิกรายการที่เริ่มทำแล้ว');}
    if(await one(db,"SELECT l.id FROM pos_lines l JOIN pos_sales s ON s.id=l.sale_id WHERE l.fulfillment_id=? AND s.state='completed' AND l.returned_milli<l.quantity_milli",f.id))fail('POS_REFUND_REQUIRED','The bill is paid. Refund it through a refund request first');
    await posting(db,company,str(f,'branch_id'),a,businessDate(),str(f,'currency'),`waste:${f.id}`,str(f,'id'),user,pair(a.waste,f.state==='delivered'?a.cogs:a.wip,num(f,'cost_minor')));await run(db,'DELETE FROM pos_reservations WHERE fulfillment_id=?',f.id);state='cancelled';
   }else fail('POS_KITCHEN_TRANSITION','Kitchen status changed');
@@ -451,6 +521,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
  }
  if(op==='payment.create'){
   const p=base.extend({method:z.enum(['cash','transfer','edc','stripe_card','stripe_promptpay']),amountMinor:money.refine(n=>n>0),tenderedMinor:money,reference:z.string().max(150).default(''),payerEmail:z.union([z.email(),z.literal('')]).default('')}).parse(input),sale=await saleRow(db,actor,p.id);version(sale,p);
+  await assertPosDayWritable(db,company,str(sale,'branch_id'),str(sale,'business_date'));
   if(process.env.NODE_ENV==='production'&&!['cash','transfer'].includes(p.method)&&process.env.POS_STRIPE_LIVE_ENABLED!=='true')fail('POS_TENDER_COMING_SOON','The pilot accepts cash and verified bank transfers only',403);
   if(!['open','held','payment_pending'].includes(str(sale,'state')))fail('POS_SALE_LOCKED','Bill is not ready for payment');
   const settings=await config(db,company);if(!settings.enabled)fail('POS_DISABLED','New transactions are temporarily paused');await openPeriod(db,company,str(sale,'business_date'));
@@ -460,6 +531,7 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
   const reserved=await one(db,"SELECT COALESCE(SUM(amount_minor-refunded_minor),0) n FROM pos_payments WHERE sale_id=? AND state IN ('requested','pending','succeeded','exception')",sale.id);
   if(p.amountMinor>num(sale,'total_minor')-num(reserved!,'n')||p.tenderedMinor<p.amountMinor||p.method!=='cash'&&p.tenderedMinor!==p.amountMinor)fail('POS_PAYMENT_AMOUNT','Invalid payment or tendered amount',422);
   if(['transfer','edc'].includes(p.method)&&p.reference.trim().length<2)fail('POS_REFERENCE_REQUIRED','Enter the payment reference',422);
+  if(p.method==='stripe_promptpay'&&!p.payerEmail)fail('POS_PROMPTPAY_EMAIL_REQUIRED','กรอกอีเมลผู้จ่ายสำหรับ PromptPay และการคืนเงินก่อนสร้าง QR',422);
   for(const f of await all(db,'SELECT DISTINCT f.* FROM pos_fulfillments f JOIN pos_lines l ON l.fulfillment_id=f.id WHERE l.sale_id=?',sale.id)){
    if(f.state==='cancelled')fail('POS_ITEM_CANCELLED','Remove cancelled items before taking payment');await reserve(db,f);
   }
@@ -495,21 +567,37 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
   return {id:payment.id,saleId:payment.sale_id,state:'cancelled'};
  }
  if(op==='payment.retry'||op==='payment.cancel'){
-  const p=base.parse(input),payment=await one(db,'SELECT * FROM pos_payments WHERE id=? FOR UPDATE',p.id);if(!payment)fail('POS_NOT_FOUND','Payment not found',404);await saleRow(db,actor,str(payment,'sale_id'));version(payment,p);
+  const p=base.extend({payerEmail:z.email().optional()}).parse(input),payment=await one(db,'SELECT * FROM pos_payments WHERE id=? FOR UPDATE',p.id);if(!payment)fail('POS_NOT_FOUND','Payment not found',404);await saleRow(db,actor,str(payment,'sale_id'));version(payment,p);
   if(!str(payment,'method').startsWith('stripe_')||['succeeded','cancelled'].includes(str(payment,'state')))fail('POS_PAYMENT_LOCKED','This record cannot change state');
+  if(p.payerEmail){
+   const checkout=await one(db,"SELECT state FROM pos_jobs WHERE record_id=? AND kind='checkout' FOR UPDATE",payment.id);
+   if(op!=='payment.retry'||payment.method!=='stripe_promptpay'||payment.provider_id||payment.payer_email||checkout?.state!=='exception')fail('POS_PAYMENT_LOCKED','ตรวจผลรายการเดิมก่อนแก้ข้อมูลผู้จ่าย');
+   await run(db,'UPDATE pos_payments SET payer_email=?,version=version+1,updated_at=? WHERE id=?',p.payerEmail,Date.now(),payment.id);
+  }
   if(op==='payment.cancel')await enqueue(db,company,'cancel_checkout',str(payment,'id'));
   else await run(db,"UPDATE pos_jobs SET state='pending',attempts=0,next_attempt_at=0,last_error=NULL WHERE record_id=? AND kind IN ('checkout','check_payment') AND state='exception'",payment.id);
   return {id:payment.id};
  }
  if(op.startsWith('refund.'))return refundCommand(db,actor,op,input);
+ if(op==='settlement.refresh'){
+  if(actor.branchId)fail('POS_COMPANY_SETTINGS','Reconcile from the company area',403);
+  const p=z.object({expectedVersion:z.number().int().positive(),accountingDate:z.iso.date(),reason:z.string().trim().min(3).max(1000)}).parse(input);
+  const connection=await one(db,"SELECT * FROM pos_connections WHERE company_id=? AND state='ready' FOR UPDATE",company);
+  if(!connection)fail('POS_CONNECTION_MISSING','Connect the company Stripe account first',422);version(connection,p);
+  await openPeriod(db,company,p.accountingDate);
+  const syncId=id();await enqueue(db,company,'balance_sync',syncId,{accountId:connection.account_id,livemode:connection.livemode,accountingDate:p.accountingDate,reason:p.reason,userId:user,assignmentId:actor.assignmentId});return {id:syncId};
+ }
  if(op==='settlement.map_external'){
   requirePermission(actor,'finance.approve');if(actor.branchId)fail('POS_COMPANY_SETTINGS','Reconcile from the company area',403);
   const p=base.extend({journalId:z.string(),reason:z.string().trim().min(3).max(1000)}).parse(input);
   const item=await one(db,"SELECT * FROM pos_settlements WHERE id=? AND company_id=? AND state='unmapped' FOR UPDATE",p.id,company);if(!item)fail('POS_NOT_FOUND','Unmatched amount not found',404);version(item,p);
-  const settings=await config(db,company),a=json<PosAccounts>(settings.accounts_json),net=json<{net:number}>(item.details_json).net;
+  const settings=await config(db,company),a=json<PosAccounts>(settings.accounts_json),details=json<{net:number;manualPayout?:boolean;status?:string}>(item.details_json),net=details.net;
   const journal=await one(db,"SELECT j.id,SUM(l.debit_minor-l.credit_minor) net FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id WHERE j.id=? AND j.company_id=? AND j.currency=? AND j.status='posted' AND j.source_type='manual' AND l.account_id=? GROUP BY j.id",p.journalId,company,item.currency,a.stripe);
   if(!journal||num(journal,'net')!==net||await one(db,'SELECT id FROM pos_settlements WHERE journal_id=?',p.journalId))fail('POS_EXTERNAL_JOURNAL_MISMATCH','Select an approved journal with the matching net amount in the Stripe receivables account, and one that has not already been matched');
-  await run(db,"UPDATE pos_settlements SET state='mapped',journal_id=?,version=version+1 WHERE id=?",p.journalId,item.id);return {id:item.id};
+  const manualPayout=item.kind==='payout'&&details.manualPayout===true;
+  const bankNet=manualPayout?await one(db,'SELECT COALESCE(SUM(debit_minor-credit_minor),0) net FROM finance_journal_lines WHERE journal_id=? AND account_id=?',p.journalId,a.bank):null;
+  if(manualPayout&&(details.status!=='paid'||net!==-num(item,'amount_minor')||num(bankNet!,'net')!==num(item,'amount_minor')))fail('POS_EXTERNAL_JOURNAL_MISMATCH','The approved manual payout journal must debit the configured bank account for the verified net payout amount');
+  await run(db,"UPDATE pos_settlements SET state=?,journal_id=?,version=version+1 WHERE id=?",manualPayout?'paid':'mapped',p.journalId,item.id);return {id:item.id};
  }
  if(op==='settlement.match'){
   if(actor.branchId)fail('POS_COMPANY_SETTINGS','Reconcile from the company area',403);
@@ -519,15 +607,16 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
   if(!settlement||settlement.bank_transaction_id)fail('POS_PAYOUT_MATCHED','Unreconciled payout not found');version(settlement,p);
   const bank=await one(db,'SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? FOR UPDATE OF t',p.bankTransactionId,company);
   if(!bank||bank.version!==p.bankVersion||!['unmatched','proposed'].includes(str(bank,'match_status'))||bank.currency!==settlement.currency||bank.amount_minor!==settlement.amount_minor)fail('POS_BANK_MISMATCH','Bank amount, currency, or status does not match the payout');
-  if(!await one(db,'SELECT id FROM finance_journal_lines WHERE journal_id=? AND account_id=? AND debit_minor=?',settlement.journal_id,bank.bank_account,settlement.amount_minor))fail('POS_BANK_ACCOUNT','Bank account must match the account receiving the payout');
+  const bankNet=await one(db,'SELECT COALESCE(SUM(debit_minor-credit_minor),0) net FROM finance_journal_lines WHERE journal_id=? AND account_id=?',settlement.journal_id,bank.bank_account);
+  if(num(bankNet!,'net')!==num(settlement,'amount_minor'))fail('POS_BANK_ACCOUNT','Bank account net amount must match the account receiving the payout');
   await run(db,"UPDATE finance_bank_transactions SET match_status='matched',matched_type='pos_payout',matched_id=?,version=version+1 WHERE id=?",settlement.id,bank.id);
   await run(db,'UPDATE pos_settlements SET bank_transaction_id=?,version=version+1 WHERE id=?',bank.id,settlement.id);return {id:settlement.id};
  }
  if(op==='exception.attach_provider'){
   if(actor.branchId)fail('POS_COMPANY_SETTINGS','Review records from the company area',403);
-  const p=z.object({id:z.string(),providerId:z.string().regex(/^(re|cs)_[a-zA-Z0-9_]+$/),accountingDate:z.iso.date(),reason:z.string().trim().min(3).max(1000)}).parse(input);
+  const p=z.object({id:z.string(),providerId:z.string().regex(/^(re|pyr|cs)_[a-zA-Z0-9_]+$/),accountingDate:z.iso.date(),reason:z.string().trim().min(3).max(1000)}).parse(input);
   const job=await one(db,"SELECT * FROM pos_jobs WHERE id=? AND company_id=? AND state='exception' FOR UPDATE",p.id,company);if(!job)fail('POS_NOT_FOUND','Exception record not found',404);await openPeriod(db,company,p.accountingDate);
-  if(job.kind==='refund'&&p.providerId.startsWith('re_')){
+  if(job.kind==='refund'&&(p.providerId.startsWith('re_')||p.providerId.startsWith('pyr_'))){
    const changed=await one(db,"UPDATE pos_refund_payments SET provider_id=?,state='pending' WHERE id=? AND provider_id IS NULL RETURNING id",p.providerId,job.record_id);if(!changed)fail('POS_PROVIDER_ALREADY_BOUND','Record is already linked to Stripe');
   }else if(job.kind==='checkout'&&p.providerId.startsWith('cs_')){
    const changed=await one(db,"UPDATE pos_payments SET provider_id=?,state='pending' WHERE id=? AND provider_id IS NULL RETURNING id",p.providerId,job.record_id);if(!changed)fail('POS_PROVIDER_ALREADY_BOUND','Record is already linked to Stripe');
@@ -537,11 +626,23 @@ async function perform(db:SqlDatabase,actor:WorkContext,op:string,input:unknown)
  }
  if(op==='exception.retry'){
   if(actor.branchId)fail('POS_COMPANY_SETTINGS','Edit Stripe records from the company area',403);
-  requirePermission(actor,'pos.approve');const p=z.object({id:z.string(),accountingDate:z.iso.date(),reason:z.string().trim().min(3).max(1000)}).parse(input),job=await one(db,"SELECT * FROM pos_jobs WHERE id=? AND company_id=? AND state='exception' FOR UPDATE",p.id,company);if(!job)fail('POS_NOT_FOUND','Exception record not found',404);
+  requirePermission(actor,'pos.approve');const p=z.object({id:z.string(),accountingDate:z.iso.date(),reason:z.string().trim().min(3).max(1000),refundInstructionsEmail:z.email().max(254).optional(),expectedRefundVersion:z.number().int().positive().optional()}).parse(input),job=await one(db,"SELECT * FROM pos_jobs WHERE id=? AND company_id=? AND state='exception' FOR UPDATE",p.id,company);if(!job)fail('POS_NOT_FOUND','Exception record not found',404);
   await openPeriod(db,company,p.accountingDate);
-  let providerAttemptStartedAt=json<{providerAttemptStartedAt?:number}>(job.payload_json).providerAttemptStartedAt;
+  const payload=json<Record<string,unknown>>(job.payload_json);
+  if(p.refundInstructionsEmail){
+   requirePermission(actor,'finance.approve');if(actor.departmentId)fail('POS_COMPANY_SETTINGS','Correct refund instructions from the company area',403);
+   const refund=await one(db,"SELECT r.id,r.version,r.state refund_state,rp.state payout_state,rp.provider_id,p.method,p.payer_email FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id JOIN pos_payments p ON p.id=rp.payment_id WHERE rp.id=? AND r.company_id=? AND p.company_id=? FOR UPDATE OF rp,r",job.record_id,company,company);
+   if(job.kind!=='refund'||job.last_error!=='POS_PROVIDER_REFUND_EMAIL_RESTRICTED'||!refund||refund.method!=='stripe_promptpay'||refund.provider_id||refund.payout_state!=='requested'||refund.refund_state!=='processing')fail('POS_REFUND_EMAIL_LOCKED','Only an approved PromptPay refund with a rejected instruction email and no provider refund can be corrected');
+   if(p.expectedRefundVersion!==num(refund,'version'))fail('POS_VERSION_CONFLICT','Reload the refund before correcting its instruction email',409);
+   const attempts=z.array(z.object({email:z.email().max(254)})).max(10).parse(payload.refundInstructionsAttempts??[]);
+   if(attempts.length>=10)fail('POS_PROVIDER_LOOKUP_REQUIRED','Review the refund with Stripe before another email correction');
+   if(p.refundInstructionsEmail===(attempts.at(-1)?.email??refund.payer_email))fail('POS_REFUND_EMAIL_UNCHANGED','The instruction email is unchanged. Retry without a replacement after Stripe permits that recipient');
+   payload.refundInstructionsAttempts=[...attempts,{email:p.refundInstructionsEmail}];
+   await run(db,'UPDATE pos_refunds SET version=version+1 WHERE id=?',refund.id);
+  }
+  let providerAttemptStartedAt=typeof payload.providerAttemptStartedAt==='number'?payload.providerAttemptStartedAt:undefined;
   if(job.kind==='refund'){const failed=await one(db,"UPDATE pos_refund_payments SET provider_id=NULL,provider_attempt=provider_attempt+1,state='requested' WHERE id=? AND state='failed' RETURNING id",job.record_id);if(failed)providerAttemptStartedAt=Date.now();}
-  await run(db,"UPDATE pos_jobs SET state='pending',attempts=0,next_attempt_at=0,last_error=NULL,payload_json=? WHERE id=?",JSON.stringify({...json<Record<string,unknown>>(job.payload_json),accountingDate:p.accountingDate,providerAttemptStartedAt,resolutionReason:p.reason,resolvedBy:user}),job.id);return {id:job.id};
+  await run(db,"UPDATE pos_jobs SET state='pending',attempts=0,next_attempt_at=0,last_error=NULL,payload_json=? WHERE id=?",JSON.stringify({...payload,accountingDate:p.accountingDate,providerAttemptStartedAt,resolutionReason:p.reason,resolvedBy:user}),job.id);return {id:job.id};
  }
  fail('POS_ACTION_UNKNOWN','POS command not found',404);
 }
@@ -549,6 +650,8 @@ async function refundCommand(db:SqlDatabase,actor:WorkContext,op:string,input:un
  const user=actor.userId;
  if(op==='refund.request'){
   const p=base.extend({reason:z.string().trim().min(3).max(1000),lines:z.array(z.object({lineId:z.string(),quantityMilli:qty,restock:z.boolean()})).max(100).default([]),amountMinor:money.optional(),payoutShiftId:z.string().optional()}).parse(input),sale=await saleRow(db,actor,p.id);version(sale,p);
+  await assertPosDayWritable(db,str(sale,'company_id'),str(sale,'branch_id'),businessDate());
+  if(await one(db,"SELECT id FROM pos_day_closes WHERE company_id=? AND branch_id=? AND business_date=? AND state='prepared'",sale.company_id,sale.branch_id,sale.business_date))fail('POS_DAY_REVIEW_PENDING','Finance must confirm the original day close before a refund can change its source records');
   if(await one(db,'SELECT source_key FROM pms_sources WHERE source_key=?',`pos:${sale.id}:${sale.id}`))fail('POS_ROOM_CHARGE_REVERSAL','Reverse this charge on the hotel folio; it has no POS payment to refund');
   if(!['completed','payment_pending'].includes(str(sale,'state')))fail('POS_REFUND_SALE','Bill has no payment');
   if(new Set(p.lines.map(l=>l.lineId)).size!==p.lines.length)fail('POS_DUPLICATE_LINE','Duplicate refund item',422);
@@ -587,6 +690,7 @@ async function refundCommand(db:SqlDatabase,actor:WorkContext,op:string,input:un
   await run(db,'UPDATE pos_lines SET returned_milli=returned_milli+?,refunded_minor=refunded_minor+?,refunded_tax_minor=refunded_tax_minor+?,returned_cost_minor=returned_cost_minor+? WHERE id=?',part.quantityMilli,part.subtotalMinor+part.taxMinor,part.taxMinor,restoredCost,line.id);
  }
  await posting(db,str(sale,'company_id'),str(sale,'branch_id'),a,date,str(sale,'currency'),`refund:${refund.id}`,str(refund,'id'),user,[{account:refund.kind==='advance'?a.advance:a.revenue,debit:num(refund,'amount_minor')-num(refund,'tax_minor'),credit:0},{account:a.outputTax,debit:num(refund,'tax_minor'),credit:0},{account:a.refund,debit:0,credit:num(refund,'amount_minor')}]);
+ await capturePosMoney(db,sale,'pos_refund',str(refund,'id'),'total',date,String(refund.amount_minor));
  let remaining=num(refund,'amount_minor');
  for(const payment of payments){const amount=Math.min(remaining,num(payment,'amount_minor')-num(payment,'refunded_minor'));if(!amount)continue;
   const manualPromptPay=payment.method==='stripe_promptpay'&&!payment.payer_email;
@@ -613,6 +717,7 @@ export async function completeRefundPayment(db:SqlDatabase,refundPaymentId:strin
  const account=rp.manual_method==='cash'?a.cash:rp.manual_method==='transfer'?a.bank:p.method==='cash'?a.cash:p.method==='transfer'?a.bank:p.method==='edc'?a.edc:a.stripe;
  const journal=await posting(db,str(sale,'company_id'),str(sale,'branch_id'),a,date??str(refund,'accounting_date'),str(sale,'currency'),`refund-payment:${rp.id}`,str(refund,'id'),actorId,pair(a.refund,account,num(rp,'amount_minor')));
  await run(db,"INSERT INTO finance_payments(id,company_id,party_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,bank_account,status,journal_id,created_by,approved_by,created_at,updated_at) VALUES(?,?,?,'refund',?,?,?,?,0,?,'settled',?,?,?,?,?)",id(),sale.company_id,sale.party_id,`POS-REF-${rp.id}`,date??refund.accounting_date,sale.currency,rp.amount_minor,account,journal,actorId,actorId,Date.now(),Date.now());
+ await capturePosMoney(db,sale,'pos_refund_payment',str(rp,'id'),'settled',date??str(refund,'accounting_date'),String(rp.amount_minor));
  await run(db,"UPDATE pos_refund_payments SET state='succeeded' WHERE id=?",rp.id);
  await run(db,"UPDATE pos_refunds SET state=CASE WHEN EXISTS(SELECT 1 FROM pos_refund_payments WHERE refund_id=? AND state<>'succeeded') THEN 'processing' ELSE 'completed' END,version=version+1 WHERE id=?",refund.id,refund.id);
 }

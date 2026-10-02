@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { PeopleLifecycleData } from "../../src/lib/people-lifecycle";
+import type { GpoRulesOverview } from "../../src/lib/gpo-rules";
 import { interceptOrganizationWrites, organizationSession, readDirectory, readOrganization, selectExplorerItem } from "../helpers/organization-access-browser";
 
 test("HR can choose a Position independently of its Directory readiness", async ({ context, page }) => {
@@ -35,18 +36,13 @@ test("IT opens old Directory links in the combined workspace and previews a dire
   await page.goto(`${base}/technology?view=directory&position=${encodeURIComponent(position.id)}`);
   const workspace = page.getByTestId("organization-access-workspace");
   await expect(workspace).toBeVisible();
-  await expect(workspace.getByRole("tab")).toHaveCount(0);
+  if (test.info().project.name !== "mobile") await expect(workspace.getByRole("tab", { name: "Policies" })).toBeVisible();
   await expect(page.locator("[data-feature-tabs]")).toHaveCount(0);
   await expect(page.getByTestId(`org-position-${position.id}`)).toHaveAttribute("data-selected", "true");
-  if (test.info().project.name === "mobile") {
-    const drawer = page.getByRole("dialog", { name: position.title, exact: true });
-    await expect(drawer).toBeVisible();
-    await drawer.getByRole("button", { name: "Close dialog", exact: true }).click();
-    await expect(drawer).not.toBeVisible();
-  }
   await workspace.getByRole("searchbox", { name: "Search organization", exact: true }).fill(position.title);
   const details = await selectExplorerItem(page, "position", position.id, true);
   await expect(details.getByRole("button", { name: "Move position", exact: true })).toBeDisabled();
+  await expect(details.getByText("Position GPO tasks")).toBeVisible();
   await details.getByRole("button", { name: "Assign GPO", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Assign GPO policy", exact: true });
   await expect(dialog.getByRole("combobox", { name: "Apply to", exact: true })).toHaveValue("position");
@@ -69,4 +65,23 @@ test("IT opens old Directory links in the combined workspace and previews a dire
     await expect(dialog.getByRole("alert")).toHaveText(failure.message);
   }
   expect(writes).toHaveLength(0);
+});
+
+test("IT closes an unmapped Position task with a reason by keyboard", async ({ context, page }) => {
+  const base = await organizationSession(context, "it_admin"), writes = await interceptOrganizationWrites(page);
+  const response = await context.request.get(`/api/v1${base}/technology/gpo-rules`);
+  expect(response.ok(), await response.text()).toBe(true);
+  const overview = (await response.json()).data as GpoRulesOverview;
+  const task = overview.tasks.find(task => task.mappingCount === 0 && task.status === "pending");
+  expect(task).toBeTruthy();
+  await page.goto(`${base}/technology?view=organization&position=${encodeURIComponent(task!.positionId)}`);
+  const details = page.getByRole("region", { name: "Selected item details" }).filter({ visible: true });
+  const close = details.getByRole("button", { name: "GPO not required" });
+  await close.focus(); await page.keyboard.press("Enter");
+  const dialog = page.getByRole("dialog", { name: "GPO not required" });
+  await expect(dialog.getByRole("button", { name: "Confirm not required" })).toBeDisabled();
+  await dialog.getByRole("textbox", { name: "Reason" }).fill("No Windows policy for this Position");
+  await dialog.getByRole("button", { name: "Confirm not required" }).click();
+  await expect(dialog).toBeHidden();
+  expect(writes).toEqual([expect.objectContaining({ path: expect.stringContaining("/technology/gpo-rules/not-required"), body: expect.objectContaining({ positionId: task!.positionId, expectedVersion: task!.version, reason: "No Windows policy for this Position" }) })]);
 });

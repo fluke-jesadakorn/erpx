@@ -1,4 +1,5 @@
 import { prepareRoomCharge } from "../src/lib/pms-room-charge";
+import { frontOperationAllowed } from "../src/server/front-app";
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "./runtime-env";
 import { seedExpenseCompany } from "../fixtures/expenses/company";
@@ -12,12 +13,29 @@ import {
   type Config,
 } from "../src/lib/pms";
 import { availability, dailyRoomReport } from "../src/lib/pms-engine";
+import { pmsHome,pmsTaskPage } from "../src/server/pms/home";
+import { pmsFinanceOverview } from "../src/server/pms/finance";
+import { readablePmsSource } from "../src/server/pms/source";
+import { previewPmsImport,approvePmsImport,applyPmsImport } from "../src/server/pms/import";
+import { publishHandover,acknowledgeHandover,handoverView } from "../src/server/handover";
+import { homePosts,postView } from "../src/server/social-home";
+import { projectPmsSocialEvent } from "../src/server/pms/social-events";
+import type { EventMessage } from "../src/server/job-projector";
+import { createJournal,postJournal,previewOpeningTrialBalance,importOpeningTrialBalance,openingTrialBalanceSchema } from "../src/server/finance";
+import { assignFlowPrimary,resolveFlow } from "../src/server/flow-routing";
 import type { WorkContext } from "../src/server/authorization";
 import {
   attachmentBindingState,
   enableAttachmentV2ForTest,
   seedAttachmentSet,
 } from "./helpers/attachment-v2";
+
+it("allows staff payout of approved PMS refunds while keeping independent decisions in ERPX", () => {
+  expect(frontOperationAllowed("pms", "refund.pay")).toBe(true);
+  for (const operation of ["refund.approve", "refund.reject", "payment.verify_transfer", "shift.review"])
+    expect(frontOperationAllowed("pms", operation)).toBe(false);
+  expect(frontOperationAllowed("pos", "refund.pay")).toBe(false);
+});
 
 vi.mock("../src/server/runtime", async () => {
   const { env } = await import("./runtime-env");
@@ -50,6 +68,14 @@ async function cmd(operation: string, input: unknown = {}, actor = owner) {
     { propertyId, expectedVersion: s.property.version, operation, input },
     key(),
   );
+}
+async function projectCommittedEvent(eventType:string) {
+  const event=await db.prepare("SELECT * FROM outbox_events WHERE event_type=? AND payload_json::jsonb->>'companyId'=? ORDER BY created_at DESC,id LIMIT 1")
+    .bind(eventType,f.company).first<{id:string;event_type:string;aggregate_id:string;aggregate_version:number;payload_json:string}>();
+  if(!event)throw new Error("Expected committed PMS event");
+  const message={id:event.id,holdingId:"h001",eventType:event.event_type,aggregateId:event.aggregate_id,aggregateVersion:event.aggregate_version,payload:JSON.parse(event.payload_json)} satisfies EventMessage;
+  await projectPmsSocialEvent(db,message);
+  return message;
 }
 beforeEach(async () => {
   f = await seedExpenseCompany(db, env.H001_FILES);
@@ -132,6 +158,16 @@ async function book(
   const stay = records(s, "stay").find((x) => x.data.reservationId === r.id)!;
   return { reservationId: r.id, stayId: stay.id, folioId: stay.data.folioId };
 }
+it("blocks a new booking when the selected currency lacks the hotel's account setup or manual rate", async () => {
+  await expect(book("2026-09-01", "2026-09-02", { currency: "USD" })).rejects.toMatchObject({ code: "PMS_CURRENCY_SETUP_REQUIRED" });
+  await expect(book("2026-09-01", "2026-09-02", { currency: "THB" })).rejects.toMatchObject({ code: "MANUAL_RATE_REQUIRED" });
+  const rateId=`pms-rate-${key()}`;
+  await db.prepare("INSERT INTO company_fx_rates(id,company_id,currency,effective_date,currency_per_usd,confirmed_by,confirmed_at,note) VALUES(?,?,?,?,?,?,?,?)")
+    .bind(rateId, f.company, "THB", "2026-09-01", "36", reviewer.userId, Date.now(), "manual test quote").run();
+  const booked=await book("2026-09-01", "2026-09-02", { currency: "THB" });
+  expect(await db.prepare("SELECT currency,amount_units::text,usd_units::text,fx_rate_id FROM money_transaction_snapshots WHERE company_id=? AND source_type='pms_reservation' AND source_id=?")
+    .bind(f.company,booked.reservationId).first()).toMatchObject({currency:"THB",amount_units:"10700",usd_units:"297",fx_rate_id:rateId});
+});
 async function clean() {
   const t = (
     await cmd("task.create", {
@@ -322,7 +358,12 @@ it("settles a pending hotel transfer only after independent exact bank evidence"
     responsibleQueue: "Finance approver",
     nextAction: "Match imported bank evidence to this hotel transfer",
   });
-  expect((await pmsWork(owner)).some((item) => item.id === pending.id)).toBe(false);
+  expect((await pmsWork(owner)).find((item) => item.id === pending.id)).toMatchObject({queue:"waiting",canAct:false});
+  await projectCommittedEvent("pms.payment.request_transfer");
+  expect(await db.prepare("SELECT count(*) FROM staff_notifications WHERE company_id=? AND user_id=? AND record_type='post'")
+    .bind(f.company,reviewer.userId).first<number>("count")).toBe(1);
+  expect(await db.prepare("SELECT count(*) FROM staff_notifications WHERE company_id=? AND user_id=? AND record_type='post'")
+    .bind(f.company,owner.userId).first<number>("count")).toBe(0);
   const statement=key(),bankId=key();
   await db.prepare("INSERT INTO finance_bank_statements(id,company_id,bank_account,statement_number,statement_date,opening_minor,closing_minor,source_hash,imported_by,created_at) VALUES(?,?,?,?,?,0,10700,?,?,?)").bind(statement,f.company,accounts.bank,"PMS-STATEMENT-1",initial.property.businessDate,key(),reviewer.userId,Date.now()).run();
   await db.prepare("INSERT INTO finance_bank_transactions(id,statement_id,company_id,transaction_date,external_id,amount_minor,currency) VALUES(?,?,?,?,?,10600,'THB')").bind(bankId,statement,f.company,initial.property.businessDate,"PMS-BANK-001").run();
@@ -356,6 +397,14 @@ it("settles a pending hotel transfer only after independent exact bank evidence"
   expect(Number(payment!.amount_minor)).toBe(10700);
   expect(await balance(accounts.bank)).toBe(10700);
   expect(records(await snapshot(),"entry").filter(row=>row.id===result.entryId)).toHaveLength(1);
+  const verificationEvent=await projectCommittedEvent("pms.payment.verify_transfer");
+  await projectPmsSocialEvent(db,verificationEvent);
+  const notification=await db.prepare("SELECT record_id,message FROM staff_notifications WHERE company_id=? AND user_id=? AND record_type='post'")
+    .bind(f.company,owner.userId).first<{record_id:string;message:string}>();
+  expect(notification?.message).toContain("Bank transfer verified");
+  expect((await postView(db,owner,notification!.record_id)).linkedSources[0]).toMatchObject({id:pending.id,available:true});
+  expect(await db.prepare("SELECT count(*) FROM staff_notifications WHERE company_id=? AND user_id=? AND record_type='post'")
+    .bind(f.company,owner.userId).first<number>("count")).toBe(1);
 });
 
 it("cancels an unverified hotel transfer without changing folio or ledger", async () => {
@@ -401,7 +450,10 @@ it("completes deposit, stay, durable night audit, checkout and invoice without d
   expect(await balance(accounts.revenue)).toBe(0);
   await cmd("shift.close", { id: shift, counted: 10700, handover: "Verified" });
   await cmd("night.start");
-  await drainPms(db);
+  const seedNight=records(await snapshot(),'night')[0].id;
+  await drainPms(db,propertyId,'some-other-job');
+  expect((await snapshot()).property.businessDate).toBe('2026-09-01');
+  await drainPms(db,propertyId,seedNight);
   await drainPms(db);
   expect((await snapshot()).property.businessDate).toBe("2026-09-02");
   expect(await balance(accounts.revenue)).toBe(-10000);
@@ -595,7 +647,14 @@ it("separates security deposits, enforces refund independence and reverses advan
     code: "PMS_INDEPENDENT_APPROVER",
   });
   await cmd("refund.approve", { id: refund }, reviewer);
+  expect((await pmsWork(owner)).find(item=>item.id===refund)).toMatchObject({queue:"todo",canAct:true,nextAction:"Pay approved refund",responsibleQueue:"Cashier"});
+  await projectCommittedEvent("pms.refund.approve");
+  expect(await db.prepare("SELECT message FROM staff_notifications WHERE company_id=? AND user_id=? AND record_type='post'").bind(f.company,owner.userId).first("message")).toContain("Refund approved");
   await cmd("refund.pay", { id: refund, method: "cash", shiftId: sh });
+  expect((await pmsWork(owner)).some(item=>item.id===refund)).toBe(false);
+  const payoutEvent=await projectCommittedEvent("pms.refund.pay");
+  await projectPmsSocialEvent(db,payoutEvent);
+  expect((await homePosts(db,owner)).find(post=>post.linkedSources.some(source=>source.id===refund))?.body).toContain("Refund paid");
   expect(await balance(accounts.advance)).toBe(0);
   expect(await balance(accounts.tax)).toBe(0);
   expect(await balance(accounts.deposit)).toBe(-5000);
@@ -689,7 +748,166 @@ it("protects PMS invoices and payments from generic finance mutations", async ()
       .prepare("UPDATE finance_journals SET status='reversed' WHERE id=?")
       .bind(journal!.journal_id)
       .run(),
-  ).rejects.toThrow("PMS_OWNER_WORKFLOW_REQUIRED");
+  ).rejects.toThrow(/PMS_OWNER_WORKFLOW_REQUIRED|POSTED_JOURNAL_LINES_IMMUTABLE/);
+});
+
+it("aggregates accessible hotels without choosing one and keeps guest amounts private from housekeeping",async()=>{
+  const booking=await book();
+  await cmd("charge.add",{folioId:booking.folioId,description:"Private guest service",price:10000});
+  const home=await pmsHome(owner);
+  expect(home.hotels.map(hotel=>hotel.id)).toContain(propertyId);
+  expect(home.tasks.items.some(item=>item.id===booking.stayId)).toBe(true);
+  expect(home.hotels[0].receivable).toBe(10700);
+  const housekeeper=await f.member("housekeeper","pms_housekeeping");
+  housekeeper.branchId=f.branch;housekeeper.assignmentScope="branch";
+  await db.prepare("UPDATE assignments SET scope_kind='branch',scope_node_id=? WHERE id=?").bind(f.branch,housekeeper.assignmentId).run();
+  const privateHome=await pmsHome(housekeeper);
+  expect(privateHome.hotels[0].receivable).toBeNull();
+  expect(privateHome.tasks.items.every(item=>!["arrivals","departures"].includes(item.label))).toBe(true);
+  expect(JSON.stringify(privateHome)).not.toContain("Private guest service");
+  await expect(readablePmsSource(db,housekeeper,booking.stayId)).rejects.toMatchObject({status:404});
+  const wrongBranch=key();
+  await db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'branch',?,'Other branch',?,?,?)").bind(wrongBranch,wrongBranch,f.company,f.company,wrongBranch).run();
+  const otherHotel=await pmsCommand(db,owner,{operation:"property.create",input:{name:"Other hotel",branchId:wrongBranch,businessDate:"2026-09-02"}},key());
+  expect((await pmsHome(owner)).hotels).toHaveLength(2);
+  expect((await pmsHome(housekeeper)).hotels.map(hotel=>hotel.id)).not.toContain(otherHotel.id);
+});
+
+it("links one PMS handover in Social and Work and withdraws its body and acknowledgement with source access",async()=>{
+  const taskId=(await cmd("task.create",{roomId,type:"arrival",date:"2026-09-01"})).id;
+  const housekeeper=await f.member("shift receiver","pms_housekeeping"),outsider=await f.member("cashier only","pms_cashier");
+  const source=await readablePmsSource(db,owner,taskId);
+  const snapshot={items:await pmsWork(owner),unavailableSources:[]};
+  const view=await handoverView(db,owner,snapshot);
+  expect(view.items.find(item=>item.id===taskId)?.sourceKind).toBe("pms_record");
+  expect((await handoverView(db,owner,{...snapshot,unavailableSources:["Tasks"]})).unavailable).toBe(false);
+  const input={date:new Date(Date.now()+7*3600000).toISOString().slice(0,10),body:"Please prepare the selected room for the next shift.",sources:[{kind:"pms_record",id:taskId,sourceVersion:source.version}],recipientIds:[housekeeper.userId]};
+  await expect(publishHandover(db,owner,snapshot,{...input,recipientIds:[outsider.userId]},key())).rejects.toMatchObject({code:"HANDOVER_RECIPIENT_ACCESS"});
+  const publishKey=key(),published=await publishHandover(db,owner,snapshot,input,publishKey);
+  expect(await publishHandover(db,owner,snapshot,input,publishKey)).toEqual(published);
+  expect((await homePosts(db,housekeeper)).map(post=>post.id)).toContain(published.id);
+  expect((await postView(db,housekeeper,published.id)).linkedSources[0]).toMatchObject({kind:"pms_record",id:taskId,available:true});
+  expect((await acknowledgeHandover(db,housekeeper,published.id,key())).acknowledged).toBe(true);
+  const cashierRole={...housekeeper,role:"pms_cashier",assignmentId:await f.grant(housekeeper,"pms_cashier")};
+  expect((await homePosts(db,cashierRole)).map(post=>post.id)).not.toContain(published.id);
+  await expect(acknowledgeHandover(db,cashierRole,published.id,key())).rejects.toMatchObject({status:404});
+  await db.prepare("UPDATE assignments SET revoked_at=? WHERE id=?").bind(Date.now(),housekeeper.assignmentId).run();
+  await expect(readablePmsSource(db,housekeeper,taskId)).rejects.toMatchObject({status:404});
+  expect((await pmsTaskPage(db,housekeeper)).items).toEqual([]);
+  expect((await homePosts(db,housekeeper)).map(post=>post.id)).not.toContain(published.id);
+  expect((await pmsHome(housekeeper,{loadedIds:[published.id]})).readablePostIds).toEqual([]);
+  await expect(acknowledgeHandover(db,housekeeper,published.id,key())).rejects.toMatchObject({status:404});
+});
+
+it("rejects a handover from a stale PMS source and bounds task pages with cursors",async()=>{
+  const receiver=await f.member("room receiver","pms_housekeeping");
+  const source=await readablePmsSource(db,owner,roomId);
+  await cmd("room.save",{id:roomId,number:"101",typeId,building:"A",floor:"1"});
+  await expect(publishHandover(db,owner,{items:[],unavailableSources:[]},{date:new Date(Date.now()+7*3600000).toISOString().slice(0,10),body:"Prepare room",sources:[{kind:"pms_record",id:roomId,sourceVersion:source.version}],recipientIds:[receiver.userId]},key())).rejects.toMatchObject({code:"HANDOVER_SOURCE_CHANGED"});
+  for(let i=0;i<14;i++)await cmd("room.save",{number:`H-${i}`,typeId});
+  const page=await pmsTaskPage(db,owner);
+  expect(page.items).toHaveLength(12);expect(page.nextCursor).toBeTruthy();
+  const next=await pmsTaskPage(db,owner,{cursor:page.nextCursor!});
+  expect(next.items.some(item=>page.items.some(previous=>previous.id===item.id))).toBe(false);
+  await expect(pmsTaskPage(db,receiver,{cursor:page.nextCursor!})).rejects.toMatchObject({status:422});
+});
+
+it("projects durable PMS events once and combines room updates in the same Social post",async()=>{
+  await clean();
+  const events=(await db.prepare("SELECT * FROM outbox_events WHERE event_type IN ('pms.task.complete','pms.task.inspect') AND payload_json::jsonb->>'companyId'=? ORDER BY created_at,id").bind(f.company).all<{id:string;event_type:string;aggregate_id:string;aggregate_version:number;payload_json:string}>()).results;
+  const messages=events.map(event=>({id:event.id,holdingId:"h001",eventType:event.event_type,aggregateId:event.aggregate_id,aggregateVersion:event.aggregate_version,payload:JSON.parse(event.payload_json)} satisfies EventMessage));
+  await Promise.all(messages.map(message=>projectPmsSocialEvent(db,message)));
+  await Promise.all(messages.map(message=>projectPmsSocialEvent(db,message)));
+  expect(await db.prepare("SELECT count(*) FROM pms_social_event_receipts WHERE event_id IN (?,?)").bind(...events.map(event=>event.id)).first<number>("count")).toBe(2);
+  const posts=await homePosts(db,owner);
+  expect(posts.filter(post=>post.author_name==="PMS")).toHaveLength(1);
+  expect(posts[0].linkedSources[0].available).toBe(true);
+});
+
+async function cutoverDefinition(opening={due:0,advance:0,advanceTax:0,deposit:0}){
+  return {propertyId,expectedVersion:(await snapshot()).property.version,cutoverDate:"2026-09-01",currency:"THB",source:"legacy-test",
+    roomTypes:[{key:"type",existingId:typeId,name:"Deluxe",capacity:2}],rooms:[{key:"room",existingId:roomId,number:"101",typeKey:"type"}],
+    rates:[{key:"rate",existingId:rateId,name:"Standard",typeKey:"type",from:"2026-09-01",to:"2027-09-01",priceMinor:10000}],
+    guests:[{key:"guest",existingId:guestId,name:"Test Guest"}],reservations:[{key:"legacy-1",guestKey:"guest",typeKey:"type",rateKey:"rate",roomKey:"room",arrival:"2026-08-31",departure:"2026-09-02",adults:2,state:"in_house",opening}]};
+}
+it("previews import errors without writing hotel records and requires independent unchanged approval",async()=>{
+  const definition=await cutoverDefinition(),count=(await snapshot()).records.length;
+  const preview=await previewPmsImport(db,owner,definition,key()) as {id:string;version:number;report:{canApprove:boolean}};
+  expect(preview.report.canApprove).toBe(true);expect((await snapshot()).records).toHaveLength(count);
+  await expect(approvePmsImport(db,owner,{id:preview.id,expectedVersion:1},key())).rejects.toMatchObject({code:"PMS_IMPORT_INDEPENDENT"});
+  const invalid=await previewPmsImport(db,owner,{...definition,reservations:[{...definition.reservations[0],guestKey:"missing"}]},key()) as {report:{canApprove:boolean;errors:unknown[]}};
+  expect(invalid.report.canApprove).toBe(false);expect(invalid.report.errors).toHaveLength(1);expect((await snapshot()).records).toHaveLength(count);
+  await cmd("guest.save",{name:"Another guest"});
+  await expect(approvePmsImport(db,reviewer,{id:preview.id,expectedVersion:1},key())).rejects.toMatchObject({code:"PMS_IMPORT_STALE"});
+});
+
+it("applies approved imported in-house stays atomically and resumes a repeated apply without past room revenue",async()=>{
+  const preview=await previewPmsImport(db,owner,await cutoverDefinition(),key()) as {id:string};
+  await approvePmsImport(db,reviewer,{id:preview.id,expectedVersion:1},key());
+  const applyKey=key(),input={id:preview.id,expectedVersion:2};
+  const applied=await applyPmsImport(db,owner,input,applyKey);
+  expect(await applyPmsImport(db,owner,input,applyKey)).toEqual(applied);
+  const imported=records(await snapshot(),"stay")[0];
+  expect(imported.data.state).toBe("in_house");expect(imported.data.arrival).toBe("2026-08-31");
+  await cmd("night.start");await drainPms(db);
+  expect(records(await snapshot(),"entry").filter(entry=>entry.data.sourceKey.startsWith("night:")).map(entry=>entry.data.description)).toEqual(["Room charge 2026-09-01"]);
+  expect(await balance(accounts.revenue)).toBe(-10000);
+});
+
+it("traces imported advance and deposit to the approved opening journal and reconciles partial refunds",async()=>{
+  const input=await cutoverDefinition({due:0,advance:20000,advanceTax:0,deposit:5000});
+  const preview=await previewPmsImport(db,owner,input,key()) as {id:string};
+  await expect(approvePmsImport(db,reviewer,{id:preview.id,expectedVersion:1},key())).rejects.toMatchObject({code:"PMS_IMPORT_JOURNAL"});
+  const journal=await createJournal(owner,{chartId:f.chart,periodId:f.period,entryDate:"2026-09-01",currency:"THB",memo:"Hotel cutover balances",isOpening:true,sourceType:"opening_import",lines:[
+    {accountId:accounts.cash,debit:"250.00",credit:"0.00"},{accountId:accounts.advance,debit:"0.00",credit:"200.00"},{accountId:accounts.deposit,debit:"0.00",credit:"50.00"}]},key());
+  const flow=await resolveFlow(db,owner,"journal",journal.id);
+  await assignFlowPrimary(db,owner,"journal",journal.id,{stepKey:"draft",userId:reviewer.userId,reason:"Assign independent hotel cutover review",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());
+  await postJournal(reviewer,journal.id,key(),{expectedVersion:journal.version});
+  await approvePmsImport(db,reviewer,{id:preview.id,expectedVersion:1,openingJournalId:journal.id},key());
+  await applyPmsImport(db,owner,{id:preview.id,expectedVersion:2},key());
+  const home=await pmsFinanceOverview(owner);
+  expect(home.hotels[0].differences).toEqual({receivable:0,advance:0,deposit:0});expect(home.exceptions).toEqual([]);
+  const folio=records(await snapshot(),"folio")[0],shift=(await cmd("shift.open",{name:"New cashier",opening:10000})).id;
+  const refund=(await cmd("refund.request",{folioId:folio.id,pocket:"deposit",amount:2000,reason:"Partial cutover deposit return"})).id;
+  await cmd("refund.approve",{id:refund},reviewer);await cmd("refund.pay",{id:refund,method:"cash",shiftId:shift});
+  expect((await pmsFinanceOverview(owner)).hotels[0].differences).toEqual({receivable:0,advance:0,deposit:0});
+  await cmd("shift.close",{id:shift,counted:8000,handover:"Deposit refund recorded"});
+  await cmd("night.start");await drainPms(db);
+  expect(record(await snapshot(),"folio",folio.id).data.advance).toBe(9300);
+});
+
+it("settles the original opening receivable and invoices only new hotel service across two business days",async()=>{
+  const partyId=key(),equityId=key();
+  await db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,'Opening equity','equity','THB',1,1)").bind(equityId,f.chart,f.company,equityId).run();
+  await db.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,status,created_at,updated_at) VALUES(?,?,'customer',?,'Imported guest','THB','active',1,1)").bind(partyId,f.company,partyId).run();
+  await db.prepare("UPDATE finance_accounts SET is_control=1,control_kind='receivable' WHERE id=?").bind(accounts.receivable).run();
+  const definition=openingTrialBalanceSchema.parse({chartId:f.chart,periodId:f.period,entryDate:"2026-09-01",currency:"THB",
+    lines:[{accountId:accounts.receivable,debit:"200.00",credit:"0",subledgerKind:"receivable"},{accountId:equityId,debit:"0",credit:"200.00",subledgerKind:"none"}],
+    subledgerItems:[{kind:"receivable",partyId,reference:"LEGACY-HOTEL-1",dueDate:"2026-09-02",controlAccountId:accounts.receivable,offsetAccountId:equityId,amount:"200.00"}]});
+  const financePreview=await previewOpeningTrialBalance(owner,definition);
+  const journal=await importOpeningTrialBalance(owner,{...definition,previewToken:financePreview.previewToken},key());
+  const flow=await resolveFlow(db,owner,"journal",journal.id);
+  await assignFlowPrimary(db,owner,"journal",journal.id,{stepKey:"draft",userId:reviewer.userId,reason:"Assign independent opening balance posting",saveDefault:false,expectedVersion:flow.version,recordVersion:flow.recordVersion},key());
+  await postJournal(reviewer,journal.id,key(),{expectedVersion:journal.version});
+  const originalInvoice=`${journal.id}-subledger-0`,cutover=await cutoverDefinition({due:20000,advance:0,advanceTax:0,deposit:0});
+  const importDefinition={...cutover,guests:cutover.guests.map(guest=>({...guest,partyId})),reservations:cutover.reservations.map(reservation=>({...reservation,openingInvoiceId:originalInvoice}))};
+  const preview=await previewPmsImport(db,owner,importDefinition,key()) as {id:string};
+  await approvePmsImport(db,reviewer,{id:preview.id,expectedVersion:1,openingJournalId:journal.id},key());
+  await applyPmsImport(db,owner,{id:preview.id,expectedVersion:2},key());
+  const stay=records(await snapshot(),"stay")[0],folioId=stay.data.folioId,shift=(await cmd("shift.open",{name:"Cutover day",opening:0})).id;
+  await cmd("payment.receive",{folioId,amount:10000,method:"cash",shiftId:shift});
+  expect(await db.prepare("SELECT outstanding_minor FROM finance_invoices WHERE id=?").bind(originalInvoice).first<number>("outstanding_minor")).toBe(10000);
+  expect(await balance(accounts.revenue)).toBe(0);
+  await cmd("shift.close",{id:shift,counted:10000,handover:"Partial opening collection"});await cmd("night.start");await drainPms(db);
+  const second=(await cmd("shift.open",{name:"Second business day",opening:0})).id;
+  await cmd("payment.receive",{folioId,amount:20700,method:"cash",shiftId:second});await cmd("stay.check_out",{id:stay.id});
+  const invoice=await cmd("folio.close",{id:folioId});
+  expect(await db.prepare("SELECT total_minor FROM finance_invoices WHERE id=?").bind(invoice.id).first<number>("total_minor")).toBe(10700);
+  expect(await db.prepare("SELECT outstanding_minor FROM finance_invoices WHERE id=?").bind(originalInvoice).first<number>("outstanding_minor")).toBe(0);
+  expect(await db.prepare("SELECT sum(amount_minor) amount FROM finance_allocations WHERE company_id=?").bind(f.company).first<number>("amount")).toBe(30700);
+  expect((await pmsFinanceOverview(owner)).hotels[0].differences).toEqual({receivable:0,advance:0,deposit:0});
+  await cmd("shift.close",{id:second,counted:20700,handover:"Opening and current invoices fully settled"});await cmd("night.start");await drainPms(db);
+  expect((await snapshot()).property.businessDate).toBe("2026-09-03");expect(await balance(accounts.revenue)).toBe(-10000);
 });
 it("calculates inclusive prices with exact integer money", () => {
   expect(
@@ -812,9 +1030,12 @@ it("splits and merges charges without repeating revenue and reverses the recipie
     (x) => x.data.folioId === other && x.data.kind === "transfer",
   )!;
   await expect(
-    cmd("charge.reverse", { id: e, reason: "Invalid origin" }),
+    cmd("charge.correction.request", { id: e, reason: "Invalid origin" }),
   ).rejects.toMatchObject({ code: "PMS_ALREADY_REVERSED" });
-  await cmd("charge.reverse", { id: transfer.id, reason: "Service cancelled" });
+  const correction=await cmd("charge.correction.request", { id: transfer.id, reason: "Service cancelled" });
+  await expect(cmd("charge.correction.review",{id:correction.id,expectedVersion:1,action:"approve",reason:"Independent cancellation review"},owner))
+    .rejects.toMatchObject({code:"PMS_INDEPENDENT_REVIEW_REQUIRED"});
+  await cmd("charge.correction.review",{id:correction.id,expectedVersion:1,action:"approve",reason:"Independent cancellation review"},reviewer);
   expect(await balance(accounts.revenue)).toBe(0);
   await cmd("charge.add", {
     folioId: other,
@@ -1186,7 +1407,8 @@ it("retains historical occupancy capacity and posts corrections in the open busi
   const night = records(s, "entry").find((e) =>
     e.data.sourceKey.startsWith("night:"),
   )!;
-  await cmd("charge.reverse", { id: night.id, reason: "Approved correction" });
+  const correction=await cmd("charge.correction.request", { id: night.id, reason: "Incorrect prior-night rate" });
+  await cmd("charge.correction.review",{id:correction.id,expectedVersion:1,action:"approve",reason:"Approved correction"},reviewer);
   s = await snapshot();
   expect(dailyRoomReport(s, "2026-09-01").roomRevenue).toBe(10000);
   expect(dailyRoomReport(s, "2026-09-02").roomRevenue).toBe(-10000);
@@ -1270,5 +1492,51 @@ it("protects allocated receipt links and journal lines from deletion outside the
       .prepare("DELETE FROM finance_journal_lines WHERE journal_id=?")
       .bind(journal!.journal_id)
       .run(),
-  ).rejects.toThrow("PMS_OWNER_WORKFLOW_REQUIRED");
+  ).rejects.toThrow(/PMS_OWNER_WORKFLOW_REQUIRED|POSTED_JOURNAL_LINES_IMMUTABLE/);
+});
+
+it('prepares reviewed PMS mappings once and retains independent approval and the financial freeze',async()=>{
+ const input={chartId:f.chart,taxBps:700,serviceBps:0,taxInclusive:false,advanceTax:true,financeReviewed:true};
+ const s=await snapshot(),command={operation:'accounting.bootstrap',propertyId,expectedVersion:s.property.version,input},receipt=key();
+ await expect(cmd('accounting.bootstrap',{...input,financeReviewed:false})).rejects.toThrow();
+ const result=await pmsCommand(db,owner,command,receipt);
+ const saved=await snapshot();
+ expect(saved.property.config.approvedBy).toBeNull();
+ expect(new Set(Object.values(saved.property.config.accounts)).size).toBe(pmsAccountKeys.length);
+ expect(await pmsCommand(db,owner,command,receipt)).toEqual(result);
+ await expect(cmd('accounting.approve',{},owner)).rejects.toMatchObject({code:'PMS_INDEPENDENT_APPROVER'});
+ await cmd('accounting.approve',{},reviewer);
+ await cmd('property.enable');
+ const reservation=await book();
+ await cmd('charge.add',{folioId:reservation.folioId,price:1000,description:'Financial freeze example'});
+ await expect(cmd('accounting.bootstrap',input)).rejects.toMatchObject({code:'PMS_ACCOUNTING_IN_USE'});
+});
+
+it('rejects non-THB hotel charts and selected accounts without creating partial mappings',async()=>{
+ const input={chartId:f.chart,taxBps:700,serviceBps:0,taxInclusive:false,advanceTax:true,financeReviewed:true};
+ await db.prepare("UPDATE finance_charts SET base_currency='USD' WHERE id=?").bind(f.chart).run();
+ await expect(cmd('accounting.bootstrap',input)).rejects.toMatchObject({code:'PMS_CHART_INVALID'});
+ await db.prepare("UPDATE finance_charts SET base_currency='THB' WHERE id=?").bind(f.chart).run();
+ await db.prepare("UPDATE finance_accounts SET currency='USD' WHERE id=?").bind(accounts.cash).run();
+ const before=await db.prepare('SELECT count(*) n FROM finance_accounts WHERE company_id=?').bind(f.company).first('n');
+ await expect(cmd('accounting.bootstrap',{...input,accounts:{cash:accounts.cash}})).rejects.toMatchObject({code:'PMS_ACCOUNT_INVALID'});
+ expect(await db.prepare('SELECT count(*) n FROM finance_accounts WHERE company_id=?').bind(f.company).first('n')).toBe(before);
+});
+
+it('filters setup details and resumes from owner records without admitting other branches',async()=>{
+ const {hospitalitySetup}=await import('../src/server/hospitality-setup');
+ const data=await hospitalitySetup(owner,f.branch,propertyId);
+ expect(data.hotel?.records.some(r=>r.kind==='room')).toBe(true);
+ expect(data.hotel?.records.some(r=>r.kind==='guest')).toBe(false);
+ expect(data.steps.find(r=>r.id==='hotel')?.blockers).toContain('Enter a cancellation policy');
+ await cmd('property.save',{name:'Test Hotel',country:'TH',timezone:'Asia/Bangkok',checkIn:'14:00',checkOut:'12:00',cancellationPolicy:'Fictional flexible cancellation'});
+ expect((await hospitalitySetup(owner,f.branch,propertyId)).steps.find(r=>r.id==='hotel')?.blockers).toEqual([]);
+ await expect(hospitalitySetup(owner,'foreign-branch')).rejects.toMatchObject({code:'BRANCH_NOT_FOUND'});
+ const cashier=await f.member('setup-cashier','pms_cashier');
+ await expect(hospitalitySetup(cashier,f.branch,propertyId)).rejects.toMatchObject({code:'PERMISSION_REQUIRED'});
+ const financeData=await hospitalitySetup(reviewer,f.branch,propertyId);
+ expect(financeData.products).toEqual([]);
+ expect(financeData.permissions.hotel).toBe(false);
+ await db.prepare("UPDATE finance_charts SET base_currency='USD' WHERE id=?").bind(f.chart).run();
+ expect((await hospitalitySetup(owner,f.branch,propertyId)).steps.find(r=>r.id==='finance')?.blockers).toContain('Finance must review a THB Commerce chart');
 });

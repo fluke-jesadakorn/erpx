@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -22,6 +23,7 @@ import type {
   LifecyclePreview,
   PeopleLifecycleData,
 } from "@/lib/people-lifecycle";
+import { hasLifecycleCaseDetail } from "@/lib/people-lifecycle";
 import { personGpoStatus, positionGpoStatus } from "./gpo-status";
 import styles from "./lifecycle.module.css";
 import resourceStyles from "@/components/technology/resource-console.module.css";
@@ -85,12 +87,7 @@ export function AccessRecipe({
         <ShieldCheck size={17} />
         <span>
           {definition.grants.length
-            ? definition.grants
-                .map(
-                  (g) =>
-                    `${g.roleId} · ${g.scopeKind === "holding" ? "Company" : g.scopeKind} · until ${new Date(g.validUntil).toLocaleDateString()}`,
-                )
-                .join("; ")
+            ? definition.grants.map((g, index) => <span key={`${g.roleId}:${index}`}>{index > 0 ? "; " : ""}{g.roleId} · {g.scopeKind === "holding" ? "Company" : g.scopeKind} · until <TimeText value={g.validUntil} /></span>)
             : "No ERPX roles requested"}
         </span>
       </div>
@@ -361,7 +358,7 @@ export function PositionPreparation({
             {data.canManage && (
               <Link
                 className="button"
-                href={`${base}/people?position=${encodeURIComponent(position.id)}`}
+                href={`${base}/people?new=person&position=${encodeURIComponent(position.id)}`}
               >
                 Onboard into this position
               </Link>
@@ -1204,7 +1201,10 @@ export function LifecyclePanel({
   const [timezone,setTimezone] = useState(initialCase?.definition.timezone ?? "Asia/Bangkok");
   const [effectiveLocal,setEffectiveLocal] = useState(() => retirementLocalTime(initialCase?.effective_at ?? initialTime,initialCase?.definition.timezone ?? "Asia/Bangkok"));
   const [dateError,setDateError] = useState("");
-  const cases = data.cases.filter((c) => c.person_id === person.id);
+  const cases = data.cases.filter(
+    (c): c is LifecycleCase =>
+      c.person_id === person.id && hasLifecycleCaseDetail(c),
+  );
   const gpoDelivery=data.roster.find(p=>p.engagementId===person.engagementId)?.gpoDelivery??"none";
   return (
     <section className="card">
@@ -1311,7 +1311,7 @@ export function LifecyclePanel({
             {c.definition.departureReason === "retirement" ? "Retirement" : c.kind} · {c.status.replaceAll("_", " ")}
           </strong>
           <p>
-            Effective {new Date(c.effective_at).toLocaleString("en-GB",{timeZone:c.definition.timezone ?? "Asia/Bangkok"})} {c.definition.timezone ?? "Asia/Bangkok"} ·{" "}
+            Effective <TimeText value={c.effective_at} /> {c.definition.timezone ?? "Asia/Bangkok"} ·{" "}
             {c.definition.reason}
           </p>
           {c.definition.departureReason === "retirement" && <div className={styles.stack}><p>Retirement: {c.cutoffEffective ? "Effective" : c.status === "cancelled" ? "Cancelled" : "Not yet effective"} · Last working day: {c.definition.lastWorkingDate}</p><p>Clearance: {data.tasks.some(t=>t.case_id===c.id && t.clearance_type && t.status==="pending") ? "In progress" : ["draft","cancelled"].includes(c.status) ? "Not started" : "Complete"}</p>{!["draft","cancelled"].includes(c.status) && <Link className="button secondary" href={`${base}/people/clearance/${c.id}`}>Track all six departments</Link>}</div>}
@@ -1589,7 +1589,7 @@ export function LifecyclePanel({
                 <h3>Replace older access request</h3>
                 <p>
                   An older {preview.legacyCaseToSupersede.kind} request is {preview.legacyCaseToSupersede.status.replaceAll("_", " ")}
-                  {" "}for {new Date(preview.legacyCaseToSupersede.effectiveAt).toLocaleString("en-GB",{timeZone:draft.timezone})} {draft.timezone}.
+                  {" "}for <TimeText value={preview.legacyCaseToSupersede.effectiveAt} /> {draft.timezone}.
                   Submitting this HR placement will supersede that request. IT will prepare access separately.
                 </p>
                 <label>
@@ -1602,7 +1602,7 @@ export function LifecyclePanel({
             {preview.definition && (
               <AccessRecipe definition={preview.definition} />
             )}
-            <p>{departureReason === "retirement" ? "Retirement" : "Change"} effective: {new Date(draft.effectiveAt).toLocaleString("en-GB",{timeZone:draft.timezone})} {draft.timezone}</p>
+            <p>{departureReason === "retirement" ? "Retirement" : "Change"} effective: <TimeText value={draft.effectiveAt} /> {draft.timezone}</p>
             {draft.lastWorkingDate && <p>Engagement ends: {draft.lastWorkingDate} · Access cutoff is tracked separately.</p>}
             <p>Verified linked accounts: {preview.accounts.length}</p>
             <p>Access ending: {preview.removed.join(", ") || "None"}</p>

@@ -2,7 +2,7 @@ import { hasPermission } from "@/lib/permissions";
 import { samePerson } from "@/lib/iam";
 import "server-only";
 import { holdingResources } from "./runtime";
-import { listTasks, taskDetail } from "./staff-tasks";
+import { listTasks, taskWorkState } from "./staff-tasks";
 import type { WorkContext } from "./authorization";
 import {
   listExpenses,
@@ -215,7 +215,7 @@ export async function getStaffWork(actor: WorkContext): Promise<DomainWork[]> {
   const rows: DomainWork[] = [];
   const { write } = await holdingResources(actor.holdingId);
   for (const task of await listTasks(write, actor)) {
-    const detail = await taskDetail(write, actor, task.id),
+    const detail = await taskWorkState(write, actor, task),
       actionable = detail.permittedActions.some((a) =>
         [
           "edit",

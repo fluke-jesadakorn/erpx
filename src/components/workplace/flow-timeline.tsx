@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { FlowView } from "@/lib/flow";
 import styles from "./flow.module.css";
+import { TimeText } from "@/components/time/time-preference-context";
 
 export function FlowTimeline({flow,endpoint}:{flow:FlowView;endpoint:string}) {
   const router = useRouter();
@@ -32,6 +33,6 @@ export function FlowTimeline({flow,endpoint}:{flow:FlowView;endpoint:string}) {
         <button className="button secondary" disabled={busy || !step.candidates.length}>Save owner</button>
       </form></details>}
       </div></li>)}</ol>
-    {!!flow.history.length && <details><summary>Handoff history ({flow.history.length})</summary><ul>{flow.history.map((e,index) => <li key={index}>{e.actorName} · {e.action} · {new Date(e.at).toLocaleString("en-GB",{timeZone:"Asia/Bangkok"})}{e.reason && ` · ${e.reason}`}</li>)}</ul></details>}
+    {!!flow.history.length && <details><summary>Handoff history ({flow.history.length})</summary><ul>{flow.history.map((e,index) => <li key={index}>{e.actorName} · {e.action} · <TimeText value={e.at} />{e.reason && ` · ${e.reason}`}</li>)}</ul></details>}
   </section>;
 }

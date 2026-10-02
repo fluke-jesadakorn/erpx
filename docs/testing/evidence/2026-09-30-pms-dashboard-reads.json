@@ -1,0 +1,518 @@
+{
+  "date": "2026-09-30",
+  "scope": "isolated PostgreSQL legacy/front PMS workspace versus dashboard read, not HTTP/browser",
+  "toolchain": {
+    "bun": "1.2.17",
+    "node": "24.20.0"
+  },
+  "fixture": {
+    "historicalEntryCount": 200,
+    "historicalEntryHistoryCharacters": 400,
+    "roomCount": 1,
+    "roomTypeCount": 1,
+    "rateCount": 1
+  },
+  "summary": {
+    "before": {
+      "rounds": 20,
+      "queries": [
+        8
+      ],
+      "medianMs": 1.6376879999997982,
+      "p95Ms": 1.9718329999996058,
+      "minimumMs": 1.4017919999996593,
+      "maximumMs": 2.5860830000001442,
+      "failedRounds": 0
+    },
+    "after": {
+      "rounds": 20,
+      "queries": [
+        6
+      ],
+      "medianMs": 0.7509169999998448,
+      "p95Ms": 0.9171670000005179,
+      "minimumMs": 0.6163750000005166,
+      "maximumMs": 1.0885000000007494,
+      "failedRounds": 0
+    },
+    "beforeSerializedBytes": [
+      127086
+    ],
+    "afterSerializedBytes": [
+      2219
+    ],
+    "serializedByteReductionPercent": 98.25393827801646
+  },
+  "rawFile": ".scratch/dev/pms-dashboard-read-comparison.json",
+  "reproduce": "bun run test -- tests/pms-read-model.test.ts tests/pms.test.ts",
+  "observations": {
+    "methodology": "Alternating legacy/front dashboard query model on the same isolated 200-history-record fixture. Service SQL roundtrips; excludes compiler, HTTP authentication/network/browser.",
+    "samples": [
+      {
+        "round": 0,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 1.5848750000004657,
+          "poolWaitMs": 0.06533199999921635,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 2.5860830000001442,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.6185840000007374,
+          "poolWaitMs": 0.012209000000439119,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.9171670000005179,
+          "failed": false
+        }
+      },
+      {
+        "round": 1,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 1.1428340000002208,
+          "poolWaitMs": 0.03654199999982666,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.774583999999777,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.5778770000006261,
+          "poolWaitMs": 0.014124000000265369,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.7876249999999345,
+          "failed": false
+        }
+      },
+      {
+        "round": 2,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 1.157165999999961,
+          "poolWaitMs": 0.03016599999864411,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.768500000000131,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.6329589999995733,
+          "poolWaitMs": 0.011832999999569438,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.8645830000004935,
+          "failed": false
+        }
+      },
+      {
+        "round": 3,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 1.3595840000016324,
+          "poolWaitMs": 0.03329200000007404,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.9718329999996058,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.7399570000006861,
+          "poolWaitMs": 0.030416999999943073,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.0885000000007494,
+          "failed": false
+        }
+      },
+      {
+        "round": 4,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 0.9674999999997453,
+          "poolWaitMs": 0.03225000000020373,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.5487919999995938,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.5659170000017184,
+          "poolWaitMs": 0.011374999999134161,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.7719170000000304,
+          "failed": false
+        }
+      },
+      {
+        "round": 5,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 0.9776670000010199,
+          "poolWaitMs": 0.02620899999874382,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.5215829999997368,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.5118770000008226,
+          "poolWaitMs": 0.011165999999320775,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.6850420000000668,
+          "failed": false
+        }
+      },
+      {
+        "round": 6,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 1.1140419999992446,
+          "poolWaitMs": 0.03045800000018062,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.6492920000000595,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.5443749999994907,
+          "poolWaitMs": 0.009958999999980733,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.7223749999993743,
+          "failed": false
+        }
+      },
+      {
+        "round": 7,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 1.0315419999997175,
+          "poolWaitMs": 0.038123999999697844,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.5907500000002983,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.4977500000004511,
+          "poolWaitMs": 0.01433400000041729,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.6517079999994166,
+          "failed": false
+        }
+      },
+      {
+        "round": 8,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 0.9805420000002414,
+          "poolWaitMs": 0.022123000000647153,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.4964159999999538,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.47754099999929167,
+          "poolWaitMs": 0.007542000000285043,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.6163750000005166,
+          "failed": false
+        }
+      },
+      {
+        "round": 9,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 0.9462079999993875,
+          "poolWaitMs": 0.021582999999736785,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.492750000000342,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.5573319999994055,
+          "poolWaitMs": 0.008917000001019915,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.7299169999996593,
+          "failed": false
+        }
+      },
+      {
+        "round": 10,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 1.0212900000024092,
+          "poolWaitMs": 0.026500999999370833,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.6036669999994047,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.6539590000011231,
+          "poolWaitMs": 0.010457999999744061,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.8500000000003638,
+          "failed": false
+        }
+      },
+      {
+        "round": 11,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 1.1352509999996983,
+          "poolWaitMs": 0.023457000000234984,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.708625000000211,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.5210420000003069,
+          "poolWaitMs": 0.00891700000011042,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.6584169999996448,
+          "failed": false
+        }
+      },
+      {
+        "round": 12,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 0.8940419999998994,
+          "poolWaitMs": 0.027584999999817228,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.4017919999996593,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.4915849999988495,
+          "poolWaitMs": 0.007542000000285043,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.6355419999999867,
+          "failed": false
+        }
+      },
+      {
+        "round": 13,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 1.3303339999993113,
+          "poolWaitMs": 0.027041999999710242,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.8675840000005337,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.5477090000003955,
+          "poolWaitMs": 0.010457999999744061,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.7032090000002427,
+          "failed": false
+        }
+      },
+      {
+        "round": 14,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 0.9672090000012759,
+          "poolWaitMs": 0.037333999998736545,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.4998330000007627,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.48545799999919836,
+          "poolWaitMs": 0.00820800000019517,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.6259579999996276,
+          "failed": false
+        }
+      },
+      {
+        "round": 15,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 0.981498000001011,
+          "poolWaitMs": 0.03200099999867234,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.523167000000285,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.5323749999997744,
+          "poolWaitMs": 0.010498999999981606,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.6748750000006112,
+          "failed": false
+        }
+      },
+      {
+        "round": 16,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 1.2625820000012027,
+          "poolWaitMs": 0.028914999999869906,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.8327919999992446,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.6569999999983338,
+          "poolWaitMs": 0.016667000000779808,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.843166999999994,
+          "failed": false
+        }
+      },
+      {
+        "round": 17,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 1.32616599999983,
+          "poolWaitMs": 0.026625999999851047,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.905917000000045,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.572374000000309,
+          "poolWaitMs": 0.010499999999410647,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.8194160000002739,
+          "failed": false
+        }
+      },
+      {
+        "round": 18,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 1.14087500000187,
+          "poolWaitMs": 0.029624000001604145,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.7128330000005008,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.6295010000003458,
+          "poolWaitMs": 0.007917000000816188,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.7737090000000535,
+          "failed": false
+        }
+      },
+      {
+        "round": 19,
+        "beforeBytes": 127086,
+        "afterBytes": 2219,
+        "before": {
+          "queries": 8,
+          "queryMs": 1.069498999998359,
+          "poolWaitMs": 0.022291000001132488,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 1.626083999999537,
+          "failed": false
+        },
+        "after": {
+          "queries": 6,
+          "queryMs": 0.6169179999997141,
+          "poolWaitMs": 0.00895799999943847,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 0.7799169999998412,
+          "failed": false
+        }
+      }
+    ]
+  },
+  "limitations": [
+    "Serialized workspace DTO bytes exclude HTTP/RSC/browser framing and JavaScript.",
+    "Calendar/detail repositories are available but the current global reservation/calendar UI retains complete default workspace reads.",
+    "Existing calls without view preserve the full API; commands require full locked state."
+  ]
+}

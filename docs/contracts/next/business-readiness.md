@@ -4,10 +4,13 @@ Delivery scope is governed by [the production plan](../../production-plan.md), w
 
 ## Independent meanings
 
+- `accept` is an action whose meaning comes from the named object and command. `accepted` is that object's recorded outcome; neither word grants release approval by itself.
 - Company setup acceptance (`company_business_acceptance`) concerns Company identity, organization and staff placement. Its existing API and `submitted/accepted/revoked` lifecycle remain compatible.
 - Workspace observations (`business-acceptance-evidence.json`) are checksum-verified evidence with a stated environment and limited scope. They never promote gates.
 - Capability reviews (`capability-gate-reviews.json`) are the durable source for generated inventory gates. Generator runs preserve explicit reviews and validate vocabulary, reviewer, evidence, timestamp and duplicates. They do not certify a Company release.
 - Company release acceptance is stored in PostgreSQL, not generated JSON. Every criterion in the current scope requires independent review. A review attests the submitted evidence; a recorded checksum alone does not establish the correctness of its contents.
+
+The capability inventory's **Flow accepted** label means an end-to-end workflow has passed in the system with the required evidence. It is a software capability status, not Company Setup Acceptance or Company Release Acceptance. A release criterion becomes `passed` only through its authorized, independent evidence review. The overall release is accepted only after every required criterion passes for the submitted Company, build and configuration.
 
 Gate vocabulary is `pending / passed / not_applicable`. Only a provider **inventory** gate can be not applicable, with a reason. All current release criteria are required. `companySignOff` on the existing readiness response retains its old **setup-only** meaning for compatibility; clients should use explicit `setupSignOff` and `releaseSignOff` fields. The new `releaseAcceptance` field exposes scope/build/configuration, criteria and blockers.
 

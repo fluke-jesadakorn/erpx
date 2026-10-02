@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 import { useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -350,7 +351,7 @@ export function DirectoryWorkspace({
             {connection.writeEnabled ? "Write-back enabled" : "Read-only"} ·{" "}
             {connection.inventory?.providerVersion ?? "Not tested"} ·{" "}
             {connection.inventory
-              ? new Date(connection.inventory.observedAt).toLocaleString()
+              ? <TimeText value={connection.inventory.observedAt} />
               : "Read the inventory to begin"}
           </p>
           {initial.canManage && (
@@ -821,7 +822,7 @@ export function DirectoryWorkspace({
                       .map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name} · {c.kind} ·{" "}
-                          {new Date(c.effectiveAt).toLocaleString()}
+                          <TimeText value={c.effectiveAt} />
                         </option>
                       ))}
                   </select>
@@ -971,7 +972,7 @@ export function DirectoryWorkspace({
                     .map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name} · {c.kind} ·{" "}
-                        {new Date(c.effectiveAt).toLocaleString()}
+                        <TimeText value={c.effectiveAt} />
                       </option>
                     ))}
                 </select>

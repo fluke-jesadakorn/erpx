@@ -28,6 +28,9 @@ try {
     if (await db.prepare("SELECT 1 FROM people_roster_history WHERE id=?").bind(`${prefix}-complete`).first()) { summary.push({ department: dept, state: "preserved existing examples" }); continue; }
     const manager = await actor(dept, "manager", true), people = await Promise.all(["staff", "senior", "associate", "supervisor"].map(seat => actor(dept, seat)));
     const person = (a: WorkContext) => a.userId.replace(/-user$/, "-person");
+    // A pre-existing week belongs to its manager; do not create unused templates for it.
+    const existing = await db.prepare("SELECT id FROM people_roster_weeks WHERE company_id='acme-co' AND department_id=? AND week_start=?::date").bind(manager.departmentId, start).first<{ id: string }>();
+    if (existing && existing.id !== `roster-${prefix}-week`) { summary.push({ department: dept, state: "preserved pre-existing week" }); continue; }
     async function once(tag: string, input: unknown, who = manager) {
       const key = `${prefix}-${tag}`;
       const receipt = await db.prepare("SELECT result_json FROM command_receipts WHERE command_id=?").bind(key).first<{ result_json: string }>();
@@ -36,9 +39,6 @@ try {
     }
     const templates = [];
     for (const [name, startTime, endTime] of [["Morning", "06:00", "14:00"], ["Afternoon", "14:00", "22:00"], ["Overnight", "22:00", "06:00"]]) templates.push(await once(`template-${name}`, { action: "template.save", departmentId: manager.departmentId, name, startTime, endTime, capacity: 2 }));
-    // Never overwrite another manager's week, including weeks created before seeding.
-    const existing = await db.prepare("SELECT id FROM people_roster_weeks WHERE company_id='acme-co' AND department_id=? AND week_start=?::date").bind(manager.departmentId, start).first<{ id: string }>();
-    if (existing && existing.id !== `roster-${prefix}-week`) { summary.push({ department: dept, state: "preserved pre-existing week" }); continue; }
     const w = await once("week", { action: "week.create", departmentId: manager.departmentId, weekStart: start, timezone: "Asia/Bangkok" });
     const shifts: string[][] = [];
     for (let day = 0; day < 3; day++) {

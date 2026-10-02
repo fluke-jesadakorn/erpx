@@ -52,7 +52,7 @@ export async function otherFlowWork(actor:WorkContext, reference = false):Promis
       const own = row.created_by === actor.userId;
       const participant = flow.steps.some(s => s.primary?.userId === actor.userId) || flow.history.some(e => e.actorName === actor.userId);
       if (!own && !participant && !(flow.canManage && flow.blocker)) continue;
-      const href = kind === "order" ? `/commerce/orders/${row.id}` : kind === "invoice" ? `/finance/invoices/${row.id}` : kind === "journal" ? `/finance/journals/${row.id}` : `/people/payroll/${row.id}`;
+      const href = kind === "order" ? `/commerce/orders/${row.id}` : kind === "invoice" ? `/finance/invoices/${row.id}` : kind === "journal" ? `/finance/journals/${row.id}` : `/people/payroll/runs/${encodeURIComponent(String(row.id))}`;
       items.push({id:String(row.id),type:kind,title:String(row[title]),detail:flow.current?.action ?? "No pending action",href,status:flow.state,updatedAt:Number(row[updated]),queue:flow.canAct ? "todo" : flow.current ? "waiting" : "completed",flow,canAct:flow.canAct,category:flow.blocker && !flow.current?.primary ? "setup" : "operational",setupReason:flow.blocker,relationships:[...(own ? ["requested" as const] : []),...(flow.canAct ? ["assigned" as const] : [])]});
     }
   }

@@ -3,6 +3,7 @@ import type { WorkContext } from "@/server/authorization";
 import { runtimeEnv } from "@/server/runtime";
 import { StatusBadge } from "@/components/ui/primitives";
 import { AccountInvitationActions } from "./account-invitation-actions";
+import { TimeText } from "@/components/time/time-preference-context";
 
 const deliveryLabels: Record<string, string> = {
   awaiting_approval: "Waiting for independent approval",
@@ -52,7 +53,7 @@ export async function AccountInvitations({
                 ? deliveryLabels[invite.delivery_state] ?? invite.delivery_state
                 : "Legacy invitation — no delivery job"}
               {invite.attempts ? ` · ${invite.attempts} attempt${invite.attempts === 1 ? "" : "s"}` : ""}
-              {invite.sent_at ? ` · ${new Date(invite.sent_at).toLocaleString()}` : ""}
+              {invite.sent_at ? <> · <TimeText value={invite.sent_at} /></> : ""}
             </p>
             {invite.error && <p role="alert">{invite.error.replaceAll("_", " ")}</p>}
           </div>

@@ -1,12 +1,14 @@
 import {test,expect} from '@playwright/test';
+import {searchRoleOptions} from '../helpers/context-switching-browser';
 const endpoint='/api/v1/holdings/acme/assignments/active';
 test('searchable selector has no Automatic option and appearance stays compact',async({page,context})=>{
  expect((await context.request.post('/api/auth/sign-in/email',{data:{email:'mali@erpx.dev',password:'Mali-ERPX-2026!'}})).ok()).toBe(true);
  await page.goto('/holdings/acme/home');
- if(page.url().includes('/work-role')){await page.getByRole('combobox',{name:'Role for actions & approvals'}).fill('people manager');await page.getByRole('listbox').getByRole('option').first().click();}
+ if(page.url().includes('/work-role')){const options=await searchRoleOptions(page,'people manager');await options.getByRole('option').first().click();}
  await expect(page.locator('[data-work-revision]')).toBeVisible();
  await page.getByRole('button',{name:/Account menu for/}).click();
- const role=page.getByRole('combobox',{name:'Role for actions & approvals'});
+ await page.getByRole('button',{name:/Role for actions & approvals/}).click();
+ const role=page.getByRole('combobox',{name:'Search roles',exact:true});
  await role.fill('automatic');await expect(page.getByText('No matching roles. Try another name.')).toBeVisible();
  await role.fill('people');await expect(page.getByRole('listbox').getByRole('option').first()).toContainText(/people/i);
  const appearance=page.getByRole('group',{name:'Appearance'});expect((await appearance.boundingBox())!.width).toBeLessThanOrEqual(140);
@@ -24,20 +26,22 @@ test('17-role account selects Employee, cannot use finance or HR APIs, and inval
  let data=(await(await context.request.get(endpoint)).json()).data;
  expect(data.options.length).toBeGreaterThanOrEqual(17);
  const employee=data.options.find((a:{role:string})=>a.role==='employee'),finance=data.options.find((a:{role:string})=>a.role==='finance_approver');
- await page.getByRole('combobox',{name:'Role for actions & approvals'}).fill('employee');await page.getByRole('listbox').getByRole('option').click();
+ const employeeOptions=await searchRoleOptions(page,'employee');await employeeOptions.getByRole('option').click();
+ await expect(page.locator('[data-work-assignment]')).toHaveAttribute('data-work-assignment',employee.id);
  await expect(page).toHaveURL(/\/holdings\/acme\/home$/);
- await expect(page.getByText(/Working as employee/i)).toBeVisible();
+ await expect(page.locator('.active-work-role')).toContainText(/employee/i);
  await expect(page.locator('.active-work-role')).toBeVisible();
  data=(await(await context.request.get(endpoint)).json()).data;
  const headers={'x-erpx-context-revision':String(data.revision),'x-erpx-context-company':data.companyId,'x-erpx-context-assignment':employee.id,'Idempotency-Key':crypto.randomUUID()};
  for(const path of ['finance/charts','finance/periods','finance/payments'])expect((await context.request.get(`/api/v1/holdings/acme/${path}`)).status()).toBe(403);
  for(const path of ['finance/journals/missing/post','finance/payments/missing/approve','finance/payments/missing/release'])expect((await context.request.post(`/api/v1/holdings/acme/${path}`,{headers,data:{expectedVersion:1,proof:'Role denial test'}})).status()).toBe(403);
- expect((await context.request.post('/api/v1/holdings/acme/people/directory/missing/grant',{headers,data:{role:'employee',scope:'holding',expiresAt:'2027-01-01'}})).status()).toBe(403);
- const other=await context.newPage();await other.goto('/holdings/acme/work');
+ expect((await context.request.get('/api/v1/holdings/acme/people/organization')).status()).toBe(403);
+ const other=await context.newPage();await other.goto('/holdings/acme/work');await expect(other.getByRole('button',{name:/Account menu for/})).toBeEnabled();
  await page.getByRole('button',{name:/Account menu for/}).click();
- await page.getByRole('combobox',{name:'Role for actions & approvals'}).fill('finance approver');
+ await searchRoleOptions(page,'finance approver');
  await page.getByRole('listbox').getByRole('option').click();
- await expect(page.getByText(/Working as finance approver/i)).toBeVisible();
+ await expect(page.locator('.active-work-role')).toContainText(/finance approver/i);
+ await expect(page.locator('[data-work-assignment]')).toHaveAttribute('data-work-assignment',finance.id);
  await expect(other.locator('[data-work-stale]')).toHaveAttribute('data-work-stale','true');
  await expect(other.getByText('Work role changed. Your open form has not been submitted.',{exact:false})).toBeVisible();
  const stale=await context.request.post('/api/v1/holdings/acme/finance/journals/missing/post',{headers,data:{expectedVersion:1}});
@@ -63,7 +67,7 @@ test('17-role account selects Employee, cannot use finance or HR APIs, and inval
 
 test('a single-assignment staff account starts automatically and keeps its role on reload',async({page,context,baseURL})=>{
  test.skip(!['localhost','127.0.0.1'].includes(new URL(baseURL!).hostname),'Local authorized seed account');
- expect((await context.request.post('/api/auth/sign-in/email',{data:{email:'demo.bangkok.operations.staff@erpx.dev',password:'Elena-ERPX-2026!'}})).ok()).toBe(true);
+ expect((await context.request.post('/api/auth/sign-in/email',{data:{email:process.env.ERPX_E2E_READER_EMAIL??'elena.suwan@erpx.dev',password:process.env.ERPX_E2E_READER_PASSWORD??'12345678'}})).ok()).toBe(true);
  const choices=(await(await context.request.get(endpoint)).json()).data.options;
  expect(choices).toHaveLength(1);
  await page.goto('/holdings/acme/branches/bangkok/departments/operations/home');

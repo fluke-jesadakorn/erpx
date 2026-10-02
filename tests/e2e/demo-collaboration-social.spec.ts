@@ -70,8 +70,12 @@ test("isolated demo publishes a mentioned update and keeps thread actions after 
     const composer = ownerPage.locator("details.beta-composer");
     const body = `Operations handoff ${Date.now()} @Support`;
     await composer.getByLabel("Post message", { exact: true }).fill(body);
-    await expect(composer.getByRole("listbox", { name: "Suggestions" })).toBeVisible();
-    const supportOption = composer
+    const mentionMenu = ownerPage.getByRole("listbox", {
+      name: "People, AI agents, and records",
+      exact: true,
+    });
+    await expect(mentionMenu).toBeVisible();
+    const supportOption = mentionMenu
       .getByRole("option")
       .filter({ hasText: "Support agent" })
       .first();
@@ -94,14 +98,18 @@ test("isolated demo publishes a mentioned update and keeps thread actions after 
       .first();
     await employeePost.getByRole("button", { name: /Comment/ }).click();
     const reply = `Acknowledged by employee ${Date.now()}`;
-    await employeePost.getByLabel("Write a comment", { exact: true }).fill(reply);
+    await employeePost.getByRole("combobox", { name: "Write a comment", exact: true }).fill(reply);
+    const commentForm = employeePost.getByRole("form", {
+      name: "Write a comment",
+      exact: true,
+    });
     const commentResponse = employeePage.waitForResponse(
       (response) =>
         response.request().method() === "POST" &&
         response.url().includes("/posts/") &&
         response.url().endsWith("/posts/" + response.url().split("/posts/").pop()),
     );
-    await employeePost.getByRole("button", { name: "Reply", exact: true }).click();
+    await commentForm.getByRole("button", { name: "Comment", exact: true }).click();
     expect((await commentResponse).status()).toBe(200);
     await expect(employeePost.getByText(reply, { exact: true })).toBeVisible();
 

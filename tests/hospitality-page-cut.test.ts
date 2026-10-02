@@ -35,7 +35,7 @@ it('shows the effective production state on disabled module entry points',()=>{
   expect(cut('people/organization')).toBeNull();
   expect(cut('people/settings','section=roles')).toMatchObject({id:'identity_access',state:'Coming Soon'});
   expect(cut('finance/engines')).toMatchObject({id:'advanced-finance',state:'Coming Soon'});
-  expect(cut('people','view=payroll')).toMatchObject({id:'statutory-payroll',state:'Coming Soon'});
+  expect(cut('people','view=payroll')).toBeNull(); // Legacy entry redirects to the read-safe Payroll workspace.
   expect(cut('pos')).toBeNull();
 });
 

@@ -1,3 +1,4 @@
+import { TimeText } from "@/components/time/time-preference-context";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { AccessEditor } from "@/components/modules/access-editor";
 import { LevelAssignmentEditor } from "@/components/modules/level-assignment-editor";
@@ -6,6 +7,7 @@ import {
 CompensationEditor,
 TimeEntryEditor,
 } from "@/components/modules/payroll-controls";
+import { PayrollCostAssignmentReview } from "@/components/modules/payroll-cost-assignments";
 import { PeopleEditor } from "@/components/modules/people-editor";
 import { LifecyclePanel } from "@/components/people/lifecycle-workspace";
 import { StatusBadge } from "@/components/ui/primitives";
@@ -28,7 +30,7 @@ import { companyAuthority } from "@/server/staff-policy";
 import { staffSettings } from "@/server/staff-settings";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { forbidden, notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +43,7 @@ export default async function PersonDetail({
 }) {
   const { holdingSlug, id } = await params;
   const actor = await requireWorkContext(holdingSlug);
+  if (!hasPermission(actor, "people.manage")) forbidden();
   let data;
   try {
     data = await getPerson(actor, id);
@@ -197,7 +200,7 @@ export default async function PersonDetail({
               <p key={String(h.id)}>
                 {String(h.previous_level_name ?? "Not set")} →{" "}
                 {String(h.level_name)} · {String(h.reason)} ·{" "}
-                {new Date(Number(h.created_at)).toLocaleDateString("en-GB")}
+                {<TimeText value={Number(h.created_at)} />}
               </p>
             ))}
           </details>
@@ -261,6 +264,7 @@ export default async function PersonDetail({
             ].includes(actor.role)}
             userId={actor.userId}
           />
+          {hasPermission(actor,"payroll.prepare")&&!actor.branchId&&!actor.departmentId&&<PayrollCostAssignmentReview base={base} engagementId={String(person.engagement_id)} userId={actor.userId}/>}
           <TimeEntryEditor
             base={base}
             person={person}

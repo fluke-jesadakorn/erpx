@@ -1,3 +1,4 @@
+import {aiRequestQuotaLock} from "./ai-quota";
 import {captureJobAuthority,requireJobAuthority} from "./iam-jobs";
 import { iamMutationGuards } from "./iam-store";
 import { sha256 as aiSessionHash } from "./crypto";
@@ -159,7 +160,7 @@ export async function queueRequestAi(
     month = new Date(now).toISOString().slice(0, 7),
     proposalId = old?.id ?? `request-ai-${key}`;
   const quotaSql =
-    "(SELECT COUNT(*) FROM social_ai_usage WHERE company_id=? AND month=?)+(SELECT COUNT(*) FROM expense_ai_usage WHERE company_id=? AND month=?)+(SELECT COUNT(*) FROM (SELECT company_id,month FROM request_ai_usage UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM ai_workspace_turns UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM executive_generation_jobs) WHERE company_id=? AND month=?)";
+    "(SELECT COUNT(*) FROM social_ai_usage WHERE company_id=? AND month=?)+(SELECT COUNT(*) FROM expense_ai_usage WHERE company_id=? AND month=?)+(SELECT COUNT(*) FROM (SELECT company_id,month FROM request_ai_usage UNION ALL SELECT company_id,month FROM finance_ai_usage UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM ai_workspace_turns UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM executive_generation_jobs) WHERE company_id=? AND month=?)";
   const args = [
     actor.companyId,
     month,
@@ -231,6 +232,7 @@ export async function queueRequestAi(
       aiSnapshotGuard(db, key, provider.snapshot),
       ...(!old
         ? [
+            aiRequestQuotaLock(db,actor.companyId),
             assertion(
               db,
               key,

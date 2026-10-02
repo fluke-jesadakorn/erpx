@@ -1,0 +1,49 @@
+# Thai Hotel v1 H002 mock acceptance closure — 2026-09-29
+
+## Result
+
+All **15/15 Thai Hotel v1 mock acceptance rows** now pass on synthetic H002 (`riverside-lantern`) data. The final six acceptance groups passed **14/14 Playwright tests** across desktop and Pixel 7, with 0 failed/skipped. This closes the mock acceptance matrix, not the hotel pilot or production release. It raises the flow acceptance count from the documented baseline of 8/15 by **7 rows**: POS-02, HR-01, PAY-02, AI-02, AUTH-01, MONEY-01 and UI-01. The capability catalogue remains **68/187**; this evidence does not change capability registry status.
+
+The baseline HOTEL-01/02, POS-01, BUY-01/02, HR-02, PAY-01 and AI-01 results are recorded in [hotel evidence](2026-09-28-thai-hotel-v1-hotel.txt) and [earlier flow evidence](2026-09-28-thai-hotel-v1-flows.txt). The additional rows were exercised in fresh simulations below. Every successful Playwright run had 0 failed and 0 skipped tests. Each viewport used its own H002 PostgreSQL simulation on port 3102; exact run databases, files and process groups were destroyed after the run.
+
+## New H002 runs
+
+The report digest is SHA-256 of `playwright-report/index.html` immediately after each successful run. Each source fingerprint is SHA-256 of a lexicographically sorted 1,471-entry per-file manifest (`SHA-256(contents)  relative/path\n`), then SHA-256 of the manifest. The entries include all files under `src/` and `migrations/postgres/`, `package.json`, `bun.lock`, `playwright.config.ts`, the isolated browser simulation, hospitality fixtures, and the listed E2E spec/helper. Bun was 1.2.17, Node.js was 24.20.0, and the simulation origin was `http://127.0.0.1:3102`.
+
+| Acceptance evidence | Desktop Chromium | Mobile Pixel 7 | Source fingerprint SHA-256 |
+| --- | --- | --- | --- |
+| POS-01/02, AUTH-01, MONEY-01 — `tests/e2e/thai-hotel-v1-pos.spec.ts`, 2 passed per viewport | Run `c7d0778f369c`; report `d5c17495e9cc08fc249897252d9d6328cb8cfe25829249ee407639ba6f31b7cd` | Run `cd6b25e7b1e2`; report `f5bf4f025afc85a3fcfd555e8f82777347902297ad38714a835e8bb4e1662498` | `045a0b891122935189c76c7f5a1046e9bc087fae66db52f41fb66145bcd0ad69` |
+| HR-01 and AUTH-01 — `tests/e2e/thai-hotel-v1-hr-lifecycle.spec.ts`, 1 passed per viewport | Run `5558584dff62`; report `0a3ad853ff2eee2f80cfa95ca7624c5f859e3b5972c3d942879043b946869667` | Run `356a126ce96f`; report `aea33effd61a4cac0e38eab270f5518d1741d7ee5700728c12c3a83ef203dded` | `f2c1e8d33446c6ffec099aa6c8c2f3f535e848f27366b6935c10d00e0006778a` |
+| PAY-02 and MONEY-01 — `tests/e2e/thai-hotel-v1-payroll.spec.ts`, 1 passed per viewport | Run `d5e0b7809e0f`; report `26dc3e1b2a12982a395345fb07bdbda43343bf61c24a40e9a4bbcbc02ce8fcbf3` | Run `addb7e1aed46`; report `070d617884198f0333fee5b0c85fa3c55cabfdac84459e0ffdca03e08e0fc774` | `900b1ab480a9ad60a3a4efb8994598357c73c2c9899d495281957d5247301106` |
+| AI-02 and MONEY-01 — `tests/e2e/thai-hotel-v1-ai.spec.ts`, 1 passed per viewport | Run `9413e22b4e3a`; report `6ff17a92cb95007c1fadf95e4a2113ed2d98331ea62d99ffd7b66de00e01a33b` | Run `6558a4185304`; report `bfb4a0ba34c71753ce4f5203a4464d6fde0cee2e2427e2bb379fc9d19d163af3` | `e47f90f7b1fbf1b4d46061c5ad5af056ef49cef7ed8b3de37c8225a8a7cbffe2` |
+| BUY-01/02, AUTH-01, MONEY-01 — `tests/e2e/thai-hotel-v1-procurement.spec.ts`, 1 passed per viewport | Run `d633cac7c177`; report `ddedd97dd1aaec80dc0786a5e06aa6ffc120e5b8fbadc5c8ed98456140e48b1d` | Run `29caaa7417e5`; report `39fe7a8d2f90aaf7e45fbb627af5a71b235be351dd5e3e355590c0555721ddfa` | `0033333847f52e29a5c4e47c0140008c23f29b8b224435e2c409055201c9000b` |
+| AUTH-01, MONEY-01, UI-01 — Front Desk/cashier checkout and Night Audit worker recovery in `tests/e2e/demo-hospitality-setup.spec.ts`, 1 passed per viewport | Run `e528e9b1863d`; report `31d80bd37a0c90e74f79f8c017e0df77f02b8aee2fe66a473a895dbaf5af9ac4` | Run `49f231c8f513`; report `033bd5f62139b907f4b48fe6d2c479a683625aad24b6093e57132273b50eccf9` | `ce822fcfaffc7e9feeeaea4b74fde3a70f9e0d42baeed68f57e981f875e9ed82` |
+
+## What the new runs verify
+
+- **POS-02:** Restaurant transfer remains unsettled until Finance matches the imported synthetic bank row. The same flow charges a guest folio, receives payment, checks out the guest, refunds a separate cash sale through independent manager approval, and verifies folio/posting/stock/payment counts. Wrong stay and stale sale version requests return errors without changing the sale, fulfillment or stock. Replaying the successful room charge with its original idempotency key returns the same result and does not add another folio source, posting or stock movement.
+- **HR-01:** A newly invited H002 employee activates and signs in; cross-holding directory/detail reads fail; after an owner revokes the employee role, reads fail and the employee returns to the access-required route after reload.
+- **PAY-02:** Independent review/correction, review export, GL posting, payment export, synthetic bank import and payment confirmation replay complete; one statement/transaction and one settled batch/payment remain. The UI explicitly keeps live employee payslips locked pending statutory calculations and restricted delivery validation. This is accepted as the mock `review export` path; it does not claim an employee payslip was issued.
+- **AI-02:** Night Audit assistant output cites current hotel evidence and is hidden after the source changes. When AI is disabled, the operator closes the day manually; the worker advances the business date, and replay returns the same completed job without adding a night record.
+- **AUTH-01:** H002 rejects stale/wrong-stay POS commands, self-approval in purchasing/payroll, cross-holding people reads, revoked employee access and a worker acting on a revoked Night Auditor assignment. Rejected commands are checked against database state.
+- **MONEY-01:** POS payment, room charge, bank import, supplier partial receipt/settlement, payroll bank confirmation and Night Audit work are replayed. The worker blocks after its actor assignment is revoked; an authorized owner resolves the blocked day and a retry completes once. The test verifies one invoice, balanced journal totals, and no duplicate folio, payment, stock movement or completed night record.
+- **UI-01:** Hotel, POS, purchasing, HR, payroll, AI and blocked-night recovery browser paths passed on desktop and Pixel 7 mobile with reload/access/error behavior where applicable.
+
+The recovery test exposed a real UI gap: Front hid every page while a hotel was closing, including the blocked Night Audit row's `Resolve and continue` action. The Front PMS workspace now allows that recovery action only on Night Audit, only for `pms.audit`, and only when the closing property has a blocked night record. The recovery run passed on desktop and mobile after this change.
+
+## Excluded diagnostics and remaining release gates
+
+Superseded recovery diagnostics that caught the old Front API path, stale control labels, wrong folio route and unavailable recovery UI are not counted as passes. The final desktop/mobile run IDs above are the acceptance evidence; all failed and successful simulation runs were destroyed. The UI gap found during diagnosis was fixed before the final successful runs.
+
+The remaining gates require external evidence or sign-off: hotel and restaurant manager/Finance UAT on real operating data; Thai payroll statutory expected results and approval before restricted employee payslip delivery; production provider/company acceptance; release migration/configuration review; and off-machine backup/restore and operations drill. No production service or Cloudflare route was changed. This evidence alone does not authorize production rollout.
+
+## Release-candidate checks after the mock runs
+
+- `bun run typecheck`: passed.
+- `bun run lint`: 0 errors, 2 warnings (`src/components/modules/service-navigation.tsx` and `tests/e2e/thai-hotel-v1-hr-lifecycle.spec.ts`).
+- Isolated `bun run deploy:build`: passed with Node.js 24.20.0; it produced `.runtime/releases/2026-09-28T22-29-57-570Z` and did not build over the active dev `.next` directory.
+- Health returned HTTP 200 for `http://127.0.0.1:3100/api/health`, `http://127.0.0.1:3101/api/health`, `http://127.0.0.1:3103/api/health`, `https://dev-erpx.jesadakorn.com/api/health`, and `https://erpx.jesadakorn.com/api/health` after the build. Dev remained on port 3100 and the H002 simulation port 3102 was empty.
+- Public page review was blocked by the existing authenticated workspace state: the dev H002 URL returned “workspace unavailable”; the Acme dev Night Audit path required a separate Front staff sign-in; staging redirected to console sign-in because its session had expired. No authentication was bypassed. Desktop/mobile isolated H002 browser acceptance above is the available page verification.
+- Full `bun run test:integration`: 195 test files passed, 2 skipped; 1,465 tests passed, 5 skipped, 0 failed (504.10s). Skips are conditional on optional Redis/UCS/GPO lab and scanner/HEIC tooling. A first full run exposed seven failures; the missing platform billing widget registration and legacy text-only handover edit were fixed, and five test expectations/fixtures were brought in line with the current access, navigation, payroll-rate, and delegation rules. The seven-file focused rerun passed 68/68 before the final full-suite rerun.
+- The isolated deployment build was repeated after these source fixes; the final release artifact is `.runtime/releases/2026-09-28T23-20-17-576Z`. No build ran in the dev `.next` directory.
+- Production-mode upgrade/multi-account checks, real hotel/Finance acceptance, payroll statutory review, provider/company review, and off-machine restore drill remain open. No production service or Cloudflare route was changed.

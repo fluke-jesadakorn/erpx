@@ -2,6 +2,7 @@
 import { FeatureTabBar,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { TargetBillingPanel } from "./target-billing-panel";
 import { NextMonthForecast } from "./next-month-forecast";
+import { TimeText } from "@/components/time/time-preference-context";
 
 import { betaFetch } from "@/lib/beta-client";
 import {
@@ -26,8 +27,7 @@ const date = (n: number | null) =>
         year: "numeric",
       })
     : "—";
-const time = (n: number) =>
-  new Date(n).toLocaleString(APP_LOCALE, { timeZone: APP_TIMEZONE });
+const time = (n: number) => <TimeText value={n} />;
 const dayInput = (n: number) =>
   new Date(n + 7 * 3600000).toISOString().slice(0, 10);
 const dayValue = (s: FormDataEntryValue | null) =>

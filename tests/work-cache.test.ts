@@ -97,6 +97,31 @@ it('expires before a candidate assignment expires without a new write', async ()
   await new Promise(resolve => setTimeout(resolve, Math.max(0, deadline - Date.now() + 20)));
   expect((await cachedWorkSnapshot(actor, db, load)).items[0].canAct).toBe(false);
 });
+it('refreshes delegation authority at its start and expiry without a write', async () => {
+  const startsAt = Date.now() + 300, expiresAt = startsAt + 400;
+  await db.prepare(`INSERT INTO staff_task_delegations(id,company_id,task_id,delegator_user_id,
+    delegate_user_id,starts_at,expires_at,reason,created_at,updated_at)
+    VALUES('cache-timed-delegation','cache-test','timed-task','owner','reader',?,?,'Timed handoff',1,1)`)
+    .bind(startsAt, expiresAt).run();
+  const load = async () => {
+    const row = await db.prepare(`SELECT EXISTS(SELECT 1 FROM staff_task_delegations
+      WHERE id='cache-timed-delegation' AND status='active'
+      AND starts_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint
+      AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint) active`)
+      .first<{ active: boolean }>();
+    const value = snapshot(); value.items[0].canAct = row!.active; return value;
+  };
+  expect((await workCacheFence(db))!.validUntil).toBeLessThanOrEqual(startsAt);
+  expect((await cachedWorkSnapshot(actor, db, load)).items[0].canAct).toBe(false);
+  const revision = (await workCacheFence(db))!.revision;
+  await new Promise(resolve => setTimeout(resolve, Math.max(0, startsAt - Date.now() + 20)));
+  expect((await workCacheFence(db))!.revision).toBe(revision);
+  expect((await workCacheFence(db))!.validUntil).toBeLessThanOrEqual(expiresAt);
+  expect((await cachedWorkSnapshot(actor, db, load)).items[0].canAct).toBe(true);
+  await new Promise(resolve => setTimeout(resolve, Math.max(0, expiresAt - Date.now() + 20)));
+  expect((await workCacheFence(db))!.revision).toBe(revision);
+  expect((await cachedWorkSnapshot(actor, db, load)).items[0].canAct).toBe(false);
+});
 it('does not lose revisions under concurrent writers and invalidates on truncate', async () => {
   const revision = async () => Number((await db.pool.query("SELECT revision FROM work_cache_revisions WHERE table_name='flow_defaults'")).rows[0].revision);
   const before = await revision(); await Promise.all([insert(), insert()]); expect(await revision()).toBe(before + 2);

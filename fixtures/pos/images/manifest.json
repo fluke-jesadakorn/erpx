@@ -1,0 +1,269 @@
+{
+  "source": "imagegen",
+  "images": [
+    {
+      "id": "menu-basil-chicken",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Thai basil chicken on jasmine rice with a fried egg. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ข้าวกะเพราไก่ product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-basil-chicken.png",
+      "sha256": "805740d654d3b4fbb684ea0cc662b8a642a97fab923bbb6b50dbf52f731f4681"
+    },
+    {
+      "id": "menu-basil-pork",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Thai basil minced pork on jasmine rice. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ข้าวกะเพราหมู product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-basil-pork.png",
+      "sha256": "a1067e36d17481f39882bedec70e9f06e87e9cd56f433062d5fa78fee1bc2e96"
+    },
+    {
+      "id": "menu-fried-rice",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Thai egg fried rice with cucumber and lime. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ข้าวผัดไข่ product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-fried-rice.png",
+      "sha256": "b15a02d0e4a830be911f35c50c9c6666ec27502a477b95c418e1600c02ca3c3b"
+    },
+    {
+      "id": "menu-chicken-rice",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Thai poached chicken rice with sliced chicken and ginger sauce. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ข้าวมันไก่ product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-chicken-rice.png",
+      "sha256": "b9da8a8c1c91e58280b193f549b180e68e2af24596170003b909ed85056b313b"
+    },
+    {
+      "id": "menu-pad-thai",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Pad Thai noodles with shrimp, crushed peanuts and lime. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ผัดไทยกุ้ง product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-pad-thai.png",
+      "sha256": "1cba0327211eb90d9b5274f3199c42ad3e12d9d053bf00d2efe88779aefeaddd"
+    },
+    {
+      "id": "menu-noodles",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Thai wide rice noodles stir fried with chicken and Chinese broccoli. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ผัดซีอิ๊วไก่ product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-noodles.png",
+      "sha256": "a81945ca97d17c072d29e2a6a05e643797dfe786bc6741897879faf10fbccd24"
+    },
+    {
+      "id": "menu-tom-yum",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Thai tom yum shrimp soup in a white bowl, lemongrass and herbs. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ต้มยำกุ้ง product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-tom-yum.png",
+      "sha256": "a4f154d94009c550f49abb99f704aefd16cbd81b1ad3340094511af3f7d7b2a8"
+    },
+    {
+      "id": "menu-green-curry",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Thai green curry with chicken and eggplant in a white bowl. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate แกงเขียวหวานไก่ product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-green-curry.png",
+      "sha256": "e13bf901472a977bf12393ee0ad4d3115dfce9e02b41eae2d04f4a83ce59360f"
+    },
+    {
+      "id": "menu-pork-skewers",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Thai grilled pork satay skewers with peanut sauce. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate หมูสะเต๊ะ product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-pork-skewers.png",
+      "sha256": "0d24fd9e3c85781ec16de4da920233d3c2b1bec0e461b178a2e9edb070a6d5e8"
+    },
+    {
+      "id": "menu-spring-rolls",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Golden Thai vegetable spring rolls with sweet chili sauce. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ปอเปี๊ยะทอด product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-spring-rolls.png",
+      "sha256": "afbbd2a3ebdde164b0ae37493dc829477b1efec78c8c6c8aefd16c8bd5e7d78e"
+    },
+    {
+      "id": "menu-chicken-wings",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Crispy fried chicken wings on a ceramic plate. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ปีกไก่ทอด product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-chicken-wings.png",
+      "sha256": "bc7464ffd960f76b4d55d42e18c36594ca8653b39b90007c214507eeea71c280"
+    },
+    {
+      "id": "menu-french-fries",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Golden French fries in a small basket with ketchup. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate เฟรนช์ฟรายส์ product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-french-fries.png",
+      "sha256": "a80c84a5d2a5ee24c94cd02136ab00f4b8c8d5b932158f59f5e3b10cf4375e8b"
+    },
+    {
+      "id": "menu-thai-tea",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Orange Thai iced milk tea in a clear glass with ice. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ชาไทยเย็น product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-thai-tea.png",
+      "sha256": "05999400a8a78fa80361a27e12900a9306060376c7c7ac1e286152310ab59e5a"
+    },
+    {
+      "id": "menu-green-tea",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Iced green milk tea in a clear glass. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ชาเขียวเย็น product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-green-tea.png",
+      "sha256": "ae456cee8c491dec50672ac338782c5ec0c06480b0d5fde773e7130fa7edaaaa"
+    },
+    {
+      "id": "menu-latte",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Iced cafe latte with espresso and milk in a clear glass. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ลาเต้เย็น product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-latte.png",
+      "sha256": "57a17b6108335a065bcf43e3b7e41286a237d513add58c9a57b1315097a45ab6"
+    },
+    {
+      "id": "menu-americano",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Iced black Americano coffee in a clear glass. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate อเมริกาโน่เย็น product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-americano.png",
+      "sha256": "467eaa99c0e427823d31b4f6fe4410372b32b6a82c324d5300b6d690dd965687"
+    },
+    {
+      "id": "menu-cocoa",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Iced cocoa chocolate milk in a clear glass. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate โกโก้เย็น product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-cocoa.png",
+      "sha256": "d6ede6138e0b411d18463a6d1890f5ef6e89105df827087d40a6ece2b97fe94c"
+    },
+    {
+      "id": "menu-lemon-soda",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Fresh lime soda with lime slices and ice in a clear glass. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate มะนาวโซดา product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-lemon-soda.png",
+      "sha256": "02d7380411f63c52466adb894cc1a91692b56d8f7f66474cf636e984ffb043c5"
+    },
+    {
+      "id": "menu-orange-juice",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Fresh orange juice in a clear glass with orange slices. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate น้ำส้ม product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-orange-juice.png",
+      "sha256": "7fa2c4b66549f14cb8b98a2a31c72d35d526b66e35a9e807bdaa3847a145832c"
+    },
+    {
+      "id": "menu-water",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded clear bottled drinking water with a blue cap. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate น้ำดื่ม product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-water.png",
+      "sha256": "f916e5f2931d77df0c52441da6cfd65ef500440a40af785849d25453d27653da"
+    },
+    {
+      "id": "menu-mango-rice",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Thai mango sticky rice with coconut milk on a white plate. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ข้าวเหนียวมะม่วง product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-mango-rice.png",
+      "sha256": "804b449d1835b84d6fb1892b81deaba2b8b70681b5b7972cda52eb3a3d5bc23b"
+    },
+    {
+      "id": "menu-coconut-ice",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Thai coconut ice cream with peanuts in a small bowl. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ไอศกรีมกะทิ product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-coconut-ice.png",
+      "sha256": "cdc0e0290e0682fc115512df989fef02831e35a5110d8bfa674a8ff58bc1f8c0"
+    },
+    {
+      "id": "menu-brownie",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: One rich dark chocolate brownie square on a small plate. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate บราวนี่ product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-brownie.png",
+      "sha256": "eba44c79a36473ecc07a7074ef321d8853ee3a640c6054908881b55e427b756d"
+    },
+    {
+      "id": "menu-cheesecake",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: One slice of plain creamy cheesecake on a small plate. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ชีสเค้ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/menu-cheesecake.png",
+      "sha256": "88f01b3167b541b24cbf8c80c2bd02c444f1a5df7685aa81e79ad926e97359bf"
+    },
+    {
+      "id": "shop-milk",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded carton of fresh milk with a white and blue design. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate นมสด · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-milk.png",
+      "sha256": "4e7de40a68c74160d40de01f54950edf9d97e01e3a97ca90b7462d5e8cdcb8e3"
+    },
+    {
+      "id": "shop-oat-milk",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded beige carton of oat milk with a small oat illustration. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate นมโอ๊ต · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-oat-milk.png",
+      "sha256": "dc8a918935be362040bd40d6dddcbf06e55f9a4ee16886df02fb1176714e6ca6"
+    },
+    {
+      "id": "shop-soy-milk",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded pale green carton of soy milk with soybean illustration. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate นมถั่วเหลือง · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-soy-milk.png",
+      "sha256": "32b1fc59483a904c0476d3b6c9db7f2a204294d039a81bfb1b56327e23c5ba94"
+    },
+    {
+      "id": "shop-coffee",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded brown bottled iced coffee. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate กาแฟพร้อมดื่ม · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-coffee.png",
+      "sha256": "6fe03684e83c91863d7a4e863a931bab2de32002775ad3305f4ebd790dff2cf3"
+    },
+    {
+      "id": "shop-orange",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded clear bottle of orange juice. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate น้ำส้มพร้อมดื่ม · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-orange.png",
+      "sha256": "8213694ff184521f2a96ef02ba8fd2a31169d8b2005b1ffd7789488d39dc3f29"
+    },
+    {
+      "id": "shop-sparkling",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded clear glass bottle of sparkling water with a silver cap. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate น้ำโซดา · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-sparkling.png",
+      "sha256": "5df203e623ab5491cb975f885e8b3ee14561116238821bb35edb5405d66b8d87"
+    },
+    {
+      "id": "shop-rice",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded clear pouch of Thai white jasmine rice grains. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ข้าวหอมมะลิ · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-rice.png",
+      "sha256": "365807a854cb5d560b9c60b5ecfe71d2ecba8c6f9f7df46ff6196f0449659cf2"
+    },
+    {
+      "id": "shop-noodles",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded clear pouch of dry white rice noodles. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate เส้นก๋วยเตี๋ยว · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-noodles.png",
+      "sha256": "51a826356e797bf88607f9e5ad9c94ab94d5630c65bde5a1900d412c5a4198c7"
+    },
+    {
+      "id": "shop-sugar",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded white paper bag of granulated sugar. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate น้ำตาล · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-sugar.png",
+      "sha256": "7d81fcca47cb43fee415f5fd12e217e51c891170eff51c8db0608f364e71849f"
+    },
+    {
+      "id": "shop-cooking-oil",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded clear bottle of golden vegetable cooking oil. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate น้ำมันพืช · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-cooking-oil.png",
+      "sha256": "6bc60209968c2d06eadadd3361244d6ee4a53c5eb173e472ef8dc571a807183b"
+    },
+    {
+      "id": "shop-chips",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded yellow bag of potato chips, a few golden chips beside it. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate มันฝรั่งทอด · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-chips.png",
+      "sha256": "05e66fe34c8768aa7e3c6c64002699e15a490faf81c2dfc502fd5ffe0c33de04"
+    },
+    {
+      "id": "shop-cookies",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded kraft pouch of chocolate chip cookies with visible cookies. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate คุกกี้ · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-cookies.png",
+      "sha256": "365b6717cb953dfd253c28980943b8183c73b289e2ae242ecc880220daf68e6d"
+    },
+    {
+      "id": "shop-crackers",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded red and cream box of square crackers. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate แครกเกอร์ · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-crackers.png",
+      "sha256": "d77ec9de6f879be4bca7b7e8b067a2ef05564de7bc887d80f960949c2f68371c"
+    },
+    {
+      "id": "shop-almonds",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded clear resealable pouch of almonds. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate อัลมอนด์ · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-almonds.png",
+      "sha256": "e8046f4c89e474e7ece616671b512be7de242a6651d8a3e2fc3be9b4ad0e0d23"
+    },
+    {
+      "id": "shop-chocolate",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded dark brown chocolate bar wrapper with two chocolate squares. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate ช็อกโกแลต · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-chocolate.png",
+      "sha256": "628211c10b4161ff98efd5926f79ab469b14baf4fd3f03cfad6d053a98397324"
+    },
+    {
+      "id": "shop-tissue",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded white and mint tissue box, one tissue emerging. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate กระดาษทิชชู · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-tissue.png",
+      "sha256": "001c2e8248f94d5f1dc84011d114605fe12d2cbbe0910122675a8daeac06c117"
+    },
+    {
+      "id": "shop-soap",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded lavender soap bar with plain violet paper sleeve. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate สบู่ · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-soap.png",
+      "sha256": "fdae4e723f188bda3f60ca8ac116626d06af2b24919aa01d3a3d99c4125c1037"
+    },
+    {
+      "id": "shop-shampoo",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded white shampoo bottle with green cap. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate แชมพู · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-shampoo.png",
+      "sha256": "609d42f325eec645fa0def0fe5a26ea07c16dd87e85eb05504b28bbeac13997e"
+    },
+    {
+      "id": "shop-hand-wash",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded pale pink liquid hand soap in a clear pump bottle. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate สบู่ล้างมือ · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-hand-wash.png",
+      "sha256": "2f96d6520ea13babdc2d9c5f44a82fef73da73b9cd4f87634707cc28037388fe"
+    },
+    {
+      "id": "shop-dish-wash",
+      "prompt": "Use case: product-mockup. Asset type: ERPX fictional Thai POS catalog photograph. Subject: Unbranded translucent green dishwashing liquid bottle. One serving or one retail package, centered on a warm off-white background, soft natural studio lighting, appetizing and realistic textures, eye-level three-quarter view, square composition, the product fills the frame. No people, no brand names, no readable text, no price, no watermark. Accurate น้ำยาล้างจาน · เล็ก product, suitable for a small product tile.",
+      "path": "fixtures/pos/images/shop-dish-wash.png",
+      "sha256": "afb3e5a4a322ec00d7977a72f12cb7bef33845699dcb644c8b4483e262c211a4"
+    }
+  ]
+}

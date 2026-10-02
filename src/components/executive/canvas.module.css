@@ -55,3 +55,13 @@
 .crossFilterPanel{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:12px 0 2px;padding:9px 10px;border:1px solid var(--canvas-line);border-radius:8px;background:color-mix(in srgb,var(--canvas-surface) 70%,transparent)}.crossFilterPanel>span{font-size:9px;color:var(--canvas-muted)}.crossFilterPanel>div{display:flex;flex-wrap:wrap;gap:5px}.crossFilterPanel button{padding:4px 7px;border:1px solid var(--canvas-line);border-radius:5px;background:var(--canvas-surface);color:var(--canvas-text);font-size:9px;font-variant-numeric:tabular-nums}.crossFilterPanel button[aria-pressed=true]{border-color:var(--canvas-accent);box-shadow:0 0 0 1px var(--canvas-accent);color:var(--canvas-accent)}.periodChip{padding:5px 8px;border:1px solid var(--line);border-radius:20px;color:var(--muted);font-size:10px;white-space:nowrap}
 .sharePreview{display:grid;gap:7px;margin:12px 0}.sharePreview>div{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:3px 12px;padding:9px 10px;border:1px solid var(--line);border-radius:7px;background:color-mix(in srgb,var(--surface) 88%,#7b68bd 12%)}.sharePreview>div>span{display:grid;gap:3px;font-size:11px}.sharePreview small{font-size:9px;color:var(--muted);line-height:1.5}.sharePreview>div>strong{font-size:12px;font-variant-numeric:tabular-nums;text-align:right}.sharePreview>div>small{grid-column:1/-1}
 .transferOwner{display:flex;flex-direction:column;gap:9px;padding:14px;border:1px solid #d8cde7;border-radius:9px;background:#a99aba0a}.transferOwner>strong{font-size:12px}.transferOwner>p{margin:0}.transferOwner>label:not(.checkbox){display:flex;flex-direction:column;gap:7px;font-size:11px;color:#686172}.transferOwner input:not([type=checkbox]),.transferOwner select{padding:9px;border-radius:6px;border:1px solid #e0dbe8;background:transparent;color:inherit;width:100%;font-size:12px}
+
+@media (prefers-color-scheme: dark) {
+  :global([data-theme=system]) .library,
+  :global([data-theme=system]) .editor {
+    --ink: #e6e4ee;
+    --muted: #9791a5;
+    --line: #ffffff15;
+    --surface: #24222e;
+  }
+}

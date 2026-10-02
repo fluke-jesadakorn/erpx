@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -66,7 +67,7 @@ function Areas({
                   </p>
                   <p>
                     {decision?.expiresAt
-                      ? `Expires ${new Date(decision.expiresAt).toLocaleDateString()}`
+                      ? <>Expires <TimeText value={decision.expiresAt} /></>
                       : "No expiry evidence"}
                   </p>
                 </details>

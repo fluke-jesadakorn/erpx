@@ -1,0 +1,744 @@
+{
+  "date": "2026-09-30",
+  "scope": "isolated PostgreSQL People profile/section services, not HTTP/browser",
+  "toolchain": {
+    "bun": "1.2.17",
+    "node": "24.20.0"
+  },
+  "fixture": "seedExpenseCompany; section variant adds one archived profile",
+  "profileSummary": {
+    "baseline": {
+      "rounds": 20,
+      "queries": [
+        6
+      ],
+      "bytes": [
+        280
+      ],
+      "medianMs": 0.9627709999998615,
+      "p95Ms": 1.5502910000000156,
+      "minimumMs": 0.8731669999999667,
+      "maximumMs": 8.209749999999985,
+      "failedRounds": 0
+    },
+    "targeted": {
+      "rounds": 20,
+      "queries": [
+        2
+      ],
+      "bytes": [
+        280
+      ],
+      "medianMs": 0.6860619999999926,
+      "p95Ms": 1.4264160000000174,
+      "minimumMs": 0.5870830000001206,
+      "maximumMs": 3.7962500000001,
+      "failedRounds": 0
+    },
+    "queryReductionPercent": 66.66666666666667
+  },
+  "limitations": [
+    "Twenty paired sequential service rounds retain the first pool-acquisition/startup observation; no compiler-cold observations or authenticated HTTP navigation.",
+    "Earlier exploratory paired trial reportedly had p95 1.835ms baseline versus 3.882ms targeted, but its raw artifact was overwritten before unique filenames were added; the retained latest trial cannot establish stable tail latency.",
+    "Workspace sections are individual fixtures/observations, not twenty-round page benchmarks; the full public graph remains required for initial diagram/search/counts."
+  ],
+  "reproduceProfile": "bun run test -- tests/people-read-performance.test.ts",
+  "reproduceSections": "bun run test -- tests/people-workspace-reads.test.ts",
+  "rawFiles": {
+    "initialBaseline": ".scratch/performance/people-profile-baseline.json",
+    "pairedProfileComparison": ".scratch/performance/people-profile-comparison.json",
+    "hrWorkspaceSections": ".scratch/performance/people-workspace-sections.json",
+    "scopedHrWorkspaceSections": ".scratch/performance/people-workspace-scoped-sections.json"
+  },
+  "observations": {
+    "initialBaseline": {
+      "fixture": "seedExpenseCompany",
+      "samples": [
+        {
+          "round": 0,
+          "queries": 6,
+          "queryMs": 5.292916999999761,
+          "poolWaitMs": 14.815542999999707,
+          "durationMs": 8.061624999999822,
+          "bytes": 280
+        },
+        {
+          "round": 1,
+          "queries": 6,
+          "queryMs": 4.2005419999995866,
+          "poolWaitMs": 0.3896660000000338,
+          "durationMs": 3.5921669999997903,
+          "bytes": 280
+        },
+        {
+          "round": 2,
+          "queries": 6,
+          "queryMs": 2.0769600000007813,
+          "poolWaitMs": 0.3572919999996884,
+          "durationMs": 1.5701249999997344,
+          "bytes": 280
+        },
+        {
+          "round": 3,
+          "queries": 6,
+          "queryMs": 2.0266679999999724,
+          "poolWaitMs": 0.354457999999795,
+          "durationMs": 1.520958999999948,
+          "bytes": 280
+        },
+        {
+          "round": 4,
+          "queries": 6,
+          "queryMs": 1.6872090000001663,
+          "poolWaitMs": 0.4175410000007105,
+          "durationMs": 1.3642500000000837,
+          "bytes": 280
+        },
+        {
+          "round": 5,
+          "queries": 6,
+          "queryMs": 1.6339160000006814,
+          "poolWaitMs": 0.3857490000004873,
+          "durationMs": 1.293666999999914,
+          "bytes": 280
+        },
+        {
+          "round": 6,
+          "queries": 6,
+          "queryMs": 1.646708000000217,
+          "poolWaitMs": 0.34658300000000963,
+          "durationMs": 1.3558750000001965,
+          "bytes": 280
+        },
+        {
+          "round": 7,
+          "queries": 6,
+          "queryMs": 1.343583999999737,
+          "poolWaitMs": 0.32545799999979863,
+          "durationMs": 0.9494169999998121,
+          "bytes": 280
+        },
+        {
+          "round": 8,
+          "queries": 6,
+          "queryMs": 1.1568750000001273,
+          "poolWaitMs": 0.3220829999995658,
+          "durationMs": 0.8687089999998534,
+          "bytes": 280
+        },
+        {
+          "round": 9,
+          "queries": 6,
+          "queryMs": 1.2150000000001455,
+          "poolWaitMs": 0.33091800000056537,
+          "durationMs": 0.9175839999998061,
+          "bytes": 280
+        },
+        {
+          "round": 10,
+          "queries": 6,
+          "queryMs": 1.2380840000000717,
+          "poolWaitMs": 0.34104100000013204,
+          "durationMs": 0.958625000000211,
+          "bytes": 280
+        },
+        {
+          "round": 11,
+          "queries": 6,
+          "queryMs": 1.256416000000172,
+          "poolWaitMs": 0.3475410000005468,
+          "durationMs": 0.9391669999999976,
+          "bytes": 280
+        },
+        {
+          "round": 12,
+          "queries": 6,
+          "queryMs": 1.2253319999999803,
+          "poolWaitMs": 0.3670409999995172,
+          "durationMs": 0.9172499999999673,
+          "bytes": 280
+        },
+        {
+          "round": 13,
+          "queries": 6,
+          "queryMs": 1.3261250000000473,
+          "poolWaitMs": 0.3554980000003525,
+          "durationMs": 0.9295829999996386,
+          "bytes": 280
+        },
+        {
+          "round": 14,
+          "queries": 6,
+          "queryMs": 1.2212910000002921,
+          "poolWaitMs": 0.40521099999978105,
+          "durationMs": 0.969749999999749,
+          "bytes": 280
+        },
+        {
+          "round": 15,
+          "queries": 6,
+          "queryMs": 1.3102080000007845,
+          "poolWaitMs": 0.3683759999994436,
+          "durationMs": 0.9018330000003516,
+          "bytes": 280
+        },
+        {
+          "round": 16,
+          "queries": 6,
+          "queryMs": 1.3591250000004038,
+          "poolWaitMs": 0.3781250000001819,
+          "durationMs": 0.9623750000000655,
+          "bytes": 280
+        },
+        {
+          "round": 17,
+          "queries": 6,
+          "queryMs": 1.2252499999995052,
+          "poolWaitMs": 0.3324999999999818,
+          "durationMs": 0.9002089999999043,
+          "bytes": 280
+        },
+        {
+          "round": 18,
+          "queries": 6,
+          "queryMs": 1.1241650000001755,
+          "poolWaitMs": 0.317709000000832,
+          "durationMs": 0.8233749999999418,
+          "bytes": 280
+        },
+        {
+          "round": 19,
+          "queries": 6,
+          "queryMs": 1.1630430000004708,
+          "poolWaitMs": 0.32416700000067067,
+          "durationMs": 0.8742499999998472,
+          "bytes": 280
+        }
+      ]
+    },
+    "pairedProfileComparison": {
+      "fixture": "seedExpenseCompany",
+      "samples": [
+        {
+          "round": 0,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 5.609667000000627,
+            "poolWaitMs": 14.658584000000246,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 8.209749999999985,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 3.4284160000001975,
+            "poolWaitMs": 0.01424999999994725,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 3.7962500000001,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 1,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 2.202042000000347,
+            "poolWaitMs": 0.391001999999844,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 1.5502910000000156,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 1.3453330000002097,
+            "poolWaitMs": 0.009581999999909385,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 1.4264160000000174,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 2,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.9785420000002887,
+            "poolWaitMs": 0.36770899999987705,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 1.4343330000001515,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 1.0676260000000184,
+            "poolWaitMs": 0.011166000000002896,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 1.1677500000000691,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 3,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.9366250000000491,
+            "poolWaitMs": 0.3773750000000291,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 1.3846659999999247,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.5862919999999576,
+            "poolWaitMs": 0.011416999999937616,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.678583000000117,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 4,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.450125000000071,
+            "poolWaitMs": 0.3617509999999129,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 1.01825000000008,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.613166000000092,
+            "poolWaitMs": 0.009041999999908512,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.6931250000000091,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 5,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.3782510000003185,
+            "poolWaitMs": 0.34420799999998053,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 1.0599590000001626,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.6005410000000211,
+            "poolWaitMs": 0.009832999999844105,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.6820410000000265,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 6,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.6307499999998072,
+            "poolWaitMs": 0.35050100000034945,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 1.007333000000017,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.6913329999997586,
+            "poolWaitMs": 0.012541999999939435,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.772707999999966,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 7,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.392167000000427,
+            "poolWaitMs": 0.3404579999998987,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.9786669999998594,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.6775829999999132,
+            "poolWaitMs": 0.00829199999998309,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.7471250000000964,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 8,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.2817509999999857,
+            "poolWaitMs": 0.3320419999997739,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.9361669999998412,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.5939989999999398,
+            "poolWaitMs": 0.01675000000000182,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.6940000000001874,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 9,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.2699600000003102,
+            "poolWaitMs": 0.34587499999997817,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.9468749999998636,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.5761260000001585,
+            "poolWaitMs": 0.009291999999959444,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.6506660000000011,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 10,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.2904159999995954,
+            "poolWaitMs": 0.34183199999984026,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.9862079999998059,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.600041999999803,
+            "poolWaitMs": 0.00787399999990157,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.6641669999999067,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 11,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.2069589999998698,
+            "poolWaitMs": 0.3346249999997326,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.8785410000000411,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.6831670000001395,
+            "poolWaitMs": 0.006832999999915046,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.7377919999998994,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 12,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.1980419999999867,
+            "poolWaitMs": 0.3151260000001912,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.8731669999999667,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.6212080000000242,
+            "poolWaitMs": 0.009792000000061307,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.6900829999999587,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 13,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.7177910000000338,
+            "poolWaitMs": 0.3418330000001788,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 1.0080840000000535,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.6481670000000577,
+            "poolWaitMs": 0.010166000000026543,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.7276249999999891,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 14,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.301375999999891,
+            "poolWaitMs": 0.35770700000011857,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.9056659999998828,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.564542000000074,
+            "poolWaitMs": 0.009083000000146058,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.6346249999999145,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 15,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.2337929999998778,
+            "poolWaitMs": 0.3247099999996408,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.909708000000137,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.5203750000000582,
+            "poolWaitMs": 0.00916600000005019,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.5870830000001206,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 16,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.1905830000000606,
+            "poolWaitMs": 0.2993739999999434,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.8752919999999449,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.5391250000000127,
+            "poolWaitMs": 0.00804100000004837,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.5971250000000055,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 17,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.2703760000001694,
+            "poolWaitMs": 0.3318749999998545,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.8823339999999007,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.6099159999996573,
+            "poolWaitMs": 0.010915999999951964,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.6794170000000577,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 18,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.1265840000003209,
+            "poolWaitMs": 0.33312400000022535,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.875791000000163,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.5319990000000416,
+            "poolWaitMs": 0.008083000000169704,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.5919999999998709,
+            "failed": false,
+            "bytes": 280
+          }
+        },
+        {
+          "round": 19,
+          "baseline": {
+            "queries": 6,
+            "queryMs": 1.2040819999997439,
+            "poolWaitMs": 0.33041700000012497,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.8952079999999114,
+            "failed": false,
+            "bytes": 280
+          },
+          "targeted": {
+            "queries": 2,
+            "queryMs": 0.56837500000006,
+            "poolWaitMs": 0.008833999999978914,
+            "queryErrors": 0,
+            "poolErrors": 0,
+            "durationMs": 0.6435420000000249,
+            "failed": false,
+            "bytes": 280
+          }
+        }
+      ]
+    },
+    "hrWorkspaceSections": {
+      "fixture": "seedExpenseCompany + 1 archived profile",
+      "baseline": {
+        "queries": 12,
+        "queryMs": 13.773000999999567,
+        "poolWaitMs": 15.616709999998875,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "durationMs": 13.999583000000257,
+        "failed": false
+      },
+      "current": {
+        "queries": 10,
+        "queryMs": 4.261248000000251,
+        "poolWaitMs": 0.6845419999995102,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "durationMs": 2.730790999999954,
+        "failed": false
+      },
+      "archived": {
+        "queries": 12,
+        "queryMs": 6.8495819999998275,
+        "poolWaitMs": 0.710917999999765,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "durationMs": 4.500625000000127,
+        "failed": false
+      },
+      "sectionBytes": {
+        "baseline": 14881,
+        "current": 14501,
+        "archived": 14881
+      }
+    },
+    "scopedHrWorkspaceSections": {
+      "baseline": {
+        "queries": 12,
+        "queryMs": 5.216247999999723,
+        "poolWaitMs": 0.858498999999938,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "durationMs": 2.5820409999996627,
+        "failed": false
+      },
+      "current": {
+        "queries": 6,
+        "queryMs": 2.0558750000000146,
+        "poolWaitMs": 0.49891600000000835,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "durationMs": 1.7616660000003321,
+        "failed": false
+      },
+      "sectionBytes": {
+        "baseline": 16295,
+        "current": 12778
+      }
+    }
+  }
+}

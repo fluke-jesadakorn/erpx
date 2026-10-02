@@ -1,3 +1,4 @@
+import { TimeText } from "@/components/time/time-preference-context";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { permissionDefinition } from "@/lib/permissions";
 import { currentSession } from "@/server/authorization";
@@ -63,7 +64,7 @@ export default async function MyAccessPage() {
           </p>
           <p>
             {a.active ? "Active" : "Unavailable"} · {a.identity} · expires{" "}
-            {new Date(a.expiresAt).toISOString().slice(0, 10)}
+            <TimeText value={a.expiresAt} />
           </p>
           <details>
             <summary>Permissions and explanations</summary>

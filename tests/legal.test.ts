@@ -130,8 +130,7 @@ it("requires independent approval of a pinned document and signer list", async (
     f.tie,
   );
   const approved = await access(db, f.manager, r.id);
-  await fixtureAuthorities(r.id);
-  await sendEnvelope(
+  await expect(sendEnvelope(
     db,
     f.manager,
     {
@@ -142,9 +141,10 @@ it("requires independent approval of a pinned document and signer list", async (
       consent: "I agree to the exact locked document.",
     },
     key(),
-  );
+  )).rejects.toMatchObject({code:"LEGAL_SIGNING_DISABLED"});
   const signed = await detail(db, f.manager, r.id);
-  expect(signed.item.state).toBe("signing");
+  expect(signed.item.state).toBe("approved");
+  expect(signed.envelopes).toHaveLength(0);
   expect(signed.documents[0].locked).toBe(true);
   await expect(
     signingAction(
@@ -154,12 +154,12 @@ it("requires independent approval of a pinned document and signer list", async (
         action: "signing.sign",
         id: r.id,
         expectedVersion: signed.item.version,
-        envelopeId: signed.envelopes[0].id,
+        envelopeId: "historical-envelope",
         consent: "I agree to the exact locked document.",
       },
       key(),
     ),
-  ).rejects.toMatchObject({ code: "FRESH_MFA_REQUIRED" });
+  ).rejects.toMatchObject({ code: "LEGAL_SIGNING_DISABLED" });
 });
 it("propagates multiple holds through cyclic typed links and retains the other hold on release", async () => {
   const a = await create(),
@@ -372,137 +372,20 @@ it("exports readable DOCX and PDF while auditing access", async () => {
       .toString(),
   ).toBe("%PDF-");
 });
-it("completes ordered portal signing with fresh MFA, exact consent and replay", async () => {
-  const { portalCommand, portalList } =
-    await import("../src/server/legal/portal");
-  await applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS);
-  const signers = await Promise.all(
-    [1, 2].map(async (n) => {
-      const userId = key(),
-        sessionId = key(),
-        now = Date.now(),
-        email = `${key()}@example.test`;
-      await env.CONTROL_DB.prepare(
-        'INSERT INTO "user"(id,name,email,"emailVerified","createdAt","updatedAt") VALUES(?,?,?,1,?,?)',
-      )
-        .bind(userId, `Fictional signer ${n}`, email, now, now)
-        .run();
-      await env.CONTROL_DB.prepare(
-        'INSERT INTO session(id,"expiresAt",token,"createdAt","updatedAt","userId") VALUES(?,?,?,?,?,?)',
-      )
-        .bind(
-          sessionId,
-          new Date(now + 86400000).toISOString(),
-          key(),
-          new Date(now).toISOString(),
-          new Date(now).toISOString(),
-          userId,
-        )
-        .run();
-      await env.CONTROL_DB.prepare(
-        "INSERT INTO iam_mfa(user_id,secret,enabled) VALUES(?,?,true)",
-      )
-        .bind(userId, "test-fixture-only")
-        .run();
-      await env.CONTROL_DB.prepare("INSERT INTO iam_mfa_sessions VALUES(?,?,?)")
-        .bind(sessionId, userId, now)
-        .run();
-      return { userId, sessionId, email };
-    }),
-  );
+it("preserves historical signing evidence while refusing new portal signing", async () => {
+  const { portalCommand } = await import("../src/server/legal/portal");
+  const { evidenceBundle } = await import("../src/server/legal/operations");
   const r = await create();
-  await cmd(r.id, "document", {
-    name: "Fictional agreement",
-    body: "Fixture only, no legal effect.",
-  });
-  const d = (await detail(db, f.manager, r.id)).documents[0];
-  const shares: string[] = [];
-  for (const signer of signers) {
-    await cmd(r.id, "share", {
-      documentId: d.id,
-      email: signer.email,
-      expiresAt: Date.now() + 86400000,
-    });
-    const shareId = String((await portalList(db, signer))[0].id);
-    shares.push(shareId);
-    await portalCommand(db, signer, { action: "accept", shareId }, key());
-  }
-  await cmd(r.id, "member", { userId: f.tie.userId, access: "read" });
-  await cmd(r.id, "transition", { state: "review", reason: "Reviewed" });
-  await cmd(r.id, "transition", { state: "approval", reason: "Ready" });
-  await cmd(
-    r.id,
-    "approve",
-    {
-      documentId: d.id,
-      signerIds: signers.map((s) => s.userId),
-      reason: "Independent approval",
-    },
-    f.tie,
-  );
-  const consent = "I agree to this fictional fixture document only.";
-  await fixtureAuthorities(r.id);
-  await sendEnvelope(
-    db,
-    f.manager,
-    {
-      action: "signing.send",
-      id: r.id,
-      expectedVersion: (await access(db, f.manager, r.id)).version,
-      expiresAt: Date.now() + 86400000,
-      consent,
-    },
-    key(),
-  );
-  const envelopeId = (await detail(db, f.manager, r.id)).envelopes[0].id;
-  for (let i = 0; i < 2; i++)
-    await portalCommand(
-      db,
-      signers[i],
-      { action: "view", shareId: shares[i], envelopeId },
-      key(),
-    );
-  await expect(
-    portalCommand(
-      db,
-      signers[1],
-      { action: "sign", shareId: shares[1], envelopeId, consent },
-      key(),
-    ),
-  ).rejects.toThrow("earlier signer");
-  await expect(
-    portalCommand(
-      db,
-      signers[0],
-      {
-        action: "sign",
-        shareId: shares[0],
-        envelopeId,
-        consent: "Different text",
-      },
-      key(),
-    ),
-  ).rejects.toThrow("consent");
-  for (let i = 0; i < 2; i++) {
-    const k = key(),
-      body = { action: "sign", shareId: shares[i], envelopeId, consent };
-    const signed = await portalCommand(db, signers[i], body, k);
-    expect(await portalCommand(db, signers[i], body, k)).toEqual(signed);
-  }
-  expect((await access(db, f.manager, r.id)).state).toBe("executed");
-  const evidence = (
-    await db
-      .prepare("SELECT evidence FROM legal_signers WHERE envelope_id=?")
-      .bind(envelopeId)
-      .all<{ evidence: string }>()
-  ).results;
-  expect(evidence).toHaveLength(2);
-  for (const row of evidence)
-    expect(JSON.parse(row.evidence)).toMatchObject({
-      documentHash: d.checksum,
-      consent,
-      method: "verified-email+fresh-totp",
-    });
+  await cmd(r.id,"document",{name:"Historical agreement",body:"Historical approved terms"});
+  const d=(await detail(db,f.manager,r.id)).documents[0];
+  const envelopeId=key(), consent="Historical consent evidence";
+  await db.prepare("INSERT INTO legal_envelopes VALUES(?,?,?,?,?,'completed',?,?,?,?)").bind(envelopeId,r.id,d.id,d.checksum,1,consent,Date.now()+86400000,f.manager.userId,Date.now()).run();
+  await db.prepare("INSERT INTO legal_signers(envelope_id,user_id,ordinal,state,evidence) VALUES(?,?,0,'signed',?::jsonb)").bind(envelopeId,f.manager.userId,JSON.stringify({documentHash:d.checksum,consent})).run();
+  const bundle=await evidenceBundle(db,f.manager,r.id);
+  expect(bundle.envelopes[0].evidence).toMatchObject({documentHash:d.checksum,consent});
+  for(const action of ["sign","decline"])
+    await expect(portalCommand(db,{userId:"outside",email:"outside@example.test",sessionId:"fixture"},{action,shareId:"historical-share",envelopeId,consent},key())).rejects.toMatchObject({code:"LEGAL_SIGNING_DISABLED"});
+  expect((await evidenceBundle(db,f.manager,r.id)).envelopes[0].evidence).toEqual(bundle.envelopes[0].evidence);
 });
 it("catches up deadline reminders once without flooding old thresholds", async () => {
   const { legalReminders } = await import("../src/server/legal/jobs");
@@ -853,31 +736,6 @@ it("sends generic version-scoped invitations through retryable jobs and cancels 
   );
   expect(send).toHaveBeenCalledOnce();
 });
-
-async function fixtureAuthorities(id: string) {
-  const approval = await db
-    .prepare(
-      "SELECT document_id,signers FROM legal_approvals WHERE item_id=? ORDER BY cycle DESC LIMIT 1",
-    )
-    .bind(id)
-    .first<{ document_id: string; signers: string }>();
-  if (!approval) throw new Error("Missing fixture approval");
-  for (const user of JSON.parse(approval.signers))
-    await db
-      .prepare(
-        "INSERT INTO legal_authorities(id,item_id,company_id,user_id,document_id,currency,limit_minor,valid_from,valid_until,state,created_by,approved_by) VALUES(?,?,?,?,?,'THB',999999999,'2020-01-01','2099-12-31','approved',?,?)",
-      )
-      .bind(
-        key(),
-        id,
-        f.manager.companyId,
-        user,
-        approval.document_id,
-        f.manager.userId,
-        f.tie.userId,
-      )
-      .run();
-}
 
 it("blocks destruction under overlapping holds and completes an independently approved retention disposal", async () => {
   const { retentionCommand, retentionView, drainLegalDestruction } =

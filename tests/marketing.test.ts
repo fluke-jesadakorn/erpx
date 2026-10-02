@@ -148,19 +148,30 @@ it("hands a consented attributed candidate to the CRM owner service exactly once
       },
       key(),
     );
-  await changeMarketing(
-    creator,
-    "candidate",
-    String(candidate.id),
-    {
-      action: "record-engagement",
+  const engagementInput = {
+      action: "record-engagement" as const,
       expectedVersion: 1,
       eventType: "email_open",
       channel: "email",
       reason: "Provider event SIM-OPEN-1",
     },
-    key(),
-  );
+    engagementCommand = key(),
+    engagementResult = await changeMarketing(
+      creator,
+      "candidate",
+      String(candidate.id),
+      engagementInput,
+      engagementCommand,
+    );
+  expect(
+    await changeMarketing(
+      creator,
+      "candidate",
+      String(candidate.id),
+      engagementInput,
+      engagementCommand,
+    ),
+  ).toEqual(engagementResult);
   await expect(
     changeMarketing(
       creator,

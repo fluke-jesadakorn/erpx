@@ -9,7 +9,7 @@ import {
 } from "@/lib/legal/features";
 import type { WorkContext } from "../authorization";
 import type { SqlDatabase, SqlStatement } from "../runtime/types";
-import { access, guards, event, eligible, fail } from "./access";
+import { access, guards, event, eligible, personGuard, fail } from "./access";
 import { executeCommand, replayCommand } from "../commands";
 import { requirePermission } from "../iam-permissions";
 import { samePerson } from "@/lib/iam";
@@ -85,6 +85,7 @@ export async function featureCommand(
     .parse(raw);
   const spec: FeatureSpec = featureSpecs[x.category],
     item = await access(db, a, x.id);
+  if(a.role==="legal_requester")fail("Reply to the Legal team through the request discussion.","LEGAL_REQUESTER_SCOPE",403);
   const prior = await replayCommand<{ id: string; version: number }>(
     db,
     a,
@@ -120,7 +121,8 @@ export async function featureCommand(
   let snapshot: FeatureRow;
   if (x.action === "feature.create") {
     const input = parseFeature(raw);
-    await eligible(db, a, input.ownerId);
+    await eligible(db, a, input.ownerId,item);
+    steps.push(personGuard(db,a,key,input.ownerId,item));
     if (
       !(await db
         .prepare("SELECT 1 FROM legal_members WHERE item_id=? AND user_id=?")

@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
@@ -38,7 +39,7 @@ export function PlatformHoldingProvisioning({ snapshot, canProvision }: { snapsh
     <p className="muted">Activate a pre-provisioned database and private file namespace. This creates the control-plane binding; company setup and user invitations remain a separate reviewed step.</p>
     {message && <p role="status">{message}</p>}
     {error && <p role="alert" className="error">{error}</p>}
-    {snapshot.rows.length > 0 && <div className="table-wrap"><table><thead><tr><th>Holding</th><th>State</th><th>Resource slot</th><th>Requested</th><th>Reason</th></tr></thead><tbody>{snapshot.rows.map((row) => <tr key={row.id}><td><strong>{row.displayName}</strong><br /><small>{row.slug}</small></td><td>{row.status}</td><td>{row.holdingId} · {row.writeBinding}</td><td>{new Date(row.requestedAt).toISOString()}</td><td>{row.reason}{row.error && <p className="error">{row.error}</p>}</td></tr>)}</tbody></table></div>}
+    {snapshot.rows.length > 0 && <div className="table-wrap"><table><thead><tr><th>Holding</th><th>State</th><th>Resource slot</th><th>Requested</th><th>Reason</th></tr></thead><tbody>{snapshot.rows.map((row) => <tr key={row.id}><td><strong>{row.displayName}</strong><br /><small>{row.slug}</small></td><td>{row.status}</td><td>{row.holdingId} · {row.writeBinding}</td><td><TimeText value={row.requestedAt} /></td><td>{row.reason}{row.error && <p className="error">{row.error}</p>}</td></tr>)}</tbody></table></div>}
     {canProvision && snapshot.availableSlots.length > 0 ? <form className="business-form" onSubmit={(event) => { event.preventDefault(); void submit(event.currentTarget); }}>
       <label>Resource slot<select required value={selected?.id ?? ""} onChange={(event) => setSelected(snapshot.availableSlots.find((slot) => slot.id === event.target.value) ?? null)}>{snapshot.availableSlots.map((slot) => <option key={slot.id} value={slot.id}>{slot.id} · {slot.write}</option>)}</select></label>
       <label>Company URL slug<input name="slug" pattern="[a-z][a-z0-9-]{2,39}" minLength={3} maxLength={40} required placeholder="acme" /></label>

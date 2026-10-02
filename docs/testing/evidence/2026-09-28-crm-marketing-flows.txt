@@ -1,0 +1,28 @@
+# CRM Activities and Marketing Engagement mock E2E evidence — 2026-09-28
+
+Scope: isolated Demo Company browser simulation (`simulation` Holding, H001), using synthetic people and customer data. This is software-flow evidence only; it is not Hotel, Finance, provider or Company release sign-off.
+
+## Source fingerprint
+
+SHA-256 of the sorted `path sha256(file)` manifest for the application, schema and test files used by these flows: `2d24153085aa63cb94606b1eece47c5284e9f3cb69ce21e800b03fdbb7840d82`.
+
+## Browser run
+
+Simulation run: `ecc258396dff` at `http://127.0.0.1:3102`.
+
+| Browser scenario | Result |
+| --- | --- |
+| `tests/e2e/demo-crm-activities.spec.ts` · desktop Chromium | 1 passed (14.9s) |
+| `tests/e2e/demo-marketing-to-crm-lead.spec.ts` · desktop Chromium | 1 passed (9.9s) |
+
+Both scenarios used the same isolated run and separate synthetic identities. Initial Marketing test attempts exposed obsolete JSON editor labels and an ambiguous Campaign label; the test was aligned to the current headline, supporting text, consent checkbox and exact Campaign field before the successful run.
+
+## Verified behavior
+
+- CRM Activities: a Sales operator schedules an activity for an eligible owner; the Sales manager sees the persisted record; the assigned operator completes it with an outcome. Integration coverage also verifies manager reassignment, cancellation, duplicate-command replay, source-version and scope rejection, Work state and immutable history.
+- Marketing Engagement: a Sales manager drafts a consent-required form; a different Company administrator activates it; the reviewer captures an attributed, consented synthetic prospect; Sales records an engagement and hands the candidate to CRM. The linked CRM lead retains the contact brief and source, and the campaign/source summary reflects the handoff without exposing contact details.
+- `bun run test -- tests/crm-activities.test.ts tests/marketing.test.ts`: 2 files and 7 tests passed (6.08s), including replay-safe engagement and cancellation.
+
+The simulation's `/api/health` reported degraded scanner readiness (`ERPX_CLAMD_SOCKET_REQUIRED`) because this isolated run did not receive a ClamAV socket. These scenarios do not upload or scan files. The run's server, six PostgreSQL databases and files were stopped and destroyed after verification; `demo:destroy` returned `destroyed:true`.
+
+Marketing candidate rejection is not covered by this evidence: the UI currently lacks an independent rejection command, so `Marketing / Lead candidates` remains Implemented. Public form delivery, provider/webhook ingestion, real campaign-cost reconciliation, mobile browser acceptance and Company business sign-off remain separate gaps.

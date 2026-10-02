@@ -24,8 +24,8 @@ export function productionPageCut(pathname:string,workspaceBase:string,search:Pi
   if(!root)return null;
   if(root==='finance'&&segments.length===2&&['engines','group'].includes(section??''))
     return {id:'advanced-finance',name:'Advanced Finance',state:'Coming Soon' as FeatureState};
-  if(root==='people'&&segments.length===1&&search.get('view')==='payroll')
-    return {id:'statutory-payroll',name:'Payroll processing',state:'Coming Soon' as FeatureState};
+  // The legacy Payroll entry redirects into its dedicated, read-safe workspace.
+  if(root==='people'&&segments.length===1&&search.get('view')==='payroll')return null;
   if(root==='commerce'&&segments.length===1) {
     const view=search.get('view')??'sales';
     const owner=view==='parties'?(search.get('kind')==='supplier'?'procurement':'crm')

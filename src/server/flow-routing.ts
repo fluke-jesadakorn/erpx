@@ -1,5 +1,5 @@
 import { policyRead, policyNow, hasPolicyReadSnapshot } from "./iam-read-snapshot";
-import {currentPersonPrincipals} from "./iam-person";
+import {currentPersonPrincipals,personIdentityIds} from "./iam-person";
 import { hasWorkflowPermission } from "@/lib/permissions";
 import type { PermissionActor } from "@/lib/iam";
 import type { SqlDatabase, SqlStatement } from "./runtime/types";
@@ -209,7 +209,13 @@ async function definitions(db: SqlDatabase, kind: FlowKind, row: Row, actor:Staf
   } else if (kind === "payroll") {
     const paymentBatch = await db.prepare("SELECT id,status,created_by FROM hr_payment_batches WHERE company_id=? AND source_type='payroll' AND source_id=? AND status<>'cancelled' ORDER BY created_at DESC,id DESC LIMIT 1").bind(scope.company_id,row.id).first<{id:string;status:string;created_by:string}>();
     add("calculate", "Calculate payroll preview", "payroll_preparer", await roles(["payroll_preparer","hr_admin"]));
-    add("preview", "Review payroll preview", "payroll_approver", await roles(["payroll_approver","people_manager"], true));
+    add("preview", "Check payroll and submit review", "payroll_preparer", await roles(["payroll_preparer","hr_admin"]));
+    const payrollApprovers=await roles(["payroll_approver","people_manager"], true);
+    if(row.submitted_by){
+      const submittedIdentities=new Set(await personIdentityIds(db,scope.company_id,[String(row.submitted_by)]));
+      for(let index=payrollApprovers.length-1;index>=0;index--)if(submittedIdentities.has(payrollApprovers[index]))payrollApprovers.splice(index,1);
+    }
+    add("in_review", "Review and approve payroll", "payroll_approver", payrollApprovers);
     add("approved", "Post payroll GL and prepare payment", "finance_approver", await roles(["finance_approver","holding_owner"], true));
     // Treasury is an eligible preparer too; company routing defaults may place
     // this step with Treasury before the independent Finance/Treasury review.
@@ -407,6 +413,6 @@ export function flowCommandTarget(operation: string, id: string, input: unknown)
   if (!rule) return null;
   let action = operation.slice(rule[0].endsWith(".") ? rule[0].length : operation.lastIndexOf(".")+1);
   if (action === "transition" && input && typeof input === "object") action = String((input as Record<string,unknown>).action ?? "");
-  if (["create","update","revise","attachment.remove","ai","post.reverse","recalculate","review-export","delegate","delegate-revoke"].includes(action) || action.startsWith("ai.") || action.startsWith("payment.") || action.startsWith("correction.") || action.startsWith("final-pay.") || action.startsWith("advance.") || action.startsWith("accrual.") || action === "reverse") return null;
+  if (["create","update","revise","attachment.remove","ai","post.reverse","recalculate","review-export","schedule","delegate","delegate-revoke"].includes(action) || action.startsWith("ai.") || action.startsWith("payment.") || action.startsWith("mapping.") || action.startsWith("correction.") || action.startsWith("final-pay.") || action.startsWith("advance.") || action.startsWith("accrual.") || action === "reverse") return null;
   return {kind:rule[1],id,action};
 }

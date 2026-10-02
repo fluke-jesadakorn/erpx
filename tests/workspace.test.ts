@@ -85,4 +85,12 @@ describe("assignment containment", () => {
     expect(isRoleValidAtScope("holding_owner", "holding")).toBe(true);
     expect(isRoleValidAtScope("holding_owner", "branch")).toBe(false);
   });
+  it('recognizes the existing POS staff roles at their published workspace scopes',()=>{
+    for(const role of ['pos_cashier','pos_server','pos_kitchen','pos_manager']){
+      expect(isRoleValidAtScope(role,'holding')).toBe(true);
+      expect(isRoleValidAtScope(role,'branch')).toBe(true);
+      expect(isRoleValidAtScope(role,'department')).toBe(false);
+      expect(isRoleValidAtScope(role,'platform')).toBe(false);
+    }
+  });
 });

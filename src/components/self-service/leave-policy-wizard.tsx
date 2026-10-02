@@ -45,7 +45,7 @@ const subscribeHydration = () => () => {};
 const clientReady = () => true;
 const serverReady = () => false;
 
-export function LeavePolicyWizard({ base, types }: { base: string; types: Awaited<ReturnType<typeof leaveAdministration>>["types"] }) {
+export function LeavePolicyWizard({ base, types, onSaved, onCancel }: { base: string; types: Awaited<ReturnType<typeof leaveAdministration>>["types"]; onSaved?: () => Promise<void>; onCancel?: () => void }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft>({ policyKey: "", version: "1", name: "", effectiveFrom: "", effectiveTo: "", timezone: "Asia/Bangkok", workweek: [1, 2, 3, 4, 5], allowNegative: false, rules: [newRule()] });
@@ -76,8 +76,8 @@ export function LeavePolicyWizard({ base, types }: { base: string; types: Awaite
       const result = await response.json();
       if (!response.ok) throw Error(result.error?.message ?? "Unable to create policy.");
       attempt.current = null;
-      router.push(`${base}/people/settings?section=leave`);
-      router.refresh();
+      if (onSaved) await onSaved();
+      else { router.push(`${base}/people/settings?section=leave`); router.refresh(); }
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to create policy."); }
     finally { setBusy(false); }
   }
@@ -86,7 +86,7 @@ export function LeavePolicyWizard({ base, types }: { base: string; types: Awaite
     <ol className={styles.progress} aria-label="Policy creation steps">{steps.map((label, index) => <li key={label} aria-current={step === index ? "step" : undefined}><span>{index + 1}</span>{label}</li>)}</ol>
     <section className={styles.panel}>
       <div className={styles.heading}><p>Step {step + 1} of {steps.length}</p><h2>{steps[step]}</h2></div>
-      {step === 0 && <form className={styles.form} onSubmit={next}><div className={styles.fields}><label>Policy key<input value={draft.policyKey} onChange={e => update("policyKey", e.target.value)} required maxLength={80} /></label><label>Version<input type="number" min="1" value={draft.version} onChange={e => update("version", e.target.value)} required /></label></div><label>Policy name<input value={draft.name} onChange={e => update("name", e.target.value)} required maxLength={100} /></label><div className={styles.fields}><label>Effective from<input type="date" value={draft.effectiveFrom} onChange={e => update("effectiveFrom", e.target.value)} required /></label><label>Effective to<input type="date" value={draft.effectiveTo} onChange={e => update("effectiveTo", e.target.value)} /></label></div><label>Timezone<input value={draft.timezone} onChange={e => update("timezone", e.target.value)} required maxLength={80} /></label><div className={styles.actions}><Link className="button secondary" href={`${base}/people/settings?section=leave`}>Cancel</Link><button className="button" type="submit">Continue</button></div></form>}
+      {step === 0 && <form className={styles.form} onSubmit={next}><div className={styles.fields}><label>Policy key<input value={draft.policyKey} onChange={e => update("policyKey", e.target.value)} required maxLength={80} /></label><label>Version<input type="number" min="1" value={draft.version} onChange={e => update("version", e.target.value)} required /></label></div><label>Policy name<input value={draft.name} onChange={e => update("name", e.target.value)} required maxLength={100} /></label><div className={styles.fields}><label>Effective from<input type="date" value={draft.effectiveFrom} onChange={e => update("effectiveFrom", e.target.value)} required /></label><label>Effective to<input type="date" value={draft.effectiveTo} onChange={e => update("effectiveTo", e.target.value)} /></label></div><label>Timezone<input value={draft.timezone} onChange={e => update("timezone", e.target.value)} required maxLength={80} /></label><div className={styles.actions}>{onCancel ? <button type="button" className="button secondary" onClick={onCancel}>Cancel</button> : <Link className="button secondary" href={`${base}/people/settings?section=leave`}>Cancel</Link>}<button className="button" type="submit">Continue</button></div></form>}
       {step === 1 && <form className={styles.form} onSubmit={next}><fieldset><legend>Working weekdays</legend><div className={styles.weekdays}>{weekdays.map((day, index) => <label key={day}><input type="checkbox" checked={draft.workweek.includes(index + 1)} onChange={e => update("workweek", e.target.checked ? [...draft.workweek, index + 1].sort() : draft.workweek.filter(value => value !== index + 1))} />{day}</label>)}</div></fieldset><label className={styles.check}><input type="checkbox" checked={draft.allowNegative} onChange={e => update("allowNegative", e.target.checked)} />Allow negative entitlement</label><div className={styles.actions}><button className="button secondary" type="button" onClick={() => setStep(0)}>Back</button><button className="button" type="submit">Continue</button></div></form>}
       {step === 2 && <form className={styles.form} onSubmit={next}>
         {types.length === 0 && <p>No leave types exist yet. <Link href={`${base}/people/settings?section=leave`}>Create a leave type first.</Link></p>}

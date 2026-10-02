@@ -65,8 +65,20 @@ export async function appointmentOverview(db:SqlDatabase,actor:WorkContext) {
     FROM department_flow_versions WHERE company_id=? ORDER BY department_id,version DESC`)
     .bind(actor.companyId).all()).results;
   const departments=(await db.prepare("SELECT id,display_name FROM organization_nodes WHERE company_id=? AND kind='department' AND status='active' ORDER BY display_name").bind(actor.companyId).all<{id:string;display_name:string}>()).results;
-  const canPublishDepartmentIds=[] as string[];
-  for(const department of departments)if(await canPublishFlow(db,actor,department.id))canPublishDepartmentIds.push(department.id);
+  // Reuse the seats already loaded for this overview. Checking each department
+  // with canPublishFlow repeats actor and seat queries for every row and can
+  // exhaust the small web pool on large organizations.
+  const publisherPersonId=(await personForActor(db,actor))?.id;
+  const activePublisher=publisherPersonId ? !!await activeStaff(db,actor.companyId,actor.userId).catch(()=>null) : false;
+  const currentSeats=seats as Seat[];
+  const headSeats=new Map(currentSeats.filter(row=>row.kind==="head").map(row=>[row.scope_id,row]));
+  const ceoPersonId=currentSeats.find(row=>row.kind==="ceo" && row.scope_id===actor.companyId)?.person_id;
+  const canPublishDepartmentIds=activePublisher && publisherPersonId
+    ? departments.filter(department=>{
+      const headPersonId=headSeats.get(department.id)?.person_id;
+      return headPersonId===publisherPersonId || (!headPersonId && ceoPersonId===publisherPersonId);
+    }).map(department=>department.id)
+    : [];
   if(canAppointKinds.length)return {seats,history,policies,departments,canAppointKinds,canPublishDepartmentIds};
   const visible=new Set(canPublishDepartmentIds);
   return {

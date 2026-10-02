@@ -16,6 +16,7 @@ import { PageHeader } from "@/components/ui/primitives";
 import { iamSections, type IamSection } from "@/lib/iam";
 import { hasPermission } from "@/lib/permissions";
 import { workspaceBase } from "@/lib/workspace";
+import { peopleContextHref, type PeopleRouteSearch } from "@/lib/people-route-context";
 import { administrationAccess } from "@/server/administration";
 import { publicScope, requireWorkContext } from "@/server/authorization";
 import { directoryAutomationData } from "@/server/directory-operations";
@@ -38,16 +39,17 @@ const sections = [
 
 export default async function PeopleSettings({ params, searchParams }: {
   params: Promise<{ holdingSlug: string }>;
-  searchParams: Promise<{ section?: string; view?: string }>;
+  searchParams: Promise<PeopleRouteSearch>;
 }) {
   const slug = (await params).holdingSlug;
   const actor = await requireWorkContext(slug);
   const base = workspaceBase(publicScope(actor));
   const query = await searchParams;
-  const section = query.section ?? "";
-  if (!["", "leave", "templates", "attributes", ...iamSections.map(([id]) => id)].includes(section)) notFound();
+  const section = typeof query.section === "string" ? query.section : "";
+  if (!["", "levels", "leave", "calendars", "pay-groups", "templates", "lifecycle", "attributes", ...iamSections.map(([id]) => id)].includes(section)) notFound();
   if (section === "attributes") redirect(`${base}/technology?view=attributes`);
   const technology = !actor.beta && ["connections", "roles", "matrix", "reviews", "groups"].includes(section);
+  if (!actor.beta && ["", "levels", "leave", "calendars", "pay-groups", "templates", "lifecycle"].includes(section)) redirect(peopleContextHref(base, query, { panel: "settings" }));
   const feature = section === "matrix" ? "roles" : section;
   const featureTitle = feature === "groups" ? "Groups & policies" : (iamSections.find(([id]) => id === feature)?.[1] ?? "People settings");
   const admin = technology ? await administrationAccess(actor) : null;
@@ -56,7 +58,7 @@ export default async function PeopleSettings({ params, searchParams }: {
   const iam = needsIam || section === "my-access" ? await iamContext(slug) : null;
   const data = iam && (section === "templates" || iamSections.some(([id]) => id === section)) ? await iamOverview(iam.db, iam.actor, section === "my-access") : null;
   const management = iam && section === "connections" ? await readManagement(iam.db, iam.actor) : null;
-  const canManageTemplates = hasPermission(actor, "organization.manage");
+  const canManageTemplates = hasPermission(actor, "organization.manage") && hasPermission(actor, "people.manage");
   const lifecycle = canManageTemplates && (section === "templates" || section === "") ? await peopleLifecycleData(write, actor) : null;
   const holdingTemplates = section === "templates" && iam?.actor.scopeKind === "holding" && query.view !== "advanced" ? await peopleTemplatesData(iam.db, iam.actor) : null;
   let leave: Awaited<ReturnType<typeof leaveAdministration>> | null = null;

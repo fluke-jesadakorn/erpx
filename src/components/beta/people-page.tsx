@@ -26,7 +26,7 @@ export async function BetaPeople({
           <Link
             className="row"
             key={p.id}
-            href={`${base}/people?member=${encodeURIComponent(p.id)}`}
+            href={`${base}/profiles/${encodeURIComponent(p.id)}`}
           >
             <span className="avatar">{p.name.slice(0, 1)}</span>
             <strong>{p.name}</strong>

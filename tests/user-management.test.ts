@@ -72,6 +72,7 @@ async function fixture() {
   }
   const owner = await user(),
     reviewer = await user(),
+    it = await user("it_admin"),
     employee = await user("employee"),
     personId = key();
   await db
@@ -93,7 +94,7 @@ async function fixture() {
     )
     .bind(key(), personId, companyId, owner.userId, Date.now(), Date.now())
     .run();
-  return { companyId, owner, reviewer, employee, personId };
+  return { companyId, owner, reviewer, it, employee, personId };
 }
 async function change(actor: IamActor, change: ManagementChange) {
   const preview = await managementCommand(db, actor, change, key(), true);
@@ -106,6 +107,25 @@ async function change(actor: IamActor, change: ManagementChange) {
     preview.previewToken,
   );
 }
+it("lets Company IT edit person custom values without granting HR or definition authority", async () => {
+  const f = await fixture();
+  const field = await change(f.owner, { operation: "attribute", input: {
+    label: "IT managed note", help: "", target: "person", type: "text", required: false,
+    options: [], archived: false, readRoles: ["hr_admin"], writeRoles: ["hr_admin"],
+    expectedVersion: 0, reason: "Track employee setup",
+  } });
+  const snapshot = await readManagement(db, f.it);
+  expect(snapshot.canManagePeople).toBe(false);
+  expect(snapshot.attributes.find(attribute => attribute.id === field.id)).toMatchObject({ canView: true, canEdit: true });
+  await change(f.it, { operation: "values", input: { target: "person", objectId: f.personId,
+    values: { [field.id]: "Assigned" }, expectedVersion: 0, reason: "Record setup" } });
+  expect((await readManagement(db, f.it)).values.find(value => value.objectId === f.personId)?.values[field.id]).toBe("Assigned");
+  await expect(change(f.it, { operation: "attribute", input: { label: "Forbidden field", help: "", target: "person", type: "text", required: false,
+    options: [], archived: false, expectedVersion: 0, reason: "Definition change" } })).rejects.toMatchObject({ code: "PERMISSION_REQUIRED" });
+  const other = await fixture();
+  await expect(change(f.it, { operation: "values", input: { target: "person", objectId: other.personId,
+    values: { [field.id]: "Outside" }, expectedVersion: 0, reason: "Cross Company" } })).rejects.toMatchObject({ code: "SCOPE_FORBIDDEN" });
+});
 const group = (
   name = "Engineers",
   rule: MembershipRule | null = null,
@@ -758,5 +778,5 @@ it("keeps previews retryable, permits clearing optional attributes, and rejects 
         ],
       },
     }),
-  ).rejects.toThrow(/direct assignments/);
+  ).rejects.toThrow(/delegated permissions|direct assignments/);
 });

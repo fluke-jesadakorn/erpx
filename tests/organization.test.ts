@@ -3,7 +3,7 @@ import { listStaffNotifications } from "../src/server/staff-notifications";
 import { beforeAll,beforeEach,expect,it,vi } from "vitest";
 import { env,applyMigrations } from "./runtime-env";
 import { expenseFixture,expenseDb as db,key } from "./helpers/expense-fixture";
-import { organizationOverview,installStaffLevels,savePosition,positionSchema,saveOrganizationTemplate,applyOrganizationTemplate,organizationGuard,organizationNodeChangeSchema,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange } from "../src/server/organization";
+import { organizationOverview,installStaffLevels,savePosition,positionSchema,saveOrganizationTemplate,applyOrganizationTemplate,organizationGuard,organizationNodeChangeSchema,previewOrganizationNodeChange,saveOrganizationNodeChange,decideOrganizationNodeChange,cancelOrganizationNodeChange } from "../src/server/organization";
 import { directoryUpdateSchema,saveDirectoryPerson,setDirectoryStatus } from "../src/server/people-directory";
 import { grantPersonAccess,revokePersonAccess } from "../src/server/account-access";
 import { companyBusinessAcceptance, companyBusinessAcceptanceWork, submitCompanyBusinessAcceptance, decideCompanyBusinessAcceptance, revokeCompanyBusinessAcceptance } from "../src/server/company-business-acceptance";
@@ -37,6 +37,20 @@ it("preserves incomplete onboarding and requires manager and numbered level for 
   const person=(await organizationOverview(db,hr)).people.find(p=>p.person_id===result.id)!;
   expect(person.status).toBe("active");expect(person.level_number).toBe(6);expect(person.issues).toEqual([]);
   expect((await db.prepare("SELECT id FROM staff_organization_history WHERE engagement_id=?").bind(person.engagement_id).all()).results).toHaveLength(2);
+});
+it("updates only the selected engagement and rejects stale or mismatched engagement inputs",async()=>{
+  const input=draft(),created=await saveDirectoryPerson(hr,null,input,key());
+  const first=String((await db.prepare("SELECT id FROM hr_engagements WHERE person_id=?").bind(created.id).first<{id:string}>())!.id),second=`eng-${key()}`;
+  await db.prepare("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,department_id,job_title,worker_type,employment_type,start_date,status,currency,created_by,created_at,updated_at) SELECT ?,person_id,company_id,branch_id,department_id,'Newer engagement',worker_type,employment_type,'2026-09-01',status,currency,created_by,created_at,updated_at FROM hr_engagements WHERE id=?").bind(second,first).run();
+  const selected={...input,engagementId:first,expectedEngagementVersion:1,jobTitle:"Selected engagement updated"};
+  const command=key();await saveDirectoryPerson(hr,created.id,selected,command);await saveDirectoryPerson(hr,created.id,selected,command);
+  expect(await db.prepare("SELECT job_title,version FROM hr_engagements WHERE id=?").bind(first).first()).toEqual({job_title:selected.jobTitle,version:2});
+  expect(await db.prepare("SELECT job_title,version FROM hr_engagements WHERE id=?").bind(second).first()).toEqual({job_title:"Newer engagement",version:1});
+  await expect(saveDirectoryPerson(hr,created.id,{...selected,expectedVersion:2},key())).rejects.toMatchObject({status:409});
+  const other=await saveDirectoryPerson(hr,null,draft(),key());
+  await expect(saveDirectoryPerson(hr,other.id,{...selected,expectedVersion:1},key())).rejects.toMatchObject({code:"PERSON_NOT_FOUND"});
+  const scoped={...hr,branchId:"unrelated-branch",assignmentScope:"branch" as const};
+  await expect(saveDirectoryPerson(scoped,created.id,{...selected,expectedVersion:2,expectedEngagementVersion:2},key())).rejects.toMatchObject({code:"PERSON_NOT_FOUND"});
 });
 it("allows the explicit CEO exception and rejects self or junior reporting managers",async()=>{
   const input=draft({positionId:ceo,levelId:level(1)}),result=await saveDirectoryPerson(hr,null,input,key());
@@ -134,6 +148,143 @@ it("applies independently reviewed branch and department changes with safe suspe
   expect(applied[0].events?.at(-1)?.reason).toBe("Capacity and authority reviewed");
   await expect(db.prepare("UPDATE organization_node_change_events SET action='rejected' WHERE change_id=?").bind(proposal.id).run()).rejects.toThrow("IMMUTABLE_ORGANIZATION_NODE_CHANGE_EVENT");
 });
+it("previews department relocation impact and rejects changed people or positions before applying",async()=>{
+  const destinationBranch=`relocation-destination-${key()}`;
+  const sourceDepartment=`relocation-source-${key()}`;
+  const secondPosition=`relocation-position-${key()}`;
+  const scopedAssignment=`relocation-assignment-${key()}`;
+  await db.batch([
+    db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'branch',?,'Destination',?,?,?)")
+      .bind(destinationBranch,`destination-${key()}`,f.company,f.company,destinationBranch),
+    db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'department',?,'Relocating team',?,?,?)")
+      .bind(sourceDepartment,`relocating-${key()}`,f.branch,f.company,f.branch),
+    db.prepare("UPDATE hr_engagements SET department_id=? WHERE company_id=? AND person_id=ANY(?::text[])")
+      .bind(sourceDepartment,f.company,`{person-${f.claimant.userId},person-${f.head.userId}}`),
+    db.prepare("UPDATE organization_positions SET department_id=? WHERE id=? AND company_id=?")
+      .bind(sourceDepartment,staffPosition,f.company),
+    db.prepare(`INSERT INTO organization_positions(id,company_id,branch_id,department_id,title,level_id,reports_to_position_id,created_by,created_at,updated_at)
+      VALUES(?,?,?,?,'Service coordinator',?,?,'fixture',1,1)`)
+      .bind(secondPosition,f.company,f.branch,sourceDepartment,level(6),ceo),
+    db.prepare(`INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,valid_until,scope_kind,scope_node_id)
+      VALUES(?,?,'people_manager','[]',?,?,0,9999999999999,'department',?)`)
+      .bind(scopedAssignment,f.manager.userId,f.company,f.branch,sourceDepartment),
+  ]);
+  const input=organizationNodeChangeSchema.parse({
+    action:"relocate",kind:"department",targetNodeId:sourceDepartment,
+    displayName:"Relocating team",branchId:destinationBranch,
+    expectedNodeVersion:1,expectedVersion:0,reason:"Move the team and its positions to the destination branch",
+  });
+  const preview=await previewOrganizationNodeChange(db,f.owner,input);
+  expect(preview).toMatchObject({
+    sourceBranchId:f.branch,destinationBranchId:destinationBranch,
+    impact:{child_nodes:0,staff:2,positions:2,assignments:1,warehouses:0},
+  });
+  expect(preview.previewSnapshot).toMatch(/^[a-f0-9]{64}$/);
+
+  await db.prepare("UPDATE hr_engagements SET version=version+1 WHERE company_id=? AND person_id=?")
+    .bind(f.company,`person-${f.claimant.userId}`).run();
+  const staleSubmissionKey=key();
+  await expect(saveOrganizationNodeChange(db,f.owner,null,{...input,previewSnapshot:preview.previewSnapshot},staleSubmissionKey,true))
+    .rejects.toMatchObject({code:"ORGANIZATION_RELOCATION_CHANGED",status:409});
+  expect(await db.prepare("SELECT 1 FROM organization_node_changes WHERE id=?")
+    .bind(`org-change-${staleSubmissionKey}`).first()).toBeNull();
+
+  const fresh=await previewOrganizationNodeChange(db,f.owner,input);
+  expect(fresh.previewSnapshot).not.toBe(preview.previewSnapshot);
+  const submitted=await saveOrganizationNodeChange(db,f.owner,null,{...input,previewSnapshot:fresh.previewSnapshot},key(),true);
+  await db.prepare("UPDATE organization_positions SET version=version+1 WHERE id=? AND company_id=?")
+    .bind(secondPosition,f.company).run();
+  await expect(decideOrganizationNodeChange(db,hr,submitted.id,{expectedVersion:submitted.version,decision:"approve",reason:"Approve the reviewed relocation"},key()))
+    .rejects.toMatchObject({code:"ORGANIZATION_RELOCATION_CHANGED",status:409});
+  expect(await db.prepare("SELECT state FROM organization_node_changes WHERE id=?")
+    .bind(submitted.id).first()).toEqual({state:"submitted"});
+  expect(await db.prepare("SELECT status,branch_id FROM organization_nodes WHERE id=?")
+    .bind(sourceDepartment).first()).toEqual({status:"active",branch_id:f.branch});
+  expect(await db.prepare("SELECT 1 FROM organization_nodes WHERE id=?")
+    .bind(`org-node-${submitted.id}`).first()).toBeNull();
+  expect(await db.prepare("SELECT department_id FROM hr_engagements WHERE person_id=? AND company_id=?")
+    .bind(`person-${f.claimant.userId}`,f.company).first()).toEqual({department_id:sourceDepartment});
+  expect(await db.prepare("SELECT department_id FROM organization_positions WHERE id=? AND company_id=?")
+    .bind(secondPosition,f.company).first()).toEqual({department_id:sourceDepartment});
+});
+it("refuses department relocation when children or a destination URL code would be stranded",async()=>{
+  const destinationBranch=`move-destination-${key()}`,sourceDepartment=`move-source-${key()}`;
+  const child=`move-child-${key()}`,slug=`move-${key()}`;
+  await db.batch([
+    db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'branch',?,'New branch',?,?,?)")
+      .bind(destinationBranch,destinationBranch,f.company,f.company,destinationBranch),
+    db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'department',?,'Movable department',?,?,?)")
+      .bind(sourceDepartment,slug,f.branch,f.company,f.branch),
+    db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'team',?,'Child team',?,?,?)")
+      .bind(child,child,sourceDepartment,f.company,f.branch),
+  ]);
+  const input=organizationNodeChangeSchema.parse({action:"relocate",kind:"department",targetNodeId:sourceDepartment,displayName:"Movable department",branchId:destinationBranch,expectedNodeVersion:1,expectedVersion:0,reason:"Review the department move"});
+  await expect(previewOrganizationNodeChange(db,f.owner,input)).rejects.toMatchObject({code:"RELOCATION_HAS_CHILDREN"});
+  await expect(saveOrganizationNodeChange(db,f.owner,null,input,key(),true)).rejects.toMatchObject({code:"RELOCATION_HAS_CHILDREN"});
+  await db.prepare("UPDATE organization_nodes SET status='archived' WHERE id=?").bind(child).run();
+  await db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'department',?,'Existing destination department',?,?,?)")
+    .bind(`move-conflict-${key()}`,slug,destinationBranch,f.company,destinationBranch).run();
+  await expect(previewOrganizationNodeChange(db,f.owner,input)).rejects.toMatchObject({code:"RELOCATION_SLUG_CONFLICT"});
+  expect(await db.prepare("SELECT status,branch_id FROM organization_nodes WHERE id=?").bind(sourceDepartment).first()).toEqual({status:"active",branch_id:f.branch});
+});
+it("preserves department head authority and latest approval flow when relocation receives independent approval",async()=>{
+  const destinationBranch=`authority-destination-${key()}`,sourceDepartment=`authority-source-${key()}`;
+  const reviewer=await f.member("authority-relocation-reviewer","hr_admin");
+  await db.batch([
+    db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'branch',?,'Authority branch',?,?,?)")
+      .bind(destinationBranch,destinationBranch,f.company,f.company,destinationBranch),
+    db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'department',?,'Authority department',?,?,?)")
+      .bind(sourceDepartment,sourceDepartment,f.branch,f.company,f.branch),
+    db.prepare("INSERT INTO authority_seats(company_id,kind,scope_id,version,position_id,person_id,effective_at) VALUES(?,'head',?,2,NULL,?,1)")
+      .bind(f.company,sourceDepartment,`person-${f.claimant.userId}`),
+    db.prepare("INSERT INTO department_heads(department_id,company_id,person_id,version,updated_by,updated_at) VALUES(?,?,?,?,?,1)")
+      .bind(sourceDepartment,f.company,`person-${f.claimant.userId}`,2,f.owner.userId),
+    db.prepare("INSERT INTO department_flow_versions(id,company_id,department_id,version,steps_json,published_by,reason,command_id,created_at) VALUES(?,?,?,2,?::jsonb,?,?,?,1)")
+      .bind(`source-flow-${key()}`,f.company,sourceDepartment,JSON.stringify([{kind:"person",personId:`person-${f.claimant.userId}`}]),f.owner.userId,"Published department route",`source-flow-command-${key()}`),
+  ]);
+  const input=organizationNodeChangeSchema.parse({action:"relocate",kind:"department",targetNodeId:sourceDepartment,displayName:"Authority department",branchId:destinationBranch,expectedNodeVersion:1,expectedVersion:0,reason:"Move the department and its approval route"});
+  const preview=await previewOrganizationNodeChange(db,f.owner,input);
+  const submitted=await saveOrganizationNodeChange(db,f.owner,null,{...input,previewSnapshot:preview.previewSnapshot},key(),true);
+  const applied=await decideOrganizationNodeChange(db,reviewer,submitted.id,{expectedVersion:submitted.version,decision:"approve",reason:"Keep the current approval path"},key());
+  const moved=String(applied.nodeId);
+  expect(await db.prepare("SELECT version,person_id FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?").bind(f.company,moved).first())
+    .toEqual({version:1,person_id:`person-${f.claimant.userId}`});
+  expect(await db.prepare("SELECT person_id,version FROM department_heads WHERE department_id=?").bind(moved).first())
+    .toEqual({person_id:`person-${f.claimant.userId}`,version:1});
+  const movedFlow=await db.prepare("SELECT version,steps_json FROM department_flow_versions WHERE department_id=?").bind(moved).first<{version:number;steps_json:string}>();
+  expect(movedFlow?.version).toBe(1);
+  expect(JSON.parse(movedFlow?.steps_json ?? "[]")).toEqual([{kind:"person",personId:`person-${f.claimant.userId}`}]);
+  expect(await db.prepare("SELECT provenance,source_reference FROM authority_appointments WHERE company_id=? AND kind='head' AND scope_id=?").bind(f.company,moved).first())
+    .toEqual({provenance:"explicit",source_reference:sourceDepartment});
+});
+it("does not resurrect a stale legacy head when an explicitly vacant department moves",async()=>{
+  const destinationBranch=`vacant-destination-${key()}`,sourceDepartment=`vacant-source-${key()}`;
+  const reviewer=await f.member("vacant-relocation-reviewer","hr_admin");
+  await db.batch([
+    db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'branch',?,'Vacant destination',?,?,?)")
+      .bind(destinationBranch,destinationBranch,f.company,f.company,destinationBranch),
+    db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id) VALUES(?,'department',?,'Vacant department',?,?,?)")
+      .bind(sourceDepartment,sourceDepartment,f.branch,f.company,f.branch),
+    db.prepare("INSERT INTO authority_seats(company_id,kind,scope_id,version,position_id,person_id,effective_at) VALUES(?,'head',?,2,NULL,NULL,1)")
+      .bind(f.company,sourceDepartment),
+    db.prepare("INSERT INTO department_heads(department_id,company_id,person_id,version,updated_by,updated_at) VALUES(?,?,?,?,?,1)")
+      .bind(sourceDepartment,f.company,`person-${f.claimant.userId}`,1,f.owner.userId),
+  ]);
+  const input=organizationNodeChangeSchema.parse({action:"relocate",kind:"department",targetNodeId:sourceDepartment,displayName:"Vacant department",branchId:destinationBranch,expectedNodeVersion:1,expectedVersion:0,reason:"Move an explicitly vacant department"});
+  const preview=await previewOrganizationNodeChange(db,f.owner,input);
+  await db.prepare("UPDATE authority_seats SET version=version+1 WHERE company_id=? AND kind='head' AND scope_id=?").bind(f.company,sourceDepartment).run();
+  await expect(saveOrganizationNodeChange(db,f.owner,null,{...input,previewSnapshot:preview.previewSnapshot},key(),true))
+    .rejects.toMatchObject({code:"ORGANIZATION_RELOCATION_CHANGED"});
+  const fresh=await previewOrganizationNodeChange(db,f.owner,input);
+  const submitted=await saveOrganizationNodeChange(db,f.owner,null,{...input,previewSnapshot:fresh.previewSnapshot},key(),true);
+  const applied=await decideOrganizationNodeChange(db,reviewer,submitted.id,{expectedVersion:submitted.version,decision:"approve",reason:"Keep the head seat vacant"},key());
+  const moved=String(applied.nodeId);
+  expect(await db.prepare("SELECT version,person_id FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?").bind(f.company,moved).first())
+    .toEqual({version:1,person_id:null});
+  expect(await db.prepare("SELECT 1 FROM department_heads WHERE company_id=? AND department_id=?").bind(f.company,moved).first()).toBeNull();
+  expect(await db.prepare("SELECT person_id FROM authority_appointments WHERE company_id=? AND kind='head' AND scope_id=?").bind(f.company,moved).first())
+    .toEqual({person_id:null});
+});
 it("binds organization-change proof in the independent review transaction and leaves stale proof unbound",async()=>{
   const reviewer=await f.member("organization-proof-reviewer","hr_admin");
   const proposal=await saveOrganizationNodeChange(db,f.owner,null,organizationNodeChangeSchema.parse({action:"create",kind:"branch",slug:`proof-${key().slice(0,8)}`,displayName:"Evidence branch",expectedVersion:0,reason:"Create a branch with reviewed proof"}),key(),true);
@@ -182,6 +333,7 @@ it("paginates and searches organization requests without exposing company review
   for(const actor of [f.claimant,{...hr,assignmentScope:"branch" as const,branchId:f.branch},branchWorkspace]){
     const restricted=await organizationOverview(db,actor,{changeState:"all"});
     expect(restricted.canManageUnits).toBe(false);expect(restricted.nodeChanges).toEqual([]);expect(restricted.changeQueue.total).toBe(0);
+    if (actor === f.claimant) expect(restricted.people.every(person => person.email === null && person.start_date === "" && person.end_date === null)).toBe(true);
   }
   await expect(saveOrganizationNodeChange(db,branchWorkspace,null,organizationNodeChangeSchema.parse({action:"create",kind:"branch",slug:"wrong-context",displayName:"Wrong context",reason:"Company review from branch workspace",expectedVersion:0}),key(),true)).rejects.toMatchObject({code:"COMPANY_AUTHORITY_REQUIRED"});
   const otherCompany=await organizationOverview(db,{...hr,companyId:`${f.company}-other`},{changeState:"all"});

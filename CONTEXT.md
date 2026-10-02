@@ -16,6 +16,8 @@ Business language for ERPX, independent of implementation. Current delivery scop
 
 **Release Acceptance**: Independent, evidence-backed confirmation that the agreed delivery scope is ready for a named Company and software release with its reviewed configuration. Material changes require a new review.
 
+**Flow Accepted**: A capability-register evidence label that an end-to-end workflow passed in the system. It records software evidence only; it does not mean a hotel reviewer accepted the business process or that the Company release is approved.
+
 **Readiness Checkpoint**: A dated review of completed evidence, remaining work and external blockers. It is not a commitment to open the system on that date.
 
 **Thai Hotel Pilot**: The first operational release for one Thai hotel with its restaurant, purchasing, HR, Thai employee payroll and human-confirmed AI assistance. Contractors remain payable through Finance, separately from employee payroll.
@@ -135,9 +137,10 @@ Business language for ERPX, independent of implementation. Current delivery scop
 - **Staff Level** — A Company-wide classification of seniority with a code, name, and level number; smaller numbers mean greater seniority, starting with Level 1 for CEO. An Engagement has one current level and retains its level-change history; a level alone grants no application permissions or approval authority.
 - **Position** — A Company-defined job in an organizational unit, with a title, default Staff Level, expected reporting Position, and whether its occupants require a weekly Roster. It exists independently of its occupants and may be vacant or shared by multiple staff.
 - **Roster-required Position** — A Position whose active occupants must receive at least one assignment in each working week, except when approved leave covers every working day. This obligation is separate from Business Role and pay type.
-- **GPO Rule** — An IT-owned association of a Directory Group Policy and its targets with a Company-wide Staff Level, Department, or Position. Level rules follow the Position's default level; Department rules follow the Position's placement.
-- **Effective Position GPOs** — The combined Directory policies inherited from a Position's Level and Department and assigned directly to that Position. Every contributing rule remains attributable, even when several sources require the same policy.
-- **Position GPO Mapping** — A GPO Rule assigned directly to a Position, independently of its inherited rules. It governs Directory policy work for active occupants independently of HR placement and ERPX Business Roles.
+- **GPO Rule** — An IT-owned association of an existing Directory Group Policy, a user filter group, and a computer OU directly with one Position.
+- **Effective Position GPOs** — The Directory policies assigned directly to a Position. Multiple mappings may apply, each with its own configuration and delivery history.
+- **Position GPO Mapping** — A GPO Rule assigned directly to a Position. It governs Directory policy work for active occupants independently of HR placement and ERPX Business Roles.
+- **Position GPO Task** — IT handoff created for each active Position. Pending until mapped configurations are verified, blocked on configuration failure, completed after Directory read-back, or closed as GPO not required with a reason. Employee delivery and Windows endpoint application have separate status.
 - **Position Move** — A scheduled, reviewed change that moves a Position and all its current occupants together. A Department move preserves individual Staff Levels; a Position Level change changes all occupants' Staff Levels with their histories.
 - **Position Pay Default** — A versioned monthly pay recommendation for a Position and pay group. It is distinct from an Engagement's Compensation Revision and never determines Payroll by itself.
 - **Reporting Manager** — The named, more senior person to whom a staff member directly reports within the same Company. This relationship identifies the person's actual manager, separately from a Position's expected reporting relationship.
@@ -176,8 +179,18 @@ Business language for ERPX, independent of implementation. Current delivery scop
 
 ## Finance
 
+- **Transaction Currency** — The currency in which a sale, purchase, payment, salary obligation, or other business amount is actually agreed and recorded. It stays with the record after the display preference or exchange rate changes.
+- **Functional Currency** — The currency of an accounting chart and its posted balances. An existing chart keeps its functional currency when a Company adopts USD as its default for new transactions and display.
+- **Display Currency** — A user-selected, Company-scoped view of an amount. Its converted value is informational and does not replace a transaction amount or posted balance.
+- **Manual Exchange Rate** — A Company-confirmed, dated revision quoting units of one currency for exactly one USD. A later revision never overwrites a confirmed rate or a transaction snapshot.
+- **Money Snapshot** — The transaction's original integer minor units, currency and precision, with the chosen rate revision and USD equivalent captured at confirmation or posting.
 - **Finance Workbench** — A role-aware list of accounting work that needs attention, ordered by business consequence and due date. It is distinct from a dashboard of record counts.
 - **Accounting Period** — A Company-owned date interval that gates posting and close. A Group Reporting Period references Company periods without changing them.
+- **Accounting Profile** — A Company's independently reviewed accounting standard, eligibility, fiscal year and accounting policies, effective from a stated date.
+- **Statutory Ledger** — The explicitly designated Company book used for statutory accounting and reporting. Other Company books remain separate even when they use the same currency.
+- **Financial Event** — The retained dated evidence of a recognized accounting transaction or its linked correction. A later settlement or reversal does not replace the original event.
+- **Tax Entry** — A reviewed tax fact linked to an originating document and Financial Event, with its own tax point and claim period. Its tax amount is distinct from cash paid and the document's accounting date.
+- **VAT Correction** — An independently reviewed set of replacement Tax Entries linked to their retained predecessors. Correcting an original document carries its reviewed return references and deduction policy forward together; a filed Statutory Package keeps its original snapshot.
 - **Close Checklist** — The attributable set of reconciliations, evidence, owners, and blockers required before an Accounting Period may close.
 - **Group Reporting Period** — A Holding reporting boundary that snapshots approved Company balances, ownership, policies, exchange rates, and consolidation adjustments for one reproducible consolidation run.
 - **Consolidation Run** — One versioned calculation of Group financial statements for a Group Reporting Period and presentation currency. It never edits Company ledgers.

@@ -10,3 +10,6 @@
 @media(max-width:750px) {
  .console :global(.business-form),.console fieldset :global(.business-form) { grid-template-columns:1fr; }
 }
+
+.console fieldset :global(.business-form)[hidden] { display:none; }
+.console fieldset legend label { min-height:44px; }

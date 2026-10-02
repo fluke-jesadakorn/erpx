@@ -1,0 +1,436 @@
+{
+  "date": "2026-09-30",
+  "scope": "isolated PostgreSQL task-source fixture, not HTTP or browser",
+  "toolchain": {
+    "bun": "1.2.17",
+    "node": "24.20.0"
+  },
+  "fixture": {
+    "taskCount": 12,
+    "taskState": "completed",
+    "attachmentsPerTask": 1,
+    "expiredDelegationHistoryPerTask": 1
+  },
+  "semantics": "Every optimized WorkItem result equals the original authorized listTasks plus taskDetail projection. Global Work source aggregation is not included.",
+  "sqlCountDefinition": "PostgreSQL driver dispatches in the awaited read scope; not total statements inside a multi-statement dispatch.",
+  "originalSourceBeforeEdit": {
+    "rawFile": ".scratch/dev/work-task-read-baseline.json",
+    "summary": {
+      "warmRounds": 20,
+      "queryCounts": [
+        61
+      ],
+      "medianMs": 19.5436044999999,
+      "p95Ms": 21.437041000000136,
+      "minimumMs": 18.936541999999918,
+      "maximumMs": 21.44204200000013,
+      "failedRounds": 0
+    },
+    "measurement": {
+      "event": "work_task_read_benchmark",
+      "fixtureItems": 12,
+      "reference": {
+        "queries": 61,
+        "queryMs": 22.208083999999417,
+        "poolWaitMs": 0.30907799999886265,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "durationMs": 24.46870799999988,
+        "failed": false
+      },
+      "observations": [
+        {
+          "queries": 61,
+          "queryMs": 19.54750200000035,
+          "poolWaitMs": 0.262337999999545,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 21.248791999999867,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 19.891043999999056,
+          "poolWaitMs": 0.29474699999946097,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 21.437041000000136,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 18.309287000000495,
+          "poolWaitMs": 0.2355449999990924,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 19.71083299999964,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 17.960040999999364,
+          "poolWaitMs": 0.18904199999951743,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 19.255291999999827,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 18.335080999998354,
+          "poolWaitMs": 0.2098739999969439,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 19.663125000000036,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 20.100582000000486,
+          "poolWaitMs": 0.2113700000013523,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 21.44204200000013,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 18.310209999999643,
+          "poolWaitMs": 0.2367509999971844,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 19.666917000000012,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 18.54770999999937,
+          "poolWaitMs": 0.1613790000001245,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 19.783665999999812,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 18.075420000001486,
+          "poolWaitMs": 0.13317000000188273,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 19.245625000000018,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 17.993876999999884,
+          "poolWaitMs": 0.12488200000007055,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 19.18816700000025,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 18.242204999999103,
+          "poolWaitMs": 0.12583599999834405,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 19.424083999999766,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 17.919917000000623,
+          "poolWaitMs": 0.1195409999986623,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 19.145665999999892,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 17.98583100000178,
+          "poolWaitMs": 0.1220830000006572,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 19.22458299999971,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 17.93258600000081,
+          "poolWaitMs": 0.1234929999977794,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 19.246874999999818,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 18.51195700000062,
+          "poolWaitMs": 0.1382499999999709,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 19.71741699999984,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 18.91541499999812,
+          "poolWaitMs": 0.136873999997988,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 20.13962500000025,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 18.621040000003177,
+          "poolWaitMs": 0.12554400000135502,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 19.79233299999987,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 18.063496000001578,
+          "poolWaitMs": 0.12208000000055108,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 19.206541000000016,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 17.801415999998426,
+          "poolWaitMs": 0.12145800000007512,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 18.936541999999918,
+          "failed": false
+        },
+        {
+          "queries": 61,
+          "queryMs": 17.795373999996627,
+          "poolWaitMs": 0.12433499999724518,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 18.939499999999953,
+          "failed": false
+        }
+      ]
+    }
+  },
+  "optimizedSource": {
+    "rawFile": ".scratch/dev/work-task-read-optimized.json",
+    "summary": {
+      "warmRounds": 20,
+      "queryCounts": [
+        25
+      ],
+      "medianMs": 6.112812499999791,
+      "p95Ms": 6.649125000000367,
+      "minimumMs": 4.988875000000007,
+      "maximumMs": 6.821249999999964,
+      "failedRounds": 0
+    },
+    "measurement": {
+      "event": "work_task_read_benchmark",
+      "fixtureItems": 12,
+      "reference": {
+        "queries": 61,
+        "queryMs": 24.95833999999877,
+        "poolWaitMs": 0.3459149999998772,
+        "queryErrors": 0,
+        "poolErrors": 0,
+        "durationMs": 27.695500000000266,
+        "failed": false
+      },
+      "observations": [
+        {
+          "queries": 25,
+          "queryMs": 5.874456000000009,
+          "poolWaitMs": 0.10537100000010469,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 6.63433299999997,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.537790999999743,
+          "poolWaitMs": 0.08979199999976117,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 6.109791999999743,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.492585000000872,
+          "poolWaitMs": 0.0952450000013414,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 6.030499999999847,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.406585000000632,
+          "poolWaitMs": 0.09954299999935756,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 5.941541000000143,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.655418999999711,
+          "poolWaitMs": 0.09979000000021188,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 6.220792000000074,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.432622999999694,
+          "poolWaitMs": 0.10074899999972331,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 5.979874999999993,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.154669999999896,
+          "poolWaitMs": 0.06729200000154378,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 5.592208000000028,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.373665999999503,
+          "poolWaitMs": 0.07883399999991525,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 5.882166999999754,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.567875999999615,
+          "poolWaitMs": 0.08237199999985023,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 6.115832999999839,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.508166000000529,
+          "poolWaitMs": 0.08737200000041412,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 6.080124999999953,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.436584999999923,
+          "poolWaitMs": 0.08420500000102038,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 5.942375000000084,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.598876000000018,
+          "poolWaitMs": 0.08525200000167388,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 6.163583000000017,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.6597079999992275,
+          "poolWaitMs": 0.07704300000023068,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 6.18087499999956,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 6.258252999998149,
+          "poolWaitMs": 0.08712200000127268,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 6.821249999999964,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.858331999999791,
+          "poolWaitMs": 0.09166600000025937,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 6.47524999999996,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.933416999999281,
+          "poolWaitMs": 0.1409180000005108,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 6.649125000000367,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.085377000001245,
+          "poolWaitMs": 0.06804100000135804,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 5.564499999999953,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.508001000001059,
+          "poolWaitMs": 0.0971649999987676,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 6.140207999999802,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 5.6028339999998025,
+          "poolWaitMs": 0.08741600000075778,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 6.148584000000028,
+          "failed": false
+        },
+        {
+          "queries": 25,
+          "queryMs": 4.522126000001208,
+          "poolWaitMs": 0.05862599999909435,
+          "queryErrors": 0,
+          "poolErrors": 0,
+          "durationMs": 4.988875000000007,
+          "failed": false
+        }
+      ]
+    }
+  },
+  "queryReductionPercent": 59.01639344262295,
+  "reproduceCurrent": "ERPX_WORK_READ_BENCHMARK=1 ERPX_WORK_READ_VARIANT=current bun run test -- tests/work-read-model.test.ts --reporter=verbose"
+}

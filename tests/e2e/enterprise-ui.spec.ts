@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { selectRoleForSetup } from "../helpers/context-switching-browser";
 test.use({ actionTimeout: 15000 });
 async function login(page: Page) {
   await page.goto("/login");
@@ -13,19 +14,10 @@ async function login(page: Page) {
   );
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   expect((await signIn).ok()).toBe(true);
+  await selectRoleForSetup(page.context(), "holding_owner");
   await page.goto("/holdings/acme/home");
   await expect(page).toHaveURL(/\/holdings\/acme\/home$/);
-  if (!(await page.getByText(/Working as holding owner/i).count())) {
-    await page.getByRole("button", { name: /Account menu for/ }).click();
-    const role = page.getByRole("combobox", {
-      name: "Role for actions & approvals",
-    });
-    await role.fill("holding owner");
-    await Promise.all([
-      page.waitForEvent("framenavigated", { predicate: (frame) => frame === page.mainFrame() }),
-      page.getByRole("listbox").getByRole("option").click(),
-    ]);
-  }
+  await expect(page.getByRole("button", { name: "Search workspace", exact: true })).toBeEnabled();
 }
 test("canonical workspace routes and legacy aliases retain their scope", async ({
   page,
@@ -79,32 +71,55 @@ test("development module and generic record UI routes are unavailable without re
 test("desktop and mobile navigation place live business destinations correctly", async ({
   page,
 }, info) => {
+  test.setTimeout(180_000);
+  const browserErrors: string[] = [];
+  page.on("pageerror", error => browserErrors.push(error.message));
+  const recordConsoleError = (message: import("@playwright/test").ConsoleMessage) => {
+    if (message.type() === "error") browserErrors.push(message.text());
+  };
   if (info.project.name === "desktop")
-    await page.setViewportSize({ width: 1440, height: 650 });
+    await page.setViewportSize({ width: 1280, height: 900 });
   await login(page);
+  page.on("console", recordConsoleError);
   const nav = page
     .getByRole("navigation", { name: /^(Primary|Mobile navigation)$/ })
     .filter({ visible: true });
-  for (const destination of ["Home", "Work", "Inbox", "Calendar"])
+  for (const destination of ["Today", "Calendar", "Messages"])
     await expect(
       nav.getByRole("link", { name: new RegExp(`^${destination}(?:\\s|$)`) }),
     ).toBeVisible();
   const moreButton = nav.getByRole("button", { name: "App launcher" });
+  await expect(nav.getByRole("button", { name: "Start", exact: true })).toBeVisible();
   if (info.project.name === "desktop") {
     await page.goto("/holdings/acme/people");
+    await expect(page.getByRole("button", { name: "Search workspace", exact: true })).toBeEnabled();
     await expect(nav.getByRole("button", { name: "Collapse People & organization" })).toHaveAttribute("aria-expanded", "true");
     await expect(nav.getByRole("link", { name: "People", exact: true })).toBeVisible();
-    await nav.getByRole("button", { name: "Expand Operations" }).click();
-    await expect(nav.getByRole("button", { name: "Collapse Operations" })).toHaveAttribute("aria-expanded", "true");
+    await nav.getByRole("button", { name: "Expand Projects & Routines" }).click();
+    await expect(nav.getByRole("button", { name: "Collapse Projects & Routines" })).toHaveAttribute("aria-expanded", "true");
     await expect(nav.getByRole("button", { name: "Expand People & organization" })).toHaveAttribute("aria-expanded", "false");
     await expect(nav.getByRole("link", { name: "All projects", exact: true })).toBeVisible();
     await nav.getByRole("button", { name: "Expand Procurement" }).click();
     await expect(nav.getByRole("link", { name: "Suppliers", exact: true })).toBeVisible();
     await page.reload();
+    await expect(page.getByRole("button", { name: "Search workspace", exact: true })).toBeEnabled();
     await expect(nav.getByRole("button", { name: "Collapse People & organization" })).toHaveAttribute("aria-expanded", "true");
     await nav.getByRole("button", { name: "Collapse sidebar" }).click();
     await expect(nav).toHaveAttribute("data-rail", "true");
+    await page.screenshot({ path: ".scratch/dev/people-navigation-rail-900-final.png" });
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await expect(nav.getByRole("button", { name: "App launcher", exact: true })).toBeInViewport();
+    await expect(nav.getByRole("button", { name: "Expand sidebar", exact: true })).toBeInViewport();
+    await nav.getByRole("button", { name: "Expand System", exact: true }).click();
+    const systemFlyout = nav.getByRole("group", { name: "System", exact: true });
+    await expect(systemFlyout).toBeVisible();
+    const flyoutBounds = (await systemFlyout.boundingBox())!;
+    expect(flyoutBounds.y).toBeGreaterThanOrEqual(0);
+    expect(flyoutBounds.y + flyoutBounds.height).toBeLessThanOrEqual(600);
+    await page.screenshot({ path: ".scratch/dev/people-navigation-rail-600-final.png" });
+    await page.keyboard.press("Escape");
     await page.reload();
+    await expect(page.getByRole("button", { name: "Search workspace", exact: true })).toBeEnabled();
     await expect(nav).toHaveAttribute("data-rail", "true");
     await expect(nav.getByRole("group", { name: "People & organization" })).toBeVisible();
     await page.keyboard.press("Escape");
@@ -112,20 +127,21 @@ test("desktop and mobile navigation place live business destinations correctly",
     await expect(peopleRailTrigger).toBeFocused();
     await peopleRailTrigger.click();
     await nav.getByRole("button", { name: "Expand sidebar" }).click();
+    await page.setViewportSize({ width: 1280, height: 900 });
   }
   await moreButton.click();
   const more = page.getByRole("dialog", { name: "App launcher", exact: true });
   await expect(more).toBeVisible();
-  for (const heading of ["People & organization", "CRM", "Sales", "Procurement", "Inventory", "Operations", "Finance", "Management", "System"])
+  for (const heading of ["People & organization", "CRM", "Sales", "Procurement", "Inventory", "Projects & Routines", "Finance", "Management", "System"])
     await expect(more.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   await expect(more.getByRole("link", { name: "People", exact: true })).toBeVisible();
   await expect(more.getByRole("link", { name: "People directory", exact: true })).toHaveCount(0);
   await expect(more.getByRole("button", { name: /^(?:Pin|Unpin)/ })).toHaveCount(0);
   const launcherSearch = more.getByRole("searchbox", { name: "Search apps and pages" });
   for (const [query, name, href] of [
-    ["roster", /Roster.*People/, /\/people\/roster$/],
+    ["roster", /People.*People/, /\/people$/],
     ["suppliers", /Suppliers.*Procurement/, /\/commerce\?view=parties&kind=supplier$/],
-    ["bank reconciliation", /Bank reconciliation.*Finance/, /\/finance\/bank$/],
+    ["bank reconciliation", /Cash & banking.*Finance/, /\/finance\/bank$/],
     ["contracts", /Legal.*Management/, /\/legal$/],
     ["gpo", /Organization & Access.*Technology/, /\/technology\?view=organization$/],
   ] as const) {
@@ -155,9 +171,10 @@ test("desktop and mobile navigation place live business destinations correctly",
     ).toBeVisible();
     if (viewport.width <= 650) {
       const mobile = page.getByRole("navigation", { name: "Mobile navigation" }).filter({ visible: true });
-      await expect(mobile.getByRole("link")).toHaveCount(4);
+      await expect(mobile.getByRole("link")).toHaveCount(3);
       await expect(mobile.getByRole("button", { name: "App launcher" })).toBeVisible();
-      for (const destination of ["Home", "Work", "Inbox", "Calendar"])
+      await expect(mobile.getByRole("button", { name: "Start work" })).toBeVisible();
+      for (const destination of ["Today", "Calendar", "Messages"])
         await expect(mobile.getByRole("link", { name: new RegExp(`^${destination}(?:\\s|$)`) })).toBeVisible();
     }
   }
@@ -180,12 +197,17 @@ test("desktop and mobile navigation place live business destinations correctly",
     await page.setViewportSize(viewport);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   }
+  // Inspect authenticated navigation and structure, before opening the Inbox's
+  // quarantined attachment fixtures (whose content requests deliberately return 423).
+  expect(browserErrors).toEqual([]);
+  page.off("console", recordConsoleError);
   await page
     .getByRole("navigation", { name: /^(Primary|Mobile navigation)$/ })
     .filter({ visible: true })
-    .getByRole("link", { name: "Inbox", exact: true })
+    .getByRole("link", { name: "Messages", exact: true })
     .click();
   await expect(page.getByRole("heading", { name: "Your inbox" })).toBeVisible();
+  expect(browserErrors).toEqual([]);
 });
 test("POS opens directly from the sidebar, rail, and app launcher", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "The rail is available on desktop only.");
@@ -229,39 +251,36 @@ test("POS opens directly from the sidebar, rail, and app launcher", async ({ pag
   await expect(page.getByRole("heading", { name: "Point of sale" })).toBeVisible();
 });
 test("breadcrumb returns to live business parents", async ({ page }, info) => {
+  test.setTimeout(180_000);
   test.skip(
     info.project.name !== "desktop",
     "Mobile uses the compact workspace menu.",
   );
   await login(page);
   await page.goto("/holdings/acme/people/organization");
+  await expect(page).toHaveURL(/\/people(?:\?|$)/);
   const crumb = page.getByRole("navigation", { name: "Breadcrumb" });
   await expect(crumb).toContainText("People");
-  await expect(crumb).toContainText("Organization");
+  await expect(crumb).not.toContainText("Organization");
 });
-test("a person row opens the editable drawer without a second edit click", async ({
+test("a person row opens profile and employment in one detail panel", async ({
   page,
 }, info) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: info.project.name === "desktop" ? 1440 : 390, height: 900 });
   await login(page);
   await page.goto("/holdings/acme/people");
-  const featureTabs = page.locator("main [data-feature-tabs]");
-  await expect(featureTabs.getByRole("button", { name: "People tools" })).toBeVisible();
-  expect(await featureTabs.getByRole("link").count()).toBeLessThanOrEqual(4);
-  await expect(featureTabs.getByRole("link", { name: "Company handbook" })).toHaveCount(0);
-  await expect(page.locator('main [data-feature-widget]:visible')).toHaveCount(1);
-  expect((await page.getByRole("link", { name: "Add person" }).boundingBox())!.width).toBeLessThan(200);
-  if (info.project.name === "desktop")
-    expect((await page.getByRole("combobox", { name: "Retirement status" }).boundingBox())!.width).toBeLessThanOrEqual(240);
+  await expect(page.getByRole("tablist")).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-  await page
-    .locator('[data-feature-widget="current-profiles"]')
-    .getByRole("button", { name: /Ada Bennett/ })
-    .click();
-  const drawer = page.getByRole("dialog", { name: "Edit Ada Bennett" });
+  await page.getByRole("searchbox", { name: "Search people, positions, and units" }).fill("Ada Bennett");
+  await page.locator('[data-testid^="people-person-"]').filter({ hasText: "Ada Bennett" }).getByRole("button").first().click();
+  const drawer = page.getByTestId("people-detail");
   await expect(drawer).toBeVisible({ timeout: 30000 });
-  await expect(drawer.getByRole("textbox", { name: "Legal name" })).toBeVisible({ timeout: 30000 });
-  await expect(drawer.getByRole("button", { name: "Edit employee" })).toHaveCount(0);
-  await drawer.getByRole("button", { name: "Back to people" }).click();
+  await expect(drawer.getByRole("heading", { name: "Ada Bennett", exact: true })).toBeVisible();
+  await expect(drawer.getByText("Work email", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await drawer.locator("summary").filter({ hasText: /^Employment/ }).click();
+  await expect(drawer.getByText("Employment type", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await drawer.getByRole("button", { name: "Close details", exact: true }).click();
   await expect(drawer).toBeHidden();
   await expect(page).not.toHaveURL(/[?&]person=/);
 });

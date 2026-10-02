@@ -22,7 +22,8 @@ export type FrontLocation = { key: string; label: string; path: string };
  */
 const frontPosOperations = new Set([
   "sale.create", "sale.add", "sale.remove", "sale.hold", "sale.resume",
-  "sale.cancel", "sale.complete", "payment.create", "payment.retry",
+  "sale.update_line", "sale.discount", "sale.customer", "sale.move_table", "sale.split", "sale.merge", "customer.create",
+  "sale.cancel", "sale.complete", "sale.charge_to_room", "payment.create", "payment.retry",
   "payment.cancel", "payment.cancel_transfer", "refund.request",
   "kitchen.send", "kitchen.start", "kitchen.ready", "kitchen.deliver",
   "kitchen.cancel", "shift.open", "shift.close", "cash.create",
@@ -34,7 +35,7 @@ const frontPmsOperations = new Set([
   "stay.route_folio", "stay.check_in", "stay.preview_checkout",
   "stay.check_out", "stay.change_dates", "charge.add", "payment.receive",
   "payment.deposit", "payment.apply_deposit", "payment.request_transfer",
-  "payment.cancel_transfer", "refund.request", "folio.close", "shift.open",
+  "payment.cancel_transfer", "refund.request", "refund.pay", "charge.correction.request", "folio.close", "shift.open",
   "cash.move", "shift.close", "task.create", "task.assign", "task.start",
   "task.complete", "task.inspect", "room.dnd", "room.observe",
   "maintenance.open", "maintenance.close",

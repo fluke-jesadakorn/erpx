@@ -2,9 +2,40 @@
 import { useState } from "react";
 import Link from "next/link";
 import { hashtags, type Mention } from "@/lib/social-text";
+import { safeRichUrl, type RichNode } from "@/lib/home-rich-content";
+import { createElement, type ReactNode } from "react";
 import styles from "./social-text.module.css";
-export function SocialTextBody({body,mentions=[],base}:{body:string;mentions?:Mention[];base:string}) {
+export function SocialTextBody({body,mentions=[],base,doc}:{body:string;mentions?:Mention[];base:string;doc?:RichNode|null}) {
   const [person,setPerson]=useState<Mention|null>(null);
+  const [expanded,setExpanded]=useState(false);
+  const render=(node:RichNode,key:number):ReactNode=>{
+    if(node.type==="text") {
+      let result:ReactNode=node.text??"";
+      for(const mark of node.marks??[]) {
+        const attrs=mark.attrs??{};
+        if(mark.type==="bold") result=<strong>{result}</strong>;
+        else if(mark.type==="italic")result=<em>{result}</em>;
+        else if(mark.type==="underline")result=<u>{result}</u>;
+        else if(mark.type==="strike")result=<s>{result}</s>;
+        else if(mark.type==="code")result=<code>{result}</code>;
+        else if(mark.type==="link") {const href=safeRichUrl(attrs.href);if(href)result=<a href={href} target="_blank" rel="noopener noreferrer">{result}</a>;}
+        else if(mark.type==="textStyle")result=<span style={{fontFamily:typeof attrs.fontFamily==="string"?attrs.fontFamily:undefined,fontSize:typeof attrs.fontSize==="string"?attrs.fontSize:undefined,color:typeof attrs.color==="string"?attrs.color:undefined,backgroundColor:typeof attrs.backgroundColor==="string"?attrs.backgroundColor:undefined,lineHeight:typeof attrs.lineHeight==="string"?attrs.lineHeight:undefined}}>{result}</span>;
+        else if(mark.type==="highlight")result=<mark style={{backgroundColor:typeof attrs.color==="string"?attrs.color:undefined}}>{result}</mark>;
+        else if(mark.type==="mention")result=<button type="button" className={styles.token} onClick={()=>setPerson({kind:attrs.kind as Mention["kind"],targetId:String(attrs.targetId),label:String(attrs.label),start:0,end:0})}>{result}</button>;
+      }
+      return <span key={key}>{result}</span>;
+    }
+    if(node.type==="hardBreak")return <br key={key}/>;
+    if(node.type==="horizontalRule")return <hr key={key}/>;
+    const tags:Record<string,string>={doc:"div",paragraph:"p",heading:`h${[1,2,3].includes(Number(node.attrs?.level))?node.attrs?.level:2}`,blockquote:"blockquote",bulletList:"ul",orderedList:"ol",listItem:"li",table:"table",tableRow:"tr",tableCell:"td",tableHeader:"th"};
+    const tag=tags[node.type]??"span";
+    const children=(node.content??[]).map(render);
+    const align=["left","right","center","justify"].includes(String(node.attrs?.textAlign))?String(node.attrs?.textAlign) as "left"|"right"|"center"|"justify":undefined;
+    const cellAlign=["left","right","center"].includes(String(node.attrs?.align))?String(node.attrs?.align) as "left"|"right"|"center":undefined;
+    const colwidth=Array.isArray(node.attrs?.colwidth)?node.attrs.colwidth[0]:undefined;
+    const cellWidth=typeof colwidth==="number"&&colwidth>=40&&colwidth<=1200?`${colwidth}px`:undefined;
+    return createElement(tag,{key,style:{textAlign:align??cellAlign,width:["td","th"].includes(tag)?cellWidth:undefined},colSpan:["td","th"].includes(tag)?Number(node.attrs?.colspan)||undefined:undefined,rowSpan:["td","th"].includes(tag)?Number(node.attrs?.rowspan)||undefined:undefined},children);
+  };
   const spans=[...mentions.map(m=>({...m,type:"mention" as const})),...hashtags(body).filter(t=>!mentions.some(m=>t.start<m.end&&t.end>m.start)).map(t=>({...t,type:"tag" as const}))].sort((a,b)=>a.start-b.start);
   const parts=[];let end=0;
   for(const span of spans){
@@ -17,5 +48,5 @@ export function SocialTextBody({body,mentions=[],base}:{body:string;mentions?:Me
     end=span.end;
   }
   parts.push(body.slice(end));
-  return <><p className={styles.body}>{parts}</p>{person&&<div className={styles.identity} role="dialog" aria-label="Mention details"><strong>{person.label}</strong><p>{person.kind==="agent"?"ERPX assistant · AI replies using the conversation and your company’s configured provider.":`Person · ${person.targetId}`}</p><button type="button" onClick={()=>setPerson(null)}>Close</button></div>}</>;
+  return <><div className={`${styles.body} ${doc?styles.richBody:""} ${!expanded&&body.length>700?styles.collapsed:""}`}>{doc?render(doc,0):<p>{parts}</p>}</div>{body.length>700&&<button type="button" onClick={()=>setExpanded(!expanded)}>{expanded?"Show less":"อ่านเพิ่มเติม"}</button>}{person&&<div className={styles.identity} role="dialog" aria-label="Mention details"><strong>{person.label}</strong><p>{person.kind==="agent"?"AI replies using the conversation and your company’s configured provider.":`Person · ${person.targetId}`}</p><button type="button" onClick={()=>setPerson(null)}>Close</button></div>}</>;
 }

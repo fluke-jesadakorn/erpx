@@ -57,7 +57,17 @@ function stableId(prefix: string, actor: WorkContext, key: string) {
 
 function safeJson(value: unknown) { return JSON.stringify(value).replaceAll("<", "\\u003c"); }
 
-type AttachmentServiceOptions={compatibilityAdapter?:boolean};
+function safeUploadErrorCode(error: unknown) {
+  const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+  return typeof code === "string" && /^[A-Za-z0-9_]{1,80}$/.test(code) ? code : undefined;
+}
+
+type AttachmentServiceOptions={compatibilityAdapter?:boolean;requestId?:string};
+function logUploadOperationFailure(options:AttachmentServiceOptions,operation:string,error:unknown){
+  if(!options.requestId || error instanceof ApiError && error.status<500)return;
+  const errorName=error instanceof Error&&/^[A-Za-z0-9_]{1,80}$/.test(error.name)?error.name:typeof error;
+  console.error(JSON.stringify({event:"attachment_upload_operation_failed",requestId:options.requestId,operation,errorName,errorCode:safeUploadErrorCode(error)}));
+}
 function attachmentServiceEnvironment(options:AttachmentServiceOptions={}){
   return options.compatibilityAdapter&&!attachmentsV2Enabled()?{...process.env,ERPX_ATTACHMENTS_V2:"true"}:process.env;
 }
@@ -324,8 +334,11 @@ export async function reserveAttachmentFile(db: SqlDatabase, actor: WorkContext,
 export async function completeAttachmentUpload(db: SqlDatabase, files: FileStore, actor: WorkContext, uploadIntentId: string, buffer: ArrayBuffer, options:AttachmentServiceOptions={}) {
   requireAttachmentWrite(options); await requireScannerReady(attachmentServiceEnvironment(options));
   if(attachmentUploadsFrozen())throw new ApiError(503,"ATTACHMENT_UPLOAD_FREEZE","File intake is briefly paused for storage reconciliation.");
-  const intent=await db.prepare(`SELECT * FROM upload_intents WHERE id=? AND attachment_set_id IS NOT NULL AND created_by=? AND company_id=?
-    AND (status IN ('uploaded','ready') OR (status='pending' AND expires_at>?))`).bind(uploadIntentId,actor.userId,actor.companyId,Date.now()).first<Record<string,unknown>>();
+  let intent:Record<string,unknown>|null;
+  try {
+    intent=await db.prepare(`SELECT * FROM upload_intents WHERE id=? AND attachment_set_id IS NOT NULL AND created_by=? AND company_id=?
+      AND (status IN ('uploaded','ready') OR (status='pending' AND expires_at>?))`).bind(uploadIntentId,actor.userId,actor.companyId,Date.now()).first<Record<string,unknown>>();
+  } catch(error) { logUploadOperationFailure(options,"load_intent",error); throw error; }
   if(!intent)throw new ApiError(404,"UPLOAD_NOT_FOUND","Upload intent not found or expired.");
   const declared=Number(intent.declared_bytes);
   if(buffer.byteLength<1||buffer.byteLength!==declared||buffer.byteLength>10*1024*1024)throw new ApiError(422,"UPLOAD_SIZE","The uploaded bytes must exactly match the reserved size.");
@@ -337,10 +350,21 @@ export async function completeAttachmentUpload(db: SqlDatabase, files: FileStore
     if(!existing||existing.checksum_sha256!==checksum)throw new ApiError(409,"UPLOAD_CONFLICT","This upload already contains different bytes.");
     return {uploadIntentId,attachmentLinkId:String(intent.attachment_link_id),sourceId:attachmentId,state:existing.source_state,status:"scan_pending" as const};
   }
-  const stored=intent.status==="pending"
-    ? await files.put(objectKey,buffer,{onlyIf:{etagDoesNotMatch:"*"},httpMetadata:{contentType:detected,cacheControl:"private, no-store"},customMetadata:{sha256:checksum,state:"quarantined"}})
-    : null;
-  if(intent.status==="pending"&&!stored){const prior=await files.head(objectKey);if(prior?.customMetadata.sha256!==checksum)throw new ApiError(409,"UPLOAD_CONFLICT","This upload key already contains different bytes.");}
+  let stored: Awaited<ReturnType<FileStore["put"]>> | null = null;
+  try {
+    stored=intent.status==="pending"
+      ? await files.put(objectKey,buffer,{onlyIf:{etagDoesNotMatch:"*"},httpMetadata:{contentType:detected,cacheControl:"private, no-store"},customMetadata:{sha256:checksum,state:"quarantined"}})
+      : null;
+  } catch (error) {
+    logUploadOperationFailure(options,"object_put",error);
+    throw error;
+  }
+  if(intent.status==="pending"&&!stored){
+    let prior;
+    try { prior=await files.head(objectKey); }
+    catch(error) { logUploadOperationFailure(options,"object_head",error); throw error; }
+    if(prior?.customMetadata.sha256!==checksum)throw new ApiError(409,"UPLOAD_CONFLICT","This upload key already contains different bytes.");
+  }
   try {
     return await atomic(db,async(tx)=>{
       await tx.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(`attachment-upload:${actor.companyId}:${uploadIntentId}`).run();
@@ -405,6 +429,7 @@ export async function completeAttachmentUpload(db: SqlDatabase, files: FileStore
       return {uploadIntentId,attachmentLinkId:String(current.attachment_link_id),sourceId:attachmentId,state:"quarantined" as const,status:"scan_pending" as const};
     });
   } catch(error) {
+    logUploadOperationFailure(options,"metadata_transaction",error);
     if(stored){
       // The object store write precedes the database transaction. Serialize
       // cleanup with every retry and delete only when no immutable source won

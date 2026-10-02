@@ -1,3 +1,4 @@
+import {aiRequestQuotaLock} from "./ai-quota";
 import "server-only";
 import { assistantPage, type AssistantSource } from "@/lib/ai/workspace-assistant";
 import {
@@ -145,7 +146,8 @@ export async function prepareGuidedIntake(
   const now = Date.now(), month = new Date(now).toISOString().slice(0,7);
   await executeCommand(db,actor,`${id}:reserve`,"assistant.intake.prepare",input,id,1,{id,state:"running"},[
     assertion(db,id,"assistant-rate","(SELECT count(*) FROM ai_workspace_turns WHERE company_id=? AND created_at>?)<20",[actor.companyId,now-60000]),
-    assertion(db,id,"assistant-quota","(SELECT count(*) FROM (SELECT company_id,created_at FROM ai_workspace_turns UNION ALL SELECT company_id,created_at FROM executive_generation_jobs) ai_calls WHERE company_id=? AND created_at>=?)+(SELECT count(*) FROM social_ai_usage WHERE company_id=? AND month=?)+(SELECT count(*) FROM expense_ai_usage WHERE company_id=? AND month=?)+(SELECT count(*) FROM request_ai_usage WHERE company_id=? AND month=?)<COALESCE((SELECT ai_monthly_limit FROM beta_policy WHERE company_id=?),100)",[actor.companyId,Date.UTC(new Date(now).getUTCFullYear(),new Date(now).getUTCMonth(),1),actor.companyId,month,actor.companyId,month,actor.companyId,month,actor.companyId]),
+    aiRequestQuotaLock(db,actor.companyId),
+    assertion(db,id,"assistant-quota","(SELECT count(*) FROM (SELECT company_id,created_at FROM ai_workspace_turns UNION ALL SELECT company_id,created_at FROM executive_generation_jobs UNION ALL SELECT company_id,created_at FROM finance_ai_usage) ai_calls WHERE company_id=? AND created_at>=?)+(SELECT count(*) FROM social_ai_usage WHERE company_id=? AND month=?)+(SELECT count(*) FROM expense_ai_usage WHERE company_id=? AND month=?)+(SELECT count(*) FROM request_ai_usage WHERE company_id=? AND month=?)<COALESCE((SELECT ai_monthly_limit FROM beta_policy WHERE company_id=?),100)",[actor.companyId,Date.UTC(new Date(now).getUTCFullYear(),new Date(now).getUTCMonth(),1),actor.companyId,month,actor.companyId,month,actor.companyId,month,actor.companyId]),
     db.prepare("INSERT INTO ai_workspace_turns(id,company_id,user_id,assignment_id,scope_key,conversation_key,question,paths_json,state,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,'running',?,?)")
       .bind(id,actor.companyId,actor.userId,actor.assignmentId,scopeKey(actor),`intake:${context.path}`,input.message,JSON.stringify([context.path]),now,now),
     db.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(id),

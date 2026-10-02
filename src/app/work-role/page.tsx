@@ -60,7 +60,7 @@ export default async function WorkRolePage({searchParams}:PageProps<'/work-role'
    </aside>
    <div id="work-role-content" tabIndex={-1} className={rail.content}>
    <section style={{display:"grid",gap:16,maxWidth:520}}>
-    <div id="role-picker"><WorkRolePicker base={workspaceBase(parsed.scope)} options={options} revision={selection?.revision??0} /></div>
+    <div id="role-picker"><WorkRolePicker base={workspaceBase(parsed.scope)} options={options} revision={selection?.revision??0} from={from} companyId={access.scope.companyId} activeAssignmentId={selected?.id} /></div>
     <div id="available-workspaces"><WorkspaceMenu label={access.scope.holdingSlug} choices={choices} current={current} canManageErpx={canManageErpx} /></div>
    </section>
    </div>

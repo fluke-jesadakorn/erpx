@@ -15,6 +15,7 @@ import { RequestAdministration } from "@/components/workplace/request-administra
 import { ServiceTeams } from "@/components/workplace/service-teams";
 import { adminSections, type AdminSection } from "@/lib/administration";
 import { workspaceBase } from "@/lib/workspace";
+import { peopleContextHref } from "@/lib/people-route-context";
 import { hasPermission } from "@/lib/permissions";
 import { administrationAccess } from "@/server/administration";
 import { aiProviderOverview } from "@/server/ai-providers";
@@ -43,8 +44,8 @@ export default async function Settings({
       ? access.sections[0]
       : "feedback")) as AdminSection;
   if (!actor.beta && section === "organization")
-    redirect(`${base}/people/organization`);
-  if (!actor.beta && section === "people") redirect(`${base}/people/settings`);
+    redirect(`${base}/people?company=${encodeURIComponent(actor.companyId)}&tab=settings`);
+  if (!actor.beta && section === "people") redirect(peopleContextHref(base, query, { panel: "settings", section: null }));
   // Preserve the legacy staff-settings read-only organization view.
   const readOnlyOrganization =
     !actor.beta && section === "organization" && !access.manageOrganization;
@@ -230,7 +231,7 @@ export default async function Settings({
                   Manage staff levels, reporting managers, vacancies, and
                   reusable organization templates.
                 </p>
-                <Link className="button" href={`${base}/people/organization`}>
+                <Link className="button" href={`${base}/people?company=${encodeURIComponent(actor.companyId)}&tab=settings`}>
                   Open organization
                 </Link>
               </section>

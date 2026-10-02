@@ -6,7 +6,7 @@ import {createCRMLead,changeCRMLead,getCRMLead} from '../src/server/crm';
 import {changeCRMIdentity} from '../src/server/crm-identities';
 import {createCustomerNote,changeCustomerNote} from '../src/server/customer-notes';
 import {createCustomerFollowup,changeCustomerFollowup} from '../src/server/customer-followups';
-import {customerDirectory,customerTimeline} from '../src/server/customer-timeline';
+import {customerDirectory,customerTimeline,customerTimelineEvents} from '../src/server/customer-timeline';
 vi.mock('../src/server/runtime',()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>,customer:string,order:string;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
@@ -80,4 +80,18 @@ it('federates scoped Field Service, Finance and Legal state with module and perm
  expect(commerceOnly.items.some(item=>item.source_type==='finance')).toBe(true);
  expect(commerceOnly.items.some(item=>item.source_type==='legal')).toBe(false);
  expect(commerceOnly.coverage).not.toContain('Field Service agreements and visits');
+});
+it('applies requester Legal visibility to the shared Customer 360 event projection',async()=>{
+ const requester=await f.member('customer-legal-requester','legal_requester');
+ const ownId=key(),otherId=key(),contractId=key();
+ for(const [id,kind,creator,classification] of [[ownId,'request',requester.userId,'confidential'],[otherId,'request',f.owner.userId,'internal'],[contractId,'contract',requester.userId,'internal']]){
+  await db.prepare("INSERT INTO legal_items(id,company_id,kind,title,classification,country,jurisdiction,language,currency,timezone,priority,owner_id,created_by,created_at,updated_at) VALUES(?,?,?,?,?,'TH','Thailand','th','THB','Asia/Bangkok','normal',?,?,?,?)").bind(id,f.company,kind,`Customer Legal ${id}`,classification,creator,creator,Date.now(),Date.now()).run();
+  await db.prepare('INSERT INTO legal_native_references(item_id,target_module,target_id,ordinal,created_by,created_at) VALUES(?,?,?,?,?,?)').bind(id,'commerce_order',order,0,creator,Date.now()).run();
+  await db.prepare("INSERT INTO legal_events(id,item_id,action,actor_id,note,version,created_at) VALUES(?,?,'created',?,'Fixture event',1,?)").bind(key(),id,creator,Date.now()).run();
+ }
+ await db.prepare("INSERT INTO legal_members VALUES(?,?,'read')").bind(ownId,requester.userId).run();
+ const projection=customerTimelineEvents(requester);
+ expect((await db.prepare(`${projection.sql} WHERE e.source_type='legal'`).bind(...projection.values).all<{source_id:string}>()).results.map(r=>r.source_id)).toEqual([ownId]);
+ await db.prepare('DELETE FROM legal_members WHERE item_id=? AND user_id=?').bind(ownId,requester.userId).run();
+ expect((await db.prepare(`${projection.sql} WHERE e.source_type='legal'`).bind(...projection.values).all()).results).toEqual([]);
 });

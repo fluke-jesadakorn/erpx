@@ -1308,7 +1308,7 @@ export function executePms(
       const v = z.object({ id: idField, reason }).parse(input),
         original = get("entry", v.id);
       need(
-        ["charge", "transfer"].includes(original.data.kind) &&
+        original.data.method!=="opening" && ["charge", "transfer"].includes(original.data.kind) &&
           original.data.total > 0 &&
           !records(s, "entry").some((e) => e.data.originalId === original.id),
         "PMS_ALREADY_REVERSED",
@@ -1361,7 +1361,7 @@ export function executePms(
         from = openFolio(e.data.folioId),
         to = openFolio(v.toFolioId);
       need(
-        ["charge", "transfer"].includes(e.data.kind) &&
+        e.data.method!=="opening" && ["charge", "transfer"].includes(e.data.kind) &&
           e.data.total > 0 &&
           from.id !== to.id &&
           !from.data.invoiceId &&

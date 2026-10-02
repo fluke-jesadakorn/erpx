@@ -1,7 +1,7 @@
 import { beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env, type TestMigration } from "./runtime-env";
 import { expenseDb as db, expenseFixture, key } from "./helpers/expense-fixture";
-import { financeWorkbench, paymentObligationsWorkspace } from "../src/server/finance-workspace";
+import { financeWorkbench, paymentObligationsWorkspace, paymentRecordsWorkspace } from "../src/server/finance-workspace";
 
 vi.mock("server-only", () => ({}));
 vi.mock("../src/server/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
@@ -14,6 +14,22 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   f = await expenseFixture();
+});
+
+it("finds settled payment evidence beyond the action queue with scoped, currency-preserving pagination",async()=>{
+  const other=await expenseFixture(),prefix=`History-${key()}`;
+  for(const [index,company,currency] of [[1,f.company,"THB"],[2,f.company,"USD"],[3,f.company,"THB"],[4,other.company,"USD"]] as const){
+    await db.prepare("INSERT INTO finance_payments(id,company_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,status,created_by,created_at,updated_at) VALUES(?,?,'receipt',?,'2026-09-25',?,10000,0,'settled',?,1,1)")
+      .bind(`${prefix}-${index}`,company,`${prefix}-${index}`,currency,f.owner.userId).run();
+  }
+  const first=await paymentRecordsWorkspace(f.owner,{q:prefix,paymentStatus:"settled"},2);
+  expect(first.items.map(item=>item.id)).toEqual([`${prefix}-3`,`${prefix}-2`]);
+  expect(first.items.map(item=>item.currency)).toEqual(["THB","USD"]);
+  const second=await paymentRecordsWorkspace(f.owner,{q:prefix,paymentStatus:"settled",paymentCursor:first.nextCursor!},2);
+  expect(second.items.map(item=>item.id)).toEqual([`${prefix}-1`]);
+  expect(second.nextCursor).toBeNull();
+  await expect(paymentRecordsWorkspace(other.owner,{q:prefix,paymentStatus:"settled",paymentCursor:first.nextCursor!},2)).rejects.toMatchObject({code:"INVALID_CURSOR"});
+  await expect(paymentRecordsWorkspace({...f.owner,role:"employee"},{q:prefix})).rejects.toMatchObject({status:403});
 });
 
 it("combines payment sources into one finance queue while redacting people payments from preparers", async () => {
@@ -39,4 +55,14 @@ it("combines payment sources into one finance queue while redacting people payme
   expect(workbench.attention.find(item => item.id === "payment-review")?.count).toBeGreaterThanOrEqual(2);
   expect((await paymentObligationsWorkspace(f.owner, { sourceType: "generic_payment" })).map(item => item.id)).toEqual([genericId]);
   expect((await paymentObligationsWorkspace(f.owner, { status: "approved" })).map(item => item.id)).toContain(genericId);
+});
+
+it("keeps overdue queue amounts in their transaction currencies across Company books",async()=>{
+  const party=key();
+  await db.prepare("INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at) VALUES(?,?,'customer',?,'Mixed currency customer','THB',1,1)").bind(party,f.company,party).run();
+  for(const [currency,amount] of [["THB",10000],["USD",20000]] as const){
+    const id=key();await db.prepare("INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,status,created_by,created_at,updated_at) VALUES(?,?,?,'receivable',?,'2026-01-01','2026-01-01',?,?,?,?,?,?,'posted',?,1,1)").bind(id,f.company,party,id,currency,amount,amount,amount,f.accounts.cash,f.accounts.revenue,f.reviewer.userId).run();
+  }
+  const queue=(await financeWorkbench(f.owner)).attention.find(item=>item.id==="receivable-overdue");
+  expect(queue).toMatchObject({count:2,currency:null,amountMinor:null,amounts:[{currency:"THB",amountMinor:10000},{currency:"USD",amountMinor:20000}]});
 });

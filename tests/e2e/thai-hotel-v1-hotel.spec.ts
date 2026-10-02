@@ -1,15 +1,17 @@
 import { expect, test } from "@playwright/test";
+import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { Pool } from "pg";
 import { frontOrigin, frontWorkspacePath, signInFrontRole, type SimulatedFrontCredentials } from "../helpers/front-simulation-session";
 
 type PmsRecord = { id: string; kind: string; version: number; data: Record<string, unknown> };
 type DemoState = { fixture: { hospitality: { companyId: string; propertyId: string; roomIds: Record<string, string> } } };
 
-test("front desk books, housekeeping inspects, and front desk checks in a new guest", async ({ browser }, testInfo) => {
+test("H002 guest journey includes independent folio correction, payment, checkout and Night Audit", async ({ browser }, testInfo) => {
   const run = process.env.ERPX_DEMO_RUN;
   expect(run, "The Thai Hotel mock runner must supply an exact prepared simulation run.").toMatch(/^[a-f0-9]{12}$/);
-  test.setTimeout(180_000);
+  test.setTimeout(360_000);
   const directory = resolve(`.runtime/browser/${run}`);
   const credentials = JSON.parse(await readFile(resolve(directory, "credentials.json"), "utf8")) as SimulatedFrontCredentials;
   const state = JSON.parse(await readFile(resolve(directory, "state.json"), "utf8")) as DemoState;
@@ -18,17 +20,49 @@ test("front desk books, housekeeping inspects, and front desk checks in a new gu
   const pmsPath = (section: string, query = "") => `${frontWorkspacePath(companyId, section)}${query}`;
   const pmsUrl = (section: string, query = "") => `${frontOrigin("pms")}${pmsPath(section, query)}`;
   const pmsCommandPath = `/api/v1/front/riverside-lantern/${companyId}/pms`;
-  const guestName = `Fictional E2E Guest ${run}`;
+  const pmsApi = `/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`;
+  const rootOrigin = process.env.ERPX_E2E_BASE_URL ?? "http://127.0.0.1:3100";
+  const guestName = `Fictional E2E Guest ${run} ${testInfo.project.name}`;
   const frontDesk = await browser.newContext(testInfo.project.use);
   const housekeeping = await browser.newContext(testInfo.project.use);
   const inspector = await browser.newContext(testInfo.project.use);
-  [frontDesk, housekeeping, inspector].forEach((context) => context.setDefaultTimeout(15_000));
+  const cashier = await browser.newContext(testInfo.project.use);
+  const manager = await browser.newContext(testInfo.project.use);
+  const auditor = await browser.newContext(testInfo.project.use);
+  const posCashier = await browser.newContext(testInfo.project.use);
+  [frontDesk, housekeeping, inspector, cashier, manager, auditor, posCashier].forEach((context) => context.setDefaultTimeout(15_000));
+  const manifest = JSON.parse(await readFile(resolve(directory, "databases.json"), "utf8")) as { databases: { H002_DB: string } };
+  const databaseUrl = new URL(manifest.databases.H002_DB);
+  expect(databaseUrl.hostname).toBe("127.0.0.1");
+  expect(databaseUrl.port).toBe("5432");
+  expect(databaseUrl.pathname).toBe(`/erpx_browser_${run}_h002_db`);
+  const db = new Pool({ connectionString: databaseUrl.href, max: 1 });
   try {
     const frontPage = await frontDesk.newPage();
     const reservations = pmsPath(`reservations?property=${propertyId}`);
     await signInFrontRole(frontDesk, frontPage, credentials, "pms_frontdesk", "pms", companyId, reservations);
+    const cashierPage = await cashier.newPage();
+    await signInFrontRole(cashier, cashierPage, credentials, "pms_cashier", "pms", companyId, pmsPath(`folios?property=${propertyId}`));
+    const managerPage = await manager.newPage();
+    await signInFrontRole(manager, managerPage, credentials, "pms_manager", "pms", companyId, pmsPath(`folios?property=${propertyId}&queue=corrections`));
+    const auditorPage = await auditor.newPage();
+    await signInFrontRole(auditor, auditorPage, credentials, "pms_night_auditor", "pms", companyId, pmsPath(`night-audit?property=${propertyId}`));
+    const posPage = await posCashier.newPage();
+    await signInFrontRole(posCashier, posPage, credentials, "pos_cashier", "pos", companyId, frontWorkspacePath(companyId, "?tab=shifts"));
+
+    const sendPms = async (page: typeof frontPage, button: string, endpoint = pmsCommandPath) => {
+      const response = page.waitForResponse((row) => row.request().method() === "POST" && row.url().endsWith(endpoint));
+      await page.getByRole("button", { name: button, exact: true }).click();
+      const result = await response;
+      expect(result.ok(), `${button}: ${await result.text()}`).toBe(true);
+      return result.json() as Promise<{ data: { id?: string; [key: string]: unknown } }>;
+    };
     await frontPage.goto(pmsUrl(`reservations?property=${propertyId}`), { waitUntil: "domcontentloaded" });
     await expect(frontPage.getByRole("heading", { name: "Reservations", exact: true })).toBeVisible();
+    if (testInfo.project.name === "mobile") {
+      const headerWidth = await frontPage.locator('[data-front-daily="pms"] header > div').first().evaluate((node) => node.getBoundingClientRect().width);
+      expect(headerWidth).toBeGreaterThan(300);
+    }
     const initial = (await (await frontDesk.request.get(`/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`)).json()).data;
     const today = String(initial.snapshot.property.businessDate);
     const tomorrow = new Date(`${today}T00:00:00Z`);
@@ -144,8 +178,14 @@ test("front desk books, housekeeping inspects, and front desk checks in a new gu
     expect((await checkInResponse).ok()).toBe(true);
     await frontPage.reload({ waitUntil: "domcontentloaded" });
     await expect(frontPage.locator("article").filter({ hasText: guestName }).first()).toContainText("In house");
+    if (testInfo.project.name === "mobile") {
+      const viewportWidth = await frontPage.evaluate(() => window.innerWidth);
+      const documentWidth = await frontPage.evaluate(() => document.documentElement.scrollWidth);
+      expect(documentWidth).toBeLessThanOrEqual(viewportWidth);
+      await testInfo.attach("H002 mobile front desk", { body: await frontPage.screenshot({ fullPage: true }), contentType: "image/png" });
+    }
 
-    const persisted = (await (await frontDesk.request.get(`/api/v1/holdings/riverside-lantern/pms?property=${propertyId}`)).json()).data;
+    const persisted = (await (await frontDesk.request.get(pmsApi)).json()).data;
     const finalGuest = persisted.snapshot.records.find((record: PmsRecord) => record.kind === "guest" && record.data.name === guestName) as PmsRecord | undefined;
     const finalReservation = persisted.snapshot.records.find((record: PmsRecord) => record.kind === "reservation" && record.data.guestId === finalGuest?.id) as PmsRecord | undefined;
     const finalStay = persisted.snapshot.records.find((record: PmsRecord) => record.kind === "stay" && record.data.reservationId === finalReservation?.id) as PmsRecord | undefined;
@@ -155,7 +195,156 @@ test("front desk books, housekeeping inspects, and front desk checks in a new gu
     const persistedTask = persisted.snapshot.records.find((record: PmsRecord) => record.kind === "task" && record.id === taskId) as PmsRecord | undefined;
     expect(persistedTask?.data.state).toBe("done");
     expect(persisted.snapshot.records.find((record: PmsRecord) => record.kind === "room" && record.id === state.fixture.hospitality.roomIds["103"])?.data.cleanliness).toBe("inspected");
+
+    const folioId = String(folio!.id);
+    await frontPage.goto(pmsUrl(`front-desk?property=${propertyId}`), { waitUntil: "domcontentloaded" });
+    const getFrontDeskSection = () => frontPage.getByRole("main").locator("section:visible").filter({ has: frontPage.getByRole("heading", { name: "Front desk", exact: true }).filter({ visible: true }) }).first();
+    const frontDeskStayCard = () => getFrontDeskSection().getByRole("heading", { name: guestName, exact: true }).filter({ visible: true }).first().locator("xpath=../..");
+    const roomCharge = frontDeskStayCard().locator("details").filter({ hasText: "Post room charge before check-out" });
+    await roomCharge.locator("summary").click();
+    await sendPms(frontPage, "Post room charge before check-out");
+
+    await cashierPage.goto(pmsUrl(`cashier?property=${propertyId}`), { waitUntil: "domcontentloaded" });
+    let cashierSnapshot = (await (await cashier.request.get(pmsApi)).json()).data.snapshot;
+    const cashierUserId = credentials.users.find((item) => item.role === "pms_cashier" && item.email.endsWith("@riverside-lantern.example"))!.userId;
+    let cashierShift = cashierSnapshot.records.find((record: PmsRecord) => record.kind === "shift" && record.data.userId === cashierUserId && record.data.state === "open");
+    if (!cashierShift) {
+      const open = cashierPage.locator("details").filter({ hasText: "Open cash shift" }).first();
+      await open.locator("summary").click();
+      await open.locator('input[name="name"]').fill(`Hotel acceptance ${run}`);
+      await open.locator('input[name="opening"]').fill("0");
+      await sendPms(cashierPage, "Open cash shift");
+      cashierSnapshot = (await (await cashier.request.get(pmsApi)).json()).data.snapshot;
+      cashierShift = cashierSnapshot.records.find((record: PmsRecord) => record.kind === "shift" && record.data.userId === cashierUserId && record.data.state === "open");
+    }
+    expect(cashierShift).toBeTruthy();
+    const folioBeforeCheckout = cashierSnapshot.records.find((record: PmsRecord) => record.kind === "folio" && record.id === folioId);
+    expect(folioBeforeCheckout.data.due).toBeGreaterThan(0);
+    await cashierPage.goto(pmsUrl(`folios?property=${propertyId}&folio=${folioId}`), { waitUntil: "domcontentloaded" });
+    const receive = cashierPage.locator("details").filter({ hasText: "Receive payment / advance" }).first();
+    await receive.locator("summary").click();
+    await receive.locator('input[name="amount"]').fill((Number(folioBeforeCheckout.data.due) / 100).toFixed(2));
+    await receive.locator('select[name="method"]').selectOption("cash");
+    await receive.locator('select[name="shiftId"]').selectOption(String(cashierShift!.id));
+    await sendPms(cashierPage, "Receive payment / advance");
+    const paidBeforeCheckout = (await (await cashier.request.get(pmsApi)).json()).data;
+    expect(paidBeforeCheckout.snapshot.records.find((record: PmsRecord) => record.kind === "folio" && record.id === folioId)?.data.due).toBe(0);
+
+    await frontPage.goto(pmsUrl(`front-desk?property=${propertyId}`), { waitUntil: "domcontentloaded" });
+    const checkoutForm = frontDeskStayCard().locator("details").filter({ hasText: "Check out" });
+    await checkoutForm.locator("summary").click();
+    await sendPms(frontPage, "Check out");
+    const checkedOut = (await (await frontDesk.request.get(pmsApi)).json()).data;
+    const stayAfterCheckout = checkedOut.snapshot.records.find((record: PmsRecord) => record.kind === "stay" && record.data.folioId === folioId);
+    expect(stayAfterCheckout?.data.state).toBe("checked_out");
+
+    const incorrectDescription = `Fictional minibar correction ${run}`;
+    await cashierPage.goto(pmsUrl(`folios?property=${propertyId}&folio=${folioId}`), { waitUntil: "domcontentloaded" });
+    const addCharge = cashierPage.locator("details").filter({ hasText: "Add service charge" }).first();
+    await addCharge.locator("summary").click();
+    await addCharge.locator('input[name="description"]').fill(incorrectDescription);
+    await addCharge.locator('input[name="price"]').fill("100.00");
+    await sendPms(cashierPage, "Add service charge");
+    await cashierPage.reload({ waitUntil: "domcontentloaded" });
+    const incorrectRow = cashierPage.locator("tr").filter({ hasText: incorrectDescription });
+    await expect(incorrectRow).toBeVisible();
+    const correctionReason = `Fictional minibar line was entered by mistake; request independent reversal ${run}`;
+    const correctionForm = incorrectRow.locator("details").filter({ hasText: "Request reversal" });
+    await correctionForm.locator("summary").click();
+    await correctionForm.locator('input[name="reason"]').fill(correctionReason);
+    const requested = await sendPms(cashierPage, "Request reversal");
+    const correctionId = String(requested.data.id);
+    expect(correctionId).toMatch(/^pms-correction-/);
+
+    await auditorPage.goto(pmsUrl(`night-audit?property=${propertyId}`), { waitUntil: "domcontentloaded" });
+    await expect(auditorPage.getByText(/hotel folio correction\(s\) awaiting independent review/)).toBeVisible();
+    await expect(auditorPage.getByRole("button", { name: "Start day close", exact: true })).toHaveCount(0);
+    const blockedControls = (await (await auditor.request.get(`${pmsApi}&dayControls=1`)).json()).data.dayControls;
+    expect(blockedControls.blockers.some((item: string) => item.includes("hotel folio correction(s) awaiting independent review"))).toBe(true);
+
+    await managerPage.goto(`${rootOrigin}/holdings/riverside-lantern/pms/folios?property=${propertyId}&queue=corrections`, { waitUntil: "domcontentloaded" });
+    await expect(managerPage.getByRole("heading", { name: "Folio charge corrections", exact: true })).toBeVisible();
+    const reviewCard = managerPage.locator("article").filter({ hasText: correctionReason });
+    await expect(reviewCard).toBeVisible();
+    const reviewForm = reviewCard.locator("details").filter({ hasText: "Review correction" });
+    await reviewForm.locator("summary").click();
+    await reviewForm.locator('select[name="action"]').selectOption("approve");
+    await reviewForm.locator('input[name="reason"]').fill(`Independent manager review of correction ${run}`);
+    await sendPms(managerPage, "Review correction", "/api/v1/holdings/riverside-lantern/pms");
+
+    const correction = await db.query("SELECT status,requested_by,reviewed_by,review_reason,reversal_entry_id FROM pms_charge_corrections WHERE id=$1", [correctionId]);
+    expect(correction.rows).toHaveLength(1);
+    expect(correction.rows[0].status).toBe("approved");
+    expect(correction.rows[0].requested_by).not.toBe(correction.rows[0].reviewed_by);
+    expect(correction.rows[0].reversal_entry_id).toBeTruthy();
+    const reversal = await db.query("SELECT data_json::jsonb->>'originalId' original_id,data_json::jsonb->>'total' total FROM pms_records WHERE id=$1 AND property_id=$2", [correction.rows[0].reversal_entry_id, propertyId]);
+    expect(reversal.rows).toEqual([{ original_id: (await db.query("SELECT entry_id FROM pms_charge_corrections WHERE id=$1", [correctionId])).rows[0].entry_id, total: "-10700" }]);
+    const events = await db.query("SELECT action,actor_id FROM pms_charge_correction_events WHERE correction_id=$1 ORDER BY correction_version", [correctionId]);
+    expect(events.rows.map((row) => row.action)).toEqual(["requested", "approved"]);
+    expect(events.rows[0].actor_id).not.toBe(events.rows[1].actor_id);
+    const correctionPostings = await db.query("SELECT count(*)::int count FROM pms_postings WHERE property_id=$1 AND record_id IN ($2,$3)", [propertyId, correction.rows[0].reversal_entry_id, reversal.rows[0].original_id]);
+    expect(correctionPostings.rows[0].count).toBe(2);
+
+    const afterCorrection = (await (await cashier.request.get(pmsApi)).json()).data;
+    const folioAfterCorrection = afterCorrection.snapshot.records.find((record: PmsRecord) => record.kind === "folio" && record.id === folioId);
+    expect(folioAfterCorrection.data.due).toBe(0);
+    expect(folioAfterCorrection.data.advance).toBe(0);
+
+    await cashierPage.goto(pmsUrl(`folios?property=${propertyId}&folio=${folioId}`), { waitUntil: "domcontentloaded" });
+    const closeFolio = cashierPage.locator("details").filter({ hasText: "Close folio" }).first();
+    await closeFolio.locator("summary").click();
+    await sendPms(cashierPage, "Close folio");
+    const closed = (await (await cashier.request.get(pmsApi)).json()).data;
+    const closedFolio = closed.snapshot.records.find((record: PmsRecord) => record.kind === "folio" && record.id === folioId);
+    expect(closedFolio?.data).toMatchObject({ state: "closed", due: 0 });
+    expect(closedFolio?.data.invoiceId).toBeTruthy();
+
+    await cashierPage.goto(pmsUrl(`cashier?property=${propertyId}`), { waitUntil: "domcontentloaded" });
+    const openHotelShift = closed.snapshot.records.find((record: PmsRecord) => record.kind === "shift" && record.data.userId === cashierUserId && record.data.state === "open");
+    expect(openHotelShift).toBeTruthy();
+    const closeShift = cashierPage.locator("article").filter({ hasText: String(openHotelShift!.data.name) }).locator("details").filter({ hasText: "Close cash shift" });
+    await closeShift.locator("summary").click();
+    await closeShift.locator('input[name="counted"]').fill((Number(openHotelShift!.data.cash) / 100).toFixed(2));
+    await closeShift.locator('textarea[name="handover"]').fill(`Fictional H002 cashier handover ${run}`);
+    await sendPms(cashierPage, "Close cash shift");
+
+    const posApi = "/api/v1/holdings/riverside-lantern/pos?tab=shifts";
+    const posShifts = (await (await posCashier.request.get(posApi)).json()).data.shifts as Array<{ id: string; state: string; expected_minor: number }>;
+    if (posShifts.some((shift) => shift.state === "open")) {
+      await posPage.goto(`${frontOrigin("pos")}${frontWorkspacePath(companyId, "?tab=shifts")}`, { waitUntil: "domcontentloaded" });
+      for (const shift of posShifts.filter((item) => item.state === "open")) {
+        const cash = await db.query("SELECT COALESCE(SUM(p.amount_minor),0)::bigint amount FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id WHERE s.shift_id=$1 AND p.method='cash' AND p.state='succeeded'", [shift.id]);
+        const counted = Number(shift.expected_minor);
+        expect(Number(cash.rows[0].amount)).toBeLessThanOrEqual(counted);
+        await posPage.getByLabel("Count cash", { exact: true }).fill((counted / 100).toFixed(2));
+        const closePos = posPage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/pos/shift/close"));
+        await posPage.getByRole("button", { name: "Close cash shift", exact: true }).click();
+        expect((await closePos).ok()).toBe(true);
+      }
+    }
+
+    await auditorPage.goto(pmsUrl(`night-audit?property=${propertyId}`), { waitUntil: "domcontentloaded" });
+    const startDayClose = auditorPage.locator("details").filter({ hasText: "Start day close" }).first();
+    await expect(startDayClose.locator("summary")).toBeVisible();
+    await startDayClose.locator("summary").click();
+    await sendPms(auditorPage, "Start day close");
+    const closing = (await (await auditor.request.get(pmsApi)).json()).data;
+    expect(closing.snapshot.property.state).toBe("closing");
+    expect(closing.snapshot.records.some((record: PmsRecord) => record.kind === "night" && record.data.state === "pending")).toBe(true);
+    const completed = JSON.parse(execFileSync("bun", ["--conditions=react-server", resolve("scripts/fixtures/hospitality-drain-demo-job.ts"), run], { cwd: resolve("."), timeout: 30_000 }).toString()) as { job: { state: string; error_code: string | null }; property: { state: string; business_date: string } };
+    expect(completed).toMatchObject({ job: { state: "completed", error_code: null }, property: { state: "open" } });
+    expect(completed.property.business_date).not.toBe(closing.snapshot.property.businessDate);
+
+    const invoice = await db.query("SELECT total_minor,outstanding_minor,status,source_type,source_id FROM finance_invoices WHERE id=$1 AND company_id=$2", [closedFolio!.data.invoiceId, companyId]);
+    expect(invoice.rows).toHaveLength(1);
+    expect(invoice.rows[0]).toMatchObject({ outstanding_minor: "0", status: "paid", source_type: "pms", source_id: folioId });
+    const journals = await db.query("SELECT count(*)::int count FROM (SELECT j.id FROM finance_journals j JOIN pms_postings pp ON pp.journal_id=j.id JOIN finance_journal_lines l ON l.journal_id=j.id WHERE pp.property_id=$1 GROUP BY j.id HAVING SUM(l.debit_minor)<>SUM(l.credit_minor)) unbalanced", [propertyId]);
+    expect(journals.rows[0].count).toBe(0);
+    const correctionReplay = await db.query("SELECT count(*)::int count FROM pms_postings WHERE property_id=$1 AND record_id IN ($2,$3)", [propertyId, reversal.rows[0].original_id, correction.rows[0].reversal_entry_id]);
+    expect(correctionReplay.rows[0].count).toBe(2);
+    const closedShifts = await db.query("SELECT data_json::jsonb->>'state' state,data_json::jsonb->>'cash' cash,data_json::jsonb->>'counted' counted,data_json::jsonb->>'variance' variance FROM pms_records WHERE property_id=$1 AND kind='shift' AND data_json::jsonb->>'userId'=$2", [propertyId, cashierUserId]);
+    expect(closedShifts.rows.every((row) => row.state === "closed" && row.cash === row.counted && row.variance === "0")).toBe(true);
   } finally {
-    await Promise.all([frontDesk.close(), housekeeping.close(), inspector.close()]);
+    await Promise.all([frontDesk.close(), housekeeping.close(), inspector.close(), cashier.close(), manager.close(), auditor.close(), posCashier.close(), db.end()]);
   }
 });

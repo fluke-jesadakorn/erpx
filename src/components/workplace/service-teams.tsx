@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 import { useState } from "react";
 import { Dialog } from "@/components/ui/dialog";
 import { useHydrated } from "@/components/ui/use-hydrated";
@@ -377,9 +378,7 @@ function TeamEditor({
                   </strong>
                   <p>
                     {config.active ? "Active" : "Disabled"} ·{" "}
-                    {new Date(h.created_at).toLocaleString("en-GB", {
-                      timeZone: "Asia/Bangkok",
-                    })}{" "}
+                    <TimeText value={h.created_at} />{" "}
                     ·{" "}
                     {options.members.find((p) => p.id === h.actor_id)?.name ??
                       "Company owner"}

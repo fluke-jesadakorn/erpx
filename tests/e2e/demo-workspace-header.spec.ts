@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import {searchRoleOptions} from '../helpers/context-switching-browser';
 
 test("workspace header keeps context, navigation and role actions usable across widths", async ({ page, context }, testInfo) => {
   const run=process.env.ERPX_DEMO_RUN;
@@ -62,7 +63,7 @@ test("workspace header keeps context, navigation and role actions usable across 
   await chrome.getByRole("button",{name:"Search workspace",exact:true}).click();
   const search=page.getByRole("dialog",{name:"Go to…",exact:true});
   await expect(search).toBeVisible();await search.getByRole("textbox",{name:"Search workspace destinations"}).fill("Organization");
-  await search.getByRole("link",{name:/Organization & positions/}).click();await expect(search).not.toBeVisible();
+  await search.getByRole("link",{name:"People People",exact:true}).click();await expect(search).not.toBeVisible();
   await ready();
   const switcher=chrome.getByRole("button",{name:"Switch workspace",exact:true});
   await switcher.click();
@@ -75,12 +76,12 @@ test("workspace header keeps context, navigation and role actions usable across 
   await expect(page).not.toHaveURL(/\/branches\//);await ready();
   await chrome.getByRole("button",{name:/Account menu for/}).click();
   const account=page.getByRole("dialog",{name:"Account switcher",exact:true});
-  await account.getByRole("combobox",{name:"Role for actions & approvals"}).fill("treasury");
+  await searchRoleOptions(page,"treasury");
   await account.getByRole("option",{name:/treasury/i}).click();
   await ready();await expect(chrome.locator(".active-work-role")).toContainText("treasury");
   await page.reload();await ready();await expect(chrome.locator(".active-work-role")).toContainText("treasury");
   await chrome.getByRole("button",{name:/Account menu for/}).click();
-  await account.getByRole("combobox",{name:"Role for actions & approvals"}).fill("hr admin");
+  await searchRoleOptions(page,"hr admin");
   await account.getByRole("option",{name:/hr admin/i}).click();
   await ready();await expect(chrome.locator(".active-work-role")).toContainText("hr admin");
   await page.goto(`${path}#organization-change-queue`);await ready();

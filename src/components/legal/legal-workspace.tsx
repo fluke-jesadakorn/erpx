@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 import { BarChart3, BookOpen, Globe2, Plus, X, Scale } from "lucide-react";
 import { workFetch } from "@/lib/work-fetch";
 import { LegalApproval, LegalEditor } from "./legal-review";
@@ -9,7 +10,16 @@ import { LegalKnowledge } from "./legal-knowledge";
 import { LegalDeadlines } from "./legal-deadlines";
 import { LegalFeatures } from "./legal-features";
 import { LegalRetention } from "./legal-retention";
-import { useState, useCallback, type FormEvent } from "react";
+import { LegalEvidenceFields, LegalSnapshot } from "./legal-evidence-fields";
+import { LegalExecutedCopies } from "./legal-executed-copies";
+import { LegalLawCorpus } from "./legal-law-corpus";
+import { LegalReleaseAcceptance } from "./legal-release-acceptance";
+import { LegalWorkQueue } from "./legal-work-queue";
+import { LegalAssignment } from "./legal-assignment";
+import { LegalDocumentTextReview } from "./legal-document-text-review";
+import { useLegalPeople } from "./legal-person-select";
+import { createLegalCommandClient } from "@/lib/legal/command-client";
+import { useState, useCallback, useEffect, useMemo, useRef, type FormEvent } from "react";
 import { OperationSummary } from "@/components/workplace/operation-summary";
 import {
   kinds,
@@ -29,24 +39,30 @@ export function LegalWorkspace({
   base,
   initial,
   initialDetail = null,
+  initialCreate = false,
+  initialKind = "request",
 }: {
   base: string;
   initial: LegalData;
   initialDetail?: LegalDetail | null;
+  initialCreate?: boolean;
+  initialKind?: LegalKind;
 }) {
   const [data, setData] = useState(initial),
     [kind, setKind] = useState<LegalKind>(
-      initialDetail?.item.kind ?? initial.items[0]?.kind ?? "request",
+      initialDetail?.item.kind ?? initialKind,
     ),
     [search, setSearch] = useState(""),
     [state, setState] = useState(""),
     [selected, setSelected] = useState<LegalDetail | null>(initialDetail),
-    [creating, setCreating] = useState(false),
+    [creating, setCreating] = useState(initialCreate && initial.enabled && initial.permissions.includes("legal.create")),
     [editing, setEditing] = useState(false),
     [busy, setBusy] = useState(false),
+    [pendingAction, setPendingAction] = useState(false),
     [error, setError] = useState(""),
     [tab, setTab] = useState("Overview"),
-    [tool, setTool] = useState<"reports" | "knowledge" | "thailand" | null>(null),
+    [tool, setTool] = useState<"reports" | "knowledge" | "thailand" | "laws" | "release" | null>(null),
+    [workView, setWorkView] = useState<"register" | "mine" | "deadlines">("register"),
     [inspection, setInspection] = useState<unknown>(null),
     [proposals, setProposals] = useState<Record<string, unknown>[]>([]);
   const [importData, setImportData] = useState<{
@@ -63,27 +79,33 @@ export function LegalWorkspace({
     >([]);
   const api = `/api/v1${base}/legal`,
     can = (p: string) => data.permissions.includes(`legal.${p}`);
+  const contextKey = `erpx:legal:${base}:${JSON.stringify(initial.workContext ?? { userId: initial.userId })}`;
+  const send = useMemo(() => createLegalCommandClient(`${contextKey}:command`), [contextKey]);
+  useEffect(() => { const frame = requestAnimationFrame(() => setPendingAction(send.hasPending())); return () => cancelAnimationFrame(frame); }, [send]);
   const call = useCallback(
     async (path: string, body?: unknown) => {
+      if (body !== undefined) {
+        try { const result = await send(api + path, body); setPendingAction(false); return result; }
+        catch (error) { setPendingAction(send.hasPending()); throw error; }
+      }
       const r = await workFetch(
         api + path,
-        body
-          ? {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Idempotency-Key": crypto.randomUUID(),
-              },
-              body: JSON.stringify(body),
-            }
-          : { cache: "no-store" },
+        { cache: "no-store" },
       );
       const j = await r.json();
       if (!r.ok) throw new Error(j.error?.message ?? "Request failed");
       return j.data;
     },
-    [api],
+    [api, send],
   );
+  function location(record?: string, selectedKind = kind) {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("new");
+    url.searchParams.set("kind", selectedKind);
+    if (record) url.searchParams.set("record", record);
+    else url.searchParams.delete("record");
+    window.history.replaceState(null, "", url);
+  }
   async function load(k = kind, page = 1, q = search, status = state) {
     setData(
       await call(
@@ -95,7 +117,11 @@ export function LegalWorkspace({
     setBusy(true);
     setError("");
     try {
-      setSelected(await call(`/${id}`));
+      const detail = await call(`/${id}`) as LegalDetail;
+      setSelected(detail);
+      setKind(detail.item.kind);
+      setWorkView("register");
+      location(id, detail.item.kind);
       setCreating(false);
       setEditing(false);
       setTab("Overview");
@@ -115,12 +141,13 @@ export function LegalWorkspace({
           : {}),
         ...body,
       });
-      await load();
       if (body.action === "create" || body.action === "revision.create") {
         setCreating(false);
+        location(result.id, body.action === "create" ? (body.item as ItemInput).kind : kind);
         setSelected(await call(`/${result.id}`));
       } else if (selected) setSelected(await call(`/${selected.item.id}`));
       setEditing(false);
+      await load();
       return true;
     } catch (e) {
       setError((e as Error).message);
@@ -128,6 +155,10 @@ export function LegalWorkspace({
     } finally {
       setBusy(false);
     }
+  }
+  async function refreshDetail() {
+    if (selected) setSelected(await call(`/${selected.item.id}`));
+    await load();
   }
   async function inspect(id: string, action: string) {
     setBusy(true);
@@ -166,6 +197,8 @@ export function LegalWorkspace({
   }
   function select(k: LegalKind) {
     setKind(k);
+    setWorkView("register");
+    location(undefined, k);
     setSelected(null);
     setCreating(false);
     setEditing(false);
@@ -190,6 +223,7 @@ export function LegalWorkspace({
             className={primary}
             onClick={() => {
               setCreating(true);
+              setWorkView("register");
               setSelected(null);
             }}
           >
@@ -202,6 +236,14 @@ export function LegalWorkspace({
           {error}
         </div>
       )}
+      {pendingAction && <div className={s.notice} role="status"><p>A previous Legal action has an uncertain result. Recover its original request before starting another action.</p><button className={button} disabled={busy} onClick={async () => {
+        setBusy(true); setError("");
+        try {
+          const recovered = await send.recover(); setPendingAction(send.hasPending());
+          if (recovered) { const recordId = typeof recovered.input.id === "string" ? recovered.input.id : ["create", "revision.create"].includes(String(recovered.input.action)) ? (recovered.data as { id: string }).id : null; if (recordId) await open(recordId); await load(); }
+        } catch (error) { setError(error instanceof Error ? error.message : "Unable to recover the action."); setPendingAction(send.hasPending()); }
+        finally { setBusy(false); }
+      }}>Recover previous Legal action</button></div>}
       {!data.enabled && (
         <div className={s.notice}>
           Legal is currently read-only for this Company.{" "}
@@ -222,7 +264,7 @@ export function LegalWorkspace({
         {[
           ["Accessible records", total],
           ["In review", count(["review", "approval"])],
-          ["Signing", count(["signing"])],
+          ["Executed contracts", count(["executed"])],
           ["Active commitments", count(["active"])],
         ].map(([label, n]) => (
           <div className={s.metric} key={label}>
@@ -236,37 +278,47 @@ export function LegalWorkspace({
         {([
           ["reports", "Reports", BarChart3],
           ["knowledge", "Knowledge search", BookOpen],
-          ["thailand", "ชุดกฎประเทศไทย", Globe2],
-        ] as const).filter(([id]) => id !== "thailand" || (can("create") && data.enabled)).map(([id, label, Icon]) => (
+          ["thailand", "Thailand starter pack", Globe2],
+          ["laws", "Official law sources", BookOpen],
+          ["release", "Company readiness", Scale],
+        ] as const).filter(([id]) => (id !== "thailand" || (can("create") && data.enabled)) && (id !== "release" || can("manage"))).map(([id, label, Icon]) => (
           <button key={id} className={s.toolButton} aria-expanded={tool === id} aria-controls="legal-tool-panel" onClick={() => setTool(tool === id ? null : id)}>
             <Icon size={16} aria-hidden="true" />{label}
           </button>
         ))}
       </div>
-      {tool && <section id="legal-tool-panel" className={s.toolPanel} aria-label={tool === "reports" ? "Legal reports" : tool === "knowledge" ? "Knowledge search" : "ชุดกฎประเทศไทย"}>
-        <div className={s.panelHeading}><div><span className={s.eyebrow}>Workspace tools</span><h2>{tool === "reports" ? "Reports & insights" : tool === "knowledge" ? "Search legal knowledge" : "ชุดเริ่มต้นประเทศไทย"}</h2></div>
+      {tool && <section id="legal-tool-panel" className={s.toolPanel} aria-label={tool === "reports" ? "Legal reports" : tool === "knowledge" ? "Knowledge search" : tool === "laws" ? "Official law sources" : tool === "release" ? "Company readiness" : "Thailand starter pack"}>
+        <div className={s.panelHeading}><div><span className={s.eyebrow}>Workspace tools</span><h2>{tool === "reports" ? "Reports & insights" : tool === "knowledge" ? "Search legal knowledge" : tool === "laws" ? "Official law sources" : tool === "release" ? "Company readiness" : "Thailand starter pack"}</h2></div>
           <button className={s.iconButton} aria-label="Close workspace tool" onClick={() => setTool(null)}><X size={18} /></button>
         </div>
         {tool === "reports" && <LegalReports call={call} open={open} />}
-        {tool === "knowledge" && <LegalKnowledge call={call} open={open} />}
+        {tool === "knowledge" && <LegalKnowledge call={call} open={open} base={base} />}
         {tool === "thailand" && <LegalThailand people={data.people} call={call} refresh={() => load()} />}
+        {tool === "laws" && <LegalLawCorpus call={call} manage={can("manage")} canReview={can("approve")} userId={data.userId} />}
+        {tool === "release" && <LegalReleaseAcceptance call={call} userId={data.userId} />}
       </section>}
       <div className={s.layout}>
         <nav className={s.nav} aria-label="Legal registers">
+          <span className={s.navLabel}>WORKSPACE</span>
+          <button aria-current={workView === "mine"} onClick={() => { setWorkView("mine"); setSelected(null); setCreating(false); setEditing(false); }}>My legal work</button>
+          <button aria-current={workView === "deadlines"} onClick={() => { setWorkView("deadlines"); setSelected(null); setCreating(false); setEditing(false); }}>Deadlines</button>
           <span className={s.navLabel}>REGISTERS</span>
           {kinds.map((k) => (
-            <button key={k} aria-current={k === kind} onClick={() => select(k)}>
+            <button key={k} aria-current={workView === "register" && k === kind} onClick={() => select(k)}>
               <span>{labels[k]}</span>
             </button>
           ))}
         </nav>
         <section className={s.panel}>
-          {creating || editing ? (
+          {workView !== "register" && !selected && !creating ? <LegalWorkQueue key={workView} view={workView} people={data.people} call={call} open={open} /> : creating || editing ? (
             <ItemForm
+              key={`${contextKey}:${selected?.item.id ?? kind}:${editing}`}
               kind={selected?.item.kind ?? kind}
               detail={editing ? selected : null}
               data={data}
               busy={busy}
+              call={call}
+              draftKey={`${contextKey}:draft:${editing ? selected?.item.id : kind}:${editing ? selected?.item.version : "new"}`}
               onCancel={() => {
                 setCreating(false);
                 setEditing(false);
@@ -365,6 +417,7 @@ export function LegalWorkspace({
                       Edit record
                     </button>
                   )}
+                  {can("review") && data.enabled && <LegalAssignment detail={selected} call={call} command={command} busy={busy} />}
                   {selected.item.kind === "counsel" && (
                     <>
                       <h3>Spending handoff</h3>
@@ -427,7 +480,7 @@ export function LegalWorkspace({
                   {selected.comments.map((c) => (
                     <div key={c.id} className={s.event}>
                       <span className={s.small}>
-                        {c.visibility} · {c.created_by}
+                        {c.visibility} · {data.people.find(person => person.id === c.created_by)?.name ?? "Authorized colleague"}
                       </span>
                       <p className={s.body}>{c.body}</p>
                     </div>
@@ -466,6 +519,8 @@ export function LegalWorkspace({
               )}
               {tab === "Documents" && (
                 <>
+                  {selected.item.kind === "contract" && <LegalExecutedCopies detail={selected} api={api} call={call} command={command} busy={busy} userId={data.userId} canReview={can("approve")} onRefresh={refreshDetail} />}
+                  {selected.item.kind !== "rule" && can("edit") && <LegalDocumentTextReview detail={selected} call={call} command={command} busy={busy} userId={data.userId} canReview={can("approve")} inspection={inspection} />}
                   {selected.item.state === "draft" && (
                     <ActionForm
                       busy={busy}
@@ -541,9 +596,7 @@ export function LegalWorkspace({
                             Accept extracted text as a new draft
                           </button>
                         )}
-                      <pre className={s.body}>
-                        {JSON.stringify(inspection, null, 2)}
-                      </pre>
+                      <LegalEvidenceFields value={inspection} />
                     </div>
                   )}
                   {selected.item.state === "draft" && (
@@ -572,7 +625,7 @@ export function LegalWorkspace({
                           <a href={`${api}/submissions/${u.id}`}>{u.name}</a>
                           <div className={s.small}>
                             {u.created_by} ·{" "}
-                            {new Date(u.created_at).toLocaleString()} · SHA-256{" "}
+                            <TimeText value={u.created_at} /> · SHA-256{" "}
                             {u.checksum}
                           </div>
                           <p className={s.small}>
@@ -708,99 +761,26 @@ export function LegalWorkspace({
                   )}
                   {selected.item.kind === "contract" && (
                     <LegalApproval
+                      people={data.people}
                       detail={selected}
                       call={call}
                       command={command}
                       busy={busy}
                     />
                   )}
-                  {selected.item.state === "approved" &&
-                    selected.item.kind === "contract" && (
-                      <ActionForm
-                        busy={busy}
-                        label="Send for signature"
-                        fields={[
-                          {
-                            name: "consent",
-                            label: "Exact consent text shown to signers",
-                            textarea: true,
-                          },
-                        ]}
-                        onSubmit={(v) =>
-                          command({
-                            action: "signing.send",
-                            ...v,
-                            expiresAt: Date.now() + 30 * 86400000,
-                          })
-                        }
-                      />
-                    )}
+                  {selected.item.kind === "contract" && <p className={s.notice}>Record an agreement signed outside ERPX in Documents. An independent reviewer must confirm the executed copy before activation.</p>}
                   {selected.envelopes.map((e) => (
                     <div className={s.notice} key={e.id}>
                       <strong>Signing · {e.state}</strong>
                       <p className={s.body}>{e.consent}</p>
                       <p>
-                        Expires {new Date(e.expires_at).toLocaleDateString()}
+                        Expires {<TimeText value={e.expires_at} />}
                       </p>
                       {e.signers.map((p) => (
                         <div key={p.user_id}>
-                          {p.ordinal + 1}. {p.user_id} · {p.state}
+                          {p.ordinal + 1}. {data.people.find(person => person.id === p.user_id)?.name ?? "Recorded signer"} · {p.state}
                         </div>
                       ))}
-                      {e.state === "sent" &&
-                        e.signers.some(
-                          (p) =>
-                            p.user_id === data.userId && p.state === "pending",
-                        ) && (
-                          <>
-                            <p>
-                              Verify MFA in <a href="/my-access">My access</a>,
-                              then review the locked document before signing.
-                            </p>
-                            <button
-                              className={button}
-                              disabled={busy}
-                              onClick={() =>
-                                command({
-                                  action: "signing.view",
-                                  envelopeId: e.id,
-                                })
-                              }
-                            >
-                              Record document review
-                            </button>
-                            <ActionForm
-                              busy={busy}
-                              label="Accept and sign"
-                              fields={[
-                                {
-                                  name: "consent",
-                                  label: "Enter the exact consent text",
-                                  textarea: true,
-                                },
-                              ]}
-                              onSubmit={(v) =>
-                                command({
-                                  action: "signing.sign",
-                                  envelopeId: e.id,
-                                  ...v,
-                                })
-                              }
-                            />
-                            <button
-                              className={button}
-                              disabled={busy}
-                              onClick={() =>
-                                command({
-                                  action: "signing.decline",
-                                  envelopeId: e.id,
-                                })
-                              }
-                            >
-                              Decline
-                            </button>
-                          </>
-                        )}
                     </div>
                   ))}
                 </>
@@ -810,7 +790,7 @@ export function LegalWorkspace({
                   <h3>Internal membership</h3>
                   {selected.members.map((m) => (
                     <div key={m.user_id} className={s.event}>
-                      {m.user_id} · {m.access}
+                      {data.people.find(person => person.id === m.user_id)?.name ?? "Authorized colleague"} · {m.access}
                     </div>
                   ))}
                   <ActionForm
@@ -846,7 +826,7 @@ export function LegalWorkspace({
                       {share.email} ·{" "}
                       {share.revoked_at
                         ? "Revoked"
-                        : new Date(share.expires_at).toLocaleDateString()}
+                        : <TimeText value={share.expires_at} />}
                       <div className={s.small}>
                         Accepted user:{" "}
                         {share.user_id ?? "Invitation not accepted"}
@@ -913,7 +893,7 @@ export function LegalWorkspace({
                       {h.acknowledged_at ? (
                         <p className={s.small}>
                           Acknowledged{" "}
-                          {new Date(h.acknowledged_at).toLocaleString()}
+                          <TimeText value={h.acknowledged_at} />
                         </p>
                       ) : (
                         <ActionForm
@@ -982,9 +962,7 @@ export function LegalWorkspace({
               {tab === "AI" && (
                 <>
                   <p>
-                    AI proposals use this record and its latest document
-                    versions. Review every statement and citation before copying
-                    it into a draft.
+                    AI proposals use accessible documents and independently reviewed, applicable law sources. Review every statement and citation before accepting a draft.
                   </p>
                   {can("manage") && (
                     <button
@@ -1028,9 +1006,7 @@ export function LegalWorkspace({
                       <strong>{String(p.state)}</strong>
                       <p>{String(p.question)}</p>
                       {p.error ? <p>{String(p.error)}</p> : null}
-                      <pre className={s.body}>
-                        {JSON.stringify(p.proposal, null, 2)}
-                      </pre>
+                      <LegalEvidenceFields value={p.proposal} />
                       {p.state === "proposed" &&
                         selected.item.state === "draft" &&
                         can("edit") && (
@@ -1074,18 +1050,16 @@ export function LegalWorkspace({
               {tab === "Activity" &&
                 selected.events.map((e) => (
                   <div className={s.event} key={e.id}>
-                    <strong>{e.action}</strong>
+                    <strong>{e.action.replace(/[._]/g, " ")}</strong>
                     <p>{e.note}</p>
                     {e.snapshot && (
                       <details>
                         <summary>Record at this event</summary>
-                        <pre className={s.body}>
-                          {JSON.stringify(JSON.parse(e.snapshot), null, 2)}
-                        </pre>
+                        <LegalSnapshot snapshot={e.snapshot} />
                       </details>
                     )}
                     <span className={s.small}>
-                      {e.actor_id} · {new Date(e.created_at).toLocaleString()} ·
+                      {data.people.find(person => person.id === e.actor_id)?.name ?? "Authorized colleague"} · <TimeText value={e.created_at} /> ·
                       v{e.version}
                     </span>
                   </div>
@@ -1318,6 +1292,8 @@ function ItemForm({
   busy,
   onSave,
   onCancel,
+  call,
+  draftKey,
 }: {
   kind: LegalKind;
   detail: LegalDetail | null;
@@ -1325,8 +1301,32 @@ function ItemForm({
   busy: boolean;
   onSave: (x: ItemInput) => Promise<boolean>;
   onCancel: () => void;
+  call: (path: string) => Promise<unknown>;
+  draftKey: string;
 }) {
   const item = detail?.item;
+  const formRef = useRef<HTMLFormElement>(null);
+  const [restored, setRestored] = useState(false);
+  const { people, error: peopleError } = useLegalPeople(call, "owner");
+  useEffect(() => {
+    if (!formRef.current || !people.length) return;
+    try {
+      const saved = sessionStorage.getItem(draftKey);
+      if (!saved) return;
+      const draft = JSON.parse(saved) as { savedAt: number; values: Record<string, string> };
+      if (Date.now() - draft.savedAt > 24 * 60 * 60 * 1000) { sessionStorage.removeItem(draftKey); return; }
+      for (const [name, value] of Object.entries(draft.values)) {
+        const control = formRef.current.elements.namedItem(name);
+        if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement || control instanceof HTMLSelectElement) control.value = value;
+      }
+      const frame = requestAnimationFrame(() => setRestored(true));
+      return () => cancelAnimationFrame(frame);
+    } catch {}
+  }, [draftKey, people]);
+  function preserve(form: HTMLFormElement) {
+    const values = Object.fromEntries(new FormData(form).entries());
+    try { sessionStorage.setItem(draftKey, JSON.stringify({ savedAt: Date.now(), values })); } catch {}
+  }
   async function save(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget),
@@ -1335,7 +1335,7 @@ function ItemForm({
       const v = String(f.get(`field:${field.key}`) ?? "");
       if (v) values[field.key] = field.type === "number" ? Number(v) : v;
     }
-    await onSave({
+    const saved = await onSave({
       kind,
       title: String(f.get("title")),
       description: String(f.get("description")),
@@ -1352,12 +1352,15 @@ function ItemForm({
       ownerId: String(f.get("ownerId")),
       data: values,
     });
+    if (saved) { try { sessionStorage.removeItem(draftKey); } catch {} }
   }
   return (
-    <form onSubmit={save}>
+    <form ref={formRef} onSubmit={save} onChange={event => preserve(event.currentTarget)}>
       <h2>
         {item ? "Edit" : "New"} {kind}
       </h2>
+      <p className={s.small}>{restored ? "Your unsent details were restored in this tab. Review them before saving." : "Unsent details are preserved in this tab for up to 24 hours."}</p>
+      {peopleError && <p role="alert">{peopleError}</p>}
       <div className={s.grid}>
         <label className={`${s.field} ${s.wide}`}>
           Title
@@ -1376,7 +1379,7 @@ function ItemForm({
         <label className={s.field}>
           Owner
           <select name="ownerId" defaultValue={item?.owner_id ?? data.userId}>
-            {data.people.map((p) => (
+            {people.map((p) => (
               <option value={p.id} key={p.id}>
                 {p.name}
               </option>
@@ -1444,7 +1447,10 @@ function ItemForm({
             key={f.key}
           >
             {f.label}
-            {f.type === "textarea" ? (
+            {f.key === "escalationOwner" ? <select name={`field:${f.key}`} defaultValue={item?.data[f.key] ?? ""}>
+              <option value="">Choose an escalation owner</option>
+              {people.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}
+            </select> : f.type === "textarea" ? (
               <textarea
                 name={`field:${f.key}`}
                 required={f.required}
@@ -1466,7 +1472,8 @@ function ItemForm({
         <button type="button" className={button} onClick={onCancel}>
           Cancel
         </button>
-        <button className={primary} disabled={busy}>
+        <button type="button" className={button} onClick={() => { try { sessionStorage.removeItem(draftKey); } catch {} formRef.current?.reset(); setRestored(false); }}>Clear unsent details</button>
+        <button className={primary} disabled={busy || !people.length}>
           {busy ? "Saving…" : "Save record"}
         </button>
       </div>

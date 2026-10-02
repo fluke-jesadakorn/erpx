@@ -3,6 +3,7 @@ import { holdingResources } from "@/server/runtime";
 import { workspaceBase } from "@/lib/workspace";
 import { legalData, detail } from "@/server/legal/service";
 import { LegalWorkspace } from "@/components/legal/legal-workspace";
+import { kinds, type LegalKind } from "@/lib/legal/model";
 export const dynamic = "force-dynamic";
 export default async function LegalPage({
   params,
@@ -19,6 +20,8 @@ export default async function LegalPage({
       <LegalWorkspace
         base={workspaceBase(publicScope(a))}
         initial={await legalData(write, a, { ...q, kind: q.kind ?? "request" })}
+        initialKind={typeof q.kind === "string" && kinds.includes(q.kind as LegalKind) ? q.kind as LegalKind : "request"}
+        initialCreate={q.new === "request"}
         initialDetail={
           typeof q.record === "string" ? await detail(write, a, q.record) : null
         }

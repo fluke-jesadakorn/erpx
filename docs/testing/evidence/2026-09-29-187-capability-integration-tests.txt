@@ -1,0 +1,74 @@
+Mapped capability integration suite observation
+Date: 2026-09-29
+Environment: isolated local integration test harness; disposable test databases on local PostgreSQL 18.6
+Toolchain: Node v24.20.0; Bun 1.2.17; Vitest 4.1.11
+Inventory: 187 business capabilities; 57 unique mapped integration test files
+Invocation: bun scripts/local/test.ts followed by the 57 mapped integration paths listed below
+Result: 57/57 files passed; 532/532 tests passed
+Duration  219.47s (transform 4.30s, setup 915ms, import 22.83s, tests 190.72s, environment 2ms)
+
+Mapped files:
+- tests/account-invitation-delivery.test.ts
+- tests/account-recovery.test.ts
+- tests/agent-governance.test.ts
+- tests/asset-maintenance.test.ts
+- tests/backup-restore-operations.test.ts
+- tests/benefits.test.ts
+- tests/billing-api.test.ts
+- tests/billing.test.ts
+- tests/branding.test.ts
+- tests/business-commands.test.ts
+- tests/commerce-returns.test.ts
+- tests/crm-activities.test.ts
+- tests/crm.test.ts
+- tests/customer-access.test.ts
+- tests/customer-duplicates.test.ts
+- tests/customer-followups.test.ts
+- tests/customer-identity-changes.test.ts
+- tests/customer-notes.test.ts
+- tests/customer-timeline.test.ts
+- tests/ecommerce.test.ts
+- tests/employee-services.test.ts
+- tests/field-service.test.ts
+- tests/finance-accruals.test.ts
+- tests/finance-close-reconciliation.test.ts
+- tests/finance-consolidation.test.ts
+- tests/finance-fx-revaluation.test.ts
+- tests/finance-generic-payments.test.ts
+- tests/finance-opening-balances.test.ts
+- tests/finance-payment-obligations.test.ts
+- tests/flow-routing.test.ts
+- tests/iam-providers.test.ts
+- tests/iam.test.ts
+- tests/inventory-lot-serial.test.ts
+- tests/inventory-transit.test.ts
+- tests/learning.test.ts
+- tests/legal.test.ts
+- tests/marketing.test.ts
+- tests/organization.test.ts
+- tests/payroll-core.test.ts
+- tests/people-lifecycle.test.ts
+- tests/platform-operations.test.ts
+- tests/pms.test.ts
+- tests/pos.test.ts
+- tests/production.test.ts
+- tests/purchase-to-payment.test.ts
+- tests/quality.test.ts
+- tests/recovery-simulation.test.ts
+- tests/social-beta.test.ts
+- tests/staff-work.test.ts
+- tests/stock-reservations.test.ts
+- tests/supplier-promises.test.ts
+- tests/support-evidence.test.ts
+- tests/support-incidents.test.ts
+- tests/support-sessions.test.ts
+- tests/support-sla.test.ts
+- tests/support.test.ts
+- tests/talent.test.ts
+
+Runner summary:
+ RUN  v4.1.11 /Users/fluke/Desktop/Work/erpx
+ Test Files  57 passed (57)
+      Tests  532 passed (532)
+   Start at  09:30:25
+   Duration  219.47s (transform 4.30s, setup 915ms, import 22.83s, tests 190.72s, environment 2ms)

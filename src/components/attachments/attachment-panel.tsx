@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 
 import Image from "next/image";
 import {
@@ -1102,7 +1103,7 @@ function AttachmentPanelContent({
               <p>
                 Record version {historicalSet.expectedTargetVersion ?? "—"}
                 {historicalSet.links[0]?.boundAt
-                  ? ` · attached ${new Date(historicalSet.links[0].boundAt).toLocaleString()}`
+                  ? <> · attached <TimeText value={historicalSet.links[0].boundAt} /></>
                   : historicalSet.state === "draft"
                     ? " · staged for approval"
                     : ""}

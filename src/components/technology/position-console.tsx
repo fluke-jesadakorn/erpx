@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 
 import { useRef, useState } from "react";
 import Link from "next/link";
@@ -36,7 +37,7 @@ function RecipeSummary({ definition }: { definition: AccessPackageDefinition }) 
       {definition.grants.length > 0 && <details>
         <summary>ERPX roles ({definition.grants.length})</summary>
         <ul>{definition.grants.map((grant, index) => <li key={`${grant.roleId}-${index}`}>
-          {grant.roleId} · {grant.scopeKind === "holding" ? "Company" : grant.scopeKind} · until {new Date(grant.validUntil).toLocaleDateString()}
+          {grant.roleId} · {grant.scopeKind === "holding" ? "Company" : grant.scopeKind} · until {<TimeText value={grant.validUntil} />}
         </li>)}</ul>
       </details>}
       {definition.tasks.length > 0 && <details>
@@ -244,7 +245,7 @@ export function PositionConsole({ base, data, positionId }: {
                 <p>{position.requirements || "No additional work requirements recorded."}</p>
                 <p className={styles.muted}>Available for HR placement · {positionGpoStatus(position.gpo)}</p>
                 <div className={styles.linkRow}>
-                  {data.canManage && <Link href={`${base}/people?position=${encodeURIComponent(position.id)}`}>Onboard into this position <ArrowRight size={14} aria-hidden="true" /></Link>}
+                  {data.canManage && <Link href={`${base}/people?new=person&position=${encodeURIComponent(position.id)}`}>Onboard into this position <ArrowRight size={14} aria-hidden="true" /></Link>}
                   {data.canPrepare && <Link href={`${base}/technology?view=organization&position=${encodeURIComponent(position.id)}`}>View Directory & GPO <ArrowRight size={14} aria-hidden="true" /></Link>}
                 </div>
               </div>

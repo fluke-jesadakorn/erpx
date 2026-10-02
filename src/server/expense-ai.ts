@@ -1,3 +1,4 @@
+import {aiRequestQuotaLock} from "./ai-quota";
 import {captureJobAuthority,requireJobAuthority} from "./iam-jobs";
 import { sha256 as aiSessionHash } from "./crypto";
 import type { SqlDatabase, FileStore } from "./runtime/types";
@@ -38,6 +39,7 @@ type Proposal = {
   error: string | null;
   requested_by: string;
   actor_json: string | null;
+  finance_policy_version: number | null;
   attempts: number;
   claim_until: number | null;
   lease_token: string | null;
@@ -66,6 +68,18 @@ function providerGuards(db: SqlDatabase, key: string, snapshot: Providers) {
     aiSnapshotGuard(db, key, snapshot.image, "ai-image-revision"),
   ];
 }
+
+async function receiptPolicy(db: SqlDatabase, companyId: string, version?: number | null) {
+  if (version == null) return null;
+  const policy = await db.prepare("SELECT version,timezone,daily_limit,monthly_limit FROM finance_ai_policies WHERE company_id=? AND enabled AND version=? AND jsonb_exists(kinds_json::jsonb,'receipt_extraction')").bind(companyId,version).first<{version:number;timezone:string;daily_limit:number;monthly_limit:number}>();
+  if (!policy) throw new ApiError(409,"AI_STALE","The Company Finance AI policy changed. Prepare receipt suggestions manually or review the policy.");
+  await assertProductionModuleEnabled(db,companyId,"finance");
+  return policy;
+}
+function receiptPolicyGuards(db: SqlDatabase, companyId: string, version: number | null | undefined, key: string) {
+  return version == null ? [] : [...productionFeatureGuard(db,key,companyId,"finance"),assertion(db,key,"receipt-finance-policy","EXISTS(SELECT 1 FROM finance_ai_policies WHERE company_id=? AND enabled AND version=? AND jsonb_exists(kinds_json::jsonb,'receipt_extraction'))",[companyId,version])];
+}
+
 export async function expenseAiStatus(
   db: SqlDatabase,
   actor: StaffActor,
@@ -93,8 +107,10 @@ export async function expenseAiStatus(
         ? error.message
         : "AI is unavailable. Continue manually.";
   }
+  const policy = await db.prepare("SELECT version FROM finance_ai_policies WHERE company_id=? AND enabled AND jsonb_exists(kinds_json::jsonb,'receipt_extraction')").bind(actor.companyId).first<{version:number}>();
   const candidate = rows.find(
     (r) =>
+      (r.finance_policy_version == null || Number(r.finance_policy_version) === Number(policy?.version)) &&
       r.stage === source.claim.workflow_stage &&
       r.source_version === source.sourceVersion &&
       r.evidence_digest === source.digest &&
@@ -140,13 +156,14 @@ export async function queueExpenseAi(
   actor: StaffActor,
   env: BetaEnvironment,
   id: string,
-  input: { paymentId: string | null; expectedVersion: number; retry: boolean },
+  input: { paymentId: string | null; expectedVersion: number; retry: boolean; financePolicyVersion?: number },
   key: string,
 ) {
   actor=await captureJobAuthority(db,actor);
   const operation = "expense.ai.prepare",
     prior = await replayCommand(db, actor, key, operation, id, input);
   if (prior) return prior;
+  const financePolicy = await receiptPolicy(db,actor.companyId,input.financePolicyVersion);
   await assertProductionModuleEnabled(db, actor.companyId, "people_payroll");
   const authority = await expenseAuthoritySnapshot(db, actor.companyId),
     source = await expenseAiSource(db, actor.companyId, id, input.paymentId);
@@ -200,7 +217,7 @@ export async function queueExpenseAi(
     month = new Date(now).toISOString().slice(0, 7);
   const quota = await db
     .prepare(
-      "SELECT (SELECT COUNT(*) FROM social_ai_usage WHERE company_id=? AND month=?)+(SELECT COUNT(*) FROM (SELECT company_id,month FROM expense_ai_usage UNION ALL SELECT company_id,month FROM request_ai_usage UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM ai_workspace_turns UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM executive_generation_jobs) WHERE company_id=? AND month=?) used,COALESCE((SELECT ai_monthly_limit FROM beta_policy WHERE company_id=?),100) allowance,(SELECT COUNT(*) FROM expense_ai_usage WHERE company_id=? AND state='reserved' AND lease_until>?) busy",
+      "SELECT (SELECT COUNT(*) FROM social_ai_usage WHERE company_id=? AND month=?)+(SELECT COUNT(*) FROM (SELECT company_id,month FROM expense_ai_usage UNION ALL SELECT company_id,month FROM request_ai_usage UNION ALL SELECT company_id,month FROM finance_ai_usage UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM ai_workspace_turns UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM executive_generation_jobs) WHERE company_id=? AND month=?) used,COALESCE((SELECT ai_monthly_limit FROM beta_policy WHERE company_id=?),100) allowance,(SELECT COUNT(*) FROM expense_ai_usage WHERE company_id=? AND state='reserved' AND lease_until>?) busy",
     )
     .bind(
       actor.companyId,
@@ -234,14 +251,17 @@ export async function queueExpenseAi(
     source.claim.version,
     { id, proposalId, state: "queued" },
     [
+      ...(financePolicy ? [db.prepare("SELECT company_id FROM finance_ai_policies WHERE company_id=? FOR UPDATE").bind(actor.companyId), assertion(db,key,"receipt-finance-budget",`(SELECT count(*) FROM (SELECT company_id,business_date FROM finance_ai_usage UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE ?,'YYYY-MM-DD') FROM expense_ai_proposals WHERE finance_policy_version IS NOT NULL) calls WHERE company_id=? AND business_date=?)<? AND (SELECT count(*) FROM (SELECT company_id,month FROM finance_ai_usage UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') FROM expense_ai_proposals WHERE finance_policy_version IS NOT NULL) calls WHERE company_id=? AND month=?)<?`,[financePolicy.timezone,actor.companyId,new Intl.DateTimeFormat("en-CA",{timeZone:financePolicy.timezone,year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(now)),financePolicy.daily_limit,actor.companyId,month,financePolicy.monthly_limit])] : []),
+      ...receiptPolicyGuards(db,actor.companyId,input.financePolicyVersion,key),
       authority.guard(key),
       ...source.guards(key),
       ...providerGuards(db, key, configuration.snapshot),
+      aiRequestQuotaLock(db,actor.companyId),
       assertion(
         db,
         key,
         "ai-quota",
-        "(SELECT COUNT(*) FROM social_ai_usage WHERE company_id=? AND month=?)+(SELECT COUNT(*) FROM (SELECT company_id,month FROM expense_ai_usage UNION ALL SELECT company_id,month FROM request_ai_usage UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM ai_workspace_turns UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM executive_generation_jobs) WHERE company_id=? AND month=?)<COALESCE((SELECT ai_monthly_limit FROM beta_policy WHERE company_id=?),100) AND (SELECT COUNT(*) FROM expense_ai_usage WHERE company_id=? AND state='reserved' AND lease_until>?)<2 AND (SELECT COUNT(*) FROM expense_ai_usage WHERE actor_id=? AND created_at>?)<6",
+        "(SELECT COUNT(*) FROM social_ai_usage WHERE company_id=? AND month=?)+(SELECT COUNT(*) FROM (SELECT company_id,month FROM expense_ai_usage UNION ALL SELECT company_id,month FROM request_ai_usage UNION ALL SELECT company_id,month FROM finance_ai_usage UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM ai_workspace_turns UNION ALL SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM executive_generation_jobs) WHERE company_id=? AND month=?)<COALESCE((SELECT ai_monthly_limit FROM beta_policy WHERE company_id=?),100) AND (SELECT COUNT(*) FROM expense_ai_usage WHERE company_id=? AND state='reserved' AND lease_until>?)<2 AND (SELECT COUNT(*) FROM expense_ai_usage WHERE actor_id=? AND created_at>?)<6",
         [
           actor.companyId,
           month,
@@ -259,7 +279,7 @@ export async function queueExpenseAi(
       ).bind(now, existing.id, actor.companyId)] : []),
       db
         .prepare(
-          "INSERT INTO expense_ai_proposals(id,company_id,expense_id,payment_draft_id,stage,source_version,evidence_digest,provider_json,state,requested_by,created_at,updated_at,actor_json) VALUES(?,?,?,?,?,?,?,?,'queued',?,?,?,?)",
+          "INSERT INTO expense_ai_proposals(id,company_id,expense_id,payment_draft_id,stage,source_version,evidence_digest,provider_json,state,requested_by,created_at,updated_at,actor_json,finance_policy_version) VALUES(?,?,?,?,?,?,?,?,'queued',?,?,?,?,?)",
         )
         .bind(
           proposalId,
@@ -274,6 +294,7 @@ export async function queueExpenseAi(
           now,
           now,
           JSON.stringify(actor),
+          input.financePolicyVersion ?? null,
         ),
       db
         .prepare(
@@ -487,6 +508,7 @@ export async function runExpenseAi(
   try {
     await assertProductionModuleEnabled(db, row.company_id, "people_payroll");
     requireJobAuthority(actor);
+    await receiptPolicy(db,row.company_id,row.finance_policy_version);
     const authority = await expenseAuthoritySnapshot(db, row.company_id),
       source = await expenseAiSource(
         db,
@@ -680,7 +702,9 @@ export async function runExpenseAi(
         "AI_STALE",
         "The source or authority changed. Prepare new suggestions.",
       );
+    await receiptPolicy(db,row.company_id,row.finance_policy_version);
     await db.batch([
+      ...receiptPolicyGuards(db,row.company_id,row.finance_policy_version,lease),
       ...productionFeatureGuard(db,lease,row.company_id,"people_payroll"),
       assertion(
         db,

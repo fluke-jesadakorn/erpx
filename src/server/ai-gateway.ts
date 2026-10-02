@@ -113,10 +113,11 @@ export async function reserveAiGatewayRequest(scope: AiGatewayScope, provider: s
     scope.db.prepare(`
       INSERT INTO ai_gateway_requests
         (id,usage_id,holding_id,company_id,branch_id,connection_id,funding_source,provider,model,feature,status,reservation_satang,created_at)
-      SELECT ?,?,h.holding_id,?,?,?,?,?, ?,?,'reserved',
+      SELECT ?,?,?,?,?,?,?,?, ?,?,'reserved',
         CASE WHEN ?='erpx' THEN p.reservation_satang ELSE 0 END,?
-      FROM beta_bootstrap h CROSS JOIN ai_gateway_policies p
-      WHERE h.singleton=1 AND p.singleton=1 AND h.holding_id=?
+      FROM ai_gateway_policies p
+      WHERE p.singleton=1 AND (EXISTS(SELECT 1 FROM beta_bootstrap h WHERE h.singleton=1 AND h.holding_id=?)
+        OR EXISTS(SELECT 1 FROM organization_nodes n WHERE n.id=? AND n.kind='company' AND n.company_id=? AND n.status='active'))
         AND (p.platform_enabled OR ?<>'erpx')
         AND (SELECT count(*) FROM ai_gateway_requests r WHERE r.created_at>=? AND r.created_at<?)<p.monthly_request_limit
         AND (?<>'erpx' OR
@@ -125,7 +126,7 @@ export async function reserveAiGatewayRequest(scope: AiGatewayScope, provider: s
             WHERE r.funding_source='erpx' AND r.created_at>=? AND r.created_at<?)
            +p.reservation_satang<=p.monthly_spend_cap_satang)
       ON CONFLICT (id) DO NOTHING`)
-      .bind(scope.requestId,scope.usageId??scope.requestId,scope.companyId,scope.branchId,scope.connectionId,scope.fundingSource,provider,model,scope.feature,scope.fundingSource,now,scope.holdingId,scope.fundingSource,start,end,scope.fundingSource,start,end),
+      .bind(scope.requestId,scope.usageId??scope.requestId,scope.holdingId,scope.companyId,scope.branchId,scope.connectionId,scope.fundingSource,provider,model,scope.feature,scope.fundingSource,now,scope.holdingId,scope.companyId,scope.companyId,scope.fundingSource,start,end,scope.fundingSource,start,end),
   ]);
   if (results[1]?.meta.changes !== 1)
     throw new ApiError(429, "AI_GATEWAY_BLOCKED", "AI is paused, its monthly limit was reached, or this request was already sent. Continue manually or ask an administrator to review the limit.");

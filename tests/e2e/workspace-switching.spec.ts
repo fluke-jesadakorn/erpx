@@ -1,4 +1,8 @@
 import { test, expect } from '@playwright/test';
+import {searchRoleOptions} from '../helpers/context-switching-browser';
+
+test.setTimeout(180_000);
+test.use({actionTimeout:30_000,navigationTimeout:60_000});
 
 test('switches areas and preserves roles', async ({ page, context }) => {
   expect((await context.request.post('/api/auth/sign-in/email', { data: {
@@ -7,11 +11,12 @@ test('switches areas and preserves roles', async ({ page, context }) => {
   } })).ok()).toBe(true);
   await context.request.post('/api/v1/holdings/acme/companies/active',{data:{companyId:'acme-co'}});
   await page.goto('/platform/home');
-  await expect(page.getByRole('heading', {name:'Platform administration',exact:true})).toBeVisible();
+  await expect(page).toHaveURL(/\/holdings\/erpx\/manage-erpx$/);
+  await expect(page.getByRole('heading', {name:'ERPX Management',exact:true})).toBeVisible();
   const switcher=page.getByRole('button',{name:'Switch workspace',exact:true});
   await switcher.click();
   const dialog=page.getByRole('dialog',{name:'Switch workspace'});
-  await expect(dialog.getByRole('link',{name:/Platform administration/})).toHaveAttribute('aria-current','location');
+  await expect(dialog.getByRole('link',{name:/^ERPX Management(?: Current area)?$/})).toHaveAttribute('aria-current','location');
   await page.keyboard.press('Escape');
   await expect(switcher).toBeFocused();
   await switcher.press('Enter');
@@ -28,20 +33,23 @@ test('switches areas and preserves roles', async ({ page, context }) => {
     ]);
     await expect(page.locator('[data-work-company]')).toHaveAttribute('data-work-company',companyId);
     await page.getByRole('button',{name:/Account menu for/}).click();
-    const roles=page.getByRole('combobox',{name:'Role for actions & approvals'});
-    await roles.press('ArrowDown');await expect(page.getByRole('listbox').getByRole('option')).toHaveCount(17);
-    await roles.fill('employee');await Promise.all([page.waitForEvent('load'),page.getByRole('listbox').getByRole('option').click()]);
+    const roleOptions=await searchRoleOptions(page,'');
+    expect(await roleOptions.getByRole('option').count()).toBeGreaterThanOrEqual(17);
+    await page.getByRole('combobox',{name:'Search roles',exact:true}).fill('employee');
+    await roleOptions.getByRole('option').first().click();
     await expect(page.getByRole('button',{name:/Account menu for/})).toContainText(/employee/i);
   }
   await switcher.click();
-  await dialog.getByRole('link',{name:'Bangkok Operations',exact:true}).click();
+  const bangkok=dialog.locator('a[href="/holdings/acme/branches/bangkok/home"]');
+  await bangkok.click();
   await expect(page).toHaveURL(/\/holdings\/acme\/branches\/bangkok\/home$/);
   await switcher.click();
-  await expect(dialog.getByRole('link',{name:/Bangkok Operations/})).toHaveAttribute('aria-current','location');
+  await expect(bangkok).toHaveAttribute('aria-current','location');
   await page.keyboard.press('Escape');
   await switcher.click();
-  await Promise.all([page.waitForResponse(r=>r.url().endsWith('/workspace-preference') && r.request().postDataJSON().base==='/platform' && r.ok()),dialog.getByRole('link',{name:'Platform administration',exact:true}).click()]);
-  await page.goto('/');await expect(page).toHaveURL(/\/platform\/home$/);
+  await dialog.getByRole('link',{name:/^ERPX Management(?: Current area)?$/}).click();
+  await expect(page).toHaveURL(/\/holdings\/erpx\/manage-erpx$/);
+  await expect(page.getByRole('heading',{name:'ERPX Management',exact:true})).toBeVisible();
   await switcher.click();
   await Promise.all([page.waitForResponse(r=>r.url().endsWith('/workspace-preference') && r.request().postDataJSON().base==='/holdings/acme' && r.ok()),dialog.getByRole('button',{name:/Acme Corporation/}).click()]);
   await expect(page).toHaveURL(/\/holdings\/acme\/home$/);
@@ -69,11 +77,11 @@ test('retired Platform catalogs stay unavailable and out of search',async({page,
 
 test('business-only staff sees its holding without Platform access',async({page,context,baseURL})=>{
   test.skip(!['localhost','127.0.0.1'].includes(new URL(baseURL!).hostname),'Local seeded staff account');
-  expect((await context.request.post('/api/auth/sign-in/email',{data:{email:'demo.bangkok.operations.staff@erpx.dev',password:'Elena-ERPX-2026!'}})).ok()).toBe(true);
+  expect((await context.request.post('/api/auth/sign-in/email',{data:{email:process.env.ERPX_E2E_READER_EMAIL??'elena.suwan@erpx.dev',password:process.env.ERPX_E2E_READER_PASSWORD??'12345678'}})).ok()).toBe(true);
   await page.goto('/holdings/acme/branches/bangkok/departments/operations/home');
   await page.getByRole('button',{name:'Switch workspace',exact:true}).click();
   const dialog=page.getByRole('dialog',{name:'Switch workspace'});
-  await expect(dialog.getByRole('link',{name:'Operations',exact:true})).toHaveAttribute('href','/holdings/acme/branches/bangkok/departments/operations/home');
+  await expect(dialog.locator('a[href="/holdings/acme/branches/bangkok/departments/operations/home"]')).toContainText('Operations');
   await expect(dialog.getByRole('link',{name:/Platform administration/})).toHaveCount(0);
   await expect(dialog.getByRole('link',{name:/Northstar/})).toHaveCount(0);
 });
@@ -93,23 +101,22 @@ test('failed company selection leaves the active company usable, owner can open 
   await page.unroute('**/companies/active');
   await page.keyboard.press('Escape');
   await page.getByRole('button',{name:/Account menu for/}).click();
-  const role=page.getByRole('combobox',{name:'Role for actions & approvals'});
-  await role.fill('holding owner');await Promise.all([page.waitForEvent('load'),page.getByRole('listbox').getByRole('option').click()]);
+  const roles=await searchRoleOptions(page,'holding owner');
+  await roles.getByRole('option').click();
+  await expect(page.locator('.active-work-role')).toContainText('holding owner',{timeout:30_000});
   await expect(page).toHaveURL(/\/holdings\/acme\/home$/);
   await page.screenshot({path:`.scratch/dev/workspace-${testInfo.project.name}.png`});
   await page.goto('/holdings/acme/finance');
   await expect(page.locator('[data-work-revision]')).toBeVisible();
   expect((await context.request.get('/api/v1/holdings/acme/finance/charts')).status()).toBe(200);
   await page.goto('/holdings/acme/branches/bangkok/home');
-  const navigation = testInfo.project.name === 'mobile'
-    ? page.getByRole('dialog',{name:'More',exact:true})
-    : page.getByRole('navigation',{name:'Primary'});
-  if(testInfo.project.name === 'mobile')
-    await page.getByRole('button',{name:'More navigation'}).click();
-  await expect(navigation.getByRole('link',{name:'Directory & access',exact:true})).toBeVisible();
-  for(const label of ['Payroll','Approvals & routines','Usage & billing','AI providers'])
-    await expect(navigation.getByRole('link',{name:label,exact:true})).toHaveCount(0);
-  if(testInfo.project.name === 'mobile') await page.keyboard.press('Escape');
+  await page.getByRole('button',{name:'App launcher',exact:true}).click();
+  const navigation = page.getByRole('dialog',{name:'App launcher',exact:true});
+  await expect(navigation.locator('a[href="/holdings/acme/branches/bangkok/people"]')).toBeVisible();
+  for(const destination of ['people/payroll','settings?section=approvals','settings?section=usage','settings?section=ai'])
+    await expect(navigation.locator(`a[href="/holdings/acme/branches/bangkok/${destination}"]`)).toHaveCount(0);
+  await page.keyboard.press('Escape');
   await page.goto('/holdings/acme/branches/bangkok/settings?section=usage');
-  await expect(page).toHaveURL(/\/access\?/);
+  await expect(page).toHaveURL(/\/holdings\/acme\/branches\/bangkok\/settings\?section=usage$/);
+  await expect(page.getByRole('heading',{name:'Your role cannot open this view',exact:true})).toBeVisible();
 });

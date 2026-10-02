@@ -269,7 +269,7 @@ it("keeps saved commerce layouts after customer and supplier pages move", () => 
   }
   expect(allowedWidgets("commerce-orders-detail", context).length).toBeGreaterThan(0);
 });
-it("splits standard People tabs while leaving Beta People navigation unchanged", () => {
+it("keeps standard People in one workspace while leaving Beta People navigation unchanged", () => {
   const locate = (context: Parameters<typeof featureLocation>[0], path = "people") =>
     featureLocation(context, `${context.workspaceBase}/${path}`, new URLSearchParams());
   const owner = locate({
@@ -278,38 +278,27 @@ it("splits standard People tabs while leaving Beta People navigation unchanged",
     role: "holding_owner",
     adminSections: ["people", "organization"],
   });
-  expect(owner.tabs.map((tab) => tab.id)).toEqual([
-    "people-directory",
-    "people-roster",
-    "people-organization",
-    "people-payroll",
-  ]);
-  expect(owner.secondaryTabs.map((tab) => tab.id)).toEqual([
-    "handbook",
-    "learn",
-    "people-settings",
-  ]);
+  expect(owner.tabs).toEqual([]);
+  expect(owner.secondaryTabs).toEqual([]);
 
   const employee = locate({ workspaceBase: "/holdings/acme", role: "employee" });
-  expect(employee.tabs.map((tab) => tab.id)).toEqual([
-    "people-directory",
-    "people-roster",
-    "people-organization",
-  ]);
-  expect(employee.secondaryTabs.map((tab) => tab.id)).toEqual(["handbook", "learn"]);
+  expect(employee.tabs).toEqual([]);
+  expect(employee.secondaryTabs).toEqual([]);
 
   const payrollReader = locate({
     workspaceBase: "/holdings/acme",
     role: "employee",
     permissions: ["people.read", "payroll.read"],
   });
-  expect(payrollReader.tabs.map((tab) => tab.id)).toContain("people-payroll");
+  expect(payrollReader.tabs).toEqual([]);
+  expect(payrollReader.secondaryTabs).toEqual([]);
   const branch = locate({
     workspaceBase: "/holdings/acme/branches/main",
     scopeKind: "branch",
     role: "holding_owner",
   });
-  expect(branch.tabs.map((tab) => tab.id)).not.toContain("people-payroll");
+  expect(branch.tabs).toEqual([]);
+  expect(branch.secondaryTabs).toEqual([]);
 
   const beta = locate({
     workspaceBase: "/holdings/beta",

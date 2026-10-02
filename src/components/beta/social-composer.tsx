@@ -2,10 +2,13 @@
 
 import { workFetch } from "@/lib/work-fetch";
 import { PersonAvatar } from "@/components/ui/person-avatar";
-import { SocialTextInput } from "./social-text-input";
+import { SocialPostContentEditor, newPostTextBlock, postContentBody, postContentMentions,
+  postWireContent, postWireRichContent, postEditorBlocksFromStored, type PostEditorBlock } from "./social-post-content-editor";
+import type { RichContent } from "@/lib/home-rich-content";
 import type { Mention } from "@/lib/social-text";
+import type { PostContent } from "@/server/social-home";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ImagePlus, PenLine, ChevronDown, X } from "lucide-react";
+import { PenLine, ChevronDown } from "lucide-react";
 import { betaFetch } from "@/lib/beta-client";
 import { useSocialCommand } from "./social-command";
 import type { Meta, Draft, PostPurpose } from "./social-types";
@@ -14,110 +17,17 @@ import { preparedPostFields } from "@/lib/ai/prepared-work";
 type Source = { kind: "staff_task" | "staff_project"; id: string };
 
 const subscribeHydration = () => () => {};
-const allowedPhotoTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
-const maxPhotoBytes = 10 * 1024 * 1024;
-const maxPostLength = 3000;
-
-type TextBlock = { type: "text"; id: string; text: string; mentions: Mention[] };
-type ImageBlock = {
-  type: "image"; slotId: string; attachmentId: string | null; name: string; alt: string;
-  file?: File; uploadUrl?: string;
-};
-type EditorBlock = TextBlock | ImageBlock;
-type WireBlock = { type: "text"; text: string } |
-  { type: "image"; slotId: string; attachmentId: string | null; name: string; alt: string };
-type Selection = { id: string; start: number; end: number };
-
-const textBlock = (text = "", mentions: Mention[] = []): TextBlock =>
-  ({ type: "text", id: crypto.randomUUID(), text, mentions });
-const wireContent = (blocks: EditorBlock[]): WireBlock[] => blocks.map(block =>
-  block.type === "text" ? { type: "text", text: block.text } :
-    { type: "image", slotId: block.slotId, attachmentId: block.attachmentId, name: block.name, alt: block.alt });
-const postBody = (blocks: EditorBlock[]) => {
-  const texts = blocks.filter((block): block is TextBlock => block.type === "text");
-  return texts.some(block => block.text.trim()) ? texts.map(block => block.text).join("\n") : "";
-};
-function postMentions(blocks: EditorBlock[]) {
-  const mentions: Mention[] = [];
-  let offset = 0;
-  for (const block of blocks) {
-    if (block.type !== "text") continue;
-    for (const mention of block.mentions)
-      mentions.push({ ...mention, start: mention.start + offset, end: mention.end + offset });
-    offset += block.text.length + 1;
-  }
-  return mentions;
-}
-function restoredBlocks(draft: Draft): EditorBlock[] {
+const maxPostLength = 30000;
+function restoredBlocks(draft: Draft): PostEditorBlock[] {
   const globalMentions = JSON.parse(draft.mentions_json ?? "[]") as Mention[];
-  let content: WireBlock[] | null = null;
+  let content: PostContent | null = null;
   try {
     const parsed: unknown = draft.content_json ? JSON.parse(draft.content_json) : null;
-    if (Array.isArray(parsed)) content = parsed as WireBlock[];
+    if (Array.isArray(parsed)) content = parsed as PostContent;
   } catch { /* Legacy drafts use body and mentions. */ }
-  if (!content?.length) return [textBlock(draft.body, globalMentions)];
-  let offset = 0;
-  const result: EditorBlock[] = [];
-  for (const block of content) {
-    if (block.type === "text") {
-      const local = globalMentions.filter(m => m.start >= offset && m.end <= offset + block.text.length)
-        .map(m => ({ ...m, start: m.start - offset, end: m.end - offset }));
-      result.push(textBlock(block.text, local));
-      offset += block.text.length + 1;
-    } else if (block.type === "image") {
-      result.push({ type: "image", slotId: block.slotId, attachmentId: block.attachmentId,
-        name: block.name, alt: block.alt ?? block.name });
-    }
-  }
-  if (!result.some(block => block.type === "text")) result.unshift(textBlock());
-  if (result.at(-1)?.type === "image") result.push(textBlock());
-  return result;
-}
-function removeImage(blocks: EditorBlock[], slotId: string): EditorBlock[] {
-  const kept = blocks.filter(block => block.type !== "image" || block.slotId !== slotId);
-  const result: EditorBlock[] = [];
-  for (const block of kept) {
-    const previous = result.at(-1);
-    if (block.type === "text" && previous?.type === "text") {
-      const offset = previous.text.length + 1;
-      result[result.length - 1] = { ...previous, text: `${previous.text}\n${block.text}`,
-        mentions: [...previous.mentions, ...block.mentions.map(m =>
-          ({ ...m, start: m.start + offset, end: m.end + offset }))] };
-    } else result.push(block);
-  }
-  return result.length ? result : [textBlock()];
-}
-
-function ImagePreview({ block, api, remove, describe, reselect }: {
-  block: ImageBlock; api: string; remove: () => void; describe: (alt: string) => void;
-  reselect: (file: File) => void;
-}) {
-  const image = useRef<HTMLImageElement>(null);
-  useEffect(() => {
-    if (!block.file || !image.current) return;
-    const url = URL.createObjectURL(block.file);
-    image.current.src = url;
-    return () => URL.revokeObjectURL(url);
-  }, [block.file]);
-  return <figure className="beta-inline-image">
-    {block.file || block.attachmentId ? (
-      // Blob previews and authenticated private attachments must bypass image optimization.
-      // eslint-disable-next-line @next/next/no-img-element
-      <img ref={image} src={block.file ? undefined : `${api}/attachments/${block.attachmentId}/content`}
-        alt={block.alt || block.name} />
-    ) : <div className="beta-image-missing" role="status">Select {block.name} again to finish this draft.</div>}
-    <div className="beta-inline-image-controls">
-      <input aria-label={`Image description for ${block.name}`} value={block.alt} maxLength={160}
-        placeholder="Image description" onChange={event => describe(event.target.value)} />
-      {!block.file && !block.attachmentId && <label className="button secondary">Select image
-        <input type="file" accept="image/png,image/jpeg,image/webp" aria-label={`Reselect ${block.name}`}
-          onChange={event => { const file = event.target.files?.[0]; if (file) reselect(file); event.target.value = ""; }} />
-      </label>}
-      <button type="button" onClick={remove} aria-label={`Remove ${block.name}`}>
-        <X size={15} aria-hidden="true" />
-      </button>
-    </div>
-  </figure>;
+  let rich: RichContent | null = null;
+  try {rich=draft.rich_content_json?JSON.parse(draft.rich_content_json) as RichContent:null;}catch{}
+  return postEditorBlocksFromStored(content, rich, draft.body, globalMentions);
 }
 
 export function SocialComposer({ api, name, meta, setMeta, loadMeta, onPublished }: {
@@ -126,7 +36,7 @@ export function SocialComposer({ api, name, meta, setMeta, loadMeta, onPublished
 }) {
   const ready = useSyncExternalStore(subscribeHydration, () => true, () => false);
   const { run, send, busy, message, setMessage } = useSocialCommand();
-  const [blocks, setBlocks] = useState<EditorBlock[]>([{ type: "text", id: "initial", text: "", mentions: [] }]);
+  const [blocks, setBlocks] = useState<PostEditorBlock[]>([{ type: "text", id: "initial", text: "", mentions: [] }]);
   const [audience, setAudience] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
   const [sources, setSources] = useState<Source[]>([]);
@@ -135,8 +45,8 @@ export function SocialComposer({ api, name, meta, setMeta, loadMeta, onPublished
   const [draft, setDraft] = useState<Draft | null>(null);
   const [guided, setGuided] = useState<Record<string,string> | null>(null);
   const composer = useRef<HTMLDetailsElement>(null);
-  const [focus, setFocus] = useState<{ id: string; caret: number; signal: number } | null>(null);
-  const selection = useRef<Selection | null>(null);
+  const [editorResetKey, setEditorResetKey] = useState(0);
+  const [focusSignal, setFocusSignal] = useState(0);
   const handoff = meta.handoffContext;
   useEffect(() => {
     const openTarget = () => {
@@ -175,7 +85,8 @@ export function SocialComposer({ api, name, meta, setMeta, loadMeta, onPublished
     if (!guided) return;
     const prepared = preparedPostFields(guided);
     setDraft(null);
-    setBlocks([textBlock(prepared.body)]);
+    setBlocks([newPostTextBlock(prepared.body)]);
+    setEditorResetKey(value => value + 1);
     setPurpose(prepared.purpose);
     setAudience("");
     setParticipants([]);
@@ -184,62 +95,6 @@ export function SocialComposer({ api, name, meta, setMeta, loadMeta, onPublished
     setMessage("Prepared details added. Review the message and choose an audience before sharing.");
   }
 
-  function focusText(id: string, caret: number) {
-    setFocus(current => ({ id, caret, signal: (current?.signal ?? 0) + 1 }));
-  }
-  function addPhotos(files: File[], target?: Selection) {
-    if (!files.length) return;
-    const supported = files.filter(file => allowedPhotoTypes.has(file.type) && file.size > 0 && file.size <= maxPhotoBytes);
-    const available = Math.max(0, 10 - blocks.filter(block => block.type === "image").length);
-    const added = supported.slice(0, available);
-    if (added.length) {
-      const spot = target ?? selection.current;
-      const currentIndex = spot ? blocks.findIndex(block => block.type === "text" && block.id === spot.id) : -1;
-      const index = currentIndex >= 0 ? currentIndex : blocks.findLastIndex(block => block.type === "text");
-      const current = blocks[index] as TextBlock;
-      const start = currentIndex >= 0 ? Math.min(spot!.start, current.text.length) : current.text.length;
-      const end = currentIndex >= 0 ? Math.min(spot!.end, current.text.length) : start;
-      const before = { ...current, text: current.text.slice(0, start),
-        mentions: current.mentions.filter(m => m.end <= start) };
-      const after = textBlock(current.text.slice(end), current.mentions.filter(m => m.start >= end)
-        .map(m => ({ ...m, start: m.start - end, end: m.end - end })));
-      const images: ImageBlock[] = added.map(file => ({ type: "image", slotId: crypto.randomUUID(),
-        attachmentId: null, name: file.name || "pasted-image.png", alt: file.name || "Pasted image", file }));
-      const next = [...blocks.slice(0, index), before, ...images, after, ...blocks.slice(index + 1)];
-      if (postBody(next).length > maxPostLength) {
-        setMessage("This message is too long to add images here.");
-        return;
-      }
-      setBlocks(next);
-      selection.current = { id: after.id, start: 0, end: 0 };
-      focusText(after.id, 0);
-    }
-    if (files.some(file => !allowedPhotoTypes.has(file.type)))
-      setMessage("Posts accept JPEG, PNG, and WebP images.");
-    else if (files.some(file => file.size < 1 || file.size > maxPhotoBytes))
-      setMessage("Each image must be between 1 byte and 10 MB.");
-    else if (files.length > available)
-      setMessage("You can attach up to 10 images to an update.");
-    else if (added.length)
-      setMessage(`${added.length === 1 ? "Image" : `${added.length} images`} attached.`);
-  }
-  function updateText(id: string, text: string, mentions: Mention[]) {
-    const next = blocks.map(block => block.type === "text" && block.id === id ? { ...block, text, mentions } : block);
-    if (postBody(next).length > maxPostLength) {
-      setMessage("Posts can contain up to 3,000 characters of text.");
-      return;
-    }
-    setBlocks(next);
-  }
-  function reselectImage(slotId: string, file: File) {
-    if (!allowedPhotoTypes.has(file.type) || file.size < 1 || file.size > maxPhotoBytes) {
-      setMessage("Select a JPEG, PNG, or WebP image no larger than 10 MB.");
-      return;
-    }
-    setBlocks(current => current.map(block => block.type === "image" && block.slotId === slotId
-      ? { ...block, file, name: file.name, alt: block.alt || file.name, uploadUrl: undefined } : block));
-    setMessage("Image ready to upload.");
-  }
   async function save(publish = false) {
     const choice = meta.audiences?.find(option => option.value === audience);
     if (publish && !choice) {
@@ -257,23 +112,23 @@ export function SocialComposer({ api, name, meta, setMeta, loadMeta, onPublished
     }
     await run(async () => {
       let working = blocks;
-      const body = postBody(working);
-      const mentions = postMentions(working);
+      const body = postContentBody(working);
+      const mentions = postContentMentions(working);
       const saved = await send<{ id: string; version: number }>(`${api}/beta/drafts${draft ? `/${draft.id}` : ""}`,
-        { body, mentions, content: wireContent(working), audience: audienceInput, sources, purpose,
+        { body, mentions, content: postWireContent(working), richContent: postWireRichContent(working), audience: audienceInput, sources, purpose,
           expectedVersion: draft?.version ?? 1 });
       let version = saved.version;
-      const updateDraft = (content: EditorBlock[], currentVersion: number) => setDraft({
-        id: saved.id, version: currentVersion, body: postBody(content),
+      const updateDraft = (content: PostEditorBlock[], currentVersion: number) => setDraft({
+        id: saved.id, version: currentVersion, body: postContentBody(content),
         branch_id: choice?.kind === "branch" ? choice.value.slice("branch:".length) : null,
         audience_kind: choice?.kind ?? null, purpose,
         audience_id: choice && (choice.kind === "team" || choice.kind === "project")
           ? choice.value.slice(choice.kind.length + 1) : null,
         participants_json: JSON.stringify(participants), sources_json: JSON.stringify(sources),
-        mentions_json: JSON.stringify(postMentions(content)), content_json: JSON.stringify(wireContent(content)),
+        mentions_json: JSON.stringify(postContentMentions(content)), content_json: JSON.stringify(postWireContent(content)), rich_content_json: JSON.stringify(postWireRichContent(content)),
       });
       updateDraft(working, version);
-      for (const image of working.filter((block): block is ImageBlock =>
+      for (const image of working.filter((block): block is Extract<PostEditorBlock, { type: "image" }> =>
         block.type === "image" && !!block.file && !block.attachmentId)) {
         let uploadUrl = image.uploadUrl;
         if (!uploadUrl) {
@@ -288,7 +143,7 @@ export function SocialComposer({ api, name, meta, setMeta, loadMeta, onPublished
         }
         const response = await workFetch(uploadUrl, { method: "PUT", body: image.file });
         const result = (await response.json()) as {
-          data?: { id: string; ownerVersion: number }; error?: { message: string };
+          data?: { id: string; ownerVersion: number }; error?: { message: string; requestId?: string };
         };
         if (!response.ok || !result.data) {
           if (response.status === 404) {
@@ -296,11 +151,13 @@ export function SocialComposer({ api, name, meta, setMeta, loadMeta, onPublished
               ? { ...block, uploadUrl: undefined } : block);
             setBlocks(working);
           }
-          throw new Error(result.error?.message ?? "Image upload failed. Your draft is still here; try again.");
+          const message = result.error?.message ?? "Image upload failed. Your draft is still here; try again.";
+          const requestId = result.error?.requestId ?? response.headers.get("X-Request-ID");
+          throw new Error(requestId ? `${message} (Reference: ${requestId})` : message);
         }
         version = result.data.ownerVersion;
         working = working.map(block => block.type === "image" && block.slotId === image.slotId
-          ? { ...block, attachmentId: result.data!.id, file: undefined, uploadUrl: undefined } : block);
+          ? { ...block, attachmentId: result.data!.id, file: undefined, uploadUrl: undefined, previewUrl: undefined } : block);
         setBlocks(working);
         updateDraft(working, version);
       }
@@ -310,7 +167,7 @@ export function SocialComposer({ api, name, meta, setMeta, loadMeta, onPublished
       }
       if (version !== saved.version) {
         const finalized = await send<{ id: string; version: number }>(`${api}/beta/drafts/${saved.id}`, {
-          body: postBody(working), mentions: postMentions(working), content: wireContent(working),
+          body: postContentBody(working), mentions: postContentMentions(working), content: postWireContent(working), richContent: postWireRichContent(working),
           audience: audienceInput, purpose, expectedVersion: version,
         });
         version = finalized.version;
@@ -322,13 +179,13 @@ export function SocialComposer({ api, name, meta, setMeta, loadMeta, onPublished
       updateDraft(working, version);
       if (publish) {
         await send(`${api}/beta/drafts/${saved.id}/publish`, { expectedVersion: version });
-        setBlocks([textBlock()]);
+        setBlocks([newPostTextBlock()]);
+        setEditorResetKey(value => value + 1);
         setDraft(null);
         setAudience("");
         setParticipants([]);
         setSources([]);
         setPurpose("update");
-        selection.current = null;
         setMessage(`Shared with ${choice?.label ?? "your selected audience"}.`);
         await onPublished();
       } else setMessage("Draft saved. Only you can see it.");
@@ -344,8 +201,7 @@ export function SocialComposer({ api, name, meta, setMeta, loadMeta, onPublished
     <details ref={composer} className="card beta-composer" onToggle={event => {
       if (event.currentTarget.open) {
         loadMeta();
-        const first = blocks.find((block): block is TextBlock => block.type === "text");
-        if (first) focusText(first.id, first.text.length);
+        setFocusSignal(value => value + 1);
       }
     }}>
       <summary>
@@ -361,23 +217,9 @@ export function SocialComposer({ api, name, meta, setMeta, loadMeta, onPublished
         <button type="button" className="button ghost" onClick={clearPrepared}>Discard suggestion</button>
       </div>}
       <div className="beta-post-editor" aria-label="Post content">
-        {blocks.map((block, index) => block.type === "text" ? (
-          <SocialTextInput key={block.id} api={api}
-            label={index === 0 ? "Post message" : `Post message continuation ${index}`}
-            disabled={!ready || busy} value={block.text} mentions={block.mentions}
-            onChange={(text, mentions) => updateText(block.id, text, mentions)}
-            onPasteImages={(files, range) => addPhotos(files, { id: block.id, ...range })}
-            onSelectionChange={range => { selection.current = { id: block.id, ...range }; }}
-            focusSignal={focus?.id === block.id ? focus.signal : undefined} focusCaret={focus?.caret}
-            showHint={index === 0} maxLength={maxPostLength}
-            placeholder={index === 0 ? "Share a win, ask for help, paste an image, or mention @ERPX assistant…" : "Continue writing…"} />
-        ) : (
-          <ImagePreview key={block.slotId} block={block} api={api}
-            remove={() => setBlocks(current => removeImage(current, block.slotId))}
-            describe={alt => setBlocks(current => current.map(row =>
-              row.type === "image" && row.slotId === block.slotId ? { ...row, alt } : row))}
-            reselect={file => reselectImage(block.slotId, file)} />
-        ))}
+        <SocialPostContentEditor api={api} blocks={blocks} onChange={setBlocks} resetKey={editorResetKey}
+          focusSignal={focusSignal} maxLength={maxPostLength} label="Post message"
+          placeholder="Share a win, ask for help, paste an image, or mention @AI…" disabled={!ready || busy} />
       </div>
       <div className="beta-composer-actions">
         <label>Post type
@@ -430,12 +272,8 @@ export function SocialComposer({ api, name, meta, setMeta, loadMeta, onPublished
               item.kind !== source.kind || item.id !== source.id))}>×</button>
           </span>)}
         </div>
-        <label className="button secondary beta-photo-input"><ImagePlus size={15} /> Photos
-          <input aria-label="Add photos" type="file" accept="image/png,image/jpeg,image/webp" multiple
-            onChange={event => { addPhotos(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
-        </label>
         <button className="button secondary" disabled={busy} onClick={() => void save()}>Save draft</button>
-        <button className="button" disabled={busy || (!postBody(blocks).trim() && !hasImage)}
+        <button className="button" disabled={busy || (!postContentBody(blocks).trim() && !hasImage)}
           onClick={() => void save(true)}>Share {purpose}</button>
       </div>
       {meta.drafts.length > 0 && <details>
@@ -444,14 +282,13 @@ export function SocialComposer({ api, name, meta, setMeta, loadMeta, onPublished
           const restored = restoredBlocks(item);
           setDraft(item);
           setBlocks(restored);
+          setEditorResetKey(value => value + 1);
           // A restored draft needs a fresh audience choice before it is shared.
           setAudience("");
           setParticipants(JSON.parse(item.participants_json ?? "[]") as string[]);
           setSources(JSON.parse(item.sources_json ?? "[]") as Source[]);
           setPurpose(item.purpose ?? "update");
-          selection.current = null;
-          const first = restored.find((row): row is TextBlock => row.type === "text");
-          if (first) focusText(first.id, first.text.length);
+          setFocusSignal(value => value + 1);
         }}>{item.body || "Photo update draft"}</button>)}
       </details>}
     </details>

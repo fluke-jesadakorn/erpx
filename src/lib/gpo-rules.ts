@@ -4,7 +4,7 @@ const id = z.string().min(1).max(500);
 export const gpoRuleTarget = z.object({ kind: z.enum(["level", "department", "position"]), id });
 export type GpoRuleTarget = z.infer<typeof gpoRuleTarget>;
 export const gpoRuleInput = z.object({
-  id: id.optional(), target: gpoRuleTarget, expectedVersion: z.number().int().nonnegative(),
+  id: id.optional(), target: z.object({ kind: z.literal("position"), id }), expectedVersion: z.number().int().nonnegative(),
   connectionId: id, gpoId: id, userFilterGroupId: id, computerTargetOuId: id,
   reason: z.string().trim().min(3).max(1000),
 });
@@ -28,6 +28,7 @@ export type GpoRulePreview = {
 export type GpoRulesOverview = {
   rules: GpoRule[];
   effectiveByPosition: Record<string, EffectiveGpoRule[]>;
+  tasks: { positionId: string; positionName: string; version: number; status: "pending" | "blocked" | "completed" | "not_required"; reason: string | null; mappingCount: number; verifiedCount: number }[];
   jobs: { id: string; rule_id: string | null; position_id: string; person_id: string; engagement_id: string | null; account_id: string | null; connection_id: string; revision: number; desired_action: "add" | "remove"; status: string; version: number; last_error: string | null; directory_observed_at: number | null; endpoint_observed_at: number | null }[];
   canManage: boolean;
 };

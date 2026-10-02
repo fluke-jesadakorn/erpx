@@ -16,13 +16,25 @@ for (const file of [...sources, "bun.lock", "package.json", "next.config.ts", "t
 for (const key of Object.keys(process.env).filter(key => key.startsWith("NEXT_PUBLIC_")).sort())
   fingerprint.update(key).update("\0").update(process.env[key] ?? "").update("\0");
 const deploymentId = `dev-${fingerprint.digest("hex").slice(0, 24)}`;
-const child = Bun.spawn([node, resolve("node_modules/next/dist/bin/next"), "dev", "-p", "3100", ...process.argv.slice(2)], {
+// Webpack passed server-route HMR. An aged 4 GiB session hit Next's memory
+// restart threshold; use 8 GiB for headroom, with 4 GiB still available explicitly.
+const devArgs = process.argv.slice(2);
+if (!devArgs.some(arg => ["--webpack", "--turbopack", "--turbo"].includes(arg)))
+  devArgs.unshift("--webpack");
+const heapMiB = process.env.ERPX_DEV_HEAP_MIB ?? "8192";
+if (!["4096", "8192"].includes(heapMiB)) throw new Error("ERPX_DEV_HEAP_MIB must be 4096 or 8192.");
+const inheritedNodeOptions = process.env.NODE_OPTIONS ?? "";
+const nodeOptions = /(?:^|\s)--max-old-space-size(?:=|\s+)\d+/.test(inheritedNodeOptions)
+  ? inheritedNodeOptions
+  : `${inheritedNodeOptions} --max-old-space-size=${heapMiB}`.trim();
+const child = Bun.spawn([node, resolve("node_modules/next/dist/bin/next"), "dev", "-p", "3100", ...devArgs], {
   stdin: "inherit",
   stdout: "inherit",
   stderr: "inherit",
   env: {
     ...process.env,
     NEXT_DEPLOYMENT_ID: deploymentId,
+    NODE_OPTIONS: nodeOptions,
   },
 });
 for (const signal of ["SIGINT", "SIGTERM"] as const)

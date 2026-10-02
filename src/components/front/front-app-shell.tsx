@@ -7,10 +7,56 @@ import { useRouter } from "next/navigation";
 import styles from "./front-app-shell.module.css";
 import { FrontLanguageContext, useFrontLanguage } from "./front-language";
 import { frontText } from "@/lib/front-language";
+import { CurrencyProvider, CurrencySelector, type CurrencyContextData } from "@/components/money/currency-provider";
 import { QuickAccessShelf } from "@/components/quick-access/shelf";
 import type { QuickAccessItem, QuickAccessPreference } from "@/lib/quick-access";
+import type { AppearancePreference } from "@/lib/appearance-preference";
+import { ModuleTiles } from "@/components/hospitality/module-tiles";
+import { pmsMenu } from "@/components/hospitality/module-menu";
+import { useContextSwitch } from "@/components/workplace/context-switch-provider";
+import { useHydrated } from "@/components/ui/use-hydrated";
 
 type AppKind = "pos" | "pms";
+type FrontWorkRole = {
+  endpoint: string;
+  assignmentId: string;
+  revision: number;
+  options: { id: string; label: string }[];
+};
+
+function FrontWorkRoleSelect({ role, location, companyId, returnTo }: { role: FrontWorkRole; location: string; companyId: string; returnTo: string }) {
+  const language = useFrontLanguage();
+  const ready = useHydrated();
+  const { busy, switchContext } = useContextSwitch();
+  const [error, setError] = useState("");
+  return <div className={styles.workRole}>
+    <label>
+      <span>{language === "th" ? "บทบาทงาน" : "Work role"}</span>
+      <select aria-label={language === "th" ? "บทบาทงาน" : "Work role"} value={role.assignmentId} disabled={!ready || busy} onChange={async event => {
+        const assignmentId = event.target.value;
+        if (assignmentId === role.assignmentId || busy) return;
+        setError("");
+        try {
+          await switchContext({ companyId, returnTo, inspect: false, action: async () => {
+            const response = await fetch(role.endpoint, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ location, assignmentId, revision: role.revision }),
+            });
+            if (!response.headers.get("content-type")?.includes("application/json")) {
+              throw new Error(language === "th" ? "ระบบยังไม่พร้อมเปลี่ยนบทบาท กรุณาลองใหม่อีกครั้ง" : "Work role is temporarily unavailable. Please try again.");
+            }
+            const body = await response.json();
+            if (!response.ok) throw new Error(body.error?.message ?? (language === "th" ? "เปลี่ยนบทบาทไม่สำเร็จ กรุณาลองใหม่" : "Could not change work role. Try again."));
+          } });
+        } catch (cause) { setError(cause instanceof Error ? cause.message : (language === "th" ? "เปลี่ยนบทบาทไม่สำเร็จ กรุณาลองใหม่" : "Could not change work role. Try again.")); }
+      }}>
+        {role.options.map(option => <option key={option.id} value={option.id}>{option.label}</option>)}
+      </select>
+    </label>
+    <small>{language === "th" ? "ใช้บทบาทที่เลือกทำรายการ กฎผู้ตรวจคนละคนยังคงใช้" : "Actions use this role. Independent review rules still apply."}</small>
+    {error && <p role="alert">{error}</p>}
+  </div>;
+}
 
 function writeFrontCookie(name: string, value: string) {
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
@@ -27,6 +73,13 @@ function subscribeToConnectivity(callback: () => void) {
 }
 function getConnectivitySnapshot() { return navigator.onLine; }
 function getServerConnectivitySnapshot() { return true; }
+function subscribeAppearance(callback: () => void) {
+  window.addEventListener("erpx-appearance", callback);
+  return () => window.removeEventListener("erpx-appearance", callback);
+}
+function getAppearanceSnapshot() {
+  return document.documentElement.getAttribute("data-theme") ?? "system";
+}
 
 export function FrontAppShell({
   holdingSlug,
@@ -42,7 +95,12 @@ export function FrontAppShell({
   locationName,
   userId,
   initialLanguage,
+  initialTheme = "system",
   quickAccess,
+  erpHref,
+  money,
+  moneyApiBase,
+  workRole,
   children,
 }: {
   holdingSlug: string;
@@ -58,12 +116,17 @@ export function FrontAppShell({
   locationName?: string;
   userId: string;
   initialLanguage: "th" | "en";
+  initialTheme?: AppearancePreference;
   quickAccess?: {
     items: QuickAccessItem[];
     preference: QuickAccessPreference;
     defaultIds: string[];
     endpoint: string;
   };
+  erpHref?: string;
+  money?: CurrencyContextData;
+  moneyApiBase?: string;
+  workRole?: FrontWorkRole;
   children: ReactNode;
 }) {
   const online = useSyncExternalStore(
@@ -72,6 +135,7 @@ export function FrontAppShell({
     getServerConnectivitySnapshot,
   );
   const [language, setLanguage] = useState(initialLanguage);
+  const theme = useSyncExternalStore(subscribeAppearance, getAppearanceSnapshot, () => initialTheme);
   const title = shortName + (app === "pos" ? " POS" : " PMS");
   const base = "/front/" + encodeURIComponent(holdingSlug) + "/" + encodeURIComponent(companySlug);
   const appHome = standalone ? "/" + encodeURIComponent(holdingSlug) + "/" + encodeURIComponent(companySlug) : base + "/" + app;
@@ -99,7 +163,7 @@ export function FrontAppShell({
     window.location.replace("/login");
   }
 
-  return (
+  const page = (
     <FrontLanguageContext.Provider value={language}>
     <div className={styles.app} data-front-app={app} data-front-location={frontLocation} style={style}>
       <a className={styles.skipLink} href="#front-content">{language === "th" ? "ข้ามไปยังเนื้อหา" : "Skip to page content"}</a>
@@ -111,10 +175,27 @@ export function FrontAppShell({
         <div className={styles.controls}>
           <span className={online ? styles.online : styles.offline} role="status">{online ? (language === "th" ? "เชื่อมต่อแล้ว" : "Online") : (language === "th" ? "ออฟไลน์ · ส่งรายการไม่ได้" : "Offline · submissions paused")}</span>
           <button type="button" className={styles.language} onClick={() => changeLanguage(language === "th" ? "en" : "th")}>{language === "th" ? "EN" : "ไทย"}</button>
-          {frontLocation && <Link className={styles.changeLocation} href={appHome + "/" + frontLocation + "/notifications"}>Notifications</Link>}
+          <select className={styles.language} aria-label={language === "th" ? "ธีมหน้าจอ" : "Appearance"} value={theme} onChange={(event) => {
+            document.documentElement.setAttribute("data-theme", event.target.value);
+            writeFrontCookie("erpx_appearance", event.target.value);
+            window.dispatchEvent(new Event("erpx-appearance"));
+          }}>
+            <option value="light">{language === "th" ? "สว่าง" : "Light"}</option>
+            <option value="dark">{language === "th" ? "มืด" : "Dark"}</option>
+            <option value="system">{language === "th" ? "ตามระบบ" : "System"}</option>
+          </select>
+          <details className={styles.accountMenu}>
+          <summary>{language === "th" ? "เพิ่มเติม" : "More"}<span aria-hidden="true"> ···</span></summary>
+          <div className={styles.accountActions}>
+          {workRole && frontLocation && workRole.options.length > 1 && <FrontWorkRoleSelect role={workRole} location={frontLocation} companyId={companyId} returnTo={appHome + "/" + frontLocation} />}
+          {money && <CurrencySelector />}
+          {erpHref && <a className={styles.changeLocation} href={erpHref}>{language === "th" ? "← กลับ ERP" : "← Back to ERP"}</a>}
+          {frontLocation && <Link className={styles.changeLocation} href={appHome + "/" + frontLocation + "/notifications"}>{language === "th" ? "การแจ้งเตือน" : "Notifications"}</Link>}
           <a className={styles.changeLocation} href={appHome + "/?locations=1"}>{language === "th" ? "เปลี่ยนสาขา" : "Change location"}</a>
           {standalone && <Link className={styles.changeLocation} href="/?choose=1">{language === "th" ? "เปลี่ยนบริษัท" : "Change company"}</Link>}
           <button type="button" className={styles.signOut} onClick={() => void signOut()}>{language === "th" ? "ออกจากระบบ" : "Sign out"}</button>
+          </div>
+          </details>
         </div>
       </header>
       {!online && <div className={styles.offlineBanner} role="alert">{language === "th" ? "ไม่มีการเชื่อมต่ออินเทอร์เน็ต · ข้อมูลยังไม่ได้ส่ง กรุณากลับมาเชื่อมต่อก่อนทำรายการ" : "Connection lost · data has not been sent. Reconnect before submitting."}</div>}
@@ -137,6 +218,7 @@ export function FrontAppShell({
     </div>
     </FrontLanguageContext.Provider>
   );
+  return money && moneyApiBase ? <CurrencyProvider initial={money} apiBase={moneyApiBase}>{page}</CurrencyProvider> : page;
 }
 
 export function FrontLocationPicker({
@@ -178,12 +260,12 @@ export function FrontLocationPicker({
   );
 }
 
-export function FrontPmsNavigation({ href, section, permissions }: { href: string; section: string; permissions?: string[] }) {
+export function FrontPmsNavigation({ href, section, permissions, propertyId }: { href: string; section: string; permissions?: string[]; propertyId?:string }) {
   const router = useRouter();
   const language = useFrontLanguage();
   const can = (permission: string) => permissions ? permissions.includes(permission) : true;
   const items = [
-    ["dashboard", frontText("Overview", language), can("pms.read")],
+    ["dashboard", language === "th" ? "วันนี้" : "Today", can("pms.read")],
     ["reservations", frontText("Reservations", language), can("pms.reservations")],
     ["front-desk", frontText("Front desk", language), can("pms.frontdesk")],
     ["rooms", frontText("Rooms", language), can("pms.housekeeping") || can("pms.maintenance")],
@@ -192,7 +274,6 @@ export function FrontPmsNavigation({ href, section, permissions }: { href: strin
     ["cashier", frontText("Cashier", language), can("pms.cashier")],
     ["night-audit", frontText("Night audit", language), can("pms.audit")],
   ].filter((item) => item[2]) as Array<[string, string, boolean]>;
-  return <nav className={styles.moduleNav} aria-label={language === "th" ? "งานโรงแรม" : "Hotel tasks"}>
-    {items.map(([id, label]) => <button type="button" key={id} aria-current={section === id ? "page" : undefined} onClick={() => router.push(href + (id === "dashboard" ? "" : id))}>{label}</button>)}
-  </nav>;
+  const visible = new Set(items.map(([id]) => id));
+  return <ModuleTiles label={language === "th" ? "งานโรงแรม" : "Hotel tasks"} current={section} items={pmsMenu(language).filter(item => visible.has(item.id))} onSelect={id => router.push(href + (id === "dashboard" ? "" : id + (propertyId ? "?property=" + encodeURIComponent(propertyId) : "")))}/>;
 }

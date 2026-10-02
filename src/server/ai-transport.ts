@@ -1,4 +1,5 @@
 import type { AiProtocol } from "@/lib/ai/providers";
+import { z } from "zod";
 import { pinnedNodeRequest } from "./runtime/https";
 import { ApiError } from "./http";
 import type { BetaEnvironment } from "./beta-config";
@@ -213,15 +214,27 @@ export async function providerRequest(
     );
   }
   if (!response.ok) {
-    await response.body?.cancel();
+    let providerMessage: string | undefined;
+    if (response.status === 403 && new URL(base).hostname === "opencode.ai") {
+      try {
+        const body = await boundedJson(response, 4096);
+        providerMessage = z.object({ error: z.object({ message: z.string() }) }).safeParse(body).data?.error.message;
+      } catch {
+        // Keep the generic provider error when the response body is unavailable.
+      }
+    } else {
+      await response.body?.cancel();
+    }
     const message =
-      response.status === 401 || response.status === 403
-        ? "The provider rejected authentication. Check the API key."
-        : response.status === 404
-          ? "The provider endpoint or model was not found."
-          : response.status === 429
-            ? "The provider rate limit or account quota was reached."
-            : "The provider could not complete this request.";
+      providerMessage === "OpenCode's free tier can only be used from within OpenCode"
+        ? "OpenCode free models only work inside OpenCode. Choose another provider for free AI in ERPX."
+        : response.status === 401 || response.status === 403
+          ? "The provider rejected authentication. Check the API key."
+          : response.status === 404
+            ? "The provider endpoint or model was not found."
+            : response.status === 429
+              ? "The provider rate limit or account quota was reached."
+              : "The provider could not complete this request.";
     throw new ApiError(503, "AI_PROVIDER_ERROR", message);
   }
   return boundedJson(response);

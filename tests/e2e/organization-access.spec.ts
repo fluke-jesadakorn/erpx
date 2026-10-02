@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
 import type { OrganizationAccessData } from "../../src/lib/organization-access";
 import type { PositionMovePreview } from "../../src/lib/position-moves";
 import type { LifecyclePreview } from "../../src/lib/people-lifecycle";
-import { dragOrganizationItem, interceptOrganizationWrites, openHrOrganization, organizationSession, readDirectory, readOrganization, selectExplorerItem } from "../helpers/organization-access-browser";
+import { interceptOrganizationWrites, openHrOrganization, organizationSession, readDirectory, readOrganization, selectExplorerItem } from "../helpers/organization-access-browser";
 
 function occupiedPosition(data: OrganizationAccessData) {
   const position = data.positions.find(position => !position.is_ceo && position.level_number === 6 && data.people.some(person => person.position_id === position.id && person.status === "active") && data.people.filter(person => person.position_id === position.id).every(person => person.issues.length === 0));
@@ -16,16 +16,6 @@ async function previewRequest(page: Page, dialog: Locator, endpoint: string) {
   expect(result.ok(), await result.text()).toBe(true);
   return (await result.json()).data;
 }
-async function closeDialog(page: Page, name: string) {
-  const dialog = page.getByRole("dialog", { name, exact: true });
-  await dialog.getByRole("button", { name: "Close dialog", exact: true }).click();
-  await expect(dialog).not.toBeVisible();
-}
-async function expandExplorerItem(page: Page, kind: "branch" | "department", id: string) {
-  const expand = page.getByTestId(`org-${kind}-${id}`).getByRole("button", { name: /^Expand / });
-  if (await expand.count()) await expand.click();
-}
-
 test("one workspace preserves old deep links, searches across the tree and supports keyboard selection", async ({ page, context }) => {
   test.setTimeout(120_000);
   const base = await organizationSession(context, "hr_admin"), data = await readOrganization(context, base);
@@ -40,24 +30,24 @@ test("one workspace preserves old deep links, searches across the tree and suppo
     await openHrOrganization(page, `${base}/technology?${link.query}`);
     await expect(page.getByTestId("organization-access-workspace")).toBeVisible();
     await expect(page.getByTestId(link.testId)).toHaveAttribute("data-selected", "true");
-    await expect(page.locator("[data-feature-tabs], [role=tablist]")).toHaveCount(0);
+    await expect(page.locator('[role="tablist"][aria-label="Detail section"]')).toHaveCount(1);
+    await expect(page.locator("#organization-detail-title")).toHaveText(link.detailName);
     if (test.info().project.name === "mobile") {
-      await expect(page.getByRole("dialog", { name: link.detailName, exact: true })).toBeVisible();
-      await closeDialog(page, link.detailName);
+      await expect(page.getByRole("button", { name: "← Organization" })).toBeVisible();
     }
   }
+  await openHrOrganization(page, `${base}/technology?view=organization`);
   const search = page.getByRole("searchbox", { name: "Search organization", exact: true });
   await search.fill("no-such-organization-item-827463");
-  await expect(page.getByText("No matching items. Try a name or position.")).toBeVisible();
+  await expect(page.getByText("No matching people or organization items.")).toBeVisible();
   await search.fill(person.legal_name);
   const details = await selectExplorerItem(page, "person", person.engagement_id, true);
-  await expect(details.getByRole("heading", { name: person.legal_name, exact: true })).toBeVisible();
+  await expect(page.locator("#organization-detail-title")).toHaveText(person.legal_name);
   await expect(details.getByRole("button", { name: "Transfer employee", exact: true })).toBeEnabled();
-  await expect(page).toHaveURL(new RegExp(`view=organization.*employee=${encodeURIComponent(person.engagement_id).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+  await expect(page).toHaveURL(new RegExp(`person=${encodeURIComponent(person.engagement_id).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
   if (test.info().project.name === "mobile") {
-    await expect(page.getByRole("dialog", { name: person.legal_name, exact: true })).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(page.getByTestId(`org-person-${person.engagement_id}`).locator("button").last()).toBeFocused();
+    await page.getByRole("button", { name: "← Organization" }).click();
+    await expect(page.getByTestId(`org-person-${person.engagement_id}`)).toBeVisible();
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });
@@ -124,39 +114,17 @@ test("HR Level changes preserve draft manager choices when returning from previe
   expect(writes).toHaveLength(0);
 });
 
-test("employee and Position drops open review forms; employee transfer uses the existing HR preview", async ({ page, context }) => {
+test("HR can review an employee transfer from the shared IT details without changing salary", async ({ page, context }) => {
   test.setTimeout(120_000);
   const base = await organizationSession(context, "hr_admin"), data = await readOrganization(context, base), writes = await interceptOrganizationWrites(page);
   const position = occupiedPosition(data), person = data.people.find(person => person.position_id === position.id)!;
   await openHrOrganization(page, `${base}/technology?view=organization&employee=${encodeURIComponent(person.engagement_id)}`);
-  if (test.info().project.name === "mobile") await closeDialog(page, person.legal_name);
-  if (test.info().project.name === "desktop") {
-    const targetPosition = data.positions.find(candidate => candidate.id !== position.id && candidate.department_id !== position.department_id && !candidate.is_ceo)!;
-    expect(targetPosition, "Seeded organization has a second Department with a Position").toBeTruthy();
-    await expandExplorerItem(page, "branch", targetPosition.branch_id);
-    await expandExplorerItem(page, "department", targetPosition.department_id);
-    await dragOrganizationItem(page, page.getByTestId(`org-person-${person.engagement_id}`), page.getByTestId(`org-department-${position.department_id}`));
-    const dropped = page.getByRole("dialog", { name: "Transfer employee", exact: true });
-    await expect(dropped.getByRole("combobox", { name: "Target position", exact: true })).toHaveValue("");
-    await expect(dropped.getByText(/Select the destination position before continuing/)).toBeVisible();
-    await closeDialog(page, "Transfer employee");
-    await dragOrganizationItem(page, page.getByTestId(`org-person-${person.engagement_id}`), page.getByTestId(`org-position-${targetPosition.id}`));
-    await expect(dropped.getByRole("combobox", { name: "Target position", exact: true })).toHaveValue(targetPosition.id);
-    await closeDialog(page, "Transfer employee");
-    await dragOrganizationItem(page, page.getByTestId(`org-position-${position.id}`), page.getByTestId(`org-department-${targetPosition.department_id}`));
-    await expect(page.getByRole("dialog", { name: "Move position & employees", exact: true }).getByRole("combobox", { name: "Target department", exact: true })).toHaveValue(targetPosition.department_id);
-    await closeDialog(page, "Move position & employees");
-    const targetLevel = data.levels.find(level => level.level_number === 5)!;
-    await dragOrganizationItem(page, page.getByTestId(`org-position-${position.id}`), page.getByTestId(`org-level-${targetLevel.id}`));
-    await expect(page.getByRole("dialog", { name: "Change position level", exact: true }).getByRole("combobox", { name: "Target level", exact: true })).toHaveValue(targetLevel.id);
-    await closeDialog(page, "Change position level");
-    await dragOrganizationItem(page, page.getByTestId(`org-person-${person.engagement_id}`), page.getByTestId(`org-level-${targetLevel.id}`));
-    await expect(page.getByRole("status").filter({ hasText: "Drop an employee on a Position or Department." })).toBeVisible();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
-  }
-  await page.getByRole("searchbox", { name: "Search organization", exact: true }).fill(person.legal_name);
-  const details = await selectExplorerItem(page, "person", person.engagement_id, true);
-  await details.getByRole("button", { name: "Transfer employee", exact: true }).click();
+  await expect(page.getByTestId(`org-person-${person.engagement_id}`)).toHaveAttribute("data-selected", "true");
+  const details = page.getByRole("region", { name: "Selected item details" }).filter({ visible: true });
+  await expect(page.locator("#organization-detail-title")).toHaveText(person.legal_name);
+  await expect(details.getByRole("link", { name: "Employee profile", exact: true })).toHaveAttribute("href", `${base}/people/${person.person_id}`);
+  const transfer = details.getByRole("button", { name: "Transfer employee", exact: true });
+  await transfer.focus(); await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Transfer employee", exact: true });
   await expect(dialog.getByRole("combobox", { name: "Target position", exact: true })).toHaveValue(position.id);
   await expect(dialog.getByRole("combobox", { name: "Actual reporting manager", exact: true })).toHaveValue(person.manager_person_id ?? "");
@@ -168,7 +136,7 @@ test("employee and Position drops open review forms; employee transfer uses the 
   expect(writes).toHaveLength(0);
 });
 
-test("IT assigns a library GPO by drag or keyboard with responsive drawers and confirmation", async ({ page, context }) => {
+test("IT assigns a library GPO by keyboard from the responsive drawer and confirms the preview", async ({ page, context }) => {
   test.setTimeout(120_000);
   const base = await organizationSession(context, "it_admin"), writes = await interceptOrganizationWrites(page);
   const [organization, directory] = await Promise.all([readOrganization(context, base), readDirectory(context, base)]);
@@ -186,31 +154,16 @@ test("IT assigns a library GPO by drag or keyboard with responsive drawers and c
     } }) });
   });
   if (test.info().project.name === "desktop") await page.setViewportSize({ width: 1600, height: 1000 });
-  const position = organization.positions.find(position => position.level_id === level.id)!;
-  await page.goto(`${base}/technology?view=organization&position=${encodeURIComponent(position.id)}`);
-  if (test.info().project.name === "mobile") {
-    await closeDialog(page, position.title);
-    await selectExplorerItem(page, "level", level.id, true);
-    await page.keyboard.press("Escape");
-    await page.getByRole("button", { name: "Open GPO library", exact: true }).click();
-  }
-  const library = page.getByRole("complementary", { name: "GPO library", exact: true }).filter({ visible: true });
+  await page.goto(`${base}/technology?view=organization&level=${encodeURIComponent(level.id)}`);
+  await expect(page.getByTestId(`org-level-${level.id}`)).toHaveAttribute("data-selected", "true");
+  await page.getByRole("button", { name: "Open GPO library", exact: true }).click();
+  const drawer = page.getByRole("dialog", { name: "GPO library", exact: true });
+  const library = drawer.getByRole("complementary", { name: "GPO library", exact: true });
   await library.getByRole("combobox", { name: "Directory connection", exact: true }).selectOption(connection!.id);
   await library.getByRole("searchbox", { name: "Search GPO library", exact: true }).fill(gpo.name);
   const card = library.getByTestId(`gpo-library-${gpo.id}`);
   await expect(card).toBeVisible();
-  if (test.info().project.name === "desktop") {
-    for (const target of [{ kind: "department", id: position.department_id }, { kind: "position", id: position.id }] as const) {
-      await dragOrganizationItem(page, card, page.getByTestId(`org-${target.kind}-${target.id}`));
-      const review = page.getByRole("dialog", { name: "Assign GPO policy", exact: true });
-      await expect(review.getByRole("combobox", { name: "Apply to", exact: true })).toHaveValue(target.kind);
-      await expect(review.getByRole("combobox", { name: `Target ${target.kind}`, exact: true })).toHaveValue(target.id);
-      await expect(review.getByRole("combobox", { name: "Group Policy Object", exact: true })).toHaveValue(gpo.id);
-      await closeDialog(page, "Assign GPO policy");
-    }
-    await dragOrganizationItem(page, card, page.getByTestId(`org-level-${level.id}`));
-  }
-  else { await card.getByRole("button", { name: /Assign policy/ }).focus(); await page.keyboard.press("Enter"); }
+  await card.getByRole("button", { name: /Assign policy/ }).focus(); await page.keyboard.press("Enter");
   const dialog = page.getByRole("dialog", { name: "Assign GPO policy", exact: true });
   await expect(dialog.getByRole("combobox", { name: "Apply to", exact: true })).toHaveValue("level");
   await expect(dialog.getByRole("combobox", { name: "Target level", exact: true })).toHaveValue(level.id);
@@ -225,7 +178,7 @@ test("IT assigns a library GPO by drag or keyboard with responsive drawers and c
   await dialog.getByRole("button", { name: "Publish GPO rule", exact: true }).click();
   expect(writes).toHaveLength(1);
   expect(writes[0].body.previewToken).toBe("browser-preview-token");
-  if (test.info().project.name === "mobile") await page.keyboard.press("Escape");
+  await drawer.getByRole("button", { name: "Close dialog", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "GPO rule published" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
 });

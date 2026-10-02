@@ -33,6 +33,19 @@ it("reserves an immutable scoped request once and projects only safe metadata",a
   expect(JSON.stringify(rows)).not.toContain("api-key");
 });
 
+it("accepts a registered company scope when the Holding has no beta bootstrap row",async()=>{
+  const companyId=`gateway-company-${crypto.randomUUID()}`;
+  await db.prepare("INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES(?,'company',?,?,?)")
+    .bind(companyId,companyId,"Gateway company",companyId).run();
+  const request={...scope("byok"),holdingId:"h001",companyId};
+  await reserveAiGatewayRequest(request,"api.provider.example","model-1");
+  await finishAiGatewayRequest(request,"succeeded",1,1,{input_tokens:1,output_tokens:1});
+  expect((await safeAiGatewayRows(db,billingMonth(Date.now()))).find(row=>row.id===request.requestId))
+    .toMatchObject({holding_id:"h001",company_id:companyId,status:"succeeded"});
+  await expect(reserveAiGatewayRequest({...request,requestId:crypto.randomUUID(),companyId:"other-company"},"api.provider.example","model-1"))
+    .rejects.toMatchObject({code:"AI_GATEWAY_BLOCKED"});
+});
+
 it("routes provider I/O through the gateway and captures additional provider units",async()=>{
   const request=scope("erpx");
   const endpoint={baseUrl:"https://api.provider.com/v1",model:"model-1",apiKey:"private",gateway:request};

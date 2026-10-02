@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 import { useEffect, useState } from "react";
 import type { LegalDetail } from "@/lib/legal/model";
 import s from "./legal.module.css";
@@ -153,7 +154,7 @@ export function LegalRetention({
       {data.assignment && (
         <p className={s.notice}>
           Earliest destruction:{" "}
-          {new Date(data.assignment.eligible_at).toLocaleString()}. A new policy
+          <TimeText value={data.assignment.eligible_at} />. A new policy
           version requires a new assignment; dates never change silently.
         </p>
       )}

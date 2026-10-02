@@ -30,7 +30,7 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   await input.db.prepare("UPDATE organization_nodes SET display_name=? WHERE id=?").bind("Riverside Lantern Bangkok",f.branch).run();
   const now=Date.now(),actors:Record<string,WorkContext>={},users:DemoUser[]=[];
   for(const entry of fixture.demoActors) {
-    const actor=entry.role==="holding_owner"?f.owner:await f.member(`riverside-${entry.key}`,entry.role);
+    const actor=entry.role==="holding_owner"&&entry.key==="administrator"?f.owner:await f.member(`riverside-${entry.key}`,entry.role);
     actor.holdingId="h002";actor.holdingSlug="riverside-lantern";actor.holdingName=fixture.name;actor.scope={kind:"holding",holdingId:"h002",holdingSlug:"riverside-lantern",holdingName:fixture.name,companyId:f.company};
     actor.email=entry.email;actor.name=entry.key.replace(/([A-Z])/g," $1").replace(/^./,c=>c.toUpperCase());
     const modules=entry.role==="holding_owner"?["pms","pos","finance","inventory","procurement","organization","iam"]:businessRoles[entry.role];
@@ -74,6 +74,14 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   });
   await db.batch(organizationAssignments);
   const admin=actors.administrator,finance=actors.financeApprover;
+  // Give the isolated hotel company explicit independent department and HR
+  // authority so request, overtime, and leave scenarios exercise a usable
+  // review route instead of the real setup-blocker path.
+  const {changeAppointment}=await import("../../src/server/department-authority");
+  const appointmentVersion=async(kind:"head"|"hr",scopeId:string)=>Number((await db.prepare("SELECT version FROM authority_seats WHERE company_id=? AND kind=? AND scope_id=?")
+    .bind(f.company,kind,scopeId).first<{version:number}>())?.version??0);
+  await changeAppointment(db,admin,{kind:"head",departmentId:f.department,positionId:null,personId:managerPersonId,expectedVersion:await appointmentVersion("head",f.department),reason:"Synthetic department approval route for H002 browser acceptance."},crypto.randomUUID());
+  await changeAppointment(db,admin,{kind:"hr",departmentId:null,positionId:null,personId:`person-${actors.hrAdmin.userId}`,expectedVersion:await appointmentVersion("hr",f.company),reason:"Synthetic independent HR route for H002 browser acceptance."},crypto.randomUUID());
   await saveServiceTeam(db,admin,null,serviceTeamSchema.parse({
     name:"Riverside purchasing team",
     members:[
@@ -170,7 +178,8 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   ]);
   for(const [stepKey,userId,reason] of [
     ["calculate",actors.payrollPreparer.userId,"Synthetic hotel payroll preparation owner"],
-    ["preview",actors.payrollApprover.userId,"Independent synthetic hotel payroll reviewer"],
+    ["preview",actors.payrollPreparer.userId,"Synthetic hotel payroll review submission owner"],
+    ["in_review",actors.payrollApprover.userId,"Independent synthetic hotel payroll reviewer"],
     ["approved",finance.userId,"Synthetic hotel Finance posting owner"],
     ["posted",actors.treasury.userId,"Synthetic hotel payment preparation owner"],
     ["payment_draft",finance.userId,"Independent synthetic hotel payment approver"],

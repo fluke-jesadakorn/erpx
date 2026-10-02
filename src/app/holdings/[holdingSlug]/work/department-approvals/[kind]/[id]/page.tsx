@@ -1,3 +1,4 @@
+import { TimeText } from "@/components/time/time-preference-context";
 import Link from "next/link";
 import { z } from "zod";
 import { requireWorkContext, publicScope } from "@/server/authorization";
@@ -22,6 +23,6 @@ export default async function DepartmentOverridePage({params,searchParams}:{para
     <p className="muted">Your current reporting position is above the assigned approver. Record why you are making this department decision. Later specialist steps continue in order.</p>
     {kind==="leave"&&<p className="muted">Leave details and attachments are limited to the requester and assigned reviewers.</p>}
     <DepartmentOverrideDecision base={base} detail={detail} returnTo={returnTo}/>
-    {!!detail.priorOverrides.length&&<section className="card"><h2>Previous decisions on behalf of an approver</h2>{detail.priorOverrides.map((event,index)=><p key={index}>{event.actor} decided for {event.originalApprover} · {new Date(event.at).toLocaleString("en-GB",{timeZone:"Asia/Bangkok"})}{event.reason?` · ${event.reason}`:""}</p>)}</section>}
+    {!!detail.priorOverrides.length&&<section className="card"><h2>Previous decisions on behalf of an approver</h2>{detail.priorOverrides.map((event,index)=><p key={index}>{event.actor} decided for {event.originalApprover} · <TimeText value={event.at} />{event.reason?` · ${event.reason}`:""}</p>)}</section>}
   </main>;
 }

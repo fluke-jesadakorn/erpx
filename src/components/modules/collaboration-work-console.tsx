@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
+import { PreferredDateTimeField } from "@/components/time/preferred-date-time-field";
 import type { collaborationWorkspace } from "@/server/collaboration-work";
 export function CollaborationWorkConsole({
   base,
@@ -147,10 +148,7 @@ export function CollaborationWorkConsole({
                 ))}
               </select>
             </label>
-            <label>
-              Due
-              <input name="dueAt" type="datetime-local" required />
-            </label>
+            <PreferredDateTimeField name="dueAt" label="Due" required />
             <label>
               Reason
               <textarea name="reason" required minLength={3} />
@@ -234,10 +232,7 @@ export function CollaborationWorkConsole({
                   ))}
                 </select>
               </label>
-              <label>
-                New due
-                <input name="dueAt" type="datetime-local" />
-              </label>
+              <PreferredDateTimeField name="dueAt" label="New due" />
               <label>
                 Completion evidence
                 <textarea name="evidence" />

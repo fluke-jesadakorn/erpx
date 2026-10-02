@@ -10,7 +10,7 @@ export type PosAccountKey = typeof accountKeys[number];
 export type PosAccounts = Record<PosAccountKey,string> & {chartId:string};
 export const accountsSchema = z.object(Object.fromEntries([...accountKeys,'chartId'].map(k=>[k,z.string().min(1)])) as Record<PosAccountKey|'chartId',z.ZodString>);
 export const settingsSchema=z.object({enabled:z.boolean(),currency:z.string().regex(/^[A-Z]{3}$/),timezone:z.literal('Asia/Bangkok'),cashierDiscountBps:z.number().int().min(0).max(10000),accounts:accountsSchema,expectedVersion:z.number().int().min(0)});
-export const catalogSchema=z.object({productId:z.string().min(1),barcode:z.string().trim().max(100).default(''),category:z.string().max(100).default(''),kind:z.enum(['stock','recipe','service']),station:z.string().min(1).max(100),recipe:z.array(componentSchema).max(50),modifiers:z.array(modifierSchema).max(30),taxInclusive:z.boolean(),expectedVersion:z.number().int().min(0)});
+export const catalogSchema=z.object({productId:z.string().min(1),barcode:z.string().trim().max(100).default(''),category:z.string().max(100).default(''),kind:z.enum(['stock','recipe','service']),station:z.string().min(1).max(100),recipe:z.array(componentSchema).max(50),modifiers:z.array(modifierSchema).max(30),taxInclusive:z.boolean(),expectedVersion:z.number().int().min(0),enabled:z.boolean().default(true),registerIds:z.array(z.string().min(1)).max(100).optional(),imageId:z.string().nullable().optional()});
 export type PaymentMethod='cash'|'transfer'|'edc'|'stripe_card'|'stripe_promptpay';
 export function saleAmounts(quantity:number, price:number,taxBps:number,inclusive:boolean,discount=0){
  const gross=scaledAmount(price,quantity,1000);

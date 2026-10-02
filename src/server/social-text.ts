@@ -22,7 +22,8 @@ export async function textSuggestions(db: SqlDatabase, actor: WorkContext, trigg
   }
   const needle=q.toLowerCase();
   const people=(await mentionPeople(db,actor)).filter(p=>p.display_name.toLowerCase().includes(needle)).slice(0,8).map(p=>({kind:"person" as const,targetId:p.user_id,label:p.display_name,detail:`Person · ${p.user_id}`}));
-  const agents = "erpx assistant ai".includes(needle) ? [{kind:"agent" as const,targetId:ASSISTANT_ID,label:"ERPX assistant",detail:"AI agent · replies after publishing"}] : [];
+  const aiName = (await db.prepare("SELECT home_ai_name FROM ai_company_settings WHERE company_id=?").bind(actor.companyId).first<{home_ai_name:string}>())?.home_ai_name ?? "AI";
+  const agents = ["ai","erpx assistant",aiName.toLowerCase()].some(name=>name.includes(needle)) ? [{kind:"agent" as const,targetId:ASSISTANT_ID,label:aiName,detail:"AI · replies after publishing"}] : [];
   const records=(await searchReferences(actor,q ? `@${q}` : "@")).filter((r): r is {kind:string;module_id:string;id:string;title:string}=>r.kind==="record").slice(0,8).map(r=>({kind:"record" as const,targetId:`${r.module_id}/${r.id}`,label:String(r.title),detail:`${r.module_id} · ${r.id}`}));
   return [...people,...agents,...records];
 }
@@ -35,7 +36,14 @@ export async function validateMentions(db: SqlDatabase, actor: WorkContext, body
     end=m.end;
     let label: string | undefined;
     if(m.kind==="person") label=people.find(p=>p.user_id===m.targetId)?.display_name;
-    else if(m.kind==="agent" && m.targetId===ASSISTANT_ID) label="ERPX assistant";
+    else if(m.kind==="agent" && m.targetId===ASSISTANT_ID) {
+      const current=(await db.prepare("SELECT home_ai_name FROM ai_company_settings WHERE company_id=?").bind(actor.companyId).first<{home_ai_name:string}>())?.home_ai_name ?? "AI";
+      if([current,"AI","ERPX assistant"].includes(m.label)) label=m.label;
+      else {
+        const old=await db.prepare("SELECT 1 FROM ai_home_name_history WHERE company_id=? AND name=?").bind(actor.companyId,m.label).first();
+        if(old) label=m.label;
+      }
+    }
     else if(m.kind==="record") { const [module,...ids]=m.targetId.split("/"); label=(await getRecord(actor,module,ids.join("/"))).title; }
     if(!label) throw new ApiError(422,"MENTION_UNAVAILABLE","A mention is no longer available. Remove it or choose another target.");
     if(label!==m.label) throw new ApiError(422,"MENTION_RENAMED","A mention has been renamed. Choose it again.");
@@ -48,7 +56,7 @@ export async function textStatements(db:SqlDatabase, actor:WorkContext, postId:s
   for(const m of new Map(mentions.map(m=>[`${m.kind}:${m.targetId}`,m])).values()) {
     steps.push(db.prepare("INSERT INTO social_mentions(owner_type,owner_id,target_kind,target_id,target_label,created_by,created_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(ownerType,ownerId,m.kind,m.targetId,m.label,actor.userId,now));
     if(m.kind==="person" && m.targetId!==actor.userId) steps.push(db.prepare(`INSERT INTO staff_notifications(id,company_id,user_id,record_type,record_id,record_version,message,created_at) SELECT ?,p.company_id,?,'post',p.id,p.version,'You were mentioned in a conversation',? FROM social_posts p WHERE p.id=? AND ${sourceAccessSql()}`).bind(crypto.randomUUID(),m.targetId,now,postId,m.targetId,now,now));
-    if(m.kind==="agent") steps.push(db.prepare("INSERT INTO social_agent_replies(id,post_id,owner_type,owner_id,company_id,actor_id,actor_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(`agent-${ownerId}`,postId,ownerType,ownerId,actor.companyId,actor.userId,JSON.stringify({userId:actor.userId,assignmentId:actor.assignmentId,role:actor.role,companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId,iam:actor.iam,authority:actor.authority}),now,now));
+    if(m.kind==="agent") steps.push(db.prepare("INSERT INTO social_agent_replies(id,post_id,owner_type,owner_id,company_id,actor_id,actor_json,requester_name,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT DO NOTHING").bind(`agent-${ownerId}`,postId,ownerType,ownerId,actor.companyId,actor.userId,JSON.stringify({userId:actor.userId,assignmentId:actor.assignmentId,role:actor.role,companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId,iam:actor.iam,authority:actor.authority}),actor.name,now,now));
   }
   for(const tag of new Set(hashtags(body).filter(t=>!mentions.some(m=>t.start<m.end&&t.end>m.start)).map(t=>t.tag))) {
     steps.push(db.prepare("INSERT INTO social_topics(tag,created_by,created_at) VALUES(?,?,?) ON CONFLICT DO NOTHING").bind(tag,actor.userId,now));

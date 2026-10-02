@@ -29,7 +29,9 @@ const tracks={CONTROL_DB:'control',CONTROL_READ_DB:'control-read',H001_DB:'holdi
 const mode=process.argv[2],run=mode==='prepare'?randomBytes(6).toString('hex'):process.argv[3];
 if(!run||!/^([a-f0-9]{12})$/.test(run))throw new Error('EXACT_BROWSER_RUN_ID_REQUIRED');
 const directory=join(parent,run),app=join(directory,'app'),manifestPath=join(directory,'databases.json'),statePath=join(directory,'state.json');
-type State={run:string;prefix:string;createdAt:string;origin:string;port?:number;ready?:boolean;pid?:number;fixture?:Record<string,unknown>};
+type State={run:string;prefix:string;createdAt:string;origin:string;port?:number;ready?:boolean;pid?:number;jobsPid?:number;fixture?:Record<string,unknown>};
+const localAttachmentMode=process.env.ERPX_BROWSER_SIMULATION_ATTACHMENTS==='local';
+const localJobsEnabled=process.env.ERPX_BROWSER_SIMULATION_JOBS==='1';
 const safeEnv=(secret:string)=>({
  PATH:`${join(root,'.runtime/node/node-v24.20.0-darwin-arm64/bin')}:${process.env.PATH??''}`,
  HOME:process.env.HOME??'',
@@ -52,6 +54,14 @@ const safeEnv=(secret:string)=>({
  NEXT_DEPLOYMENT_ID:`browser-simulation-${run}`,
  NEXT_TELEMETRY_DISABLED:'1',
  ERPX_DEV_PG_POOL_MAX:'2',
+ ...(localAttachmentMode?{
+  ERPX_ATTACHMENTS_V2:'true',
+  ERPX_CLAMD_SOCKET:join(root,'.scratch/dev/clamav/clamd.sock'),
+  ERPX_CLAMAV_DATABASE_DIR:join(root,'.scratch/dev/clamav/db'),
+  ERPX_CLAMAV_VERSION:'1.5.4',
+  ERPX_HEIF_CONVERT:'/opt/homebrew/opt/libheif/bin/heif-convert',
+  ERPX_PDFTOPPM_BIN:'/opt/homebrew/bin/pdftoppm',
+ }:{}),
 });
 async function assertAdmin(admin:Pool){const role=(await admin.query('SELECT current_user name,rolsuper,rolcreatedb,rolcreaterole FROM pg_roles WHERE rolname=current_user')).rows[0];if(role.name!=='erpx_test_admin'||role.rolsuper||!role.rolcreatedb||role.rolcreaterole)throw new Error('UNSAFE_TEST_DATABASE_ROLE');const forbidden=await admin.query("SELECT datname FROM pg_database WHERE (datname LIKE 'epsx\\_%' ESCAPE '\\' OR datname IN ('n8n','plf_webapp_dev')) AND has_database_privilege(current_user,datname,'CONNECT')");if(forbidden.rowCount)throw new Error('TEST_ADMIN_CAN_CONNECT_TO_OTHER_PROJECT');}
 async function writePrivate(path:string,value:unknown){await writeFile(path,JSON.stringify(value,null,2)+'\n',{mode:0o600});await chmod(path,0o600);}
@@ -90,6 +100,7 @@ if(mode==='prepare'){
   const salesOperatorAssignment=await extraGrant(f.claimant,'sales_operator');
   await extraGrant(f.tie,'sales_manager');
   await extraGrant(f.reviewer,'quality_inspector');
+  await extraGrant(f.reviewer,'finance_approver');users.find(user=>user.userId===f.reviewer.userId)!.roles.push('finance_approver');
   await extraGrant(f.payer,'treasury');users.find(user=>user.userId===f.payer.userId)!.roles.push('treasury');
   await extraGrant(f.owner,'payroll_preparer');users.find(user=>user.userId===f.owner.userId)!.roles.push('payroll_preparer');
   await extraGrant(f.manager,'payroll_approver');users.find(user=>user.userId===f.manager.userId)!.roles.push('payroll_approver');
@@ -128,7 +139,8 @@ if(mode==='prepare'){
   // calculation or independent payment approval waiting for manual routing.
   for(const [stepKey,userId,reason] of [
     ['calculate',f.owner.userId,'Simulation payroll preparation owner'],
-    ['preview',f.manager.userId,'Simulation independent payroll reviewer'],
+    ['preview',f.owner.userId,'Simulation payroll submission owner'],
+    ['in_review',f.manager.userId,'Simulation independent payroll reviewer'],
     ['approved',f.manager.userId,'Simulation Finance posting owner'],
     ['posted',f.manager.userId,'Simulation payroll payment preparation owner'],
     ['payment_draft',f.payer.userId,'Simulation independent payroll payment approver'],
@@ -232,16 +244,53 @@ if(mode==='prepare'){
   const {seedHospitalityBrowserDemo}=await import('../fixtures/hospitality-browser-demo');
   const hospitality=await seedHospitalityBrowserDemo({db:env.H002_DB,control:env.CONTROL_DB,files:env.H002_FILES,passwordHash:hash,run,origin});
   state.fixture={customerId:customer.id,customerDuplicateIds:[duplicateCustomerLeft.id,duplicateCustomerRight.id],customerDuplicateQuotationId:duplicateCustomerQuotation.id,quotationId:quotation.id,crmLeadId:crmLead.id,purchaseRequestId:purchaseRequest.id,companyId:f.company,inventoryAccountId,clearingAccountId,openingEquityAccountId,openingJournalId:opening.id,browserOpeningChartId,browserOpeningCashId,browserOpeningEquityId,sourceWarehouseId:source,targetWarehouseId:target,productId:product,laptopEachProductId:laptopEach,laptopCaseProductId:laptopCase,lotProductId:lotProduct,serialProductId:serialProduct,qualityDueSoonHoldId:qualityDueSoon.id,qualityOverdueHoldId:qualityOverdue.id,demoSupplierIds:demoSuppliers,periodId:f.period,closePeriodIds:closePeriods,closeBankAccountId:closeBank,controlledPaymentPeriodId:paymentPeriod,controlledPaymentInvoiceId:paymentInvoice,controlledPaymentBankTransactionId:paymentBankTransaction,customerRefundBankTransactionId:refundBankTransaction,expenseAccountId:f.accounts.expense,supplierInvoiceMatchingPolicy:'required',users,scenarioIds:guide.scenarios.map(s=>s.id),hospitality:{companyId:hospitality.companyId,propertyId:hospitality.propertyId,registerId:hospitality.registerId,warehouseId:hospitality.warehouseId,openingJournalId:hospitality.openingJournalId,openingInventoryAccountId:hospitality.openingInventoryAccountId,roomIds:hospitality.roomIds,roomTypeIds:hospitality.roomTypeIds,rateIds:hospitality.rateIds,productIds:hospitality.productIds,supplierIds:hospitality.supplierIds,purchaseRequestId:hospitality.purchaseRequestId,payrollGroupId:hospitality.payrollGroupId,payrollEngagementIds:hospitality.payrollEngagementIds,payrollPersonIds:hospitality.payrollPersonIds,leaveTypeId:hospitality.leaveTypeId,leavePolicyId:hospitality.leavePolicyId,leaveAssignmentId:hospitality.leaveAssignmentId,rosterWeekId:hospitality.rosterWeekId,rosterShiftId:hospitality.rosterShiftId}};await writePrivate(statePath,state);await writePrivate(join(directory,'credentials.json'),{password,users:[...users,...hospitality.users]});await writePrivate(join(directory,'demo-guide.json'),guide);await writePrivate(join(directory,'hospitality-guide.json'),hospitality.guide);
+  if(process.env.ERPX_BROWSER_SIMULATION_LEGAL==='1') {
+    if(port!==3104)throw new Error('LEGAL_UAT_REQUIRES_3104');
+    const {seedLegalBrowserDemo}=await import('../fixtures/legal-browser-demo');
+    const legal=await seedLegalBrowserDemo({run,directory,control:env.CONTROL_DB as PostgresDatabase,h001:env.H001_DB as PostgresDatabase,h002:env.H002_DB as PostgresDatabase,h001Files:env.H001_FILES,h002Files:env.H002_FILES});
+    state.fixture.legal=legal;await writePrivate(statePath,state);
+  }
  }finally{await closeRuntime();}
  await mkdir(app,{recursive:true});for(const name of ['src','public','package.json','bun.lock','next.config.ts','tsconfig.json','next-env.d.ts','postcss.config.mjs','node_modules'])await cp(join(root,name),join(app,name),{recursive:true,mode:constants.COPYFILE_FICLONE});
  state.ready=true;await writePrivate(statePath,state);
  console.log(JSON.stringify({run,origin,statePath,credentialsPath:join(directory,'credentials.json'),guidePath:join(directory,'demo-guide.json'),hospitalityGuidePath:join(directory,'hospitality-guide.json'),ready:true}));
 }else if(mode==='start'){
- const state=JSON.parse(await readFile(statePath,'utf8')) as State;if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');if((state.port??3102)!==port||state.origin!==origin)throw new Error('BROWSER_SIMULATION_PORT_MISMATCH');if(!state.ready||!existsSync(join(app,'package.json')))throw new Error('BROWSER_PREPARATION_INCOMPLETE');await freePort();const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));const log=await open(join(directory,'server.log'),'a',0o600);
- const child=spawn(node,[join(app,'node_modules/next/dist/bin/next'),'dev',...(useWebpack?['--webpack']:[]),'--hostname','127.0.0.1','-p',String(port)],{cwd:app,env:safeEnv(secret),detached:true,stdio:['ignore',log.fd,log.fd]});if(!child.pid)throw new Error('BROWSER_SERVER_FAILED');state.pid=child.pid;await writePrivate(statePath,state);child.unref();await log.close();console.log(JSON.stringify({run,pid:state.pid,origin,bundler:useWebpack?'webpack':'turbopack'}));
+ const state=JSON.parse(await readFile(statePath,'utf8')) as State;if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');if((state.port??3102)!==port||state.origin!==origin)throw new Error('BROWSER_SIMULATION_PORT_MISMATCH');if(!state.ready||!existsSync(join(app,'package.json')))throw new Error('BROWSER_PREPARATION_INCOMPLETE');await freePort();const {secret}=JSON.parse(await readFile(join(directory,'runtime.json'),'utf8'));const environment=safeEnv(secret);
+ if(localAttachmentMode){
+  const required=[environment.ERPX_CLAMD_SOCKET,environment.ERPX_CLAMAV_DATABASE_DIR,environment.ERPX_HEIF_CONVERT,environment.ERPX_PDFTOPPM_BIN];
+  if(required.some(value=>typeof value!=='string'||!existsSync(value)))throw new Error('LOCAL_ATTACHMENT_RUNTIME_FILES_MISSING');
+  const {attachmentRuntimeReadiness}=await import('../../src/server/attachments/readiness');
+  const readiness=await attachmentRuntimeReadiness(environment);
+  if(!readiness.ready)throw new Error(`LOCAL_ATTACHMENT_RUNTIME_NOT_READY:${readiness.scanner.error??readiness.preview.error??'UNKNOWN'}`);
+ }
+ const jobsBundle=join(app,'.runtime/jobs/jobs.mjs');
+ if(localJobsEnabled){
+  const outdir=join(app,'.runtime/jobs');await mkdir(outdir,{recursive:true});
+  const bundle=await Bun.build({entrypoints:[join(root,'scripts/local/jobs.ts')],outdir,target:'node',format:'esm',conditions:['react-server'],external:['pg'],naming:'jobs.mjs'});
+  if(!bundle.success)throw new Error('BROWSER_SIMULATION_JOBS_BUILD_FAILED');
+ }
+ const log=await open(join(directory,'server.log'),'a',0o600);
+ const child=spawn(node,[join(app,'node_modules/next/dist/bin/next'),'dev',...(useWebpack?['--webpack']:[]),'--hostname','127.0.0.1','-p',String(port)],{cwd:app,env:environment,detached:true,stdio:['ignore',log.fd,log.fd]});if(!child.pid)throw new Error('BROWSER_SERVER_FAILED');state.pid=child.pid;await writePrivate(statePath,state);child.unref();await log.close();
+ if(localJobsEnabled){
+  const jobsLog=await open(join(directory,'jobs.log'),'a',0o600);
+  const worker=spawn(node,[jobsBundle],{cwd:app,env:{...environment,ERPX_PROCESS_ROLE:'jobs',ERPX_DATABASE_MANIFEST:manifestPath},detached:true,stdio:['ignore',jobsLog.fd,jobsLog.fd]});
+  if(!worker.pid){await jobsLog.close();throw new Error('BROWSER_SIMULATION_JOBS_FAILED');}
+  state.jobsPid=worker.pid;await writePrivate(statePath,state);worker.unref();await jobsLog.close();
+ }
+ console.log(JSON.stringify({run,pid:state.pid,...(state.jobsPid?{jobsPid:state.jobsPid}:{}),origin,bundler:useWebpack?'webpack':'turbopack'}));
 }else if(mode==='destroy'){
  const state=JSON.parse(await readFile(statePath,'utf8')) as State;if(state.run!==run||state.prefix!==`erpx_browser_${run}`)throw new Error('BROWSER_STATE_MISMATCH');if((state.port??3102)!==port||state.origin!==origin)throw new Error('BROWSER_SIMULATION_PORT_MISMATCH');
- if(state.pid){const command=Bun.spawnSync(['ps','-p',String(state.pid),'-o','command=']).stdout.toString();if(command.trim()){if(!command.includes(join(app,'node_modules/next/dist/bin/next')))throw new Error('BROWSER_PROCESS_IDENTITY_CHANGED');process.kill(-state.pid,'SIGTERM');console.log('Stopped owned browser simulation process group. Run destroy again after it exits.');delete state.pid;await writePrivate(statePath,state);process.exit(0);}}
+ let stopped=false;
+ for(const [key,pid,marker,group] of [['pid',state.pid,join(app,'node_modules/next/dist/bin/next'),true],['jobsPid',state.jobsPid,join(app,'.runtime/jobs/jobs.mjs'),true]] as const){
+  if(!pid)continue;
+  const command=Bun.spawnSync(['ps','-p',String(pid),'-o','command=']).stdout.toString();
+  if(command.trim()){
+   if(!command.includes(marker))throw new Error(key==='pid'?'BROWSER_PROCESS_IDENTITY_CHANGED':'BROWSER_JOBS_IDENTITY_CHANGED');
+   process.kill(group?-pid:pid,'SIGTERM');stopped=true;
+  }
+  delete state[key];
+ }
+ if(stopped){console.log('Stopped only the owned browser simulation and worker process groups. Run destroy again after they exit.');await writePrivate(statePath,state);process.exit(0);}
  await freePort();const admin=new Pool({connectionString:adminUrl,max:1});try{await assertAdmin(admin);for(const binding of Object.keys(tracks)){const name=`${state.prefix}_${binding.toLowerCase()}`,owner=(await admin.query('SELECT pg_get_userbyid(datdba) owner FROM pg_database WHERE datname=$1',[name])).rows[0];if(!owner)continue;if(owner.owner!=='erpx_test_admin')throw new Error('BROWSER_DATABASE_OWNER_CHANGED');await admin.query(`DROP DATABASE "${name}"`);}}finally{await admin.end();}
  // Keep evidence/credentials private until the owned data has been dropped, then remove this exact run only.
  await rm(directory,{recursive:true,force:false});console.log(JSON.stringify({run,destroyed:true}));

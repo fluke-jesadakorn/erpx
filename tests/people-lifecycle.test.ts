@@ -270,6 +270,53 @@ it("creates one IT task on retried position creation and rename, without grants"
   expect(waiting.ready).toBe(false);
   expect(waiting.blockers.join(" ")).toContain("updated work requirements");
 });
+it("keeps HR case details private while IT can track preparation and ordinary readers cannot open lifecycle data", async () => {
+  const f = await fixture();
+  const privateReason = `Private HR reason ${key()}`;
+  const privateSnapshot = `Private review ${key()}`;
+  const privateError = `Private failure ${key()}`;
+  const privateClearance = `Private clearance ${key()}`;
+  const input = lifecycleInput.parse({
+    kind: "onboarding",
+    expectedVersion: 0,
+    personId: f.person,
+    engagementId: f.engagement,
+    positionId: f.position,
+    managerPersonId: `person-${f.owner.userId}`,
+    effectiveAt: Date.now() + 3600000,
+    reason: privateReason,
+  });
+  const preview = await previewLifecycle(raw, f.hr, input);
+  const saved = await saveLifecycle(raw, f.hr, input, key(), true, preview.token);
+  await raw.prepare("UPDATE people_lifecycle_cases SET review_snapshot=?::jsonb,last_error=? WHERE id=?")
+    .bind(JSON.stringify({ privateSnapshot }), privateError, saved.id).run();
+  const financeTask = `private-clearance-${key()}`;
+  await raw.prepare("INSERT INTO people_preparation_tasks(id,company_id,case_id,kind,title,status,updated_at,clearance_type,completion_reason) VALUES(?,?,?,'lifecycle',?,'pending',?,'finance',?)")
+    .bind(financeTask, f.company, saved.id, privateClearance, Date.now(), privateClearance).run();
+
+  const hrData = await peopleLifecycleData(raw, f.hr);
+  const hrCase = hrData.cases.find(c => c.id === saved.id);
+  expect(hrCase && "definition" in hrCase ? hrCase.definition.reason : undefined).toBe(privateReason);
+  expect(JSON.stringify(hrCase)).toContain(privateSnapshot);
+  expect(hrData.tasks.some(task => task.id === financeTask)).toBe(true);
+
+  const itData = await peopleLifecycleData(raw, f.it);
+  const itCase = itData.cases.find(c => c.id === saved.id);
+  expect(itCase).toMatchObject({ id: saved.id, person_id: f.person, status: saved.status, last_error: "Preparation needs attention" });
+  expect(itCase).not.toHaveProperty("definition");
+  expect(itCase).not.toHaveProperty("review_snapshot");
+  expect(itCase).not.toHaveProperty("created_by");
+  expect(itData.tasks.some(task => task.id === financeTask)).toBe(false);
+  const itWork = await peopleLifecycleWork(raw, f.it);
+  expect(itWork.some(item => item.id === saved.id)).toBe(true);
+  for (const privateValue of [privateReason, privateSnapshot, privateError, privateClearance]) {
+    expect(JSON.stringify(itData)).not.toContain(privateValue);
+    expect(JSON.stringify(itWork)).not.toContain(privateValue);
+  }
+
+  const readOnly = { ...f.it, iam: { ...f.it.iam!, permissions: ["people.read"] } };
+  await expect(peopleLifecycleData(raw, readOnly)).rejects.toMatchObject({ status: 403 });
+});
 it("requires IT authority, published revisions, fresh previews, and Company ownership", async () => {
   const f = await fixture(),
     { input, pkg } = await prepare(f);
@@ -1353,14 +1400,13 @@ it("shows Position GPO mapping and employee Directory delivery without exposing 
  data=await peopleLifecycleData(raw,f.hr);
  expect(data.positions.find(p=>p.id===f.position)?.gpo).toEqual({mapped:false,directoryStatus:null});
  expect(data.roster.find(r=>r.engagementId===f.engagement)?.gpoDelivery).toBe("none");
- const inherited=`level-rule-${key()}`;
- const level=await raw.prepare("SELECT level_id FROM organization_positions WHERE id=?").bind(f.position).first<string>("level_id");
+ const inherited=`position-rule-${key()}`;
  await raw.prepare(`INSERT INTO organization_gpo_rules(id,company_id,target_kind,target_id,version,revision,connection_id,gpo_id,user_filter_group_id,computer_target_ou_id,directory_config_status,last_actor_id,last_reason,updated_at)
-   VALUES(?,?,'level',?,1,1,?,'inherited-gpo','inherited-group','ou-target','directory_applied',?,'Inherited delivery test',?)`)
-   .bind(inherited,f.company,level,connection,f.it.userId,now).run();
+   VALUES(?,?,'position',?,1,1,?,'inherited-gpo','inherited-group','ou-target','directory_applied',?,'Inherited delivery test',?)`)
+   .bind(inherited,f.company,f.position,connection,f.it.userId,now).run();
  data=await peopleLifecycleData(raw,f.hr);
  expect(data.positions.find(p=>p.id===f.position)?.gpo).toEqual({mapped:true,directoryStatus:"directory_applied"});
- // The removed direct rule's blocked job must not obscure an inherited delivery.
+ // The removed legacy rule's blocked job must not obscure a new direct mapping.
  expect(data.roster.find(r=>r.engagementId===f.engagement)?.gpoDelivery).toBe("queued");
  await raw.prepare(`INSERT INTO position_gpo_jobs(id,company_id,position_id,person_id,revision,engagement_version,connection_id,gpo_id,filter_group_id,computer_target_ou_id,desired_action,status,created_at,updated_at,engagement_id,account_id,rule_id,source_id)
    VALUES(?,?,?,?,1,?,?,'inherited-gpo','inherited-group','ou-target','add','directory_applied',?,?,?,'account-target',?,?)`)
@@ -1369,8 +1415,8 @@ it("shows Position GPO mapping and employee Directory delivery without exposing 
  const secondConnection=`unlinked-${key()}`;
  await raw.prepare("INSERT INTO iam_connections(id,company_id,name,provider,config,status,created_by,created_at) VALUES(?,?,'Second directory','active_directory','{}'::jsonb,'active',?,?)").bind(secondConnection,f.company,f.it.userId,now).run();
  await raw.prepare(`INSERT INTO organization_gpo_rules(id,company_id,target_kind,target_id,version,revision,connection_id,gpo_id,user_filter_group_id,computer_target_ou_id,directory_config_status,last_actor_id,last_reason,updated_at)
-   VALUES(?,?,'department',?,1,1,?,'second-gpo','second-group','second-ou','directory_applied',?,'Independent directory test',?)`)
-   .bind(`department-rule-${key()}`,f.company,f.department,secondConnection,f.it.userId,now).run();
+   VALUES(?,?,'position',?,1,1,?,'second-gpo','second-group','second-ou','directory_applied',?,'Independent directory test',?)`)
+   .bind(`second-position-rule-${key()}`,f.company,f.position,secondConnection,f.it.userId,now).run();
  expect((await peopleLifecycleData(raw,f.hr)).roster.find(r=>r.engagementId===f.engagement)?.gpoDelivery).toBe("awaiting_identity");
 });
 

@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 
 import { betaFetch } from "@/lib/beta-client";
 import { billingMonth, monthBounds } from "@/lib/billing";
@@ -122,7 +123,7 @@ function storageGbMonths(byteMilliseconds: string | null | undefined, month: str
   return `${(Number(thousandths) / 1000).toLocaleString("en-US", { maximumFractionDigits: 3 })} GB-months measured`;
 }
 function observedAt(value: number | null) {
-  return value === null ? "Observation time unavailable" : new Date(value).toLocaleString("en-US", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" });
+  return value === null ? "Observation time unavailable" : <TimeText value={value} />;
 }
 const blockerNames: Record<string, string> = {
   target_offering_not_assigned: "Assign a target offering to this Holding.",
@@ -340,7 +341,7 @@ export function TargetBillingPanel({
       <section className={styles.evidenceSection} aria-label="Measured billing evidence">
         <div className={styles.evidenceHeading}>
           <div><h4>Measured activity</h4><p>Actual meter readings for {view.month}. These quantities are separate from verified costs, rated charges, and invoices.</p></div>
-          <span>{evidence?.snapshot ? `Snapshot refreshed ${observedAt(evidence.snapshot.refreshedAt)}` : "Monthly snapshot unavailable"}</span>
+          <span>{evidence?.snapshot ? <>Snapshot refreshed {observedAt(evidence.snapshot.refreshedAt)}</> : "Monthly snapshot unavailable"}</span>
         </div>
         <div className={styles.evidenceGrid}>
           <article className={styles.evidenceCard}>
@@ -399,7 +400,7 @@ export function TargetBillingPanel({
         {gateway ? <>
           <p>Platform key: <strong>{gateway.platformEnabled ? "Enabled" : "Paused"}</strong> · {count(gateway.monthlyRequests)} of {count(gateway.monthlyRequestLimit)} monthly requests · {amount(gateway.monthlyReservedOrVerifiedSatang)} reservation or verified cost against a {amount(gateway.monthlySpendCapSatang)} monthly cap.</p>
           <p>{count(gateway.pendingPlatformCostRequests)} Platform-paid requests still need cost reconciliation. Reservation figures may differ from final provider charges.</p>
-          <p className={styles.subtle}>Last changed by {gateway.updatedBy} · {new Date(gateway.updatedAt).toLocaleString("en-US", { timeZone: "Asia/Bangkok" })}</p>
+          <p className={styles.subtle}>Last changed by {gateway.updatedBy} · <TimeText value={gateway.updatedAt} /></p>
           {writable && <button type="button" disabled={gatewayBusy || !reasonValid} onClick={() => void changeGateway(!gateway.platformEnabled)}>
             {gatewayBusy ? "Saving…" : gateway.platformEnabled ? "Pause Platform key for this Holding" : "Resume Platform key for this Holding"}
           </button>}
@@ -411,7 +412,7 @@ export function TargetBillingPanel({
         {!view.invoice ? <p>No target invoice has been approved for this month.</p> : !view.financeProjection
           ? <p>Target invoice {view.invoice.id} is recorded. Finance delivery has not been confirmed yet.</p>
           : <>
-            <p>Stripe status: <strong>{view.financeProjection.stripeStatus}</strong> · Finance delivery last synced {new Date(view.financeProjection.syncedAt).toLocaleString("en-US", { timeZone: "Asia/Bangkok" })}</p>
+            <p>Stripe status: <strong>{view.financeProjection.stripeStatus}</strong> · Finance delivery last synced <TimeText value={view.financeProjection.syncedAt} /></p>
             {view.financeProjection.invoiceSatang !== view.invoice.totalSatang && <p role="alert" className={styles.error}>Finance invoice amount does not match the approved target invoice.</p>}
             <div className={styles.financeAmounts}>
               <span>Invoice <strong>{amount(view.financeProjection.invoiceSatang)}</strong></span>

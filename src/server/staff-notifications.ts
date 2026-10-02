@@ -75,12 +75,12 @@ export async function visibleNotifications(db:SqlDatabase,actor:WorkContext,rows
       }
       if(row.record_type === "payroll_correction") {
         const runId=await (await import("./people-payroll")).payrollCorrectionAlertTarget(db,actor.companyId,actor.userId,row.record_id);
-        if(runId)visible.push({...row,href:`/people/payroll/${encodeURIComponent(runId)}#correction-${encodeURIComponent(row.record_id)}`});
+        if(runId)visible.push({...row,href:`/people/payroll/runs/${encodeURIComponent(runId)}#correction-${encodeURIComponent(row.record_id)}`});
         continue;
       }
       if(row.record_type === "payroll_advance") {
         const advanceId=await (await import("./people-payroll")).payrollAdvanceAlertTarget(db,actor.companyId,actor.userId,row.record_id);
-        if(advanceId)visible.push({...row,href:`/people?view=payroll#payroll-advances`});
+        if(advanceId)visible.push({...row,href:`/people/payroll/advances#payroll-advance-${encodeURIComponent(advanceId)}`});
         continue;
       }
       if(row.record_type === "staff_task_alert") {

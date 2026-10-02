@@ -68,6 +68,12 @@ export async function scheduledWork(env: JobEnv) {
   for (const slot of await activeSlots(env)) if (!slot.beta) await drainPeopleLifecycle(registeredResources(env,slot.id).write as PostgresDatabase);
   for (const slot of await activeSlots(env)) {
     const { write,files } = registeredResources(env,slot.id);
+    if (!slot.beta) {
+      const payroll = await import("../payroll-readiness");
+      await payroll.drainPayrollSchedules(write);
+      await payroll.drainPayrollScheduledPreviews(write);
+    }
+    if (!slot.beta) await (await import("../people-roster")).escalateRosterCoverage(write);
     await (await import("../leave-self-service")).runLeaveAccruals(write,new Date().toISOString().slice(0,10));
     if(process.env.NODE_ENV!=='production') {
       await (await import("../inventory-reservation-alerts")).escalateInventoryReservations(write);
@@ -88,9 +94,10 @@ export async function scheduledWork(env: JobEnv) {
       console.warn(JSON.stringify({event:"inbox_delivery_health",holdingId:slot.id,...inboxMetrics}));
     await generateOccurrences(write);
     await drainRequestAi(write,env);
+    if(!slot.beta) { const financeAi=await import("../finance-ai");await financeAi.scanFinanceAi(write,env);await financeAi.drainFinanceAi(write,env); }
     if(process.env.NODE_ENV!=='production') {
       await (await import("../executive/generation")).drainExecutiveGeneration(write,env);
-      await drainSocialAgent(write,env);
+      await drainSocialAgent(write,env,undefined,undefined,files,slot.id);
     }
     if(slot.beta) await cleanupBetaResources(write,files,slot.id);
   }
@@ -174,7 +181,45 @@ export async function pmsWork(env: JobEnv) {
 
 }
 
-export async function legalWork(env:JobEnv){if(process.env.NODE_ENV==='production')return;for(const slot of await activeSlots(env)){const {write,files}=registeredResources(env,slot.id);await Promise.allSettled([(await import('../legal/jobs')).legalReminders(write),(await import('../legal/invitations')).drainLegalInvitations(write,env),(await import('../legal/processing')).drainLegalProcessing(write,files),(await import('../legal/retention')).drainLegalDestruction(write as PostgresDatabase,files),(await import('../legal/jobs')).drainLegalAi(write,env)]).then(results=>{if(results.some(r=>r.status==='rejected'))throw new Error('LEGAL_WORK_FAILED')})}}
+export async function legalWork(env: JobEnv) {
+  for (const slot of await activeSlots(env)) {
+    let resources: ReturnType<typeof registeredResources>;
+    try { resources = registeredResources(env,slot.id); }
+    catch (error) {
+      console.error(JSON.stringify({event:'legal_holding_unavailable',holdingId:slot.id,
+        code:String((error as {code?:string}).code ?? 'LEGAL_RESOURCES_UNAVAILABLE').slice(0,64)}));
+      continue;
+    }
+    const { write, files } = resources;
+    const tasks: [string, () => Promise<unknown>][] = [
+      ['reminders', async () => (await import('../legal/jobs')).legalReminders(write)],
+      ['invitations', async () => (await import('../legal/invitations')).drainLegalInvitations(write,env)],
+      ['documents', async () => (await import('../legal/processing')).drainLegalProcessing(write,files)],
+      ['ai', async () => (await import('../legal/jobs')).drainLegalAi(write,env)],
+      ['sources', async () => (await import('../legal/law-corpus')).drainLegalSourceChecks(write,files)],
+    ];
+    // Destruction is invoked explicitly by isolated rehearsals. The recurring
+    // v1 worker retains evidence in every environment.
+    await Promise.allSettled(tasks.map(async ([task, run]) => {
+      const now = Date.now();
+      const renewal = setInterval(() => {
+        void write.prepare('UPDATE legal_runtime_health SET heartbeat_at=? WHERE task=?').bind(Date.now(),task).run().catch(() => {});
+      },15_000);
+      try {
+        await write.prepare(`INSERT INTO legal_runtime_health(task,heartbeat_at) VALUES(?,?)
+          ON CONFLICT(task) DO UPDATE SET heartbeat_at=excluded.heartbeat_at`).bind(task,now).run();
+        await run();
+        await write.prepare('UPDATE legal_runtime_health SET heartbeat_at=?,last_success_at=?,failure_count=0,last_error=NULL WHERE task=?')
+          .bind(Date.now(),Date.now(),task).run();
+      } catch (error) {
+        const code = String((error as {code?: string}).code ?? (error instanceof Error ? error.name : 'LegalJobError')).slice(0,64);
+        console.error(JSON.stringify({event:'legal_work_failed',holdingId:slot.id,task,code}));
+        await write.prepare('UPDATE legal_runtime_health SET heartbeat_at=?,failure_count=failure_count+1,last_error=? WHERE task=?')
+          .bind(Date.now(),code,task).run().catch(() => {});
+      } finally { clearInterval(renewal); }
+    }));
+  }
+}
 
 export async function supportWork(env:JobEnv) {
  if(process.env.NODE_ENV==='production')return;

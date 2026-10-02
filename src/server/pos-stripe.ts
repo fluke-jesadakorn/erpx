@@ -16,13 +16,39 @@ const hasCompanyStripePermission=(actor:WorkContext)=>hasPermission(actor,'pos.p
 function secret(live:boolean){const key=process.env[live?'POS_STRIPE_LIVE_SECRET_KEY':'POS_STRIPE_TEST_SECRET_KEY'];if(!key?.startsWith(live?'sk_live_':'sk_test_'))fail('POS_STRIPE_NOT_CONFIGURED','Platform has not configured Stripe POS');return key;}
 function origin(){const value=process.env.ERPX_PUBLIC_ORIGIN;if(!value)fail('POS_ORIGIN_REQUIRED','Configure the public origin before connecting Stripe');const u=new URL(value);if(u.protocol!=='https:'&&u.hostname!=='localhost')fail('POS_HTTPS_REQUIRED','Stripe requires HTTPS');return u.origin;}
 type StripeOptions={account?:string;method?:'POST'|'GET';body?:Record<string,string>;key?:string};
+export class PosStripeApiError extends Error {
+ readonly code:string;
+ constructor(readonly status:number,readonly providerCode:string|null,readonly parameter:string|null,readonly requestId:string|null,message:string,readonly resource:string='',readonly providerType:string|null=null){super(message);this.code=status===400&&resource==='refunds'&&message.startsWith('Cannot send email.')?'POS_PROVIDER_REFUND_EMAIL_RESTRICTED':`STRIPE_HTTP_${status}`;}
+}
 async function stripeRequest(live:boolean,path:string,options:StripeOptions={}):Promise<unknown>{
  if(!/^[a-z0-9_/?=&.%+-]+$/i.test(path))throw new Error('STRIPE_PATH_INVALID');
  const response=await fetch(`https://api.stripe.com/v1/${path}`,{method:options.method??'GET',headers:{Authorization:`Bearer ${secret(live)}`,'Stripe-Version':'2025-02-24.acacia',...(options.account?{'Stripe-Account':options.account}:{}),...(options.key?{'Idempotency-Key':options.key}:{}),...(options.body?{'Content-Type':'application/x-www-form-urlencoded'}:{})},body:options.body?new URLSearchParams(options.body):undefined,signal:AbortSignal.timeout(20000),cache:'no-store'});
- if(!response.ok)throw new Error(`STRIPE_HTTP_${response.status}`);
+ if(!response.ok){const details=await response.json().catch(()=>({})) as {error?:{code?:string;param?:string;message?:string;type?:string}};throw new PosStripeApiError(response.status,details.error?.code??null,details.error?.param??null,response.headers.get('request-id'),details.error?.message??`STRIPE_HTTP_${response.status}`,path.split('?')[0],details.error?.type??null);}
  return response.json();
 }
 export async function stripeCall(live:boolean,path:string,options:StripeOptions={}):Promise<StripeObject>{return objectSchema.parse(await stripeRequest(live,path,options));}
+async function promptPayIntent(p:PosRow,saleNumber:string){
+ const base={amount:String(p.amount_minor),currency:'thb','payment_method_types[0]':'promptpay','payment_method_data[type]':'promptpay',confirm:'true',description:saleNumber,'metadata[pos_payment_id]':str(p,'id')};
+ const body={...base,'payment_method_data[billing_details][email]':String(p.payer_email),receipt_email:String(p.payer_email)};
+ const options={method:'POST' as const,account:str(p,'stripe_account'),key:`pos-promptpay-${p.id}`};
+ try{return await stripeCall(Boolean(p.livemode),'payment_intents',{...options,body});}
+ catch(error){
+  if(!(error instanceof PosStripeApiError)||error.providerType!=='idempotency_error')throw error;
+  // The legacy adapter omitted mandatory billing email. Recover only when the
+  // original key definitively returns that validation failure, never after an
+  // unknown provider result. Both legacy receipt-email shapes use the same key.
+  let rejectedBeforeCreation=false;
+  for(const legacyBody of [{...base,receipt_email:String(p.payer_email)},base]){
+   try{await stripeCall(Boolean(p.livemode),'payment_intents',{...options,body:legacyBody});throw new Error('POS_PROVIDER_LOOKUP_REQUIRED');}
+   catch(legacyError){
+    if(legacyError instanceof PosStripeApiError&&legacyError.status===400&&legacyError.providerCode==='parameter_missing'&&legacyError.parameter==='billing_details[email]'){rejectedBeforeCreation=true;break;}
+    if(!(legacyError instanceof PosStripeApiError)||legacyError.providerType!=='idempotency_error')throw new Error('POS_PROVIDER_LOOKUP_REQUIRED');
+   }
+  }
+  if(!rejectedBeforeCreation)throw new Error('POS_PROVIDER_LOOKUP_REQUIRED');
+  return stripeCall(Boolean(p.livemode),'payment_intents',{...options,key:`${options.key}-billing-email-v2`,body});
+ }
+}
 export function verifyPosStripeSignature(raw:string,signature:string,signingSecrets:string[],now=Date.now()){
  const parts=signature.split(','),timestamp=parts.find(p=>p.startsWith('t='))?.slice(2),values=parts.filter(p=>p.startsWith('v1=')).map(p=>p.slice(3));
  if(!timestamp||!/^[0-9]+$/.test(timestamp)||Math.abs(now/1000-Number(timestamp))>300)return false;
@@ -45,7 +71,7 @@ export async function posStripeWebhook(raw:string,signature:string){
 export function oauthUrl(state:string,holdingSlug:string,live:boolean){
  if(process.env.NODE_ENV==='production'&&process.env.POS_STRIPE_LIVE_ENABLED!=='true')fail('POS_PROVIDER_COMING_SOON','Enable the Stripe production gate before connecting live accounts',403);
  secret(live);const client=process.env[live?'POS_STRIPE_LIVE_CLIENT_ID':'POS_STRIPE_TEST_CLIENT_ID'];if(!client)fail('POS_STRIPE_OAUTH_NOT_CONFIGURED','Platform has not configured Connect OAuth');
- const params=new URLSearchParams({response_type:'code',client_id:client,scope:'read_write',state,redirect_uri:`${origin()}/api/v1/holdings/${holdingSlug}/pos/connect/callback`});return `https://connect.stripe.com/oauth/authorize?${params}`;
+ const params=new URLSearchParams({response_type:'code',client_id:client,scope:'read_write',state,redirect_uri:`${origin()}/api/v1/holdings/${holdingSlug}/pos/connect/callback`,'stripe_user[country]':'TH','stripe_user[currency]':'thb'});return `https://connect.stripe.com/oauth/authorize?${params}`;
 }
 async function bindAccount(db:PostgresDatabase,holdingId:string,companyId:string,accountId:string,live:boolean){
  const account=await stripeCall(live,`accounts/${accountId}`),env=await runtimeEnv();
@@ -117,7 +143,7 @@ async function checkRefund(db:PostgresDatabase,rp:PosRow,p:PosRow,date?:string){
  return true;
 }
 async function stripeEvent(db:PostgresDatabase,job:PosRow,holdingId:string){
- const event=(await one(db,'SELECT * FROM pos_stripe_events WHERE id=?',job.record_id))!;if(event.applied_at)return;
+ const event=(await one(db,'SELECT * FROM pos_stripe_events WHERE id=?',job.record_id))!;if(event.applied_at)return false;
  const obj=json<Record<string,unknown>>(event.payload_json),type=str(event,'event_type');
  if(type==='account.updated'){
   const current=await one(db,'SELECT * FROM pos_connections WHERE company_id=?',job.company_id);if(current?.account_id===event.account_id&&current.livemode===event.livemode)await bindAccount(db,holdingId,str(job,'company_id'),str(event,'account_id'),Boolean(event.livemode));
@@ -146,7 +172,7 @@ async function stripeEvent(db:PostgresDatabase,job:PosRow,holdingId:string){
    if(!payment)throw new Error('PMS_PROVIDER_REFUND_MISMATCH');
    await (await import('./pms-stripe')).processPmsStripeRefund(db,counterId);
    await run(db,'UPDATE pos_stripe_events SET applied_at=? WHERE id=?',Date.now(),event.id);
-   return;
+   return false;
   }
   const bookingId=(obj.metadata as Record<string,string>|undefined)?.pms_booking_payment_id;
   if(bookingId){
@@ -154,7 +180,7 @@ async function stripeEvent(db:PostgresDatabase,job:PosRow,holdingId:string){
    if(!payment)throw new Error('PMS_PROVIDER_REFUND_MISMATCH');
    await (await import('./pms-booking')).processBookingRefund(db,bookingId);
    await run(db,'UPDATE pos_stripe_events SET applied_at=? WHERE id=?',Date.now(),event.id);
-   return;
+   return false;
   }
   const rpid=(obj.metadata as Record<string,string>|undefined)?.pos_refund_payment_id;
   const rp=rpid?await one(db,'SELECT rp.* FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE rp.id=? AND p.company_id=? AND p.stripe_account=? AND p.livemode=?',rpid,job.company_id,event.account_id,event.livemode):null;
@@ -164,23 +190,27 @@ async function stripeEvent(db:PostgresDatabase,job:PosRow,holdingId:string){
   await settlement(db,job,event,obj);
  }else if(type==='charge.succeeded'){
   const charge=await stripeCall(Boolean(event.livemode),`charges/${String(obj.id)}`,{account:str(event,'account_id')});
-  if(charge.balance_transaction)await balanceTransaction(db,event,String(charge.balance_transaction),json<{accountingDate?:string}>(job.payload_json).accountingDate);
+  if(!charge.balance_transaction)return true;
+  await balanceTransaction(db,event,String(charge.balance_transaction),json<{accountingDate?:string}>(job.payload_json).accountingDate);
  }
  await run(db,'UPDATE pos_stripe_events SET applied_at=? WHERE id=?',Date.now(),event.id);
+ return false;
 }
 async function balanceTransaction(db:PostgresDatabase,event:PosRow,btId:string,date?:string){
+ const existing=await one(db,"SELECT state FROM pos_settlements WHERE company_id=? AND account_id=? AND livemode=? AND kind='balance' AND provider_id=?",event.company_id,event.account_id,event.livemode,btId);
+ if(existing&&existing.state!=='unmapped')return;
  const bt=await stripeCall(Boolean(event.livemode),`balance_transactions/${btId}`,{account:str(event,'account_id')});
  if(bt.currency!=='thb')throw new Error('POS_SETTLEMENT_CURRENCY');
  const amount=z.number().int().parse(bt.amount),fee=z.number().int().parse(bt.fee);
  const source=typeof bt.source==='string'?bt.source:'';
  let owned=bt.type==='stripe_fee';
- if(source.startsWith('ch_')){
+ if(source.startsWith('ch_')||source.startsWith('py_')){
   const charge=await stripeCall(Boolean(event.livemode),`charges/${source}`,{account:str(event,'account_id')});
   const paymentId=(charge.metadata as Record<string,string>|undefined)?.pos_payment_id;
   const bookingId=(charge.metadata as Record<string,string>|undefined)?.pms_booking_payment_id;
   const counterId=(charge.metadata as Record<string,string>|undefined)?.pms_counter_payment_id;
   owned=Boolean(paymentId&&await one(db,'SELECT id FROM pos_payments WHERE id=? AND company_id=? AND stripe_account=? AND livemode=?',paymentId,event.company_id,event.account_id,event.livemode))||Boolean(bookingId&&await one(db,"SELECT id FROM pms_booking_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=? AND status IN ('confirmed','cancelled')",bookingId,event.company_id,event.account_id,event.livemode))||Boolean(counterId&&await one(db,"SELECT id FROM pms_stripe_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=? AND state='succeeded'",counterId,event.company_id,event.account_id,event.livemode));
- }else if(source.startsWith('re_'))owned=Boolean(await one(db,'SELECT rp.id FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE rp.provider_id=? AND p.company_id=? AND p.stripe_account=? AND p.livemode=?',source,event.company_id,event.account_id,event.livemode))||Boolean(await one(db,"SELECT id FROM pms_booking_payments WHERE refund_id=? AND company_id=? AND account_id=? AND livemode=? AND status='cancelled'",source,event.company_id,event.account_id,event.livemode))||Boolean(await one(db,"SELECT id FROM pms_stripe_payments WHERE refund_id=? AND company_id=? AND account_id=? AND livemode=? AND state='succeeded'",source,event.company_id,event.account_id,event.livemode));
+ }else if(source.startsWith('re_')||source.startsWith('pyr_'))owned=Boolean(await one(db,'SELECT rp.id FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE rp.provider_id=? AND p.company_id=? AND p.stripe_account=? AND p.livemode=?',source,event.company_id,event.account_id,event.livemode))||Boolean(await one(db,"SELECT id FROM pms_booking_payments WHERE refund_id=? AND company_id=? AND account_id=? AND livemode=? AND status='cancelled'",source,event.company_id,event.account_id,event.livemode))||Boolean(await one(db,"SELECT id FROM pms_stripe_payments WHERE refund_id=? AND company_id=? AND account_id=? AND livemode=? AND state='succeeded'",source,event.company_id,event.account_id,event.livemode));
  else if(source.startsWith('dp_'))owned=true;
  if(!owned){
   await run(db,"INSERT INTO pos_settlements(id,company_id,account_id,livemode,kind,provider_id,amount_minor,fee_minor,currency,state,details_json,created_at) VALUES(?,?,?,?,'balance',?,?,?,'THB','unmapped',?,?) ON CONFLICT(account_id,livemode,kind,provider_id) DO NOTHING",id(),event.company_id,event.account_id,event.livemode,btId,amount,fee,JSON.stringify({source,net:bt.net,type:bt.type}),Date.now());return;
@@ -188,7 +218,7 @@ async function balanceTransaction(db:PostgresDatabase,event:PosRow,btId:string,d
  await db.transaction(async tx=>{
   const settings=await settlementSettings(tx,str(event,'company_id')),a=json<PosAccounts>(settings.accounts_json);
   const journal=await posting(tx,str(event,'company_id'),null,a,date??businessDate(),str(settings,'currency'),`stripe-fee:${event.livemode}:${event.account_id}:${btId}`,btId,'system:stripe',pair(fee>=0?a.fees:a.stripe,fee>=0?a.stripe:a.fees,Math.abs(fee)));
-  await run(tx,"INSERT INTO pos_settlements(id,company_id,account_id,livemode,kind,provider_id,amount_minor,fee_minor,currency,state,details_json,journal_id,created_at) VALUES(?,?,?,?,'balance',?,?,?,'THB','recorded',?,?,?) ON CONFLICT(account_id,livemode,kind,provider_id) DO NOTHING",id(),event.company_id,event.account_id,event.livemode,btId,amount,fee,JSON.stringify({source:bt.source,net:bt.net,type:bt.type,created:bt.created}),journal,Date.now());
+  await run(tx,"INSERT INTO pos_settlements(id,company_id,account_id,livemode,kind,provider_id,amount_minor,fee_minor,currency,state,details_json,journal_id,created_at) VALUES(?,?,?,?,'balance',?,?,?,'THB','recorded',?,?,?) ON CONFLICT(account_id,livemode,kind,provider_id) DO UPDATE SET state='recorded',journal_id=excluded.journal_id,details_json=excluded.details_json WHERE pos_settlements.state='unmapped'",id(),event.company_id,event.account_id,event.livemode,btId,amount,fee,JSON.stringify({source:bt.source,net:bt.net,type:bt.type,created:bt.created}),journal,Date.now());
  });
 }
 async function settlementSettings(db:SqlDatabase,companyId:string){
@@ -206,6 +236,14 @@ async function settlement(db:PostgresDatabase,job:PosRow,event:PosRow,obj:Record
  const pendingTransactions=(resource.balance_transactions??[]) as Array<{id:string}>;
  for(const bt of pendingTransactions)await balanceTransaction(db,event,bt.id,date);
  let details:unknown={status:resource.status};
+ if(payout&&resource.status==='paid'&&resource.automatic===false){
+  // Stripe cannot attribute constituent transactions to a manual payout. Retain
+  // the verified balance movement for Finance to match to an approved journal.
+  const bt=await stripeCall(Boolean(event.livemode),`balance_transactions/${String(resource.balance_transaction)}`,{account:str(event,'account_id')});
+  if(bt.type!=='payout'||bt.source!==resource.id||bt.currency!=='thb'||bt.amount!==-amount||bt.net!==-amount||bt.fee!==0)throw new Error('POS_MANUAL_PAYOUT_BALANCE_MISMATCH');
+  await run(db,"INSERT INTO pos_settlements(id,company_id,account_id,livemode,kind,provider_id,amount_minor,fee_minor,currency,state,details_json,created_at) VALUES(?,?,?,?,'payout',?, ?,0,'THB','unmapped',?,?) ON CONFLICT(account_id,livemode,kind,provider_id) DO UPDATE SET state='unmapped',details_json=excluded.details_json WHERE pos_settlements.journal_id IS NULL",id(),event.company_id,event.account_id,event.livemode,resource.id,amount,JSON.stringify({status:'paid',manualPayout:true,automatic:false,net:-amount,balanceTransaction:bt.id,reconciliationMode:'balance',items:null}),Date.now());
+  return;
+ }
  if(payout&&resource.status==='paid'){
   const items:unknown[]=[];let after='';
   for(let page=0;page<100;page++){
@@ -222,7 +260,7 @@ async function settlement(db:PostgresDatabase,job:PosRow,event:PosRow,obj:Record
  }
  await db.transaction(async tx=>{
   const settings=await settlementSettings(tx,str(event,'company_id')),a=json<PosAccounts>(settings.accounts_json);let journal:string|null=null;
-  if(payout&&resource.status==='failed'&&await one(tx,'SELECT journal_id FROM pos_postings WHERE source_key=?',`payout:${event.livemode}:${event.account_id}:${resource.id}`))await posting(tx,str(event,'company_id'),null,a,date,'THB',`payout-return:${event.livemode}:${event.account_id}:${resource.id}`,resource.id,'system:stripe',pair(a.stripe,a.bank,amount));
+  if(payout&&resource.status==='failed'&&(await one(tx,'SELECT journal_id FROM pos_postings WHERE source_key=?',`payout:${event.livemode}:${event.account_id}:${resource.id}`)||await one(tx,"SELECT journal_id FROM pos_settlements WHERE company_id=? AND account_id=? AND livemode=? AND kind='payout' AND provider_id=? AND journal_id IS NOT NULL",event.company_id,event.account_id,event.livemode,resource.id)))await posting(tx,str(event,'company_id'),null,a,date,'THB',`payout-return:${event.livemode}:${event.account_id}:${resource.id}`,resource.id,'system:stripe',pair(a.stripe,a.bank,amount));
   if(payout&&resource.status==='paid')journal=await posting(tx,str(event,'company_id'),null,a,date,'THB',`payout:${event.livemode}:${event.account_id}:${resource.id}`,resource.id,'system:stripe',pair(a.bank,a.stripe,amount));
   // Disputes are tracked separately from sales/refunds. Post actual balance movements only.
   if(!payout){
@@ -235,7 +273,19 @@ async function settlement(db:PostgresDatabase,job:PosRow,event:PosRow,obj:Record
  });
 }
 async function processJob(db:PostgresDatabase,holdingId:string,job:PosRow):Promise<boolean>{
- const payload=json<{livemode?:boolean;holdingSlug?:string;userId?:string;assignmentId?:string;accountingDate?:string;providerAttemptStartedAt?:number}>(job.payload_json);
+ const payload=json<{livemode?:boolean;accountId?:string;holdingSlug?:string;userId?:string;assignmentId?:string;accountingDate?:string;providerAttemptStartedAt?:number;refundInstructionsAttempts?:Array<{email:string}>}>(job.payload_json);
+ if(job.kind==='balance_sync'){
+  const assignment=await one(db,"SELECT role FROM assignments WHERE id=? AND user_id=? AND company_id=? AND scope_kind='holding' AND revoked_at IS NULL AND valid_from<=? AND valid_until>?",payload.assignmentId,payload.userId,job.company_id,Date.now(),Date.now());
+  if(!assignment||(await loadIamAuthority(db,str(job,'company_id'),String(payload.userId),str(assignment,'role'))).permissions.includes('finance.approve')!==true)throw new Error('POS_CONNECTION_AUTHORITY_CHANGED');
+  const connection=await one(db,"SELECT company_id FROM pos_connections WHERE company_id=? AND account_id=? AND livemode=? AND state='ready'",job.company_id,payload.accountId,Boolean(payload.livemode));
+  if(!connection)throw new Error('POS_CONNECTION_AUTHORITY_CHANGED');
+  const event={company_id:job.company_id,account_id:payload.accountId,livemode:Boolean(payload.livemode)} as PosRow;let after='';
+  for(let page=0;page<100;page++){
+   const list=z.object({data:z.array(objectSchema),has_more:z.boolean()}).parse(await stripeRequest(Boolean(payload.livemode),`balance_transactions?${new URLSearchParams({limit:'100',...(after?{starting_after:after}:{})})}`,{account:payload.accountId}));
+   for(const item of list.data)if(!String(item.source??'').startsWith('po_'))await balanceTransaction(db,event,item.id,payload.accountingDate);
+   if(!list.has_more)return false;if(!list.data.length||page===99)throw new Error('POS_PAYOUT_TOO_LARGE');after=list.data.at(-1)!.id;
+  }
+ }
  if(job.kind==='connect'||job.kind==='connect_refresh'){
   const assignment=await one(db,"SELECT role FROM assignments WHERE id=? AND user_id=? AND company_id=? AND scope_kind='holding' AND revoked_at IS NULL AND valid_from<=? AND valid_until>?",payload.assignmentId,payload.userId,job.company_id,Date.now(),Date.now());
   if(!assignment)throw new Error('POS_CONNECTION_AUTHORITY_CHANGED');
@@ -249,16 +299,17 @@ async function processJob(db:PostgresDatabase,holdingId:string,job:PosRow):Promi
   if(!accountId)throw new Error('POS_CONNECTION_MISSING');
   await bindAccount(db,holdingId,str(job,'company_id'),String(accountId),Boolean(payload.livemode));connection=await one(db,'SELECT * FROM pos_connections WHERE company_id=?',job.company_id);
   const url=`${origin()}/holdings/${payload.holdingSlug}/settings/stripe`;
-  const link=z.object({url:z.string().url()}).parse(await stripeRequest(Boolean(connection!.livemode),'account_links',{method:'POST',key:`pos-link-${job.id}`,body:{account:String(accountId),type:'account_onboarding',return_url:url,refresh_url:url}}));
+  const link=z.object({url:z.string().url(),expires_at:z.number().int().positive()}).parse(await stripeRequest(Boolean(connection!.livemode),'account_links',{method:'POST',key:`pos-link-${job.id}`,body:{account:String(accountId),type:'account_onboarding',return_url:url,refresh_url:url}}));
   if(typeof link.url!=='string'||new URL(link.url).hostname!=='connect.stripe.com')throw new Error('POS_CONNECT_URL_INVALID');
-  await run(db,'UPDATE pos_jobs SET payload_json=? WHERE id=?',JSON.stringify({...payload,url:link.url}),job.id);return false;
+  await run(db,'UPDATE pos_jobs SET payload_json=? WHERE id=?',JSON.stringify({...payload,accountId:String(accountId),livemode:Boolean(connection!.livemode),url:link.url,urlExpiresAt:link.expires_at*1000}),job.id);return false;
  }
  if(job.kind==='checkout'){
   const p=(await one(db,'SELECT * FROM pos_payments WHERE id=? AND company_id=?',job.record_id,job.company_id))!;if(!p)throw new Error('POS_PAYMENT_MISSING');if(p.state==='succeeded'||p.state==='cancelled')return false;
   if(!p.provider_id){
    if(p.method==='stripe_promptpay'){
+    if(!p.payer_email)throw new Error('POS_PROMPTPAY_EMAIL_REQUIRED');
     const sale=(await one(db,'SELECT number FROM pos_sales WHERE id=?',p.sale_id))!;
-    const pi=await stripeCall(Boolean(p.livemode),'payment_intents',{method:'POST',account:str(p,'stripe_account'),key:`pos-promptpay-${p.id}`,body:{amount:String(p.amount_minor),currency:'thb','payment_method_types[0]':'promptpay','payment_method_data[type]':'promptpay',confirm:'true',description:String(sale.number),'metadata[pos_payment_id]':str(p,'id'),...(p.payer_email?{receipt_email:String(p.payer_email)}:{})}});
+    const pi=await promptPayIntent(p,String(sale.number));
     const qr=((pi.next_action as Record<string,unknown>|undefined)?.promptpay_display_qr_code as Record<string,unknown>|undefined)?.data;
     if(pi.status!=='requires_action'||typeof qr!=='string'||!qr)throw new Error('POS_PROMPTPAY_QR_UNAVAILABLE');
     await db.transaction(async tx=>{await run(tx,"UPDATE pos_payments SET provider_id=?,qr_data=?,expires_at=?,state='pending',version=version+1,updated_at=? WHERE id=? AND state IN ('requested','exception')",pi.id,qr,Date.now()+30*60*1000,Date.now(),p.id);await enqueue(tx,str(p,'company_id'),'check_payment',str(p,'id'));});
@@ -300,28 +351,40 @@ async function processJob(db:PostgresDatabase,holdingId:string,job:PosRow):Promi
   if(!rp.provider_id){
    if(Date.now()-(payload.providerAttemptStartedAt??num(job,'created_at'))>23*60*60*1000)throw new Error('POS_PROVIDER_LOOKUP_REQUIRED');
    const paymentIntent=String(p.provider_id).startsWith('pi_')?String(p.provider_id):String((await stripeCall(Boolean(p.livemode),`checkout/sessions/${p.provider_id}`,{account:str(p,'stripe_account')})).payment_intent);
-   const refund=await stripeCall(Boolean(p.livemode),'refunds',{method:'POST',account:str(p,'stripe_account'),key:`pos-refund-${rp.id}-${rp.provider_attempt}`,body:{payment_intent:paymentIntent,amount:String(rp.amount_minor),'metadata[pos_refund_payment_id]':str(rp,'id'),...(p.method==='stripe_promptpay'&&p.payer_email?{instructions_email:String(p.payer_email)}:{})}});
+   const baseKey=`pos-refund-${rp.id}-${rp.provider_attempt}`,body={payment_intent:paymentIntent,amount:String(rp.amount_minor),'metadata[pos_refund_payment_id]':str(rp,'id'),...(p.method==='stripe_promptpay'&&p.payer_email?{instructions_email:String(p.payer_email)}:{})};
+   const replacements=z.array(z.object({email:z.email().max(254)})).max(10).parse(payload.refundInstructionsAttempts??[]);
+   if(replacements.length&&p.method!=='stripe_promptpay')throw new Error('POS_REFUND_EMAIL_LOCKED');
+   let refund:StripeObject|undefined;
+   // Replay every previous body/key first. A successful original result is
+   // adopted; a timeout, unknown result or mismatched body never permits a new
+   // refund. Only Stripe's explicit email rejection permits the next body.
+   for(let attempt=0;attempt<=replacements.length;attempt++){
+    try{refund=await stripeCall(Boolean(p.livemode),'refunds',{method:'POST',account:str(p,'stripe_account'),key:attempt?`${baseKey}-instructions-${attempt}`:baseKey,body:attempt?{...body,instructions_email:replacements[attempt-1].email}:body});break;}
+    catch(error){if(attempt===replacements.length||!(error instanceof PosStripeApiError)||error.code!=='POS_PROVIDER_REFUND_EMAIL_RESTRICTED')throw error;}
+   }
+   if(!refund)throw new Error('POS_PROVIDER_LOOKUP_REQUIRED');
    await run(db,"UPDATE pos_refund_payments SET provider_id=?,state='pending' WHERE id=?",refund.id,rp.id);rp.provider_id=refund.id;
   }
   const again=await checkRefund(db,rp,p,payload.accountingDate);
   if(!again)await db.transaction(tx=>releaseUnpaidReservations(tx,str(p,'sale_id')));
   return again;
  }
- if(job.kind==='event'){await stripeEvent(db,job,holdingId);return false;}
+ if(job.kind==='event')return stripeEvent(db,job,holdingId);
  throw new Error('POS_JOB_UNKNOWN');
 }
 /** Durable leases allow the jobs service to recover work after a process restart. */
-export async function drainPos(db:PostgresDatabase,holdingId:string,limit=8){
+export async function drainPos(db:PostgresDatabase,holdingId:string,limit=8,companyId:string|null=null){
  for(let i=0;i<limit;i++){
   const token=id(),now=Date.now();
-  const job=await one(db,"UPDATE pos_jobs SET state='running',lease_token=?,lease_until=?,attempts=attempts+1 WHERE id=(SELECT id FROM pos_jobs WHERE (state='pending' OR state='running' AND lease_until<?) AND next_attempt_at<=? ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *",token,now+120000,now,now);if(!job)break;
+  const job=await one(db,"UPDATE pos_jobs SET state='running',lease_token=?,lease_until=?,attempts=attempts+1 WHERE id=(SELECT id FROM pos_jobs WHERE (state='pending' OR state='running' AND lease_until<?) AND next_attempt_at<=? AND (?::text IS NULL OR company_id=?) ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *",token,now+120000,now,now,companyId,companyId);if(!job)break;
   const renew=setInterval(()=>{void run(db,"UPDATE pos_jobs SET lease_until=? WHERE id=? AND lease_token=? AND state='running'",Date.now()+120000,job.id,token).catch(()=>{});},30000);
   try {
    const again=await processJob(db,holdingId,job);
    await run(db,'UPDATE pos_jobs SET state=?,next_attempt_at=?,attempts=0,lease_until=NULL,lease_token=NULL,last_error=NULL WHERE id=? AND lease_token=?',again?'pending':'completed',Date.now()+15000,job.id,token);
   }catch(error){
+   if(error instanceof PosStripeApiError)console.error(JSON.stringify({event:'pos_provider_request_failed',jobId:job.id,kind:job.kind,resource:error.resource,status:error.status,providerCode:error.providerCode,parameter:error.parameter,requestId:error.requestId}));
    const raw=(error as {code?:string;message?:string}).code??(error as Error).message;
-   const code=/^[A-Z0-9_]+$/.test(raw)?raw:'POS_JOB_FAILED',exception=num(job,'attempts')>=6||['POS_PERIOD_CLOSED','POS_PROVIDER_PAYMENT_MISMATCH','POS_PROVIDER_REFUND_FAILED','POS_STRIPE_NOT_CONFIGURED','POS_PROVIDER_LOOKUP_REQUIRED'].includes(code);
+   const code=/^[A-Z0-9_]+$/.test(raw)?raw:'POS_JOB_FAILED',exception=num(job,'attempts')>=6||['POS_PERIOD_CLOSED','POS_CONNECTION_AUTHORITY_CHANGED','POS_PROMPTPAY_EMAIL_REQUIRED','POS_PROVIDER_REFUND_EMAIL_RESTRICTED','POS_REFUND_EMAIL_LOCKED','POS_PROVIDER_PAYMENT_MISMATCH','POS_PROVIDER_REFUND_FAILED','POS_STRIPE_NOT_CONFIGURED','POS_PROVIDER_LOOKUP_REQUIRED','POS_MANUAL_PAYOUT_BALANCE_MISMATCH'].includes(code);
    await run(db,'UPDATE pos_jobs SET state=?,next_attempt_at=?,last_error=?,lease_until=NULL,lease_token=NULL WHERE id=? AND lease_token=?',exception?'exception':'pending',Date.now()+Math.min(60000,1000*2**num(job,'attempts')),code,job.id,token);
    if(exception)await audit(db,str(job,'company_id'),null,'system:stripe','job.exception',str(job,'record_id'),{jobId:job.id,code});
   }finally{clearInterval(renew);}

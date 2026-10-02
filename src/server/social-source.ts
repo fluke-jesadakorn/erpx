@@ -5,6 +5,7 @@ import { sha256 } from "./crypto";
 import type { StaffActor } from "./staff-policy";
 import type { WorkContext } from "./authorization";
 import { handoverSourcesReadableSql } from "./handover-policy";
+import { pmsPostSourcesReadableSql } from "./pms/source-policy";
 export type PostRow = {
   id: string;
   kind: "team" | "record" | "system";
@@ -16,6 +17,7 @@ export type PostRow = {
   body: string;
   mentions_json: string;
   content_json: string | null;
+  rich_content_json: string | null;
   audience_kind: "company" | "branch" | "department" | "participants" | "team" | "project" | null;
   audience_id: string | null;
   purpose: "update" | "plan" | "blocker" | "handover" | "announcement";
@@ -26,7 +28,7 @@ export type PostRow = {
   linked_module: string | null;
   created_at: number;
 };
-export const sourceAccessSql = (alias = "p") =>
+export const sourceAccessSql = (alias = "p", currentAssignment?: string) =>
   `EXISTS(SELECT 1 FROM assignments a WHERE a.user_id=? AND a.company_id=${alias}.company_id AND a.revoked_at IS NULL AND a.valid_from<=? AND a.valid_until>? AND (
     (${alias}.branch_id IS NULL AND ${alias}.department_id IS NULL)
     OR (${alias}.department_id IS NOT NULL AND a.scope_kind='department' AND a.scope_node_id=${alias}.department_id)
@@ -47,25 +49,27 @@ export const sourceAccessSql = (alias = "p") =>
       SELECT 1 FROM staff_projects pr WHERE pr.id=${alias}.audience_id AND pr.company_id=${alias}.company_id
       AND (pr.owner_user_id=a.user_id OR EXISTS(
         SELECT 1 FROM staff_project_members pm WHERE pm.project_id=pr.id AND pm.user_id=a.user_id))))
-  ) AND ${handoverSourcesReadableSql(alias,"a.user_id")})`;
+  ) ${currentAssignment ? `AND (NOT EXISTS(SELECT 1 FROM social_post_sources ps WHERE ps.post_id=${alias}.id AND ps.source_kind='pms_record') OR a.id=${currentAssignment})` : ""}
+  AND ${handoverSourcesReadableSql(alias,"a.user_id")} AND ${pmsPostSourcesReadableSql(alias,"a.user_id","a.id")})`;
 /** The social feed and Executive activity adapter share the same published-post boundary. */
-export function socialPostScope(actor: Pick<WorkContext,"companyId"|"userId"|"branchId"|"departmentId">, alias="p") {
-  const now=Date.now(),base=`${alias}.company_id=? AND ${alias}.state='published' AND ${sourceAccessSql(alias)}`;
+export function socialPostScope(actor: Pick<WorkContext,"companyId"|"userId"|"branchId"|"departmentId"> & Partial<Pick<WorkContext,"assignmentId">>, alias="p") {
+  const now=Date.now(),base=`${alias}.company_id=? AND ${alias}.state='published' AND ${sourceAccessSql(alias,actor.assignmentId?"?::text":undefined)}`;
+  const values=[actor.companyId,actor.userId,now,now,...(actor.assignmentId?[actor.assignmentId]:[])];
   return actor.departmentId
-    ? {sql:`${base} AND (${alias}.department_id=? OR (${alias}.department_id IS NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id=?)))`,bindings:[actor.companyId,actor.userId,now,now,actor.departmentId,actor.branchId]}
-    : {sql:`${base} AND (${alias}.branch_id IS NULL OR ?::text IS NULL OR ${alias}.branch_id=?)`,bindings:[actor.companyId,actor.userId,now,now,actor.branchId,actor.branchId]};
+    ? {sql:`${base} AND (${alias}.department_id=? OR (${alias}.department_id IS NULL AND (${alias}.branch_id IS NULL OR ${alias}.branch_id=?)))`,bindings:[...values,actor.departmentId,actor.branchId]}
+    : {sql:`${base} AND (${alias}.branch_id IS NULL OR ?::text IS NULL OR ${alias}.branch_id=?)`,bindings:[...values,actor.branchId,actor.branchId]};
 }
 export async function readablePost(
   db: SqlDatabase,
-  actor: Pick<StaffActor, "userId" | "companyId">,
+  actor: Pick<StaffActor, "userId" | "companyId"> & Partial<Pick<StaffActor,"assignmentId">>,
   id: string,
 ) {
   const now = Date.now();
   const row = await db
     .prepare(
-      `SELECT p.* FROM social_posts p WHERE p.id=? AND p.company_id=? AND p.state='published' AND ${sourceAccessSql()}`,
+      `SELECT p.* FROM social_posts p WHERE p.id=? AND p.company_id=? AND p.state='published' AND ${sourceAccessSql("p",actor.assignmentId?"?::text":undefined)}`,
     )
-    .bind(id, actor.companyId, actor.userId, now, now)
+    .bind(id, actor.companyId, actor.userId, now, now,...(actor.assignmentId?[actor.assignmentId]:[]))
     .first<PostRow>();
   if (!row)
     throw new ApiError(404, "POST_NOT_FOUND", "This post is unavailable.");

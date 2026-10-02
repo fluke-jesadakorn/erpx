@@ -133,7 +133,9 @@ it('upgrades an existing database without promoting or replacing its setup attes
   try {
     await mkdir(join(temporary, 'holding-write'));
     for (const file of await readdir('migrations/postgres/holding-write')) {
-      if (!file.endsWith('.sql') || file === '0304_production_release_acceptance.sql') continue;
+      // Build the actual pre-release migration boundary; later migrations may
+      // depend on the release tables and must be installed during upgrade.
+      if (!file.endsWith('.sql') || Number(file.split('_')[0]) >= 304) continue;
       await symlink(resolve('migrations/postgres/holding-write', file), join(temporary, 'holding-write', file));
     }
     await migrateDatabase(upgraded, 'holding-write', temporary);

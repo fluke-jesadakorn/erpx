@@ -152,13 +152,16 @@ export function compareWork(a: WorkItem, b: WorkItem) {
   return (a.dueAt ?? Infinity) - (b.dueAt ?? Infinity) ||
     b.updatedAt - a.updatedAt || `${a.type}:${a.id}:${a.actionKind ?? "work"}`.localeCompare(`${b.type}:${b.id}:${b.actionKind ?? "work"}`);
 }
-export function workInView(items: WorkItem[], view: string) {
-  return items.filter(item => view === "routing" ? !!(item.flow?.canManage && item.flow.current && item.flow.blocker)
+export function workMatchesView(item: WorkItem, view: string) {
+  return view === "routing" ? !!(item.flow?.canManage && item.flow.current && item.flow.blocker)
     : view === "actions" ? isMyAction(item)
     : view === "waiting" ? item.queue === "waiting" && !!item.relationships?.some(r => r !== "team")
     : view === "requests" ? item.relationships?.includes("requested")
     : view === "team" ? item.queue !== "completed" && (item.category === "setup" || item.relationships?.includes("team"))
-    : view === "completed" ? item.queue === "completed" : true).sort(compareWork);
+    : view === "completed" ? item.queue === "completed" : true;
+}
+export function workInView(items: WorkItem[], view: string) {
+  return items.filter(item => workMatchesView(item, view)).sort(compareWork);
 }
 export function workItemHref(base: string, item: WorkItem, returnTo: string) {
   const url = new URL(`${base}${item.href}`, "https://work.invalid");

@@ -22,6 +22,7 @@ const db = env.H001_DB,
   key = () => crypto.randomUUID(),
   person = (a: WorkContext) => `person-${a.userId}`;
 let f: Awaited<ReturnType<typeof seedExpenseCompany>>;
+const privateGuestPhone = "+66-555-010-1234";
 const date = addDays(rosterMonday(), 14),
   read = (actor = f.manager, query: Record<string, unknown> = {}) =>
     calendarData(db, actor, { date, mode: "team", ...query });
@@ -36,7 +37,7 @@ function appointment(extra: Record<string, unknown> = {}) {
     description: "Private notes",
     startLocal: `${date}T09:00`,
     endLocal: `${date}T10:00`,
-    guests: [{ name: "Visitor", email: "visitor@example.test", phone: "123" }],
+    guests: [{ name: "Visitor", email: "visitor@example.test", phone: privateGuestPhone }],
     ...extra,
   };
 }
@@ -215,7 +216,8 @@ it("lets active staff organize, scopes delegates, redacts availability before se
   expect(busy.title).toBe("Busy");
   expect(busy.details).toBeUndefined();
   expect(busy.version).toBe(0);
-  expect(JSON.stringify(busy)).not.toMatch(/Private|Visitor|example.test|123/);
+  expect(JSON.stringify(busy)).not.toMatch(/Private|Visitor|example\.test/);
+  expect(JSON.stringify(busy)).not.toContain(privateGuestPhone);
   expect((await read(outsider)).items).toEqual([]);
   await expect(
     command(

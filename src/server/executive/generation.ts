@@ -1,3 +1,4 @@
+import {aiRequestQuotaLock} from "../ai-quota";
 import "server-only";
 import { z } from "zod";
 import { generateSchema, proposalSchema, type Generation } from "@/lib/executive/canvas";
@@ -28,7 +29,8 @@ export async function queueGeneration(db:SqlDatabase,a:WorkContext,env:BetaEnvir
   return executeCommand(db,a,`${key}:queue`,"executive.generation.queue",input,id,x.r.version,{id:key},[
     assertion(db,key,"executive-rate","(SELECT count(*) FROM executive_generation_jobs WHERE company_id=? AND created_at>?)<10",[a.companyId,now-60000]),
     assertion(db,key,"executive-concurrency","(SELECT count(*) FROM executive_generation_jobs WHERE company_id=? AND state IN ('queued','running'))<3",[a.companyId]),
-    assertion(db,key,"executive-quota","(SELECT count(*) FROM executive_generation_jobs WHERE company_id=? AND created_at>=?)+(SELECT count(*) FROM ai_workspace_turns WHERE company_id=? AND created_at>=?)+(SELECT count(*) FROM social_ai_usage WHERE company_id=? AND month=?)+(SELECT count(*) FROM expense_ai_usage WHERE company_id=? AND month=?)+(SELECT count(*) FROM request_ai_usage WHERE company_id=? AND month=?)<COALESCE((SELECT ai_monthly_limit FROM beta_policy WHERE company_id=?),100)",[a.companyId,start,a.companyId,start,a.companyId,month,a.companyId,month,a.companyId,month,a.companyId]),
+    aiRequestQuotaLock(db,a.companyId),
+    assertion(db,key,"executive-quota","(SELECT count(*) FROM executive_generation_jobs WHERE company_id=? AND created_at>=?)+(SELECT count(*) FROM ai_workspace_turns WHERE company_id=? AND created_at>=?)+(SELECT count(*) FROM social_ai_usage WHERE company_id=? AND month=?)+(SELECT count(*) FROM expense_ai_usage WHERE company_id=? AND month=?)+(SELECT count(*) FROM (SELECT company_id,month FROM request_ai_usage UNION ALL SELECT company_id,month FROM finance_ai_usage) calls WHERE company_id=? AND month=?)<COALESCE((SELECT ai_monthly_limit FROM beta_policy WHERE company_id=?),100)",[a.companyId,start,a.companyId,start,a.companyId,month,a.companyId,month,a.companyId,month,a.companyId]),
     db.prepare("INSERT INTO executive_generation_jobs(id,report_id,company_id,user_id,assignment_id,scope_key,question,input_json,actor_json,provider_json,state,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,'queued',?,?)").bind(key,id,a.companyId,a.userId,a.assignmentId,executiveScope(a),input.question,JSON.stringify({...input,definition:x.definition,filters:x.filters,version:x.r.version}),JSON.stringify(a),JSON.stringify(provider.snapshot),now,now),
     db.prepare("DELETE FROM command_assertions WHERE command_id=?").bind(key),
   ]);

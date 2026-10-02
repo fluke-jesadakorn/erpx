@@ -14,6 +14,12 @@ it('keeps branch rewrites on the loopback origin and replaces caller scope heade
  expect(response.headers.get('x-middleware-request-x-erpx-branch-slug')).toBe('bangkok');
  expect(response.headers.get('x-middleware-request-x-erpx-department-slug')).toBeNull();
 });
+it('keeps user query parameters in recovery destinations and excludes the internal RSC request key',()=>{
+ const request=new NextRequest('http://127.0.0.1:3100/holdings/acme/finance/invoices?new=1&tag=review&tag=draft&_rsc=internal',
+  {headers:{'x-erpx-page-path':'/holdings/forged/home'}});
+ const response=proxy(request);
+ expect(response.headers.get('x-middleware-request-x-erpx-page-path')).toBe('/holdings/acme/finance/invoices?new=1&tag=review&tag=draft');
+});
 it('rejects foreign hosts, redirects HTTP and sets secure workspace cookies in production',()=>{
  vi.stubEnv('NODE_ENV','production');vi.stubEnv('ERPX_PUBLIC_ORIGIN','https://erpx.jesadakorn.com');
  expect(proxy(new NextRequest('http://127.0.0.1:3101/login',{headers:{host:'evil.example'}})).status).toBe(421);

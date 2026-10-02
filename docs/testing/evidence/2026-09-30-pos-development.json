@@ -1,0 +1,169 @@
+{
+  "schema": 1,
+  "developmentOnly": true,
+  "company": "acme-pos-thb",
+  "currency": "THB",
+  "period": [
+    "2026-09-24",
+    "2026-09-30"
+  ],
+  "counts": {
+    "catalog": 64,
+    "ingredients": 0,
+    "tables": 12,
+    "customers": 21,
+    "bills": 62,
+    "days": 7,
+    "receipts": 62,
+    "closedDays": 14
+  },
+  "validImages": 64,
+  "unbalancedJournals": 0,
+  "stockValueMinor": 70311235,
+  "inventoryLedgerMinor": 70311235,
+  "browserCheckedAt": "2026-09-30T16:02:47.763Z",
+  "bills": [
+    {
+      "number": "POS-20260930-32B037FA",
+      "totalMinor": 11128,
+      "payments": 0,
+      "invoices": 0,
+      "postings": 2,
+      "stockMoves": 4,
+      "receiptSha256": "4ac2505b4ea93370877146d1cb2246267c442949234416d23ba5fb5920d85422",
+      "shift": {
+        "id": "1e1efd16-fe3d-4f9e-9d42-6eba6ed733db",
+        "state": "reviewed",
+        "opened_by": "acme-hospitality-v1-administrator",
+        "closed_by": "acme-hospitality-v1-administrator",
+        "reviewed_by": "pos-thb-v1-manager",
+        "expected_minor": 200000,
+        "counted_minor": 200000,
+        "variance_minor": 0,
+        "denominations_json": "{\"100000\": 2}"
+      },
+      "day": {
+        "close": {
+          "id": "588c100e-de9e-4d22-afdf-22485823c6fe",
+          "state": "confirmed",
+          "prepared_by": "usr_jesadakorn",
+          "confirmed_by": "pos-thb-v1-finance",
+          "source_digest": "5254f325cc5718e936fb1840b44aa6a3d9bb5dfbec4a7c1909beb4b0c053bea8"
+        },
+        "totals": {
+          "bills": 4,
+          "grossMinor": 72200,
+          "discountMinor": 100,
+          "salesMinor": 72100,
+          "taxMinor": 5047,
+          "refundMinor": 0,
+          "refundTaxMinor": 0,
+          "netTaxMinor": 5047,
+          "netMinor": 77147,
+          "costMinor": 23170,
+          "wasteMinor": 2840,
+          "cashVarianceMinor": 100,
+          "roomChargeMinor": 11128,
+          "received": {
+            "cash": 35952,
+            "transfer": 41195
+          },
+          "returned": {}
+        },
+        "blockers": []
+      }
+    },
+    {
+      "number": "POS-20260930-5F3B7639",
+      "totalMinor": 6313,
+      "payments": 1,
+      "invoices": 1,
+      "postings": 4,
+      "stockMoves": 1,
+      "receiptSha256": "5ab5b3ec2be9cc727459e6f9c7eb21f9de8e24c229b8321f76d885de209268e6",
+      "shift": {
+        "id": "e847be61-b9d6-433f-aea0-5124fb86d22b",
+        "state": "reviewed",
+        "opened_by": "acme-hospitality-v1-administrator",
+        "closed_by": "acme-hospitality-v1-administrator",
+        "reviewed_by": "pos-thb-v1-manager",
+        "expected_minor": 206313,
+        "counted_minor": 206325,
+        "variance_minor": 12,
+        "denominations_json": "{\"25\": 1, \"100\": 3, \"1000\": 1, \"5000\": 1, \"100000\": 2}"
+      },
+      "day": {
+        "close": {
+          "id": "1df89f37-f8b0-4170-b0e9-f8c95ab01440",
+          "state": "confirmed",
+          "prepared_by": "usr_jesadakorn",
+          "confirmed_by": "pos-thb-v1-finance",
+          "source_digest": "f3e7a70f83a44f5c1a8169d5507488b03e23f5c8790283087542dc3286a385ec"
+        },
+        "totals": {
+          "bills": 5,
+          "grossMinor": 112300,
+          "discountMinor": 300,
+          "salesMinor": 112000,
+          "taxMinor": 7840,
+          "refundMinor": 16906,
+          "refundTaxMinor": 1106,
+          "netTaxMinor": 6734,
+          "netMinor": 102934,
+          "costMinor": 53075,
+          "wasteMinor": 0,
+          "cashVarianceMinor": 112,
+          "roomChargeMinor": 0,
+          "received": {
+            "cash": 93678,
+            "edc": 26162
+          },
+          "returned": {
+            "cash": 16906
+          }
+        },
+        "blockers": []
+      }
+    }
+  ],
+  "stripe": {
+    "checkedAt": "2026-09-30T16:07:08.559Z",
+    "realStripeApi": true,
+    "syntheticWebhook": false,
+    "platformAccount": "acct_1QiH8AKLj1zd9Nnv",
+    "merchantAccount": "acct_1ULOIw3k1m2RY52p",
+    "events": [
+      {
+        "id": "evt_1ULPBC3k1m2RY52pEaPvxzX9",
+        "event_type": "account.updated",
+        "applied_at": 1790783986300
+      }
+    ],
+    "eventSources": [
+      {
+        "id": "evt_1ULPBC3k1m2RY52pEaPvxzX9",
+        "event_type": "account.updated",
+        "applied_at": 1790783986300,
+        "job_count": 1,
+        "completed_jobs": 1
+      }
+    ],
+    "accountDeliveryHttpCodes": [
+      200,
+      200
+    ],
+    "accountDeliveryLocalTimes": [
+      "2026-09-30 22:59:43 Asia/Bangkok",
+      "2026-09-30 23:02:19 Asia/Bangkok"
+    ],
+    "acceptance": {
+      "hostedOnboarding": "awaiting merchant onboarding",
+      "accountWebhook": "verified provider delivery processed by worker",
+      "card": "not run",
+      "promptpay": "not run",
+      "refund": "not run",
+      "webhookReplay": "payment/refund not run; account-event source counts recorded separately",
+      "recovery": "not run"
+    }
+  }
+}

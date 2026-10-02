@@ -45,6 +45,12 @@ function parse(parts: string[]): ParsedScope | null {
   };
 }
 
+function requestedPagePath(request: NextRequest) {
+  const search = new URLSearchParams(request.nextUrl.search);
+  search.delete("_rsc");
+  return request.nextUrl.pathname + (search.size ? `?${search}` : "");
+}
+
 export function proxy(request: NextRequest) {
   const production = process.env.NODE_ENV === "production";
   const path = request.nextUrl.pathname;
@@ -94,7 +100,7 @@ export function proxy(request: NextRequest) {
   }
   if (path === "/marketing") return new NextResponse("Not found", { status: 404 });
   if (frontApp) {
-    if (path === "/api/health" || path === "/api/ready" || path.startsWith("/_next/")) return NextResponse.next();
+    if (path === "/api/health" || path === "/api/ready" || path.startsWith("/_next/") || path === "/fonts/NotoSansThai.ttf") return NextResponse.next();
     if (path === "/erpx-push-sw.js") return NextResponse.next();
     if (path.startsWith("/api/v1/front/")) {
       const parts = path.slice("/api/v1/front/".length).split("/");
@@ -142,7 +148,9 @@ export function proxy(request: NextRequest) {
   if (!frontApp && path === "/api/v1/front-access/quick-access") return new NextResponse("Not found", { status: 404 });
   if (!frontApp && path.startsWith("/api/v1/front/") && frontOrigin("pms") && frontOrigin("pos")) return new NextResponse("Not found", { status: 404 });
   if (request.nextUrl.pathname.startsWith("/platform/")) {
-    const response = NextResponse.next();
+    const headers = new Headers(request.headers);
+    headers.set("x-erpx-page-path", requestedPagePath(request));
+    const response = NextResponse.next({ request: { headers } });
     if (request.method === "GET")
       response.cookies.set("erpx_last_workspace", request.nextUrl.pathname, {
         httpOnly: true,
@@ -205,7 +213,11 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
   const api = request.nextUrl.pathname.startsWith("/api/v1/holdings/");
-  if (!api && !request.nextUrl.pathname.startsWith("/holdings/")) return NextResponse.next();
+  if (!api && !request.nextUrl.pathname.startsWith("/holdings/")) {
+    const headers = new Headers(request.headers);
+    headers.set("x-erpx-page-path", requestedPagePath(request));
+    return NextResponse.next({ request: { headers } });
+  }
   const prefix = api ? "/api/v1/holdings/" : "/holdings/";
   const parts = request.nextUrl.pathname
     .slice(prefix.length)
@@ -215,6 +227,7 @@ export function proxy(request: NextRequest) {
   if (!parsed) return NextResponse.next();
 
   const headers = new Headers(request.headers);
+  headers.set("x-erpx-page-path", requestedPagePath(request));
   for (const key of ["x-erpx-workspace-kind","x-erpx-branch-slug","x-erpx-department-slug","x-erpx-destination","x-erpx-api","x-erpx-method"]) headers.delete(key);
   headers.set("x-erpx-destination",parsed.destination.join("/") || "home");
   headers.set("x-erpx-api",String(api));

@@ -3,13 +3,19 @@ import { useEffect, useState } from "react";
 import { diffWordsWithSpace } from "diff";
 import type { LegalDetail } from "@/lib/legal/model";
 import s from "./legal.module.css";
+import { LegalEvidenceFields } from "./legal-evidence-fields";
+import { LegalPeopleSequence, useLegalPeople } from "./legal-person-select";
 type Props = {
   detail: LegalDetail;
   call: (path: string, body?: unknown) => Promise<unknown>;
   command: (body: Record<string, unknown>) => Promise<boolean>;
   busy: boolean;
 };
-export function LegalApproval({ detail, call, command, busy }: Props) {
+export function LegalApproval({ detail, call, command, busy, people }: Props & { people: { id: string; name: string }[] }) {
+  const { people: reviewers, error: reviewerError } = useLegalPeople(call, "reviewer", detail.item.id);
+  const { people: signers, error: signerError } = useLegalPeople(call, "signer", detail.item.id);
+  const [approverIds, setApproverIds] = useState([""]);
+  const [signerIds, setSignerIds] = useState([""]);
   const [view, setView] = useState<{
       instance: { state: string } | null;
       steps: {
@@ -38,9 +44,10 @@ export function LegalApproval({ detail, call, command, busy }: Props) {
     <section className={s.detail}>
       <h3>Contract approval route</h3>
       {error && <p role="alert">{error}</p>}
+      {(reviewerError || signerError) && <p role="alert">{reviewerError || signerError}</p>}
       {view?.steps.map((step) => (
         <p key={step.id}>
-          {step.ordinal}. {step.approver_user_id} — {step.state}
+          {step.ordinal}. {people.find(person => person.id === step.approver_user_id)?.name ?? "Assigned reviewer"} · {step.state}
         </p>
       ))}
       {["draft", "review", "approval"].includes(detail.item.state) && (
@@ -52,14 +59,8 @@ export function LegalApproval({ detail, call, command, busy }: Props) {
             void command({
               action: "approval.open",
               ...v,
-              approverIds: String(v.approverIds)
-                .split(",")
-                .map((v) => v.trim())
-                .filter(Boolean),
-              signerIds: String(v.signerIds)
-                .split(",")
-                .map((v) => v.trim())
-                .filter(Boolean),
+              approverIds,
+              signerIds,
             });
           }}
         >
@@ -73,19 +74,13 @@ export function LegalApproval({ detail, call, command, busy }: Props) {
               ))}
             </select>
           </label>
-          <label className={s.field}>
-            Approver user IDs in order, comma separated
-            <input name="approverIds" required />
-          </label>
-          <label className={s.field}>
-            Signer user IDs in order, comma separated
-            <input name="signerIds" required />
-          </label>
+          <LegalPeopleSequence label="Reviewer" name="approver" people={reviewers} values={approverIds} onChange={setApproverIds} />
+          <LegalPeopleSequence label="Expected signer" name="signer" people={signers} values={signerIds} onChange={setSignerIds} />
           <label className={s.field}>
             Reason
             <input name="reason" required minLength={3} />
           </label>
-          <button className={s.button} disabled={busy}>
+          <button className={s.button} disabled={busy || !detail.documents.length || !approverIds.every(Boolean) || !signerIds.every(Boolean)}>
             Open approval route
           </button>
         </form>
@@ -129,8 +124,8 @@ export function LegalApproval({ detail, call, command, busy }: Props) {
             }}
           >
             <label className={s.field}>
-              Replacement reviewer user ID
-              <input name="approverId" required />
+              Replacement reviewer
+              <select name="approverId" required><option value="">Choose a reviewer</option>{reviewers.map(person => <option key={person.id} value={person.id}>{person.name}</option>)}</select>
             </label>
             <label className={s.field}>
               Reason for replacement
@@ -144,9 +139,7 @@ export function LegalApproval({ detail, call, command, busy }: Props) {
       )}
       <details>
         <summary>Decision history</summary>
-        <pre className={s.body}>
-          {JSON.stringify(view?.history ?? [], null, 2)}
-        </pre>
+        <LegalEvidenceFields value={view?.history ?? []} />
       </details>
     </section>
   );

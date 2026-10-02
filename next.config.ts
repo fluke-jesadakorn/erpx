@@ -6,8 +6,14 @@ const nextConfig: NextConfig = {
   turbopack: { root: process.cwd() },
   outputFileTracingRoot: process.cwd(),
   output: "standalone",
+  experimental: { authInterrupts: true },
   skipProxyUrlNormalize: true,
   distDir: process.env.ERPX_BUILD_DIR ?? ".next",
+  // Isolated dev experiments let Next update their generated type globs without
+  // rewriting the workspace's TypeScript configuration.
+  ...(process.env.NODE_ENV === "development" && process.env.ERPX_DEV_TSCONFIG
+    ? { typescript: { tsconfigPath: process.env.ERPX_DEV_TSCONFIG } }
+    : {}),
   allowedDevOrigins: [
     "127.0.0.1",
     "dev-erpx.jesadakorn.com",

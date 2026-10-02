@@ -69,7 +69,7 @@ test("isolated demo delegates task work, revokes access and independently review
     await main(ownerPage).getByLabel("Title", { exact: true }).fill(title);
     await main(ownerPage).getByLabel("Description", { exact: true }).fill("Verify the received equipment while the accountable colleague is away.");
     await main(ownerPage).getByRole("combobox", { name: "Accountable assignee", exact: true }).selectOption(assignee.userId);
-    await main(ownerPage).getByRole("combobox", { name: "Approval timing", exact: true }).selectOption("completion");
+    await main(ownerPage).getByRole("combobox", { name: "Review", exact: true }).selectOption("completion");
     await main(ownerPage).getByRole("group", { name: "Completion approval", exact: true }).getByRole("combobox", { name: "Step 1 approver", exact: true }).selectOption(reviewer.userId);
     const created = await command(ownerPage, "Save task draft", "/api/v1/holdings/simulation/staff-tasks");
     const id = created.id as string;

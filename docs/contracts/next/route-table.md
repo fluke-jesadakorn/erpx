@@ -116,7 +116,7 @@ Every `{destination}` below is available under these canonical workspace bases. 
 - `/holdings/{holdingSlug}/departments/{departmentSlug}`
 - `/holdings/{holdingSlug}/branches/{branchSlug}/departments/{departmentSlug}`
 
-Slugs are immutable and unique within their route parent. Opaque IDs do not appear in public URLs. The removed short-form namespace has no redirect or compatibility alias.
+Slugs are immutable and unique within their route parent. Authenticated People move workflows use opaque source and destination IDs in query parameters so selection survives Back and refresh; reasons, compensation, and private profile fields never go in the URL. The removed short-form namespace has no redirect or compatibility alias.
 
 | Route | Source and behavior |
 |---|---|
@@ -133,7 +133,9 @@ Slugs are immutable and unique within their route parent. Opaque IDs do not appe
 | `/holdings/{holdingSlug}/finance/group` | Holding intercompany status and consolidation-run snapshots |
 | `/holdings/{holdingSlug}/finance/setup` | Finance readiness and opening-balance import |
 | `/holdings/{holdingSlug}/tasks/people_payroll/{id}` | Live leave details, evidence, submission review and independent approval |
-| `/holdings/{holdingSlug}/people/payroll/{id}` | Payroll calculation evidence, immutable review exports and independently approved correction/recalculation history |
+| `/holdings/{holdingSlug}/people/move?kind=...&id=...` | HR/Owner chooses a same-Company destination by browsing, search, keyboard, or drag and drop; selected target kind and ID stay in the URL |
+| `/holdings/{holdingSlug}/people/move/review?kind=...&id=...&targetKind=...&targetId=...` | Full-page impact preview and submission using existing placement, position-move, or independently reviewed department-relocation commands; server rechecks authority and destination |
+| `/holdings/{holdingSlug}/people/payroll/runs/{id}` | Payroll calculation evidence, immutable review exports and independently approved correction/recalculation history |
 | `/holdings/{holdingSlug}/feed` | Live updates, comments, reactions, follows and Stories |
 | `/holdings/{holdingSlug}/learn` | Captioned sample learning videos |
 | `/holdings/{holdingSlug}/inbox` | Explicit notification preview |
@@ -145,12 +147,12 @@ redirect. The universal record APIs above remain for backend compatibility and
 historical data access.
 
 Authenticated business-workspace discovery uses one role- and scope-aware
-destination catalog. Home, Work, Inbox, and Calendar are primary destinations.
+destination catalog. Today, Calendar, and Messages are primary destinations, with Start work and Apps actions.
 The sidebar exposes app-level links under presentation-only People &
-organization, CRM, Sales, Procurement, Inventory, POS, Hotel PMS, Operations,
+organization, CRM, Sales, Procurement, Inventory, POS, Hotel PMS, Projects & Routines,
 Finance, Management, and System categories. CRM contains customer relationship
 pages, Customer directory, and Customer support; Inventory contains Quality;
-Operations contains Projects & workflows. Other deep
+Projects & Routines contains projects, staff tasks, routine templates and approval routing. Other deep
 pages remain in app-local tabs and become launcher or command-search results
 only when searched. Redirect aliases, creation states, and individual records
 inherit their app parent for active navigation and `App › Page` breadcrumbs but
@@ -242,6 +244,16 @@ Company Finance/Treasury scope only; mutation commands require `Idempotency-Key`
 ### Business readiness
 
 `GET /api/v1/holdings/{holdingSlug}/business-readiness` — active Company organization manager only, private/no-store. Bundled workspace simulation manifest and scoped evidence; no Company production sign-off and no write/approval endpoint. UI: `/holdings/{holdingSlug}/settings/business-readiness`.
+
+## Account time and member profiles
+
+| Route | Methods | Access and meaning |
+| --- | --- | --- |
+| `/api/v1/account/time-preference` | GET, PATCH | Authenticated account owner; System or Manual IANA timezone and 12/24-hour clock with optimistic version |
+| `/api/v1/holdings/{holdingSlug}/profiles/{userId}` | GET | Active Holding member and active subject; public profile plus posts already visible in the current Company scope |
+| `/api/v1/holdings/{holdingSlug}/profiles/me` | PATCH | Owner bio/HTTPS links; idempotency key and profile version required |
+| `/api/v1/holdings/{holdingSlug}/profiles/me/media/{avatar\|cover}` | POST, DELETE | Owner image upload/removal; size, type, scan, processing, version and idempotency checks |
+| `/api/v1/holdings/{holdingSlug}/profiles/{userId}/media/{avatar\|cover}` | GET | Private processed image after active Holding access check |
 
 ## Company release acceptance
 

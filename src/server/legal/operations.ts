@@ -13,6 +13,7 @@ import {
 import { legalCommand, hash } from "./service";
 import { access, visibility, tables, fail, guards, event } from "./access";
 import { executeCommand, replayCommand } from "../commands";
+import { executedCopies } from "./executed-copies";
 export async function importPreview(a: WorkContext, raw: unknown) {
   requirePermission(a, "legal.create");
   const rows = z.array(z.unknown()).min(1).max(100).parse(raw),
@@ -316,6 +317,7 @@ export async function evidenceBundle(
         .all()
     ).results,
     documents,
+    executedCopies:await executedCopies(db,a,id),
     envelopes,
     events,
     accesses,

@@ -92,7 +92,7 @@ export function HandoverComposer({ base, onPublished }: { base: string; onPublis
     if (!view || !selected.length || !recipients.length || !body.trim() || publishing) return;
     const sources = selected.flatMap(id => {
       const item = view.items.find(candidate => candidate.id === id);
-      return item ? [{ id, sourceVersion: item.sourceVersion }] : [];
+      return item ? [{ id, sourceVersion: item.sourceVersion,kind:item.sourceKind??"staff_task" }] : [];
     });
     const payload = JSON.stringify({ date: view.date, body, sources, recipientIds: recipients });
     if (attempt.current?.signature !== payload)

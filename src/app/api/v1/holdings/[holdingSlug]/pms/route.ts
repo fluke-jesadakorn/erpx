@@ -4,9 +4,12 @@ import { ApiError, errorResponse } from "@/server/http";
 import { holdingResources } from "@/server/runtime";
 import { isTransactionalSqlDatabase } from "@/server/runtime/types";
 import { requestPublicOrigin } from "@/server/public-origin";
+import { pmsReadSelectionFromSearch } from "@/lib/pms-read-selection";
+import { measureReadRequest } from "@/server/runtime/read-request";
 export const dynamic = "force-dynamic";
 type Context = { params: Promise<{ holdingSlug: string }> };
 export async function GET(request: Request, { params }: Context) {
+  return measureReadRequest("pms", async () => {
   try {
     const { holdingSlug } = await params;
     const actor = await requireWorkContext(holdingSlug);
@@ -16,6 +19,8 @@ export async function GET(request: Request, { params }: Context) {
           actor,
           new URL(request.url).searchParams.get("property") ?? undefined,
           new URL(request.url).searchParams.get("dayControls") === "1",
+          false,
+          pmsReadSelectionFromSearch(new URL(request.url).searchParams),
         ),
       },
       { headers: { "Cache-Control": "private, no-store" } },
@@ -23,6 +28,7 @@ export async function GET(request: Request, { params }: Context) {
   } catch (e) {
     return errorResponse(e);
   }
+  });
 }
 export async function POST(request: Request, { params }: Context) {
   try {

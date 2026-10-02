@@ -148,11 +148,13 @@ it("reconciles posted production cost by month and opens only authorized movemen
     (id,company_id,chart_id,period_id,journal_number,entry_date,currency,fx_rate_micros,source_type,source_id,memo,status,is_opening,version,created_by,posted_by,posted_at,created_at,updated_at)
     VALUES(?,?,?,?,?,'2026-10-06','THB',1000000,'manufacturing_cost',?,'English test production cost',?,0,1,?,?,?, ?,?)`)
     .bind(id, f.company, f.chart, f.period, number, id, status, owner.userId, status === "posted" ? reviewer.userId : null, postedAt, now, now).run();
-  await insertJournal(postedJournal, `EX-MFG-${postedJournal.slice(-8)}`, "posted", now);
+  await insertJournal(postedJournal, `EX-MFG-${postedJournal.slice(-8)}`, "draft", null);
   await insertJournal(draftJournal, `EX-MFG-${draftJournal.slice(-8)}`, "draft", null);
   await db.prepare(`INSERT INTO finance_journal_lines(id,journal_id,account_id,description,debit_minor,credit_minor,base_debit_minor,base_credit_minor,dimension_json,ordinal)
     VALUES(?,?,?,'English test posted manufacturing costs',2750,0,2750,0,'{}',0),(?,?,?,'English test balancing line',0,2750,0,2750,'{}',1)`)
     .bind(key(), postedJournal, f.accounts.expense, key(), postedJournal, f.accounts.cash).run();
+  await db.prepare("UPDATE finance_journals SET status='posted',posted_by=?,posted_at=? WHERE id=?")
+    .bind(reviewer.userId,now,postedJournal).run();
 
   const movementIds = { issue: key(), returned: key(), labor: key(), overhead: key(), draft: key() };
   const movement = (id: string, kind: string, amount: number, journalId: string, source: string) => db.prepare(`INSERT INTO manufacturing_cost_movements

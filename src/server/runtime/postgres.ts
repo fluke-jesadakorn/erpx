@@ -1,6 +1,108 @@
 import { Pool, types, type PoolClient, type PoolConfig, type QueryResult } from 'pg';
+import { errorMonitor, type EventEmitter } from 'node:events';
 import type { SqlDatabase, SqlResult, SqlStatement } from './types';
-import { currentReadMetrics } from './read-metrics';
+import { currentReadMetrics, recordReadPoolWait, recordReadQuery, runWithReadMetrics } from './read-metrics';
+
+const instrumented = Symbol.for('erpx.postgres.readMetrics');
+type Marked = { [instrumented]?: boolean };
+type Callback = (this: unknown, ...args: unknown[]) => unknown;
+
+/** Instrument at the driver boundary so raw Drizzle/auth queries and SQL control
+ * statements are measured exactly once, alongside the application's statements.
+ * Queries keep their arguments, return value, callback and release behavior. */
+function instrumentClient(client: PoolClient) {
+  const marked = client as PoolClient & Marked;
+  if (marked[instrumented]) return;
+  Object.defineProperty(marked, instrumented, { value: true });
+  const original = client.query;
+  client.query = function(this: PoolClient, ...input: unknown[]) {
+    const scope = currentReadMetrics();
+    if (!scope) return Reflect.apply(original, this, input);
+    const started = performance.now();
+    let settled = false;
+    let cleanup = () => {};
+    const finish = (failed: boolean) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      recordReadQuery(scope, performance.now() - started, failed);
+    };
+    const callback = (source: Callback): Callback => function(this: unknown, ...args: unknown[]) {
+      finish(!!args[0]);
+      return runWithReadMetrics(scope, () => Reflect.apply(source, this, args));
+    };
+    const args = [...input];
+    const callbackIndex = args.length - 1;
+    if (callbackIndex > 0 && typeof args[callbackIndex] === 'function') {
+      args[callbackIndex] = callback(args[callbackIndex] as Callback);
+    } else if (args[0] && typeof args[0] === 'object' && 'callback' in args[0] && typeof args[0].callback === 'function') {
+      const config = args[0];
+      if ('submit' in config) {
+        // pg mutates Query callbacks too (e.g. query_timeout). Keep Query identity.
+        const source = config.callback as Callback;
+        const wrapped = callback(source);
+        config.callback = wrapped;
+        cleanup = () => { if (config.callback === wrapped) config.callback = source; };
+      } else {
+        args[0] = Object.assign(Object.create(config), { callback: callback(config.callback as Callback) });
+      }
+    }
+    try {
+      const returned: unknown = Reflect.apply(original, this, args);
+      if (returned && typeof returned === 'object' && 'then' in returned && typeof returned.then === 'function') {
+        // Observe the original promise; keep the driver's Promise implementation.
+        void (returned as Promise<unknown>).then(() => finish(false), () => finish(true));
+      } else if (returned && typeof returned === 'object' && 'once' in returned && typeof returned.once === 'function') {
+        const emitter = returned as EventEmitter;
+        const priorCleanup = cleanup;
+        const onEnd = () => finish(false), onError = () => finish(true);
+        cleanup = () => {
+          priorCleanup();
+          emitter.removeListener('end', onEnd);
+          emitter.removeListener(errorMonitor, onError);
+        };
+        emitter.once('end', onEnd);
+        // Observing errors must not turn an unhandled stream error into success.
+        emitter.once(errorMonitor, onError);
+      }
+      return returned;
+    } catch (error) {
+      finish(true);
+      throw error;
+    }
+  } as PoolClient['query'];
+}
+
+function instrumentPool(pool: Pool) {
+  const marked = pool as Pool & Marked;
+  if (marked[instrumented]) return;
+  Object.defineProperty(marked, instrumented, { value: true });
+  pool.on('acquire', instrumentClient);
+  const original = pool.connect;
+  pool.connect = function(this: Pool, callback?: Callback) {
+    const scope = currentReadMetrics();
+    if (!scope && !callback) return Reflect.apply(original, this, []);
+    const started = scope ? performance.now() : 0;
+    let settled = false;
+    const finish = (failed: boolean) => {
+      if (settled) return;
+      settled = true;
+      if (scope) recordReadPoolWait(scope, performance.now() - started, failed);
+    };
+    try {
+      if (callback) return Reflect.apply(original, this, [function(this: unknown, ...args: unknown[]) {
+        finish(!!args[0]);
+        return runWithReadMetrics(scope, () => Reflect.apply(callback, this, args));
+      }]);
+      const returned = Reflect.apply(original, this, []) as Promise<PoolClient>;
+      void returned.then(() => finish(false), () => finish(true));
+      return returned;
+    } catch (error) {
+      finish(true);
+      throw error;
+    }
+  } as Pool['connect'];
+}
 
 // The business API uses exact safe integers and serialized JSON. Reject overflow,
 // rather than silently rounding PostgreSQL bigint/numeric values.
@@ -50,15 +152,7 @@ class Statement implements SqlStatement {
   bind(...args: unknown[]) { return new Statement(this.database, this.sql, args); }
   async execute(client: Pool | PoolClient): Promise<QueryResult> {
     const sql = parameters(this.sql, this.args.length), args = values(this.args);
-    const metrics = currentReadMetrics();
-    if (!metrics) return client.query(sql, args);
-    const started = performance.now();
-    const leased = client instanceof Pool ? await client.connect() : null;
-    metrics.poolWaitMs += performance.now() - started;
-    const execution = performance.now();
-    metrics.queries++;
-    try { return await (leased ?? client).query(sql, args); }
-    finally { metrics.queryMs += performance.now() - execution; leased?.release(); }
+    return client.query(sql, args);
   }
   async all<T = Record<string, unknown>>() { const start = performance.now(); return result<T>(await this.execute(this.database.pool), start); }
   run<T = Record<string, unknown>>() { return this.all<T>(); }
@@ -78,6 +172,7 @@ export class PostgresDatabase implements SqlDatabase {
   constructor(config: PoolConfig) {
     this.pool = new Pool({ max: 1, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000,
       options: '-c timezone=UTC -c statement_timeout=30000 -c lock_timeout=10000', ...config });
+    instrumentPool(this.pool);
     this.pool.on('error', () => console.error(JSON.stringify({ event: 'database_connection_error' })));
   }
   prepare(sql: string) { return new Statement(this, sql); }
@@ -91,10 +186,7 @@ export class PostgresDatabase implements SqlDatabase {
   /** Reads and derived writes share the same snapshot; retry the entire calculation. */
   async transaction<T>(action: (tx: SqlDatabase) => Promise<T>): Promise<T> {
     for (let attempt = 0; ; attempt++) {
-      const waiting = performance.now();
       const client = await this.pool.connect();
-      const metrics = currentReadMetrics();
-      if (metrics) metrics.poolWaitMs += performance.now() - waiting;
       try {
         await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
         const tx = new TransactionDatabase(client);
@@ -110,10 +202,7 @@ export class PostgresDatabase implements SqlDatabase {
   async batch<T = Record<string, unknown>>(statements: SqlStatement[]): Promise<SqlResult<T>[]> {
     if (statements.some(s => !(s instanceof Statement) || s.database !== this)) throw new Error('CROSS_DATABASE_TRANSACTION');
     for (let attempt = 0; ; attempt++) {
-      const waiting = performance.now();
       const client = await this.pool.connect();
-      const metrics = currentReadMetrics();
-      if (metrics) metrics.poolWaitMs += performance.now() - waiting;
       try {
         await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE');
         const results: SqlResult<T>[] = [];
@@ -167,6 +256,22 @@ class SessionDatabase extends TransactionDatabase {
         await this.pool.query('ROLLBACK').catch(() => {});
         if (attempt >= 3 || !['40001', '40P01'].includes((error as { code?: string }).code ?? '')) throw error;
       }
+    }
+  }
+}
+
+/** HMR keeps runtime database instances and pools. Refresh the methods as well as
+ * the pool: pre-instrumentation Statement methods counted queries themselves. */
+export function refreshPostgresReadInstrumentation(database: PostgresDatabase) {
+  instrumentPool(database.pool);
+  Object.setPrototypeOf(database, PostgresDatabase.prototype);
+}
+const retained = (globalThis as typeof globalThis & { erpxDevRuntime?: { env: Record<string, unknown> } }).erpxDevRuntime;
+if (process.env.NODE_ENV === 'development' && retained) {
+  for (const database of Object.values(retained.env)) {
+    if (database && typeof database === 'object' && 'pool' in database && 'prepare' in database && 'close' in database &&
+      typeof database.prepare === 'function' && typeof database.close === 'function') {
+      refreshPostgresReadInstrumentation(database as PostgresDatabase);
     }
   }
 }

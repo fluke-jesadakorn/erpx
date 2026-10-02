@@ -87,6 +87,7 @@ export type CalendarItem = {
   kind:
     | "shift"
     | "leave"
+    | "holiday"
     | "appointment"
     | "announcement"
     | "task"

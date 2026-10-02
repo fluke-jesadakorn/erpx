@@ -191,6 +191,12 @@
   overflow-wrap: anywhere;
   line-height: 1.7;
 }
+.evidenceFields { display: grid; gap: 12px; margin: 0; }
+.evidenceFields > div { min-width: 0; }
+.evidenceFields dt { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.evidenceFields dd { margin: 0; overflow-wrap: anywhere; }
+.check { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; }
+.check input { flex-shrink: 0; margin-top: 3px; }
 .small {
   font-size: 12px;
   color: var(--muted);

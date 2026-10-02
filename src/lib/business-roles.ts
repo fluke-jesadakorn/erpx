@@ -5,6 +5,7 @@ export const businessRoles = {
   quality_manager: ["quality"],
   legal_counsel: ["legal", "collaboration"],
   legal_manager: ["legal", "collaboration"],
+  legal_requester: ["legal", "collaboration"],
   executive_author: ["collaboration"],
   pms_reservation: ["pms"],
   pms_frontdesk: ["pms"],

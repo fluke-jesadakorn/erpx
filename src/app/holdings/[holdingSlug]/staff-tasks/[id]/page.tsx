@@ -1,3 +1,4 @@
+import { TimeText } from "@/components/time/time-preference-context";
 import betaStyles from "@/components/beta/beta.module.css";
 import { FeaturePage, FeatureTabs,FeatureWidget,WidgetGrid } from "@/components/features/feature-page";
 import { ApprovalAdminLink } from "@/components/modules/approval-admin-link";
@@ -75,7 +76,7 @@ export default async function Task({
           <dd>
             {t.due_at === null
               ? "No due date"
-              : `${new Date(t.due_at).toISOString().replace("T", " ").slice(0, 16)} UTC`}
+              : <TimeText value={t.due_at} />}
           </dd>
         </dl>
         {t.completion_note && (

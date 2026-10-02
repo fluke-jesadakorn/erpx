@@ -779,11 +779,14 @@ it("preserves active custom revisions when a new custom draft is saved", async (
   expect((await aiProviderOverview(db, f.it, aiEnv)).connections[0].active_revision).toBe(1);
 });
 
-it("does not activate an automatically configured model when the image capability test fails", async () => {
+it("activates a verified text model while keeping failed image reading unavailable", async () => {
   const saved = await saveAiConnection(db, f.it, aiEnv, null, aiConnectionSchema.parse({ name: "Image check", apiKey: "synthetic-test-key", baseUrl: "https://opencode.ai/zen/v1", textModel: "gpt-5.6-luna", imageModel: "claude-sonnet-4-6" }), key());
   const result = await testAiConnection(db, f.it, aiEnv, saved.id, 1, key(), async (_endpoint, messages) => ({ result: Array.isArray(messages[1].content) ? { color: "blue" } : { ok: true }, inputTokens: 0, outputTokens: 0 }));
   expect(result).toMatchObject({ textVerified: true, imageVerified: false });
-  await expect(activateAiConnection(db, f.it, saved.id, 2, key())).rejects.toMatchObject({ code: "AI_TEST_REQUIRED" });
+  await activateAiConnection(db, f.it, saved.id, 2, key());
+  await selectAiProviders(db, f.it, aiSelectionSchema.parse({ expectedVersion: 0, mode: "custom", textConnectionId: saved.id }), key());
+  expect((await resolveAiProvider(db, f.company, aiEnv, "text")).endpoint.model).toBe("gpt-5.6-luna");
+  await expect(resolveAiProvider(db, f.company, aiEnv, "image")).rejects.toMatchObject({ code: "AI_CAPABILITY_UNAVAILABLE" });
 });
 
 it("filters unsafe receipt fields, preserves a Gregorian date and rejects a category in another currency", async () => {

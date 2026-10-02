@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 import { useCallback, useEffect, useState } from "react";
 import { QuickAccessShelf } from "@/components/quick-access/shelf";
 import type { QuickAccessItem, QuickAccessPreference } from "@/lib/quick-access";
@@ -305,7 +306,7 @@ export function LegalPortal({
                 </a>
                 <p className={s.small}>
                   Access expires{" "}
-                  {new Date(Number(x.expires_at)).toLocaleString()}
+                  <TimeText value={Number(x.expires_at)} />
                 </p>
               </div>
             ))

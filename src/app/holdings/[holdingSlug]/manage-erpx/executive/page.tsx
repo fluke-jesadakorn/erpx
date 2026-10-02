@@ -1,3 +1,4 @@
+import { TimeText } from "@/components/time/time-preference-context";
 import { FeaturePage, FeatureWidget, WidgetGrid } from "@/components/features/feature-page";
 import { LiveBanner, Metric, PageHeader, StatusBadge } from "@/components/ui/primitives";
 import { requireManageErpxContext } from "@/server/authorization";
@@ -36,12 +37,12 @@ export default async function PlatformExecutivePage() {
             <details>
               <summary>Source and formula</summary>
               <p>{metric.formula}</p>
-              <p className="muted">Source revision {metric.sourceReferences[0]?.revision.slice(0, 12)} · Referenced {new Date(metric.sourceReferences[0]?.referencedAt ?? snapshot.referenceAt).toISOString()} UTC</p>
+              <p className="muted">Source revision {metric.sourceReferences[0]?.revision.slice(0, 12)} · Referenced <TimeText value={metric.sourceReferences[0]?.referencedAt ?? snapshot.referenceAt} /></p>
             </details>
           </FeatureWidget>
         ))}
       </WidgetGrid>
-      <p className="muted">Reference time {new Date(snapshot.referenceAt).toISOString()} UTC · Provisioning period {snapshot.filters.from} to {snapshot.filters.to}</p>
+      <p className="muted">Reference time <TimeText value={snapshot.referenceAt} /> · Provisioning period {snapshot.filters.from} to {snapshot.filters.to}</p>
     </FeaturePage>
   );
 }

@@ -41,8 +41,9 @@ test("consented Marketing candidate hands its brief and attribution to an eligib
     const assetForm = marketingPage.locator("form").filter({ has: marketingPage.getByRole("heading", { name: "Draft marketing asset" }) });
     await assetForm.getByLabel("Kind").selectOption("form");
     await assetForm.getByLabel("Name").fill("Demo furniture inquiry");
-    await assetForm.getByLabel("Configuration JSON").fill('{"fields":["name","email","need"],"consentRequired":true}');
-    await assetForm.getByLabel("Preview JSON").fill('{"headline":"Tell us what you need"}');
+    await assetForm.getByLabel("Public headline").fill("Tell us what you need");
+    await assetForm.getByLabel("Supporting text").fill("Share a few details and our Sales team will follow up.");
+    await assetForm.getByLabel("Require visitor consent before submitting").check();
     const draftResponse = marketingPage.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/marketing"));
     await assetForm.getByRole("button", { name: "Draft asset" }).click();
     const draft = await (await draftResponse).json();
@@ -62,7 +63,7 @@ test("consented Marketing candidate hands its brief and attribution to an eligib
     await capture.getByLabel("Contact name").fill("Demo prospect - Bangkok");
     await capture.getByLabel("Contact detail").fill("demo-prospect@example.test");
     await capture.getByLabel("Consent evidence").fill("Explicit consent on approved Demo inquiry form.");
-    await capture.getByLabel("Campaign").fill("Bangkok furniture launch");
+    await capture.getByLabel("Campaign", { exact: true }).fill("Bangkok furniture launch");
     await capture.getByLabel("Source").fill("Demo website inquiry");
     await capture.getByLabel("Brief").fill("Needs 20 furniture sets within seven days; budget THB 100,000.");
     responsePromise = reviewerPage.waitForResponse(response => response.request().method() === "POST" && new URL(response.url()).pathname.endsWith("/marketing"));

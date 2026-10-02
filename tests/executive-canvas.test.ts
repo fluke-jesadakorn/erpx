@@ -713,10 +713,10 @@ it("reconciles posted net payroll to posted Finance journals and keeps evidence 
 
   const first=await searchExecutiveEvidence(db,f.owner,{metric:"payroll-summary",filters,limit:1});
   const second=await searchExecutiveEvidence(db,f.owner,{metric:"payroll-summary",filters,limit:1,cursor:first.nextCursor!});
-  expect(first.provider).toBe("people-payroll-posted-runs");expect(first.items).toHaveLength(1);expect(first.items[0]).toMatchObject({id:march,amount:"6789",currency:"THB",href:`/people/payroll/${march}`});
+  expect(first.provider).toBe("people-payroll-posted-runs");expect(first.items).toHaveLength(1);expect(first.items[0]).toMatchObject({id:march,amount:"6789",currency:"THB",href:`/people/payroll/runs/${march}`});
   expect(second.items).toHaveLength(1);expect(second.items[0].id).toBe(january);
   const detail=await readExecutiveEvidence(db,f.owner,"payroll-summary",january,filters);
-  expect(detail.record).toMatchObject({id:january,status:"posted",currency:"THB",net_minor:"12351",href:`/people/payroll/${january}`});
+  expect(detail.record).toMatchObject({id:january,status:"posted",currency:"THB",net_minor:"12351",href:`/people/payroll/runs/${january}`});
   expect(detail.record).not.toHaveProperty("employee_name");expect(detail.record).not.toHaveProperty("input_snapshot_json");
   await expect(readExecutiveEvidence(db,f.owner,"payroll-summary",preview,filters)).rejects.toMatchObject({code:"EVIDENCE_NOT_FOUND"});
   await expect(readExecutiveEvidence(db,f.owner,"payroll-summary",unposted,filters)).rejects.toMatchObject({code:"EVIDENCE_NOT_FOUND"});
@@ -976,11 +976,13 @@ it("reconciles current PMS folio balances to posted receivable journals without 
     await db.prepare(`INSERT INTO finance_journals
       (id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,source_id,status,created_by,posted_by,posted_at,created_at,updated_at)
       VALUES(?,?,?,?,?,'2026-09-24','THB','manual',?,?,?, ?,?,?,?)`)
-      .bind(journalId,f.company,f.chart,f.period,journalId,entryId,status,f.owner.userId,status==="posted"?f.owner.userId:null,status==="posted"?now:null,now,now).run();
+      .bind(journalId,f.company,f.chart,f.period,journalId,entryId,"draft",f.owner.userId,null,null,now,now).run();
     const absolute=Math.abs(amount),receivableDebit=amount>0?absolute:0,receivableCredit=amount<0?absolute:0,
       revenueDebit=amount<0?absolute:0,revenueCredit=amount>0?absolute:0;
     await db.prepare("INSERT INTO finance_journal_lines(id,journal_id,account_id,debit_minor,credit_minor,ordinal) VALUES(?,?,?,?,?,0),(?,?,?,?,?,1)")
       .bind(`line-ar-${key()}`,journalId,receivable,receivableDebit,receivableCredit,`line-revenue-${key()}`,journalId,f.accounts.revenue,revenueDebit,revenueCredit).run();
+    if(status!=="draft")await db.prepare("UPDATE finance_journals SET status=?,posted_by=?,posted_at=? WHERE id=?")
+      .bind(status,f.owner.userId,now,journalId).run();
     await db.prepare("INSERT INTO pms_postings(id,property_id,source_key,record_id,journal_id,business_date) VALUES(?,?,?,?,?,'2026-09-24')")
       .bind(`pms-posting-${key()}`,propertyId,`folio-fixture:${suffix}`,entryId,journalId).run();
     return entryId;
@@ -1169,6 +1171,7 @@ it("reconciles Customer 360 activity to the scoped timeline and audits bounded s
   expect(audit.every(row=>row.fields.includes("customer_name")&&row.fields.includes("source_type"))).toBe(true);
 });
 it("reconciles active Brand profile metrics with bounded, authorized profile evidence",async()=>{
+  const foreignCompany=(await expenseFixture()).company;
   const actor={...f.owner,modules:[...new Set([...f.owner.modules,"brand"])]};
   const filters={from:"2026-09-01",to:"2026-09-30",currency:"THB"};
   const currentBranch=key(),olderBranch=key(),suspendedBranch=key(),foreignBranch=key();
@@ -1183,12 +1186,12 @@ it("reconciles active Brand profile metrics with bounded, authorized profile evi
     branch(currentBranch,"Executive Brand current branch"),
     branch(olderBranch,"Executive Brand older branch"),
     branch(suspendedBranch,"Executive Brand suspended branch",f.company,"suspended"),
-    branch(foreignBranch,"Executive Brand foreign branch","other-company"),
+    branch(foreignBranch,"Executive Brand foreign branch",foreignCompany),
     profile(f.branch,f.company,september,"both"),
     profile(currentBranch,f.company,september,"branch"),
     profile(olderBranch,f.company,august,"branch"),
     profile(suspendedBranch,f.company,september,"branch"),
-    profile(foreignBranch,"other-company",september,"branch"),
+    profile(foreignBranch,foreignCompany,september,"branch"),
   ]);
 
   const configured=await queryMetric(db,actor,"brand-profiles",filters);
@@ -2397,7 +2400,7 @@ it("reconciles Holding commercial metrics from Control billing and limits access
     .rejects.toMatchObject({code:"RECIPIENT_SOURCE_REQUIRED"});
 });
 it("reconciles Agent governance metrics with bounded, permission-checked evidence that excludes model and source contents",async()=>{
-  const actor={...f.owner,modules:[...f.owner.modules,"agent"]},filters={from:"2026-09-01",to:"2026-09-30",currency:"THB"},now=Date.now(),
+  const actor={...f.owner,modules:[...f.owner.modules,"agent"]},filters={from:"2026-09-01",to:"2026-09-30",currency:"THB"},now=Date.parse("2026-09-15T12:00:00Z"),
     agentId=key(),approvedVersionId=key(),draftVersionId=key(),otherAgentId=key(),otherVersionId=key(),
     succeededSessionId=key(),failedSessionId=key(),oldSessionId=key(),foreignSessionId=key(),
     succeededId=key(),failedId=key(),oldId=key(),foreignId=key();

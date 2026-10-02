@@ -1,4 +1,6 @@
 "use client";
+import { PreferredDateTimeField } from "@/components/time/preferred-date-time-field";
+import { TimeText } from "@/components/time/time-preference-context";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -379,7 +381,7 @@ export function ProvisioningWorkspace({
                         </span>
                       </div>
                       <dl className={consoleStyles.factGrid}>
-                        <div><dt>Expires</dt><dd>{new Date(a.valid_until).toLocaleString()}</dd></div>
+                        <div><dt>Expires</dt><dd><TimeText value={a.valid_until} /></dd></div>
                         <div><dt>ERPX roles</dt><dd>{a.definition.grants.map((g) => g.roleId).join(", ") || "None"} <small>(reviewed separately)</small></dd></div>
                         <div><dt>Groups</dt><dd>{[...a.definition.groupIds, ...a.definition.directoryGroupIds].join(", ") || "None"}</dd></div>
                         <div><dt>Exceptions</dt><dd>{a.scope.exclude?.join(", ") || "None"}</dd></div>
@@ -428,7 +430,7 @@ export function ProvisioningWorkspace({
                   >
                     <span className={consoleStyles.rowMain}>
                       <strong>{op.status.replaceAll("_", " ")}</strong>
-                      <span>{new Date(op.created_at).toLocaleString()}</span>
+                      <span><TimeText value={op.created_at} /></span>
                     </span>
                     {op.reviewsPending > 0 && <span className={consoleStyles.reviewCount}>{op.reviewsPending} reviews</span>}
                   </button>
@@ -449,7 +451,7 @@ export function ProvisioningWorkspace({
                   <div>
                     <span className={consoleStyles.eyebrow}>Provisioning operation</span>
                     <h3>{operation.status.replaceAll("_", " ")}</h3>
-                    <p>{new Date(operation.created_at).toLocaleString()}</p>
+                    <p><TimeText value={operation.created_at} /></p>
                   </div>
                 </div>
                 <div className={consoleStyles.detailScroll}>
@@ -606,10 +608,7 @@ export function ProvisioningWorkspace({
                     ))}
                 </select>
               </label>
-              <label>
-                Access expires
-                <input type="datetime-local" name="expires" required />
-              </label>
+              <PreferredDateTimeField name="expires" label="Access expires" required />
               <label>
                 <input type="checkbox" name="restoreAccess" /> Restore access
                 after a completed HR return (old grants stay revoked)

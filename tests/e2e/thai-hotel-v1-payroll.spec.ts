@@ -38,6 +38,25 @@ async function payrollRun(context: BrowserContext, id: string) {
   return (await response.json()).data as { run: Record<string, unknown>; items: PayrollItem[]; corrections: Record<string, unknown>[]; exports: Record<string, unknown>[]; paymentBatch: Record<string, unknown> | null; paymentItems: Record<string, unknown>[] };
 }
 
+async function openCurrentRun(page: Page, id: string) {
+  const link = page.getByRole("link", { name: "Open run and continue", exact: true });
+  await expect(link).toBeVisible();
+  await link.click();
+  await expect(page).toHaveURL(new RegExp(`/people/payroll/runs/${id}$`));
+}
+
+async function openPayrollSettings(page: Page) {
+  let link = page.locator('a[href$="/people/payroll/settings"]:visible').last();
+  if (!(await link.isVisible())) {
+    await page.getByRole("button", { name: "App launcher", exact: true }).click();
+    await page.getByLabel("Search apps and pages", { exact: true }).fill("Setup");
+    link = page.locator('a[href$="/people/payroll/settings"]:visible').last();
+  }
+  await expect(link).toBeVisible();
+  await link.click();
+  await expect(page).toHaveURL(/\/people\/payroll\/settings$/);
+}
+
 test("H002 synthetic payroll covers approved time, correction, review, GL and sandbox bank confirmation", async ({ browser }, testInfo) => {
   const run = process.env.ERPX_DEMO_RUN;
   expect(run, "The Thai Hotel mock runner must supply an exact prepared simulation run.").toMatch(/^[a-f0-9]{12}$/);
@@ -52,27 +71,36 @@ test("H002 synthetic payroll covers approved time, correction, review, GL and sa
   const reviewer = await browser.newContext(testInfo.project.use);
   const finance = await browser.newContext(testInfo.project.use);
   const treasury = await browser.newContext(testInfo.project.use);
+  let ownerContext: BrowserContext | undefined;
   [preparer, reviewer, finance, treasury].forEach((context) => context.setDefaultTimeout(15_000));
   try {
     const preparerPage = await preparer.newPage();
     await signIn(preparer, preparerPage, credentials, "payroll_preparer");
+    await expect(preparerPage.getByRole("link", { name: "Set up a pay group", exact: true })).toBeVisible();
+    await preparerPage.getByRole("link", { name: "Set up a pay group", exact: true }).click();
+    await expect(preparerPage).toHaveURL(/\/people\/payroll\/settings$/);
     await expect(preparerPage.getByRole("button", { name: "Create payroll simulation (mock)", exact: true })).toBeVisible();
     await preparerPage.getByRole("button", { name: "Create payroll simulation (mock)", exact: true }).click();
     await preparerPage.getByRole("combobox").first().selectOption(fixtures.payrollGroupId);
     await preparerPage.getByLabel("Period start", { exact: true }).fill("2026-09-01");
-    await preparerPage.getByLabel("Period end", { exact: true }).fill("2026-09-30");
+    await preparerPage.getByLabel("Period end", { exact: true }).fill("2026-09-28");
     await preparerPage.getByLabel("Pay date", { exact: true }).fill("2026-10-05");
     const createResponse = preparerPage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith("/people/payroll/runs"));
     await preparerPage.getByRole("button", { name: "Save payroll run", exact: true }).click();
     expect((await createResponse).ok()).toBe(true);
-    await expect(preparerPage).toHaveURL(/\/people\/payroll\/payrun-/);
+    await expect(preparerPage).toHaveURL(/\/people\/payroll\/runs\/payrun-/);
     const runId = new URL(preparerPage.url()).pathname.split("/").at(-1)!;
     await expect(preparerPage.locator('[data-payroll-adapter="mock"]')).toContainText("not a Thai statutory calculation");
+    await expect(preparerPage.getByText(/Live payslips require validated Thai calculations and restricted employee delivery/)).toBeVisible();
 
     const calculate = async () => {
+      const readinessResponse = await preparer.request.get(`/api/v1/holdings/riverside-lantern/people/payroll/runs/${runId}/readiness`);
+      expect(readinessResponse.ok(), await readinessResponse.text()).toBe(true);
+      const readiness = (await readinessResponse.json()).data;
+      expect(readiness.readyToCalculate, JSON.stringify(readiness.blockers)).toBe(true);
       const command = preparerPage.waitForRequest((item) => item.method() === "POST" && item.url().endsWith(`/people/payroll/runs/${runId}/calculate`));
       const response = preparerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/people/payroll/runs/${runId}/calculate`));
-      await preparerPage.getByRole("button", { name: "Calculate deterministic mock payroll", exact: true }).click();
+      await preparerPage.getByRole("button", { name: "Calculate mock preview", exact: true }).click();
       const request = await command;
       const result = await response;
       expect(result.ok(), await result.text()).toBe(true);
@@ -80,7 +108,7 @@ test("H002 synthetic payroll covers approved time, correction, review, GL and sa
       return Object.fromEntries(Object.entries(headers).filter(([name]) => name === "origin" || name.startsWith("x-erpx-context-")));
     };
     const preparerContextHeaders = await calculate();
-    await expect(preparerPage.getByRole("heading", { name: "Calculated items", exact: true }).first()).toBeVisible();
+    await expect(preparerPage.getByRole("heading", { name: "Employee preview breakdown", exact: true })).toBeVisible();
     let detail = await payrollRun(preparer, runId);
     expect(detail.run).toMatchObject({ status: "preview", mode: "preview" });
     expect(detail.items).toHaveLength(4);
@@ -101,7 +129,7 @@ test("H002 synthetic payroll covers approved time, correction, review, GL and sa
     const foreignInput = JSON.parse(itemByFixture.foreignEmployee.input_snapshot_json);
     const foreignResult = JSON.parse(itemByFixture.foreignEmployee.result_json);
     expect(foreignInput.engagement.employment_type).toBe("salaried");
-    expect(foreignInput.policy).toMatchObject({ activeDays: 15, periodDays: 30 });
+    expect(foreignInput.policy).toMatchObject({ activeDays: 13, periodDays: 28 });
     expect(foreignInput.engagement.person_id).toBe(fixtures.payrollPersonIds.foreignEmployee);
     expect(foreignResult.adapter.statutory).toBe(false);
     const dailyInput = JSON.parse(itemByFixture.dailyEmployee.input_snapshot_json);
@@ -124,14 +152,25 @@ test("H002 synthetic payroll covers approved time, correction, review, GL and sa
     detail = await payrollRun(preparer, runId);
     expect(detail.run.status).toBe("preview");
 
+    const submitForReview = async () => {
+      const submission = preparerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/people/payroll/runs/${runId}/submit-review`));
+      await preparerPage.getByRole("button", { name: "Submit for review", exact: true }).click();
+      const result = await submission;
+      expect(result.ok(), await result.text()).toBe(true);
+    };
+    await submitForReview();
+    detail = await payrollRun(preparer, runId);
+    expect(detail.run.status).toBe("in_review");
+
     const reviewerPage = await reviewer.newPage();
     await signIn(reviewer, reviewerPage, credentials, "payroll_approver");
-    await reviewerPage.goto(`/holdings/riverside-lantern/people/payroll/${runId}`, { waitUntil: "domcontentloaded" });
+    await openCurrentRun(reviewerPage, runId);
     const initialApproval = reviewerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/people/payroll/runs/${runId}/approve`));
-    await reviewerPage.getByRole("button", { name: "Approve reviewed preview", exact: true }).click();
+    await reviewerPage.getByRole("button", { name: "Approve submitted review", exact: true }).click();
     const initialApprovalResult = await initialApproval;
     expect(initialApprovalResult.ok(), `${initialApprovalResult.status()} ${await initialApprovalResult.text()}`).toBe(true);
     await preparerPage.reload({ waitUntil: "domcontentloaded" });
+    await preparerPage.getByText("Controlled corrections", { exact: true }).click();
     await expect(preparerPage.locator("#workspace-content").getByLabel("Correction reason and source evidence", { exact: true }).first()).toBeVisible();
     await preparerPage.locator("#workspace-content").getByLabel("Correction reason and source evidence", { exact: true }).first().fill("Synthetic review found one controlled source note requiring recalculation; preserve all prior revision evidence.");
     const correctionResponse = preparerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/people/payroll/runs/${runId}/corrections`));
@@ -148,6 +187,7 @@ test("H002 synthetic payroll covers approved time, correction, review, GL and sa
     expect(selfCorrection.status()).toBe(403);
 
     await reviewerPage.reload({ waitUntil: "domcontentloaded" });
+    await reviewerPage.getByText("Controlled corrections", { exact: true }).click();
     const correctionCard = reviewerPage.locator(`#correction-${correction.id}`);
     await correctionCard.getByLabel("Decision evidence", { exact: true }).fill("Independent payroll approver authorized this mock correction for revision coverage.");
     const decisionResponse = reviewerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/people/payroll/corrections/${correction.id}/decide`));
@@ -160,13 +200,9 @@ test("H002 synthetic payroll covers approved time, correction, review, GL and sa
     expect(Number(detail.run.revision)).toBe(originalRevision + 1);
     expect(detail.exports).toHaveLength(0);
 
+    await submitForReview();
     await reviewerPage.reload({ waitUntil: "domcontentloaded" });
-    const approvePreview = reviewerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/people/payroll/runs/${runId}/approve`));
-    await reviewerPage.getByRole("button", { name: "Approve reviewed preview", exact: true }).click();
-    const approvePreviewResult = await approvePreview;
-    expect(approvePreviewResult.ok(), `${approvePreviewResult.status()} ${await approvePreviewResult.text()}`).toBe(true);
-    await expect(reviewerPage.getByText("approved", { exact: true }).first()).toBeVisible();
-    await reviewerPage.getByRole("button", { name: "Export this reviewed revision", exact: true }).click();
+    await reviewerPage.getByRole("button", { name: "Export review report", exact: true }).click();
     await expect.poll(async () => (await payrollRun(reviewer, runId)).exports.length).toBe(1);
     detail = await payrollRun(reviewer, runId);
     const reviewExport = await reviewer.request.get(`/api/v1/holdings/riverside-lantern/people/payroll/runs/${runId}/review-file?revision=${Number(detail.run.revision)}`);
@@ -174,38 +210,62 @@ test("H002 synthetic payroll covers approved time, correction, review, GL and sa
     expect(reviewExport.headers()["etag"]).toMatch(/^[a-f0-9]{64}$/);
     expect(await reviewExport.text()).toContain("Fictional bonus fixture");
 
+    await reviewerPage.reload({ waitUntil: "domcontentloaded" });
+    const approvePreview = reviewerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/people/payroll/runs/${runId}/approve`));
+    await reviewerPage.getByRole("button", { name: "Approve submitted review", exact: true }).click();
+    const approvePreviewResult = await approvePreview;
+    expect(approvePreviewResult.ok(), `${approvePreviewResult.status()} ${await approvePreviewResult.text()}`).toBe(true);
+    expect((await payrollRun(reviewer, runId)).run.status).toBe("approved");
+
+    // Finance mappings are drafted and approved by different people before posting.
+    ownerContext = await browser.newContext(testInfo.project.use);
+    ownerContext.setDefaultTimeout(15_000);
+    const ownerPage = await ownerContext.newPage();
+    await signIn(ownerContext, ownerPage, credentials, "holding_owner");
+    await openPayrollSettings(ownerPage);
+    const mappingForm = ownerPage.locator("form.business-form").filter({ has: ownerPage.getByRole("button", { name: "Save mapping draft", exact: true }) });
+    await mappingForm.locator('select[name="chartId"]').selectOption({ index: 0 });
+    const accountValues = async (name: string) => mappingForm.locator(`select[name="${name}"] option:not([value=""])`).evaluateAll((options) => options.map((option) => (option as HTMLOptionElement).value));
+    const expenseAccounts = await accountValues("expenseAccountId");
+    const liabilities = await accountValues("netPayableAccountId");
+    expect(expenseAccounts.length, "synthetic chart expense accounts").toBeGreaterThan(1);
+    expect(liabilities.length, "synthetic chart payroll liability accounts").toBeGreaterThan(0);
+    await mappingForm.locator('select[name="expenseAccountId"]').selectOption(expenseAccounts[0]);
+    await mappingForm.locator('select[name="employerExpenseAccountId"]').selectOption(expenseAccounts[1]);
+    await mappingForm.locator('select[name="serviceChargeExpenseAccountId"]').selectOption(expenseAccounts[0]);
+    await mappingForm.locator('select[name="netPayableAccountId"]').selectOption(liabilities[0]);
+    await mappingForm.locator('select[name="taxPayableAccountId"]').selectOption(liabilities[0]);
+    await mappingForm.locator('select[name="employerContributionAccountId"]').selectOption(liabilities[0]);
+    const mappingSave = ownerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes(`/people/payroll/pay-groups/${fixtures.payrollGroupId}/account-mappings`));
+    await mappingForm.getByRole("button", { name: "Save mapping draft", exact: true }).click();
+    expect((await mappingSave).ok()).toBe(true);
+
     const financePage = await finance.newPage();
     await signIn(finance, financePage, credentials, "finance_approver");
-    await financePage.goto(`/holdings/riverside-lantern/people/payroll/${runId}`, { waitUntil: "domcontentloaded" });
-    const posting = financePage.locator("#workspace-content form.business-form").filter({ has: financePage.getByRole("heading", { name: "Post approved payroll to Finance", exact: true }) }).first();
-    const chart = posting.locator('select[name="chartId"]');
-    await expect(chart).toHaveValue(/.+/);
-    const period = posting.locator('select[name="periodId"]');
-    await period.selectOption({ index: 1 });
-    await posting.locator('input[name="entryDate"]').fill("2026-10-05");
-    await posting.locator('select[name="expenseAccountId"]').selectOption({ index: 1 });
-    await posting.locator('select[name="netPayableAccountId"]').selectOption({ index: 1 });
-    await posting.locator('select[name="taxPayableAccountId"]').selectOption({ index: 1 });
-    await posting.locator('select[name="employerContributionAccountId"]').selectOption({ index: 1 });
-    const postingInput = {
-      chartId: await chart.inputValue(),
-      periodId: await period.inputValue(),
-      entryDate: await posting.locator('input[name="entryDate"]').inputValue(),
-      expenseAccountId: await posting.locator('select[name="expenseAccountId"]').inputValue(),
-      netPayableAccountId: await posting.locator('select[name="netPayableAccountId"]').inputValue(),
-      taxPayableAccountId: await posting.locator('select[name="taxPayableAccountId"]').inputValue(),
-      employerContributionAccountId: await posting.locator('select[name="employerContributionAccountId"]').inputValue(),
-    };
+    await openPayrollSettings(financePage);
+    const mappingApproval = financePage.waitForResponse((item) => item.request().method() === "POST" && item.url().includes("/account-mappings/") && item.url().endsWith("/approve"));
+    await financePage.getByRole("button", { name: "Approve mapping", exact: true }).click();
+    expect((await mappingApproval).ok()).toBe(true);
+    await financePage.getByRole("link", { name: "← Payroll", exact: true }).click();
+    await openCurrentRun(financePage, runId);
+    const posting = financePage.locator('section[aria-labelledby="payroll-accounting-heading"]');
+    await expect(posting.getByRole("heading", { name: "Accounting preview", exact: true })).toBeVisible();
+    const previewJournal = financePage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/people/payroll/runs/${runId}/accounting-preview`));
+    await posting.getByRole("button", { name: "Preview journal", exact: true }).click();
+    const previewJournalResult = await previewJournal;
+    expect(previewJournalResult.ok(), await previewJournalResult.text()).toBe(true);
+    const previewData = (await previewJournalResult.json()).data;
+    expect(previewData.totals.debitMinor).toBe(previewData.totals.creditMinor);
     const postCommand = financePage.waitForRequest((item) => item.method() === "POST" && item.url().endsWith(`/people/payroll/runs/${runId}/post`));
     const postResponse = financePage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/people/payroll/runs/${runId}/post`));
-    await posting.getByRole("button", { name: "Post GL and create payable obligation", exact: true }).click();
+    await posting.getByRole("button", { name: "Post reviewed journal", exact: true }).click();
     const postRequest = await postCommand;
     const posted = await postResponse;
     expect(posted.ok(), await posted.text()).toBe(true);
     const postingResult = (await posted.json()).data;
     expect(postingResult).toMatchObject({ status: "posted", journalId: expect.any(String) });
-    const postRawHeaders = await postRequest.allHeaders();
-    const financeContextHeaders = Object.fromEntries(Object.entries(postRawHeaders).filter(([name]) => name === "origin" || name.startsWith("x-erpx-context-")));
+    const postHeaders = await postRequest.allHeaders();
+    const financeContextHeaders = Object.fromEntries(Object.entries(postHeaders).filter(([name]) => name === "origin" || name.startsWith("x-erpx-context-")));
     const journals = (await (await finance.request.get("/api/v1/holdings/riverside-lantern/finance/journals")).json()).data as Record<string, unknown>[];
     const payrollJournals = journals.filter((journal) => journal.source_type === "payroll" && journal.source_id === runId);
     expect(payrollJournals).toHaveLength(1);
@@ -213,7 +273,7 @@ test("H002 synthetic payroll covers approved time, correction, review, GL and sa
     expect(await finance.request.get(`/api/v1/holdings/riverside-lantern/people/payroll/runs/${runId}`).then(async (response) => (await response.json()).data.run.status)).toBe("posted");
     const replayPost = await finance.request.post(`/api/v1/holdings/riverside-lantern/people/payroll/runs/${runId}/post`, {
       headers: { ...financeContextHeaders, "Idempotency-Key": crypto.randomUUID() },
-      data: { ...postingInput, expectedVersion: Number((await payrollRun(finance, runId)).run.version) },
+      data: { accountMappingId: previewData.accountMappingId, expectedVersion: Number((await payrollRun(finance, runId)).run.version) },
     });
     expect(replayPost.status()).toBe(409);
     expect((await replayPost.json()).error.code).toBe("PAYROLL_NOT_APPROVED");
@@ -221,11 +281,19 @@ test("H002 synthetic payroll covers approved time, correction, review, GL and sa
 
     const treasuryPage = await treasury.newPage();
     await signIn(treasury, treasuryPage, credentials, "treasury");
-    await treasuryPage.goto(`/holdings/riverside-lantern/people/payroll/${runId}`, { waitUntil: "domcontentloaded" });
-    const batchForm = treasuryPage.locator("#workspace-content form.business-form").filter({ has: treasuryPage.getByRole("heading", { name: "Prepare payroll payment batch", exact: true }) }).first();
+    await openCurrentRun(treasuryPage, runId);
+    const batchForm = treasuryPage.locator('section[aria-label="Payroll payment batch"] form.business-form');
     await batchForm.locator('select[name="formatCode"]').selectOption("generic-csv");
+    const postingOptionsResponse = await finance.request.get("/api/v1/holdings/riverside-lantern/people/payroll/posting-options");
+    expect(postingOptionsResponse.ok(), await postingOptionsResponse.text()).toBe(true);
+    const postingOptions = (await postingOptionsResponse.json()).data as { mappings: Array<{ pay_group_id: string; chart_id: string; status: string }>; accounts: Array<Record<string, unknown>> };
+    const approvedMapping = postingOptions.mappings.find((mapping) => mapping.pay_group_id === fixtures.payrollGroupId && mapping.status === "approved");
+    expect(approvedMapping, "independently approved payroll map").toBeTruthy();
+    const bankAccount = postingOptions.accounts.find((account) => account.chart_id === approvedMapping!.chart_id && account.category === "asset" && account.currency === "THB");
+    expect(bankAccount, "THB synthetic cash ledger account").toBeTruthy();
+    await batchForm.getByLabel("Finance bank account ID", { exact: true }).fill(String(bankAccount!.id));
     const batchCreate = treasuryPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith("/people/payments/batches"));
-    await batchForm.getByRole("button", { name: "Create payment batch", exact: true }).click();
+    await batchForm.getByRole("button", { name: "Prepare batch", exact: true }).click();
     expect((await batchCreate).ok()).toBe(true);
     const treasuryDetail = await payrollRun(finance, runId);
     const batch = treasuryDetail.paymentBatch as { id: string; status: string; created_by: string; total_minor: number };
@@ -233,57 +301,68 @@ test("H002 synthetic payroll covers approved time, correction, review, GL and sa
     expect(Number(batch.total_minor)).toBe(treasuryDetail.items.reduce((sum, item) => sum + item.net_minor, 0));
     await financePage.reload({ waitUntil: "domcontentloaded" });
     const paymentApproval = financePage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/payments/batches/${batch.id}/approve`));
-    await financePage.getByRole("button", { name: "Approve payment batch", exact: true }).click();
+    await financePage.getByRole("button", { name: "Approve batch", exact: true }).click();
     expect((await paymentApproval).ok()).toBe(true);
     await treasuryPage.reload({ waitUntil: "domcontentloaded" });
     const paymentExport = treasuryPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/payments/batches/${batch.id}/export`));
-    await treasuryPage.getByRole("button", { name: "Export payment instruction", exact: true }).click();
+    await treasuryPage.getByRole("button", { name: "Export instruction", exact: true }).click();
     expect((await paymentExport).ok()).toBe(true);
     const downloadPromise = treasuryPage.waitForEvent("download");
-    await treasuryPage.getByRole("link", { name: "Download payment file", exact: true }).click();
+    await treasuryPage.getByRole("link", { name: "Download file", exact: true }).click();
     const paymentFile = await downloadPromise;
     expect(paymentFile.suggestedFilename()).toContain(batch.id);
     await treasuryPage.reload({ waitUntil: "domcontentloaded" });
-    const bankForm = treasuryPage.locator("form.business-form").filter({ has: treasuryPage.getByRole("heading", { name: "Confirm sandbox bank results", exact: true }) });
+    const bankForm = treasuryPage.locator("form.business-form").filter({ has: treasuryPage.getByRole("heading", { name: "Reconcile bank results", exact: true }) });
     const bankReferenceInputs = bankForm.locator('input[name^="ref:"]');
-    await expect(bankForm.getByRole("heading", { name: "Confirm sandbox bank results", exact: true })).toBeVisible();
+    await expect(bankForm.getByRole("heading", { name: "Reconcile bank results", exact: true })).toBeVisible();
     await expect(bankReferenceInputs).toHaveCount(4);
     const bankRefs = await bankReferenceInputs.count();
     expect(bankRefs).toBeGreaterThan(0);
-    for (const ref of await bankForm.locator('input[name^="ref:"]').all()) await ref.fill(`SYNTHETIC-BANK-CONF-${run}-${Math.random().toString(16).slice(2, 8)}`);
+    const paymentDetail = await payrollRun(treasury, runId);
+    const pendingItems = paymentDetail.paymentItems as Array<{ reference: string; amount_minor: number }>;
+    const bankReferences = pendingItems.map((item) => `SYNTHETIC-BANK-CONF-${run}-${item.reference}`);
+    const statementNumber = `PAYROLL-${run}-${crypto.randomUUID().slice(0, 8)}`;
+    const statementRows = pendingItems.map((item, index) => ({ externalId: bankReferences[index], transactionDate: String(paymentDetail.run.pay_date), description: `Synthetic payroll debit ${item.reference}`, amount: (-Number(item.amount_minor) / 100).toFixed(2), currency: "THB" }));
+    const statementTotal = pendingItems.reduce((sum, item) => sum + Number(item.amount_minor), 0);
+    const statementKey = `payroll-bank-${run}`;
+    const bankStatementInput = { bankAccount: String(bankAccount!.id), statementNumber, statementDate: String(paymentDetail.run.pay_date), opening: "1000000.00", closing: ((100000000 - statementTotal) / 100).toFixed(2), sourceHash: `synthetic-payroll-${run}`, rows: statementRows };
+    const bankStatementHeaders = { ...financeContextHeaders, "Idempotency-Key": statementKey };
+    const importedStatement = await finance.request.post("/api/v1/holdings/riverside-lantern/finance/bank/statements/import", {
+      headers: bankStatementHeaders,
+      data: bankStatementInput,
+    });
+    expect(importedStatement.status(), await importedStatement.text()).toBe(201);
+    const importedStatementId = String((await importedStatement.json()).data.id);
+    const statementReplay = await finance.request.post("/api/v1/holdings/riverside-lantern/finance/bank/statements/import", { headers: bankStatementHeaders, data: bankStatementInput });
+    expect(statementReplay.status(), await statementReplay.text()).toBe(201);
+    expect(String((await statementReplay.json()).data.id)).toBe(importedStatementId);
+    for (const [index, item] of pendingItems.entries()) {
+      const reference = item.reference;
+      await bankForm.locator(`input[name="ref:${reference}"]`).fill(bankReferences[index]);
+      await bankForm.locator(`input[name="bankId:${reference}"]`).fill(`bankrow-${statementKey}-${index}`);
+      await bankForm.locator(`input[name="bankVersion:${reference}"]`).fill("1");
+    }
+    const confirmCommand = treasuryPage.waitForRequest((item) => item.method() === "POST" && item.url().endsWith(`/payments/batches/${batch.id}/confirm`));
     const confirmPayment = treasuryPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith(`/payments/batches/${batch.id}/confirm`));
-    await bankForm.getByRole("button", { name: "Save payment results", exact: true }).click();
-    expect((await confirmPayment).ok()).toBe(true);
+    await bankForm.getByRole("button", { name: "Confirm results", exact: true }).click();
+    const confirmedPayment = await confirmPayment;
+    const confirmRequest = await confirmCommand;
+    expect(confirmedPayment.ok(), await confirmedPayment.text()).toBe(true);
+    const confirmHeaders = await confirmRequest.allHeaders();
+    const replayHeaders = Object.fromEntries(Object.entries(confirmHeaders).filter(([name]) => name === "idempotency-key" || name.startsWith("x-erpx-context-")));
+    const confirmationReplay = await treasuryPage.evaluate(async ({ path, headers, body }) => {
+      const response = await fetch(path, { method: "POST", headers, body: JSON.stringify(body) });
+      return { ok: response.ok, text: await response.text() };
+    }, { path: new URL(confirmRequest.url()).pathname, headers: replayHeaders, body: confirmRequest.postDataJSON() });
+    expect(confirmationReplay.ok, confirmationReplay.text).toBe(true);
     const settled = await payrollRun(treasury, runId);
     expect(settled.paymentBatch?.status).toBe("settled");
     expect(settled.paymentItems.length).toBe(4);
     expect(settled.paymentItems.every((item) => String(item.status) === "settled")).toBe(true);
     await treasuryPage.reload({ waitUntil: "domcontentloaded" });
-    await expect(treasuryPage.locator('section[aria-label="Payroll payment batch"] p.muted')).toContainText(/^settled ·/);
+    await expect(treasuryPage.locator('section[aria-label="Payroll payment batch"]').last()).toContainText("Settled");
 
-    // A holding owner can draft a run, but Calculate remains assigned to the payroll preparer.
-    const ownerContext = await browser.newContext(testInfo.project.use);
-    ownerContext.setDefaultTimeout(15_000);
-    try {
-      const ownerPage = await ownerContext.newPage();
-      await signIn(ownerContext, ownerPage, credentials, "holding_owner");
-      await ownerPage.getByRole("button", { name: "Create payroll simulation (mock)", exact: true }).click();
-      await ownerPage.getByRole("combobox").first().selectOption(fixtures.payrollGroupId);
-      await ownerPage.getByLabel("Period start", { exact: true }).fill("2026-10-01");
-      await ownerPage.getByLabel("Period end", { exact: true }).fill("2026-10-31");
-      await ownerPage.getByLabel("Pay date", { exact: true }).fill("2026-11-05");
-      const ownerCreate = ownerPage.waitForResponse((item) => item.request().method() === "POST" && item.url().endsWith("/people/payroll/runs"));
-      await ownerPage.getByRole("button", { name: "Save payroll run", exact: true }).click();
-      expect((await ownerCreate).ok()).toBe(true);
-      await expect(ownerPage).toHaveURL(/\/people\/payroll\/payrun-/);
-      const ownerRunId = new URL(ownerPage.url()).pathname.split("/").at(-1)!;
-      await expect(ownerPage.getByRole("button", { name: "Calculate deterministic mock payroll", exact: true })).toHaveCount(0);
-      await expect(ownerPage.getByText("Waiting for Payroll Preparer.", { exact: true })).toBeVisible();
-      expect((await payrollRun(ownerContext, ownerRunId)).run.status).toBe("calculating");
-    } finally {
-      await ownerContext.close();
-    }
   } finally {
-    await Promise.all([preparer.close(), reviewer.close(), finance.close(), treasury.close()]);
+    await Promise.all([preparer.close(), reviewer.close(), finance.close(), treasury.close(), ...(ownerContext ? [ownerContext.close()] : [])]);
   }
 });

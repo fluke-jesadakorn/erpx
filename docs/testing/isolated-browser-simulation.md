@@ -4,6 +4,8 @@
 
 คำสั่งคืน run ID และตำแหน่งไฟล์ credentials ที่อ่านได้เฉพาะเจ้าของไฟล์ ห้ามนำ password หรือ runtime secret ลงรายงาน/Git จากนั้นใช้ `start <run-id>` เปิดสำเนาบน loopback `3102` ด้วย Node 24.20.0 และ Bun 1.2.17 คำสั่งตรวจ port ก่อนเริ่มและไม่หยุด process ที่ครอบครอง port อยู่
 
+สำหรับ browser case ที่ส่งไฟล์ ให้เปิด local scanner และ worker อย่างชัดเจนเมื่อ environment มี ClamAV พร้อม: `ERPX_BROWSER_SIMULATION_ATTACHMENTS=local ERPX_BROWSER_SIMULATION_JOBS=1 bun run demo:start <run-id>`. โหมดนี้ส่งเข้า simulation เฉพาะ socket, signature directory และตัวแปลง preview ของ local dev ที่ตรวจว่าพร้อมก่อนเริ่ม พร้อมสร้าง jobs bundle ในสำเนาของ run นั้นเอง ไม่ใช้ worker ของ dev/staging และไม่ส่ง provider credentials เข้า simulation ค่าเริ่มต้นยังปิด scanner และ jobs worker ไว้
+
 - `3100` และ public development คงเดิม; ไม่แตะ production `3101` หรือ Tunnel
 - Environment ของ server เป็น allowlist; ไม่คัดลอก `.env` หรือ provider credentials
 - ใช้ Source operator, Receiving operator, Finance reviewer, Quality inspector Quality release manager และ Purchasing manager ผ่านหน้า Sign in ปกติ สลับบัญชีผ่าน Sign out all ใน environment จำลอง

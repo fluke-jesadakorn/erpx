@@ -1,17 +1,35 @@
-'use client';
-import {useHydrated} from '@/components/ui/use-hydrated';
-import {useState} from 'react';
-import {RoleSelect} from './role-select';
-import type {WorkAssignment} from '@/server/authorization';
-import styles from './account.module.css';
-export function WorkRolePicker({base,options,revision}:{base:string;options:(WorkAssignment&{href:string})[];revision:number}){
- const ready=useHydrated();
- const [pending,setPending]=useState(false),[error,setError]=useState('');
- return <div className={styles.skin}><RoleSelect assignments={options} value="" disabled={!ready || pending} onChange={async assignmentId=>{
- setPending(true);setError('');try{
- const r=await fetch(`/api/v1${base}/assignments/active`,{method:'POST',headers:{'content-type':'application/json','x-erpx-context-company':options.find(option=>option.id===assignmentId)?.companyId??''},body:JSON.stringify({assignmentId,revision})});
- const body=await r.json();if(!r.ok)throw Error(body.error?.message??'Role could not be selected.');
- const channel=new BroadcastChannel('erpx-work-context');channel.postMessage({changed:true});channel.close();window.location.assign(body.data.href);
- }catch(e){setError(e instanceof Error?e.message:'Try again.');setPending(false);}
- }}/>{!options.length&&<p>No active roles are available. Ask an administrator to review your access.</p>}{error&&<p role="alert">{error} <button onClick={()=>window.location.reload()}>Check again</button></p>}</div>;
+"use client";
+import { useHydrated } from "@/components/ui/use-hydrated";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { RoleSelect } from "./role-select";
+import { useContextSwitch } from "./context-switch-provider";
+import type { WorkAssignment } from "@/server/authorization";
+import styles from "./account.module.css";
+
+export function WorkRolePicker({ base, options, revision, from, companyId, activeAssignmentId }: {
+  base: string; options: (WorkAssignment & { href: string })[]; revision: number; from?: string; companyId?: string; activeAssignmentId?: string | null;
+}) {
+  const ready = useHydrated();
+  const router = useRouter();
+  const { switchContext, busy } = useContextSwitch();
+  const [error, setError] = useState("");
+  return <div className={styles.skin}>
+    <RoleSelect assignments={options} value={activeAssignmentId ?? ""} disabled={!ready || busy} onChange={async assignmentId => {
+      if (assignmentId === activeAssignmentId || busy) return;
+      setError("");
+      try {
+        const company = companyId ?? options.find(option => option.id === assignmentId)?.companyId ?? undefined;
+        await switchContext({ companyId: company, from, returnTo: from, action: async () => {
+          const response = await fetch(`/api/v1${base}/assignments/active`, {
+            method: "POST", headers: { "content-type": "application/json", "x-erpx-context-company": company ?? "" }, body: JSON.stringify({ assignmentId, revision }),
+          });
+          const body = await response.json();
+          if (!response.ok) throw Error(body.error?.message ?? "Role could not be selected.");
+        } });
+      } catch (cause) { setError(cause instanceof Error ? cause.message : "Try again."); }
+    }} />
+    {!options.length && <p>No active roles are available. Ask an administrator to review your access.</p>}
+    {error && <p role="alert">{error} <button type="button" onClick={() => router.refresh()}>Check again</button></p>}
+  </div>;
 }

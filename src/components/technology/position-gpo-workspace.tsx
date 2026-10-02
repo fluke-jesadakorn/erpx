@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
@@ -258,7 +259,7 @@ export function PositionGpoWorkspace({ holdingSlug, initial, connections, initia
         <p>{preview.changes.membersToAdd.length} linked account additions · {preview.holders.filter((holder) => holder.accountStatus === "awaiting_account_linkage").length} awaiting account linkage · {preview.changes.membersToRemoveFromPreviousGroup.length} removals from the previous filter group</p>
         {preview.sharedMappings.length > 0 && <p>This GPO is also mapped to {preview.sharedMappings.length} other positions. Their required groups and OU links remain combined.</p>}
         {preview.holders.length > 0 && <div className={styles.previewHolders}>{preview.holders.map((holder, index) => <p key={holder.engagement_id + "-" + index}>{holder.name} · {holder.accountStatus === "linked" ? "Directory account linked" : "Awaiting Directory account link"}</p>)}</div>}
-        <p className={styles.help}>Directory inventory observed {new Date(preview.directory.observedAt).toLocaleString()}. Endpoint application is tracked separately.</p>
+        <p className={styles.help}>Directory inventory observed <TimeText value={preview.directory.observedAt} />. Endpoint application is tracked separately.</p>
         <button type="button" className="button primary" disabled={busy} onClick={() => void publishMapping()}>Publish revision</button>
       </div>}
     </Dialog>

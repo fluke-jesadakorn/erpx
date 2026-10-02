@@ -94,7 +94,9 @@ test("isolated demo links a support case to its sales source and records removal
         response.request().method() === "POST" &&
         response.url().endsWith("/api/v1/holdings/simulation/support"),
     );
-    await supportForm.getByRole("button", { name: "Create support case" }).click();
+    await supportForm
+      .getByRole("button", { name: "Create linked support case", exact: true })
+      .click();
     expect((await createResponse).status()).toBe(200);
     await expect(ownerPage.getByRole("heading", { name: title, exact: true })).toBeVisible();
     const ticketId = new URL(ownerPage.url()).pathname.split("/").pop();

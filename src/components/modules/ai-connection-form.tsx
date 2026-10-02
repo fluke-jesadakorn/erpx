@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 
 import {
   AlertTriangle,
@@ -64,7 +65,7 @@ export function AiConnectionForm({
   const [removeKey, setRemoveKey] = useState(false);
   const [textModel, setTextModel] = useState(row?.text_model ?? "");
   const [sameModel, setSameModel] = useState(
-    !row || (!!row.image_model && row.image_model === row.text_model),
+    !!row?.image_model && row.image_model === row.text_model,
   );
   const [imageModel, setImageModel] = useState(row?.image_model ?? "");
   const [models, setModels] = useState<string[]>([]);
@@ -103,7 +104,7 @@ export function AiConnectionForm({
     setAuthMode("bearer");
     setTextModel("");
     setImageModel("");
-    setSameModel(true);
+    setSameModel(false);
   }
 
   function chooseModel(kind: "text" | "image", id: string) {
@@ -428,7 +429,7 @@ export function AiConnectionForm({
                 </strong>
                 <span>
                   {totalModels} fetched · Updated{" "}
-                  {new Date(fetchedAt).toLocaleString()}
+                  <TimeText value={fetchedAt} />
                 </span>
                 <small>
                   Catalog availability does not verify the API key or image

@@ -4,8 +4,10 @@ import { selectWorkRole } from "../src/server/work-role-store";
 import { decideIamReview,validateIamGrant,grantInput } from "../src/server/iam-service";
 import { iamActorFromWork } from "../src/server/iam-context";
 import { drainSocialAgent, retryAgentReply } from "../src/server/social-agent";
+import { ApiError } from "../src/server/http";
 import { textSuggestions } from "../src/server/social-text";
 import type { Mention } from "../src/lib/social-text";
+import { plainRichContent } from "../src/lib/home-rich-content";
 import { env } from "./runtime-env";
 import { applyMigrations, type TestMigration } from "./runtime-env";
 import { beforeAll, beforeEach, describe, it, expect, vi } from "vitest";
@@ -23,6 +25,8 @@ import {
   postAction,
   postRevisionHistory,
   socialUploadOwner,
+  createCommentUploadDraft,
+  createPostEditUploadDraft,
   type PostContent,
 } from "../src/server/social-home";
 import { sourceSnapshot, readablePost } from "../src/server/social-source";
@@ -310,6 +314,19 @@ describe("social post image content", () => {
     expect(view.content).toEqual([{ type: "text", text: "Keep this text" }]);
     expect(view.files).toHaveLength(0);
   });
+  it("publishes a comment image from a private upload draft and records the reply thread",async()=>{
+    const published=await post();
+    const draft=await createCommentUploadDraft(db,owner,published.id,key());
+    const image=await readySocialImage(draft.id,"machine.png");
+    const rich=plainRichContent("What is shown in this photo?");
+    rich.blocks.push({type:"image",slotId:key(),attachmentId:image.attachmentId,name:"machine.png",alt:"Machine label"});
+    await postAction(db,owner,published.id,{action:"comment",body:"What is shown in this photo?",richContent:rich,commentDraftId:draft.id},key());
+    const comments=await postComments(db,worker,published.id);
+    const comment=comments.items.find(item=>item.body==="What is shown in this photo?");
+    expect(comment?.richContent?.blocks[1]).toMatchObject({type:"image",attachmentId:image.attachmentId});
+    expect((await socialUploadOwner(db,worker,draft.id)).published_comment_id).toBe(comment?.id);
+    await expect(socialUploadOwner(db,owner,draft.id,true)).rejects.toMatchObject({code:"DRAFT_LOCKED"});
+  });
 });
 describe("social post audience and purpose", () => {
   it("requires an audience before publication and preserves the selected purpose", async () => {
@@ -472,9 +489,68 @@ describe("social post corrections", () => {
       .bind(created.id).first<number>("count");
     expect(audit).toBe(1);
   });
+
+  it("edits image order and ownership through a versioned upload draft", async () => {
+    const first = { type: "image" as const, slotId: "original-one", attachmentId: null, name: "one.png", alt: "First" };
+    const second = { type: "image" as const, slotId: "original-two", attachmentId: null, name: "two.png", alt: "Second" };
+    const initial: PostContent = [
+      { type: "text", text: "Before" }, first, { type: "text", text: "Between" }, second, { type: "text", text: "After" },
+    ];
+    const rich = (content: PostContent) => ({ version: 1 as const, blocks: content.map(block => block.type === "image"
+      ? { type: "image" as const, slotId: block.slotId, attachmentId: block.attachmentId, name: block.name, alt: block.alt, width: block.width }
+      : { type: "text" as const, doc: plainRichContent(block.text).blocks[0].doc }) });
+    let draft = await savePostDraft(db, owner, null, {
+      body: "Before\nBetween\nAfter", content: initial, richContent: rich(initial), audience: { kind: "branch", id: branch }, expectedVersion: 1,
+    }, key());
+    const uploadOne = await readySocialImage(draft.id, "one.png");
+    const uploadTwo = await readySocialImage(draft.id, "two.png");
+    const publishedContent: PostContent = initial.map(block => block.type === "image"
+      ? { ...block, attachmentId: block.slotId === first.slotId ? uploadOne.attachmentId : uploadTwo.attachmentId }
+      : block);
+    draft = await savePostDraft(db, owner, draft.id, {
+      body: "Before\nBetween\nAfter", content: publishedContent, richContent: rich(publishedContent),
+      audience: { kind: "branch", id: branch }, expectedVersion: draft.version,
+    }, key());
+    const created = await publishPost(db, owner, draft.id, draft.version, key());
+    const uploadDraft = await createPostEditUploadDraft(db, owner, created.id, 1, key());
+    await expect(socialUploadOwner(db, worker, uploadDraft.id, true)).rejects.toMatchObject({ status: 403 });
+
+    const newImage = { type: "image" as const, slotId: "added", attachmentId: "missing-file", name: "three.png", alt: "Third" };
+    const editContent: PostContent = [publishedContent[0], publishedContent[3], publishedContent[2], newImage, publishedContent[4]];
+    await expect(postAction(db, owner, created.id, {
+      action: "edit", expectedVersion: 1, body: "Before\nBetween\nAfter", mentions: [], content: editContent,
+      richContent: rich(editContent), editDraftId: uploadDraft.id,
+    }, key())).rejects.toMatchObject({ code: "POST_IMAGE_UNAVAILABLE", status: 422 });
+
+    const addedUpload = await readySocialImage(uploadDraft.id, "three.png");
+    editContent[3] = { ...newImage, attachmentId: addedUpload.attachmentId };
+    const edited = await postAction(db, owner, created.id, {
+      action: "edit", expectedVersion: 1, body: "Before\nBetween\nAfter", mentions: [], content: editContent,
+      richContent: rich(editContent), editDraftId: uploadDraft.id,
+    }, key());
+    expect(edited.version).toBe(2);
+    const view = await postView(db, owner, created.id);
+    expect(view.content?.map(block => block.type === "image" ? block.attachmentId : block.text)).toEqual([
+      "Before", uploadTwo.attachmentId, "Between", addedUpload.attachmentId, "After",
+    ]);
+    expect(view.files.map(file => file.id)).toEqual([uploadTwo.attachmentId, addedUpload.attachmentId]);
+    await expect(postAction(db, owner, created.id, {
+      action: "edit", expectedVersion: 1, body: "stale", mentions: [], content: [{ type: "text", text: "stale" }],
+    }, key())).rejects.toMatchObject({ code: "POST_CHANGED", status: 409 });
+    await expect(postAction(db, worker, created.id, {
+      action: "edit", expectedVersion: 2, body: "forged", mentions: [], content: [{ type: "text", text: "forged" }],
+    }, key())).rejects.toMatchObject({ code: "POST_AUTHOR_REQUIRED", status: 403 });
+
+    const photoOnly: PostContent = [publishedContent[3]];
+    const imageOnly = await postAction(db, owner, created.id, {
+      action: "edit", expectedVersion: 2, body: "", mentions: [], content: photoOnly, richContent: rich(photoOnly),
+    }, key());
+    expect(imageOnly.version).toBe(3);
+    expect(await postView(db, owner, created.id)).toMatchObject({ body: "", content: photoOnly });
+  });
 });
 describe("social conversation replies", () => {
-  it("keeps replies attached to a visible top-level comment", async () => {
+  it("keeps replies attached to the selected comment while rendering one reply depth", async () => {
     const created = await post();
     const firstKey = key(), replyKey = key();
     await postAction(db, owner, created.id, { action: "comment", body: "Can someone check the switch?" }, firstKey);
@@ -490,9 +566,44 @@ describe("social conversation replies", () => {
     const notification = await db.prepare("SELECT count(*) FROM staff_notifications WHERE record_id=? AND user_id=? AND message='Someone replied to your comment'")
       .bind(created.id, owner.userId).first<number>("count");
     expect(notification).toBe(1);
-    await expect(postAction(db, worker, created.id, {
-      action: "comment", body: "Nested reply", parentCommentId: `comment-${replyKey}`,
-    }, key())).rejects.toMatchObject({ code: "REPLY_TARGET_UNAVAILABLE", status: 422 });
+    const nestedKey = key();
+    await postAction(db, reviewer, created.id, {
+      action: "comment", body: "I will check with the team.", parentCommentId: `comment-${replyKey}`,
+    }, nestedKey);
+    const thread = await postView(db, owner, created.id);
+    expect(thread.comments.find(comment => comment.id === `comment-${nestedKey}`))
+      .toMatchObject({ parent_comment_id: `comment-${replyKey}`, parent_author_name: worker.name });
+    expect(thread.comments.find(comment => comment.id === `comment-${replyKey}`)?.parent_comment_id).toBe(parentId);
+    const older = await postComments(db, owner, created.id);
+    expect(older.items.find(comment => comment.id === parentId)?.id).toBe(parentId);
+  });
+  it("lets an author delete a comment without deleting its replies", async () => {
+    const created = await post();
+    const parentKey = key();
+    await postAction(db, owner, created.id, { action: "comment", body: "Original" }, parentKey);
+    const commentId = `comment-${parentKey}`;
+    await postAction(db, worker, created.id, { action: "comment", body: "Reply", parentCommentId: commentId }, key());
+    await expect(postAction(db, worker, created.id, { action: "delete_comment", commentId }, key()))
+      .rejects.toMatchObject({ status: 403 });
+    const deleteKey = key();
+    await postAction(db, owner, created.id, { action: "delete_comment", commentId }, deleteKey);
+    await postAction(db, owner, created.id, { action: "delete_comment", commentId }, deleteKey);
+    const view = await postView(db, owner, created.id);
+    expect(view.comments.some(comment => comment.id === commentId)).toBe(false);
+    expect(view.comments.some(comment => comment.body === "Reply")).toBe(true);
+    expect(view.commentCount).toBe(1);
+  });
+  it("lets the author edit a comment and rejects another author", async () => {
+    const created = await post();
+    const createKey = key();
+    await postAction(db, owner, created.id, { action: "comment", body: "Before" }, createKey);
+    const commentId = `comment-${createKey}`;
+    const body = "After";
+    const richContent = plainRichContent(body, []);
+    await expect(postAction(db, worker, created.id, { action: "edit_comment", commentId, body, richContent }, key()))
+      .rejects.toMatchObject({ status: 403 });
+    await postAction(db, owner, created.id, { action: "edit_comment", commentId, body, richContent }, key());
+    expect((await postView(db, owner, created.id)).comments.find(comment => comment.id === commentId)?.body).toBe(body);
   });
 });
 describe("social beta isolation and work", () => {
@@ -1151,6 +1262,7 @@ describe("inline mentions, hashtags and assistant replies",()=>{
   const view=await postView(db,owner,p.id);
   expect(provider).toHaveBeenCalledTimes(1);expect(view.comments).toHaveLength(1);
   expect(view.comments[0].author_kind).toBe("agent");expect(view.agentReplies[0].state).toBe("completed");
+  expect(view.agentReplies[0].requester_name).toBe(owner.name);
   expect(await db.prepare("SELECT output_tokens FROM social_ai_usage WHERE id=?").bind(`${view.agentReplies[0].id}:1`).first<number>("output_tokens")).toBe(8);
  });
  it("keeps the post when AI fails and lets only its requester retry",async()=>{
@@ -1161,6 +1273,15 @@ describe("inline mentions, hashtags and assistant replies",()=>{
   const k=key();await retryAgentReply(db,owner,view.agentReplies[0].id,k);await retryAgentReply(db,owner,view.agentReplies[0].id,k);
   await drainSocialAgent(db,replyEnv,p.id,async()=>({result:{body:"Ready"},inputTokens:1,outputTokens:1}));
   view=await postView(db,owner,p.id);expect(view.comments).toHaveLength(1);expect(view.agentReplies[0].state).toBe("completed");
+  expect((await db.prepare("SELECT error_code FROM social_agent_replies WHERE id=?").bind(view.agentReplies[0].id).first<{error_code:string|null}>())?.error_code).toBeNull();
+ });
+ it("shows safe provider guidance when AI authentication is rejected",async()=>{
+  const p=await assistantPost();
+  await drainSocialAgent(db,replyEnv,p.id,async()=>{throw new ApiError(503,"AI_PROVIDER_ERROR","The provider rejected authentication. Check the API key.");});
+  const view=await postView(db,owner,p.id);
+  expect(view.agentReplies[0].state).toBe("failed");
+  expect(view.agentReplies[0].error).toBe("The provider rejected authentication. Check the API key.");
+  expect(view.agentReplies[0].error_code).toBe("AI_PROVIDER_ERROR");
  });
  it("blocks exhausted quotas and revoked access without publishing",async()=>{
   const p=await assistantPost();const provider=vi.fn(async()=>({result:{body:"Ready"},inputTokens:1,outputTokens:1}));
@@ -1178,6 +1299,31 @@ describe("inline mentions, hashtags and assistant replies",()=>{
   await db.prepare("UPDATE social_agent_replies SET state='running',lease_until=1 WHERE post_id=?").bind(p.id).run();
   const provider=vi.fn();await drainSocialAgent(db,replyEnv,p.id,provider);expect(provider).not.toHaveBeenCalled();
   expect((await postView(db,owner,p.id)).agentReplies[0].state).toBe("failed");
+ });
+ it("queues one AI answer for an idempotently replayed Thai reply",async()=>{
+  const p=await post(),parentKey=key(),sourceKey=key(),replyKey=key();
+  await postAction(db,owner,p.id,{action:"comment",body:"Please inspect this item."},parentKey);
+  const parentId=`comment-${parentKey}`;
+  await postAction(db,worker,p.id,{action:"comment",body:"I am checking it now.",parentCommentId:parentId},sourceKey);
+  const sourceId=`comment-${sourceKey}`;
+  const mention:Mention={kind:"agent",targetId:"erpx-assistant",label:"AI",start:0,end:3};
+  expect(await textSuggestions(db,owner,"@","AI")).toContainEqual({kind:"agent",targetId:"erpx-assistant",label:"AI",detail:"AI · replies after publishing"});
+  const input={action:"comment" as const,body:"@AI ช่วยตรวจสอบรายการนี้ให้หน่อย",mentions:[mention],parentCommentId:sourceId};
+  const first=await postAction(db,owner,p.id,input,replyKey);
+  expect(await postAction(db,owner,p.id,input,replyKey)).toEqual(first);
+  const ownerId=`comment-${replyKey}`;
+  const queued=await db.prepare("SELECT id,owner_type,owner_id,requester_name FROM social_agent_replies WHERE post_id=? AND owner_id=?")
+    .bind(p.id,ownerId).all<{id:string;owner_type:string;owner_id:string;requester_name:string|null}>();
+  expect(queued.results).toHaveLength(1);
+  expect(queued.results[0]).toMatchObject({id:`agent-${ownerId}`,owner_type:"comment",owner_id:ownerId,requester_name:owner.name});
+  const provider=vi.fn(async()=>({result:{body:"ตรวจสอบแล้ว เรียบร้อย",},inputTokens:4,outputTokens:3}));
+  await Promise.all([drainSocialAgent(db,replyEnv,p.id,provider),drainSocialAgent(db,replyEnv,p.id,provider)]);
+  await drainSocialAgent(db,replyEnv,p.id,provider);
+  const view=await postView(db,owner,p.id);
+  expect(provider).toHaveBeenCalledTimes(1);
+  expect(view.comments.find(comment=>comment.id===ownerId)).toMatchObject({parent_comment_id:sourceId,mentions:[mention]});
+  expect(view.comments.find(comment=>comment.id===`reply-agent-${ownerId}`)).toMatchObject({author_kind:"agent",parent_comment_id:ownerId});
+  expect(view.agentReplies.filter(reply=>reply.owner_type==="comment"&&reply.owner_id===ownerId)).toHaveLength(1);
  });
 });
 

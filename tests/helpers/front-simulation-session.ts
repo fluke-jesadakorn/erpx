@@ -63,20 +63,29 @@ export async function signInFrontRole(
   await page.locator('input[type="password"]').fill(credentials.password);
   await Promise.all([
     page.waitForURL((url) => url.hostname === new URL(origin).hostname && url.pathname !== "/login", { timeout: 30_000 }),
-    page.getByRole("button", { name: "เข้าสู่ระบบ", exact: true }).click(),
+    page.getByRole("button", { name: /^(Sign in|เข้าสู่ระบบ)$/i }).click(),
   ]);
   await page.waitForLoadState("networkidle");
 
   const roleEndpoint = `/api/v1/front/riverside-lantern/${encodeURIComponent(companyId)}/${app}/roles`;
-  const roleStateResponse = await page.evaluate(async (endpoint) => {
-    const response = await fetch(endpoint, {
-      cache: "no-store",
-      headers: { "x-erpx-front-location": "holding" },
-    });
-    return { status: response.status, body: await response.json() as { data: { revision: number } } };
-  }, roleEndpoint);
-  expect(roleStateResponse.status, `${role} Front role options`).toBe(200);
-  const roleState = roleStateResponse.body.data;
+  let roleStateResponse: { status: number; body: { data: { revision: number } } } | null = null;
+  for (let attempt = 0; attempt < 3 && !roleStateResponse; attempt += 1) {
+    try {
+      roleStateResponse = await page.evaluate(async (endpoint) => {
+        const response = await fetch(endpoint, {
+          cache: "no-store",
+          headers: { "x-erpx-front-location": "holding" },
+        });
+        return { status: response.status, body: await response.json() as { data: { revision: number } } };
+      }, roleEndpoint);
+    } catch (error) {
+      if (attempt === 2 || !String(error).includes("Execution context was destroyed")) throw error;
+      await page.waitForLoadState("domcontentloaded").catch(() => undefined);
+    }
+  }
+  expect(roleStateResponse, `${role} Front page navigation settles before role selection`).toBeTruthy();
+  expect(roleStateResponse!.status, `${role} Front role options`).toBe(200);
+  const roleState = roleStateResponse!.body.data;
   const selected = await page.evaluate(async ({ endpoint, assignmentId, revision }) => {
     const response = await fetch(endpoint, {
       method: "POST",
@@ -96,7 +105,12 @@ export async function signInFrontRole(
   // that the selected assignment reached the rendered workspace.
   await expect(page.locator("[data-work-assignment]")).toHaveAttribute("data-work-assignment", assignment.id);
   await expect(page.locator("[data-work-stale]")).toHaveAttribute("data-work-stale", "false");
-  await page.getByRole("button", { name: "EN", exact: true }).click();
-  await expect(page.locator("html")).toHaveAttribute("lang", "en");
-  await expect(page.getByRole("button", { name: "ไทย", exact: true })).toBeVisible();
+  const html = page.locator("html");
+  const initialLanguage = await html.getAttribute("lang");
+  expect(initialLanguage === "en" || initialLanguage === "th").toBe(true);
+  const nextLanguage = initialLanguage === "th" ? "en" : "th";
+  await page.getByRole("button", { name: initialLanguage === "th" ? "EN" : "ไทย", exact: true }).click();
+  await expect(html).toHaveAttribute("lang", nextLanguage);
+  await page.getByRole("button", { name: initialLanguage === "th" ? "ไทย" : "EN", exact: true }).click();
+  await expect(html).toHaveAttribute("lang", initialLanguage!);
 }

@@ -1,24 +1,21 @@
 "use client";
 import { useState } from "react";
 import s from "./legal.module.css";
+import type { LegalEvidenceSource } from "@/server/legal/knowledge";
 export function LegalKnowledge({
   call,
   open,
+  base,
 }: {
   call: (path: string) => Promise<unknown>;
   open: (id: string) => Promise<void>;
+  base: string;
 }) {
+  const [asOf] = useState(() => new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 10));
   const [data, setData] = useState<{
       notice: string;
-      sources: {
-        item_id: string;
-        document_id: string;
-        title: string;
-        name: string;
-        version: number;
-        checksum: string;
-        excerpt: string;
-      }[];
+      asOf: string;
+      sources: LegalEvidenceSource[];
     } | null>(null),
     [error, setError] = useState("");
   return (
@@ -30,7 +27,7 @@ export function LegalKnowledge({
             const q = new FormData(e.currentTarget).get("query");
             setData(
               (await call(
-                `/knowledge?q=${encodeURIComponent(String(q))}`,
+                `/knowledge?q=${encodeURIComponent(String(q))}&asOf=${new FormData(e.currentTarget).get("asOf")}`,
               )) as typeof data,
             );
             setError("");
@@ -47,16 +44,19 @@ export function LegalKnowledge({
           minLength={2}
           maxLength={200}
         />
-        <button className={s.button}>Search all registers</button>
+        <label className={s.field}>Applicable date (Gregorian)<input name="asOf" type="date" required defaultValue={asOf} /></label>
+        <button className={s.button}>Search documents and laws</button>
       </form>
       {error && <p role="alert">{error}</p>}
       {data && <p>{data.notice}</p>}
       {data?.sources.map((d) => (
-        <article className={s.event} key={d.document_id}>
+        <article className={s.event} key={d.sourceId}>
           <button className={s.button} onClick={() => void open(d.item_id)}>
-            {d.title} · {d.name} v{d.version}
+            {d.title} · {d.name ?? d.revision_label ?? "Official source"} · v{d.version}
           </button>
           <p>{d.excerpt}</p>
+          <p className={s.small}>{d.kind === "law" ? `Law revision ${d.revision_label} · Effective ${d.effective_from} · As of ${data!.asOf}` : "Reviewed document version"}{d.page ? ` · Page ${d.page}` : ""}{d.section ? ` · ${d.section}` : ""}</p>
+          <a className={s.button} href={`${base}/legal/citations/${encodeURIComponent(d.kind === "law" ? `law:${d.id}` : d.sourceId)}?asOf=${encodeURIComponent(data!.asOf)}`}>Open citation and original</a>
           <small>
             {d.document_id} · SHA256 {d.checksum}
           </small>

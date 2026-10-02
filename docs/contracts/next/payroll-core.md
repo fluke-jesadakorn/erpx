@@ -25,7 +25,7 @@ Only one correction can be pending for a run. Request and decision commands requ
 | `POST /api/v1/holdings/{holdingSlug}/people/payroll/runs/{runId}/corrections` | Request correction of the current approved run version |
 | `POST /api/v1/holdings/{holdingSlug}/people/payroll/corrections/{correctionId}/decide` | Independently approve/reject, or requester-cancel, a pending correction |
 
-The run detail at `/holdings/{holdingSlug}/people/payroll/{runId}` shows correction history, source revision, reasons and role-appropriate actions.
+The run detail at `/holdings/{holdingSlug}/people/payroll/runs/{runId}` shows correction history, source revision, reasons and role-appropriate actions.
 
 ## Final pay from retirement clearance
 
@@ -37,4 +37,4 @@ The assigned Payroll owner can prepare final pay directly from the retirement cl
 
 Employees with `self.requests` can request an advance for their own active pay-group engagement; Payroll preparation roles can submit one for an eligible employee. The request records amount, currency, reason, first deduction period and one-to-24 installments. A different Company-level `payroll.approve` holder must approve or reject it, while the requester can cancel a pending request. Approval creates an immutable decision event and an exact repayment schedule whose remainder is distributed to the earliest installments.
 
-During calculation, open or reserved repayments whose due period overlaps the run are included as deduction components and copied into the input snapshot. Each repayment is guarded by its advance and repayment version, so stale or cancelled schedules cannot silently change a reviewed preview. The advance list and request/review actions are available at `/holdings/{holdingSlug}/people?view=payroll`; API commands are `POST /api/v1/holdings/{holdingSlug}/people/payroll/advances` and `POST /api/v1/holdings/{holdingSlug}/people/payroll/advances/{advanceId}/decide`.
+During calculation, open or reserved repayments whose due period overlaps the run are included as deduction components and copied into the input snapshot. Each repayment is guarded by its advance and repayment version, so stale or cancelled schedules cannot silently change a reviewed preview. The advance list and request/review actions are available at `/holdings/{holdingSlug}/people/payroll/advances`; API commands are `POST /api/v1/holdings/{holdingSlug}/people/payroll/advances` and `POST /api/v1/holdings/{holdingSlug}/people/payroll/advances/{advanceId}/decide`.

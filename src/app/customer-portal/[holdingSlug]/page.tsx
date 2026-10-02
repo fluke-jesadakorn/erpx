@@ -1,3 +1,4 @@
+import { TimeText } from "@/components/time/time-preference-context";
 import { CustomerPortalActions } from "@/components/customer-portal/customer-portal-actions";
 import { EmptyState, StatusBadge } from "@/components/ui/primitives";
 import { QuickAccessShelf } from "@/components/quick-access/shelf";
@@ -50,7 +51,7 @@ export default async function Page({ params }: { params: Promise<{ holdingSlug: 
               <p className="customer-record-meta"><StatusBadge status={String(record.state)} /><span>{String(record.kind)} · Due {String(record.due_date)} · {String(record.currency)}</span></p>
               <h3>Deliveries</h3>
               {(Array.isArray(record.fulfillments) ? record.fulfillments : []).map((fulfillment: Record<string, unknown>) => (
-                <p key={String(fulfillment.number)}>{String(fulfillment.number)} · recorded {new Date(Number(fulfillment.createdAt)).toISOString()}</p>
+                <p key={String(fulfillment.number)}>{String(fulfillment.number)} · recorded {<TimeText value={Number(fulfillment.createdAt)} />}</p>
               ))}
               <CustomerPortalActions
                 holdingSlug={holdingSlug}

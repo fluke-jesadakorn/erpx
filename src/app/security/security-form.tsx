@@ -1,4 +1,5 @@
 "use client";
+import { TimeText } from "@/components/time/time-preference-context";
 import { useCallback, useEffect, useRef, useState } from "react";
 export function AccountSecurity() {
   const [message, setMessage] = useState(""),
@@ -168,7 +169,7 @@ export function AccountSecurity() {
               <li key={`${access.holdingSlug ?? "platform"}:${access.companyId}`}>
                 <strong>{access.scopeLabel}</strong>
                 <p>Reason: {access.reason}</p>
-                <p>Expires: {new Date(access.expiresAt).toLocaleString()}</p>
+                <p>Expires: <TimeText value={access.expiresAt} /></p>
                 <button
                   className="button secondary"
                   disabled={busy}

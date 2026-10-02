@@ -12,6 +12,14 @@
 .iconButton { width:30px; min-height:30px; padding:5px; border:0; background:transparent; flex:0 0 auto; }
 .workspace button:focus-visible, .workspace summary:focus-visible, .workspace a:focus-visible, .form button:focus-visible { outline:2px solid var(--brand); outline-offset:2px; }
 .layout { display:grid; grid-template-columns:minmax(245px,29%) minmax(290px,1fr) minmax(220px,25%); min-height:570px; height:calc(100dvh - 280px); max-height:1000px; }
+.sharedSurface { min-width:0; }
+.sharedSurface > section { border:0; border-radius:0; box-shadow:none; }
+.sharedSurface .button { min-height:44px; }
+.sharedDetail { min-width:0; }
+.sharedDetail > section { padding:0; overflow:visible; }
+.sharedDetail .breadcrumb, .sharedDetail .detailHero { display:none; }
+.itSection { min-width:0; overflow-wrap:anywhere; }
+.itSection .metrics { margin-top:0; }
 .explorer, .library { display:flex; min-width:0; min-height:0; flex-direction:column; }
 .explorer { border-right:1px solid var(--line); background:color-mix(in srgb,var(--card-2) 40%,var(--card)); }
 .library { border-left:1px solid var(--line); }

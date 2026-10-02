@@ -2,6 +2,7 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { workFetch } from "@/lib/work-fetch";
+import { PreferredDateTimeField } from "@/components/time/preferred-date-time-field";
 import { minorToDecimal } from "@/lib/finance-money";
 import type {
   fieldServiceDetail,
@@ -287,10 +288,7 @@ export function FieldServiceConsole({
                 ))}
               </select>
             </label>
-            <label>
-              Schedule
-              <input name="scheduledAt" type="datetime-local" />
-            </label>
+            <PreferredDateTimeField name="scheduledAt" label="Schedule" />
             <button className="button" disabled={busy}>
               Create service order
             </button>
@@ -350,10 +348,7 @@ export function FieldServiceConsole({
                 ))}
               </select>
             </label>
-            <label>
-              Schedule
-              <input name="scheduledAt" type="datetime-local" required />
-            </label>
+            <PreferredDateTimeField name="scheduledAt" label="Schedule" required />
           </>,
         )}
       {order &&
@@ -374,10 +369,7 @@ export function FieldServiceConsole({
               Quantity milli
               <input name="quantityMilli" type="number" min="1" required />
             </label>
-            <label>
-              Expires
-              <input name="expiresAt" type="datetime-local" required />
-            </label>
+            <PreferredDateTimeField name="expiresAt" label="Expires" required />
           </>,
         )}
       {order &&

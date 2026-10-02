@@ -112,13 +112,15 @@ test("employee overtime is verified by a manager and independently handed off by
     await employeePage.reload({ waitUntil: "domcontentloaded" });
     await expect(employeePage.locator("#workspace-content").getByText("8h + 1h overtime · submitted", { exact: true })).toBeVisible();
 
-    await managerPage.goto(`/holdings/riverside-lantern/people/${employeeId}?tab=pay`, { waitUntil: "domcontentloaded" });
-    const timeCard = managerPage.locator("article").filter({ hasText: "2026-09-22" });
-    const timeApproval = managerPage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith(`/people/time-entries/${submittedTime.id}/approve`));
+    // Time-entry administration is exposed to HR/time reviewers. The manager
+    // has already completed the overtime and leave manager steps above.
+    await hrPage.goto(`/holdings/riverside-lantern/people/${employeeId}?tab=pay`, { waitUntil: "domcontentloaded" });
+    const timeCard = hrPage.locator("article").filter({ hasText: "2026-09-22" });
+    const timeApproval = hrPage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith(`/people/time-entries/${submittedTime.id}/approve`));
     await timeCard.getByRole("button", { name: "Approve time", exact: true }).click();
     expect((await timeApproval).ok()).toBe(true);
-    await managerPage.reload({ waitUntil: "domcontentloaded" });
-    personDetail = (await (await managerContext.request.get(peopleApi)).json()).data;
+    await hrPage.reload({ waitUntil: "domcontentloaded" });
+    personDetail = (await (await hrContext.request.get(peopleApi)).json()).data;
     expect(personDetail.time.find((item: { id: string }) => item.id === submittedTime.id)).toMatchObject({ status: "approved", approved_by: expect.any(String) });
 
     await employeePage.goto("/holdings/riverside-lantern/leave/new", { waitUntil: "domcontentloaded" });
@@ -126,7 +128,7 @@ test("employee overtime is verified by a manager and independently handed off by
     await employeePage.getByRole("combobox").first().selectOption(state.fixture.hospitality.leaveTypeId);
     await employeePage.getByLabel("First day", { exact: true }).first().fill("2026-09-29");
     await employeePage.getByLabel("Last day", { exact: true }).first().fill("2026-09-29");
-    await employeePage.getByLabel(/Handover note/).fill("Fictional leave handover for rostered front desk coverage.");
+    await employeePage.getByLabel(/Handover note/).first().fill("Fictional leave handover for rostered front desk coverage.");
     await employeePage.getByRole("button", { name: "Review request", exact: true }).click();
     await expect(employeePage.getByRole("heading", { name: "Check the calculation", exact: true })).toBeVisible();
     await expect(employeePage.getByText("1 working day", { exact: true })).toBeVisible();
@@ -139,7 +141,7 @@ test("employee overtime is verified by a manager and independently handed off by
     expect(leaveDetail).toMatchObject({ state: "pending_approval", calculated_units: 1 });
 
     await managerPage.goto(`/holdings/riverside-lantern/tasks/people_payroll/${leaveId}`, { waitUntil: "domcontentloaded" });
-    await expect(managerPage.getByRole("heading", { name: "Your next action", exact: true })).toBeVisible();
+    await expect(managerPage.getByRole("button", { name: "Approve", exact: true })).toBeVisible();
     const managerLeaveApproval = managerPage.waitForResponse((response) => response.request().method() === "POST" && response.url().endsWith(`/leave-requests/${leaveId}/approve`));
     await managerPage.getByRole("button", { name: "Approve", exact: true }).click();
     expect((await managerLeaveApproval).ok()).toBe(true);
@@ -155,7 +157,8 @@ test("employee overtime is verified by a manager and independently handed off by
     await hrPage.reload({ waitUntil: "domcontentloaded" });
     leaveDetail = (await (await hrContext.request.get(`/api/v1/holdings/riverside-lantern/leave-requests/${leaveId}`)).json()).data;
     expect(leaveDetail).toMatchObject({ state: "approved", version: 3 });
-    await expect(hrPage.getByRole("heading", { name: "Request status", exact: true })).toBeVisible();
+    await expect(hrPage.getByRole("heading", { name: "Synthetic annual leave", exact: true })).toBeVisible();
+    await expect(hrPage.getByText("Your leave is approved.", { exact: true })).toBeVisible();
   } finally {
     await Promise.all([employeeContext.close(), managerContext.close(), hrContext.close(), unauthorizedContext.close()]);
   }

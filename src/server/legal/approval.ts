@@ -4,7 +4,7 @@ import type { SqlDatabase, SqlStatement } from "../runtime/types";
 import type { WorkContext } from "../authorization";
 import type { DocumentVersion, LegalItem } from "@/lib/legal/model";
 import { openApproval, currentApproval, type ApprovalStep } from "../approvals";
-import { access, guards, eligible, event, fail } from "./access";
+import { access, guards, eligible, personGuard, event, fail } from "./access";
 import { executeCommand, replayCommand, assertion } from "../commands";
 import { samePerson } from "@/lib/iam";
 import { hash } from "./service";
@@ -100,6 +100,7 @@ export async function legalApprovalCommand(
       .bind(p.documentId, item.id)
       .first<DocumentVersion>();
     if (!d) fail("Select a version on this contract.");
+    if(await db.prepare("SELECT 1 FROM legal_executed_copies WHERE document_id=?").bind(d.id).first())fail("Imported executed copies are reviewed separately from draft approval.");
     const author = await db
       .prepare(
         "SELECT actor_id FROM legal_events WHERE item_id=? AND action IN ('created','update','document','document.upload','ai.accepted') ORDER BY version DESC LIMIT 1",
@@ -108,6 +109,7 @@ export async function legalApprovalCommand(
       .first<{ actor_id: string }>();
     for (const u of p.approverIds) {
       await reviewer(db, a, item, u);
+      steps.push(personGuard(db,a,key,u,item,"legal.approve"),assertion(db,key,`legal-reviewer-membership-${u}`,"EXISTS(SELECT 1 FROM legal_members WHERE item_id=? AND user_id=?)",[item.id,u]));
       if (
         await isAuthor(db, a.companyId, u, [
           a.userId,
@@ -227,6 +229,7 @@ export async function legalApprovalCommand(
     if (x.action === "approval.reroute") {
       const p = z.object({ approverId: z.string() }).parse(raw);
       await reviewer(db, a, item, p.approverId);
+      steps.push(personGuard(db,a,key,p.approverId,item,"legal.approve"),assertion(db,key,"legal-reroute-membership","EXISTS(SELECT 1 FROM legal_members WHERE item_id=? AND user_id=?)",[item.id,p.approverId]));
       const author = await db
         .prepare("SELECT created_by FROM legal_documents WHERE id=?")
         .bind(route.document_id)
@@ -276,6 +279,7 @@ export async function legalApprovalCommand(
           403,
         );
       await reviewer(db, a, item, a.userId);
+      steps.push(personGuard(db,a,key,a.userId,item,"legal.approve"),assertion(db,key,"legal-decision-membership","EXISTS(SELECT 1 FROM legal_members WHERE item_id=? AND user_id=?)",[item.id,a.userId]));
       if (
         samePerson(a, item.created_by) ||
         samePerson(a, instance.requester_user_id)
@@ -401,7 +405,7 @@ async function reviewer(
   item: LegalItem,
   id: string,
 ) {
-  await eligible(db, a, id);
+  await eligible(db, a, id,item,"legal.approve");
   if (
     !(await db
       .prepare(

@@ -54,7 +54,7 @@ define("inbox.notice.broadcast", "Broadcast a staff notice", "collaboration", no
 for(const action of ["read","create","work","manage"] as const) define(`support.${action}`,`Support ${action}`,"support",action==='manage'?[owner,"support_manager"]:action==='work'?[owner,"support_agent","support_manager"]:[owner,"support_agent","support_manager","sales_operator","sales_manager"],["Source scope; current eligible owner; independent recorded customer confirmation"],action==='manage'?'privileged':'normal');
 const legalPermissions = ["read", "create", "edit", "review", "approve", "sign", "share", "export", "hold", "hold.release", "manage", "ai"] as const;
 define("legal.destroy","Authorize Legal destruction","legal",[owner,"legal_manager"],["Independent approval; no active hold; approved retention policy"]);
-for (const action of legalPermissions) define(`legal.${action}`, `Legal: ${action}`, "legal", action === "manage" ? [owner, "legal_manager"] : [owner, "legal_counsel", "legal_manager"], ["Explicit membership for confidential and restricted records"]);
+for (const action of legalPermissions) define(`legal.${action}`, `Legal: ${action}`, "legal", action === "manage" ? [owner, "legal_manager"] : [owner, "legal_counsel", "legal_manager", ...(["read","create","edit"].includes(action)?["legal_requester"]:[])], ["Explicit membership for confidential and restricted records; requesters may access only their own requests"]);
 define("iam.read", "View identities and access", "identity_access", [
   owner,
   "hr_admin",
@@ -133,6 +133,7 @@ define("people.manage", "Maintain employee details", "people_payroll", [
   ...hr,
   "people_manager",
 ]);
+define("people.custom_attributes.write", "Edit person custom attribute values", "people_payroll", [owner, "hr_admin", "people_manager", "it_admin"], ["Person in selected Company; field access rules"], "privileged");
 define(
   "people.documents.read",
   "Read restricted employee documents",

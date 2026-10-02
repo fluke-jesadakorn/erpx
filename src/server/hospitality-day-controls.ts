@@ -18,6 +18,7 @@ export async function hospitalityDayControls(db:SqlDatabase,companyId:string,bra
   const openBills=await count(db,"SELECT count(*) n FROM pos_sales WHERE company_id=? AND branch_id=? AND business_date=? AND state IN ('open','held','payment_pending')",...scope,businessDate);
   const pendingPayments=await count(db,"SELECT count(*) n FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id WHERE s.company_id=? AND s.branch_id=? AND s.business_date=? AND p.state IN ('requested','pending','exception')",...scope,businessDate);
   const pendingHotelTransfers=await count(db,"SELECT count(*) n FROM pms_transfer_requests WHERE company_id=? AND property_id=? AND business_date=? AND state='pending'",companyId,propertyId,businessDate);
+  const pendingChargeCorrections=await count(db,"SELECT count(*) n FROM pms_charge_corrections WHERE company_id=? AND property_id=? AND status='pending'",companyId,propertyId);
   const unresolvedRefunds=await count(db,"SELECT count(*) n FROM pos_refunds WHERE company_id=? AND branch_id=? AND accounting_date=? AND state IN ('requested','approved','processing','exception')",...scope,businessDate);
   const failedJobs=await count(db,"SELECT count(*) n FROM pos_jobs WHERE company_id=? AND state='exception' AND kind NOT IN ('connect','connect_refresh')",companyId);
   const missingRoomCharges=await count(db,`SELECT count(*) n FROM pos_sales s WHERE s.company_id=? AND s.branch_id=? AND s.business_date=? AND s.state='completed' AND s.invoice_id IS NULL
@@ -68,6 +69,7 @@ export async function hospitalityDayControls(db:SqlDatabase,companyId:string,bra
     openBills?`${openBills} restaurant bill(s) still open for this business date`:null,
     pendingPayments?`${pendingPayments} restaurant payment(s) awaiting a result or bank verification`:null,
     pendingHotelTransfers?`${pendingHotelTransfers} hotel bank transfer(s) awaiting Finance verification`:null,
+    pendingChargeCorrections?`${pendingChargeCorrections} hotel folio correction(s) awaiting independent review`:null,
     unresolvedRefunds?`${unresolvedRefunds} restaurant refund(s) awaiting resolution`:null,
     failedJobs?`${failedJobs} restaurant background job(s) need recovery`:null,
     missingRoomCharges?`${missingRoomCharges} room charge(s) lack a hotel revenue posting`:null,
@@ -77,6 +79,6 @@ export async function hospitalityDayControls(db:SqlDatabase,companyId:string,bra
     stockValueMinor!==stockLedgerMinor?'Restaurant stock movements do not match their inventory ledger posting':null,
     unbalancedJournals?`${unbalancedJournals} restaurant or hotel journal(s) are unbalanced`:null,
   ].filter((value):value is string=>Boolean(value));
-  return {businessDate,blockers,openShifts,unreviewedVariances,openBills,pendingPayments,pendingHotelTransfers,unresolvedRefunds,failedJobs,missingRoomCharges,missingDirectInvoices,unmatchedVerifiedTransfers,unmatchedVerifiedHotelTransfers,unbalancedJournals,
+  return {businessDate,blockers,openShifts,unreviewedVariances,openBills,pendingPayments,pendingHotelTransfers,pendingChargeCorrections,unresolvedRefunds,failedJobs,missingRoomCharges,missingDirectInvoices,unmatchedVerifiedTransfers,unmatchedVerifiedHotelTransfers,unbalancedJournals,
     directSalesMinor:Number(totals?.direct_total??0),roomChargesMinor:Number(totals?.room_total??0),cashReceivedMinor:Number(totals?.cash_received??0),verifiedTransferMinor:Number(totals?.transfer_verified??0),stockValueMinor,stockLedgerMinor};
 }

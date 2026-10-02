@@ -1,7 +1,12 @@
 @import "tailwindcss";
+@font-face {
+  font-family: "Noto Sans Thai";
+  src: url("/fonts/NotoSansThai.ttf") format("truetype");
+  font-display: swap;
+}
 :root {
   /* Canonical ERPX foundations. Component styles consume these semantic tokens. */
-  --font-sans: var(--font-geist-sans), Arial, sans-serif;
+  --font-sans: var(--font-geist-sans), "Noto Sans Thai", Arial, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --type-page: 34px;
   --type-section: 23px;
@@ -177,11 +182,13 @@ textarea {
 
 @media print {
   @page { size: A4; margin: 14mm; }
-  html, body { min-height:0; background:#fff !important; color:#111 !important; color-scheme:light; }
+  html, body { min-height:0; background:#fff !important; color:#111 !important; color-scheme:light; --ink:#111; --ink-strong:#111; --muted:#475569; --card:#fff; --card-2:#f8fafc; --paper:#fff; --line:#cbd5e1; }
   [data-app-chrome], [data-print-hide] { display:none !important; }
-  [data-app-main] { display:block !important; width:100% !important; margin:0 !important; }
+  [data-app-main] { display:block !important; grid-column:1/-1 !important; width:100% !important; margin:0 !important; }
   [data-print-document] { display:block !important; width:100% !important; max-width:none !important; margin:0 !important; padding:0 !important; }
   [data-print-document] :is(form,button,details,.back-link) { display:none !important; }
+  [data-print-document] :is(.record-next-action,#workflow-owners,[data-critical-notice],#finance-invoices-detail-invoice-details,#finance-invoices-detail-controlled-payment,#finance-payments-detail-lifecycle,#finance-payments-detail-payment-correction,#finance-journals-detail-journal-actions) { display:none !important; }
+  [data-print-document] p:has(+ #workflow-owners) { display:none !important; }
   [data-print-document] :is(.card,.row,article,table) { break-inside:avoid; box-shadow:none !important; }
   [data-print-document] .business-table-wrap { overflow:visible !important; }
   [data-print-document] table { width:100%; border-collapse:collapse; }
@@ -702,3 +709,4 @@ time {
 .customer-portal-actions label { display:grid; gap:7px; color:var(--muted); font-size:var(--type-meta); }
 .customer-portal-actions textarea { width:100%; min-height:86px; padding:10px 12px; border:1px solid var(--control-border); border-radius:var(--radius-md); background:var(--card); color:var(--ink); resize:vertical; }
 .customer-portal-actions .actions { display:flex; flex-wrap:wrap; gap:8px; }
+.preferred-date-time-field{display:grid;gap:5px;min-width:0}.preferred-date-time-field>label{display:grid;gap:5px}.preferred-date-time-field input[type="datetime-local"],.preferred-date-time-field select{width:100%;min-width:0}.preferred-date-time-field small{font-size:12px;color:var(--muted)}.preferred-date-time-field small[role="alert"]{color:var(--red)}

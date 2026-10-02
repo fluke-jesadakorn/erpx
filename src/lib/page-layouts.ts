@@ -221,8 +221,15 @@ export function featureLocation(
   const active = model.search.find((item) => item.id === resolved.activeId);
   let tabs =
     app?.items.filter((item) => !["projects-tasks"].includes(item.id)) ?? [];
+  if (app?.id === "people" && context.beta && !tabs.some((item) => item.id === "people-organization")) {
+    const organization: NavigationItem = { id: "people-organization", label: "Organization", href: `${context.workspaceBase}/people/organization`, group: "People", icon: "admin-people" };
+    const rosterIndex = tabs.findIndex((item) => item.id === "people-roster");
+    tabs = [...tabs];
+    tabs.splice(rosterIndex >= 0 ? rosterIndex + 1 : 1, 0, organization);
+  }
   let secondaryTabs: NavigationItem[] = [];
   let pageKey = resolved.activeId || relative.split("/")[0] || "home";
+  if (relative === "people/organization") pageKey = "people-organization";
   if (relative === "commerce" && query.get("view") === "parties") pageKey = "operations-parties";
   if (
     relative.startsWith("people/") &&
@@ -259,14 +266,8 @@ export function featureLocation(
   if (resolved.activeId === "technology-organization") tabs = [];
   if(resolved.activeId === "work") tabs=workViews.map(([id,label])=>({id:`work-${id}`,label,href:`${context.workspaceBase}/work?view=${id}`,group:"Work",icon:"work"}));
   if (app?.id === "people" && !context.beta) {
-    const primaryIds = new Set([
-      "people-directory",
-      "people-roster",
-      "people-organization",
-      "people-payroll",
-    ]);
-    secondaryTabs = tabs.filter((tab) => !primaryIds.has(tab.id));
-    tabs = tabs.filter((tab) => primaryIds.has(tab.id));
+    secondaryTabs = [];
+    tabs = [];
   }
   if (relative === "calendar") {
     pageKey = `calendar-${query.get("preset") === "coverage" ? "coverage" : query.get("mode") === "mine" ? "mine" : "team"}`;
@@ -291,7 +292,7 @@ export function featureLocation(
     id: app?.id ?? pageKey,
     title: app?.label ?? active?.label ?? relative.split("/")[0],
     pageKey,
-    activeId: relative === "calendar" ? pageKey : resolved.activeId === "work" ? `work-${query.get("view")??"actions"}` : resolved.activeId,
+    activeId: relative === "people/organization" ? "people-organization" : relative === "calendar" ? pageKey : resolved.activeId === "work" ? `work-${query.get("view")??"actions"}` : resolved.activeId,
     tabs,
     secondaryTabs,
   };

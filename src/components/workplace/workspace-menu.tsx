@@ -39,15 +39,19 @@ export function WorkspaceMenu({
   choices,
   current,
   canManageErpx,
+  defaultOpen = false,
+  onDismiss,
 }: {
   label: string;
   choices: WorkspaceChoice[];
   current: CurrentWorkspaceChoice;
   canManageErpx: boolean;
+  defaultOpen?: boolean;
+  onDismiss?: () => void;
 }) {
   const ready = useHydrated();
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [pendingCompany, setPendingCompany] = useState("");
   const [error, setError] = useState("");
   const switching=useRef(false);
@@ -191,7 +195,7 @@ export function WorkspaceMenu({
           aria-hidden="true"
         />
       </button>
-      <Dialog title="Switch workspace" open={open} onClose={() => setOpen(false)}>
+      <Dialog title="Switch workspace" open={open} onClose={() => { setOpen(false); onDismiss?.(); }}>
         {canManageErpx && (
           <section className={styles.workspaceSection}>
             <h3>ERPX</h3>
