@@ -1,4 +1,4 @@
-import {beforeAll,beforeEach,expect,it,vi} from "vitest";
+import {afterEach,beforeAll,beforeEach,expect,it,vi} from "vitest";
 import {applyMigrations,env} from "./runtime-env";
 import {expenseDb as db,expenseFixture,key} from "./helpers/expense-fixture";
 import {benefitDetail,benefitsWorkspace,benefitWork,changeBenefitRecord,createBenefitDependent,createBenefitElection,createBenefitPlan,createBenefitWindow} from "../src/server/benefits";
@@ -7,7 +7,13 @@ import {attachmentBindingState,enableAttachmentV2ForTest,seedAttachmentSet} from
 vi.mock("../src/server/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);enableAttachmentV2ForTest();});
-beforeEach(async()=>{f=await expenseFixture();for(const a of [f.owner,f.tie,f.claimant,f.reviewer])a.modules=["benefits","people_payroll"];});
+beforeEach(async()=>{
+ // Keep the clock within the fixture's fixed enrollment window.
+ vi.useFakeTimers({toFake:["Date"]});
+ vi.setSystemTime(new Date("2026-10-01T09:00:00Z"));
+ f=await expenseFixture();for(const a of [f.owner,f.tie,f.claimant,f.reviewer])a.modules=["benefits","people_payroll"];
+});
+afterEach(()=>vi.useRealTimers());
 async function reviewedSources(type:"employee"|"family"="family"){
  const plan=await createBenefitPlan(f.owner,{name:"Health Plus",provider:"Simulated Provider",coverageType:type,currency:"THB",employeeDeduction:"125.50",employerCost:"300.00",effectiveFrom:"2026-09-01",effectiveTo:null},key());
  await expect(changeBenefitRecord(f.owner,"plan",String(plan.id),{action:"publish",expectedVersion:1,reason:"Self review must fail"},key())).rejects.toMatchObject({code:"CONFLICT"});
